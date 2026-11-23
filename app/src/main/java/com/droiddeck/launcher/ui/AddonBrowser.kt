@@ -68,13 +68,13 @@ import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.runtime.WowAddonCatalog
 import com.droiddeck.launcher.runtime.WowAddons
 import com.droiddeck.launcher.session.SessionState
-import com.droiddeck.launcher.store.UserAppsState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 private class AddonResults {
     val items = mutableStateListOf<WowAddonCatalog.Addon>()
@@ -99,8 +99,8 @@ internal class CurseLink(val app: UserApps.App) {
     @Volatile private var inspector: String? = null
     private val guids = HashMap<String, String>()
 
-    fun <T> call(context: Context, target: WowAddons.Target, block: (Linked) -> T): T {
-        val linked = synchronized(lock) { link(context, target) }
+    fun <T> call(context: Context, target: WowAddons.Target, launch: Boolean = true, block: (Linked) -> T): T {
+        val linked = synchronized(lock) { link(context, target, launch) }
         try {
             return block(linked)
         } catch (e: CurseForgeApp.Failure) {
@@ -108,22 +108,25 @@ internal class CurseLink(val app: UserApps.App) {
                 if (inspector == linked.inspector) {
                     inspector = null
                     guids.clear()
+                    current.compareAndSet(this, null)
                 }
             }
             throw e
         }
     }
 
-    private fun link(context: Context, target: WowAddons.Target): Linked {
+    private fun link(context: Context, target: WowAddons.Target, launch: Boolean): Linked {
         if (closed) throw CurseState()
         val url = inspector ?: run {
-            val launch = AtomicBoolean(false)
-            hold = launch
+            if (!launch) throw CurseState()
+            val hold = AtomicBoolean(false)
+            this.hold = hold
             if (closed) throw CurseState()
-            val done = CurseForgeApp.start(context, app, launch)
+            val done = CurseForgeApp.start(context, app, hold)
             when (done.state) {
                 CurseForgeApp.Start.READY -> {
                     inspector = done.inspector
+                    if (!closed) current.set(this)
                     done.inspector ?: throw CurseState()
                 }
                 CurseForgeApp.Start.BUSY -> throw CurseState(R.string.addons_curse_busy)
@@ -139,7 +142,7 @@ internal class CurseLink(val app: UserApps.App) {
         return Linked(url, guid)
     }
 
-    fun uninstall(context: Context, target: WowAddons.Target, folder: String): Boolean = call(context, target) { linked ->
+    fun uninstall(context: Context, target: WowAddons.Target, folder: String): Boolean = call(context, target, launch = false) { linked ->
         val project = CurseForgeApp.owner(CurseForgeApp.projects(context, linked.inspector, linked.guid, rescan = true), folder) ?: return@call false
         if (!CurseForgeApp.uninstall(context, linked.inspector, linked.guid, project)) throw CurseState()
         true
@@ -147,6 +150,7 @@ internal class CurseLink(val app: UserApps.App) {
 
     fun close(context: Context) {
         closed = true
+        current.compareAndSet(this, null)
         val launch = hold ?: return
         Thread {
             CurseForgeApp.stop(context, app, inspector, launch)
@@ -155,6 +159,12 @@ internal class CurseLink(val app: UserApps.App) {
                 inspector = null
             }
         }.start()
+    }
+
+    companion object {
+        private val current = AtomicReference<CurseLink?>()
+
+        fun live(): CurseLink? = current.get()
     }
 }
 
@@ -458,14 +468,8 @@ internal fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target
     }
 }
 
-internal fun deleteAddon(context: Context, target: WowAddons.Target, folder: String) {
-    val app = CurseForgeApp.find(UserAppsState.items)
-    val link = app?.let(::CurseLink)
-    val managed = try {
-        link?.let { runCatching { it.uninstall(context, target, folder) }.getOrDefault(false) } == true
-    } finally {
-        link?.close(context)
-    }
+internal fun deleteAddon(context: Context, target: WowAddons.Target, folder: String, link: CurseLink? = CurseLink.live()) {
+    val managed = link?.let { runCatching { it.uninstall(context, target, folder) }.getOrDefault(false) } == true
     if (!managed) WowAddons.delete(target, folder) else WowAddons.changed()
 }
 

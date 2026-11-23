@@ -300,7 +300,7 @@ class CurseForgeAppTest {
         assertTrue(!GuestCommand.redacted(url, CurseForgeApp.INSPECTOR).contains(url))
     }
 
-    private class Curse(val addOns: File) {
+    private class Curse(val addOns: File, val flavor: String = "") {
         val projects = java.util.concurrent.CopyOnWriteArrayList<JSONObject>()
         val methods = java.util.Collections.synchronizedList(mutableListOf<String>())
 
@@ -322,6 +322,8 @@ class CurseForgeAppTest {
                     projects.forEach { it.put("status", 1) }
                     true
                 }
+                "detectGameFromPath" -> JSONObject().put("gameInstanceGuid", "g")
+                "getGameInstances" -> JSONArray().put(JSONObject().put("guid", "g").put("installPath", flavor))
                 "deleteMods" -> {
                     projects.removeAll { p -> (p.getString("installedModId") in expression).also { gone -> if (gone) File(addOns, p.getJSONArray("folders").getString(0)).deleteRecursively() } }
                     JSONArray()
@@ -331,14 +333,80 @@ class CurseForgeAppTest {
         }
     }
 
-    private fun fakeCurse(): Curse {
-        val curse = Curse(temp.newFolder("AddOns"))
-        CurseForgeApp.guest = { _, argv, _, onLine ->
-            val value = JSONObject().put("value", curse.answer(argv[4]) ?: JSONObject.NULL)
-            onLine(JSONObject().put("ok", true).put("value", value.toString()).toString())
-            0
+    private fun fakeCurse(addOns: File = temp.newFolder("AddOns"), flavor: String = "", calls: MutableList<List<String>> = mutableListOf()): Curse {
+        val curse = Curse(addOns, flavor)
+        CurseForgeApp.guest = { _, argv, cancelled, onLine ->
+            calls += argv
+            when {
+                argv[0] == CurseForgeApp.HELPER && argv[1] == "start" -> {
+                    onLine(url)
+                    while (cancelled?.get() != true) Thread.sleep(10)
+                    0
+                }
+                argv[0] == CurseForgeApp.HELPER -> 0
+                else -> {
+                    val value = JSONObject().put("value", curse.answer(argv[4]) ?: JSONObject.NULL)
+                    onLine(JSONObject().put("ok", true).put("value", value.toString()).toString())
+                    0
+                }
+            }
         }
         return curse
+    }
+
+    private fun wow(): WowAddons.Target {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val games = temp.newFolder("Games")
+        val addOns = File(games, "World of Warcraft/_retail_/Interface/AddOns").apply { mkdirs() }
+        com.droiddeck.launcher.session.SessionPrefs.setGameFolderBinds(context, listOf(games.absolutePath to "/root/Games"))
+        return WowAddons.Target("_retail_", addOns)
+    }
+
+    @Test
+    fun aDeleteWhileCurseForgeIsLinkedGoesThroughItsUninstall() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val target = wow()
+        val curse = fakeCurse(target.addOns, "/root/Games/World of Warcraft/_retail_")
+        curse.add("298842", "Leatrix_Maps", 1)
+        curse.add("18808", "TomTom", 1)
+        val link = com.droiddeck.launcher.ui.CurseLink(app)
+        try {
+            link.call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid) }
+            assertTrue(com.droiddeck.launcher.ui.CurseLink.live() === link)
+            com.droiddeck.launcher.ui.deleteAddon(context, target, "Leatrix_Maps")
+            assertTrue("deleteMods" in curse.methods)
+            assertFalse(File(target.addOns, "Leatrix_Maps").exists())
+            assertEquals(listOf("18808"), CurseForgeApp.projects(context, url, "g").map { it.id })
+        } finally {
+            link.close(context)
+        }
+        assertNull(com.droiddeck.launcher.ui.CurseLink.live())
+    }
+
+    @Test
+    fun aDeleteWithoutALiveLinkRemovesTheFolderAtOnceWithoutStartingCurseForge() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val target = wow()
+        val calls = java.util.Collections.synchronizedList(mutableListOf<List<String>>())
+        val curse = fakeCurse(target.addOns, "/root/Games/World of Warcraft/_retail_", calls)
+        curse.add("298842", "Leatrix_Maps", 1)
+        assertNull(com.droiddeck.launcher.ui.CurseLink.live())
+        com.droiddeck.launcher.ui.deleteAddon(context, target, "Leatrix_Maps")
+        assertFalse(File(target.addOns, "Leatrix_Maps").exists())
+        assertTrue(calls.isEmpty())
+        assertTrue(CurseForgeApp.projects(context, url, "g", rescan = true).none { it.id == "298842" })
+    }
+
+    @Test
+    fun aLinkThatNeverStartedIsNotUsedToDelete() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val target = wow()
+        val calls = java.util.Collections.synchronizedList(mutableListOf<List<String>>())
+        val curse = fakeCurse(target.addOns, "/root/Games/World of Warcraft/_retail_", calls)
+        curse.add("298842", "Leatrix_Maps", 1)
+        com.droiddeck.launcher.ui.deleteAddon(context, target, "Leatrix_Maps", com.droiddeck.launcher.ui.CurseLink(app))
+        assertFalse(File(target.addOns, "Leatrix_Maps").exists())
+        assertTrue(calls.isEmpty())
     }
 
     @Test
