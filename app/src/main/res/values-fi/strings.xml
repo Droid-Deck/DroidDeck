@@ -332,7 +332,6 @@
     <string name="mode_startup">Käynnistys</string>
     <string name="mode_startup_session">Avaa käynnistyksessä</string>
     <string name="mode_startup_session_hint">Käynnistää tämän istunnon, kun DroidDeck avataan.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Tarkistetaan julkaisuja…</string>
     <string name="mode_decky_ready">Valmiina asentamaan %1$s.</string>
     <string name="mode_decky_none">Yhteensopivaa versiota ei löytynyt. Yritä myöhemmin uudelleen.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Ajan tasalla · %1$s</string>
     <string name="mode_decky_loader">Lataaja</string>
     <string name="mode_decky_install_latest">Asenna uusin</string>
-    <string name="decky_channel">Päivityskanava</string>
-    <string name="decky_channel_hint">Mitkä Decky Loader -julkaisut asennetaan. Deckyn oma päivitysohjelma käyttää samaa kanavaa.</string>
     <string name="decky_channel_stable">Vakaa</string>
     <string name="decky_channel_prerelease">Esijulkaisu</string>
     <string name="decky_channel_testing">Testaus</string>
     <string name="decky_channel_failed">Deckyn päivityskanavaa ei voitu tallentaa</string>
-    <string name="mode_decky_on">Käynnistyy Steamin kanssa. Päällä ollessaan muut tämän laitteen sovellukset voivat pystyä ohjaamaan Steamia.</string>
-    <string name="mode_decky_off">Pois. Steamin etävianmääritysportti pysyy suljettuna.</string>
     <string name="mode_decky_remove_title">Poistetaanko Decky Loader?</string>
     <string name="mode_decky_remove_text">Poistaa loaderin. Laajennuksesi ja asetuksesi säilyvät.</string>
     <string name="mode_client">Asiakasohjelma</string>

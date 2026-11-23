@@ -332,7 +332,6 @@
     <string name="mode_startup">Pornire</string>
     <string name="mode_startup_session">Deschide la pornire</string>
     <string name="mode_startup_session_hint">Pornește această sesiune când se lansează DroidDeck.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Se verifică versiunile…</string>
     <string name="mode_decky_ready">Pregătit pentru instalarea %1$s.</string>
     <string name="mode_decky_none">Nu s-a găsit o versiune compatibilă. Încearcă din nou mai târziu.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Actualizat · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Instalează cea mai recentă versiune</string>
-    <string name="decky_channel">Canal de actualizare</string>
-    <string name="decky_channel_hint">Ce versiuni Decky Loader se instalează. Actualizatorul propriu al Decky folosește același canal.</string>
     <string name="decky_channel_stable">Stabil</string>
     <string name="decky_channel_prerelease">Pre-lansare</string>
     <string name="decky_channel_testing">Testare</string>
     <string name="decky_channel_failed">Canalul de actualizare Decky nu a putut fi salvat</string>
-    <string name="mode_decky_on">Pornește odată cu Steam. Cât timp este activ, alte aplicații de pe acest dispozitiv pot fi capabile să controleze Steam.</string>
-    <string name="mode_decky_off">Dezactivat. Portul de depanare la distanță al Steam rămâne închis.</string>
     <string name="mode_decky_remove_title">Dezinstalezi Decky Loader?</string>
     <string name="mode_decky_remove_text">Elimină loader-ul. Pluginurile și setările tale sunt păstrate.</string>
     <string name="mode_client">Client</string>

@@ -332,7 +332,6 @@
     <string name="mode_startup">Başlangıç</string>
     <string name="mode_startup_session">Açılışta başlat</string>
     <string name="mode_startup_session_hint">DroidDeck açıldığında bu oturumu başlatır.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Sürümler kontrol ediliyor…</string>
     <string name="mode_decky_ready">%1$s yüklenmeye hazır.</string>
     <string name="mode_decky_none">Uyumlu derleme bulunamadı. Daha sonra tekrar deneyin.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Güncel · %1$s</string>
     <string name="mode_decky_loader">Yükleyici</string>
     <string name="mode_decky_install_latest">En yenisini yükle</string>
-    <string name="decky_channel">Güncelleme kanalı</string>
-    <string name="decky_channel_hint">Hangi Decky Loader sürümlerinin yükleneceği. Decky\'nin kendi güncelleyicisi de aynı kanalı kullanır.</string>
     <string name="decky_channel_stable">Kararlı</string>
     <string name="decky_channel_prerelease">Ön sürüm</string>
     <string name="decky_channel_testing">Test</string>
     <string name="decky_channel_failed">Decky güncelleme kanalı kaydedilemedi</string>
-    <string name="mode_decky_on">Steam ile başlar. Açıkken bu cihazdaki diğer uygulamalar Steam\'i kontrol edebilir.</string>
-    <string name="mode_decky_off">Kapalı. Steam\'in uzaktan hata ayıklama bağlantı noktası kapalı kalır.</string>
     <string name="mode_decky_remove_title">Decky Loader kaldırılsın mı?</string>
     <string name="mode_decky_remove_text">Yükleyiciyi kaldırır. Eklentileriniz ve ayarlarınız korunur.</string>
     <string name="mode_client">İstemci</string>

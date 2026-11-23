@@ -263,6 +263,10 @@ private fun Content(
         SyncTabPage(s, modifier.padding(horizontal = padH).padding(top = padV))
         return
     }
+    if (selected == "decky" || selected == "boot-movies") {
+        SteamTabPage(selected, a, modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
     if (selected == "updates") {
         UpdatesPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
         return
