@@ -148,6 +148,35 @@ object DualScreenPanel {
         }.onFailure { launching = false; displayId = -1 }
     }
 
+    /**
+     * The panel on a presentation window sits above every activity on its screen, so an app launched there stays hidden behind it.
+     * Swapping the panel for a task of its own puts the app above it, and closing the app shows the panel again.
+     */
+    fun makeRoomForApp(context: Context, display: Int, launch: () -> Unit) {
+        val shown = presentation
+        if (shown == null || displayId != display) { launch(); return }
+        presentation = null
+        shown.dismiss()
+        launching = true
+        val intent = Intent(context, DualScreenActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        val started = runCatching {
+            context.startActivity(intent, ActivityOptions.makeBasic().setLaunchDisplayId(display).toBundle())
+        }.isSuccess
+        if (!started) { launching = false; displayId = -1; launch(); return }
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        var waited = 0
+        lateinit var attempt: Runnable
+        attempt = Runnable {
+            if (activity != null || waited >= APP_WAIT_MS) launch()
+            else { waited += APP_POLL_MS; handler.postDelayed(attempt, APP_POLL_MS.toLong()) }
+        }
+        attempt.run()
+    }
+
+    private const val APP_POLL_MS = 100
+    private const val APP_WAIT_MS = 2000
+
     fun hide() {
         stopTyping()
         launching = false

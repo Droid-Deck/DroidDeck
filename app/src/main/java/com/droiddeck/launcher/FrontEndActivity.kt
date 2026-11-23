@@ -2328,17 +2328,24 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun launchAndroidApp(app: HomeApp.LaunchableApp, displayId: Int?) {
         val onOwnScreen = displayId == null || displayId == (display?.displayId ?: Display.DEFAULT_DISPLAY)
         if (onOwnScreen) com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, true)
-        try {
-            HomeApp.launch(this, app, displayId)
-        } catch (_: Exception) {
-            com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
-            val label = secondScreenDisplays.firstOrNull { it.id == displayId }?.label
-            val message = when {
-                displayId == null || displayId == Display.DEFAULT_DISPLAY -> getString(R.string.android_app_open_failed_primary, app.label)
-                label != null -> getString(R.string.android_app_open_failed_on, app.label, label)
-                else -> getString(R.string.android_app_open_failed_display, app.label, displayId)
+        val open = {
+            try {
+                HomeApp.launch(this, app, displayId)
+            } catch (_: Exception) {
+                com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
+                val label = secondScreenDisplays.firstOrNull { it.id == displayId }?.label
+                val message = when {
+                    displayId == null || displayId == Display.DEFAULT_DISPLAY -> getString(R.string.android_app_open_failed_primary, app.label)
+                    label != null -> getString(R.string.android_app_open_failed_on, app.label, label)
+                    else -> getString(R.string.android_app_open_failed_display, app.label, displayId)
+                }
+                android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
             }
-            android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
+        }
+        if (displayId != null && displayId == com.droiddeck.launcher.ui.DualScreenPanel.shownOn) {
+            com.droiddeck.launcher.ui.DualScreenPanel.makeRoomForApp(this, displayId, open)
+        } else {
+            open()
         }
     }
 
