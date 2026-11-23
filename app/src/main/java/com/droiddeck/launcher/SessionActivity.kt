@@ -4405,9 +4405,18 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionPrefs.setDualScreenSessionMode(this, mode)
         dualScreenSessionMode = mode
         SessionState.secondScreenAutoOpened = false
+        val menuOnBottom = drawerDocked
+        val menuOnTop = drawerOpenState && !drawerDocked
         if (mode == com.droiddeck.launcher.input.DualScreen.MODE_OFF) {
             if (gameOnBottom) putGameOnBottom(false)
-            if (secondScreenMode != SecondScreenMode.NONE) closeSecondScreen(reset = true)
+            if (secondScreenMode != SecondScreenMode.NONE || menuOnBottom) closeSecondScreen(reset = true)
+            if (menuOnBottom) drawerOpen = true
+        } else if (menuOnTop) {
+            // The menu moves to the second screen as the menu itself, not as one of the control panels.
+            SessionState.secondScreenAutoOpened = true
+            refreshSecondScreenDisplays()
+            pinDockedMenu()
+            return
         }
         refreshSecondScreenDisplays()
     }
