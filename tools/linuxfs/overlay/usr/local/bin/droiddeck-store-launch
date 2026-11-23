@@ -1295,14 +1295,28 @@ def origin_stub_exe():
     return bytes(header) + bytes(section)
 
 
+def origin_stub_path(compat_data):
+    return Path(compat_data) / "pfx/drive_c" / EA_STUB_DIR / "Origin.exe"
+
+
+def origin_client_present(compat_data):
+    if not compat_data:
+        return False
+    target = origin_stub_path(compat_data)
+    try:
+        return target.is_file() and target.read_bytes() != origin_stub_exe()
+    except OSError:
+        return False
+
+
 def install_origin_stub(compat_data):
     if not compat_data:
         return "no-prefix"
-    target = Path(compat_data) / "pfx/drive_c" / EA_STUB_DIR / "Origin.exe"
+    target = origin_stub_path(compat_data)
     data = origin_stub_exe()
     try:
-        if target.is_file() and target.read_bytes() == data:
-            return "ready"
+        if target.is_file():
+            return "ready" if target.read_bytes() == data else "genuine"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
         return "written"
@@ -1528,6 +1542,9 @@ def prepare_ea(folder, sidecar, compat_data, launch_dir, steam=None):
     proton = os.environ.get("DD_STORE_PROTON", "")
     made = create_prefix(compat_data, proton)
     ready = made in ("present", "created") or (compat_data and (Path(compat_data) / "pfx/user.reg").is_file())
+    if ready and origin_client_present(compat_data):
+        log("ea %s prefix has a real Origin client, left to it" % game)
+        return None
     stub = install_origin_stub(compat_data) if ready else "no-prefix"
     hardware, probe = ea_hardware(compat_data, proton) if ready else ({}, "no-prefix")
     answer = None

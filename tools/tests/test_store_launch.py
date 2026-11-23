@@ -468,6 +468,21 @@ class Launchers(unittest.TestCase):
             self.assertEqual('proton waitforexitandrun %s/droiddeck-ea-steam.bat -dev' % root, lines[1])
             self.assertEqual('--exited --code 0 steam2ea://launchgame/1237970 -dev', lines[2])
 
+    def test_a_quoted_steam_ea_link_is_swapped_for_droiddecks_launcher(self):
+        with tempfile.TemporaryDirectory() as root:
+            hook = Path(root) / 'hook'
+            record = Path(root) / 'ran'
+            hook.write_text('#!/bin/sh\necho "$@" >> "%s"\n' % record)
+            hook.chmod(0o755)
+            setup = compat.DD_STORE_SETUP.replace('/usr/local/bin/droiddeck-store-launch', str(hook)).replace(
+                '[ -x %s ] || return 0' % hook, '[ -x %s ] || return 0; verb=waitforexitandrun' % hook)
+            setup = setup.replace('  %s "$@"\n  rc=$?' % hook, '  %s "$@"\n  rc=13' % hook)
+            script = setup + '\nverb=waitforexitandrun\ndd_store_launch steam2ea://launchgame/1237970 -dev\nDD_STORE_ARGS=(steam2ea://launchgame/1237970 -dev)\ndd_run %s proton waitforexitandrun \'"Steam2EA://launchgame/1237970"\' -dev\n' % hook
+            done = subprocess.run(['bash', '-c', script], env=dict(os.environ, STEAM_COMPAT_DATA_PATH=root + '/'), timeout=20)
+            self.assertEqual(0, done.returncode)
+            lines = record.read_text().splitlines()
+            self.assertEqual('proton waitforexitandrun %s/droiddeck-ea-steam.bat -dev' % root, lines[1])
+
 
 MANIFEST = """<?xml version='1.0' encoding='utf-8'?>
 <DiPManifest version="4.0">

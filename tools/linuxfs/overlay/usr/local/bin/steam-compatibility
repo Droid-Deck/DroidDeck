@@ -90,9 +90,13 @@ dd_run() {
     set -- /usr/local/bin/droiddeck-steamvr-game "$@"
   fi
   if [ -n "${DD_STORE_REPLACE:-}" ]; then
-    local arg replaced=()
+    local arg norm replaced=()
     for arg in "$@"; do
-      case ${arg,,} in steam2ea://*) replaced+=("$DD_STORE_REPLACE") ;; *) replaced+=("$arg") ;; esac
+      norm=${arg#"${arg%%[![:space:]]*}"}
+      norm=${norm%"${norm##*[![:space:]]}"}
+      while [ "${norm#\\"}" != "$norm" ]; do norm=${norm#\\"}; done
+      while [ "${norm%\\"}" != "$norm" ]; do norm=${norm%\\"}; done
+      case ${norm,,} in steam2ea://*) replaced+=("$DD_STORE_REPLACE") ;; *) replaced+=("$arg") ;; esac
     done
     set -- "${replaced[@]}"
   fi

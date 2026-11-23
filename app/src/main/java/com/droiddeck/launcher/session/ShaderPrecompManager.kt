@@ -21,12 +21,13 @@ object ShaderPrecompManager {
 
     enum class GameStatus { READY, COMPILED, NEEDS_CAPTURE, COMPILING, ERROR }
 
+    data class FozArchive(val file: File, val shaderDir: File)
+
     data class GameEntry(
         val key: String,
         val appId: Int,
         val name: String,
-        val shaderDir: File?,
-        val fozFiles: List<File>,
+        val fozFiles: List<FozArchive>,
         val cacheBytes: Long,
         val status: GameStatus,
         val lastError: String? = null,
@@ -198,7 +199,13 @@ object ShaderPrecompManager {
             Library.steamLibraries(context, "x86_64").map { it.first } +
             steamRoots(context)).distinctBy { it.path }
         val storeRoots = com.droiddeck.launcher.stores.StoreInstallRoot.externalRoots(context).map { it.first }
-        val allDirs = (libs + storeRoots).map { File(it, "steamapps/shadercache/$key") }
+        val secondary = libs.drop(1).mapNotNull { runCatching { it.canonicalPath }.getOrNull() }.toSet()
+        fun shaderCacheRoot(lib: File): File {
+            val canonical = runCatching { lib.canonicalPath }.getOrNull()
+            val root = if (canonical != null && canonical in secondary) SecondaryLibrary.privateRoot(context.filesDir, lib) else lib
+            return File(root, "steamapps/shadercache/$key")
+        }
+        val allDirs = libs.map(::shaderCacheRoot) + storeRoots.map { File(it, "steamapps/shadercache/$key") }
         return allDirs.filter { it.isDirectory }.distinctBy {
             runCatching { it.canonicalPath }.getOrDefault(it.path)
         }
@@ -213,8 +220,7 @@ object ShaderPrecompManager {
         val entries = deduped.map { game ->
             val key = game.profileKey
             val dirs = shaderDirsForGame(context, key)
-            val foz = dirs.flatMap { findFozArchives(it) }
-            val primaryDir = dirs.firstOrNull { findFozArchives(it).isNotEmpty() } ?: dirs.firstOrNull()
+            val foz = dirs.flatMap { dir -> findFozArchives(dir).map { FozArchive(it, dir) } }
             val cacheBytes = dirs.sumOf { d -> mesaCacheDirs(d).sumOf(::dirBytes) }
             val err = lastErrors[key]
             val status = when {
@@ -228,7 +234,6 @@ object ShaderPrecompManager {
                 key = key,
                 appId = game.appId,
                 name = game.name,
-                shaderDir = primaryDir,
                 fozFiles = foz,
                 cacheBytes = cacheBytes,
                 status = status,
@@ -294,6 +299,12 @@ object ShaderPrecompManager {
         val linuxDriverId = SessionPrefs.linuxDriver(context)
         val venus = VenusComponent.wanted(context)
         val bridge = DeviceSupport.vkBridge(context)
+        if (venus) {
+            VenusComponent.guestEnv(context).forEach { entry ->
+                val split = entry.indexOf('=')
+                if (split > 0) env[entry.substring(0, split)] = entry.substring(split + 1)
+            }
+        }
         if (!venus && !bridge) {
             val driverIcd = LinuxVulkanDriver.resolveIcdPath(context, linuxDriverId)?.let(::File)
             val icdFile = driverIcd ?: LinuxRuntime.vulkanIcd(context)
@@ -316,7 +327,23 @@ object ShaderPrecompManager {
             cancelFlag = AtomicBoolean(false)
             val flag = cancelFlag
             val thread = Thread({
-                runCompile(appContext, games, selectedKeys, flag)
+                try {
+                    runCompile(appContext, games, selectedKeys, flag)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "shader pre-compilation failed", t)
+                    mainHandler.post {
+                        uiState = uiState.copy(
+                            progress = uiState.progress.copy(
+                                running = false,
+                                lastError = t.message?.takeIf { it.isNotBlank() } ?: "Shader pre-compilation failed",
+                            ),
+                        )
+                    }
+                } finally {
+                    synchronized(lock) {
+                        if (worker === Thread.currentThread()) worker = null
+                    }
+                }
             }, "shader-precomp-run")
             worker = thread
             thread.start()
@@ -327,7 +354,27 @@ object ShaderPrecompManager {
         cancelFlag.set(true)
     }
 
+    private fun withVenusReplay(context: Context, block: () -> Unit) {
+        if (!VenusComponent.wanted(context)) {
+            block()
+            return
+        }
+        val component = VenusComponent(File(LinuxRuntime.logDir(context), "shader-precomp-venus.log"))
+        component.attach(context)
+        try {
+            component.start()
+        } catch (t: Throwable) {
+            throw IllegalStateException("Venus replay route unavailable: ${t.message ?: t.javaClass.simpleName}", t)
+        }
+        try {
+            block()
+        } finally {
+            component.stop()
+        }
+    }
+
     private fun runCompile(context: Context, games: List<Library.SteamGame>, selectedKeys: Set<String>, cancelled: AtomicBoolean) {
+        val driverSignature = activeDriverSignature(context)
         val rootfs = LinuxRuntime.rootDir(context)
         val replay = findFossilizeReplay(steamRoots(context), rootfs)
         if (replay == null) {
@@ -358,7 +405,7 @@ object ShaderPrecompManager {
         }
 
         val currentScan = scan(context, games, Progress(running = true))
-        val targets = currentScan.entries.filter { it.key in selectedKeys && it.fozFiles.isNotEmpty() && it.shaderDir != null }
+        val targets = currentScan.entries.filter { it.key in selectedKeys && it.fozFiles.isNotEmpty() }
         if (targets.isEmpty()) {
             mainHandler.post {
                 uiState = currentScan.copy(
@@ -373,13 +420,15 @@ object ShaderPrecompManager {
         val skipCompiled = SessionPrefs.shaderPrecompSkipCompiled(context)
         var anyFailed = false
 
+        withVenusReplay(context) {
         targets.forEachIndexed { index, entry ->
             if (cancelled.get() || (idleOnly && SessionState.running)) return@forEachIndexed
-            val shaderDir = entry.shaderDir ?: return@forEachIndexed
             lastErrors.remove(entry.key)
             val totalArchives = entry.fozFiles.size
 
-            entry.fozFiles.forEachIndexed archiveLoop@{ archiveIdx, fozFile ->
+            entry.fozFiles.forEachIndexed archiveLoop@{ archiveIdx, archive ->
+                val fozFile = archive.file
+                val shaderDir = archive.shaderDir
                 if (cancelled.get() || (idleOnly && SessionState.running)) return@archiveLoop
                 mainHandler.post {
                     uiState = uiState.copy(
@@ -442,9 +491,10 @@ object ShaderPrecompManager {
                 }
             }
         }
+        }
 
         if (!cancelled.get() && !anyFailed) {
-            SessionPrefs.setShaderPrecompLastDriver(context, activeDriverSignature(context))
+            SessionPrefs.setShaderPrecompLastDriver(context, driverSignature)
         }
         val finalScan = scan(context, games, Progress(running = false, stage = if (cancelled.get()) "Stopped" else if (anyFailed) "Completed with errors" else "Completed"))
         mainHandler.post {

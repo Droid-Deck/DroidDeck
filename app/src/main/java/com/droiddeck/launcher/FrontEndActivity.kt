@@ -3306,9 +3306,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
         val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.canDraw(this)
         if (warn && available != null) { showNonAdreno = available; return false }
-        if (SessionPrefs.shaderPrecompIdleOnly(this)) {
-            com.droiddeck.launcher.session.ShaderPrecompManager.stop()
-        }
         startActivity(intent)
         return true
     }
