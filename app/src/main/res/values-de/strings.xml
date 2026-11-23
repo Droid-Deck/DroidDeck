@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Vorabversion</string>
     <string name="decky_channel_testing">Test</string>
     <string name="decky_channel_failed">Decky-Update-Kanal konnte nicht gespeichert werden</string>
-    <string name="mode_decky_on">Startet mit Steam. Solange aktiv, können andere Apps auf diesem Gerät Steam möglicherweise steuern.</string>
-    <string name="mode_decky_off">Aus. Der Remote-Debugging-Port von Steam bleibt geschlossen.</string>
     <string name="mode_decky_remove_title">Decky Loader deinstallieren?</string>
     <string name="mode_decky_remove_text">Entfernt den Loader. Deine Plugins und Einstellungen bleiben erhalten.</string>
     <string name="mode_client">Client</string>

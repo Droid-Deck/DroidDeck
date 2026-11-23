@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Προέκδοση</string>
     <string name="decky_channel_testing">Δοκιμαστικό</string>
     <string name="decky_channel_failed">Δεν ήταν δυνατή η αποθήκευση του καναλιού ενημερώσεων του Decky</string>
-    <string name="mode_decky_on">Ξεκινά με το Steam. Όσο είναι ενεργό, άλλες εφαρμογές σε αυτή τη συσκευή μπορεί να είναι σε θέση να ελέγξουν το Steam.</string>
-    <string name="mode_decky_off">Ανενεργό. Η θύρα απομακρυσμένου εντοπισμού σφαλμάτων του Steam παραμένει κλειστή.</string>
     <string name="mode_decky_remove_title">Κατάργηση εγκατάστασης του Decky Loader;</string>
     <string name="mode_decky_remove_text">Καταργεί τον loader. Τα plugins και οι ρυθμίσεις σας διατηρούνται.</string>
     <string name="mode_client">Πελάτης</string>

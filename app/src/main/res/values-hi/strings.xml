@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">प्री-रिलीज़</string>
     <string name="decky_channel_testing">टेस्टिंग</string>
     <string name="decky_channel_failed">Decky अपडेट चैनल सेव नहीं हो सका</string>
-    <string name="mode_decky_on">Steam के साथ शुरू होता है। चालू रहते हुए, इस डिवाइस के दूसरे ऐप Steam को नियंत्रित कर सकते हैं।</string>
-    <string name="mode_decky_off">बंद। Steam का रिमोट डिबगिंग पोर्ट बंद रहता है।</string>
     <string name="mode_decky_remove_title">Decky Loader अनइंस्टॉल करें?</string>
     <string name="mode_decky_remove_text">लोडर हटाता है। आपके प्लगइन और सेटिंग बनी रहती हैं।</string>
     <string name="mode_client">क्लाइंट</string>

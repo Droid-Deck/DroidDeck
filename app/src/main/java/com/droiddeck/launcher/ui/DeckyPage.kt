@@ -84,14 +84,14 @@ internal fun DeckyGroups(s: ModeSettings, a: ModeSettingsActions, host: MenuHost
         }
         if (s.deckyInstalled != null) ToggleRow(
             host, "decky-enabled", stringResource(R.string.decky_enable),
-            if (s.deckyEnabled) stringResource(R.string.mode_decky_on) else stringResource(R.string.mode_decky_off),
+            null,
             s.deckyEnabled,
             enabled = idle,
             onChange = a.onDeckyEnabled,
         )
         ChoiceRow(
             host, "decky-channel", stringResource(R.string.decky_release_channel),
-            stringResource(R.string.decky_release_channel_hint),
+            null,
             listOf(
                 DeckyManager.BRANCH_STABLE to stringResource(R.string.decky_channel_stable),
                 DeckyManager.BRANCH_PRERELEASE to stringResource(R.string.decky_channel_prerelease),

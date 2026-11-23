@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Forhåndsudgivelse</string>
     <string name="decky_channel_testing">Test</string>
     <string name="decky_channel_failed">Kunne ikke gemme Decky-opdateringskanalen</string>
-    <string name="mode_decky_on">Starter med Steam. Mens den er til, kan andre apps på denne enhed muligvis styre Steam.</string>
-    <string name="mode_decky_off">Fra. Steams fjerndebugport forbliver lukket.</string>
     <string name="mode_decky_remove_title">Afinstaller Decky Loader?</string>
     <string name="mode_decky_remove_text">Fjerner loaderen. Dine plugins og indstillinger bevares.</string>
     <string name="mode_client">Klient</string>

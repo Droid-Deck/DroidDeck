@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Voorlopige release</string>
     <string name="decky_channel_testing">Testversie</string>
     <string name="decky_channel_failed">Kan het Decky-updatekanaal niet opslaan</string>
-    <string name="mode_decky_on">Start met Steam. Zolang dit aan staat, kunnen andere apps op dit apparaat Steam mogelijk bedienen.</string>
-    <string name="mode_decky_off">Uit. De poort voor foutopsporing op afstand van Steam blijft dicht.</string>
     <string name="mode_decky_remove_title">Decky Loader verwijderen?</string>
     <string name="mode_decky_remove_text">Verwijdert de loader. Je plug-ins en instellingen blijven behouden.</string>
     <string name="mode_client">Client</string>

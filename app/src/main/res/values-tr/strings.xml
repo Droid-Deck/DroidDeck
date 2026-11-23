@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Ön sürüm</string>
     <string name="decky_channel_testing">Test</string>
     <string name="decky_channel_failed">Decky güncelleme kanalı kaydedilemedi</string>
-    <string name="mode_decky_on">Steam ile başlar. Açıkken bu cihazdaki diğer uygulamalar Steam\'i kontrol edebilir.</string>
-    <string name="mode_decky_off">Kapalı. Steam\'in uzaktan hata ayıklama bağlantı noktası kapalı kalır.</string>
     <string name="mode_decky_remove_title">Decky Loader kaldırılsın mı?</string>
     <string name="mode_decky_remove_text">Yükleyiciyi kaldırır. Eklentileriniz ve ayarlarınız korunur.</string>
     <string name="mode_client">İstemci</string>

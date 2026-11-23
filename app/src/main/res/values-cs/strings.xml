@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Předběžné vydání</string>
     <string name="decky_channel_testing">Testovací</string>
     <string name="decky_channel_failed">Kanál aktualizací Decky se nepodařilo uložit</string>
-    <string name="mode_decky_on">Spouští se se Steamem. Když je zapnuto, jiné aplikace na tomto zařízení mohou mít možnost ovládat Steam.</string>
-    <string name="mode_decky_off">Vypnuto. Port pro vzdálené ladění Steamu zůstává zavřený.</string>
     <string name="mode_decky_remove_title">Odinstalovat Decky Loader?</string>
     <string name="mode_decky_remove_text">Odstraní loader. Vaše pluginy a nastavení zůstanou zachovány.</string>
     <string name="mode_client">Klient</string>

@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Pre-lansare</string>
     <string name="decky_channel_testing">Testare</string>
     <string name="decky_channel_failed">Canalul de actualizare Decky nu a putut fi salvat</string>
-    <string name="mode_decky_on">Pornește odată cu Steam. Cât timp este activ, alte aplicații de pe acest dispozitiv pot fi capabile să controleze Steam.</string>
-    <string name="mode_decky_off">Dezactivat. Portul de depanare la distanță al Steam rămâne închis.</string>
     <string name="mode_decky_remove_title">Dezinstalezi Decky Loader?</string>
     <string name="mode_decky_remove_text">Elimină loader-ul. Pluginurile și setările tale sunt păstrate.</string>
     <string name="mode_client">Client</string>

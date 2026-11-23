@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Попередній</string>
     <string name="decky_channel_testing">Тестовий</string>
     <string name="decky_channel_failed">Не вдалося зберегти канал оновлень Decky</string>
-    <string name="mode_decky_on">Запускається разом зі Steam. Поки його ввімкнено, інші додатки на цьому пристрої можуть керувати Steam.</string>
-    <string name="mode_decky_off">Вимкнено. Порт віддаленого налагодження Steam залишається закритим.</string>
     <string name="mode_decky_remove_title">Видалити Decky Loader?</string>
     <string name="mode_decky_remove_text">Видаляє завантажувач. Ваші плагіни й налаштування зберігаються.</string>
     <string name="mode_client">Клієнт</string>

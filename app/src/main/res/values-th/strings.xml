@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">ก่อนเปิดตัว</string>
     <string name="decky_channel_testing">ทดสอบ</string>
     <string name="decky_channel_failed">บันทึกช่องทางอัปเดตของ Decky ไม่ได้</string>
-    <string name="mode_decky_on">เริ่มพร้อมกับ Steam เมื่อเปิดใช้งาน แอปอื่นบนอุปกรณ์นี้อาจสามารถควบคุม Steam ได้</string>
-    <string name="mode_decky_off">ปิดอยู่ พอร์ตดีบักระยะไกลของ Steam ยังคงปิดอยู่</string>
     <string name="mode_decky_remove_title">ถอนการติดตั้ง Decky Loader?</string>
     <string name="mode_decky_remove_text">ลบตัวโหลดออก พลักอินและการตั้งค่าของคุณจะยังคงอยู่</string>
     <string name="mode_client">ไคลเอนต์</string>

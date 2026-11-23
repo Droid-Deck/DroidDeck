@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Przedpremierowy</string>
     <string name="decky_channel_testing">Testowy</string>
     <string name="decky_channel_failed">Nie udało się zapisać kanału aktualizacji Decky</string>
-    <string name="mode_decky_on">Uruchamia się ze Steam. Gdy jest włączony, inne aplikacje na tym urządzeniu mogą sterować Steam.</string>
-    <string name="mode_decky_off">Wyłączony. Port zdalnego debugowania Steam pozostaje zamknięty.</string>
     <string name="mode_decky_remove_title">Odinstalować Decky Loader?</string>
     <string name="mode_decky_remove_text">Usuwa program ładujący. Twoje wtyczki i ustawienia zostaną zachowane.</string>
     <string name="mode_client">Klient</string>

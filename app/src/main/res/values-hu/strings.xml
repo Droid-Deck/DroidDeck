@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Előzetes kiadás</string>
     <string name="decky_channel_testing">Tesztelés</string>
     <string name="decky_channel_failed">Nem sikerült menteni a Decky frissítési csatornáját</string>
-    <string name="mode_decky_on">A Steammel együtt indul. Amíg be van kapcsolva, az eszközön lévő más alkalmazások is irányíthatják a Steamet.</string>
-    <string name="mode_decky_off">Ki. A Steam távoli hibakeresési portja zárva marad.</string>
     <string name="mode_decky_remove_title">Eltávolítja a Decky Loadert?</string>
     <string name="mode_decky_remove_text">Eltávolítja a betöltőt. A bővítményei és beállításai megmaradnak.</string>
     <string name="mode_client">Kliens</string>

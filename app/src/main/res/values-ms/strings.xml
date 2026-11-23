@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Prakeluaran</string>
     <string name="decky_channel_testing">Pengujian</string>
     <string name="decky_channel_failed">Tidak dapat menyimpan saluran kemas kini Decky</string>
-    <string name="mode_decky_on">Bermula bersama Steam. Semasa dihidupkan, apl lain pada peranti ini mungkin boleh mengawal Steam.</string>
-    <string name="mode_decky_off">Mati. Port debug jauh Steam kekal tertutup.</string>
     <string name="mode_decky_remove_title">Nyahpasang Decky Loader?</string>
     <string name="mode_decky_remove_text">Mengalih keluar loader. Plugin dan tetapan anda dikekalkan.</string>
     <string name="mode_client">Klien</string>

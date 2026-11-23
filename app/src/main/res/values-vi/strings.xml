@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Tiền phát hành</string>
     <string name="decky_channel_testing">Thử nghiệm</string>
     <string name="decky_channel_failed">Không thể lưu kênh cập nhật Decky</string>
-    <string name="mode_decky_on">Khởi động cùng Steam. Khi đang bật, các ứng dụng khác trên thiết bị này có thể điều khiển được Steam.</string>
-    <string name="mode_decky_off">Tắt. Cổng gỡ lỗi từ xa của Steam luôn đóng.</string>
     <string name="mode_decky_remove_title">Gỡ cài đặt Decky Loader?</string>
     <string name="mode_decky_remove_text">Gỡ bỏ loader. Plugin và thiết lập của bạn được giữ lại.</string>
     <string name="mode_client">Client</string>

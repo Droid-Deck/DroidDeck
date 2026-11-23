@@ -374,8 +374,6 @@
     <string name="decky_channel_prerelease">Prerelease</string>
     <string name="decky_channel_testing">Testing</string>
     <string name="decky_channel_failed">Could not save the Decky update channel</string>
-    <string name="mode_decky_on">Starts with Steam. While on, other apps on this device may be able to control Steam.</string>
-    <string name="mode_decky_off">Off. Steam\'s remote debugging port stays closed.</string>
     <string name="mode_decky_remove_title">Uninstall Decky Loader?</string>
     <string name="mode_decky_remove_text">Removes the loader. Your plugins and settings are kept.</string>
     <string name="mode_client">Client</string>
@@ -4324,7 +4322,6 @@
     <string name="decky_status">Status</string>
     <string name="decky_enable">Enable</string>
     <string name="decky_release_channel">Release channel</string>
-    <string name="decky_release_channel_hint">Stable or pre-release loader builds. Decky\'s own updater uses the same channel.</string>
     <string name="rail_decky">Decky</string>
     <string name="rail_boot_movies">Boot movies</string>
     <string name="decky_tab_installed">Installed · %1$d</string>

@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Предварителен</string>
     <string name="decky_channel_testing">Тестов</string>
     <string name="decky_channel_failed">Каналът за актуализации на Decky не можа да бъде запазен</string>
-    <string name="mode_decky_on">Стартира заедно със Steam. Докато е включено, други приложения на това устройство може да могат да контролират Steam.</string>
-    <string name="mode_decky_off">Изключено. Портът за отдалечено дебъгване на Steam остава затворен.</string>
     <string name="mode_decky_remove_title">Деинсталиране на Decky Loader?</string>
     <string name="mode_decky_remove_text">Премахва зареждащия модул. Плъгините и настройките ви се запазват.</string>
     <string name="mode_client">Клиент</string>

@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Esijulkaisu</string>
     <string name="decky_channel_testing">Testaus</string>
     <string name="decky_channel_failed">Deckyn päivityskanavaa ei voitu tallentaa</string>
-    <string name="mode_decky_on">Käynnistyy Steamin kanssa. Päällä ollessaan muut tämän laitteen sovellukset voivat pystyä ohjaamaan Steamia.</string>
-    <string name="mode_decky_off">Pois. Steamin etävianmääritysportti pysyy suljettuna.</string>
     <string name="mode_decky_remove_title">Poistetaanko Decky Loader?</string>
     <string name="mode_decky_remove_text">Poistaa loaderin. Laajennuksesi ja asetuksesi säilyvät.</string>
     <string name="mode_client">Asiakasohjelma</string>

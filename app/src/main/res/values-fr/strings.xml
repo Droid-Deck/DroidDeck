@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Préversion</string>
     <string name="decky_channel_testing">Test</string>
     <string name="decky_channel_failed">Impossible d\'enregistrer le canal de mise à jour de Decky</string>
-    <string name="mode_decky_on">Démarre avec Steam. Une fois activé, d\'autres applications sur cet appareil peuvent contrôler Steam.</string>
-    <string name="mode_decky_off">Désactivé. Le port de débogage distant de Steam reste fermé.</string>
     <string name="mode_decky_remove_title">Désinstaller Decky Loader ?</string>
     <string name="mode_decky_remove_text">Supprime le chargeur. Vos plugins et paramètres seront conservés.</string>
     <string name="mode_client">Client</string>

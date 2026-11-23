@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">预发布版</string>
     <string name="decky_channel_testing">测试版</string>
     <string name="decky_channel_failed">无法保存 Decky 更新通道</string>
-    <string name="mode_decky_on">随 Steam 启动。开启期间，本设备上的其他应用可能可以控制 Steam。</string>
-    <string name="mode_decky_off">已关闭。Steam 的远程调试端口保持关闭。</string>
     <string name="mode_decky_remove_title">卸载 Decky Loader？</string>
     <string name="mode_decky_remove_text">移除加载器。你的插件和设置会保留。</string>
     <string name="mode_client">客户端</string>

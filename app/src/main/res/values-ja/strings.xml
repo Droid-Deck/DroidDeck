@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">プレリリース版</string>
     <string name="decky_channel_testing">テスト版</string>
     <string name="decky_channel_failed">Deckyのアップデートチャンネルを保存できませんでした</string>
-    <string name="mode_decky_on">Steamと共に起動します。有効にすると、このデバイス上の他のアプリがSteamを制御できる場合があります。</string>
-    <string name="mode_decky_off">オフ。Steamのリモートデバッグポートは閉じたままになります。</string>
     <string name="mode_decky_remove_title">Decky Loaderをアンインストールしますか？</string>
     <string name="mode_decky_remove_text">ローダーを削除します。プラグインと設定は保持されます。</string>
     <string name="mode_client">クライアント</string>

@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">Prarilis</string>
     <string name="decky_channel_testing">Pengujian</string>
     <string name="decky_channel_failed">Tidak dapat menyimpan saluran pembaruan Decky</string>
-    <string name="mode_decky_on">Dimulai bersama Steam. Saat aktif, aplikasi lain di perangkat ini mungkin dapat mengendalikan Steam.</string>
-    <string name="mode_decky_off">Nonaktif. Port debugging jarak jauh Steam tetap tertutup.</string>
     <string name="mode_decky_remove_title">Hapus instalasi Decky Loader?</string>
     <string name="mode_decky_remove_text">Menghapus loader. Plugin dan setelan Anda tetap disimpan.</string>
     <string name="mode_client">Klien</string>

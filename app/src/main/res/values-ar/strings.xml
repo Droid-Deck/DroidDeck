@@ -344,8 +344,6 @@
     <string name="decky_channel_prerelease">إصدار تجريبي مسبق</string>
     <string name="decky_channel_testing">اختبار</string>
     <string name="decky_channel_failed">تعذّر حفظ قناة تحديث Decky</string>
-    <string name="mode_decky_on">يبدأ مع Steam. أثناء تفعيله، قد تتمكن التطبيقات الأخرى على هذا الجهاز من التحكم في Steam.</string>
-    <string name="mode_decky_off">متوقف. يبقى منفذ تصحيح الأخطاء عن بُعد في Steam مغلقًا.</string>
     <string name="mode_decky_remove_title">هل تريد إلغاء تثبيت Decky Loader؟</string>
     <string name="mode_decky_remove_text">يزيل المُحمِّل. يتم الاحتفاظ بالمكونات الإضافية والإعدادات.</string>
     <string name="mode_client">العميل</string>
