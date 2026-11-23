@@ -205,6 +205,25 @@ class OnScreenControlsTest {
         assertFalse(view.isQuickHidden)
     }
 
+    @Test fun anAddedKeyboardButtonStaysWhenTheGamepadIsQuickHidden() {
+        val keyboard = InputSurfaceElement(InputControl.A, .4f, .4f, .1f, .1f, "added", name = "Keyboard")
+        val actions = mapOf("added" to InputAction.Command(InputCommand.KEYBOARD))
+        assertTrue(keyboard.opensKeyboard(actions))
+        assertFalse(keyboard.opensKeyboard(emptyMap()))
+        assertTrue(keyboard.copy(id = "builtin:keyboard").opensKeyboard(emptyMap()))
+        val copied = keyboard.copy(id = copyId("builtin:keyboard"))
+        assertTrue(copied.opensKeyboard(emptyMap()))
+        assertFalse(copied.opensKeyboard(mapOf(copied.id to InputAction.Native(InputControl.A))))
+        assertTrue(keyboard.copy(id = copyId("legacy:a")).opensKeyboard(mapOf("legacy:a" to InputAction.Command(InputCommand.KEYBOARD))))
+        assertFalse(keyboard.copy(id = copyId("legacy:a")).opensKeyboard(emptyMap()))
+        view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button, keyboard), aspect = ASPECT), actions)
+        measure(view)
+        view.setQuickHidden(true)
+        measure(view)
+        assertTrue(view.takesTouchAt(450f, 270f))
+        assertFalse(view.takesTouchAt(800f, 250f))
+    }
+
     @Test fun hidingTheGamepadKeepsAlwaysShownKeysDrawnAndTouchable() {
         val key = InputSurfaceElement(InputControl.A, .45f, .1f, .1f, .1f, "imported:0", name = "Find", alwaysShown = true)
         view.updateLayout(SavedInputLayout("test", "Test", listOf(left, button, key), aspect = ASPECT))

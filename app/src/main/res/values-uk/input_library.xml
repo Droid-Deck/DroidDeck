@@ -51,7 +51,7 @@
     <string name="input_delete_profile_detail">Видалити %1$s? Режими, що його використовують, повернуться до вбудованого профілю за замовчуванням. Збережені компонування й спільні налаштування залишаться доступними.</string>
     <string name="input_screen_visibility">Видимість</string>
     <string name="input_visibility_shared">Застосовується до всіх профілів. Auto показує керування основного екрана, коли в ігровому режимі не підключено контролер.</string>
-    <string name="input_edit_layout">Редагувати на екрані</string>
+    <string name="input_edit_layout">Редагувати компонування</string>
     <string name="input_saved_layouts">Збережені компонування…</string>
     <string name="input_saved_layouts_hint">Виберіть компонування або створіть своє</string>
     <string name="input_second_screen_enable">Виберіть «Керування профілю» в меню сеансу другого екрана. Селектори «Профіль» і «Другий екран» у меню контролера визначають, яке керування показувати.</string>
@@ -128,4 +128,27 @@
     <string name="input_diagonal_neighbors">Сусідні напрямки</string>
     <string name="input_imported_keys_hint">Ваші старі екранні клавіші збережено нижче як імпортовані профілі. Виберіть один, щоб використати або змінити. Поточні вибрані профілі збережено.</string>
     <string name="input_import_failed">Старі екранні клавіші не вдалося імпортувати автоматично. Початкові налаштування збережено.</string>
+    <string name="input_editor_redo">Повторити</string>
+    <string name="input_editor_open_menu">Відкрити меню</string>
+    <string name="input_editor_hide_menu">Приховати меню</string>
+    <string name="input_editor_save">Зберегти</string>
+    <string name="input_editor_layout_size">Розмір компонування</string>
+    <string name="input_editor_tap_hint">Торкніться елемента, щоб змінити його. Перетягніть, щоб перемістити.</string>
+    <string name="input_editor_saved">Компонування збережено</string>
+    <string name="input_editor_deleted">Видалено: %1$s</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d елемент</item>
+        <item quantity="few">%1$d елементи</item>
+        <item quantity="many">%1$d елементів</item>
+        <item quantity="other">%1$d елемента</item>
+    </plurals>
+    <string name="input_editor_discard_title">Відхилити зміни?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">У цьому компонуванні %d незбережена зміна.</item>
+        <item quantity="few">У цьому компонуванні %d незбережені зміни.</item>
+        <item quantity="many">У цьому компонуванні %d незбережених змін.</item>
+        <item quantity="other">У цьому компонуванні %d незбереженої зміни.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">У цьому компонуванні є незбережені зміни.</string>
+    <string name="input_editor_discard_confirm">Відхилити</string>
 </resources>

@@ -172,8 +172,8 @@ class SettingsResetTest {
         val original = com.droiddeck.launcher.input.InputLibraries.read(app)
         val gamepad = original.layouts.first { it.id == com.droiddeck.launcher.input.InputLibraries.OVERLAY }
         com.droiddeck.launcher.input.InputLibraries.update(app) { library ->
-            library.withLayout(gamepad.withQuickButton(com.droiddeck.launcher.input.InputCommand.STEAM, false)
-                .copy(elements = gamepad.elements.map { it.copy(x = 0f, y = 0f) })).copyLayout(gamepad.id, "Mine", "mine")
+            library.withLayout(gamepad.copy(style = gamepad.style.copy(removed = setOf("legacy:guide")),
+                elements = gamepad.elements.map { it.copy(x = 0f, y = 0f) })).copyLayout(gamepad.id, "Mine", "mine")
         }
 
         assertTrue(SettingsReset.resetAll(app, gameProfiles = false))

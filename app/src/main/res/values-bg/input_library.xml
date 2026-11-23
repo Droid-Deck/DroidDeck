@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">Да се изтрие ли %1$s? Режимите, които го използват, ще се върнат към вградените настройки по подразбиране. Запазените оформления и споделените настройки остават налични.</string>
     <string name="input_screen_visibility">Видимост</string>
     <string name="input_visibility_shared">Важи за всички профили. Auto показва управлението на основния екран, когато в игрови режим няма свързан контролер.</string>
-    <string name="input_edit_layout">Редактиране на екрана</string>
+    <string name="input_edit_layout">Редактиране на оформлението</string>
     <string name="input_saved_layouts">Запазени оформления…</string>
     <string name="input_saved_layouts_hint">Изберете оформление или създайте свое</string>
     <string name="input_second_screen_enable">Изберете Управление на профила в менюто на сесията на втория екран. Изборите Профил и Втори екран в менюто на контролера определят кое управление да се показва.</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">Спусък</string>
     <string name="input_editor_done">Готово</string>
     <string name="input_editor_undo">Отмяна</string>
+    <string name="input_editor_redo">Повтаряне</string>
     <string name="input_editor_add">+ Добавяне</string>
     <string name="input_editor_hint">Плъзнете за преместване. Плъзнете ъгъл за преоразмеряване. Докоснете Свойства, за да зададете действие.</string>
     <string name="input_editor_remote">Редактиране на втория екран</string>
@@ -128,4 +129,22 @@
     <string name="input_diagonal_neighbors">Съседни посоки</string>
     <string name="input_imported_keys_hint">Старите ви екранни клавиши са запазени като импортирани профили по-долу. Изберете един за използване или редактиране. Текущите избори на профил са запазени.</string>
     <string name="input_import_failed">Старите екранни клавиши не можаха да се импортират автоматично. Оригиналните настройки са запазени.</string>
+    <string name="input_editor_open_menu">Отваряне на менюто</string>
+    <string name="input_editor_hide_menu">Скриване на менюто</string>
+    <string name="input_editor_save">Запазване</string>
+    <string name="input_editor_layout_size">Размер на оформлението</string>
+    <string name="input_editor_tap_hint">Докоснете контрол, за да го редактирате. Плъзнете за преместване.</string>
+    <string name="input_editor_saved">Оформлението е запазено</string>
+    <string name="input_editor_deleted">Изтрито: %1$s</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d контрол</item>
+        <item quantity="other">%1$d контрола</item>
+    </plurals>
+    <string name="input_editor_discard_title">Да се отхвърлят ли промените?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Имате %d незапазена промяна в това оформление.</item>
+        <item quantity="other">Имате %d незапазени промени в това оформление.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Имате незапазени промени в това оформление.</string>
+    <string name="input_editor_discard_confirm">Отхвърляне</string>
 </resources>

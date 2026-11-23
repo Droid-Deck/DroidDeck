@@ -51,7 +51,7 @@
     <string name="input_delete_profile_detail">Ta bort %1$s? Lägen som använder den återgår till sin inbyggda standardprofil. Sparade layouter och delade inställningar finns kvar.</string>
     <string name="input_screen_visibility">Synlighet</string>
     <string name="input_visibility_shared">Gäller alla profiler. Auto visar huvudskärmens styrning när ingen handkontroll är ansluten i spelläge.</string>
-    <string name="input_edit_layout">Redigera på skärmen</string>
+    <string name="input_edit_layout">Redigera layout</string>
     <string name="input_saved_layouts">Sparade layouter…</string>
     <string name="input_saved_layouts_hint">Välj en layout eller skapa din egen</string>
     <string name="input_second_screen_enable">Välj Profilstyrning i sekundärskärmens sessionsmeny. Valen Profil och Sekundär skärm i handkontrollsmenyn avgör vilken styrning som visas.</string>
@@ -128,4 +128,23 @@
     <string name="input_diagonal_neighbors">Angränsande riktningar</string>
     <string name="input_imported_keys_hint">Dina gamla skärmtangenter är sparade som importerade profiler nedan. Välj en för att använda eller redigera den. Dina nuvarande profilval har behållits.</string>
     <string name="input_import_failed">De gamla skärmtangenterna kunde inte importeras automatiskt. De ursprungliga inställningarna har behållits.</string>
+    <string name="input_editor_redo">Gör om</string>
+    <string name="input_editor_open_menu">Öppna menyn</string>
+    <string name="input_editor_hide_menu">Dölj menyn</string>
+    <string name="input_editor_save">Spara</string>
+    <string name="input_editor_layout_size">Layoutstorlek</string>
+    <string name="input_editor_tap_hint">Tryck på en kontroll för att redigera den. Dra för att flytta.</string>
+    <string name="input_editor_saved">Layouten sparades</string>
+    <string name="input_editor_deleted">%1$s borttagen</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d kontroll</item>
+        <item quantity="other">%1$d kontroller</item>
+    </plurals>
+    <string name="input_editor_discard_title">Kassera ändringar?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Du har %d osparad ändring i den här layouten.</item>
+        <item quantity="other">Du har %d osparade ändringar i den här layouten.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Du har osparade ändringar i den här layouten.</string>
+    <string name="input_editor_discard_confirm">Kassera</string>
 </resources>

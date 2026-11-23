@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">Smazat %1$s? Režimy, které jej používají, se vrátí k vestavěnému výchozímu profilu. Uložená rozložení a sdílená nastavení zůstanou dostupná.</string>
     <string name="input_screen_visibility">Viditelnost</string>
     <string name="input_visibility_shared">Platí pro všechny profily. Auto zobrazí ovládání hlavní obrazovky, když v režimu hry není připojen ovladač.</string>
-    <string name="input_edit_layout">Upravit na obrazovce</string>
+    <string name="input_edit_layout">Upravit rozložení</string>
     <string name="input_saved_layouts">Uložená rozložení…</string>
     <string name="input_saved_layouts_hint">Vyberte rozložení nebo si vytvořte vlastní</string>
     <string name="input_second_screen_enable">V menu relace vedlejší obrazovky vyberte Ovládání profilu. Volby Profil a Vedlejší obrazovka v menu ovladače určují, které ovládání se zobrazí.</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">Spoušť</string>
     <string name="input_editor_done">Hotovo</string>
     <string name="input_editor_undo">Zpět</string>
+    <string name="input_editor_redo">Znovu</string>
     <string name="input_editor_add">+ Přidat</string>
     <string name="input_editor_hint">Přetažením přesunete. Přetažením rohu změníte velikost. Klepněte na Vlastnosti pro přiřazení akce.</string>
     <string name="input_editor_remote">Úprava na vedlejší obrazovce</string>
@@ -128,4 +129,26 @@
     <string name="input_diagonal_neighbors">Sousední směry</string>
     <string name="input_imported_keys_hint">Vaše staré klávesy na obrazovce jsou uloženy níže jako importované profily. Vyberte jeden k použití nebo úpravě. Vaše aktuální volby profilu byly zachovány.</string>
     <string name="input_import_failed">Staré klávesy na obrazovce se nepodařilo importovat automaticky. Původní nastavení bylo zachováno.</string>
+    <string name="input_editor_open_menu">Otevřít menu</string>
+    <string name="input_editor_hide_menu">Skrýt menu</string>
+    <string name="input_editor_save">Uložit</string>
+    <string name="input_editor_layout_size">Velikost rozložení</string>
+    <string name="input_editor_tap_hint">Klepnutím na prvek ho upravíte. Přetažením přesunete.</string>
+    <string name="input_editor_saved">Rozložení uloženo</string>
+    <string name="input_editor_deleted">Smazáno: %1$s</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d prvek</item>
+        <item quantity="few">%1$d prvky</item>
+        <item quantity="many">%1$d prvku</item>
+        <item quantity="other">%1$d prvků</item>
+    </plurals>
+    <string name="input_editor_discard_title">Zahodit změny?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Máte %d neuloženou změnu tohoto rozložení.</item>
+        <item quantity="few">Máte %d neuložené změny tohoto rozložení.</item>
+        <item quantity="many">Máte %d neuložené změny tohoto rozložení.</item>
+        <item quantity="other">Máte %d neuložených změn tohoto rozložení.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Máte neuložené změny tohoto rozložení.</string>
+    <string name="input_editor_discard_confirm">Zahodit</string>
 </resources>

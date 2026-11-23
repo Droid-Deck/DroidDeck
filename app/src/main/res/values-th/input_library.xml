@@ -51,7 +51,7 @@
     <string name="input_delete_profile_detail">ลบ %1$s หรือไม่ โหมดที่ใช้จะกลับไปใช้โปรไฟล์เริ่มต้นที่มีมาให้ เลย์เอาต์ที่บันทึกและการตั้งค่าที่แชร์ยังใช้ได้</string>
     <string name="input_screen_visibility">การมองเห็น</string>
     <string name="input_visibility_shared">มีผลกับทุกโปรไฟล์ Auto จะแสดงการควบคุมหน้าจอหลักเมื่อไม่ได้เชื่อมต่อคอนโทรลเลอร์ในโหมดเกม</string>
-    <string name="input_edit_layout">แก้ไขบนหน้าจอ</string>
+    <string name="input_edit_layout">แก้ไขเลย์เอาต์</string>
     <string name="input_saved_layouts">เลย์เอาต์ที่บันทึก…</string>
     <string name="input_saved_layouts_hint">เลือกเลย์เอาต์หรือสร้างของคุณเอง</string>
     <string name="input_second_screen_enable">เลือกการควบคุมโปรไฟล์ในเมนูเซสชันของหน้าจอรอง ตัวเลือกโปรไฟล์และหน้าจอรองในเมนูคอนโทรลเลอร์กำหนดว่าจะแสดงการควบคุมใด</string>
@@ -128,4 +128,21 @@
     <string name="input_diagonal_neighbors">ทิศข้างเคียง</string>
     <string name="input_imported_keys_hint">ปุ่มหน้าจอเดิมของคุณถูกบันทึกเป็นโปรไฟล์ที่นำเข้าไว้ด้านล่าง เลือกหนึ่งรายการเพื่อใช้หรือแก้ไข ตัวเลือกโปรไฟล์ปัจจุบันยังคงอยู่</string>
     <string name="input_import_failed">ไม่สามารถนำเข้าปุ่มหน้าจอเดิมโดยอัตโนมัติได้ การตั้งค่าเดิมยังคงอยู่</string>
+    <string name="input_editor_redo">ทำซ้ำ</string>
+    <string name="input_editor_open_menu">เปิดเมนู</string>
+    <string name="input_editor_hide_menu">ซ่อนเมนู</string>
+    <string name="input_editor_save">บันทึก</string>
+    <string name="input_editor_layout_size">ขนาดเลย์เอาต์</string>
+    <string name="input_editor_tap_hint">แตะการควบคุมเพื่อแก้ไข ลากเพื่อย้าย</string>
+    <string name="input_editor_saved">บันทึกเลย์เอาต์แล้ว</string>
+    <string name="input_editor_deleted">ลบ %1$s แล้ว</string>
+    <plurals name="input_editor_controls">
+        <item quantity="other">%1$d การควบคุม</item>
+    </plurals>
+    <string name="input_editor_discard_title">ทิ้งการเปลี่ยนแปลงหรือไม่</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="other">เลย์เอาต์นี้มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก %d รายการ</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">เลย์เอาต์นี้มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก</string>
+    <string name="input_editor_discard_confirm">ละทิ้ง</string>
 </resources>

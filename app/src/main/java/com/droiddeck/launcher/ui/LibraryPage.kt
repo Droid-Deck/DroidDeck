@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -78,6 +79,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -1239,19 +1241,28 @@ private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, ch
 }
 
 @Composable
-internal fun HeaderIconButton(description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, key: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+internal fun HeaderIconButton(description: String, icon: androidx.compose.ui.graphics.vector.ImageVector, key: String,
+    modifier: Modifier = Modifier, enabled: Boolean = true, touchSize: androidx.compose.ui.unit.Dp = 32.dp, disabledAlpha: Float = 0.4f,
+    onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
+    val hot = rememberHot(src) && enabled
     Box(
         contentAlignment = Alignment.Center,
-        modifier = modifier.paneItem("btn:$key").size(32.dp).clip(CircleShape).background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
-            .glideBorder(hot, CircleShape, pal.signal)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
-            .controllerConfirm(onClick = onClick)
+        modifier = modifier.paneItem("btn:$key").size(touchSize)
+            .hoverable(src).clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+            .controllerConfirm(enabled = enabled, onClick = onClick)
             .semantics { contentDescription = description },
-    ) { Icon(icon, null, tint = if (hot) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(32.dp).clip(CircleShape).background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.Transparent)
+                .glideBorder(hot, CircleShape, pal.signal)
+                .alpha(if (enabled) 1f else disabledAlpha)
+                .indication(src, LocalIndication.current),
+        ) { Icon(icon, null, tint = if (hot) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+    }
 }
 
 @Composable

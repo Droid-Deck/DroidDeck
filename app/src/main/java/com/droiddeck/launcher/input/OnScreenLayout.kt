@@ -2,6 +2,10 @@ package com.droiddeck.launcher.input
 
 import android.content.Context
 import android.graphics.Rect
+import android.hardware.display.DisplayManager
+import android.os.Build
+import android.view.Display
+import com.droiddeck.launcher.ui.findActivity
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -11,6 +15,9 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 object OnScreenLayout {
+    /** The built-in overlay, a copy of it such as a game's own layout, or a migrated gamepad layout. */
+    internal fun isOverlay(layout: SavedInputLayout?) = layout?.overlay == true
+
     internal fun supportsFloatingSteamControls(controller: String, layout: SavedInputLayout?) =
         layout?.overlay == true &&
             (controller == SessionPrefs.CONTROLLER_DECK || controller == SessionPrefs.CONTROLLER_STEAM)
@@ -41,8 +48,8 @@ object OnScreenLayout {
         val layout = oriented(saved, dock?.portrait ?: (height > width))
         val stored = layout.elements
         val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
-        val (reference, matched) = reference(context, layout, width, height)
-        if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
+        val (reference, matched) = reference(context, layout, width, height, safe)
+        if (buttonsOnly && dock == null) return generator.buttonsOnly(stored, layout.style.removed) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
         if (dock?.portrait == true && !dock.grips && !matched && layout.aspect > 0f && layout.aspect < 1f && stored.any(::isGamepad))
             return cluster(stored.filterNot { it.alwaysShown || isGamepad(it) && (it.id == KEYBOARD_ID || it.control in BAR) }, layout.aspect, width, height, safe)
         val generated = matched || PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) &&
@@ -57,20 +64,27 @@ object OnScreenLayout {
         val placed = regenerated + gamepad.filter { g -> dock == null && optional(g) && regenerated.none { it.id == g.id } }
         val byId = (placed + others).associateBy { it.id }
         val ordered = stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
-        val kit = PadKit.forOverlay(context, layout) ?: return ordered
+        return kitPlaced(context, layout, ordered, width, height, safe, generated, reference, dock != null, rearButtons, trackpads)
+    }
+
+    /** Where the controller kit's overlay draws [elements]; a layout with no kit draws them where they are. */
+    internal fun kitPlaced(context: Context, layout: SavedInputLayout, elements: List<InputSurfaceElement>, width: Int, height: Int, safe: Rect,
+        generated: Boolean, reference: Pair<Float, Float> = width.toFloat() to height.toFloat(), docked: Boolean = false,
+        rearButtons: Boolean? = null, trackpads: Boolean? = null): List<InputSurfaceElement> {
+        val kit = PadKit.forOverlay(context, layout) ?: return elements
         if (generated &&
             ControllerPrefs.layout(context, reference.first.toInt(), reference.second.toInt()).isEmpty() &&
             ControllerPrefs.layout(context, width, height).isEmpty()) {
-            if (dock != null || height > width) {
+            if (docked || height > width) {
                 return ControllerPortraitGeometry(width.toFloat(), height.toFloat(), safe, context.resources.displayMetrics.density)
-                    .place(ordered, kit, dock != null, layout.scale, rearButtons == true, trackpads == true)
+                    .place(elements, kit, docked, layout.scale, rearButtons == true, trackpads == true)
             }
             return ControllerOverlayGeometry(width, height, safe, context.resources.displayMetrics, layout.scale)
-                .place(ordered, kit, rearButtons == true, trackpads == true)
+                .place(elements, kit, rearButtons == true, trackpads == true)
         }
-        if (dock != null || !kit.steam) return ordered
+        if (docked || !kit.steam) return elements
         return FloatingSteamOverlay(width, height, safe, context.resources.displayMetrics.density)
-            .place(ordered, lowerShortcuts = generated, rearButtons = rearButtons, trackpads = trackpads)
+            .place(elements, lowerShortcuts = generated, rearButtons = rearButtons, trackpads = trackpads)
     }
 
     fun oriented(layout: SavedInputLayout, width: Int, height: Int): SavedInputLayout = oriented(layout, height > width)
@@ -166,10 +180,25 @@ object OnScreenLayout {
 
     private fun isGamepad(e: InputSurfaceElement) = e.id.startsWith("legacy:") || e.id == KEYBOARD_ID
 
-    fun generatedSize(context: Context, layout: SavedInputLayout, width: Int, height: Int): Pair<Int, Int>? =
-        reference(context, layout, width, height).takeIf { it.second }?.first?.let { it.first.toInt() to it.second.toInt() }
+    fun generatedSize(context: Context, layout: SavedInputLayout, width: Int, height: Int, safe: Rect = Rect()): Pair<Int, Int>? =
+        reference(context, layout, width, height, safe).takeIf { it.second }?.first?.let { it.first.toInt() to it.second.toInt() }
 
-    private fun reference(context: Context, layout: SavedInputLayout, width: Int, height: Int): Pair<Pair<Float, Float>, Boolean> {
+    /** The main screen's cutout-safe insets in its current rotation, as the game's full-screen window receives them. */
+    fun primarySafeInsets(context: Context): Rect {
+        // Android 9 reports the cutout only through a window's insets, so read them from the activity when it is on the main screen.
+        if (Build.VERSION.SDK_INT == 28) return context.findActivity()?.window?.decorView
+            ?.takeIf { it.display?.displayId == Display.DEFAULT_DISPLAY }
+            ?.rootWindowInsets?.displayCutout?.let { Rect(it.safeInsetLeft, it.safeInsetTop, it.safeInsetRight, it.safeInsetBottom) } ?: Rect()
+        return context.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY)?.let(::safeInsets) ?: Rect()
+    }
+
+    fun safeInsets(display: Display): Rect {
+        if (Build.VERSION.SDK_INT < 29) return Rect()
+        val cutout = display.cutout ?: return Rect()
+        return Rect(cutout.safeInsetLeft, cutout.safeInsetTop, cutout.safeInsetRight, cutout.safeInsetBottom)
+    }
+
+    private fun reference(context: Context, layout: SavedInputLayout, width: Int, height: Int, safe: Rect): Pair<Pair<Float, Float>, Boolean> {
         val (display, metrics) = InputLibraries.primaryDisplay(context)
         val long = max(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
         val short = min(metrics.widthPixels, metrics.heightPixels).coerceAtLeast(1)
@@ -183,6 +212,8 @@ object OnScreenLayout {
                 val generator = LegacyGamepadLayout(display, w, h, scale = layout.scale)
                 if (matches(gamepad, generator.elements()) || matches(gamepad, generator.elements(previousStickGeometry = true))) return (w.toFloat() to h.toFloat()) to true
             }
+            if (safe != Rect() && matches(gamepad, LegacyGamepadLayout(display, width, height, safe, layout.scale).elements()))
+                return (width.toFloat() to height.toFloat()) to true
         }
         val aspect = layout.aspect.takeIf { it > 0f } ?: (long.toFloat() / short)
         return (aspect to 1f) to false

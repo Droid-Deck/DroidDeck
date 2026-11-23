@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">Supprimer %1$s ? Les modes qui l\'utilisent reviendront à leur profil par défaut intégré. Les dispositions enregistrées et les réglages partagés resteront disponibles.</string>
     <string name="input_screen_visibility">Visibilité</string>
     <string name="input_visibility_shared">S\'applique à tous les profils. Auto affiche les contrôles de l\'écran principal lorsqu\'aucune manette n\'est connectée en mode jeu.</string>
-    <string name="input_edit_layout">Modifier à l\'écran</string>
+    <string name="input_edit_layout">Modifier la disposition</string>
     <string name="input_saved_layouts">Dispositions enregistrées…</string>
     <string name="input_saved_layouts_hint">Choisissez une disposition ou créez la vôtre</string>
     <string name="input_second_screen_enable">Choisissez Contrôles du profil dans le menu de session de l\'écran secondaire. Les sélecteurs Profil et Écran secondaire du menu de la manette choisissent les contrôles à afficher.</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">Gâchette</string>
     <string name="input_editor_done">Terminé</string>
     <string name="input_editor_undo">Annuler</string>
+    <string name="input_editor_redo">Rétablir</string>
     <string name="input_editor_add">+ Ajouter</string>
     <string name="input_editor_hint">Faites glisser pour déplacer. Faites glisser un coin pour redimensionner. Touchez Propriétés pour assigner une action.</string>
     <string name="input_editor_remote">Modification sur l\'écran secondaire</string>
@@ -128,4 +129,24 @@
     <string name="input_diagonal_neighbors">Directions voisines</string>
     <string name="input_imported_keys_hint">Vos anciennes touches à l\'écran sont enregistrées comme profils importés ci-dessous. Sélectionnez-en un pour l\'utiliser ou le modifier. Vos sélections de profil actuelles ont été conservées.</string>
     <string name="input_import_failed">Les anciennes touches à l\'écran n\'ont pas pu être importées automatiquement. Les réglages d\'origine ont été conservés.</string>
+    <string name="input_editor_open_menu">Ouvrir le menu</string>
+    <string name="input_editor_hide_menu">Masquer le menu</string>
+    <string name="input_editor_save">Enregistrer</string>
+    <string name="input_editor_layout_size">Taille de la disposition</string>
+    <string name="input_editor_tap_hint">Touchez un contrôle pour le modifier. Faites glisser pour déplacer.</string>
+    <string name="input_editor_saved">Disposition enregistrée</string>
+    <string name="input_editor_deleted">Supprimé : %1$s</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d contrôle</item>
+        <item quantity="many">%1$d de contrôles</item>
+        <item quantity="other">%1$d contrôles</item>
+    </plurals>
+    <string name="input_editor_discard_title">Abandonner les modifications ?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Vous avez %d modification non enregistrée dans cette disposition.</item>
+        <item quantity="many">Vous avez %d de modifications non enregistrées dans cette disposition.</item>
+        <item quantity="other">Vous avez %d modifications non enregistrées dans cette disposition.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Vous avez des modifications non enregistrées dans cette disposition.</string>
+    <string name="input_editor_discard_confirm">Abandonner</string>
 </resources>

@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">Удалить %1$s? Режимы, использующие его, вернутся к встроенному профилю по умолчанию. Сохранённые раскладки и общие настройки останутся доступны.</string>
     <string name="input_screen_visibility">Видимость</string>
     <string name="input_visibility_shared">Применяется ко всем профилям. Auto показывает управление основного экрана, если в игровом режиме не подключён контроллер.</string>
-    <string name="input_edit_layout">Редактировать на экране</string>
+    <string name="input_edit_layout">Редактировать раскладку</string>
     <string name="input_saved_layouts">Сохранённые раскладки…</string>
     <string name="input_saved_layouts_hint">Выберите раскладку или создайте свою</string>
     <string name="input_second_screen_enable">Выберите «Управление профиля» в меню сеанса второго экрана. Селекторы «Профиль» и «Второй экран» в меню контроллера определяют, какое управление показывать.</string>
@@ -128,4 +128,27 @@
     <string name="input_diagonal_neighbors">Соседние направления</string>
     <string name="input_imported_keys_hint">Ваши старые экранные клавиши сохранены ниже как импортированные профили. Выберите один, чтобы использовать или изменить. Текущие выбранные профили сохранены.</string>
     <string name="input_import_failed">Старые экранные клавиши не удалось импортировать автоматически. Исходные настройки сохранены.</string>
+    <string name="input_editor_redo">Повторить</string>
+    <string name="input_editor_open_menu">Открыть меню</string>
+    <string name="input_editor_hide_menu">Скрыть меню</string>
+    <string name="input_editor_save">Сохранить</string>
+    <string name="input_editor_layout_size">Размер раскладки</string>
+    <string name="input_editor_tap_hint">Нажмите элемент, чтобы изменить его. Перетащите, чтобы переместить.</string>
+    <string name="input_editor_saved">Раскладка сохранена</string>
+    <string name="input_editor_deleted">Удалено: %1$s</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d элемент</item>
+        <item quantity="few">%1$d элемента</item>
+        <item quantity="many">%1$d элементов</item>
+        <item quantity="other">%1$d элемента</item>
+    </plurals>
+    <string name="input_editor_discard_title">Отменить изменения?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">В этой раскладке %d несохранённое изменение.</item>
+        <item quantity="few">В этой раскладке %d несохранённых изменения.</item>
+        <item quantity="many">В этой раскладке %d несохранённых изменений.</item>
+        <item quantity="other">В этой раскладке %d несохранённого изменения.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">В этой раскладке есть несохранённые изменения.</string>
+    <string name="input_editor_discard_confirm">Не сохранять</string>
 </resources>

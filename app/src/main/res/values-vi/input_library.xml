@@ -51,7 +51,7 @@
     <string name="input_delete_profile_detail">Xóa %1$s? Các chế độ đang dùng sẽ quay về hồ sơ mặc định tích hợp. Bố cục đã lưu và cài đặt chia sẻ vẫn khả dụng.</string>
     <string name="input_screen_visibility">Hiển thị</string>
     <string name="input_visibility_shared">Áp dụng cho mọi hồ sơ. Auto hiện điều khiển màn hình chính khi không có tay cầm kết nối ở chế độ chơi game.</string>
-    <string name="input_edit_layout">Chỉnh sửa trên màn hình</string>
+    <string name="input_edit_layout">Chỉnh sửa bố cục</string>
     <string name="input_saved_layouts">Bố cục đã lưu…</string>
     <string name="input_saved_layouts_hint">Chọn một bố cục hoặc tạo bố cục riêng</string>
     <string name="input_second_screen_enable">Chọn Điều khiển hồ sơ trong menu phiên của màn hình phụ. Bộ chọn Hồ sơ và Màn hình phụ trong menu tay cầm quyết định điều khiển nào được hiển thị.</string>
@@ -128,4 +128,21 @@
     <string name="input_diagonal_neighbors">Hướng bên cạnh</string>
     <string name="input_imported_keys_hint">Các phím màn hình cũ được lưu thành hồ sơ đã nhập bên dưới. Chọn một để dùng hoặc chỉnh sửa. Các lựa chọn hồ sơ hiện tại được giữ nguyên.</string>
     <string name="input_import_failed">Không thể nhập tự động các phím màn hình cũ. Cài đặt gốc được giữ nguyên.</string>
+    <string name="input_editor_redo">Làm lại</string>
+    <string name="input_editor_open_menu">Mở menu</string>
+    <string name="input_editor_hide_menu">Ẩn menu</string>
+    <string name="input_editor_save">Lưu</string>
+    <string name="input_editor_layout_size">Kích thước bố cục</string>
+    <string name="input_editor_tap_hint">Nhấn vào một điều khiển để chỉnh sửa. Kéo để di chuyển.</string>
+    <string name="input_editor_saved">Đã lưu bố cục</string>
+    <string name="input_editor_deleted">Đã xóa %1$s</string>
+    <plurals name="input_editor_controls">
+        <item quantity="other">%1$d điều khiển</item>
+    </plurals>
+    <string name="input_editor_discard_title">Bỏ các thay đổi?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="other">Bạn có %d thay đổi chưa lưu trong bố cục này.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Bạn có thay đổi chưa lưu trong bố cục này.</string>
+    <string name="input_editor_discard_confirm">Hủy bỏ</string>
 </resources>

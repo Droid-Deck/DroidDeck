@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">Διαγραφή του %1$s; Οι λειτουργίες που το χρησιμοποιούν επιστρέφουν στο ενσωματωμένο προεπιλεγμένο προφίλ. Οι αποθηκευμένες διατάξεις και οι κοινές ρυθμίσεις παραμένουν διαθέσιμες.</string>
     <string name="input_screen_visibility">Ορατότητα</string>
     <string name="input_visibility_shared">Ισχύει για όλα τα προφίλ. Το Auto εμφανίζει τα χειριστήρια της κύριας οθόνης όταν δεν είναι συνδεδεμένο χειριστήριο σε λειτουργία παιχνιδιού.</string>
-    <string name="input_edit_layout">Επεξεργασία στην οθόνη</string>
+    <string name="input_edit_layout">Επεξεργασία διάταξης</string>
     <string name="input_saved_layouts">Αποθηκευμένες διατάξεις…</string>
     <string name="input_saved_layouts_hint">Επιλέξτε διάταξη ή δημιουργήστε τη δική σας</string>
     <string name="input_second_screen_enable">Επιλέξτε Χειριστήρια προφίλ στο μενού συνεδρίας της δευτερεύουσας οθόνης. Οι επιλογείς Προφίλ και Δευτερεύουσα οθόνη στο μενού χειριστηρίου καθορίζουν ποια χειριστήρια εμφανίζονται.</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">Σκανδάλη</string>
     <string name="input_editor_done">Τέλος</string>
     <string name="input_editor_undo">Αναίρεση</string>
+    <string name="input_editor_redo">Επανάληψη</string>
     <string name="input_editor_add">+ Προσθήκη</string>
     <string name="input_editor_hint">Σύρετε για μετακίνηση. Σύρετε μια γωνία για αλλαγή μεγέθους. Πατήστε Ιδιότητες για αντιστοίχιση ενέργειας.</string>
     <string name="input_editor_remote">Επεξεργασία στη δευτερεύουσα οθόνη</string>
@@ -128,4 +129,22 @@
     <string name="input_diagonal_neighbors">Γειτονικές κατευθύνσεις</string>
     <string name="input_imported_keys_hint">Τα παλιά πλήκτρα οθόνης αποθηκεύτηκαν ως εισαγόμενα προφίλ παρακάτω. Επιλέξτε ένα για χρήση ή επεξεργασία. Οι τρέχουσες επιλογές προφίλ διατηρήθηκαν.</string>
     <string name="input_import_failed">Τα παλιά πλήκτρα οθόνης δεν μπόρεσαν να εισαχθούν αυτόματα. Οι αρχικές ρυθμίσεις διατηρήθηκαν.</string>
+    <string name="input_editor_open_menu">Άνοιγμα μενού</string>
+    <string name="input_editor_hide_menu">Απόκρυψη μενού</string>
+    <string name="input_editor_save">Αποθήκευση</string>
+    <string name="input_editor_layout_size">Μέγεθος διάταξης</string>
+    <string name="input_editor_tap_hint">Πατήστε ένα χειριστήριο για επεξεργασία. Σύρετε για μετακίνηση.</string>
+    <string name="input_editor_saved">Η διάταξη αποθηκεύτηκε</string>
+    <string name="input_editor_deleted">Διαγράφηκε: %1$s</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d χειριστήριο</item>
+        <item quantity="other">%1$d χειριστήρια</item>
+    </plurals>
+    <string name="input_editor_discard_title">Απόρριψη αλλαγών;</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Έχετε %d μη αποθηκευμένη αλλαγή σε αυτή τη διάταξη.</item>
+        <item quantity="other">Έχετε %d μη αποθηκευμένες αλλαγές σε αυτή τη διάταξη.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Έχετε μη αποθηκευμένες αλλαγές σε αυτή τη διάταξη.</string>
+    <string name="input_editor_discard_confirm">Απόρριψη</string>
 </resources>

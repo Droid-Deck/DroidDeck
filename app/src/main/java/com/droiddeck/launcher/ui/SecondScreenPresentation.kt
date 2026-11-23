@@ -310,7 +310,7 @@ class SecondScreenPresentation(
     }
 
     private fun panelLayout(mode: SecondScreenMode) = com.droiddeck.launcher.input.InputLibraries.read(context)
-        .panelLayout(SessionState.mode == SessionService.MODE_DESKTOP, mode.panel(context))
+        .panelLayout(SessionState.mode == SessionService.MODE_DESKTOP, mode.panel(context), SessionState.inputGame)
 
     private fun bar(mode: SecondScreenMode) {
         val first = barModel(mode) ?: return

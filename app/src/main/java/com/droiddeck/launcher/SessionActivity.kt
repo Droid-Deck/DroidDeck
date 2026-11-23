@@ -81,7 +81,7 @@ import com.droiddeck.launcher.input.OnScreenLayout
 import com.droiddeck.launcher.input.InputRouter
 import com.droiddeck.launcher.input.InputOutput
 import com.droiddeck.launcher.input.InputCommand
-import com.droiddeck.launcher.input.quickButton
+import com.droiddeck.launcher.input.opensKeyboard
 import com.droiddeck.launcher.input.InputProfiles
 import com.droiddeck.launcher.input.InputProfile
 import com.droiddeck.launcher.input.InputAction
@@ -176,7 +176,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var unfoldedControls by mutableStateOf(false)
     private var unfoldedControlsWithController by mutableStateOf(false)
     private var adaptiveSticks by mutableStateOf<Boolean?>(null)
-    private var quickButtons by mutableStateOf<Map<InputCommand, Boolean>>(emptyMap())
     private var picturePosition by mutableStateOf("center")
     private var integerScaling by mutableStateOf(false)
     private var avoidNotch = false
@@ -235,6 +234,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var inputRouter: InputRouter? = null
     private var physicalInputBindings: com.droiddeck.launcher.input.PhysicalInputBindings? = null
     private var inputSettingsOpen by mutableStateOf(false)
+    private var inputEditorOnly by mutableStateOf(false)
+    /** The profile, layout and bindings the open on-screen editor works on, kept across recreation since the game is detected again only later. */
+    private var inputEditorTarget: Triple<String, String, String>? = null
+    private var gameControls by mutableStateOf<Boolean?>(null)
+    private var gameProfile by mutableStateOf<String?>(null)
+    private var gameControlsGame by mutableStateOf<String?>(null)
     @Volatile private var inputUsesLocalActions = false
     private var inputUsesPointer = false
     private var inputProfile = InputProfile.defaults(InputProfile.GAME)
@@ -310,7 +315,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var steamController: SteamControllerBle? = null
     private var onScreenControls: OnScreenControls? = null
     private var bottomInputControls: OnScreenControls? = null
-    private var primaryInputLayout: com.droiddeck.launcher.input.SavedInputLayout? = null
+    private var primaryInputLayout by mutableStateOf<com.droiddeck.launcher.input.SavedInputLayout?>(null)
+    private val primaryInputActions get() = inputProfile.surfaceActions(InputRole.PRIMARY)
     private var secondaryInputLayout by mutableStateOf<com.droiddeck.launcher.input.SavedInputLayout?>(null)
     private var steamTouchControls: com.droiddeck.launcher.input.SteamTouchControls? = null
     private var steamTouchAvailable by mutableStateOf(false)
@@ -828,6 +834,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AgentGuest.readyListener = agentReadyListener
+        inputEditorOnly = savedInstanceState?.getBoolean("input_editor_only") == true
+        inputSettingsOpen = savedInstanceState?.getBoolean("input_settings_open") == true
+        inputEditorTarget = savedInstanceState?.getStringArray("input_editor_target")?.takeIf { it.size == 3 }?.let { Triple(it[0], it[1], it[2]) }
         com.droiddeck.launcher.agent.AgentAttachments.gameFrame = gameFrame
         if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isRemoving() ||
             com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isMaintaining()) {
@@ -945,7 +954,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         openDeckRing("activity created")
         bridge.setOnPlayerInput(::onPadInput)
         onScreenControls = OnScreenControls(this, bridge).also { controls ->
-            controls.updateLayout(primaryInputLayout)
+            controls.updateLayout(primaryInputLayout, primaryInputActions)
             controls.onTouchMiss = miss@{ event ->
                 if (!gestureTouchStreamGate.accepts(GestureTouchStreamGate.Source.ON_SCREEN_CONTROLS, event)) return@miss
                 event.offsetLocation(controls.left - surfaceView.left.toFloat(), controls.top - surfaceView.top.toFloat())
@@ -1299,8 +1308,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     }
                     if (nextGame != gestureGame) {
                         if (nextGame != null) gameStarts++
+                        val previousInputGame = inputGame()
                         gestureGame = nextGame
                         refreshGestureConfig()
+                        if (inputGame() != previousInputGame) refreshInputProfile()
                     }
                     if (
                         SessionState.mode == SessionService.MODE_STEAM &&
@@ -1322,7 +1333,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     }
                 }
                 com.droiddeck.launcher.ui.GestureFeedback(recognizedGesture)
-                if (inputSettingsOpen) com.droiddeck.launcher.ui.InputSettingsDialog(
+                if (inputSettingsOpen && inputEditorOnly) OnScreenControlsEditor()
+                else if (inputSettingsOpen) com.droiddeck.launcher.ui.InputSettingsDialog(
                     onBack = { inputSettingsOpen = false; secondScreenPresentation?.refreshControls() },
                     onChanged = {
                         controllerSettings = ControllerPrefs.read(this@SessionActivity)
@@ -1835,7 +1847,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 SessionService.suspendPolicyChanged(this@SessionActivity)
             },
             onTouch = { v -> SessionPrefs.setTouchMode(this@SessionActivity, v); readPrefs() },
-            onInputSettings = { releasePads(); drawerOpen = false; inputSettingsOpen = true },
+            onInputSettings = { releasePads(); drawerOpen = false; inputEditorOnly = false; inputSettingsOpen = true },
+            onEditOnScreen = if (primaryInputLayout?.editable == true) ::openOnScreenEditor else null,
+            gameControls = gameControls,
+            gameProfile = gameProfile,
+            onGameControls = gameControlsGame.let { shown -> { on: Boolean -> setGameControls(shown, on) } },
             onInputSelection = { releasePads(); refreshInputProfile() },
             onGestureSettings = { drawerOpen = false; gestureSettingsOpen = true },
             touchActive = drawerTouchMode(),
@@ -1899,6 +1915,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 primaryInputLayout?.let { com.droiddeck.launcher.input.InputLibraries.setAdaptiveSticks(this@SessionActivity, it.id, on) }
                 refreshInputProfile()
             },
+            onEditButtons = if (primaryInputLayout?.editable == true &&
+                (unfoldedPanel != null || oscMode != SessionPrefs.OSC_NEVER && !steamTouchInUse)) ::openOnScreenEditor else null,
             showFloatingSteamControls = SessionState.mode == SessionService.MODE_STEAM && SessionState.deckPad && unfoldedPanel == null &&
                 oscMode != SessionPrefs.OSC_NEVER && oscMode != SessionPrefs.OSC_STEAM_QAM &&
                 !steamTouchInUse && OnScreenLayout.supportsFloatingSteamControls(padType, primaryInputLayout),
@@ -1915,14 +1933,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 oscTrackpads = shown
                 onScreenControls?.reload()
                 bottomInputControls?.reload()
-            },
-            quickButtons = quickButtons.takeIf {
-                unfoldedPanel != null || oscMode != SessionPrefs.OSC_NEVER && !steamTouchInUse
-            }.orEmpty(),
-            onQuickButton = { button, on ->
-                primaryInputLayout?.let { com.droiddeck.launcher.input.InputLibraries.setQuickButton(this@SessionActivity, it.id, button, on) }
-                refreshInputProfile()
-                updateOnScreenControls()
             },
             unfoldedControlsWithController = unfoldedControlsWithController,
             onUnfoldedControlsWithController = ::chooseUnfoldedControlsWithController,
@@ -3002,8 +3012,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionState.followScale = scale ?: 1f
     }
 
+    /** Set while the on-screen controls editor is open on this screen. */
+    var editorLandscape = false
+        set(value) { field = value; applyFollowOrientation(resources.configuration) }
+
     private fun applyFollowOrientation(config: android.content.res.Configuration) {
         val wanted = SessionPrefs.windowOrientation(this, SessionState.followScreen, config.smallestScreenWidthDp)
+            .let { if (editorLandscape) com.droiddeck.launcher.ui.landscapeOrientation(it) else it }
         if (requestedOrientation != wanted) requestedOrientation = wanted
     }
 
@@ -4662,16 +4677,57 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (started && displayId !in inputWindowDisplays && secondScreenMode != SecondScreenMode.NONE && secondScreenPresentation == null) showSecondScreen(secondScreenMode)
     }
 
+    private fun inputGame() = gestureGame.takeIf { SessionState.mode == SessionService.MODE_STEAM && it?.toLongOrNull() != null }
+
+    private fun setGameControls(game: String?, on: Boolean) {
+        if (game == null || game != inputGame()) return
+        val name = (frameGenActiveGameName?.trim()?.takeIf { it.isNotEmpty() && frameGenActiveGameId?.toString() == game }
+            ?: getString(R.string.input_game_profile_name, game)).take(80)
+        runCatching {
+            com.droiddeck.launcher.input.InputLibraries.update(this) { if (on) it.withGameProfile(game, name) else it.withoutGameProfile(game) }
+        }.onFailure { android.widget.Toast.makeText(this, R.string.input_game_controls_failed, android.widget.Toast.LENGTH_LONG).show() }
+        refreshInputProfile()
+    }
+
+    private fun openOnScreenEditor() { releasePads(); drawerOpen = false; inputEditorTarget = null; inputEditorOnly = true; inputSettingsOpen = true }
+
+    @androidx.compose.runtime.Composable
+    private fun OnScreenControlsEditor() {
+        val target = androidx.compose.runtime.remember {
+            val library = com.droiddeck.launcher.input.InputLibraries.read(this)
+            val desktop = loadingMode() == SessionService.MODE_DESKTOP
+            val game = inputGame()
+            inputEditorTarget?.takeIf { (profile, layout, bindings) ->
+                library.profiles.any { it.id == profile } && library.layouts.any { it.id == layout && it.editable } && library.bindings.any { it.id == bindings }
+            } ?: library.activeLayout(desktop, InputRole.PRIMARY, game)?.takeIf { it.editable }?.let { layout ->
+                Triple(library.activeId(desktop, game), layout.id, library.activePart(desktop, InputRole.PRIMARY, game).bindings)
+            }
+        }
+        inputEditorTarget = target
+        if (target == null) {
+            androidx.compose.runtime.LaunchedEffect(Unit) { inputSettingsOpen = false; inputEditorOnly = false }
+            return
+        }
+        com.droiddeck.launcher.ui.InputSurfaceDialog(target.first,
+            onDismiss = { inputSettingsOpen = false; inputEditorOnly = false; inputEditorTarget = null; secondScreenPresentation?.refreshControls() },
+            onChanged = { onScreenControls?.reload(); refreshInputProfile(); refreshControls() },
+            role = InputRole.PRIMARY, layoutId = target.second, bindingsId = target.third)
+    }
+
     private fun refreshInputProfile() {
         val library = com.droiddeck.launcher.input.InputLibraries.read(this)
         val desktop = loadingMode() == SessionService.MODE_DESKTOP
-        inputProfile = library.compileActive(desktop, secondScreenMode.panel(this))
-        stockInputProfile = library.compileStock(desktop, secondScreenMode.panel(this))
-        primaryInputLayout = library.activeLayout(desktop, InputRole.PRIMARY)
+        val game = inputGame()
+        SessionState.inputGame = game
+        gameProfile = library.gameProfile(desktop, game)
+        gameControls = game?.let { gameProfile != null }
+        gameControlsGame = game
+        inputProfile = library.compileActive(desktop, secondScreenMode.panel(this), game)
+        stockInputProfile = library.compileStock(desktop, secondScreenMode.panel(this), game)
+        primaryInputLayout = library.activeLayout(desktop, InputRole.PRIMARY, game)
         adaptiveSticks = primaryInputLayout?.adaptiveSticks
-        quickButtons = primaryInputLayout?.takeIf { it.editable }?.let { l -> l.quickButtons.associateWith { it !in l.style.hidden } }.orEmpty()
-        secondaryInputLayout = library.panelLayout(desktop, secondScreenMode.panel(this))
-        deckPanelLayouts = com.droiddeck.launcher.input.DeckPanel.entries.associateWith { library.panelLayout(desktop, it.bindings) }
+        secondaryInputLayout = library.panelLayout(desktop, secondScreenMode.panel(this), game)
+        deckPanelLayouts = com.droiddeck.launcher.input.DeckPanel.entries.associateWith { library.panelLayout(desktop, it.bindings, game) }
         inputUsesLocalActions = InputControl.padControls.any { inputProfile.action(InputRole.PHYSICAL, it) !is InputAction.Native }
         inputUsesPointer = inputProfile.bindings.values.any { bindings ->
             bindings.values.any { it is InputAction.Pointer || it is InputAction.MouseButton || it is InputAction.Scroll }
@@ -4682,12 +4738,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         physicalInputBindings?.configure(inputProfile.keys)
         padBridge?.setInputProfile(inputProfile)
         DeckControls.refresh()
-        onScreenControls?.updateLayout(primaryInputLayout)
-        bottomInputControls?.updateLayout(primaryInputLayout)
-        unfoldedPanel?.updateLayout(primaryInputLayout)
+        onScreenControls?.updateLayout(primaryInputLayout, primaryInputActions)
+        bottomInputControls?.updateLayout(primaryInputLayout, primaryInputActions)
+        unfoldedPanel?.updateLayout(primaryInputLayout, primaryInputActions)
         if (unfoldedPanel != null) applyUnfoldedControls()
         showUnfoldedDeckPanel()
-        updateOnScreenPad()
+        updateOnScreenControls()
         secondScreenPresentation?.refreshControls()
     }
 
@@ -4760,7 +4816,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         if (!wanted) return
         if (panel == null) {
-            panel = OnScreenControls(this, padBridge, dock).also { it.updateLayout(primaryInputLayout) }
+            panel = OnScreenControls(this, padBridge, dock).also { it.updateLayout(primaryInputLayout, primaryInputActions) }
             val column = android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
                 addView(unfoldedBar().apply {
@@ -5622,7 +5678,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         glassesSlot = when {
             c == null || c.visibility != View.VISIBLE || c.isPinnedOnly -> 0
             c.isButtonsOnly -> -1
-            primaryInputLayout?.let { l -> l.elements.any { it.quickButton == InputCommand.KEYBOARD && !l.style.hides(it) } }
+            primaryInputLayout?.let { l -> l.elements.any { it.opensKeyboard(primaryInputActions) && !l.style.hides(it) } }
                 ?: (controllerSettings?.keyboardButton != false) -> 2
             else -> 1
         }
@@ -5702,7 +5758,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 }
                 bottomInputControls = bottom
             }
-            bottom.updateLayout(primaryInputLayout)
+            bottom.updateLayout(primaryInputLayout, primaryInputActions)
             bottom.setButtonsOnly(buttonsOnly)
             bottom.setPinnedOnly(!drawn)
             bottom.visibility = View.VISIBLE
@@ -6144,7 +6200,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val screenOff = screenIsOff()
         if (!screenOff) {
             gestureSettingsOpen = false
-            inputSettingsOpen = false
+            // A recreation for a font, language or similar change reopens the editor from the saved state, which is written after this.
+            if (!isChangingConfigurations) inputSettingsOpen = false
         }
         releasePads()
         heldKeys.clear()
@@ -6787,6 +6844,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 openDualScreenControls()
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean("input_editor_only", inputEditorOnly)
+        outState.putBoolean("input_settings_open", inputSettingsOpen)
+        inputEditorTarget?.takeIf { inputSettingsOpen && inputEditorOnly }?.let { outState.putStringArray("input_editor_target", arrayOf(it.first, it.second, it.third)) }
     }
 
     override fun onDestroy() {
