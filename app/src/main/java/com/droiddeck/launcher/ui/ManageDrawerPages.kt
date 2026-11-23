@@ -57,7 +57,7 @@ internal fun ManageDrawerPages(offeredNow: List<SessionDrawerPage>, modifier: Mo
         SortableRows(
             rows = { current.map { it.name } },
             commit = { names -> DrawerPages.rearrange(ctx, names.mapNotNull { n -> current.firstOrNull { it.name == n } }) },
-            movable = { true },
+            movable = { it != SessionDrawerPage.MORE.name },
             rowHeight = STORE_ROW, handleWidth = STORE_HANDLE,
             releaseSignal = releaseSignal,
             onGrab = { before -> DrawerPages.heldFrom = before?.mapNotNull { n -> current.firstOrNull { it.name == n } } },
@@ -66,6 +66,8 @@ internal fun ManageDrawerPages(offeredNow: List<SessionDrawerPage>, modifier: Mo
             },
         ) { name, held, offset, hint, rowModifier, onFocus ->
             val page = current.first { it.name == name }
+            // The same divider the launcher's Edit tabs uses: pages above it are tabs, pages below it are kept in More.
+            if (page == SessionDrawerPage.MORE) { MoreLine(STORE_ROW); return@SortableRows }
             val shown = page !in DrawerPages.hidden
             val pal = LocalPalette.current
             val label = stringResource(page.title)
@@ -80,13 +82,7 @@ internal fun ManageDrawerPages(offeredNow: List<SessionDrawerPage>, modifier: Mo
                     modifier = Modifier.weight(1f).alpha(if (shown) 1f else 0.5f),
                 ) {
                     Icon(page.icon, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (page == SessionDrawerPage.MORE) Text(
-                            stringResource(R.string.drawer_more_divider), fontSize = 12.sp, color = colors.onSurfaceVariant,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (hint != null) KeyHint("Y", hint)
                 ToggleSwitch(
