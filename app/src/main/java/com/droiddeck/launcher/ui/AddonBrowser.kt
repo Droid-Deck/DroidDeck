@@ -145,10 +145,12 @@ internal class CurseLink(val app: UserApps.App) {
             ((turns[path] ?: 0) + 1).also { turns[path] = it }
         }
         val projects = call(context, target, launch, block) ?: return false
-        val newest = synchronized(settleLock) {
-            (turns[path] == turn).also { if (it) settled[path] = generation to projects }
+        synchronized(settleLock) {
+            if (turns[path] == turn) {
+                settled[path] = generation to projects
+                report(target, projects)
+            }
         }
-        if (newest) report(target, projects)
         return true
     }
 

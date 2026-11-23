@@ -207,6 +207,7 @@ class CurseLinkTabTest {
                 assertTrue(link.change(context, target) { listOf(older, newer) })
                 listOf(older)
             })
+            assertEquals(setOf("1", "2"), CurseLink.lastReported(target).keys)
             assertEquals(listOf("1", "2"), link.installed(context, target, 1).map { it.id })
             assertEquals(1, methods.count { it == "scanGameInstance" })
         } finally {
