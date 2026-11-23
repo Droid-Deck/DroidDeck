@@ -763,6 +763,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             onRailSelect(key)
         }, a)
         val stepScope = androidx.compose.runtime.rememberCoroutineScope()
+        val pageKeyNow = androidx.compose.runtime.rememberUpdatedState(s.pageKey)
         var railHold by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
         val tabStep = androidx.compose.runtime.rememberUpdatedState { step: Int ->
             if (!processSettingsPageVisible) {
@@ -774,12 +775,15 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
                     val since = MainTabSteps.otherKeys
                     val owner = selected
+                    val ownPage = if (key == "components") "components" else null
                     railHold?.cancel()
                     // Pages focus their own first control as they appear; the ring stays on the rail until another key moves it.
                     railHold = stepScope.launch {
+                        var pageShown = false
                         repeat(RAIL_HOLD_FRAMES) {
                             withFrameNanos { }
                             if (MainTabSteps.otherKeys != since || selected != owner) return@launch
+                            if (pageKeyNow.value == ownPage) pageShown = true else if (pageShown) return@launch
                             if (frontFocus.focusedRail != key) runCatching { frontFocus.railFor(key).requestFocus() }
                         }
                     }
