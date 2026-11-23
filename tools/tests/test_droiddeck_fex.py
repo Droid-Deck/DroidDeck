@@ -526,6 +526,21 @@ class PrepareTest(FexTestCase):
             for name in names:
                 self.assertEqual((Path(fex["rootfs"]) / "lib" / arch / name).read_bytes(), b"new ABI " + name.encode())
 
+    def test_opengl_dispatch_library_comes_from_the_newer_runtime_when_the_base_lacks_it(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            self.write(sniper / "files/lib" / arch / "libGLdispatch.so.0", b"base dispatch")
+            self.write(provider / "files/lib" / arch / "libOpenGL.so.0.0.0", b"opengl " + arch.encode())
+            os.symlink("libOpenGL.so.0.0.0", provider / "files/lib" / arch / "libOpenGL.so.0")
+        fex, _ = self.quiet(FEX["prepare"])
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            root = Path(fex["rootfs"]) / "lib" / arch
+            self.assertEqual((root / "libOpenGL.so.0").read_bytes(), b"opengl " + arch.encode())
+            self.assertEqual((root / "libGLdispatch.so.0").read_bytes(), b"base dispatch")
+
     def test_gbm_requires_usable_provider_dependencies_on_both_architectures(self):
         self.fex_tool()
         sniper = self.runtime()
