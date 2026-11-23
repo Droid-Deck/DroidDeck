@@ -55,8 +55,7 @@ class DroidDeckHudHost(context: Context) {
         val lastFrame = lastCompositorFrameNanos
         val compositorLive = lastFrame > 0L &&
             now - lastFrame <= 1_000_000_000L
-        val detected = (feed.live && !feed.steamFocused) ||
-            (!feed.live && compositorLive)
+        val detected = compositorLive || (feed.live && !feed.steamFocused)
 
         if (detected != candidateGameActive) {
             candidateGameActive = detected
