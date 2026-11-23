@@ -708,6 +708,16 @@ long syscall(long number, ...) {
             return (long)utimensat((int)arg1, (const char *)arg2, (const struct timespec *)arg3, (int)arg4);
         }
 #endif
+#if defined(__NR_connect)
+        if (number == __NR_connect) {
+            return (long)connect((int)arg1, (const struct sockaddr *)arg2, (socklen_t)arg3);
+        }
+#endif
+#if defined(__NR_bind)
+        if (number == __NR_bind) {
+            return (long)bind((int)arg1, (const struct sockaddr *)arg2, (socklen_t)arg3);
+        }
+#endif
 #if defined(__NR_truncate)
         if (number == __NR_truncate) {
             return (long)truncate((const char *)arg1, (off_t)arg2);

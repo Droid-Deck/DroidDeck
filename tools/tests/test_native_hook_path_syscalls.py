@@ -14,7 +14,9 @@ PROBE = r"""
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/syscall.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 static void show(const char *name, long ret) { printf("%s\t%d\n", name, ret >= 0); }
@@ -40,6 +42,16 @@ int main(int argc, char **argv) {
   snprintf(q, sizeof(q), "%s/made/link", dir);
   show("symlinkat", syscall(SYS_symlinkat, "file", AT_FDCWD, q));
   show("unlinkat", syscall(SYS_unlinkat, AT_FDCWD, q, 0));
+  snprintf(q, sizeof(q), "%s/made/sock", dir);
+  struct sockaddr_un addr = {.sun_family = AF_UNIX};
+  snprintf(addr.sun_path, sizeof(addr.sun_path), "%.107s", q);
+  int server = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0), client = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+  show("bind", syscall(SYS_bind, server, &addr, sizeof(addr)));
+  listen(server, 1);
+  show("connect", syscall(SYS_connect, client, &addr, sizeof(addr)));
+  close(client);
+  close(server);
+  syscall(SYS_unlinkat, AT_FDCWD, q, 0);
   snprintf(q, sizeof(q), "%s/made", dir);
   show("chdir", syscall(SYS_chdir, q));
   show("cwd", getcwd(cwd, sizeof(cwd)) && strstr(cwd, "/made") ? 0 : -1);
@@ -88,7 +100,7 @@ __attribute__((constructor)) static void early(void) { free(malloc(1)); }
 """
 
 CALLS = ("mkdirat", "openat", "truncate", "fchmodat", "utimensat", "futimens", "renameat", "renameat2", "symlinkat", "unlinkat",
-         "chdir", "cwd", "unlinkat-file", "unlinkat-dir")
+         "bind", "connect", "chdir", "cwd", "unlinkat-file", "unlinkat-dir")
 
 
 class NativeHookPathSyscallsTest(unittest.TestCase):
