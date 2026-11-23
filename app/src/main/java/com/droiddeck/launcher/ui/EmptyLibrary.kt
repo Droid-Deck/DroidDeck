@@ -93,7 +93,7 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
     val haptics = LocalHapticFeedback.current
     val keepOff by rememberUpdatedState(avoid)
     val speed = with(LocalDensity.current) { 64.dp.toPx() }
-        val clearance = with(LocalDensity.current) { 16.dp.toPx() }
+        val clearance = with(LocalDensity.current) { 4.dp.toPx() }
     LaunchedEffect(clock) {
         var last = -1L
         var vx = speed * 0.8f
@@ -126,9 +126,21 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
                 if (y - hh < 0f) { y = hh; vy = abs(vy) }
                 if (y + hh > clock.page.height) { y = clock.page.height - hh; vy = -abs(vy) }
                 keepOff?.inflate(clearance)?.let { r ->
-                    if (x + hw > r.left && x - hw < r.right && y + hh > r.top && y - hh < r.bottom) {
-                        val outX = if (x < r.center.x) r.left - (x + hw) else r.right - (x - hw)
-                        val outY = if (y < r.center.y) r.top - (y + hh) else r.bottom - (y - hh)
+                    val nearX = x.coerceIn(r.left, r.right)
+                    val nearY = y.coerceIn(r.top, r.bottom)
+                    val gapX = x - nearX
+                    val gapY = y - nearY
+                    val gap = hypot(gapX, gapY)
+                    if (gap in 0.0001f..f.ball) {
+                        val nx = gapX / gap
+                        val ny = gapY / gap
+                        x = nearX + nx * f.ball
+                        y = nearY + ny * f.ball
+                        val into = vx * nx + vy * ny
+                        if (into < 0f) { vx -= 2f * into * nx; vy -= 2f * into * ny }
+                    } else if (gap <= 0.0001f) {
+                        val outX = if (x < r.center.x) r.left - f.ball - x else r.right + f.ball - x
+                        val outY = if (y < r.center.y) r.top - f.ball - y else r.bottom + f.ball - y
                         if (abs(outX) < abs(outY)) { x += outX; vx = if (outX < 0) -abs(vx) else abs(vx) }
                         else { y += outY; vy = if (outY < 0) -abs(vy) else abs(vy) }
                     }
