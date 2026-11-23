@@ -53,8 +53,8 @@ class SignalHandlerEscapeTest(unittest.TestCase):
         self.assertEqual([line for line in added(files()[THREADS]) if line], ["uint64_t GuestFrames {};", "uint32_t GuestFrameCount {};"])
 
     def test_delivery_pushes_and_reclaims_only_left_frames_at_the_dispatch_level(self):
-        found = {function: body for function, body in hunks(files()[DELEGATOR])}
-        delivery = "".join(body for function, body in found.items() if "HandleDispatcherGuestSignal" in function)
+        found = hunks(files()[DELEGATOR])
+        delivery = "".join(body for function, body in found if "HandleDispatcherGuestSignal" in function)
         lines = added(delivery)
         self.assertIn("#ifdef ARCHITECTURE_arm64", lines)
         gate = " ".join(lines)
