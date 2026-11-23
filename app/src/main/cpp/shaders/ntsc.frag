@@ -44,20 +44,12 @@ const mat3 yiq2rgb_mat = mat3(
     1.0, -1.106, 1.705
 );
 
-vec3 applyNTSC(vec2 uv, vec3 col) {
-    vec3 yiq = col * yiq_mat;
-
-    float chromaPhase = PI * (mod(uv.y * pc.resolution.y, 2.0) + pc.frameCount);
-    yiq.y *= cos(chromaPhase * 0.5);
-    yiq.z *= sin(chromaPhase * 0.5);
-
-    vec3 rgb = yiq * yiq2rgb_mat;
-
-    vec3 finalColor = rgb;
-    finalColor.r += texture(InputTexture, uv + vec2(CHROMA_OFFSET, 0.0)).r - col.r;
-    finalColor.g += texture(InputTexture, uv + vec2(0.0, BLUR_RADIUS)).g - col.g;
-    finalColor.b += texture(InputTexture, uv - vec2(CHROMA_OFFSET, 0.0)).b - col.b;
-    return finalColor;
+vec3 applyNTSC(vec2 uv) {
+    return vec3(
+        texture(InputTexture, uv + vec2(CHROMA_OFFSET, 0.0)).r,
+        texture(InputTexture, uv + vec2(0.0, BLUR_RADIUS)).g,
+        texture(InputTexture, uv - vec2(CHROMA_OFFSET, 0.0)).b
+    );
 }
 
 vec3 applyScanlines(vec2 uv, vec3 col) {
@@ -76,7 +68,7 @@ vec2 applyWarp(vec2 uv) {
 void main() {
     vec2 warpedUV = applyWarp(fragTexCoord);
     vec3 centerColor = texture(InputTexture, warpedUV).rgb;
-    vec3 ntscColor = applyNTSC(warpedUV, centerColor);
+    vec3 ntscColor = applyNTSC(warpedUV);
     vec3 scanlineColor = applyScanlines(warpedUV, centerColor);
     vec3 finalColor = mix(ntscColor, scanlineColor, 0.7);
     outColor = vec4(finalColor, 1.0);
