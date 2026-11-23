@@ -45,6 +45,9 @@ object WowAddons {
     class Origin(val id: String, val version: String)
 
     private const val ORIGINS = ".droiddeck-sources"
+    private const val TOC_VERSION = "Version"
+    private const val TOC_WOWI_ID = "X-WoWI-ID"
+    private val TOC_KEYS = setOf(TOC_VERSION, TOC_WOWI_ID)
 
     internal const val MAX_EXPANDED_BYTES = 4L * 1024 * 1024 * 1024
 
@@ -81,18 +84,20 @@ object WowAddons {
         return installed(target).map { name ->
             val toc = toc(File(target.addOns, name))
             val origin = origins[name]
-            Installed(name, origin?.version ?: toc["Version"], origin?.id ?: toc["X-WoWI-ID"])
+            Installed(name, origin?.version ?: toc[TOC_VERSION], origin?.id ?: toc[TOC_WOWI_ID])
         }
     }
 
-    internal fun tocFields(text: String): Map<String, String> {
+    internal fun tocFields(lines: Sequence<String>, keys: Set<String> = TOC_KEYS): Map<String, String> {
         val out = LinkedHashMap<String, String>()
-        for (raw in text.lineSequence()) {
+        for (raw in lines) {
             val line = raw.trim().removePrefix("\uFEFF")
             if (!line.startsWith("##") || ':' !in line) continue
             val key = line.removePrefix("##").substringBefore(':').trim()
+            if (key !in keys || key in out) continue
             val value = line.substringAfter(':').trim()
-            if (key.isNotEmpty() && value.isNotEmpty() && '@' !in value) out.putIfAbsent(key, value)
+            if (value.isNotEmpty() && '@' !in value) out[key] = value
+            if (out.size == keys.size) break
         }
         return out
     }
@@ -102,7 +107,7 @@ object WowAddons {
         val main = tocs.firstOrNull { it.name.dropLast(4).equals(folder.name, ignoreCase = true) }
             ?: tocs.firstOrNull { it.name.dropLast(4).replace(SUFFIX, "").equals(folder.name, ignoreCase = true) }
             ?: tocs.minByOrNull { it.name.length } ?: return emptyMap()
-        return runCatching { tocFields(main.readText()) }.getOrDefault(emptyMap())
+        return runCatching { main.bufferedReader().useLines { tocFields(it) } }.getOrDefault(emptyMap())
     }
 
     internal fun parseOrigins(text: String): Map<String, Origin> = text.lineSequence().mapNotNull { line ->

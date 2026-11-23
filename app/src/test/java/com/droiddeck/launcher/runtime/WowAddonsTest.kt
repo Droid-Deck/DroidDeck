@@ -220,10 +220,35 @@ class WowAddonsTest {
     }
 
     @Test fun tocFieldsReadVersionAndSourceIds() {
-        val fields = WowAddons.tocFields("\uFEFF## Interface: 110002\n## Title: Foo\n## Version: 1.4.2\n## X-WoWI-ID: 1234\n## Version: 9\n## X-Curse-Project-ID: @curse-id@\nFoo.lua\n")
+        val fields = WowAddons.tocFields("\uFEFF## Interface: 110002\n## Title: Foo\n## Version: 1.4.2\n## X-WoWI-ID: 1234\n## Version: 9\n## X-Curse-Project-ID: @curse-id@\nFoo.lua\n".lineSequence(), setOf("Version", "X-WoWI-ID", "X-Curse-Project-ID"))
         assertEquals("1.4.2", fields["Version"])
         assertEquals("1234", fields["X-WoWI-ID"])
         assertEquals(null, fields["X-Curse-Project-ID"])
+    }
+
+    @Test fun tocFieldsKeepOnlyTheRequestedKeysAndStopOnceFound() {
+        var read = 0
+        val lines = sequence {
+            yield("## Version: 2.0")
+            yield("## X-WoWI-ID: 5")
+            repeat(100_000) { read++; yield("## X-Data-$it: payload") }
+        }
+        val fields = WowAddons.tocFields(lines)
+        assertEquals(mapOf("Version" to "2.0", "X-WoWI-ID" to "5"), fields)
+        assertEquals(0, read)
+    }
+
+    @Test fun detailsSkipDataRowsInLargeTocs() {
+        val target = target()
+        val db = File(target.addOns, "BigDB").apply { mkdirs() }
+        File(db, "BigDB_Mists.toc").bufferedWriter().use { w ->
+            w.write("## Title: BigDB\nsrc\\main.lua\n")
+            repeat(50_000) { w.write("## X-Data-$it: ${"x".repeat(200)}\n") }
+            w.write("## Version: 3.1\n")
+        }
+        val details = WowAddons.details(target).single()
+        assertEquals("3.1", details.version)
+        assertEquals(null, details.wowiId)
     }
 
     @Test fun detailsUseTheTocAndTheRecordedSource() {
