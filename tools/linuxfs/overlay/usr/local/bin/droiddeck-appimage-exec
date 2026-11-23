@@ -14,15 +14,17 @@ if [ -n "${DDNATV_ROOT:-}" ]; then
   cache=${XDG_CACHE_HOME:-${HOME:-/root}/.cache}/droiddeck-appimage
   mkdir -p "$cache" || exit 1
   exec 9>"$cache/.lock"
-  flock 9
+  flock 9 || exit 1
+  state() { printf '%s\n%s' "$1" "$(TZ=UTC0 stat -Lc '%s %y' -- "$1" 2>/dev/null)"; }
   for dir in "$cache"/*/; do
     dir=${dir%/}
-    [ -L "$dir" ] && continue
-    [ -f "$dir/source" ] && [ ! -e "$(head -n 1 "$dir/source")" ] && rm -rf -- "${dir:?}"
+    [ ! -L "$dir" ] && [ -f "$dir/source" ] || continue
+    [ "$(cat "$dir/source")" = "$(state "$(head -n 1 "$dir/source")")" ] && continue
+    (flock -n 7 && rm -rf -- "${dir:?}") 7<"$dir/source"
   done
   find "$cache" -mindepth 1 -maxdepth 1 -name '.unpack.*' -mmin +60 -exec rm -rf -- {} + 2>/dev/null
-  unpacked=$cache/$(printf '%s' "$image" | md5sum | cut -c1-16)
-  source=$(printf '%s\n%s' "$image" "$(stat -Lc '%s %Y' "$image")")
+  source=$(state "$image")
+  unpacked=$cache/$(printf '%s' "$source" | md5sum | cut -c1-16)
   if [ "$(cat "$unpacked/source" 2>/dev/null)" != "$source" ] || [ ! -e "$unpacked/squashfs-root/AppRun" ]; then
     echo "== appimage: unpacking $image"
     work=$(mktemp -d "$cache/.unpack.XXXXXX") || exit 1
@@ -35,6 +37,8 @@ if [ -n "${DDNATV_ROOT:-}" ]; then
     rm -rf -- "${unpacked:?}"
     mv -- "$work" "$unpacked" || exit 1
   fi
+  exec 8<"$unpacked/source"
+  flock -s 8 || exit 1
   exec 9>&-
   export APPIMAGE=$image APPDIR=$unpacked/squashfs-root ARGV0=$image OWD=$PWD
   exec "$APPDIR/AppRun" "$@"
