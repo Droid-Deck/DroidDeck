@@ -4417,4 +4417,5 @@
     <string name="onboarding_limit_reason">Android can close Steam’s helper processes. Turn that off now, while the downloads run, and Play is ready the moment they finish.</string>
     <string name="onboarding_limit_action">Do it for me</string>
     <string name="onboarding_limit_while_waiting">Set up while you wait</string>
+    <string name="onboarding_chip">Getting ready · %1$d%% · %2$s</string>
 </resources>

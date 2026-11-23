@@ -26,12 +26,12 @@ object SteamClientPrefetch {
 
     fun running(): Boolean = thread?.isAlive == true
 
-    private const val PACKAGE = "root/.local/share/Steam/package"
+    private const val CACHED = "root/.local/share/Steam/package/droiddeck-cached"
 
     fun installPending(context: Context): Boolean = SteamDownloadMonitor.clientInstallPending(LinuxRuntime.rootDir(context))
 
-    fun pending(context: Context): Boolean = installPending(context) ||
-        File(LinuxRuntime.rootDir(context), PACKAGE).listFiles { f -> f.name.endsWith(".installed") }.isNullOrEmpty()
+    fun pending(context: Context): Boolean =
+        installPending(context) || !File(LinuxRuntime.rootDir(context), CACHED).isFile
 
     /** Stops a running download so a session can take over; the script resumes the partial files. */
     fun cancel() {
@@ -57,7 +57,12 @@ object SteamClientPrefetch {
         val root = LinuxRuntime.rootDir(context)
         LinuxRuntime.writeAccounts(context)
         SessionFiles.stage(context, root)
-        return script(context, listOf("--full"), label, 0, 100)
+        val install = installPending(context)
+        if (install) {
+            val problem = script(context, emptyList(), label, 0, 35)
+            if (problem != null) return problem
+        }
+        return script(context, listOf("--cache"), label, if (install) 35 else 0, 100)
     }
 
     private fun script(context: Context, args: List<String>, label: (Int) -> String, from: Int, to: Int): String? {
