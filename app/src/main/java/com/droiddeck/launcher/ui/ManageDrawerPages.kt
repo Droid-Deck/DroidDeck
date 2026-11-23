@@ -80,7 +80,13 @@ internal fun ManageDrawerPages(offeredNow: List<SessionDrawerPage>, modifier: Mo
                     modifier = Modifier.weight(1f).alpha(if (shown) 1f else 0.5f),
                 ) {
                     Icon(page.icon, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                    Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Column(Modifier.weight(1f)) {
+                        Text(label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (page == SessionDrawerPage.MORE) Text(
+                            stringResource(R.string.drawer_more_divider), fontSize = 12.sp, color = colors.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 if (hint != null) KeyHint("Y", hint)
                 ToggleSwitch(

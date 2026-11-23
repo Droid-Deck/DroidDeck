@@ -182,6 +182,7 @@ internal val SessionDrawerPage.title: Int get() = when (this) {
     SessionDrawerPage.GAMES -> R.string.game_settings_title
     SessionDrawerPage.AGENT -> R.string.rail_agent
     SessionDrawerPage.SESSION -> R.string.mode_session
+    SessionDrawerPage.MORE -> R.string.drawer_page_more
 }
 
 internal val SessionDrawerPage.icon get() = when (this) {
@@ -194,6 +195,7 @@ internal val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.GAMES -> Icons.Outlined.Layers
     SessionDrawerPage.AGENT -> Icons.Outlined.Terminal
     SessionDrawerPage.SESSION -> Icons.Outlined.Settings
+    SessionDrawerPage.MORE -> Icons.Outlined.MoreHoriz
 }
 
 private class DrawerFocus {
@@ -456,7 +458,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             host.open != null -> host.open = null
         }
     }
-    LaunchedEffect(page) { host.open = null; appToChooseDisplay = null }
+    LaunchedEffect(page) { host.open = null; appToChooseDisplay = null; managing = false }
     LaunchedEffect(a.selectedGameProfileId) {
         if (host.open == "fex") host.open = null
     }
@@ -623,13 +625,10 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                     DrawerBumper("LB", stringResource(R.string.drawer_prev_page), modifier = focus.track(page, "prev")) {
                         host.open = null; onPageChange(pages.step(page, -1))
                     }
-                    DrawerPageTabs(page = page, pages = pages, compact = true, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
+                    DrawerPageTabs(page = pages.tabFor(page), pages = pages.strip(), compact = true, modifier = Modifier.weight(1f)) { index -> host.open = null; onPageChange(index) }
                     DrawerBumper("RB", stringResource(R.string.drawer_next_page), modifier = focus.track(page, "next")) {
                         host.open = null; onPageChange(pages.step(page, 1))
                     }
-                    SmallIconButton(
-                        Icons.Outlined.Tune, stringResource(R.string.drawer_manage_pages), colors.onSurfaceVariant,
-                    ) { host.open = null; managing = !managing }
                 }
                 if (managing) ManageDrawerPages(
                     offeredDrawerPages(a.glassesPresent),
@@ -905,6 +904,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                             )
                         }
                         SessionDrawerPage.AGENT -> Unit
+                        SessionDrawerPage.MORE -> DrawerMorePage(host, pages.inMore(), { host.open = null; onPageChange(it) }, { host.open = null; managing = true }) { key -> focus.track(page, key) }
                         SessionDrawerPage.SESSION -> {
                             SettingsGroup(stringResource(R.string.drawer_support)) {
                                 SettingsRow(stringResource(R.string.report_problem), stringResource(R.string.report_problem_hint)) {
@@ -1174,6 +1174,42 @@ private fun DrawerPageTabs(page: SessionDrawerPage, pages: List<SessionDrawerPag
 }
 
 private const val LOOK_CUSTOM = "custom"
+
+/** The pages kept inside More, and the way into arranging which pages sit on the strip and which here. */
+@Composable
+private fun DrawerMorePage(host: MenuHost, pages: List<SessionDrawerPage>, onOpen: (SessionDrawerPage) -> Unit, onEdit: () -> Unit, track: (String) -> Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    SettingsGroup(stringResource(R.string.drawer_page_more)) {
+        if (pages.isEmpty()) Text(
+            stringResource(R.string.drawer_more_empty), fontSize = 13.sp, color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+        )
+        for (item in pages) {
+            val source = remember { MutableInteractionSource() }
+            val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
+            val shape = RoundedCornerShape(12.dp)
+            val open = { onOpen(item) }
+            Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(shape)
+                    .background(if (hot) pal.signal.copy(alpha = 0.12f) else Color.Transparent)
+                    .glideBorder(hot, shape, pal.signal)
+                    .then(track("more-${item.name.lowercase()}"))
+                    .testTag("drawer-more-${item.name.lowercase()}")
+                    .hoverable(source)
+                    .clickable(interactionSource = source, indication = null, role = androidx.compose.ui.semantics.Role.Button, onClick = open)
+                    .controllerConfirm(onClick = open)
+                    .padding(horizontal = 14.dp),
+            ) {
+                Icon(item.icon, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(22.dp))
+                Text(stringResource(item.title), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+    Spacer(Modifier.height(10.dp))
+    DrawerOutlineButton(stringResource(R.string.drawer_manage_pages), modifier = track("more-edit").testTag("drawer-more-edit"), onClick = onEdit)
+}
 
 @Composable
 private fun ScreenEffectsGroup(
