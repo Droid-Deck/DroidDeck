@@ -197,7 +197,9 @@ object ShaderPrecompManager {
         val libs = (Library.steamLibraries(context, "arm64").map { it.first } +
             Library.steamLibraries(context, "x86_64").map { it.first } +
             steamRoots(context)).distinctBy { it.path }
-        return libs.map { File(it, "steamapps/shadercache/$key") }.filter { it.isDirectory }.distinctBy {
+        val storeRoots = com.droiddeck.launcher.stores.StoreInstallRoot.externalRoots(context).map { it.first }
+        val allDirs = (libs + storeRoots).map { File(it, "steamapps/shadercache/$key") }
+        return allDirs.filter { it.isDirectory }.distinctBy {
             runCatching { it.canonicalPath }.getOrDefault(it.path)
         }
     }
