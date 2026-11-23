@@ -37,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -53,6 +54,7 @@ import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -60,6 +62,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.AddedGames
@@ -84,7 +88,7 @@ private class AddonResults {
     var more by mutableStateOf(false)
 }
 
-private enum class AddonStatus { INSTALL, UPDATE, INSTALLED }
+internal enum class AddonStatus { INSTALL, UPDATE, INSTALLED }
 
 private enum class AddonSource { WOWI, CURSE }
 
@@ -98,6 +102,22 @@ internal class CurseLink(val app: UserApps.App) {
     @Volatile private var hold: AtomicBoolean? = null
     @Volatile private var inspector: String? = null
     private val guids = HashMap<String, String>()
+    private val scanLock = Object()
+    private val scans = HashMap<String, Pair<Any, List<CurseForgeApp.Project>>>()
+    var generation by mutableIntStateOf(0)
+        private set
+
+    fun refresh() {
+        generation++
+    }
+
+    fun installed(context: Context, target: WowAddons.Target, key: Any): List<CurseForgeApp.Project> = CurseForgeApp.onDisk(
+        synchronized(scanLock) {
+            scans[target.addOns.path]?.takeIf { it.first == key }?.second
+                ?: call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid, rescan = true) }.also { scans[target.addOns.path] = key to it }
+        },
+        target.addOns,
+    )
 
     fun <T> call(context: Context, target: WowAddons.Target, launch: Boolean = true, block: (Linked) -> T): T {
         val linked = synchronized(lock) { link(context, target, launch) }
@@ -143,7 +163,7 @@ internal class CurseLink(val app: UserApps.App) {
     }
 
     fun uninstall(context: Context, target: WowAddons.Target, folder: String): Boolean = call(context, target, launch = false) { linked ->
-        val project = CurseForgeApp.owner(CurseForgeApp.projects(context, linked.inspector, linked.guid, rescan = true), folder) ?: return@call false
+        val project = CurseForgeApp.owner(CurseForgeApp.projects(context, linked.inspector, linked.guid), folder) ?: return@call false
         if (!CurseForgeApp.uninstall(context, linked.inspector, linked.guid, project)) throw CurseState()
         true
     }
@@ -170,11 +190,33 @@ internal class CurseLink(val app: UserApps.App) {
 
 private const val PAGES_AHEAD = 8
 private const val CURSE_UPDATE = "update"
+private const val UNINSTALLING = -1
 
 private fun curseMark(project: CurseForgeApp.Project): String? = CURSE_UPDATE.takeIf { project.update }
 
 @Composable
-internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAddons.Target, curseForge: UserApps.App?, onDismiss: () -> Unit) {
+internal fun rememberCurseLink(app: UserApps.App?, sessionRunning: Boolean): CurseLink? {
+    val context = LocalContext.current.applicationContext
+    val owner = LocalLifecycleOwner.current
+    var visible by remember(owner) { mutableStateOf(owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) }
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) visible = true
+            if (event == Lifecycle.Event.ON_STOP) visible = false
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+    val active = visible && !sessionRunning
+    val link = remember(app?.key, active) { app?.takeIf { active }?.let(::CurseLink) }
+    DisposableEffect(link) {
+        onDispose { link?.close(context) }
+    }
+    return link
+}
+
+@Composable
+internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAddons.Target, curseForge: UserApps.App?, link: CurseLink?, onDismiss: () -> Unit) {
     val context = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     val shown = rememberShown(onDismiss)
@@ -184,11 +226,8 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     var category by remember { mutableStateOf<WowAddonCatalog.Category?>(null) }
     var sort by remember { mutableStateOf(WowAddonCatalog.Sort.POPULAR) }
     var source by remember { mutableStateOf(AddonSource.WOWI) }
-    val curse = if (source == AddonSource.CURSE) curseForge else null
-    val link = remember(curseForge?.key) { curseForge?.let(::CurseLink) }
-    DisposableEffect(link) {
-        onDispose { link?.close(context) }
-    }
+    val curse = if (source == AddonSource.CURSE && link != null) curseForge else null
+    LaunchedEffect(link) { link?.refresh() }
     var notice by remember { mutableStateOf<Int?>(null) }
     var curseInstalls by remember { mutableIntStateOf(0) }
     val results = remember(text, category, sort, target, curse) { AddonResults() }
@@ -198,12 +237,13 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         value = withContext(Dispatchers.IO) { runCatching { WowAddonCatalog.categories(context) }.getOrDefault(emptyList()) }
     }
     val presentKey = curse to target.addOns
-    val snapshot by produceState(presentKey to emptyMap<String, String?>(), target.addOns, WowAddons.imports, curse, curseInstalls, results.items.isEmpty()) {
+    val scanKey = link?.generation to WowAddons.imports
+    val snapshot by produceState(presentKey to emptyMap<String, String?>(), target.addOns, scanKey, curse, curseInstalls, curse == null && results.items.isEmpty()) {
         val into = target
         val key = curse to into.addOns
         value = key to withContext(Dispatchers.IO) {
             if (curse != null && link != null) runCatching {
-                link.call(context, into) { CurseForgeApp.projects(context, it.inspector, it.guid, rescan = true) }.associate { it.id to curseMark(it) }
+                link.installed(context, into, scanKey).associate { it.id to curseMark(it) }
             }.getOrDefault(emptyMap())
             else WowAddons.details(into).mapNotNull { item -> item.wowiId?.let { it to item.version } }.toMap()
         }
@@ -291,6 +331,32 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
             Toast.makeText(context, message.first, Toast.LENGTH_LONG).show()
         }
     }
+    fun uninstall(addon: WowAddonCatalog.Addon) {
+        val key = installKey(addon, target)
+        if (key in installing) return
+        if (SessionState.running) {
+            Toast.makeText(context, R.string.main_addons_close_session, Toast.LENGTH_LONG).show()
+            return
+        }
+        val into = target
+        val via = link?.takeIf { curse != null }
+        installing[key] = UNINSTALLING
+        scope.launch {
+            val done = withContext(Dispatchers.IO) {
+                runCatching {
+                    val folders = if (via != null) via.call(context, into) { linked ->
+                        CurseForgeApp.projects(context, linked.inspector, linked.guid).firstOrNull { it.id == addon.id }?.folders.orEmpty()
+                    } else WowAddons.details(into).filter { it.wowiId == addon.id }.map { it.name }
+                    folders.forEach { if (File(into.addOns, it).isDirectory) deleteAddon(context, into, it, via) }
+                }
+            }
+            installing.remove(key)
+            installed.remove(key)
+            WowAddons.changed()
+            curseInstalls++
+            if (done.isFailure) Toast.makeText(context, R.string.fm_delete_failed, Toast.LENGTH_LONG).show()
+        }
+    }
     val sourceName = stringResource(if (curse != null) R.string.addons_source_curse else R.string.addons_source_wowi)
     val grid = rememberLazyGridState()
     LaunchedEffect(results, grid) {
@@ -372,7 +438,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         ) {
             items(results.items, key = { it.id }) { addon ->
                 val key = installKey(addon, target)
-                AddonRow(addon, status(addon), installing[key], if (addon.id == results.items.firstOrNull()?.id) Modifier.focusRequester(firstAction) else Modifier) { install(addon) }
+                AddonRow(addon, status(addon), installing[key], if (addon.id == results.items.firstOrNull()?.id) Modifier.focusRequester(firstAction) else Modifier, { uninstall(addon) }) { install(addon) }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -395,7 +461,22 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
 }
 
 @Composable
-private fun AddonRow(addon: WowAddonCatalog.Addon, status: AddonStatus, progress: Int?, action: Modifier, onInstall: () -> Unit) {
+internal fun AddonRow(addon: WowAddonCatalog.Addon, status: AddonStatus, progress: Int?, action: Modifier, onUninstall: () -> Unit, onInstall: () -> Unit) {
+    var asking by remember(addon.id) { mutableStateOf(false) }
+    val first = remember(addon.id) { FocusRequester() }
+    var refocus by remember(addon.id) { mutableStateOf(false) }
+    val inputMode = LocalInputModeManager.current
+    LaunchedEffect(status, progress) {
+        if (!refocus) return@LaunchedEffect
+        withFrameNanos { }
+        runCatching { first.requestFocus() }
+        if (progress == null) refocus = false
+    }
+    fun act(block: () -> Unit) {
+        refocus = inputMode.inputMode == InputMode.Keyboard
+        block()
+    }
+    val lead = action.focusRequester(first)
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     Row(
@@ -413,13 +494,24 @@ private fun AddonRow(addon: WowAddonCatalog.Addon, status: AddonStatus, progress
                 fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
         }
-        val size = action
+        val uninstall = stringResource(R.string.common_uninstall)
         when {
-            progress != null -> SecondaryButton(stringResource(R.string.store_installing), compact = true, modifier = size, progress = progress / 100f, onClick = onInstall)
-            status == AddonStatus.INSTALLED -> SecondaryButton(stringResource(R.string.stores_installed_chip), enabled = false, compact = true, modifier = size) {}
-            else -> PrimaryButton(stringResource(if (status == AddonStatus.UPDATE) R.string.common_update else R.string.store_install), compact = true, modifier = size, onClick = onInstall)
+            progress == UNINSTALLING -> SecondaryButton(stringResource(R.string.stores_uninstalling), compact = true, modifier = lead) {}
+            progress != null -> SecondaryButton(stringResource(R.string.store_installing), compact = true, modifier = lead, progress = progress / 100f, onClick = onInstall)
+            status == AddonStatus.INSTALL -> PrimaryButton(stringResource(R.string.store_install), compact = true, modifier = lead) { act(onInstall) }
+            else -> {
+                if (status == AddonStatus.UPDATE) PrimaryButton(stringResource(R.string.common_update), compact = true, modifier = lead) { act(onInstall) }
+                SecondaryButton(uninstall, compact = true, modifier = if (status == AddonStatus.UPDATE) Modifier else lead) { asking = true }
+            }
         }
     }
+    if (asking) ConfirmDialog(
+        title = stringResource(R.string.stores_uninstall_title, addon.name),
+        text = stringResource(R.string.games_delete_addon_body),
+        confirm = stringResource(R.string.common_uninstall),
+        onConfirm = { asking = false; act(onUninstall) },
+        onDismiss = { asking = false },
+    )
 }
 
 private fun Modifier.scrollThumb(state: LazyGridState, color: Color): Modifier = drawWithContent {

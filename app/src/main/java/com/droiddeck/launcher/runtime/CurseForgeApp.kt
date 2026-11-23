@@ -4,6 +4,7 @@ import android.content.Context
 import com.droiddeck.launcher.stores.battlenet.BattleNetInstall
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.LinkedBlockingQueue
@@ -154,6 +155,11 @@ object CurseForgeApp {
     }
 
     internal fun owner(projects: List<Project>, folder: String): Project? = projects.firstOrNull { folder in it.folders }
+
+    internal fun byFolder(projects: List<Project>): Map<String, Project> = projects.flatMap { project -> project.folders.map { it to project } }.toMap()
+
+    internal fun onDisk(projects: List<Project>, addOns: File): List<Project> =
+        projects.filter { project -> project.folders.isNotEmpty() && project.folders.all { File(addOns, it).isDirectory } }
 
     internal var guest: (Context, List<String>, AtomicBoolean?, (String) -> Unit) -> Int = { context, argv, cancelled, onLine ->
         GuestCommand.run(context, argv, logName = "curseforge", extraBinds = BattleNetInstall.binds(context), fastPath = true,

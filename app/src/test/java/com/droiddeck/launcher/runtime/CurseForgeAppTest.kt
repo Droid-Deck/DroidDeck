@@ -363,6 +363,29 @@ class CurseForgeAppTest {
     }
 
     @Test
+    fun anEntryCurseForgeStillListsShowsAsNotInstalledOnceItsFolderIsGone() {
+        val curse = fakeCurse()
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        curse.add("298842", "Leatrix_Maps", 1)
+        curse.add("18808", "TomTom", 1)
+        assertTrue(File(curse.addOns, "Leatrix_Maps").deleteRecursively())
+        val listed = CurseForgeApp.projects(context, url, "g")
+        assertEquals(listOf("298842", "18808"), listed.map { it.id })
+        assertEquals(listOf("18808"), CurseForgeApp.onDisk(listed, curse.addOns).map { it.id })
+    }
+
+    @Test
+    fun aProjectWithAnyFolderMissingOrNoFoldersIsNotInstalled() {
+        val addOns = temp.newFolder("Split")
+        File(addOns, "DBM-Core").mkdirs()
+        val split = CurseForgeApp.Project("3358", "m_3358", listOf("DBM-Core", "DBM-StatusBarTimers"), false)
+        val bare = CurseForgeApp.Project("1", "m_1", emptyList(), false)
+        assertTrue(CurseForgeApp.onDisk(listOf(split, bare), addOns).isEmpty())
+        File(addOns, "DBM-StatusBarTimers").mkdirs()
+        assertEquals(listOf("3358"), CurseForgeApp.onDisk(listOf(split, bare), addOns).map { it.id })
+    }
+
+    @Test
     fun aDeleteWhileCurseForgeIsLinkedGoesThroughItsUninstall() {
         val context = org.robolectric.RuntimeEnvironment.getApplication()
         val target = wow()
