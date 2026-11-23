@@ -529,10 +529,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             enter = if (docked) fadeIn(Motion.tw(160)) else slideInHorizontally(Motion.sp(0.8f, Spring.StiffnessLow)) { it } + fadeIn(Motion.tw(220)),
             exit = if (docked) fadeOut(Motion.tw(140)) else slideOutHorizontally(Motion.tw(240)) { it } + fadeOut(Motion.tw(200)),
         ) {
-            FocusGlideHost(Modifier.fillMaxHeight().width(sheetWidth)) { Box(Modifier.fillMaxSize().onGloballyPositioned { sheetCoords = it }) {
+            FocusGlideHost(Modifier.fillMaxHeight().width(if (docked) sheetWidth else sheetWidth + DRAWER_HANDLE_STRIP)) { Box(Modifier.fillMaxSize().onGloballyPositioned { sheetCoords = it }) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(start = if (docked) 0.dp else DRAWER_HANDLE_STRIP)
                     .background(if (docked) pal.background else pal.background.copy(alpha = 0.97f))
                     .blockTouches()
                     .focusGroup()
@@ -1361,7 +1362,8 @@ internal fun secondScreenModes(none: Boolean, deckPad: Boolean, dashboard: Boole
         (if (desktop) listOf(SecondScreenMode.DESKTOP) else emptyList())
 
 private val DRAWER_MIN_WIDTH = 300.dp
-private val DRAWER_EDGE_GAP = 56.dp
+private val DRAWER_HANDLE_STRIP = 24.dp
+private val DRAWER_EDGE_GAP = 80.dp
 
 /** A grip on the sheet's left edge: dragging it, or pressing left and right on a controller, resizes the sheet. */
 @Composable
