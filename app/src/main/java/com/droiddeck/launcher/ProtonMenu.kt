@@ -187,7 +187,7 @@ internal class ProtonMenu(
     fun prefetchOwn() {
         val tool = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }
         if (ProtonExtras.declined(activity) || ProtonExtras.installedAll(activity, tool).isNotEmpty() ||
-            ProtonExtras.installInProgress || !AutoComponents.online(activity) || AutoComponents.unfavourable(activity)) return
+            ProtonExtras.installInProgress || !AutoComponents.online(activity) || AutoComponents.firstRunHeldBack(activity)) return
         Thread({
             val problem = runCatching {
                 ProtonExtras.prefetch(activity, tool) { label, value -> Onboarding.report(Onboarding.Step.PROTON, label, value) }
@@ -202,7 +202,7 @@ internal class ProtonMenu(
     fun ensureSteamClient() {
         if (activity.isFinishing || activity.isDestroyed || !idle() || SessionState.running || LinuxRuntimeInstaller.isBusy() ||
             SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) || !LinuxRuntime.isInstalled(activity) ||
-            !AutoComponents.online(activity) || AutoComponents.unfavourable(activity) || SteamClientPrefetch.running()) return
+            !AutoComponents.online(activity) || AutoComponents.firstRunHeldBack(activity) || SteamClientPrefetch.running()) return
         SteamClientPrefetch.start(
             activity,
             { mb -> activity.getString(if (mb > 0) R.string.onboarding_steam_downloading_mb else R.string.onboarding_steam_downloading, mb) },
@@ -214,7 +214,9 @@ internal class ProtonMenu(
         if (activity.isFinishing || activity.isDestroyed || !idle() || protonBusyId != null ||
             ProtonExtras.installInProgress || SessionState.running || LinuxRuntimeInstaller.isBusy() ||
             SessionState.phase !in setOf(SessionPhase.IDLE, SessionPhase.FAILED) ||
-            !LinuxRuntime.isInstalled(activity) || !AutoComponents.online(activity) || AutoComponents.unfavourable(activity)) return
+            !LinuxRuntime.isInstalled(activity) || !AutoComponents.online(activity)) return
+        val firstInstall = !ProtonExtras.declined(activity) && ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == ProtonExtras.OWN }).isEmpty()
+        if (if (firstInstall) AutoComponents.firstRunHeldBack(activity) else AutoComponents.unfavourable(activity)) return
         if (ProtonExtras.installedAll(activity, ProtonExtras.tools.first { it.id == ProtonExtras.OWN }).size > 1) {
             protonBusyId = ProtonExtras.OWN
             protonProblem = null

@@ -67,12 +67,15 @@ if [ -n "$repair" ]; then
 fi
 cache_only=
 [ "${1:-}" = --cache ] && cache_only=1
+full=
+[ "${1:-}" = --full ] && full=1
 sync=
 if [ "${1:-}" = --sync ]; then
   case "${2:-}" in publicbeta|steamdeck_publicbeta) sync=$2 ;; *) sync=$steam_channel ;; esac
   manifest=steam_client_${sync}_linuxarm64
 fi
-[ -z "$sync" ] && [ -z "$cache_only" ] && [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ] && exit 0
+[ -z "$sync" ] && [ -z "$cache_only" ] && [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ] &&
+  { [ -z "$full" ] || [ -f "$steam_root/package/$manifest.installed" ]; } && exit 0
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -132,6 +135,37 @@ fetch() {
   done
 }
 
+inventory() {
+  python3 - "$1" <<'PY'
+import calendar, stat, sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as package:
+    for entry in package.infolist():
+        name = entry.filename.replace('\\', '/')
+        modified = calendar.timegm(entry.date_time + (0, 0, 0)) + 28800
+        if name.endswith('/'):
+            size, crc = -1, 0
+        elif stat.S_ISLNK(entry.external_attr >> 16):
+            size, crc = -2, entry.CRC
+        else:
+            size, crc = entry.file_size, entry.CRC
+        print('%s,%d;%d;%d' % (name, size, modified, crc))
+PY
+}
+
+write_installed() {
+  python3 - "$1" "$2" <<'PY'
+import glob, hashlib, sys
+entries = {}
+for listing in sorted(glob.glob(sys.argv[2] + '/*.inventory')):
+    for line in open(listing, encoding='utf-8'):
+        line = line.rstrip('\n')
+        entries[line.rsplit(',', 1)[0]] = line
+body = ''.join(entries[name] + '\n' for name in sorted(entries)) + 'OSVER=-184\nVERSION=3\n'
+with open(sys.argv[1], 'w', encoding='utf-8') as out:
+    out.write(body + 'SHA1=' + hashlib.sha1(body.encode('utf-8')).hexdigest().upper() + '\n')
+PY
+}
+
 fetch_manifest() {
   cdn=""
   for candidate in $cdn_list; do
@@ -152,8 +186,8 @@ fetch_manifest() {
     $2 == "file" { file[block] = $4 }
     $2 == "sha2" { sha[block] = $4 }
     $2 == "size" { size[block] = $4 }
-    END { for (b in file) if (b ~ /_all$/ || b ~ /_linuxarm64_linuxarm64$/) print b, file[b], sha[b], size[b] + 0 }
-  ' "$work/manifest" | sort > "$work/parts"
+    END { for (b in file) if (full || b ~ /_all$/ || b ~ /_linuxarm64_linuxarm64$/) print b, file[b], sha[b], size[b] + 0 }
+  ' full="$full" "$work/manifest" | sort > "$work/parts"
   [ -s "$work/parts" ] && return 0
   echo "droiddeck-steam-install: no client components in $manifest; its blocks are:" \
     "$(awk -F'"' '/^\t"/ && NF >= 3 && $4 == "" { printf "%s ", $2 }' "$work/manifest")" >&2
@@ -229,6 +263,7 @@ for left in "$parts"/*; do
   [ -e "$left" ] || continue
   name=${left##*/}
   name=${name%.unpacked}
+  name=${name%.inventory}
   grep -qF " $name " "$work/parts" || rm -rf "$left"
 done
 done_bytes=0
@@ -248,6 +283,7 @@ while read -r block file sum size; do
   done
   [ -n "$fetched" ] || { echo "droiddeck-steam-install: $file failed on every CDN" >&2; exit 1; }
   unzip -qo "$parts/$file" -d "$steam_root"
+  [ -z "$full" ] || inventory "$parts/$file" > "$parts/$block.inventory"
   : > "$parts/$file.unpacked"
   rm -f "$parts/$file"
   done_bytes=$((done_bytes + size))
@@ -277,6 +313,13 @@ ln -sfn "$steam_root/linux64" "$HOME/.steam/sdk64"
 ln -sfn "$steam_root/linuxarm64" "$HOME/.steam/sdkarm64"
 ln -sfn "$steam_root/steamrtarm64" "$HOME/.steam/binarm64"
 ln -sfn "$steam_root/linux32" "$HOME/.steam/sdk32"
+if [ -n "$full" ]; then
+  mkdir -p "$steam_root/package"
+  if write_installed "$steam_root/package/$manifest.installed.new" "$parts"; then
+    cp -f "$work/manifest" "$steam_root/package/$manifest.manifest"
+    mv -f "$steam_root/package/$manifest.installed.new" "$steam_root/package/$manifest.installed"
+  fi
+fi
 echo "$version" > "$stamp"
 rm -rf "$parts"
 if [ -n "$fallback" ]; then

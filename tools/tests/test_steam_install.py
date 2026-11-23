@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 import zipfile
+import zlib
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/droiddeck-steam-install'
@@ -353,6 +354,44 @@ done(28 if end < len(data) else 0)
         (self.steam / 'package/a.zip.1111').write_bytes(b'plain-package')
         self.assertEqual(0, self.install(None, '--cache').returncode)
         self.assertNotIn('a.zip.1111', self.requests.read_text())
+
+    def full_manifest(self):
+        packages = {}
+        for name, entries in {'a_all': {'a/one.txt': b'one', 'steamrtarm64/steam': b'bin'}, 'b_misc': {'b\\two.txt': b'twelve!', 'b/': b''}}.items():
+            archive = self.cdn / (name + '.zip.1')
+            with zipfile.ZipFile(archive, 'w') as package:
+                for entry, data in entries.items():
+                    info = zipfile.ZipInfo(entry, date_time=(2024, 2, 15, 10, 30, 0))
+                    info.external_attr = (0o40755 if entry.endswith('/') else 0o100644) << 16
+                    package.writestr(info, data)
+            packages[name] = archive
+        blocks = ''.join(
+            f'\t"{name}"\n\t{{\n\t\t"file" "{archive.name}"\n\t\t"size" "{archive.stat().st_size}"\n'
+            f'\t\t"sha2" "{hashlib.sha256(archive.read_bytes()).hexdigest()}"\n\t}}\n' for name, archive in packages.items())
+        (self.cdn / 'steam_client_steamdeck_publicbeta_linuxarm64').write_text('"linuxarm64"\n{\n\t"version" "123456"\n' + blocks + '}\n')
+
+    def test_the_full_pass_unpacks_every_package_and_records_what_it_placed(self):
+        self.full_manifest()
+        result = self.install(None, '--full')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('one', (self.steam / 'a/one.txt').read_text())
+        self.assertEqual('twelve!', (self.steam / 'b/two.txt').read_text())
+        package = self.steam / 'package'
+        listing = (package / 'steam_client_steamdeck_publicbeta_linuxarm64.installed').read_text().splitlines()
+        self.assertIn('a/one.txt,3;1708021800;' + str(zlib.crc32(b'one')), listing)
+        self.assertIn('b/two.txt,7;1708021800;' + str(zlib.crc32(b'twelve!')), listing)
+        self.assertIn('b/,-1;1708021800;0', listing)
+        body = ''.join(line + '\n' for line in listing[:-1])
+        self.assertEqual('SHA1=' + hashlib.sha1(body.encode()).hexdigest().upper(), listing[-1])
+        self.assertEqual(['OSVER=-184', 'VERSION=3'], listing[-3:-1])
+        self.assertTrue((package / 'steam_client_steamdeck_publicbeta_linuxarm64.manifest').is_file())
+
+    def test_the_full_pass_is_not_repeated_once_recorded(self):
+        self.full_manifest()
+        self.assertEqual(0, self.install(None, '--full').returncode)
+        before = len(self.requests.read_text().splitlines())
+        self.assertEqual(0, self.install(None, '--full').returncode)
+        self.assertEqual(before, len(self.requests.read_text().splitlines()))
 
     def test_progress_is_counted_in_megabytes_across_parts(self):
         self.two_parts()
