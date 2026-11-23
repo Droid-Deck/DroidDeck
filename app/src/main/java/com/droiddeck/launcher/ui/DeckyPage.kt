@@ -1,10 +1,19 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -137,10 +146,11 @@ private fun InstalledPlugins(s: ModeSettings, a: ModeSettingsActions, idle: Bool
     for (plugin in s.deckyPlugins) {
         val listed = s.deckyStore?.firstOrNull { it.name == plugin.name }
         val update = listed?.takeIf { DeckyStore.updateAvailable(plugin, it) }
-        SettingsRow(
+        PluginRow(
             plugin.name,
             listOf(plugin.version, plugin.author).filter { it.isNotBlank() }.joinToString(" · ") +
                 (update?.latest?.let { " · " + stringResource(R.string.decky_update_to, it.name) } ?: ""),
+            listed?.imageUrl.orEmpty(),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (update != null) SecondaryButton(stringResource(R.string.common_update), enabled = idle, compact = true) { a.onDeckyStoreInstall(update) }
@@ -194,10 +204,10 @@ private fun PluginStore(s: ModeSettings, a: ModeSettingsActions, idle: Boolean) 
                 for (plugin in matches.take(shown)) {
                     val have = s.deckyPlugins.firstOrNull { it.name == plugin.name }
                     val current = have != null && !DeckyStore.updateAvailable(have, plugin)
-                    SettingsRow(
+                    PluginRow(
                         plugin.name,
                         listOf(plugin.latest?.name.orEmpty(), plugin.author, plugin.description).filter { it.isNotBlank() }.joinToString(" · "),
-                        hintLines = 2,
+                        plugin.imageUrl,
                     ) {
                         SecondaryButton(
                             stringResource(when { current -> R.string.setup_installed; have != null -> R.string.common_update; else -> R.string.boot_movie_repo_install }),
@@ -214,4 +224,22 @@ private fun PluginStore(s: ModeSettings, a: ModeSettingsActions, idle: Boolean) 
         stringResource(R.string.decky_store_search), query, number = false, confirm = stringResource(R.string.stores_search_open),
         onSubmit = { query = it; shown = STORE_PAGE; searching = false }, onDismiss = { searching = false }, id = "decky-store-entry",
     )
+}
+
+@Composable
+private fun PluginRow(name: String, detail: String, imageUrl: String, actions: @Composable () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            val shape = RoundedCornerShape(8.dp)
+            Box(Modifier.width(96.dp).aspectRatio(16f / 9f).clip(shape).background(Color(0xFF0E1218))) {
+                if (imageUrl.isNotEmpty()) AsyncImage(model = imageUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            }
+            Column(Modifier.weight(1f)) {
+                Text(name, fontSize = 15.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(detail, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) { actions() }
+    }
 }

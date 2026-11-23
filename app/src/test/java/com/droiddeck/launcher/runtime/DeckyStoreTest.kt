@@ -12,7 +12,7 @@ import org.junit.Test
 class DeckyStoreTest {
     private val hash = "a".repeat(64)
     private val listing = """[
-        {"id":1,"name":"Alpha","author":"Ann","description":"Does alpha things","tags":["audio"],
+        {"id":1,"name":"Alpha","author":"Ann","description":"Does alpha things","tags":["audio"],"image_url":"https://cdn.example/a.png",
          "versions":[{"name":"2.0.0","hash":"$hash","downloads":10},{"name":"1.0.0","hash":"${"b".repeat(64)}","downloads":5}]},
         {"id":2,"name":"Beta","author":"Bob","description":"Themes","tags":["css"],"versions":[{"name":"1.0.0","hash":"${"c".repeat(64)}","downloads":100}]},
         {"id":3,"name":"NoVersions","author":"X","description":"","tags":[],"versions":[]},
@@ -24,6 +24,8 @@ class DeckyStoreTest {
         assertEquals(listOf("Alpha", "Beta"), plugins.map { it.name })
         assertEquals("2.0.0", plugins[0].latest?.name)
         assertEquals(15L, plugins[0].downloads)
+        assertEquals("https://cdn.example/a.png", plugins[0].imageUrl)
+        assertEquals("", plugins[1].imageUrl)
     }
 
     @Test fun searchMatchesNameAuthorDescriptionAndTagsAndSortsByDownloads() {

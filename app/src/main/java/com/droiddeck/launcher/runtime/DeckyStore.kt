@@ -15,7 +15,7 @@ object DeckyStore {
     private const val ARTIFACTS = "https://cdn.tzatzikiweeb.moe/file/steam-deck-homebrew/versions/"
 
     data class Version(val name: String, val hash: String)
-    data class Plugin(val name: String, val author: String, val description: String, val tags: List<String>, val downloads: Long, val versions: List<Version>) {
+    data class Plugin(val name: String, val author: String, val description: String, val tags: List<String>, val downloads: Long, val imageUrl: String, val versions: List<Version>) {
         val latest: Version? get() = versions.firstOrNull()
     }
     data class Installed(val name: String, val folder: String, val author: String, val version: String)
@@ -35,7 +35,8 @@ object DeckyStore {
             if (versions.isEmpty()) return@mapNotNull null
             val tags = row.optJSONArray("tags")?.let { list -> (0 until list.length()).map { list.optString(it) } }.orEmpty()
             val downloads = row.optJSONArray("versions")?.let { list -> (0 until list.length()).sumOf { list.optJSONObject(it)?.optLong("downloads") ?: 0L } } ?: 0L
-            Plugin(name, row.optString("author"), row.optString("description"), tags, downloads, versions)
+            val image = row.optString("image_url").takeIf { it.startsWith("https://") }.orEmpty()
+            Plugin(name, row.optString("author"), row.optString("description"), tags, downloads, image, versions)
         }
     }
 
