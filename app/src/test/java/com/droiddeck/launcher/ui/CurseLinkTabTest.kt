@@ -129,6 +129,20 @@ class CurseLinkTabTest {
     }
 
     @Test
+    fun aFailedScanKeepsTheLastReportInsteadOfClearingIt() {
+        val target = wow()
+        val link = CurseLink(app)
+        try {
+            val reported = link.marks(context, target, 0)
+            assertTrue(reported.isNotEmpty())
+            runBlocking { link.close(context).join() }
+            assertEquals(reported.mapValues { null }, link.marks(context, target, 1))
+        } finally {
+            runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
     fun noCurseForgeStartsWhileASessionRuns() {
         wow()
         var link: CurseLink? = CurseLink(app)

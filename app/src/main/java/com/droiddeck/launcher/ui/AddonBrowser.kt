@@ -80,6 +80,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -118,10 +119,16 @@ internal class CurseLink(val app: UserApps.App) {
     fun installed(context: Context, target: WowAddons.Target, key: Any): List<CurseForgeApp.Project> = CurseForgeApp.onDisk(
         synchronized(scanLock) {
             scans[target.addOns.path]?.takeIf { it.first == key }?.second
-                ?: call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid, rescan = true) }.also { scans[target.addOns.path] = key to it }
+                ?: call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid, rescan = true) }.also {
+                    scans[target.addOns.path] = key to it
+                    report(target, it)
+                }
         },
         target.addOns,
     )
+
+    fun marks(context: Context, target: WowAddons.Target, key: Any): Map<String, String?> =
+        runCatching { installed(context, target, key).associate { it.id to curseMark(it) } }.getOrElse { lastReported(target) }
 
     fun <T> call(context: Context, target: WowAddons.Target, launch: Boolean = true, block: (Linked) -> T): T {
         val linked = synchronized(lock) { link(context, target, launch) }
@@ -190,6 +197,16 @@ internal class CurseLink(val app: UserApps.App) {
 
     companion object {
         private val current = AtomicReference<CurseLink?>()
+        private val reported = ConcurrentHashMap<String, List<CurseForgeApp.Project>>()
+
+        fun lastReported(target: WowAddons.Target, disk: () -> List<WowAddons.Installed> = { WowAddons.details(target) }): Map<String, String?> {
+            val last = reported[target.addOns.path] ?: return disk().mapNotNull { it.curseId }.associateWith { null }
+            return CurseForgeApp.onDisk(last, target.addOns).associate { it.id to null }
+        }
+
+        internal fun report(target: WowAddons.Target, projects: List<CurseForgeApp.Project>) {
+            reported[target.addOns.path] = projects
+        }
 
         fun live(): CurseLink? = current.get()
     }
@@ -250,10 +267,9 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     val snapshot by produceState(presentKey to Present(), target.addOns, scanKey, curse, curseInstalls, curse == null && results.items.isEmpty()) {
         val into = target
         val key = curse to into.addOns
+        if (curse != null && link != null && value.first != key) value = key to withContext(Dispatchers.IO) { Present(curse = CurseLink.lastReported(into)) }
         value = key to withContext(Dispatchers.IO) {
-            if (curse != null && link != null) Present(curse = runCatching {
-                link.installed(context, into, scanKey).associate { it.id to curseMark(it) }
-            }.getOrDefault(emptyMap()))
+            if (curse != null && link != null) Present(curse = link.marks(context, into, scanKey))
             else Present(disk = WowAddons.details(into).associateBy { it.name.lowercase() })
         }
     }
