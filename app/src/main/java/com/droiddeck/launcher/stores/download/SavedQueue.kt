@@ -29,6 +29,16 @@ object SavedQueue {
         wanted[key(item)] = Wanted(item, root)
     }
 
+    internal fun remembered(key: String): CatalogItem? = synchronized(this) { wanted[key]?.item }
+
+    internal fun resetForTest() {
+        synchronized(this) {
+            restored = false
+            wanted.clear()
+            app = null
+        }
+    }
+
     fun save(entries: List<DownloadEntry>) {
         val context = app ?: return
         val rows = synchronized(this) {
