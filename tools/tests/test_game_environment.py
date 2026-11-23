@@ -1567,6 +1567,54 @@ class GameEnvironmentTest(unittest.TestCase):
                 (asylum / name).touch()
             self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
 
+    def test_inno_setup_installers_get_the_stability_preset_over_the_default(self):
+        stability = {"FEX_TSOENABLED": "1", "FEX_VECTORTSOENABLED": "1", "FEX_MEMCPYSETTSOENABLED": "1",
+                     "FEX_HALFBARRIERTSOENABLED": "1", "FEX_X87REDUCEDPRECISION": "0", "FEX_MULTIBLOCK": "0"}
+        performance_tso = {"FEX_TSOENABLED": "1", "FEX_VECTORTSOENABLED": "0", "FEX_MEMCPYSETTSOENABLED": "0",
+                           "FEX_HALFBARRIERTSOENABLED": "0", "FEX_X87REDUCEDPRECISION": "1", "FEX_MULTIBLOCK": "1"}
+
+        def loader(path, resources=b"", machine=0x14C, section=b".rsrc", legacy=False):
+            dos = bytearray(0x80)
+            dos[:2] = b"MZ"
+            dos[0x3C:0x40] = (0x80).to_bytes(4, "little")
+            if legacy:
+                dos[0x30:0x34] = b"Inno"
+            header = b"PE\0\0" + machine.to_bytes(2, "little") + (1).to_bytes(2, "little") + bytes(12) \
+                + (0xE0).to_bytes(2, "little") + bytes(2)
+            entry = section.ljust(8, b"\0") + bytes(8) + len(resources).to_bytes(4, "little") \
+                + (0x400).to_bytes(4, "little") + bytes(16)
+            path.write_bytes((bytes(dos) + header + bytes(0xE0) + entry).ljust(0x400, b"\0") + resources)
+            return str(path)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            table = bytes(64) + b"rDlPtS\xcd\xe6\xd7{\x0b*" + bytes(64)
+            installers = [
+                loader(folder / "setup.exe", table),
+                loader(folder / "setup_game_1.0.exe", bytes(64) + b"nS5W7dT\x83\xaa\x1b\x0fj"),
+                loader(folder / "old_setup.exe", legacy=True),
+            ]
+            for installer in installers:
+                env, extra, notes = MODULE["engine_fixes"](installer, [])
+                self.assertEqual((env, extra), (stability, []), installer)
+                self.assertTrue(notes)
+            config = {"version": 1, "shared": performance_tso}
+            self.assertEqual({k: v for k, v in MODULE["apply_config"]({}, config, "42", env).items() if k in stability},
+                             stability)
+            config["games"] = {"42": {"FEX_MULTIBLOCK": "1"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "42", env)["FEX_MULTIBLOCK"], "1")
+
+            not_installers = [
+                loader(folder / "Game.exe", bytes(256)),
+                loader(folder / "Game64.exe", table, machine=0x8664),
+                loader(folder / "Data.exe", table, section=b".data"),
+                folder / "missing.exe",
+            ]
+            (folder / "notes.exe").write_bytes(b"rDlPtS\xcd\xe6\xd7{\x0b*")
+            not_installers.append(folder / "notes.exe")
+            for other in not_installers:
+                self.assertEqual(MODULE["engine_fixes"](str(other), []), ({}, [], []), other)
+
     def test_d3dgear_capture_hook_beside_the_game_is_turned_off(self):
         with tempfile.TemporaryDirectory() as tmp:
             game = Path(tmp) / "The Crew 2"
