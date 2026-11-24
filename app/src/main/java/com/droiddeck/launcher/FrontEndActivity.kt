@@ -2170,6 +2170,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (!triggerKeys.synthesizing && triggerKeys.nativeKey(event)) return true
         val tabStep = com.droiddeck.launcher.ui.dualPageStep(event)
         val tabs = com.droiddeck.launcher.ui.MainTabSteps.handler
+        if (tabStep == null && event.action == KeyEvent.ACTION_DOWN) com.droiddeck.launcher.ui.MainTabSteps.otherKeys++
         if (tabStep != null && tabs != null) {
             if (controllerHaptics) com.droiddeck.launcher.ui.ControllerHaptics.onKey(this, event)
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) tabs(tabStep)
