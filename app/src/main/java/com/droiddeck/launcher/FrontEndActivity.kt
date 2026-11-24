@@ -920,12 +920,17 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         LauncherIcon.set(this, style)
         launcherIcon = LauncherIcon.current(this)
         if (launcherIcon == before) return false
+        restartLauncher()
+        return true
+    }
+
+    // recreate() leaves this activity's window drawing nothing and ignoring input on some devices (#2668).
+    private fun restartLauncher() {
         startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(LauncherIcon.activity(this))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
             .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "setup:launcher"))
         finishAndRemoveTask()
-        return true
     }
 
     private fun readGameIntent(request: Intent) {
@@ -1685,7 +1690,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         onLanguage = { tag ->
                             if (tag != com.droiddeck.launcher.core.AppLanguage.chosen(this)) {
                                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, tag)
-                                recreate()
+                                restartLauncher()
                             }
                         },
                         onAppScale = { percent ->
@@ -3476,7 +3481,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 com.droiddeck.launcher.ui.Motion.refresh(this)
                 com.droiddeck.launcher.ui.DeveloperTools.load(this)
                 com.droiddeck.launcher.ui.NavTabs.load(this)
-                if (!switchLauncherIcon(LauncherIcon.DARK)) recreate()
+                if (!switchLauncherIcon(LauncherIcon.DARK)) restartLauncher()
             }
         }, "reset-settings").start()
     }
