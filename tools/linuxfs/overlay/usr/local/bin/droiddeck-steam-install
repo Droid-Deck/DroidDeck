@@ -361,12 +361,13 @@ if [ -n "$cache_only" ]; then
     done_bytes=$((done_bytes + size))
   done < "$work/cache"
   fi
+  applier=
+  trap 'kill "$applier" 2>/dev/null || :; wait "$applier" 2>/dev/null || :; rm -f "$cache/$manifest.installed" "$cached"; exit 143' TERM INT HUP
   echo "$version" > "$cached"
   preapply=${DD_STEAM_PREAPPLY:-/usr/local/bin/droiddeck-steam-preapply}
   if [ -x "$preapply" ] && command -v python3 >/dev/null 2>&1; then
     python3 "$preapply" "$cache" "$steam_root" "$work/manifest" "$manifest" &
     applier=$!
-    trap 'kill "$applier" 2>/dev/null; exit 143' TERM INT HUP
     if wait "$applier"; then
       cp -f "$work/manifest" "$cache/$manifest.manifest"
       chmod -R a+x "$steam_root/steamrtarm64" "$steam_root/linuxarm64" 2>/dev/null || true
@@ -375,8 +376,8 @@ if [ -n "$cache_only" ]; then
     else
       rm -f "$cache/$manifest.installed" "$cached"
     fi
-    trap - TERM INT HUP
   fi
+  trap - TERM INT HUP
   [ -n "$applied" ] || exit 0
 fi
 if [ -n "$sync" ]; then

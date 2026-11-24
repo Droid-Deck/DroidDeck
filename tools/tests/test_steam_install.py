@@ -432,6 +432,7 @@ done(28 if end < len(data) else 0)
         time.sleep(0.3)
         with self.assertRaises(ProcessLookupError):
             os.kill(helper, 0)
+        self.assertFalse((self.steam / 'package/droiddeck-cached').exists())
 
     def test_a_cache_pass_that_cannot_apply_the_update_keeps_the_packages_for_steam(self):
         self.cache_manifest()
