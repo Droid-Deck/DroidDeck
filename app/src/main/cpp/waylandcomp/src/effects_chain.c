@@ -17,6 +17,7 @@
 #include "cas_frag.h"
 #include "color_frag.h"
 #include "fxaa_frag.h"
+#include "fxaa_toon_frag.h"
 #include "smaa_edge_frag.h"
 #include "smaa_weights_frag.h"
 #include "smaa_blend_frag.h"
@@ -220,7 +221,7 @@ static VkDescriptorSetLayout g_dsl;
 static VkPipelineLayout g_pl;
 static VkDescriptorPool g_dpool;
 static VkSampler g_sampler;
-enum { P_SGSR, P_SGSR_HQ, P_NIS, P_EASU, P_RCAS, P_CAS, P_COLOR, P_FXAA, P_SMAA_EDGE, P_SMAA_WEIGHTS, P_SMAA_BLEND, P_TOON, P_TOON_COLOR, P_HDR, P_NTSC, P_CRT, P_DEBAND, P_COUNT };
+enum { P_SGSR, P_SGSR_HQ, P_NIS, P_EASU, P_RCAS, P_CAS, P_COLOR, P_FXAA, P_FXAA_TOON, P_SMAA_EDGE, P_SMAA_WEIGHTS, P_SMAA_BLEND, P_TOON, P_TOON_COLOR, P_HDR, P_NTSC, P_CRT, P_DEBAND, P_COUNT };
 static VkPipeline g_pipe[P_COUNT];
 static struct fx_target g_t[2], g_mid, g_smaa_edges, g_smaa_weights;
 
@@ -483,6 +484,7 @@ static int objects_ensure(void) {
     MK(P_CAS, cas_code, "cas");
     MK(P_COLOR, color_code, "color");
     MK(P_FXAA, fxaa_code, "fxaa");
+    MK(P_FXAA_TOON, fxaa_toon_code, "fxaa_toon");
     g_pipe[P_SMAA_EDGE] = post_pipeline_for_renderpass(
         vert, smaa_edge_code, sizeof(smaa_edge_code), g_smaa_rp, "smaa_edge");
     if (!g_pipe[P_SMAA_EDGE]) { g_vk.DestroyShaderModule(g_dev, vert, NULL); goto fail; }
@@ -582,8 +584,11 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
     const int nfx = effect_count(s);
     const int resize = cw != scene_w || ch != scene_h;
     const int fuse_toon_color = s->toon && s->color_on && g_fx_fmt == FX_FORMAT;
+    const int fuse_fxaa_toon = s->aa_mode == 1 && s->toon &&
+        !s->color_on && g_fx_fmt == FX_FORMAT;
     const int chain_passes = ((spatial || resize) ? 1 : 0) +
-        effect_count(s) - (fuse_toon_color ? 1 : 0);
+        effect_count(s) - (fuse_toon_color ? 1 : 0) -
+        (fuse_fxaa_toon ? 1 : 0);
 
     if ((spatial || nfx) && objects_ensure() == 0 && scene_ensure(scene, scene_w, scene_h) == 0 &&
         target_ensure(&g_t[0], cw, ch, FX_TARGET_USAGE, "chain") == 0 && (chain_passes < 2 || target_ensure(&g_t[1], cw, ch, FX_TARGET_USAGE, "chain") == 0) &&
@@ -669,12 +674,13 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
 
         enum { FX_FXAA, FX_SMAA, FX_TOON, FX_COLOR, FX_TOON_COLOR, FX_CAS, FX_HDR, FX_NTSC, FX_CRT, FX_DEBAND };
         int order[8], n = 0;
-        if (s->aa_mode == 1) order[n++] = FX_FXAA;
+        if (s->aa_mode == 1)
+            order[n++] = fuse_fxaa_toon ? FX_FXAA_TOON : FX_FXAA;
         else if (s->aa_mode == 2) order[n++] = FX_SMAA;
         if (s->toon && s->color_on && g_fx_fmt == FX_FORMAT) {
             order[n++] = FX_TOON_COLOR;
         } else {
-            if (s->toon) order[n++] = FX_TOON;
+            if (s->toon && !fuse_fxaa_toon) order[n++] = FX_TOON;
             if (s->color_on) order[n++] = FX_COLOR;
         }
         if (cas_active(s)) order[n++] = FX_CAS;
@@ -689,6 +695,7 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             pr.res[0] = (float)cw; pr.res[1] = (float)ch;
             switch (order[i]) {
             case FX_FXAA: pass(cmd, g_pipe[P_FXAA], dst, cur_ds, &pr, sizeof(pr)); break;
+            case FX_FXAA_TOON: pass(cmd, g_pipe[P_FXAA_TOON], dst, cur_ds, &pr, sizeof(pr)); break;
             case FX_SMAA:
                 pass_renderpass(cmd, g_smaa_rp, g_pipe[P_SMAA_EDGE],
                                 &g_smaa_edges, cur_ds, &pr, sizeof(pr));
