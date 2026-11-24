@@ -178,22 +178,42 @@ unzip_alone() {
   return $rc
 }
 
+# Takes the next unclaimed line number from a counter under a flock, and prints 0 when none is left. mkdir was tried for this
+# and handed the same line to two workers now and then in the app's guest shell, so only the kernel's lock is trusted here.
+claim_next() {
+  local n
+  while :; do
+    # A counter that cannot be read or written must fail the worker: a stale or empty number would give a package to two workers or to none.
+    n=$( { flock 8 || exit 1
+           n=$(cat "$state/next") || exit 1
+           case $n in ''|*[!0-9]*) exit 1 ;; esac
+           echo $((n + 1)) > "$state/next" || exit 1
+           echo "$n"; } 8> "$state/claim.lock" ) || return 1
+    [ "$n" -le "$count" ] || { echo 0; return; }
+    if [ ! -e "$state/$n.done" ]; then
+      : > "$state/claim.$n"
+      echo "$n"
+      return
+    fi
+  done
+}
+
 # Fetches every line of a list ("block file sum size") into $dir with up to $parallel connections. With a third
 # argument each package is also unpacked into the client as it lands. One connection tops out near half of what a
 # Wi-Fi link carries, so the packages arrive about twice as fast. Workers take the next unclaimed line themselves
-# (mkdir is atomic) and only plain background jobs and wait on a pid are used, so nothing depends on job control.
+# (claim_next) and only plain background jobs and wait on a pid are used, so nothing depends on job control.
 run_parallel() {
   local list=$1 dir=$2 unpack=${3:-} state index=0 block file sum size
   local -a blocks=() files=() sums=() sizes=() pids=()
   state=$work/parallel
   rm -rf "$state"
   mkdir -p "$state"
+  echo 1 > "$state/next"
   while read -r block file sum size; do
     index=$((index + 1))
     blocks[index]=$block files[index]=$file sums[index]=$sum sizes[index]=$size
     if [ -n "$unpack" ] && [ -f "$dir/$file.unpacked" ]; then
       : > "$state/$index.done"
-      : > "$state/claim.$index"
     fi
   done < "$list"
   local count=$index total_bytes=0
@@ -203,10 +223,7 @@ run_parallel() {
     (
       trap ': > "$state/exit.$slot"' EXIT
       while [ ! -e "$state/failed" ]; do
-        index=0
-        for n in $(seq 1 "$count"); do
-          if mkdir "$state/claim.$n" 2>/dev/null; then index=$n; break; fi
-        done
+        index=$(claim_next)
         [ "$index" -gt 0 ] || exit 0
         file=${files[index]}
         fetched=""
