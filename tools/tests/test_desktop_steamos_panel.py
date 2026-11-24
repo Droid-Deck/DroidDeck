@@ -72,6 +72,13 @@ class DesktopSteamosPanelTest(unittest.TestCase):
         for pin in ('steamdeck-steam', 'systemsettings', 'org.kde.discover', 'preferred://filemanager', 'preferred://browser'):
             self.assertIn(pin, OVERLAY_LAYOUT)
 
+    def test_the_layout_keeps_plasmas_stock_wide_screen_cap_and_input_method_panel(self):
+        self.assertIn('const maximumAspectRatio = 21 / 9;', OVERLAY_LAYOUT)
+        self.assertIn('panel.maximumLength = maximumWidth;', OVERLAY_LAYOUT)
+        self.assertIn('org.kde.plasma.kimpanel', OVERLAY_LAYOUT)
+        for language in ('ja', 'ko', 'th', 'zh_CN', 'zh_TW', 'hi'):
+            self.assertIn('"' + language + '"', OVERLAY_LAYOUT)
+
     def test_the_panel_is_prepared_before_plasma_starts(self):
         for marker in ('dd_layout=', 'dd_panel_rc='):
             self.assertLess(DESKTOP.index(marker), DESKTOP.index('dbus-run-session -- startplasma-wayland'))

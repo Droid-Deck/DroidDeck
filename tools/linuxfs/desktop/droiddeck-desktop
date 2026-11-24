@@ -48,8 +48,20 @@ for (var i = 0; i < desktops.length; i++) {
 }
 
 var panel = new Panel;
+var panelScreen = panel.screen;
 panel.location = "bottom";
 panel.height = 2 * Math.ceil(gridUnit * 2.5 / 2);
+
+const maximumAspectRatio = 21 / 9;
+if (panel.formFactor === "horizontal") {
+    const geo = screenGeometry(panelScreen);
+    const maximumWidth = Math.ceil(geo.height * maximumAspectRatio);
+    if (geo.width > maximumWidth) {
+        panel.alignment = "center";
+        panel.minimumLength = maximumWidth;
+        panel.maximumLength = maximumWidth;
+    }
+}
 
 var kickoff = panel.addWidget("org.kde.plasma.kickoff");
 kickoff.currentConfigGroup = ["Shortcuts"];
@@ -80,6 +92,13 @@ tasks.writeConfig("launchers", [
 ]);
 
 panel.addWidget("org.kde.plasma.marginsseparator");
+
+const inputMethodLanguages = ["as", "bn", "bo", "brx", "doi", "gu", "hi", "ja", "kn", "ko", "kok", "ks", "lep", "mai",
+    "ml", "mni", "mr", "ne", "or", "pa", "sa", "sat", "sd", "si", "ta", "te", "th", "ur", "vi", "zh_CN", "zh_TW"];
+if (inputMethodLanguages.indexOf(languageId) != -1) {
+    panel.addWidget("org.kde.plasma.kimpanel");
+}
+
 var tray = panel.addWidget("org.kde.plasma.systemtray");
 var trayId = tray.readConfig("SystrayContainmentId");
 if (trayId) {
