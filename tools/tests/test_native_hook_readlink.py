@@ -34,9 +34,13 @@ int main(int argc, char **argv) {
   show("small", readlink(link, small, sizeof(small)), small);
   show("sized-at", readlinkat(AT_FDCWD, link, exact, (size_t)st.st_size), exact);
   errno = 0;
-  printf("zero\t%zd\t%d\n", readlink(link, full, 0), errno);
+  ssize_t zero = readlink(link, full, 0);
+  int zero_errno = errno;
+  printf("zero\t%zd\t%d\n", zero, zero_errno);
   errno = 0;
-  printf("zero-at\t%zd\t%d\n", readlinkat(AT_FDCWD, link, full, 0), errno);
+  zero = readlinkat(AT_FDCWD, link, full, 0);
+  zero_errno = errno;
+  printf("zero-at\t%zd\t%d\n", zero, zero_errno);
   return 0;
 }
 """
