@@ -332,7 +332,6 @@
     <string name="mode_startup">起動</string>
     <string name="mode_startup_session">起動時に開く</string>
     <string name="mode_startup_session_hint">DroidDeck の起動時にこのセッションを開始します。</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">リリースを確認中…</string>
     <string name="mode_decky_ready">%1$sをインストールする準備ができました。</string>
     <string name="mode_decky_none">互換性のあるバージョンが見つかりません。後でもう一度お試しください。</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">最新です · %1$s</string>
     <string name="mode_decky_loader">ローダー</string>
     <string name="mode_decky_install_latest">最新バージョンをインストール</string>
-    <string name="decky_channel">アップデートチャンネル</string>
-    <string name="decky_channel_hint">インストールするDecky Loaderのリリースです。Decky自身のアップデーターも同じチャンネルを使用します。</string>
     <string name="decky_channel_stable">安定版</string>
     <string name="decky_channel_prerelease">プレリリース版</string>
     <string name="decky_channel_testing">テスト版</string>
     <string name="decky_channel_failed">Deckyのアップデートチャンネルを保存できませんでした</string>
-    <string name="mode_decky_on">Steamと共に起動します。有効にすると、このデバイス上の他のアプリがSteamを制御できる場合があります。</string>
-    <string name="mode_decky_off">オフ。Steamのリモートデバッグポートは閉じたままになります。</string>
     <string name="mode_decky_remove_title">Decky Loaderをアンインストールしますか？</string>
     <string name="mode_decky_remove_text">ローダーを削除します。プラグインと設定は保持されます。</string>
     <string name="mode_client">クライアント</string>

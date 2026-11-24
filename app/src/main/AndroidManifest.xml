@@ -232,6 +232,7 @@
             android:exported="false"
             android:screenOrientation="user"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/AppTheme" />
 
         <activity

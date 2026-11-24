@@ -65,12 +65,14 @@ if [ -n "$repair" ]; then
     [ "$(sha1sum "$part" | cut -d' ' -f1)" = "$sum" ] || rm -f "$part"
   done
 fi
+cache_only=
+[ "${1:-}" = --cache ] && cache_only=1
 sync=
 if [ "${1:-}" = --sync ]; then
   case "${2:-}" in publicbeta|steamdeck_publicbeta) sync=$2 ;; *) sync=$steam_channel ;; esac
   manifest=steam_client_${sync}_linuxarm64
 fi
-[ -z "$sync" ] && [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ] && exit 0
+[ -z "$sync" ] && [ -z "$cache_only" ] && [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ] && exit 0
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -166,6 +168,46 @@ if ! fetch_manifest; then
   manifest=steam_client_${steam_channel}_linuxarm64
   fallback=1
   fetch_manifest || exit 1
+fi
+if [ -n "$cache_only" ]; then
+  cache=$steam_root/package
+  cached=$cache/droiddeck-cached
+  [ "$(cat "$cached" 2>/dev/null)" = "$version" ] && exit 0
+  awk -F'"' '
+    /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
+    $2 == "file" { file[block] = $4 }
+    $2 == "sha2" { sha[block] = $4 }
+    $2 == "size" { size[block] = $4 }
+    $2 == "zipvz" { vz[block] = $4 }
+    $2 == "sha2vz" { vzsha[block] = $4 }
+    END {
+      for (b in file) {
+        f = file[b]; h = sha[b]; n = size[b] + 0
+        if (b in vz) { f = vz[b]; h = vzsha[b]; k = split(f, bits, "_"); n = bits[k] + 0 }
+        print b, f, h, n
+      }
+    }
+  ' "$work/manifest" | sort > "$work/cache"
+  mkdir -p "$cache"
+  total=$(grep -c . "$work/cache" 2>/dev/null || echo 0)
+  total_bytes=$(awk '{ n += $4 } END { print n + 0 }' "$work/cache")
+  done_bytes=0
+  i=0
+  while read -r block file sum size; do
+    i=$((i + 1))
+    progress "$cache/$file" "$block"
+    fetched=""
+    for host in "${cdn_order[@]}"; do
+      if fetch "$host/$file" "$cache/$file" "$size" "$sum" "$block"; then
+        fetched=$host
+        break
+      fi
+    done
+    [ -n "$fetched" ] || { echo "droiddeck-steam-install: $file failed on every CDN" >&2; exit 1; }
+    done_bytes=$((done_bytes + size))
+  done < "$work/cache"
+  echo "$version" > "$cached"
+  exit 0
 fi
 if [ -n "$sync" ]; then
   installed=$(awk -F'"' '$2 == "version" { print $4; exit }' "$steam_root/package/$manifest.manifest" 2>/dev/null || true)
