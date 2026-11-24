@@ -45,9 +45,8 @@ internal class XrealLink internal constructor(
         if (msgId == VitureProtocol.MSG_GET_IMU) return true
         val valid = when (msgId) {
             VitureProtocol.MSG_GET_DISPLAY -> true
-            VitureProtocol.MSG_DISPLAY -> if (model.stereoOnlyControl) value == 5 || value == XrealModel.NATIVE_60HZ
-                else value in 2..5 || value == XrealModel.NATIVE_60HZ
-            VitureProtocol.MSG_BRIGHTNESS -> !model.stereoOnlyControl && value in 0..9
+            VitureProtocol.MSG_DISPLAY -> model.supportsDisplayMode(value)
+            VitureProtocol.MSG_BRIGHTNESS -> model.hardwareControls && value in 0..model.brightnessMax
             VitureProtocol.MSG_FILM -> !model.stereoOnlyControl && value in 0..1
             else -> false
         }
@@ -64,12 +63,12 @@ internal class XrealLink internal constructor(
                 channels = connector.connect()
                 connection.set(channels)
                 if (!running) break
-                val control = XrealControl(channels, stereoOnly = model.stereoOnlyControl)
+                val control = XrealControl(channels, model = model)
                 listener.onValue(VitureProtocol.MSG_GET_DISPLAY, control.display())
                 val current = channels
                 reports = Thread({
                     try {
-                        var filter = XrealOrientationFilter(model.flipsYz)
+                        var filter = XrealOrientationFilter(model)
                         var wasTracking = false
                         var lastSensor = System.nanoTime()
                         while (running && connection.get() === current) {
@@ -78,7 +77,7 @@ internal class XrealLink internal constructor(
                             if (sample != null) {
                                 lastSensor = System.nanoTime()
                                 val enabled = tracking
-                                if (enabled && !wasTracking) filter = XrealOrientationFilter(model.flipsYz)
+                                if (enabled && !wasTracking) filter = XrealOrientationFilter(model)
                                 wasTracking = enabled
                                 if (enabled) filter.update(sample)?.let {
                                     if (running && ready && tracking && connection.get() === current)
@@ -155,8 +154,9 @@ internal class XrealLink internal constructor(
 internal class XrealControl(
     private val channels: XrealChannels,
     private val settleDelayMs: Long = 150,
-    private val stereoOnly: Boolean = false,
+    private val model: XrealModel = XrealModel.ONE_S,
 ) {
+    private val stereoOnly get() = model.stereoOnlyControl
     private var transaction = 0
     private fun exchange(command: Int, value: Int? = null): ByteArray {
         transaction = if (transaction == Int.MAX_VALUE) 1 else transaction + 1
@@ -172,7 +172,7 @@ internal class XrealControl(
     fun display(): Int {
         if (stereoOnly) return stereoDisplay()
         val reply = exchange(XrealProtocol.GET_DISPLAY)
-        return XrealProtocol.numeric(reply)?.takeIf { it in 2..5 || it == XrealModel.NATIVE_60HZ }
+        return XrealProtocol.numeric(reply)?.takeIf(model::supportsDisplayMode)
             ?: throw IOException("Unsupported XREAL display response: ${reply.take(32).joinToString("") { "%02x".format(it) }}")
     }
     private fun stereoDisplay(): Int {
@@ -187,6 +187,7 @@ internal class XrealControl(
         }
     }
     fun changeDisplay(mode: Int): Int {
+        require(model.supportsDisplayMode(mode))
         val stereo = mode == 5
         set(XrealProtocol.SET_INPUT, if (stereo) 1 else 0)
         val current = awaitDisplay { (it == 5) == stereo }

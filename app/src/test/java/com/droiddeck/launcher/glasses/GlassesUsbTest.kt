@@ -265,6 +265,34 @@ class GlassesUsbTest {
         assertEquals(null, Glasses.deviceModel(device(0x043e, 0x1234, "XREAL 1S")))
     }
 
+    @Test fun xrealProPlusUsesEthernetPermissionAndItsOwnOptics() {
+        val pro = device(0x0444, 0x3318, "XREAL 1 Pro+")
+        manager.devices[pro.deviceName] = pro
+        field("linkDevice").set(null, pro)
+        field("link").set(null, object : GlassesLink {
+            override val hasImu = true
+            override fun send(msgId: Int, payload: ByteArray) = true
+            override fun close() {}
+        })
+        try {
+            refresh(ask = true)
+            assertEquals("XREAL One Pro+", state.value.model)
+            assertEquals(Glasses.Permission.GRANTED, state.value.permission)
+            assertTrue(manager.requests.isEmpty())
+            assertTrue(state.value.canControl)
+            assertTrue(state.value.hardwareControls)
+            assertTrue(state.value.supportsScreen3dof)
+            assertFalse(state.value.supportsSpatial)
+            assertEquals(57f, state.value.diagonalFovDeg, 0f)
+            assertEquals(9, state.value.brightnessMax)
+            assertEquals(0, state.value.volumeMax)
+        } finally {
+            field("link").set(null, null)
+            field("linkDevice").set(null, null)
+            (field("handler").get(null) as Handler).removeCallbacksAndMessages(null)
+        }
+    }
+
     @Test fun rokidMaxRoutesThroughItsOwnModelAndSharedVendorIdNeedsTheName() {
         val max = Glasses.deviceModel(device(0x162f, 0x04d2, "Rokid Max"))
         assertTrue(max is RokidModel)

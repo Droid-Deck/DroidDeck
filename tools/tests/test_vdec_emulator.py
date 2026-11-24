@@ -113,12 +113,12 @@ int main(void) {
     f.fmt.pix_mp.width = 1280; f.fmt.pix_mp.height = 736; f.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_NV12;
     if (call(VIDIOC_S_FMT, &f) || f.fmt.pix_mp.num_planes != 1) return 14;
     uint32_t bpl = f.fmt.pix_mp.plane_fmt[0].bytesperline, size = f.fmt.pix_mp.plane_fmt[0].sizeimage;
-    if (bpl != 1280 || size != 1280 * 736 * 3 / 2) return 15;
+    if (bpl != 4096 || size != 4096 * 2304 * 3 / 2) return 15;
     r = (struct v4l2_requestbuffers){ .count = 3, .type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, .memory = V4L2_MEMORY_DMABUF };
     if (call(VIDIOC_REQBUFS, &r) || r.count != 3) return 16;
     int out[3];
     for (int i = 0; i < 3; i++) {
-        struct create_dumb c = { .height = 736, .width = 1280, .bpp = 16 };
+        struct create_dumb c = { .height = 2304, .width = 4096, .bpp = 16 };
         if (drm_ioctl(card, 0xc02064b2, &c) || !c.handle || c.size < size) return 17;
         struct prime_handle h = { .handle = c.handle, .flags = O_CLOEXEC };
         if (drm_ioctl(card, 0xc00c642d, &h)) return 18;
@@ -148,7 +148,7 @@ int main(void) {
         struct v4l2_buffer cb = { .type = types[1], .memory = V4L2_MEMORY_DMABUF, .length = 1, .m.planes = &cp };
         if (call(VIDIOC_DQBUF, &cb)) return 25;
         unsigned char *m = mmap(NULL, size, PROT_READ, MAP_SHARED, out[cb.index], 0);
-        printf("%ld %u %c%c %u\n", (long)cb.timestamp.tv_usec, cb.index, m[0], m[(size_t)bpl * 736], cp.bytesused == size);
+        printf("%ld %u %c%c %u\n", (long)cb.timestamp.tv_usec, cb.index, m[0], m[(size_t)bpl * 2304], cp.bytesused == size);
         munmap(m, size);
         pf = (struct pollfd){ .fd = vfd, .events = 0x306 };
         if (poll(&pf, 1, 0) != 1) return 26;
@@ -166,7 +166,7 @@ int main(void) {
     size = f.fmt.pix_mp.plane_fmt[0].sizeimage;
     r = (struct v4l2_requestbuffers){ .count = 1, .type = types[1], .memory = V4L2_MEMORY_DMABUF };
     if (call(VIDIOC_REQBUFS, &r)) return 31;
-    struct create_dumb big = { .height = 1088, .width = 1920, .bpp = 16 };
+    struct create_dumb big = { .height = 2304, .width = 4096, .bpp = 16 };
     if (drm_ioctl(card, 0xc02064b2, &big)) return 32;
     struct prime_handle bh = { .handle = big.handle, .flags = O_CLOEXEC };
     if (drm_ioctl(card, 0xc00c642d, &bh)) return 33;
@@ -183,7 +183,7 @@ int main(void) {
     struct v4l2_buffer db = { .type = types[1], .memory = V4L2_MEMORY_DMABUF, .length = 1, .m.planes = &dp };
     if (call(VIDIOC_DQBUF, &db)) return 37;
     unsigned char *m = mmap(NULL, size, PROT_READ, MAP_SHARED, bh.fd, 0);
-    printf("%ld %u %c%c\n", (long)db.timestamp.tv_usec, db.index, m[0], m[(size_t)1920 * 1088]);
+    printf("%ld %u %c%c\n", (long)db.timestamp.tv_usec, db.index, m[0], m[(size_t)4096 * 2304]);
     dd_vdec_closed(vfd);
     return 0;
 }
@@ -261,7 +261,7 @@ class VdecEmulatorTest(unittest.TestCase):
             self.assertEqual(done.stdout.split('\n')[:6],
                              ['1 0 bu 1', '2 1 cu 1', '3 2 du 1', '4 0 eu 1', '5 1 fu 1', '6 0 zu'])
             self.assertEqual([c[1:6] for c in server.configs],
-                             [(1, 1280, 720, 1280, 736), (1, 1280, 720, 1920, 1088)])
+                             [(1, 1280, 720, 4096, 2304), (1, 1280, 720, 4096, 2304)])
             self.assertEqual([p[:3] for p in server.packets],
                              [(1, 101, 0), (2, 102, 1), (3, 103, 2), (0, 104, 0), (1, 105, 1), (2, 50, 0)])
 

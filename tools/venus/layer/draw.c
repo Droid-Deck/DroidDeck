@@ -8,6 +8,8 @@
  *   stand-ins the layer owns. robustBufferAccess2 itself maps to robustBufferAccess (layer.c).
  *   A null texel-buffer view gets an RGBA8 (uniform) or R32_UINT (storage) view of the stand-in
  *   buffer: its format is not known here, but Zink leaves them unbound and never reads them.
+ * - depthCompareOp with the depth test off (GAP_DEPTH_OP): the driver is given ALWAYS while a
+ *   command buffer has the test off, and the application's op again once it turns the test on.
  */
 #include <stdlib.h>
 #include <string.h>
@@ -449,4 +451,50 @@ VKAPI_ATTR void VKAPI_CALL CmdBindVertexBuffers2(VkCommandBuffer cmd, uint32_t f
         fixed_sizes[i] = sizes ? (null_buffer ? NULL_BUFFER_SIZE : sizes[i]) : 0;
     }
     dev->CmdBindVertexBuffers2(cmd, first, count, fixed, fixed_offsets, sizes ? fixed_sizes : NULL, strides);
+}
+
+/* --- depthCompareOp while the depth test is off --- */
+
+/* Per command buffer, packed into the map's value pointer so it is never NULL: bit 0 always set,
+ * bit 1 the test enable is known, bit 2 the test is on, bit 3 an op was set, bits 4 and up that op. */
+enum { DEPTH_VALID = 1, DEPTH_KNOWN = 2, DEPTH_ON = 4, DEPTH_OP = 8 };
+
+static uintptr_t depth_state(struct device *dev, VkCommandBuffer cmd)
+{
+    uintptr_t state = (uintptr_t)map_get(&dev->depth_states, (uint64_t)(uintptr_t)cmd);
+    return state ? state : DEPTH_VALID;
+}
+
+void depth_state_forget(struct device *dev, VkCommandBuffer cmd)
+{
+    pthread_mutex_lock(&dev->lock);
+    map_remove(&dev->depth_states, (uint64_t)(uintptr_t)cmd);
+    pthread_mutex_unlock(&dev->lock);
+}
+
+VKAPI_ATTR void VKAPI_CALL CmdSetDepthTestEnable(VkCommandBuffer cmd, VkBool32 enable)
+{
+    struct device *dev = device_from_handle(cmd);
+    dev->CmdSetDepthTestEnable(cmd, enable);
+    pthread_mutex_lock(&dev->lock);
+    uintptr_t state = depth_state(dev, cmd);
+    uintptr_t next = (state & ~(uintptr_t)DEPTH_ON) | DEPTH_KNOWN | (enable ? DEPTH_ON : 0);
+    map_put(&dev->depth_states, (uint64_t)(uintptr_t)cmd, (void *)next);
+    pthread_mutex_unlock(&dev->lock);
+    if (!enable)
+        dev->CmdSetDepthCompareOp(cmd, VK_COMPARE_OP_ALWAYS);
+    else if (state & DEPTH_OP)
+        dev->CmdSetDepthCompareOp(cmd, (VkCompareOp)(state >> 4));
+}
+
+VKAPI_ATTR void VKAPI_CALL CmdSetDepthCompareOp(VkCommandBuffer cmd, VkCompareOp op)
+{
+    struct device *dev = device_from_handle(cmd);
+    pthread_mutex_lock(&dev->lock);
+    uintptr_t state = depth_state(dev, cmd);
+    uintptr_t next = (state & (uintptr_t)(DEPTH_VALID | DEPTH_KNOWN | DEPTH_ON)) | DEPTH_OP | ((uintptr_t)op << 4);
+    map_put(&dev->depth_states, (uint64_t)(uintptr_t)cmd, (void *)next);
+    pthread_mutex_unlock(&dev->lock);
+    bool off = (state & DEPTH_KNOWN) && !(state & DEPTH_ON);
+    dev->CmdSetDepthCompareOp(cmd, off ? VK_COMPARE_OP_ALWAYS : op);
 }

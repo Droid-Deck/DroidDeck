@@ -8,7 +8,12 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 class GogCloudKeysTest {
     @Test fun defaultLocationIsStrippedLikeAnyNamedLocation() {
         val files = listOf(CloudFile("__default/savegame0.sav", 1L), CloudFile("saves/slot0.sav", 2L))
@@ -181,6 +186,24 @@ class GogCloudKeysTest {
         assertTrue(GOG_CLOUD_UA.startsWith("GOGGalaxyCommunicationService/2."))
         assertEquals(GOG_CLOUD_UA, requests[3].headers["x-object-meta-user-agent"])
         requests.forEach { assertEquals("Bearer token", it.headers["authorization"]) }
+    }
+
+    @Test fun listAsksForJsonAndCarriesGalaxyDeletionMarks() {
+        val body = "[{\"name\":\"saves/save1.ess\",\"hash\":\"0123456789abcdef0123456789abcdef\",\"last_modified\":\"2026-11-17T22:58:55.038000+00:00\"}," +
+            "{\"name\":\"saves/save2.ess\",\"hash\":\"$GOG_DELETED_MD5\",\"last_modified\":\"2026-11-17T22:59:00+00:00\"}]"
+        lateinit var files: List<CloudFile>
+        lateinit var cloud: GogCloud
+        val requests = serve(1, { "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n$body" }) { url ->
+            cloud = GogCloud("user", "client", "token", "saves", url)
+            files = cloud.list()
+        }
+        assertEquals("application/json", requests.single().headers["accept"])
+        assertEquals(listOf("save1.ess", "save2.ess"), files.map { it.name })
+        assertEquals("0123456789abcdef0123456789abcdef", files[0].md5)
+        assertEquals(1_794_956_335_038L, files[0].modifiedMs)
+        assertFalse(cloud.deleted(files[0]))
+        assertTrue(cloud.deleted(files[1]))
+        assertFalse(cloud.deleted(CloudFile("save3.ess", 1L)))
     }
 
     @Test fun rejectedListKeepsTheServerErrorInTheDetail() {

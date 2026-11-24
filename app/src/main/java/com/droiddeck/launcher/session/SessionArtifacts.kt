@@ -75,6 +75,7 @@ object SessionArtifacts {
             LogRedactor.learnFromRuntime(LinuxRuntime.rootDir(context))
             val record = Record(dir)
             copySteamLogs(context, dir, record, steamArch)
+            copyRpcs3Log(context, dir, record)
             VacDiagnostics.collect(context, dir)
             SessionLogCapture.dumpCrashBuffer(File(dir, "crash.log"))
             SessionLogCapture.dumpMemoryPressure(File(dir, "memory-pressure.log"))
@@ -321,6 +322,9 @@ object SessionArtifacts {
         runCatching { File(dir, CLIENT_FILE).readText().trim() }.getOrNull()?.takeIf { it == "arm64" || it == "x86_64" }
 
     private const val LOG_MARKS = "steam-log-marks.txt"
+    private const val RPCS3_LOG_MARKS = "rpcs3-log-marks.txt"
+    private const val RPCS3_LOGS = "root/.cache/rpcs3"
+    private const val RPCS3_LOG = "RPCS3.log"
     private const val MAX_STEAM_LOG = 8L * 1024 * 1024
     private const val HEAD = 4096L
 
@@ -328,11 +332,19 @@ object SessionArtifacts {
     private class CopyResult(val files: List<File>, val failed: Boolean, val deferred: Boolean)
 
     fun markSteamLogs(dir: File, logs: File) {
-        val lines = logs.listFiles { f -> f.isFile }?.mapNotNull { f ->
+        logs.listFiles { f -> f.isFile }?.let { markLogs(dir, LOG_MARKS, it.toList()) }
+    }
+
+    fun markRpcs3Log(dir: File, root: File) {
+        markLogs(dir, RPCS3_LOG_MARKS, listOf(File(root, "$RPCS3_LOGS/$RPCS3_LOG")).filter { it.isFile })
+    }
+
+    private fun markLogs(dir: File, marks: String, files: List<File>) {
+        val lines = files.mapNotNull { f ->
             val size = f.length()
             head(f, size)?.let { "$size\t$it\t${f.name}" }
-        } ?: return
-        runCatching { File(dir, LOG_MARKS).writeText(lines.joinToString("") { "$it\n" }) }
+        }
+        runCatching { File(dir, marks).writeText(lines.joinToString("") { "$it\n" }) }
     }
 
     private fun head(f: File, length: Long): String? = runCatching {
@@ -348,8 +360,8 @@ object SessionArtifacts {
         java.security.MessageDigest.getInstance("SHA-1").digest(buf).joinToString("") { "%02x".format(it) }
     }.getOrNull()
 
-    private fun steamLogMarks(dir: File): List<Mark>? = runCatching {
-        File(dir, LOG_MARKS).readLines().mapNotNull { line ->
+    private fun logMarks(dir: File, marks: String): List<Mark>? = runCatching {
+        File(dir, marks).readLines().mapNotNull { line ->
             val parts = line.split('\t', limit = 3)
             parts.getOrNull(0)?.toLongOrNull()?.let { size -> parts.getOrNull(1)?.let { Mark(size, it) } }
         }
@@ -371,11 +383,32 @@ object SessionArtifacts {
         val logs = File(steamArch?.let { SessionPrefs.steamRoot(context, it) } ?: SessionPrefs.activeSteamRoot(context), "logs")
         if (!logs.isDirectory) return
         val out = File(dir, "steam").apply { mkdirs() }
-        val result = copySessionLogsResult(logs, dir, out) { stopWhenSessionStarts && SessionState.running }
+        addCopied(record, copySessionLogsResult(logs, dir, out) { stopWhenSessionStarts && SessionState.running })
+        Log.i(TAG, "collected ${out.listFiles()?.size ?: 0} Steam log(s), scrubbed, into $out")
+    }
+
+    private fun copyRpcs3Log(context: Context, dir: File, record: Record, stopWhenSessionStarts: Boolean = false) {
+        val out = File(dir, "rpcs3")
+        val logs = File(LinuxRuntime.rootDir(context), RPCS3_LOGS)
+        val copied = copyRpcs3LogResult(logs, dir, out) { stopWhenSessionStarts && SessionState.running } ?: return
+        addCopied(record, copied)
+        if (copied.files.isNotEmpty()) Log.i(TAG, "collected RPCS3's log, scrubbed, into $out")
+    }
+
+    internal fun copyRpcs3Log(logs: File, dir: File, out: File): List<File> = copyRpcs3LogResult(logs, dir, out) { false }?.files.orEmpty()
+
+    private fun copyRpcs3LogResult(logs: File, dir: File, out: File, shouldStop: () -> Boolean): CopyResult? {
+        if (!File(dir, RPCS3_LOG_MARKS).isFile || !File(logs, RPCS3_LOG).isFile) return null
+        out.mkdirs()
+        val result = copySessionLogsResult(logs, dir, out, marksName = RPCS3_LOG_MARKS, accept = { it.name == RPCS3_LOG }, shouldStop = shouldStop)
+        if (result.files.isEmpty()) out.delete()
+        return result
+    }
+
+    private fun addCopied(record: Record, result: CopyResult) {
         result.files.forEach { dst -> record.files[dst] = Scrubbed(dst.length(), dst.lastModified()) }
         record.failed = record.failed || result.failed
         record.deferred = record.deferred || result.deferred
-        Log.i(TAG, "collected ${out.listFiles()?.size ?: 0} Steam log(s), scrubbed, into $out")
     }
 
     internal fun copySessionLogs(
@@ -383,20 +416,22 @@ object SessionArtifacts {
         dir: File,
         out: File,
         openWriter: (File) -> Writer = { it.bufferedWriter() },
-    ): List<File> = copySessionLogsResult(logs, dir, out, openWriter) { false }.files
+    ): List<File> = copySessionLogsResult(logs, dir, out, openWriter = openWriter) { false }.files
 
     private fun copySessionLogsResult(
         logs: File,
         dir: File,
         out: File,
+        marksName: String = LOG_MARKS,
+        accept: (File) -> Boolean = { true },
         openWriter: (File) -> Writer = { it.bufferedWriter() },
         shouldStop: () -> Boolean,
     ): CopyResult {
-        val marks = steamLogMarks(dir)
+        val marks = logMarks(dir, marksName)
         val copied = ArrayList<File>()
         var failed = false
         var deferred = false
-        val sources = logs.listFiles { f -> f.isFile } ?: return CopyResult(copied, true, false)
+        val sources = logs.listFiles { f -> f.isFile && accept(f) } ?: return CopyResult(copied, true, false)
         for (src in sources) {
             if (shouldStop()) {
                 failed = true
@@ -567,6 +602,7 @@ object SessionArtifacts {
                         steamArch = recordedClient(dir),
                         stopWhenSessionStarts = stopWhenSessionStarts,
                     )
+                    copyRpcs3Log(context, dir, record, stopWhenSessionStarts)
                     if (!record.deferred && (!stopWhenSessionStarts || !SessionState.running)) {
                         if (!record.failed && VacDiagnostics.collect(context, dir)) {
                             try {

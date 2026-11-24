@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Bluetooth
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.KeyboardCommandKey
 import androidx.compose.material.icons.outlined.LightMode
@@ -61,6 +62,7 @@ internal fun SteamIntegration.State.enabled(feature: Feature) = when (feature) {
     Feature.BRIGHTNESS -> brightness
     Feature.HOME -> home
     Feature.SHORTCUTS -> shortcuts
+    Feature.BLUETOOTH -> bluetooth
 }
 
 internal fun SteamIntegration.State.enabledCount() = Feature.entries.count { enabled(it) }
@@ -116,6 +118,7 @@ private fun IntegrationRow(
         feature == Feature.WIFI -> if (on) R.string.integration_wifi_on else R.string.integration_wifi_hint
         feature == Feature.BRIGHTNESS -> R.string.integration_brightness_hint
         feature == Feature.HOME -> R.string.integration_home_hint
+        feature == Feature.BLUETOOTH -> R.string.integration_bluetooth_hint
         else -> R.string.integration_shortcuts_hint
     })
     Row(
@@ -164,6 +167,7 @@ private fun featureIcon(feature: Feature) = when (feature) {
     Feature.BRIGHTNESS -> Icons.Outlined.LightMode
     Feature.HOME -> Icons.Outlined.Home
     Feature.SHORTCUTS -> Icons.Outlined.KeyboardCommandKey
+    Feature.BLUETOOTH -> Icons.Outlined.Bluetooth
 }
 
 private fun featureTitle(feature: Feature) = when (feature) {
@@ -171,6 +175,7 @@ private fun featureTitle(feature: Feature) = when (feature) {
     Feature.BRIGHTNESS -> R.string.integration_brightness
     Feature.HOME -> R.string.integration_home
     Feature.SHORTCUTS -> R.string.integration_shortcuts
+    Feature.BLUETOOTH -> R.string.integration_bluetooth
 }
 
 @Composable

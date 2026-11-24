@@ -93,6 +93,14 @@ class PairingGuideActivity : ComponentActivity() {
         launchPending = true
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        val stage = WirelessAdbPairingService.stage.value
+        if (isFinishing && (stage is WirelessAdbPairingService.Stage.Waiting || stage is WirelessAdbPairingService.Stage.CodeNeeded)) {
+            WirelessAdbPairingService.cancel(this)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         if (!launchPending) return

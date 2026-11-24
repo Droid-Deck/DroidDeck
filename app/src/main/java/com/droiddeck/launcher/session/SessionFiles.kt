@@ -95,7 +95,11 @@ object SessionFiles {
         return all
     }
 
-    fun stage(context: Context, root: File, startsSession: Boolean = false) {
+    private val STAGE_LOCK = Any()
+
+    fun stage(context: Context, root: File, startsSession: Boolean = false) = synchronized(STAGE_LOCK) { stageNow(context, root, startsSession) }
+
+    private fun stageNow(context: Context, root: File, startsSession: Boolean) {
         if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
         GameEnvironmentStore.publish(context)
@@ -126,6 +130,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-desktop-clipboard" to "usr/local/bin/droiddeck-desktop-clipboard",
             "usr/local/bin/droiddeck-gpu-window" to "usr/local/bin/droiddeck-gpu-window",
             "usr/local/bin/droiddeck-steam-install" to "usr/local/bin/droiddeck-steam-install",
+            "usr/local/bin/droiddeck-steam-preapply" to "usr/local/bin/droiddeck-steam-preapply",
             "usr/local/bin/droiddeck-steam-ui-scale" to "usr/local/bin/droiddeck-steam-ui-scale",
             "usr/local/bin/droiddeck-steam-language" to "usr/local/bin/droiddeck-steam-language",
             "usr/local/bin/droiddeck-steam-shaders" to "usr/local/bin/droiddeck-steam-shaders",

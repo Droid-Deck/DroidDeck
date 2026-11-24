@@ -50,3 +50,10 @@ class SessionAssetsTest(unittest.TestCase):
         mapping = '"usr/local/bin/droiddeck-login1" to "usr/local/bin/sub/login1"'
         self.assertEqual(['not extracted at session start: usr/local/bin/droiddeck-login1'],
                          assets.check_extraction(self.overlay, mapping))
+
+    def test_stage_refreshes_a_changed_helper(self):
+        target = self.root / 'main'
+        assets.stage(target, self.overlay)
+        self.helper.write_bytes(b'new helper')
+        assets.stage(target, self.overlay)
+        self.assertEqual(b'new helper', (target / self.name).read_bytes())

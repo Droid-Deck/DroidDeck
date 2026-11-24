@@ -1,0 +1,26 @@
+diff --git a/Source/Tools/FEXInterpreter/FEXInterpreter.cpp b/Source/Tools/FEXInterpreter/FEXInterpreter.cpp
+index 2881ad9..abc84f3 100644
+--- a/Source/Tools/FEXInterpreter/FEXInterpreter.cpp
++++ b/Source/Tools/FEXInterpreter/FEXInterpreter.cpp
+@@ -518,7 +518,7 @@ int main(int argc, char** argv, char** const envp) {
+       FEXCore::Config::Set(FEXCore::Config::CONFIG_APP_CONFIG_NAME, Program.ProgramName);
+     } else {
+       // Anonymous program.
+-      FEXCore::Config::Set(FEXCore::Config::CONFIG_APP_FILENAME, "<Anonymous>");
++      FEXCore::Config::Set(FEXCore::Config::CONFIG_APP_FILENAME, Program.ProgramPath);
+       FEXCore::Config::Set(FEXCore::Config::CONFIG_APP_CONFIG_NAME, "<Anonymous>");
+     }
+   } else {
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.cpp
+index a7a432b..4a77d87 100644
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.cpp
+@@ -441,7 +441,7 @@ uint64_t ExecveHandler(FEXCore::Core::CpuStateFrame* Frame, const char* pathname
+     if (*OldArgv) {
+       // The direct fallback uses the executable path as argv[0]. An FD-backed load uses the
+       // binfmt preserve-argv0 layout, so the caller-supplied argv[0] has to stay in the vector.
+-      if (!NeedsLoaderFD) {
++      if (!NeedsLoaderFD && !IsFDExec) {
+         ++OldArgv;
+       }
+       while (*OldArgv) {

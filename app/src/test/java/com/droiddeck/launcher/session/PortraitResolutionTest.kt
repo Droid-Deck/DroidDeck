@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import android.content.Context
+import android.content.pm.ActivityInfo
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -72,6 +73,35 @@ class PortraitResolutionTest {
         assertNull(SessionPrefs.parseOrientedResolution("100x100"))
         SessionPrefs.setResolutionChoice(app, "steam", "1440x2560", portrait = true)
         assertEquals("1440x2560", SessionPrefs.resolutionStored(app, "steam", panel, true))
+    }
+
+    @Test fun followScreenInLandscapeLeavesAFixedPortraitSizeFixed() {
+        SessionPrefs.setResolutionChoice(app, "steam", SessionDisplay.FOLLOW_SCREEN)
+        SessionPrefs.setResolutionChoice(app, "steam", "1024x768", portrait = true)
+        assertEquals(1f to null, SessionPrefs.followScales(app, "steam", panel))
+    }
+
+    @Test fun followScreenInPortraitLeavesAFixedLandscapeSizeFixed() {
+        SessionPrefs.setResolutionChoice(app, "steam", "1080p")
+        SessionPrefs.setResolutionChoice(app, "steam", SessionDisplay.followScaled(2f), portrait = true)
+        assertEquals(null to 2f, SessionPrefs.followScales(app, "steam", panel))
+    }
+
+    @Test fun followScalesKeepLinkedAndFixedChoices() {
+        SessionPrefs.setResolutionChoice(app, "steam", SessionDisplay.followScaled(1.5f))
+        assertEquals(1.5f to 1.5f, SessionPrefs.followScales(app, "steam", panel))
+        SessionPrefs.setResolutionChoice(app, "steam", "1024x768", portrait = true)
+        SessionPrefs.setResolutionChoice(app, "steam", SessionDisplay.LINK_PORTRAIT)
+        assertEquals(null to null, SessionPrefs.followScales(app, "steam", panel))
+        app.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
+        assertEquals(null to null, SessionPrefs.followScales(app, "steam", panel))
+    }
+
+    @Test fun anAutoOrientationIsNotChangedByFollowScreen() {
+        assertFalse(SessionPrefs.portrait(app))
+        SessionPrefs.setOrientation(app, ActivityInfo.SCREEN_ORIENTATION_USER)
+        assertEquals(ActivityInfo.SCREEN_ORIENTATION_USER, SessionPrefs.windowOrientation(app, true, 700))
+        assertEquals(ActivityInfo.SCREEN_ORIENTATION_USER, SessionPrefs.windowOrientation(app, false, 700))
     }
 
     @Test fun modesKeepSeparateChoices() {
