@@ -3218,7 +3218,7 @@
     <string name="hand_camera_done">تم</string>
     <string name="glasses_xreal_network_missing">في انتظار اتصال USB Ethernet الخاص بالنظارة. قد لا يتيحه هذا الهاتف للتطبيقات.</string>
     <string name="glasses_xreal_connection_failed">انقطع اتصال XREAL أو أعاد استجابة غير مدعومة. جارٍ إعادة المحاولة…</string>
-    <string name="glasses_xreal_experimental">دعم تجريبي لـ 1S. استخدم وضع Follow وعطّل تثبيت الصورة من قائمة النظارة. لا تزال اتجاهات التتبّع وأوضاع العرض بحاجة إلى اختبار على الجهاز.</string>
+    <string name="glasses_xreal_experimental">دعم تجريبي لـ XREAL 1S وOne وOne Pro وOne Pro+ وAura. استخدم وضع Follow وأوقف تثبيت الصورة في قائمة النظارة؛ وعلى Aura، أوقف Spatial Anchor أيضًا. تم اختبار تتبع الرأس والتبديل بين 2D/3D على Aura وOne Pro+.</string>
     <string name="glasses_pro2_experimental">تتبّع تجريبي لحركة الرأس لنظارة Pro 2. لا يُدعم بعد ضبط السطوع ومستوى الصوت أو تبديل وضع العرض.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">وضع Cardboard</string>
