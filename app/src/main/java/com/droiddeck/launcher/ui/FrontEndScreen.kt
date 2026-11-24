@@ -143,6 +143,7 @@ class FrontEndState(
     val integrationFocus: com.droiddeck.launcher.core.SteamIntegration.Feature? = null,
     val androidApps: List<HomeApp.LaunchableApp> = emptyList(),
     val secondScreenDisplays: List<SecondScreenDisplay> = emptyList(),
+    val ownScreen: SecondScreenDisplay? = null,
     val dualScreen: Boolean = false,
     val dualScreenDevice: Boolean = false,
     val dualScreenMode: String = com.droiddeck.launcher.input.DualScreen.MODE_AUTO,
@@ -174,6 +175,7 @@ class FrontEndState(
     val launcherOrientation: Int = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER,
     val homePage: String = com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_STEAM,
     val launcherFullscreen: Boolean = true,
+    val controllerHaptics: Boolean = true,
     val downloadSource: String = DownloadSource.MODE_AUTO,
     val downloadMirror: String = "",
     val downloadPrefix: String = "",
@@ -279,6 +281,7 @@ class FrontEndActions(
     val onLauncherOrientation: (Int) -> Unit = {},
     val onHomePage: (String) -> Unit = {},
     val onLauncherFullscreen: (Boolean) -> Unit = {},
+    val onControllerHaptics: (Boolean) -> Unit = {},
     val onAnimationsEnabled: (Boolean) -> Unit = {},
     val onLowStorageWarning: (Boolean) -> Unit = {},
     val onDualScreenMode: (String) -> Unit = {},
@@ -311,16 +314,14 @@ class FrontEndActions(
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onRefreshPhantomStatus: () -> Unit = {},
     val onOpenDeveloperOptions: (Int?) -> Unit = {},
-    val onWirelessAdbPair: (String, Int, String, (String?) -> Unit) -> Unit,
-    val onFindWirelessAdbPort: (String, (Int?) -> Unit) -> Unit = { _, done -> done(null) },
-    val onWirelessAdbApply: (String, Int, Boolean, (String?) -> Unit) -> Unit,
     val onSetPhantomProcessLimit: (Boolean, (String?) -> Unit) -> Unit,
     val onCopyPhantomCommand: (Boolean) -> Unit = {},
     val onDismissPhantomGate: () -> Unit = {},
-    val onStartWirelessAdbPairing: () -> Unit = {},
+    val onStartWirelessAdbPairing: (Boolean) -> Unit = {},
     val onStartPairingGuide: (Int?, Boolean) -> Boolean = { _, _ -> false },
     val onShowPhantomGate: () -> Unit = {},
-    val onOpenNotificationSettings: () -> Unit = {},
+    val onQueuePlaySteam: () -> Unit = {},
+    val onEnsureNotifications: ((Boolean) -> Unit) -> Unit = { it(true) },
     val controller: ControllerActions? = null,
     val updates: UpdatesActions = UpdatesActions(),
 )
@@ -452,6 +453,7 @@ internal suspend fun focusSoon(target: () -> FocusRequester) {
 @Composable
 fun FrontEndScreen(s: FrontEndState, a: FrontEndActions, page: (@Composable () -> Unit)? = null) {
     val frontFocus = remember { FrontFocus() }
+    androidx.compose.runtime.SideEffect { RunningBuild.channel = s.updates.follow.channel }
     val textInput = androidx.compose.ui.platform.LocalTextInputService.current
     val bottomTextInput = remember(textInput) { textInput?.let { androidx.compose.ui.text.input.TextInputService(BottomScreenTextInput(it)) } }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().pointerInput(Unit) {
@@ -505,17 +507,16 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     LaunchedEffect(com.droiddeck.launcher.stores.StoresState.openGameRequest) {
         if (com.droiddeck.launcher.stores.StoresState.openGameRequest != null) selected = "stores"
     }
-    var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
     var showDeveloperDisplayChoice by rememberSaveable { mutableStateOf(false) }
     var developerChoiceGuided by rememberSaveable { mutableStateOf(false) }
     var developerChoiceToggle by rememberSaveable { mutableStateOf(false) }
-    var wirelessAdbDesiredEnabled by rememberSaveable { mutableStateOf(false) }
+    var guidedLimitEnabled by rememberSaveable { mutableStateOf(false) }
     var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val ctx = LocalContext.current
     val phantomGateVisible = s.showPhantomGate && PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
-    val processSettingsPageVisible = phantomGateVisible || showWirelessAdbFix || showDeveloperDisplayChoice
+    val processSettingsPageVisible = phantomGateVisible || showDeveloperDisplayChoice
     val requestDeveloperOptions = {
         developerChoiceGuided = false
         developerChoiceToggle = false
@@ -523,7 +524,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         else showDeveloperDisplayChoice = true
     }
     val openDeveloperOptionsOn: (Int?) -> Unit = { displayId ->
-        if (developerChoiceGuided) a.onStartWirelessAdbPairing()
+        if (developerChoiceGuided) a.onStartWirelessAdbPairing(guidedLimitEnabled)
         val guided = developerChoiceGuided || developerChoiceToggle
         if (!guided || !a.onStartPairingGuide(displayId, developerChoiceToggle)) a.onOpenDeveloperOptions(displayId)
         developerChoiceGuided = false
@@ -539,30 +540,34 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             else showDeveloperDisplayChoice = true
         }
     }
-    val startGuidedPairing = {
-        if (!com.droiddeck.launcher.core.WirelessAdbPairingService.notificationsEnabled(ctx)) {
-            wirelessAdbDesiredEnabled = false
-            showWirelessAdbFix = true
-        } else {
-            developerChoiceGuided = true
-            if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
-            else showDeveloperDisplayChoice = true
+    val startGuidedPairing: (Boolean) -> Unit = { enabled ->
+        a.onEnsureNotifications { granted ->
+            if (granted) {
+                guidedLimitEnabled = enabled
+                developerChoiceGuided = true
+                if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
+                else showDeveloperDisplayChoice = true
+            }
         }
+    }
+    val childProcessRequest = androidx.compose.runtime.rememberUpdatedState {
+        if (PhantomProcessLimit.hasDeveloperToggle()) requestChildProcessToggle() else a.onShowPhantomGate()
+    }
+    DisposableEffect(Unit) {
+        val handler: () -> Unit = { childProcessRequest.value() }
+        ChildProcessSetup.request = handler
+        onDispose { if (ChildProcessSetup.request === handler) ChildProcessSetup.request = null }
     }
     var applyingSavedPairing by remember { mutableStateOf(false) }
     val fixPhantomLimit = {
-        if (!s.adbPaired || !com.droiddeck.launcher.core.GlobalSettings.wirelessDebuggingOn(ctx)) startGuidedPairing()
+        if (!s.adbPaired || !com.droiddeck.launcher.core.GlobalSettings.wirelessDebuggingOn(ctx)) startGuidedPairing(false)
         else if (!applyingSavedPairing) {
             applyingSavedPairing = true
             a.onSetPhantomProcessLimit(false) { error ->
                 applyingSavedPairing = false
-                if (error != null) startGuidedPairing()
+                if (error != null) startGuidedPairing(false)
             }
         }
-    }
-    val requestWirelessAdbFix: (Boolean) -> Unit = { enabled ->
-        wirelessAdbDesiredEnabled = enabled
-        showWirelessAdbFix = true
     }
     LaunchedEffect(s.showPhantomGate, s.phantomProcessStatus) {
         if (phantomGateVisible) {
@@ -759,24 +764,28 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             focusManager.clearFocus(force = true)
             onRailSelect(key)
         }, a)
+        val tabStep = androidx.compose.runtime.rememberUpdatedState { step: Int ->
+            if (!processSettingsPageVisible) {
+                val keys = navigationKeys(s)
+                keys.getOrNull(keys.indexOf(railSelectionNow.value) + step)?.let { key ->
+                    PageSwipe.direction = step
+                    onRailSelect(key)
+                }
+            }
+        }
+        DisposableEffect(Unit) {
+            val handler: (Int) -> Unit = { tabStep.value(it) }
+            MainTabSteps.handler = handler
+            onDispose { if (MainTabSteps.handler === handler) MainTabSteps.handler = null }
+        }
         CompositionLocalProvider(LocalShowSection provides { key -> selected = key }) {
+        val swipeContext = androidx.compose.ui.platform.LocalContext.current
+        remember { com.droiddeck.launcher.core.AppUiPrefs.pageSwipe(swipeContext).also { PageSwipe.on = it } }
         val agentKeyboardOpen = openTab == "agent" && WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
         LauncherLayout(
             bottomNavigation && !s.dualScreen, pal.line,
             Modifier.fillMaxSize().onGloballyPositioned { screenAt = it.positionInRoot() }
-                .then(if (openTab == "agent") Modifier.imePadding() else Modifier)
-                .then(if (s.dualScreen) Modifier.onKeyEvent { event ->
-                    val step = dualPageStep(event.nativeKeyEvent) ?: return@onKeyEvent false
-                    if (event.type == KeyEventType.KeyDown && !processSettingsPageVisible) {
-                        val keys = navigationKeys(s)
-                        val at = keys.indexOf(railSelectionNow.value)
-                        keys.getOrNull(at + step)?.let { key ->
-                            PageSwipe.direction = step
-                            onRailSelect(key)
-                        }
-                    }
-                    true
-                } else Modifier),
+                .then(if (openTab == "agent") Modifier.imePadding() else Modifier),
             navigation = {
                 if (s.dualScreen || (bottomNavigation && agentKeyboardOpen)) Unit
                 else if (bottomNavigation) BottomBar(s, railSelection, onRailSelect, onRailFocus, a, railFocus)
@@ -785,7 +794,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         ) {
                 Pane(
                     s, selected, a, page,
-                    Modifier.fillMaxSize().then(paneFocus).pageSwipe({ !processSettingsPageVisible && appToChooseDisplay == null }) { dir ->
+                    Modifier.fillMaxSize().then(paneFocus).pageSwipe({ !processSettingsPageVisible && appToChooseDisplay == null }, edgeGuard = { !bottomNavigation }) { dir ->
                         val keys = navigationKeys(s)
                         val at = keys.indexOf(railSelectionNow.value)
                         if (at >= 0) keys.getOrNull(at + dir)?.let { key ->
@@ -795,12 +804,12 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     },
                     { selected = it },
                     onAndroidAppClick = { app ->
-                        if (s.secondScreenDisplays.isEmpty()) a.onAndroidApp(app, null)
+                        if (s.secondScreenDisplays.isEmpty() && s.ownScreen == null) a.onAndroidApp(app, null)
                         else appToChooseDisplay = app
                     },
                     onOpenDeveloperOptions = requestChildProcessToggle,
-                    onRequestWirelessAdb = requestWirelessAdbFix,
-                    onPairWirelessDebugging = startGuidedPairing,
+                    onPairWirelessDebugging = { startGuidedPairing(false) },
+                    onRequestWirelessAdb = startGuidedPairing,
                 )
         }
 
@@ -816,7 +825,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         SessionDrawerPreview(s.secondScreenDisplays)
 
         appToChooseDisplay?.let { app ->
-            val secondaryDisplay = s.secondScreenDisplays.firstOrNull()
+            val secondaryDisplay = s.secondScreenDisplays.firstOrNull() ?: s.ownScreen
             ChooseAppDisplayDialog(
                 app = app,
                 secondaryDisplay = secondaryDisplay,
@@ -831,7 +840,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 onDismiss = { appToChooseDisplay = null },
             )
         }
-        if (phantomGateVisible && !showWirelessAdbFix) {
+        if (phantomGateVisible) {
             Box(Modifier.fillMaxSize().background(colors.background)) {
                 PhantomProcessGatePage(
                     status = s.phantomProcessStatus,
@@ -839,21 +848,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     onOpenDeveloperOptions = requestChildProcessToggle,
                     applyingSavedPairing = applyingSavedPairing,
                     onFixWithWirelessDebugging = fixPhantomLimit,
-                    onEnterAddressManually = { requestWirelessAdbFix(false) },
                     onCopyCommand = { a.onCopyPhantomCommand(false) },
-                    onOpenNotificationSettings = a.onOpenNotificationSettings,
-                )
-            }
-        }
-        if (showWirelessAdbFix) {
-            Box(Modifier.fillMaxSize().background(colors.background)) {
-                WirelessAdbFixPage(
-                    onBack = { showWirelessAdbFix = false },
-                    desiredEnabled = wirelessAdbDesiredEnabled,
-                    onOpenDeveloperOptions = requestDeveloperOptions,
-                    onPair = a.onWirelessAdbPair,
-                    onFindConnectPort = a.onFindWirelessAdbPort,
-                    onApply = a.onWirelessAdbApply,
                 )
             }
         }
@@ -897,4 +892,12 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             }
         }
     }
+}
+
+internal object ChildProcessSetup {
+    @Volatile var request: (() -> Unit)? = null
+}
+
+internal object MainTabSteps {
+    @Volatile var handler: ((Int) -> Unit)? = null
 }

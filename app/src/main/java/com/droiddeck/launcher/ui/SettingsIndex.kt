@@ -93,6 +93,8 @@ internal object SettingsIndex {
         s(SettingsSection.CONTROLLER, R.string.setup_tab_controller, "gamepad", "buttons", "mapping", "profile", "remap"),
         SettingsEntry(SettingsPlace.TAB, R.string.rail_storage, tab = "storage", words = listOf("sd card", "space", "uninstall", "disk")),
         SettingsEntry(SettingsPlace.TAB, R.string.rail_sync, tab = "sync", words = listOf("syncthing", "saves")),
+        SettingsEntry(SettingsPlace.TAB, R.string.rail_decky, tab = "decky", words = listOf("plugins", "plugin store", "homebrew", "loader")),
+        SettingsEntry(SettingsPlace.TAB, R.string.rail_boot_movies, tab = "boot-movies", words = listOf("startup movie", "boot video", "animation", "steamdeckrepo")),
         s(SettingsSection.GLASSES, R.string.setup_tab_glasses, "xreal", "viture", "vr", "ar"),
 
         s(SettingsSection.LAUNCHER, R.string.setup_theme, "color", "dark"),
@@ -108,6 +110,8 @@ internal object SettingsIndex {
         s(SettingsSection.LAUNCHER, R.string.setup_launcher_orientation, "rotate", "portrait"),
         s(SettingsSection.LAUNCHER, R.string.setup_session_orientation, "rotate", "portrait"),
         s(SettingsSection.LAUNCHER, R.string.setup_fullscreen),
+        s(SettingsSection.LAUNCHER, R.string.setup_page_swipe, "gesture"),
+        s(SettingsSection.LAUNCHER, R.string.setup_controller_haptics, "vibration", "rumble"),
         s(SettingsSection.LAUNCHER, R.string.setup_dual_screen_launcher, "thor", "second screen", "bottom screen"),
         s(SettingsSection.LAUNCHER, R.string.setup_low_storage_warning),
         s(SettingsSection.LAUNCHER, R.string.mode_sgdb_key, "artwork", "steamgriddb"),
@@ -137,7 +141,7 @@ internal object SettingsIndex {
         SettingsEntry(SettingsPlace.STEAM_QAM, R.string.drawer_frame_limit, R.string.perf_title, words = listOf("fps", "cap", "limit", "steam games")),
         SettingsEntry(SettingsPlace.STEAM_QAM, R.string.perf_title, words = listOf("performance overlay", "fps", "counter", "tdp")),
 
-        sh(R.string.drawer_page_display, R.string.display_session, "resolution", "scaling", "hdr", "refresh"),
+        sh(R.string.drawer_page_display, R.string.display_session, "resolution", "scaling", "hdr", "refresh", "zero-copy"),
         sh(R.string.drawer_page_display, R.string.sheet_graphics_drivers, "turnip", "driver", "gpu", "adreno", "mali"),
         sh(R.string.mode_tab_steam, R.string.setup_offline, "offline", "steam"),
         sh(R.string.mode_audio, R.string.mode_mic, "microphone", "voice"),

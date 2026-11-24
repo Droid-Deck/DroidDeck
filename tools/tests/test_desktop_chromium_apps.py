@@ -1,11 +1,8 @@
-import os
 from pathlib import Path
 import tempfile
 import unittest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "linuxfs/desktop/droiddeck-desktop-gpu"
-PREFIX = "env -u WAYLAND_DISPLAY XDG_SESSION_TYPE=x11 ELECTRON_DISABLE_SANDBOX=1 "
-FLAGS = " --no-sandbox --ozone-platform=x11"
 
 
 def load():
@@ -24,12 +21,6 @@ class DesktopChromiumAppsTest(unittest.TestCase):
         self.gpu = load()
         self.electron = self.app("lib/chat/chat", sandbox=True)
         self.plain = self.app("lib/editor/editor", sandbox=False)
-        bin_dir = self.root / "bin"
-        bin_dir.mkdir()
-        (bin_dir / "chat").symlink_to(self.electron)
-        old_path = os.environ.get("PATH", "")
-        os.environ["PATH"] = "%s:%s" % (bin_dir, old_path)
-        self.addCleanup(os.environ.__setitem__, "PATH", old_path)
 
     def app(self, relative, sandbox):
         path = self.root / relative
@@ -49,34 +40,17 @@ class DesktopChromiumAppsTest(unittest.TestCase):
     def exec_lines(self, text):
         return [l[5:] for l in text.splitlines() if l.startswith("Exec=")]
 
-    def test_an_electron_app_starts_without_the_sandbox_on_x11(self):
-        out = self.gpu["wrap"](self.entry("%s %%U" % self.electron, actions="%s --new" % self.electron))
-        self.assertEqual(self.exec_lines(out), [PREFIX + str(self.electron) + FLAGS + " %U",
-                                                PREFIX + str(self.electron) + FLAGS + " --new"])
-        self.assertIn("X-DroidDeck-GPU=1", out)
-        self.assertIn("Actions=new;", out)
-        self.assertNotIn("droiddeck-window", out)
+    def test_electron_apps_keep_their_own_entries(self):
+        self.assertIsNone(self.gpu["wrap"](self.entry("%s %%U" % self.electron, actions="%s --new" % self.electron)))
+        self.assertIsNone(self.gpu["wrap"](self.entry(str(self.plain))))
 
-    def test_a_command_on_the_path_is_followed_to_its_install_folder(self):
-        out = self.gpu["wrap"](self.entry("chat %U"))
-        self.assertEqual(self.exec_lines(out), [PREFIX + "chat" + FLAGS + " %U"])
+    def test_an_electron_game_goes_to_the_gpu_as_installed(self):
+        out = self.gpu["wrap"](self.entry(str(self.electron), categories="Game;", actions="%s --new" % self.electron))
+        self.assertEqual(self.exec_lines(out), ["droiddeck-gpu " + str(self.electron), str(self.electron),
+                                                "droiddeck-gpu %s --new" % self.electron])
 
-    def test_a_quoted_program_keeps_its_quotes(self):
-        out = self.gpu["wrap"](self.entry('"%s" %%U' % self.electron))
-        self.assertEqual(self.exec_lines(out), [PREFIX + '"%s"' % self.electron + FLAGS + " %U"])
-
-    def test_other_apps_are_left_alone(self):
-        self.assertIsNone(self.gpu["wrap"](self.entry("%s %%F" % self.plain)))
-        self.assertIsNone(self.gpu["wrap"](self.entry("missing-program %F")))
-
-    def test_an_electron_game_goes_to_the_gpu_and_keeps_a_window_action(self):
-        out = self.gpu["wrap"](self.entry(str(self.electron), categories="Game;"))
-        fixed = PREFIX + str(self.electron) + FLAGS
-        self.assertEqual(self.exec_lines(out), ["droiddeck-gpu " + fixed, fixed])
-
-    def test_with_the_gpu_off_electron_apps_are_still_fixed(self):
-        out = self.gpu["wrap"](self.entry(str(self.electron), categories="Game;"), False)
-        self.assertEqual(self.exec_lines(out), [PREFIX + str(self.electron) + FLAGS])
+    def test_with_the_gpu_off_no_entry_is_written(self):
+        self.assertIsNone(self.gpu["wrap"](self.entry(str(self.electron), categories="Game;"), False))
         self.assertIsNone(self.gpu["wrap"](self.entry(str(self.plain), categories="Game;"), False))
 
     def test_games_that_are_not_chromium_are_unchanged(self):
