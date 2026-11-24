@@ -1254,9 +1254,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         drivers.restartBlocked = ::runtimeChangesBlocked
         drivers.loadTpUbwcMode()
         pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
-        pendingGateLaunchAt = savedInstanceState?.getLong(STATE_PENDING_GATE_LAUNCH_AT, 0L) ?: 0L
-        pendingGateLaunch = savedInstanceState?.takeIf { System.currentTimeMillis() - pendingGateLaunchAt in 0..GATE_LAUNCH_MS }
-            ?.let { androidx.core.os.BundleCompat.getParcelable(it, STATE_PENDING_GATE_LAUNCH, Intent::class.java) }
+        queuedLaunch.restore(
+            savedInstanceState?.let { androidx.core.os.BundleCompat.getParcelable(it, STATE_PENDING_GATE_LAUNCH, Intent::class.java) },
+            savedInstanceState?.getLong(STATE_PENDING_GATE_LAUNCH_AT, 0L) ?: 0L, System.currentTimeMillis(),
+        )
         homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
         gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
@@ -1406,8 +1407,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     FrontEndActions(
                         onPlay = { playSteam() },
                         onQueuePlaySteam = {
-                            pendingGateLaunch = Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_STEAMVR, false)
-                            pendingGateLaunchAt = System.currentTimeMillis()
+                            queuedLaunch.queue(Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_STEAMVR, false), System.currentTimeMillis())
                         },
                         onPlaySteamVr = { playSteamVr() },
                         onSteamUrl = { url ->
@@ -1796,7 +1796,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             )
                             android.widget.Toast.makeText(this, R.string.main_adb_copied, android.widget.Toast.LENGTH_SHORT).show()
                         },
-                        onDismissPhantomGate = { pendingGateLaunch = null; showPhantomGate = false },
+                        onDismissPhantomGate = { queuedLaunch.clear(); showPhantomGate = false },
                         onShowPhantomGate = {
                             refreshPhantomStatus()
                             showPhantomGate = true
@@ -2206,9 +2206,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
         outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
         pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
-        pendingGateLaunch?.let {
+        queuedLaunch.launch?.let {
             outState.putParcelable(STATE_PENDING_GATE_LAUNCH, it)
-            outState.putLong(STATE_PENDING_GATE_LAUNCH_AT, pendingGateLaunchAt)
+            outState.putLong(STATE_PENDING_GATE_LAUNCH_AT, queuedLaunch.queuedAt)
         }
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
         saveCompatLaunch(outState)
@@ -2236,6 +2236,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     override fun onDestroy() {
+        // The queued launch was saved before this; a restored activity keeps its copy, and this one must not start it too.
+        queuedLaunch.clear()
+        gateLaunchRetry?.let(ui::removeCallbacks)
         triggerKeys.cancel()
         gameLaunchRequest.incrementAndGet()
         cancelCompatLaunch()
@@ -3337,8 +3340,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
-            pendingGateLaunch = intent
-            pendingGateLaunchAt = System.currentTimeMillis()
+            queuedLaunch.queue(intent, System.currentTimeMillis())
             showPhantomGate = true
             return false
         }
@@ -3386,9 +3388,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         done(granted)
     }
 
-    private var pendingGateLaunch: Intent? = null
-    private var pendingGateLaunchAt = 0L
+    private val queuedLaunch = com.droiddeck.launcher.session.QueuedLaunch<Intent>(GATE_LAUNCH_MS)
     private var gateLaunchPosted = false
+    private var gateLaunchRetry: Runnable? = null
 
     /** The conditions under which a Steam start waits instead of being refused: setup, a runtime or desktop install, or a storage cleanup. */
     private fun steamStartBusy(): Boolean = busy || LinuxRuntimeInstaller.isBusy() || com.droiddeck.launcher.session.Onboarding.settling() ||
@@ -3396,22 +3398,19 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun refreshPhantomStatus() {
         phantomProcessStatus = PhantomProcessLimit.read(this)
-        pendingGateLaunch?.takeIf { !PhantomProcessLimit.blocksSteam(phantomProcessStatus) && !gateLaunchPosted }?.let { launch ->
+        queuedLaunch.current(System.currentTimeMillis())?.takeIf { !PhantomProcessLimit.blocksSteam(phantomProcessStatus) && !gateLaunchPosted }?.let { launch ->
             showPhantomGate = false
             gateLaunchPosted = true
             ui.post {
                 gateLaunchPosted = false
-                if (pendingGateLaunch !== launch) return@post
-                val age = System.currentTimeMillis() - pendingGateLaunchAt
-                if (age !in 0..GATE_LAUNCH_MS) {
-                    pendingGateLaunch = null
-                    return@post
-                }
+                if (queuedLaunch.current(System.currentTimeMillis()) !== launch) return@post
                 if (steamStartBusy()) {
-                    ui.postDelayed({ if (pendingGateLaunch === launch) refreshPhantomStatus() }, GATE_LAUNCH_RETRY_MS)
+                    val retry = Runnable { if (queuedLaunch.launch === launch) refreshPhantomStatus() }
+                    gateLaunchRetry = retry
+                    ui.postDelayed(retry, GATE_LAUNCH_RETRY_MS)
                     return@post
                 }
-                pendingGateLaunch = null
+                queuedLaunch.clear()
                 startSession(launch, steamSession = true)
             }
         }

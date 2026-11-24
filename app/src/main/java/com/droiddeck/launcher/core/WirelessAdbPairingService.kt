@@ -73,12 +73,13 @@ class WirelessAdbPairingService : Service() {
 
     private fun startDiscovery() {
         stopDiscovery()
+        val owner = session
         val manager = getSystemService(Context.NSD_SERVICE) as NsdManager
         val listener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(serviceType: String) = Unit
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
                 if (serviceInfo.serviceType?.contains(PAIRING_TYPE) != true) return
-                runCatching { manager.resolveService(serviceInfo, resolveListener()) }
+                runCatching { manager.resolveService(serviceInfo, resolveListener(owner)) }
             }
             override fun onServiceLost(serviceInfo: NsdServiceInfo) = Unit
             override fun onDiscoveryStopped(serviceType: String) = Unit
@@ -92,8 +93,7 @@ class WirelessAdbPairingService : Service() {
             .onFailure { finish(Stage.Failed(getString(R.string.adbpair_discovery_failed, it.localizedMessage.toString()))) }
     }
 
-    private fun resolveListener(): NsdManager.ResolveListener {
-        val owner = session
+    private fun resolveListener(owner: Int): NsdManager.ResolveListener {
         return object : NsdManager.ResolveListener {
         override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) = Unit
         override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
