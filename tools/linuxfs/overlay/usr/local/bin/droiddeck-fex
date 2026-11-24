@@ -71,6 +71,7 @@ RUNTIME_LIBRARIES = (("libc.so.6", b"GLIBC_"), ("libstdc++.so.6", b"GLIBCXX_"))
 VERSION_NAME = re.compile(rb"GLIBC(?:XX)?_[0-9][0-9.]*[0-9]")
 BUNDLE_DEPTH = 3
 THUNKS = {"GL": 1, "Vulkan": 1}
+WAYLAND_THUNKS = {"WaylandClient": "libwayland-client-guest.so", "EGL": "libEGL-guest.so", "WaylandEGL": "libwayland-egl-guest.so"}
 X86 = {3: "i386", 62: "x86_64"}
 ARM = {40: "arm", 183: "arm64"}
 SCAN_DEPTH = 4
@@ -448,13 +449,20 @@ def install_preloads(root):
     write_if_changed(os.path.join(root, "etc", "asound.conf"), ASOUND_CONF)
 
 
+def enabled_thunks(fex):
+    thunks = dict(THUNKS)
+    if all(os.path.isfile(os.path.join(fex["guest_thunks"], name)) for name in WAYLAND_THUNKS.values()):
+        thunks.update(dict.fromkeys(WAYLAND_THUNKS, 1))
+    return thunks
+
+
 def write_config(fex, root):
     config = {"Config": {"RootFS": root}}
     if fex["host_thunks"] and fex["guest_thunks"] and fex["thunks_db"]:
         config["Config"]["ThunkHostLibs"] = fex["host_thunks"]
         config["Config"]["ThunkGuestLibs"] = fex["guest_thunks"]
-        config["ThunksDB"] = dict(THUNKS)
-        write_if_changed(os.path.join(CONFIG_DIR, "ThunksConfig.json"), json.dumps({"ThunksDB": dict(THUNKS)}, indent=2) + "\n")
+        config["ThunksDB"] = enabled_thunks(fex)
+        write_if_changed(os.path.join(CONFIG_DIR, "ThunksConfig.json"), json.dumps({"ThunksDB": config["ThunksDB"]}, indent=2) + "\n")
     write_if_changed(os.path.join(CONFIG_DIR, "Config.json"), json.dumps(config, indent=2) + "\n")
 
 

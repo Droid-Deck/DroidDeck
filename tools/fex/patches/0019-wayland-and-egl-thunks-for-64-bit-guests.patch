@@ -1,0 +1,804 @@
+diff --git a/Data/ThunksDB.json b/Data/ThunksDB.json
+index 886379a..892ca51 100644
+--- a/Data/ThunksDB.json
++++ b/Data/ThunksDB.json
+@@ -8,7 +8,9 @@
+         "@PREFIX_LIB@/libGL.so.1.2.0",
+         "@PREFIX_LIB@/libGL.so.1.7.0",
+         "@PREFIX_LIB@/libOpenGL.so.0",
+-        "@PREFIX_LIB@/libOpenGL.so.0.0.0"
++        "@PREFIX_LIB@/libOpenGL.so.0.0.0",
++        "@PREFIX_LIB@/libGLESv2.so.2",
++        "@PREFIX_LIB@/libGLESv2.so.2.1.0"
+       ]
+     },
+     "Vulkan": {
+@@ -49,6 +51,22 @@
+         "@PREFIX_LIB@/libwayland-client.so.0.20.0"
+       ]
+     },
++    "EGL": {
++      "Library" : "libEGL-guest.so",
++      "Overlay": [
++        "@PREFIX_LIB@/libEGL.so",
++        "@PREFIX_LIB@/libEGL.so.1",
++        "@PREFIX_LIB@/libEGL.so.1.1.0"
++      ]
++    },
++    "WaylandEGL": {
++      "Library" : "libwayland-egl-guest.so",
++      "Overlay": [
++        "@PREFIX_LIB@/libwayland-egl.so",
++        "@PREFIX_LIB@/libwayland-egl.so.1",
++        "@PREFIX_LIB@/libwayland-egl.so.1.0.0"
++      ]
++    },
+     "cuda": {
+       "Library" : "libcuda-guest.so",
+       "Overlay": [
+diff --git a/ThunkLibs/GuestLibs/CMakeLists.txt b/ThunkLibs/GuestLibs/CMakeLists.txt
+index bf666d9..72b0832 100644
+--- a/ThunkLibs/GuestLibs/CMakeLists.txt
++++ b/ThunkLibs/GuestLibs/CMakeLists.txt
+@@ -211,6 +211,21 @@ if (BITNESS EQUAL 64)
+   target_include_directories_from_pkgconfig(libasound-guest-deps alsa)
+   add_guest_lib(asound "libasound.so.2")
+ 
++  generate(libwayland-client ${CMAKE_CURRENT_SOURCE_DIR}/../libwayland-client/libwayland-client_interface.cpp)
++  add_guest_lib(wayland-client "libwayland-client.so.0.20.0")
++  target_include_directories_from_pkgconfig(libwayland-client-guest-deps wayland-client /usr/include/wayland)
++
++  generate(libwayland-egl ${CMAKE_CURRENT_SOURCE_DIR}/../libwayland-egl/libwayland-egl_interface.cpp)
++  add_guest_lib(wayland-egl "libwayland-egl.so.1")
++  target_include_directories_from_pkgconfig(libwayland-egl-guest-deps wayland-egl /usr/include/wayland)
++
++  generate(libEGL ${CMAKE_CURRENT_SOURCE_DIR}/../libEGL/libEGL_interface.cpp)
++  target_include_directories_from_pkgconfig(libEGL-guest-deps egl)
++  add_guest_lib(EGL "libEGL.so.1")
++  target_link_libraries(EGL-guest PRIVATE GL-guest)
++  target_link_libraries(EGL-guest PRIVATE PlaceholderX11)
++  target_include_directories_from_pkgconfig(libEGL-guest-deps "xcb;x11")
++
+   # disabled for now, headers are platform specific
+   # find_package(SDL2 REQUIRED)
+   # generate(libSDL2)
+@@ -229,10 +244,6 @@ if (BITNESS EQUAL 64)
+   add_guest_lib(drm "libdrm.so.2")
+ endif()
+ 
+-generate(libwayland-client ${CMAKE_CURRENT_SOURCE_DIR}/../libwayland-client/libwayland-client_interface.cpp)
+-add_guest_lib(wayland-client "libwayland-client.so.0.20.0")
+-target_include_directories_from_pkgconfig(libwayland-client-guest-deps wayland-client /usr/include/wayland)
+-
+ generate(libVDSO ${CMAKE_CURRENT_SOURCE_DIR}/../libVDSO/libVDSO_interface.cpp)
+ add_guest_lib(VDSO "linux-vdso.so.1")
+ # Can't use a stack protector because otherwise cross-compiling fails
+@@ -271,11 +282,6 @@ target_include_directories_from_pkgconfig(libGL-guest-deps gl)
+ target_include_directories_from_pkgconfig(libGL-guest-deps "xcb;x11;xrandr;xrender")
+ add_guest_lib(GL "libGL.so.1")
+ 
+-generate(libEGL ${CMAKE_CURRENT_SOURCE_DIR}/../libEGL/libEGL_interface.cpp)
+-target_include_directories_from_pkgconfig(libEGL-guest-deps egl)
+-add_guest_lib(EGL "libEGL.so.1")
+-target_link_libraries(EGL-guest PRIVATE GL-guest)
+-
+ # libGL must pull in libX11.so, so generate a placeholder libX11.so to link against
+ add_library(PlaceholderX11 SHARED ../libX11/libX11_NativeGuest.cpp)
+ target_link_options(PlaceholderX11 PRIVATE "LINKER:-soname,libX11.so.6")
+diff --git a/ThunkLibs/HostLibs/CMakeLists.txt b/ThunkLibs/HostLibs/CMakeLists.txt
+index 8d18d0e..c10066f 100644
+--- a/ThunkLibs/HostLibs/CMakeLists.txt
++++ b/ThunkLibs/HostLibs/CMakeLists.txt
+@@ -167,13 +167,19 @@ foreach(GUEST_BITNESS IN LISTS BITNESS_LIST)
+   target_include_directories_from_pkgconfig(libvulkan-${GUEST_BITNESS}-deps "xcb;x11;xrandr;xrender")
+   add_host_lib(vulkan ${GUEST_BITNESS})
+ 
+-  generate(libwayland-client ${CMAKE_CURRENT_SOURCE_DIR}/../libwayland-client/libwayland-client_interface.cpp ${GUEST_BITNESS})
+-  add_host_lib(wayland-client ${GUEST_BITNESS})
+-  target_include_directories_from_pkgconfig(libwayland-client-${GUEST_BITNESS}-deps wayland-client /usr/include/wayland)
+-
+-  generate(libEGL ${CMAKE_CURRENT_SOURCE_DIR}/../libEGL/libEGL_interface.cpp ${GUEST_BITNESS})
+-  target_include_directories_from_pkgconfig(libEGL-${GUEST_BITNESS}-deps egl)
+-  add_host_lib(EGL ${GUEST_BITNESS})
++  if (GUEST_BITNESS EQUAL 64)
++    generate(libwayland-client ${CMAKE_CURRENT_SOURCE_DIR}/../libwayland-client/libwayland-client_interface.cpp ${GUEST_BITNESS})
++    add_host_lib(wayland-client ${GUEST_BITNESS})
++    target_include_directories_from_pkgconfig(libwayland-client-${GUEST_BITNESS}-deps wayland-client /usr/include/wayland)
++
++    generate(libwayland-egl ${CMAKE_CURRENT_SOURCE_DIR}/../libwayland-egl/libwayland-egl_interface.cpp ${GUEST_BITNESS})
++    add_host_lib(wayland-egl ${GUEST_BITNESS})
++    target_include_directories_from_pkgconfig(libwayland-egl-${GUEST_BITNESS}-deps wayland-egl /usr/include/wayland)
++
++    generate(libEGL ${CMAKE_CURRENT_SOURCE_DIR}/../libEGL/libEGL_interface.cpp ${GUEST_BITNESS})
++    target_include_directories_from_pkgconfig(libEGL-${GUEST_BITNESS}-deps "egl;xcb;x11")
++    add_host_lib(EGL ${GUEST_BITNESS})
++  endif()
+ 
+   generate(libGL ${CMAKE_CURRENT_SOURCE_DIR}/../libGL/libGL_interface.cpp ${GUEST_BITNESS})
+   target_include_directories_from_pkgconfig(libGL-${GUEST_BITNESS}-deps gl)
+diff --git a/ThunkLibs/libEGL/libEGL_Guest.cpp b/ThunkLibs/libEGL/libEGL_Guest.cpp
+index c157f00..8cef10d 100644
+--- a/ThunkLibs/libEGL/libEGL_Guest.cpp
++++ b/ThunkLibs/libEGL/libEGL_Guest.cpp
+@@ -5,9 +5,16 @@ desc: Depends on glXGetProcAddress thunk
+ $end_info$
+ */
+ 
++#define EGL_EGLEXT_PROTOTYPES 1
+ #include <GL/glx.h>
+ #include <EGL/egl.h>
++#include <EGL/eglext.h>
++#include <X11/Xlib.h>
+ 
++#ifndef _GNU_SOURCE
++#define _GNU_SOURCE
++#endif
++#include <dlfcn.h>
+ #include <stdio.h>
+ #include <cstring>
+ 
+@@ -17,12 +24,22 @@ $end_info$
+ 
+ typedef void voidFunc();
+ 
+-
+ extern "C" {
+ voidFunc* eglGetProcAddress(const char* procname) {
+-  // TODO: Fix this HACK
++  if (strncmp(procname, "egl", 3) == 0) {
++    static void* self = [] {
++      Dl_info info {};
++      return dladdr(reinterpret_cast<void*>(&eglGetProcAddress), &info) && info.dli_fname ? dlopen(info.dli_fname, RTLD_LAZY | RTLD_NOLOAD) : nullptr;
++    }();
++    return self ? reinterpret_cast<voidFunc*>(dlsym(self, procname)) : nullptr;
++  }
+   return glXGetProcAddress((const GLubyte*)procname);
+ }
+ }
+ 
+-LOAD_LIB(libEGL)
++static void OnInit() {
++  fexfn_pack_EGL_SetGuestXSync((uintptr_t)XSync, (uintptr_t)CallbackUnpack<decltype(XSync)>::Unpack);
++  fexfn_pack_EGL_SetGuestXDisplayString((uintptr_t)XDisplayString, (uintptr_t)CallbackUnpack<decltype(XDisplayString)>::Unpack);
++}
++
++LOAD_LIB_INIT(libEGL, OnInit)
+diff --git a/ThunkLibs/libEGL/libEGL_Host.cpp b/ThunkLibs/libEGL/libEGL_Host.cpp
+index ac8a87e..25892cb 100644
+--- a/ThunkLibs/libEGL/libEGL_Host.cpp
++++ b/ThunkLibs/libEGL/libEGL_Host.cpp
+@@ -6,12 +6,138 @@ $end_info$
+ 
+ #include <cstdio>
+ #include <dlfcn.h>
++#include <mutex>
++#include <unordered_map>
+ 
++#define EGL_EGLEXT_PROTOTYPES 1
+ #include <EGL/egl.h>
++#include <EGL/eglext.h>
+ 
+ #include "common/Host.h"
+-#include <dlfcn.h>
++#include <X11/Xutil.h>
++#include "common/X11Manager.h"
++
++static X11Manager x11_manager;
++static std::mutex x11_displays_mutex;
++static std::unordered_map<EGLDisplay, _XDisplay*> x11_displays;
++
++static void* fex_egl_get_proc_address(void* so, const char* name) {
++  static auto get_proc_address = reinterpret_cast<void* (*)(const char*)>(dlsym(so, "eglGetProcAddress"));
++  return get_proc_address ? get_proc_address(name) : nullptr;
++}
++
++static void fexfn_impl_libEGL_EGL_SetGuestXSync(uintptr_t GuestTarget, uintptr_t GuestUnpacker) {
++  MakeHostTrampolineForGuestFunctionAt(GuestTarget, GuestUnpacker, &x11_manager.GuestXSync);
++}
++
++static void fexfn_impl_libEGL_EGL_SetGuestXDisplayString(uintptr_t GuestTarget, uintptr_t GuestUnpacker) {
++  MakeHostTrampolineForGuestFunctionAt(GuestTarget, GuestUnpacker, &x11_manager.GuestXDisplayString);
++}
+ 
+ #include "thunkgen_host_libEGL.inl"
+ 
++static bool IsWaylandDisplay(void* native) {
++  static void* wl_display_interface = nullptr;
++  if (!wl_display_interface) {
++    if (void* so = dlopen("libwayland-client.so.0", RTLD_LAZY | RTLD_NOLOAD)) {
++      wl_display_interface = dlsym(so, "wl_display_interface");
++    }
++  }
++  return wl_display_interface && *reinterpret_cast<void**>(native) == wl_display_interface;
++}
++
++static void* HostNativeDisplay(EGLenum platform, void* native, _XDisplay** guest_x11) {
++  if (!native) {
++    return nullptr;
++  }
++  switch (platform) {
++  case EGL_PLATFORM_X11_KHR: break;
++#ifdef EGL_PLATFORM_XCB_EXT
++  case EGL_PLATFORM_XCB_EXT: return x11_manager.GuestToHostConnection(static_cast<xcb_connection_t*>(native));
++#endif
++  case 0:
++    if (IsWaylandDisplay(native)) {
++      return native;
++    }
++    break;
++  default: return native;
++  }
++  *guest_x11 = static_cast<_XDisplay*>(native);
++  return x11_manager.GuestToHostDisplay(*guest_x11);
++}
++
++static EGLDisplay TrackDisplay(EGLDisplay display, _XDisplay* guest_x11) {
++  if (display != EGL_NO_DISPLAY && guest_x11) {
++    std::lock_guard lock(x11_displays_mutex);
++    x11_displays[display] = guest_x11;
++  }
++  return display;
++}
++
++static void SyncGuestDisplay(EGLDisplay display) {
++  _XDisplay* guest_x11 = nullptr;
++  {
++    std::lock_guard lock(x11_displays_mutex);
++    if (auto it = x11_displays.find(display); it != x11_displays.end()) {
++      guest_x11 = it->second;
++    }
++  }
++  if (guest_x11) {
++    x11_manager.GuestXSync(guest_x11, 0);
++  }
++}
++
++EGLDisplay fexfn_impl_libEGL_eglGetDisplay(guest_layout<EGLNativeDisplayType> native) {
++  _XDisplay* guest_x11 = nullptr;
++  auto host = HostNativeDisplay(0, native.force_get_host_pointer(), &guest_x11);
++  return TrackDisplay(fexldr_ptr_libEGL_eglGetDisplay(static_cast<EGLNativeDisplayType>(host)), guest_x11);
++}
++
++EGLDisplay fexfn_impl_libEGL_eglGetPlatformDisplay(EGLenum platform, void* native, const EGLAttrib* attribs) {
++  _XDisplay* guest_x11 = nullptr;
++  auto host = HostNativeDisplay(platform, native, &guest_x11);
++  return TrackDisplay(fexldr_ptr_libEGL_eglGetPlatformDisplay(platform, host, attribs), guest_x11);
++}
++
++EGLDisplay fexfn_impl_libEGL_eglGetPlatformDisplayEXT(EGLenum platform, void* native, const EGLint* attribs) {
++  _XDisplay* guest_x11 = nullptr;
++  auto host = HostNativeDisplay(platform, native, &guest_x11);
++  return TrackDisplay(fexldr_ptr_libEGL_eglGetPlatformDisplayEXT(platform, host, attribs), guest_x11);
++}
++
++EGLSurface fexfn_impl_libEGL_eglCreateWindowSurface(EGLDisplay display, EGLConfig config, EGLNativeWindowType window, const EGLint* attribs) {
++  SyncGuestDisplay(display);
++  return fexldr_ptr_libEGL_eglCreateWindowSurface(display, config, window, attribs);
++}
++
++EGLSurface fexfn_impl_libEGL_eglCreatePixmapSurface(EGLDisplay display, EGLConfig config, EGLNativePixmapType pixmap, const EGLint* attribs) {
++  SyncGuestDisplay(display);
++  return fexldr_ptr_libEGL_eglCreatePixmapSurface(display, config, pixmap, attribs);
++}
++
++EGLSurface fexfn_impl_libEGL_eglCreatePlatformWindowSurface(EGLDisplay display, EGLConfig config, void* window, const EGLAttrib* attribs) {
++  SyncGuestDisplay(display);
++  return fexldr_ptr_libEGL_eglCreatePlatformWindowSurface(display, config, window, attribs);
++}
++
++EGLSurface fexfn_impl_libEGL_eglCreatePlatformPixmapSurface(EGLDisplay display, EGLConfig config, void* pixmap, const EGLAttrib* attribs) {
++  SyncGuestDisplay(display);
++  return fexldr_ptr_libEGL_eglCreatePlatformPixmapSurface(display, config, pixmap, attribs);
++}
++
++EGLSurface fexfn_impl_libEGL_eglCreatePlatformWindowSurfaceEXT(EGLDisplay display, EGLConfig config, void* window, const EGLint* attribs) {
++  SyncGuestDisplay(display);
++  return fexldr_ptr_libEGL_eglCreatePlatformWindowSurfaceEXT(display, config, window, attribs);
++}
++
++EGLSurface fexfn_impl_libEGL_eglCreatePlatformPixmapSurfaceEXT(EGLDisplay display, EGLConfig config, void* pixmap, const EGLint* attribs) {
++  SyncGuestDisplay(display);
++  return fexldr_ptr_libEGL_eglCreatePlatformPixmapSurfaceEXT(display, config, pixmap, attribs);
++}
++
++EGLBoolean fexfn_impl_libEGL_eglCopyBuffers(EGLDisplay display, EGLSurface surface, EGLNativePixmapType pixmap) {
++  SyncGuestDisplay(display);
++  return fexldr_ptr_libEGL_eglCopyBuffers(display, surface, pixmap);
++}
++
+ EXPORTS(libEGL)
+diff --git a/ThunkLibs/libEGL/libEGL_interface.cpp b/ThunkLibs/libEGL/libEGL_interface.cpp
+index 27de16d..163b151 100644
+--- a/ThunkLibs/libEGL/libEGL_interface.cpp
++++ b/ThunkLibs/libEGL/libEGL_interface.cpp
+@@ -1,51 +1,170 @@
+ #include <common/GeneratorInterface.h>
+ 
++#define EGL_EGLEXT_PROTOTYPES 1
+ #include <EGL/egl.h>
++#include <EGL/eglext.h>
++#include <X11/Xlib.h>
+ 
+ template<auto>
+ struct fex_gen_config {
+   unsigned version = 1;
+ };
+ 
+-// Function, parameter index, parameter type [optional]
+ template<auto, int, typename = void>
+ struct fex_gen_param {};
+ 
++template<typename>
++struct fex_gen_type {};
++
++template<>
++struct fex_gen_type<void> : fexgen::opaque_type {};
++template<>
++struct fex_gen_type<_XDisplay> : fexgen::opaque_type {};
++
++void EGL_SetGuestXSync(uintptr_t, uintptr_t);
++void EGL_SetGuestXDisplayString(uintptr_t, uintptr_t);
++template<>
++struct fex_gen_config<EGL_SetGuestXSync> : fexgen::custom_guest_entrypoint, fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<EGL_SetGuestXDisplayString> : fexgen::custom_guest_entrypoint, fexgen::custom_host_impl {};
++
+ template<>
+ struct fex_gen_config<eglBindAPI> {};
+ template<>
++struct fex_gen_config<eglBindTexImage> {};
++template<>
+ struct fex_gen_config<eglChooseConfig> {};
+ template<>
++struct fex_gen_config<eglClientWaitSync> {};
++template<>
++struct fex_gen_config<eglCreateContext> {};
++template<>
++struct fex_gen_config<eglCreateImage> {};
++template<>
++struct fex_gen_config<eglCreatePbufferFromClientBuffer> {};
++template<>
++struct fex_gen_config<eglCreatePbufferSurface> {};
++template<>
++struct fex_gen_config<eglCreateSync> {};
++template<>
+ struct fex_gen_config<eglDestroyContext> {};
+ template<>
++struct fex_gen_config<eglDestroyImage> {};
++template<>
+ struct fex_gen_config<eglDestroySurface> {};
+ template<>
++struct fex_gen_config<eglDestroySync> {};
++template<>
++struct fex_gen_config<eglGetConfigAttrib> {};
++template<>
++struct fex_gen_config<eglGetConfigs> {};
++template<>
++struct fex_gen_config<eglGetCurrentContext> {};
++template<>
++struct fex_gen_config<eglGetCurrentDisplay> {};
++template<>
++struct fex_gen_config<eglGetCurrentSurface> {};
++template<>
++struct fex_gen_config<eglGetError> {};
++template<>
++struct fex_gen_config<eglGetSyncAttrib> {};
++template<>
+ struct fex_gen_config<eglInitialize> {};
+ template<>
+ struct fex_gen_config<eglMakeCurrent> {};
+ template<>
++struct fex_gen_config<eglQueryAPI> {};
++template<>
++struct fex_gen_config<eglQueryContext> {};
++template<>
++struct fex_gen_config<eglQueryString> {};
++template<>
+ struct fex_gen_config<eglQuerySurface> {};
+ template<>
++struct fex_gen_config<eglReleaseTexImage> {};
++template<>
++struct fex_gen_config<eglReleaseThread> {};
++template<>
+ struct fex_gen_config<eglSurfaceAttrib> {};
+ template<>
+ struct fex_gen_config<eglSwapBuffers> {};
+ template<>
++struct fex_gen_config<eglSwapInterval> {};
++template<>
+ struct fex_gen_config<eglTerminate> {};
+ template<>
+-struct fex_gen_config<eglGetError> {};
++struct fex_gen_config<eglWaitClient> {};
+ template<>
+-struct fex_gen_config<eglCreateContext> {};
++struct fex_gen_config<eglWaitGL> {};
+ template<>
+-struct fex_gen_config<eglCreateWindowSurface> {};
++struct fex_gen_config<eglWaitNative> {};
+ template<>
+-struct fex_gen_config<eglGetCurrentContext> {};
++struct fex_gen_config<eglWaitSync> {};
+ template<>
+-struct fex_gen_config<eglGetCurrentDisplay> {};
++struct fex_gen_config<eglGetDisplay> : fexgen::custom_host_impl {};
+ template<>
+-struct fex_gen_config<eglGetCurrentSurface> {};
++struct fex_gen_config<eglGetPlatformDisplay> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<eglCreateWindowSurface> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<eglCreatePixmapSurface> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<eglCreatePlatformWindowSurface> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<eglCreatePlatformPixmapSurface> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<eglCopyBuffers> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_param<eglGetDisplay, 0, EGLNativeDisplayType> : fexgen::ptr_passthrough {};
++
++namespace ext {
++template<auto>
++struct fex_gen_config {
++  const char* load_host_endpoint_via = "fex_egl_get_proc_address";
++};
+ 
+-// EGLNativeDisplayType is a pointer to opaque data (wl_display/(X)Display/...)
+ template<>
+-struct fex_gen_config<eglGetDisplay> {};
++struct fex_gen_config<eglSwapBuffersWithDamageKHR> {};
++template<>
++struct fex_gen_config<eglSwapBuffersWithDamageEXT> {};
++template<>
++struct fex_gen_config<eglSetDamageRegionKHR> {};
++template<>
++struct fex_gen_config<eglCreateImageKHR> {};
++template<>
++struct fex_gen_config<eglDestroyImageKHR> {};
++template<>
++struct fex_gen_config<eglCreateSyncKHR> {};
++template<>
++struct fex_gen_config<eglDestroySyncKHR> {};
++template<>
++struct fex_gen_config<eglClientWaitSyncKHR> {};
++template<>
++struct fex_gen_config<eglGetSyncAttribKHR> {};
++template<>
++struct fex_gen_config<eglWaitSyncKHR> {};
++template<>
++struct fex_gen_config<eglDupNativeFenceFDANDROID> {};
++template<>
++struct fex_gen_config<eglQueryDmaBufFormatsEXT> {};
++template<>
++struct fex_gen_config<eglQueryDmaBufModifiersEXT> {};
++template<>
++struct fex_gen_config<eglExportDMABUFImageMESA> {};
++template<>
++struct fex_gen_config<eglExportDMABUFImageQueryMESA> {};
++template<>
++struct fex_gen_config<eglQueryDisplayAttribEXT> {};
++template<>
++struct fex_gen_config<eglQueryDeviceStringEXT> {};
++template<>
++struct fex_gen_config<eglQueryDeviceAttribEXT> {};
++template<>
++struct fex_gen_config<eglQueryDevicesEXT> {};
++template<>
++struct fex_gen_config<eglGetPlatformDisplayEXT> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_config<eglCreatePlatformWindowSurfaceEXT> : fexgen::custom_host_impl {};
+ template<>
+-struct fex_gen_param<eglGetDisplay, 0, EGLNativeDisplayType> : fexgen::assume_compatible_data_layout {};
++struct fex_gen_config<eglCreatePlatformPixmapSurfaceEXT> : fexgen::custom_host_impl {};
++}
+diff --git a/ThunkLibs/libwayland-client/Guest.cpp b/ThunkLibs/libwayland-client/Guest.cpp
+index 2f887a6..fbd2dd4 100644
+--- a/ThunkLibs/libwayland-client/Guest.cpp
++++ b/ThunkLibs/libwayland-client/Guest.cpp
+@@ -42,8 +42,10 @@ extern "C" const wl_interface wl_subsurface_interface {};
+ #include <charconv>
+ #include <cstdio>
+ #include <cstdarg>
++#include <cstdlib>
+ #include <cstring>
+ #include <string>
++#include <utility>
+ 
+ #include "common/Guest.h"
+ 
+@@ -92,6 +94,21 @@ static uint64_t WaylandAllocateHostTrampolineForGuestListener(void (*callback)()
+ }
+ 
+ #define WL_CLOSURE_MAX_ARGS 20
++#define WAYLAND_UNIFORM_MAX_ARGS 17
++
++template<std::size_t... I>
++static uint64_t WaylandAllocateUniformHostTrampoline(void (*callback)(), std::index_sequence<I...>) {
++  using cb = void(void*, wl_proxy*, std::conditional_t<true, uintptr_t, std::integral_constant<std::size_t, I>>...);
++  return (uint64_t)(uintptr_t)(void*)AllocateHostTrampolineForGuestFunction((cb*)callback);
++}
++
++template<std::size_t... Counts>
++static uint64_t WaylandAllocateUniformHostTrampoline(void (*callback)(), std::size_t count, std::index_sequence<Counts...>) {
++  using allocator = uint64_t (*)(void (*)());
++  static constexpr allocator allocators[] = {
++    [](void (*cb)()) { return WaylandAllocateUniformHostTrampoline(cb, std::make_index_sequence<Counts> {}); }...};
++  return allocators[count](callback);
++}
+ 
+ extern "C" int wl_proxy_add_listener(wl_proxy* proxy, void (**callback)(void), void* data) {
+   // Replace guest-provided callback table with host-callable function pointers
+@@ -99,7 +116,7 @@ extern "C" int wl_proxy_add_listener(wl_proxy* proxy, void (**callback)(void), v
+   //       must remain valid until the proxy is destroyed (or another listener
+   //       is added)
+   delete[] (uint64_t*)wl_proxy_get_listener(proxy); // Delete previous substitute, if any
+-  auto host_callbacks = new uint64_t[WL_CLOSURE_MAX_ARGS];
++  auto host_callbacks = new uint64_t[std::max(fex_wl_get_interface_event_count(proxy), WL_CLOSURE_MAX_ARGS)];
+ 
+   for (int i = 0; i < fex_wl_get_interface_event_count(proxy); ++i) {
+     char event_signature[16];
+@@ -227,6 +244,8 @@ extern "C" int wl_proxy_add_listener(wl_proxy* proxy, void (**callback)(void), v
+     } else if (signature == "sii") {
+       // E.g. zwp_text_input_v3::preedit_string
+       host_callbacks[i] = WaylandAllocateHostTrampolineForGuestListener<'s', 'i', 'i'>(callback[i]);
++    } else if (signature.size() <= WAYLAND_UNIFORM_MAX_ARGS) {
++      host_callbacks[i] = WaylandAllocateUniformHostTrampoline(callback[i], signature.size(), std::make_index_sequence<WAYLAND_UNIFORM_MAX_ARGS + 1> {});
+     } else {
+       fprintf(stderr, "TODO: Unknown wayland event signature descriptor %s\n", signature.data());
+       std::abort();
+@@ -353,6 +372,88 @@ extern "C" void wl_log_set_handler_client(wl_log_func_t handler) {
+   // Ignore
+ }
+ 
++extern "C" void wl_list_init(wl_list* list) {
++  list->prev = list;
++  list->next = list;
++}
++
++extern "C" void wl_list_insert(wl_list* list, wl_list* elm) {
++  elm->prev = list;
++  elm->next = list->next;
++  list->next = elm;
++  elm->next->prev = elm;
++}
++
++extern "C" void wl_list_remove(wl_list* elm) {
++  elm->prev->next = elm->next;
++  elm->next->prev = elm->prev;
++  elm->next = nullptr;
++  elm->prev = nullptr;
++}
++
++extern "C" int wl_list_length(const wl_list* list) {
++  int count = 0;
++  for (auto e = list->next; e != list; e = e->next) {
++    ++count;
++  }
++  return count;
++}
++
++extern "C" int wl_list_empty(const wl_list* list) {
++  return list->next == list;
++}
++
++extern "C" void wl_list_insert_list(wl_list* list, wl_list* other) {
++  if (wl_list_empty(other)) {
++    return;
++  }
++  other->next->prev = list;
++  other->prev->next = list->next;
++  list->next->prev = other->prev;
++  list->next = other->next;
++}
++
++extern "C" void wl_array_init(wl_array* array) {
++  memset(array, 0, sizeof(*array));
++}
++
++extern "C" void wl_array_release(wl_array* array) {
++  free(array->data);
++  array->data = (void*)4;
++}
++
++extern "C" void* wl_array_add(wl_array* array, size_t size) {
++  size_t alloc = array->alloc > 0 ? array->alloc : 16;
++  while (alloc < array->size + size) {
++    alloc *= 2;
++  }
++  if (array->alloc < alloc) {
++    void* data = array->alloc > 0 ? realloc(array->data, alloc) : malloc(alloc);
++    if (!data) {
++      return nullptr;
++    }
++    array->data = data;
++    array->alloc = alloc;
++  }
++  void* p = (char*)array->data + array->size;
++  array->size += size;
++  return p;
++}
++
++extern "C" int wl_array_copy(wl_array* array, wl_array* source) {
++  if (array->size < source->size) {
++    if (!wl_array_add(array, source->size - array->size)) {
++      return -1;
++    }
++  } else {
++    array->size = source->size;
++  }
++  if (source->size > 0) {
++    memcpy(array->data, source->data, source->size);
++  }
++  return 0;
++}
++
+ 
+ void OnInit() {
+   fex_wl_exchange_interface_pointer(const_cast<wl_interface*>(&wl_output_interface), "wl_output_interface");
+diff --git a/ThunkLibs/libwayland-client/Host.cpp b/ThunkLibs/libwayland-client/Host.cpp
+index 68c2ded..bf8a7aa 100644
+--- a/ThunkLibs/libwayland-client/Host.cpp
++++ b/ThunkLibs/libwayland-client/Host.cpp
+@@ -22,6 +22,7 @@ $end_info$
+ #include <map>
+ #include <span>
+ #include <string>
++#include <utility>
+ 
+ #include <ranges>
+ 
+@@ -166,6 +167,7 @@ static wl_proxy* fexfn_impl_libwayland_client_wl_proxy_create(wl_proxy* proxy, g
+ }
+ 
+ #define WL_CLOSURE_MAX_ARGS 20
++#define WAYLAND_UNIFORM_MAX_ARGS 17
+ static auto fex_wl_remap_argument_list(guest_layout<wl_argument*> args, const wl_message& message) {
+ #ifndef IS_32BIT_THUNK
+   // Cast to host layout and return as std::span
+@@ -309,6 +311,21 @@ static void WaylandFinalizeHostTrampolineForGuestListener(void (*callback)()) {
+   FinalizeHostTrampolineForGuestFunction((cb*)callback);
+ }
+ 
++
++template<std::size_t... I>
++static void WaylandFinalizeUniformHostTrampoline(void (*callback)(), std::index_sequence<I...>) {
++  using cb = void(void*, wl_proxy*, std::conditional_t<true, uint64_t, std::integral_constant<std::size_t, I>>...);
++  FinalizeHostTrampolineForGuestFunction((cb*)callback);
++}
++
++template<std::size_t... Counts>
++static void WaylandFinalizeUniformHostTrampoline(void (*callback)(), std::size_t count, std::index_sequence<Counts...>) {
++  using finalizer = void (*)(void (*)());
++  static constexpr finalizer finalizers[] = {
++    [](void (*cb)()) { WaylandFinalizeUniformHostTrampoline(cb, std::make_index_sequence<Counts> {}); }...};
++  finalizers[count](callback);
++}
++
+ extern "C" int
+ fexfn_impl_libwayland_client_wl_proxy_add_listener(struct wl_proxy* proxy, guest_layout<void (**)(void)> callback_table_raw, void* data) {
+   auto interface = get_proxy_interface(proxy);
+@@ -446,6 +463,8 @@ fexfn_impl_libwayland_client_wl_proxy_add_listener(struct wl_proxy* proxy, guest
+       WaylandFinalizeHostTrampolineForGuestListener<'s', 'i', 'i'>(callback);
+     } else if (signature == "ss") {
+       WaylandFinalizeHostTrampolineForGuestListener<'s', 's'>(callback);
++    } else if (signature.size() <= WAYLAND_UNIFORM_MAX_ARGS) {
++      WaylandFinalizeUniformHostTrampoline(callback, signature.size(), std::make_index_sequence<WAYLAND_UNIFORM_MAX_ARGS + 1> {});
+     } else {
+       fprintf(stderr, "TODO: Unknown wayland event signature descriptor %s\n", signature.data());
+       std::abort();
+@@ -518,4 +537,24 @@ void fexfn_impl_libwayland_client_fex_wl_get_interface_event_signature(wl_proxy*
+   strcpy(out, get_proxy_interface(proxy)->events[i].signature);
+ }
+ 
++uint32_t fexfn_impl_libwayland_client_wl_display_get_protocol_error(wl_display* display, guest_layout<const wl_interface**> guest_interface,
++                                                                      uint32_t* id) {
++  const wl_interface* host_interface = nullptr;
++  auto code = fexldr_ptr_libwayland_client_wl_display_get_protocol_error(display, &host_interface, id);
++  if (!guest_interface.force_get_host_pointer()) {
++    return code;
++  }
++  uintptr_t result = 0;
++  for (auto& [guest, host] : guest_to_host_interface) {
++    if (host == host_interface) {
++      result = reinterpret_cast<uintptr_t>(guest);
++    }
++  }
++  if (!result) {
++    result = reinterpret_cast<uintptr_t>(host_interface);
++  }
++  guest_interface.get_pointer()->data = result;
++  return code;
++}
++
+ EXPORTS(libwayland_client)
+diff --git a/ThunkLibs/libwayland-client/libwayland-client_interface.cpp b/ThunkLibs/libwayland-client/libwayland-client_interface.cpp
+index 575d2e1..2427068 100644
+--- a/ThunkLibs/libwayland-client/libwayland-client_interface.cpp
++++ b/ThunkLibs/libwayland-client/libwayland-client_interface.cpp
+@@ -83,6 +83,16 @@ struct fex_gen_config<wl_display_get_fd> {};
+ 
+ template<>
+ struct fex_gen_config<wl_event_queue_destroy> {};
++template<>
++struct fex_gen_config<wl_event_queue_get_name> {};
++template<>
++struct fex_gen_config<wl_display_create_queue_with_name> {};
++template<>
++struct fex_gen_config<wl_display_set_max_buffer_size> {};
++template<>
++struct fex_gen_config<wl_display_get_protocol_error> : fexgen::custom_host_impl {};
++template<>
++struct fex_gen_param<wl_display_get_protocol_error, 1, const wl_interface**> : fexgen::ptr_passthrough {};
+ 
+ template<>
+ struct fex_gen_config<wl_proxy_add_listener> : fexgen::custom_host_impl, fexgen::custom_guest_entrypoint {};
+@@ -101,6 +111,10 @@ struct fex_gen_config<wl_proxy_create_wrapper> {};
+ template<>
+ struct fex_gen_config<wl_proxy_get_class> {};
+ template<>
++struct fex_gen_config<wl_proxy_get_display> {};
++template<>
++struct fex_gen_config<wl_proxy_get_queue> {};
++template<>
+ struct fex_gen_config<wl_proxy_get_id> {};
+ template<>
+ struct fex_gen_config<wl_proxy_get_listener> {};
+diff --git a/ThunkLibs/libwayland-egl/Guest.cpp b/ThunkLibs/libwayland-egl/Guest.cpp
+new file mode 100644
+index 0000000..300a8fc
+--- /dev/null
++++ b/ThunkLibs/libwayland-egl/Guest.cpp
+@@ -0,0 +1,7 @@
++#include <wayland-egl.h>
++
++#include "common/Guest.h"
++
++#include "thunkgen_guest_libwayland-egl.inl"
++
++LOAD_LIB(libwayland-egl)
+diff --git a/ThunkLibs/libwayland-egl/Host.cpp b/ThunkLibs/libwayland-egl/Host.cpp
+new file mode 100644
+index 0000000..81ad83b
+--- /dev/null
++++ b/ThunkLibs/libwayland-egl/Host.cpp
+@@ -0,0 +1,8 @@
++#include <wayland-egl.h>
++
++#include "common/Host.h"
++#include <dlfcn.h>
++
++#include "thunkgen_host_libwayland-egl.inl"
++
++EXPORTS(libwayland_egl)
+diff --git a/ThunkLibs/libwayland-egl/libwayland-egl_interface.cpp b/ThunkLibs/libwayland-egl/libwayland-egl_interface.cpp
+new file mode 100644
+index 0000000..bc5d743
+--- /dev/null
++++ b/ThunkLibs/libwayland-egl/libwayland-egl_interface.cpp
+@@ -0,0 +1,25 @@
++#include <common/GeneratorInterface.h>
++
++#include <wayland-egl.h>
++
++template<auto>
++struct fex_gen_config {
++  unsigned version = 1;
++};
++
++template<typename>
++struct fex_gen_type {};
++
++template<>
++struct fex_gen_type<wl_egl_window> : fexgen::opaque_type {};
++template<>
++struct fex_gen_type<wl_surface> : fexgen::opaque_type {};
++
++template<>
++struct fex_gen_config<wl_egl_window_create> {};
++template<>
++struct fex_gen_config<wl_egl_window_destroy> {};
++template<>
++struct fex_gen_config<wl_egl_window_resize> {};
++template<>
++struct fex_gen_config<wl_egl_window_get_attached_size> {};
