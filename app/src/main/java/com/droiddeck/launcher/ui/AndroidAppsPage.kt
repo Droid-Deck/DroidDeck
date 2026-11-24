@@ -117,6 +117,7 @@ import com.droiddeck.launcher.IconPack
 import android.content.pm.ShortcutInfo
 import android.graphics.Bitmap
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.withContext
 import com.droiddeck.launcher.HomeWidgets
@@ -389,6 +390,7 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
             val front = LocalFrontFocus.current
             val steer = rememberCoroutineScope()
             val aim = remember { intArrayOf(-1) }
+            val move = remember { arrayOfNulls<Job>(1) }
             // Up and Down go to the tile straight above or below. The grid's own search works from where the tiles are drawn at that
             // moment, so while a scroll is still catching up with fast presses it skips a row or drifts a column, and above a short or
             // unseen last row it lands on a tile further left; above a gap in a short last row the row's last tile takes it.
@@ -407,13 +409,19 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                     val to = if (down) minOf(from + columns, entries.lastIndex) else from - columns
                     val id = tileId(entries[to])
                     aim[0] = to
-                    steer.launch {
-                        // Show the row before it takes focus. The grid composes rows ahead of the view without placing them, and a tile
-                        // focused there neither scrolls in nor has a place for the next search to start from.
-                        grid.reveal(to + leadItems)
-                        if (aim[0] != to) return@launch
-                        focusSoon { front.items.getValue(id) }
-                        if (aim[0] == to) aim[0] = -1
+                    // A newer move replaces the one still on its way, so an older target cannot take focus after it lands.
+                    move[0]?.cancel()
+                    move[0] = steer.launch {
+                        try {
+                            // Show the row before it takes focus. The grid composes rows ahead of the view without placing them, and a
+                            // tile focused there neither scrolls in nor has a place for the next search to start from.
+                            grid.reveal(to + leadItems)
+                            if (aim[0] != to) return@launch
+                            focusSoon { front.items.getValue(id) }
+                        } finally {
+                            // Also when a touch scroll cancels the reveal, so the edge rows do not keep waiting for a move that ended.
+                            if (aim[0] == to) aim[0] = -1
+                        }
                     }
                 }
                 true
