@@ -271,7 +271,7 @@ object NativeGuest {
 
     fun builder(root: File, cwd: String, argv: List<String>, env: Map<String, String>, preload: List<String> = emptyList()): ProcessBuilder {
         val program = argv.first()
-        val callerDirs = env["LD_LIBRARY_PATH"]?.split(':')?.filter { it.isNotEmpty() }.orEmpty()
+        val callerDirs = env["LD_LIBRARY_PATH"]?.takeIf { it.isNotEmpty() }?.split(':').orEmpty()
         val rootDirs = libraryPath(root).split(':').filterNot { it in callerDirs }
         val cmd = command(root, program, argv.drop(1), (callerDirs + rootDirs).joinToString(":"))
         val builder = ProcessBuilder(cmd).redirectErrorStream(false)

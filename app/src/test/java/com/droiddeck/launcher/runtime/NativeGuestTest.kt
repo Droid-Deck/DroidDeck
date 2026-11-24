@@ -61,6 +61,22 @@ class NativeGuestTest {
     }
 
     @Test
+    fun builderPreservesEmptyCallerLibraryPathComponents() {
+        val root = rootWithLoader()
+        val rootPath = NativeGuest.libraryPath(root)
+        for (callerPath in listOf(":/custom/lib", "/custom/lib:", ":/custom/lib::")) {
+            val builder = NativeGuest.builder(root, "/", listOf("/usr/bin/env"), mapOf("LD_LIBRARY_PATH" to callerPath))
+            val command = builder.command()
+            assertEquals("$callerPath:$rootPath", command[command.indexOf("--library-path") + 1])
+            assertEquals(callerPath, builder.environment()["LD_LIBRARY_PATH"])
+        }
+        for (env in listOf(emptyMap(), mapOf("LD_LIBRARY_PATH" to ""))) {
+            val command = NativeGuest.builder(root, "/", listOf("/usr/bin/env"), env).command()
+            assertEquals(rootPath, command[command.indexOf("--library-path") + 1])
+        }
+    }
+
+    @Test
     fun mountsWithoutADestinationMapToThemselves() {
         val root = rootWithLoader()
         val env = NativeGuest.sessionEnvironment(root, listOf("/dev", "/a:/b"))
