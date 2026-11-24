@@ -92,6 +92,38 @@ class AddedExesTest {
         }
     }
 
+    @Test fun reselectingTheCurrentExeKeepsItWhenTheRankingChanges() {
+        val storage = tmp.newFolder("Ranked")
+        exe(File(storage, "Example/Example.exe"))
+        exe(File(storage, "Example/Other.exe"))
+        SessionPrefs.setAddedGamesDirs(app, emptyList())
+        SessionPrefs.setGameStorage(app, storage.path, "Card")
+        val folder = File(storage, "Example")
+        val current = AddedGames.scan(app).single { it.folder == folder }.exe
+        val other = listOf("Example.exe", "Other.exe").map { File(folder, it) }.single { it.path != current.path }
+        val existing = AddedGames.addExe(app, current)
+        assertTrue(existing is AddedGames.AddResult.Existing)
+        assertEquals(current.path, SessionPrefs.addedGameExe(app, folder.path))
+        File(folder, "MicrosoftGame.config").writeText("<Executable Name=\"${other.name}\" />")
+        assertEquals(other.path, AddedGames.rank(folder).exes.first().path)
+        assertEquals(current.path, AddedGames.scan(app).single { it.folder == folder }.exe.path)
+    }
+
+    @Test fun reselectingASteamInstallsExeThroughAnAliasStoresTheReachablePath() {
+        val storage = tmp.newFolder("Aliased")
+        val pick = exe(File(storage, "steamapps/common/Example/Example.exe"))
+        File(storage, "steamapps/appmanifest_123.acf").writeText("\"installdir\" \"Example\"")
+        SessionPrefs.setAddedGamesDirs(app, emptyList())
+        SessionPrefs.setGameStorage(app, storage.path, "Card")
+        val alias = File(tmp.newFolder("Links"), "Example.exe")
+        java.nio.file.Files.createSymbolicLink(alias.toPath(), pick.toPath())
+        assertTrue(AddedGames.addExe(app, alias) is AddedGames.AddResult.Existing)
+        assertEquals(pick.path, AddedExes.list(app).single { it.folder == pick.parentFile!!.path }.exe)
+        assertEquals(pick.path, SessionPrefs.addedGameExe(app, pick.parentFile!!.path))
+        assertEquals(pick.path, AddedGames.scan(app).single { it.folder == pick.parentFile }.exe.path)
+        AddedExes.drop(app, pick.parentFile!!.path)
+    }
+
     @Test fun anotherExeInTheSameGameSwitchesItsExe() {
         noGamesFolders()
         val first = onStorage("Games2/Hades/Hades.exe")
