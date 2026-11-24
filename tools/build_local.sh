@@ -138,14 +138,20 @@ ci_run=
 ci_cache="${cache_dir}/ci-components"
 reuse_ci_components() {
     [[ "${DROIDDECK_CI_COMPONENTS:-1}" == 1 ]] && command -v gh >/dev/null 2>&1 || return 1
-    local base runs run archive part
+    local base candidates run artifact archive part
     base=$(git -C "${repo_root}" merge-base HEAD origin/main 2>/dev/null || true)
-    runs=$(gh api "repos/${github_repo}/actions/artifacts?name=prepared-components&per_page=100" \
-        -q "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"main\")]
-            | sort_by(.workflow_run.head_sha != \"${base}\") | .[:3][] | .workflow_run.id" 2>/dev/null) || return 1
+    # Only runs of this repository's own main: a fork's pull request can also name its branch main.
+    candidates=$(gh api "repos/${github_repo}/actions/artifacts?name=prepared-components&per_page=100" \
+        -q "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"main\")
+              | select(.workflow_run.head_repository_id == .workflow_run.repository_id)]
+            | sort_by(.workflow_run.head_sha != \"${base}\") | .[:3][] | \"\(.workflow_run.id):\(.id)\"" 2>/dev/null) || return 1
     mkdir -p "${ci_cache}"
-    for run in ${runs}; do
-        archive="${ci_cache}/${run}.tar.gz"
+    # CI keeps these artifacts for 14 days.
+    find "${ci_cache}" -mindepth 1 -maxdepth 1 -mtime +14 -exec rm -rf {} +
+    for candidate in ${candidates}; do
+        run=${candidate%%:*}
+        artifact=${candidate#*:}
+        archive="${ci_cache}/${artifact}.tar.gz"
         if [[ ! -f "${archive}" ]]; then
             part=$(mktemp -d "${ci_cache}/${run}.part.XXXXXX")
             if gh run download "${run}" -R "${github_repo}" -n prepared-components -D "${part}" >/dev/null 2>&1; then
