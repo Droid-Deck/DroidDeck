@@ -12,6 +12,8 @@ SCRIPT = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/dr
 
 
 class SteamInstallTest(unittest.TestCase):
+    parallel = '1'
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -79,7 +81,8 @@ done(28 if end < len(data) else 0)
         self.env = dict(os.environ, HOME=str(self.home), XDG_DATA_HOME=str(self.data),
                         PATH=str(self.bin) + os.pathsep + os.environ['PATH'],
                         TEST_CDN=str(self.cdn), TEST_REQUESTS=str(self.requests),
-                        TEST_PLAN=str(self.plan), DD_STEAM_RETRY_DELAYS='0 0 0')
+                        TEST_PLAN=str(self.plan), DD_STEAM_RETRY_DELAYS='0 0 0',
+                        DD_STEAM_PARALLEL=self.parallel)
         for channel in ('steamdeck_publicbeta', 'steamdeck_stable'):
             archive = self.cdn / (channel + '.zip')
             with zipfile.ZipFile(archive, 'w') as package:
@@ -453,6 +456,54 @@ done(28 if end < len(data) else 0)
                          self.requested())
         self.assertFalse((self.home / '.dd-steam-repair').exists())
         self.assertFalse(self.download.exists())
+
+
+class SteamInstallParallelTest(SteamInstallTest):
+    """The same behaviour with several connections at once."""
+    parallel = '4'
+    test_progress_is_counted_in_megabytes_across_parts = None
+
+    def many_parts(self, count=10):
+        return self.publish(**{f'p{i}_all': 300_000 for i in range(count)})
+
+    def test_many_parts_arrive_and_unpack_together(self):
+        self.many_parts()
+        result = self.install()
+        self.assertEqual(0, result.returncode, result.stderr)
+        for i in range(10):
+            self.assertTrue((self.steam / f'parts/p{i}_all').is_file(), i)
+        self.assertEqual('123456\n', (self.steam / 'package/droiddeck-installed').read_text())
+        self.assertFalse(self.download.exists())
+
+    def test_every_part_is_requested_once_when_several_arrive_together(self):
+        files = self.many_parts()
+        self.assertEqual(0, self.install().returncode)
+        requested = self.requested()
+        for name in files.values():
+            self.assertEqual(1, requested.count(name), name)
+
+    def test_one_part_that_no_cdn_has_fails_the_install_and_leaves_no_ready_marker(self):
+        files = self.many_parts()
+        missing = files['p4_all']
+        self.plan_for(missing, 'http 404', 'http 404', 'http 404')
+        result = self.install()
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse((self.steam / 'package/droiddeck-installed').exists())
+        self.assertIn('failed on every CDN', result.stderr)
+
+    def test_a_retry_after_a_failure_finishes_what_is_left(self):
+        files = self.many_parts()
+        self.plan_for(files['p4_all'], 'http 404', 'http 404', 'http 404')
+        self.assertNotEqual(0, self.install().returncode)
+        self.assertEqual(0, self.install().returncode)
+        self.assertTrue((self.steam / 'parts/p4_all').is_file())
+        self.assertEqual('123456\n', (self.steam / 'package/droiddeck-installed').read_text())
+
+    def test_the_cache_pass_with_several_connections_keeps_every_package(self):
+        self.cache_manifest()
+        result = self.install(None, '--cache')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('123456\n', (self.steam / 'package/droiddeck-cached').read_text())
 
 
 if __name__ == '__main__':

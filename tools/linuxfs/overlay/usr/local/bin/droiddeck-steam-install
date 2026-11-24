@@ -132,6 +132,90 @@ fetch() {
   done
 }
 
+parallel=${DD_STEAM_PARALLEL:-4}
+case $parallel in ''|*[!0-9]*|0) parallel=1 ;; esac
+
+# Fetches every line of a list ("block file sum size") into $dir with up to $parallel connections. With a third
+# argument each package is also unpacked into the client as it lands. One connection tops out near half of what a
+# Wi-Fi link carries, so the packages arrive about twice as fast. Workers take the next unclaimed line themselves
+# (mkdir is atomic) and only plain background jobs and wait on a pid are used, so nothing depends on job control.
+run_parallel() {
+  local list=$1 dir=$2 unpack=${3:-} state index=0 block file sum size
+  local -a blocks=() files=() sums=() sizes=() pids=()
+  state=$work/parallel
+  rm -rf "$state"
+  mkdir -p "$state"
+  while read -r block file sum size; do
+    index=$((index + 1))
+    blocks[index]=$block files[index]=$file sums[index]=$sum sizes[index]=$size
+    if [ -n "$unpack" ] && [ -f "$dir/$file.unpacked" ]; then
+      : > "$state/$index.done"
+      : > "$state/claim.$index"
+    fi
+  done < "$list"
+  local count=$index total_bytes=0
+  for index in $(seq 1 "$count"); do total_bytes=$((total_bytes + sizes[index])); done
+  local slot
+  for slot in $(seq 1 "$parallel"); do
+    (
+      progress() { [ -z "${3:-}" ] || step "downloading Steam: $2 - $3"; }
+      while [ ! -e "$state/failed" ]; do
+        index=0
+        for n in $(seq 1 "$count"); do
+          if mkdir "$state/claim.$n" 2>/dev/null; then index=$n; break; fi
+        done
+        [ "$index" -gt 0 ] || exit 0
+        file=${files[index]}
+        fetched=""
+        for host in "${cdn_order[@]}"; do
+          if fetch "$host/$file" "$dir/$file" "${sizes[index]}" "${sums[index]}" "${blocks[index]}"; then
+            fetched=$host
+            break
+          fi
+        done
+        if [ -z "$fetched" ]; then
+          echo "droiddeck-steam-install: $file failed on every CDN" >&2
+          : > "$state/failed"
+          exit 1
+        fi
+        if [ -n "$unpack" ]; then
+          unzip -qo "$dir/$file" -d "$steam_root" || { : > "$state/failed"; exit 1; }
+          : > "$dir/$file.unpacked"
+          rm -f "$dir/$file"
+        fi
+        : > "$state/$index.done"
+      done
+    ) &
+    pids+=($!)
+  done
+  local shown="" got n alive mark current
+  while :; do
+    alive=0
+    for slot in "${pids[@]}"; do kill -0 "$slot" 2>/dev/null && alive=1; done
+    got=0 n=0 current=""
+    for index in $(seq 1 "$count"); do
+      if [ -e "$state/$index.done" ]; then
+        got=$((got + sizes[index])) n=$((n + 1))
+      elif [ -e "$state/claim.$index" ]; then
+        current=$index
+        [ -f "$dir/${files[index]}" ] && got=$((got + $(size_of "$dir/${files[index]}")))
+      fi
+    done
+    mark=$((got / 1000000))
+    if [ -n "$current" ] && [ "$mark" != "$shown" ]; then
+      shown=$mark
+      step "downloading Steam: ${blocks[current]} ($((n + 1))/$count), $mark of $((total_bytes / 1000000)) MB"
+    fi
+    [ "$alive" = 1 ] || break
+    sleep 1
+  done
+  local failed=""
+  for slot in "${pids[@]}"; do wait "$slot" || failed=1; done
+  [ ! -e "$state/failed" ] || failed=1
+  rm -rf "$state"
+  [ -z "$failed" ]
+}
+
 fetch_manifest() {
   cdn=""
   for candidate in $cdn_list; do
@@ -193,6 +277,9 @@ if [ -n "$cache_only" ]; then
   total_bytes=$(awk '{ n += $4 } END { print n + 0 }' "$work/cache")
   done_bytes=0
   i=0
+  if [ "$parallel" -gt 1 ]; then
+    run_parallel "$work/cache" "$cache" || exit 1
+  else
   while read -r block file sum size; do
     i=$((i + 1))
     progress "$cache/$file" "$block"
@@ -206,6 +293,7 @@ if [ -n "$cache_only" ]; then
     [ -n "$fetched" ] || { echo "droiddeck-steam-install: $file failed on every CDN" >&2; exit 1; }
     done_bytes=$((done_bytes + size))
   done < "$work/cache"
+  fi
   echo "$version" > "$cached"
   exit 0
 fi
@@ -228,6 +316,9 @@ for left in "$parts"/*; do
   grep -qF " $name " "$work/parts" || rm -rf "$left"
 done
 done_bytes=0
+if [ "$parallel" -gt 1 ]; then
+  run_parallel "$work/parts" "$parts" unpack || exit 1
+else
 while read -r block file sum size; do
   i=$((${i:-0} + 1))
   if [ -f "$parts/$file.unpacked" ]; then
@@ -248,6 +339,7 @@ while read -r block file sum size; do
   rm -f "$parts/$file"
   done_bytes=$((done_bytes + size))
 done < "$work/parts"
+fi
 find "$steam_root" -depth -name '*\\*' | while read -r odd; do
   fixed=${odd//\\//}
   mkdir -p "$(dirname "$fixed")"
