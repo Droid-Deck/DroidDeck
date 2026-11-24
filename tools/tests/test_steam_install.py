@@ -527,12 +527,55 @@ class SteamInstallParallelTest(SteamInstallTest):
         self.assertNotIn('unzip -qo', region)
         self.assertIn('unzip_alone', region)
         self.assertIn('mkdir "$lock"', source)
+        self.assertNotIn('without the lock', source)
+
+    def unzip_alone(self, lock_owner, wait, files=None):
+        """Runs the unzip_alone function by itself against a lock somebody already holds."""
+        source = SCRIPT.read_text()
+        start = source.index('unzip_alone() {')
+        function = source[start:source.index('\n}\n', start) + 3]
+        archive = self.root / 'one.zip'
+        with zipfile.ZipFile(archive, 'w') as package:
+            package.writestr('steamrtarm64/steam', 'client')
+        self.steam.mkdir(parents=True, exist_ok=True)
+        state = self.root / 'state'
+        (state / 'unzip.lock').mkdir(parents=True)
+        if lock_owner is not None:
+            (state / 'unzip.lock/owner').write_text(f'{lock_owner}\n')
+        script = f'state={state}\nsteam_root={self.steam}\n{function}\nunzip_alone {archive}\n'
+        try:
+            result = subprocess.run(['bash', '-c', script], text=True, capture_output=True, timeout=wait)
+        except subprocess.TimeoutExpired:
+            return None
+        return result
+
+    def test_a_lock_left_by_a_dead_worker_is_taken_over(self):
+        gone = subprocess.Popen(['true'])
+        gone.wait()
+        result = self.unzip_alone(gone.pid, wait=30)
+        self.assertIsNotNone(result, 'the lock of a dead worker was never taken over')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertTrue((self.steam / 'steamrtarm64/steam').is_file())
+
+    def test_a_lock_held_by_a_live_worker_is_waited_for_and_never_bypassed(self):
+        holder = subprocess.Popen(['sleep', '60'])
+        self.addCleanup(holder.kill)
+        result = self.unzip_alone(holder.pid, wait=9)
+        self.assertIsNone(result, 'unzip_alone gave up waiting for a live holder')
+        self.assertFalse((self.steam / 'steamrtarm64/steam').exists())
+        self.assertEqual(f'{holder.pid}\n', (self.root / 'state/unzip.lock/owner').read_text())
+
+    def test_a_lock_that_never_got_an_owner_is_taken_over(self):
+        result = self.unzip_alone(None, wait=60)
+        self.assertIsNotNone(result, 'a lock without an owner was never taken over')
+        self.assertEqual(0, result.returncode, result.stderr)
 
     def test_the_parallel_workers_use_no_process_substitution(self):
         source = SCRIPT.read_text()
         region = source[source.index('fetch_one() {'):source.index('fetch_manifest() {')]
         self.assertNotIn('<(', region)
-        self.assertNotIn('kill -0', region)
+        reporter = source[source.index('run_parallel() {'):source.index('fetch_manifest() {')]
+        self.assertNotIn('kill -0', reporter)
 
     def test_a_worker_killed_from_outside_fails_the_install_instead_of_hanging_it(self):
         files = self.many_parts()

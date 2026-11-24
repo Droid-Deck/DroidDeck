@@ -1983,7 +1983,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun startSteamSession(steamVr: Boolean = false) {
-        startSession(Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_STEAMVR, steamVr), steamSession = true)
+        startSession(Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_STEAMVR, steamVr), steamSession = true, queueIfBlocked = !steamVr)
     }
 
     @Suppress("OVERRIDE_DEPRECATION")
@@ -3328,7 +3328,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         install(release)
     }
 
-    private fun startSession(intent: Intent, steamSession: Boolean = false): Boolean {
+    private fun startSession(intent: Intent, steamSession: Boolean = false, queueIfBlocked: Boolean = false): Boolean {
         if (busy || LinuxRuntimeInstaller.isBusy()) return false
         if (SessionState.installing != null && !SessionState.running) {
             android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
@@ -3340,7 +3340,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
-            queuedLaunch.queue(intent, System.currentTimeMillis())
+            if (queueIfBlocked) queuedLaunch.queue(intent, System.currentTimeMillis())
             showPhantomGate = true
             return false
         }
@@ -3411,7 +3411,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     return@post
                 }
                 queuedLaunch.clear()
-                startSession(launch, steamSession = true)
+                startSession(launch, steamSession = true, queueIfBlocked = true)
             }
         }
         adbPaired = WirelessAdbFix.hasSavedPairing(this)
