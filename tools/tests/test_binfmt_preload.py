@@ -188,6 +188,12 @@ class BinfmtPreloadTest(unittest.TestCase):
         code = self.chromium_script()
         self.assertEqual(self.run_program("execve", code, "--version"), (0, "--no-sandbox\n--version", None))
 
+    def test_a_chromium_app_named_on_path_receives_no_sandbox(self):
+        (self.dir / "code").symlink_to(self.chromium_script())
+        for how in ("execvp", "execvpe", "spawnp"):
+            out = self.run_program(how, "code", "--version")
+            self.assertEqual(out[1].splitlines()[:2], ["--no-sandbox", "--version"], how)
+
     def test_the_hand_off_switch_works_without_the_desktop(self):
         tool = self.x86()
         for how in ("execve", "execvp"):
