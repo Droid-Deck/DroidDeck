@@ -920,6 +920,12 @@ long syscall(long number, ...) {
         return 0;
     }
 #endif
+#if defined(__NR_getgroups)
+    if (number == __NR_getgroups) return (long)getgroups((int)arg1, (gid_t *)arg2);
+#endif
+#if defined(__NR_fchown)
+    if (number == __NR_fchown) return (long)fchown((int)arg1, (uid_t)arg2, (gid_t)arg3);
+#endif
 
     return call_orig_syscall(number, arg1, arg2, arg3, arg4, arg5, arg6);
 }
