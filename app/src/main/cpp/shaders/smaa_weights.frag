@@ -124,7 +124,6 @@ void main() {
     float balancedCrossing = edgeVariation > 0.01
         ? smoothstep(threshold, threshold * 2.5, min(crossingA, crossingB))
         : 0.0;
-    // Detect graded endpoints even when run lengths are balanced.
     // Uniform straight step edges keep zero endpoint weight.
     float endpointPattern = max(runEndpointPattern, balancedCrossing);
     float endpointArea = endpointPattern / (1.0 + span * 0.055);
