@@ -55,6 +55,7 @@ PROBE = r"""
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <sys/mman.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -71,6 +72,13 @@ int main(int argc, char **argv) {
   errno = 0;
   rc = syscall(SYS_getresgid, &r, NULL, &s);
   printf("getresgid-null %ld %d\n", rc, errno);
+  unsigned int *locked = mmap(NULL, 4096, PROT_READ, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  errno = 0;
+  rc = syscall(SYS_getresuid, &r, &e, locked);
+  printf("getresuid-readonly %ld %d\n", rc, errno);
+  errno = 0;
+  rc = syscall(SYS_getresgid, locked, &e, &s);
+  printf("getresgid-readonly %ld %d\n", rc, errno);
   gid_t groups[8];
   rc = syscall(SYS_getgroups, 8, groups);
   printf("getgroups %ld %u\n", rc, rc > 0 ? groups[0] : 99u);
@@ -127,6 +135,8 @@ class NativeHookIdentityTest(unittest.TestCase):
         result = self.probe()
         self.assertEqual("-1 14", result["getresuid-null"])
         self.assertEqual("-1 14", result["getresgid-null"])
+        self.assertEqual("-1 14", result["getresuid-readonly"])
+        self.assertEqual("-1 14", result["getresgid-readonly"])
         self.assertEqual(os.stat(self.file).st_uid, os.getuid())
 
 

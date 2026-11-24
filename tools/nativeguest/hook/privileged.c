@@ -526,13 +526,10 @@ static long nested_path_syscall(long number, unsigned long dirfd, unsigned long 
     return call_orig_syscall(number, dirfd, (unsigned long)path, arg3, arg4, 0, 0);
 }
 
-static long fake_root_ids(unsigned int *real, unsigned int *effective, unsigned int *saved) {
-    if (!real || !effective || !saved) {
-        errno = EFAULT;
-        return -1;
-    }
-    *real = *effective = *saved = 0;
-    return 0;
+static long fake_root_ids(long number, unsigned int *real, unsigned int *effective, unsigned int *saved) {
+    long rc = call_orig_syscall(number, (unsigned long)real, (unsigned long)effective, (unsigned long)saved, 0, 0, 0);
+    if (rc == 0) *real = *effective = *saved = 0;
+    return rc;
 }
 
 long syscall(long number, ...) {
@@ -886,16 +883,16 @@ long syscall(long number, ...) {
     if (number == __NR_getegid32) return 0;
 #endif
 #if defined(__NR_getresuid)
-    if (number == __NR_getresuid) return fake_root_ids((unsigned int *)arg1, (unsigned int *)arg2, (unsigned int *)arg3);
+    if (number == __NR_getresuid) return fake_root_ids(number, (unsigned int *)arg1, (unsigned int *)arg2, (unsigned int *)arg3);
 #endif
 #if defined(__NR_getresuid32)
-    if (number == __NR_getresuid32) return fake_root_ids((unsigned int *)arg1, (unsigned int *)arg2, (unsigned int *)arg3);
+    if (number == __NR_getresuid32) return fake_root_ids(number, (unsigned int *)arg1, (unsigned int *)arg2, (unsigned int *)arg3);
 #endif
 #if defined(__NR_getresgid)
-    if (number == __NR_getresgid) return fake_root_ids((unsigned int *)arg1, (unsigned int *)arg2, (unsigned int *)arg3);
+    if (number == __NR_getresgid) return fake_root_ids(number, (unsigned int *)arg1, (unsigned int *)arg2, (unsigned int *)arg3);
 #endif
 #if defined(__NR_getresgid32)
-    if (number == __NR_getresgid32) return fake_root_ids((unsigned int *)arg1, (unsigned int *)arg2, (unsigned int *)arg3);
+    if (number == __NR_getresgid32) return fake_root_ids(number, (unsigned int *)arg1, (unsigned int *)arg2, (unsigned int *)arg3);
 #endif
 #if defined(__NR_getgroups)
     if (number == __NR_getgroups) return (long)getgroups((int)arg1, (gid_t *)arg2);
