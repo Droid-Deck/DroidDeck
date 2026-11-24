@@ -82,6 +82,9 @@ int main(int argc, char **argv) {
   gid_t groups[8];
   rc = syscall(SYS_getgroups, 8, groups);
   printf("getgroups %ld %u\n", rc, rc > 0 ? groups[0] : 99u);
+  errno = 0;
+  rc = syscall(SYS_getgroups, 8, locked);
+  printf("getgroups-readonly %ld %d\n", rc, errno);
   int fd = open(argv[1], O_RDONLY);
   printf("fchown %ld\n", syscall(SYS_fchown, fd, 4321, 4321));
   printf("getuid %ld\n", syscall(SYS_getuid));
@@ -128,6 +131,7 @@ class NativeHookIdentityTest(unittest.TestCase):
         self.assertEqual("0 0 0 0", result["getresuid"])
         self.assertEqual("0 0 0 0", result["getresgid"])
         self.assertEqual("1 0", result["getgroups"])
+        self.assertEqual("-1 14", result["getgroups-readonly"])
         self.assertEqual("0", result["fchown"])
         self.assertEqual("0", result["getuid"])
 
