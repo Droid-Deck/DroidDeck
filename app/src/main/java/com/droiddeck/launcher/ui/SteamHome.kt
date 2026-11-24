@@ -166,24 +166,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             val overall = com.droiddeck.launcher.session.Onboarding.overall(onboardingRows)
             val limitBlocks = com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
             val mark: @Composable () -> Unit = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Wordmark(if (narrow) 30.dp else 40.dp, progress = if (settling) overall / 100f else null)
-                    if (settling) {
-                        val step = onboardingRows.firstOrNull { it.state == com.droiddeck.launcher.session.Onboarding.State.ACTIVE }?.label
-                        Text(
-                            stringResource(R.string.onboarding_chip, overall, step.orEmpty()),
-                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = (if (narrow) 30.dp else 40.dp) * (com.droiddeck.launcher.hud.WordmarkArt.BOX_W / com.droiddeck.launcher.hud.WordmarkArt.BOX_H)),
-                        )
-                        if (limitBlocks) Text(
-                            stringResource(R.string.onboarding_limit_while_waiting),
-                            style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
-                            color = LocalPalette.current.signal,
-                            modifier = Modifier.testTag("setup-while-waiting").clickable(onClick = a.onShowPhantomGate),
-                        )
-                    }
-                }
+                Wordmark(if (narrow) 30.dp else 40.dp, progress = if (settling) overall / 100f else null)
             }
             val runtimeStatus: @Composable () -> Unit = {
                 if (!settling && (s.busy || (s.available != null && s.available != s.installed))) RuntimeChip(s)
@@ -205,7 +188,18 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             }
         },
         button = { click ->
-            PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = click)
+            val onboardingActive by com.droiddeck.launcher.session.Onboarding.active.collectAsState()
+            val onboardingFailed by com.droiddeck.launcher.session.Onboarding.failed.collectAsState()
+            val onboardingFacts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
+            val onboardingRows = com.droiddeck.launcher.session.Onboarding.rows(onboardingActive, onboardingFailed, onboardingFacts)
+            val settling = onboardingActive.isNotEmpty() && com.droiddeck.launcher.session.Onboarding.pending(onboardingRows)
+            val overall = com.droiddeck.launcher.session.Onboarding.overall(onboardingRows)
+            val limitBlocks = com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+            if (settling) PrimaryButton(
+                stringResource(if (limitBlocks) R.string.onboarding_button_finish else R.string.onboarding_button_getting_ready, overall),
+                enabled = limitBlocks, main = true, large = true, progress = overall / 100f,
+                modifier = Modifier.testTag("play-steam"), onClick = a.onShowPhantomGate,
+            ) else PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = click)
         },
         rows = { tab -> a.modeSheet(mode, tab, extras) },
     )
