@@ -1963,6 +1963,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private var soundtrackLaunch = false
 
+    // A restarted launcher starts before the old one stops, so each clears the hooks only if they are still its own.
+    private val libraryHook: () -> Unit = { refreshAddedGames(); refresh() }
+    private val battleNetHook: (List<String>) -> Unit = { args -> openBattleNet(args) }
+
     private fun startSteamAtStartupIfEnabled(cold: Boolean = false) {
         if (soundtrackLaunch || intent.getBooleanExtra(EXTRA_RESTARTED, false)) return
         if (intent.action != Intent.ACTION_MAIN && !(cold && intent.action == null)) return
@@ -2139,8 +2143,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         homePage = com.droiddeck.launcher.core.AppUiPrefs.homePage(this)
         refreshWifiDiscovery()
         com.droiddeck.launcher.stores.StoresState.refresh(this)
-        com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }
-        com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = { args -> openBattleNet(args) }
+        com.droiddeck.launcher.stores.StoresState.libraryListener = libraryHook
+        com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = battleNetHook
         com.droiddeck.launcher.ui.Motion.refresh(this)
         com.droiddeck.launcher.ui.QuitFlood.take()?.let { c ->
             returning = ReturningFlood(c, com.droiddeck.launcher.ui.LaunchOrigin.takeReturn())
@@ -2267,8 +2271,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         getSystemService(android.content.pm.LauncherApps::class.java).unregisterCallback(packageCallback)
         HomeWidgets.stopListening(this)
         ui.removeCallbacks(mediaRefresh)
-        com.droiddeck.launcher.stores.StoresState.libraryListener = null
-        com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = null
+        if (com.droiddeck.launcher.stores.StoresState.libraryListener === libraryHook) com.droiddeck.launcher.stores.StoresState.libraryListener = null
+        if (com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener === battleNetHook) com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = null
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
         com.droiddeck.launcher.input.DualScreen.unwatchTaken(bottomScreenListener)
         getSystemService(android.hardware.input.InputManager::class.java)?.unregisterInputDeviceListener(secondScreenTouchListener)
