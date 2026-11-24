@@ -121,7 +121,7 @@ static void scene_size(int *w, int *h) { *w = *h = 0; }
 static int64_t damage_area(const struct damage_list *d, int bound_w, int bound_h) { return 0; }
 static int64_t now_ns(void) { return 0; }
 static struct surface *g_hud_surface, *g_hud_shm;
-static int64_t g_hud_shm_ns, g_hud_last_ns, g_hud_alive_ns;
+static int64_t g_hud_shm_ns, g_hud_last_ns;
 static int g_hud_new;
 static void __attribute__((unused)) droiddeck_on_game_frame(void) {}
 static void __attribute__((unused)) droiddeck_on_compositor_frame(void) {}
