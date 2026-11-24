@@ -1146,7 +1146,7 @@ static int steam_runtime_path(const char *path) {
   const char *name = strrchr(path, '/');
   size_t i;
 
-  if (name == NULL || strcmp(name + 1, "steam") != 0) return 0;
+  if (name == NULL || (strcmp(name + 1, "steam") != 0 && strcmp(name + 1, "streaming_client") != 0)) return 0;
   for (i = 0; i < sizeof(runtimes) / sizeof(runtimes[0]); i++) {
     size_t length = strlen(runtimes[i]);
 

@@ -1,3 +1,4 @@
+import contextlib
 import hashlib
 import io
 import json
@@ -1548,6 +1549,65 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["engine_fixes"](game, [], "42"), ({}, [], []))
         self.assertEqual(MODULE["engine_fixes"](game, []), ({}, [], []))
 
+    def test_dragon_quest_monsters_4_writes_full_detail_mesh_settings(self):
+        apply = MODULE["dragon_quest_monsters_4_mesh_detail"]
+        wanted = "r.SkeletalMeshLODBias=-4\nr.SkeletalMeshLODRadiusScale=0.25\n"
+        for exe, project in (("DragonQuestMonsters4Demo.exe", "DragonQuestMonsters4Demo"),
+                             ("DragonQuestMonsters4-Win64-Shipping.exe", "DragonQuestMonsters4")):
+            with self.subTest(exe=exe), tempfile.TemporaryDirectory() as tmp:
+                (Path(tmp) / "pfx").mkdir()
+                config = Path(tmp) / "pfx/drive_c/users/steamuser/AppData/Local" / project / "Saved/Config/Windows/Engine.ini"
+                with contextlib.redirect_stderr(io.StringIO()):
+                    apply("/game/" + exe, {"STEAM_COMPAT_DATA_PATH": tmp})
+                self.assertEqual(config.read_text(), "[SystemSettings]\n" + wanted)
+
+    def test_dragon_quest_monsters_4_keeps_other_engine_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "pfx").mkdir()
+            config = Path(tmp) / "pfx/drive_c/users/steamuser/AppData/Local/DragonQuestMonsters4Demo/Saved/Config/Windows/Engine.ini"
+            config.parent.mkdir(parents=True)
+            config.write_text("[Core.Log]\nLogTemp=Log\n\n[SystemSettings]\nr.Fog=0\nr.SkeletalMeshLODBias=0\n\n[Other]\nKey=1\n")
+            config.chmod(0o444)
+            with contextlib.redirect_stderr(io.StringIO()):
+                MODULE["dragon_quest_monsters_4_mesh_detail"]("/game/DragonQuestMonsters4Demo.exe", {"STEAM_COMPAT_DATA_PATH": tmp})
+            self.assertEqual(config.read_text(), "[Core.Log]\nLogTemp=Log\n\n[SystemSettings]\nr.Fog=0\n"
+                             "r.SkeletalMeshLODBias=-4\nr.SkeletalMeshLODRadiusScale=0.25\n\n[Other]\nKey=1\n")
+            self.assertEqual(config.stat().st_mode & 0o777, 0o444)
+
+    def test_dragon_quest_monsters_4_settings_use_the_game_profile_prefix(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            exe = home / "game/DragonQuestMonsters4Demo.exe"
+            exe.parent.mkdir()
+            exe.touch()
+            proton = home / "fake-proton"
+            proton.write_text("#!" + sys.executable + "\nimport json, sys\nprint(json.dumps(sys.argv[1:]))\n")
+            proton.chmod(0o755)
+            inherited, chosen = home / "compatdata/42", home / "profile/42"
+            for data in (inherited, chosen):
+                (data / "pfx").mkdir(parents=True)
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "games": {"42": {"STEAM_COMPAT_DATA_PATH": str(chosen)}}}))
+            subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(proton), "waitforexitandrun", str(exe)],
+                           env=dict(os.environ, HOME=tmp, STEAM_COMPAT_DATA_PATH=str(inherited)),
+                           text=True, capture_output=True, check=True)
+            engine = "pfx/drive_c/users/steamuser/AppData/Local/DragonQuestMonsters4Demo/Saved/Config/Windows/Engine.ini"
+            self.assertIn("r.SkeletalMeshLODBias=-4", (chosen / engine).read_text())
+            self.assertFalse((inherited / engine).exists())
+
+    def test_dragon_quest_monsters_4_prefix_errors_do_not_stop_the_launch(self):
+        errors = io.StringIO()
+        with mock.patch.object(Path, "is_dir", side_effect=PermissionError("denied")), contextlib.redirect_stderr(errors):
+            MODULE["dragon_quest_monsters_4_mesh_detail"]("/game/DragonQuestMonsters4Demo.exe", {"STEAM_COMPAT_DATA_PATH": "/compatdata/42"})
+        self.assertIn("left as is", errors.getvalue())
+
+    def test_other_games_do_not_get_the_dragon_quest_monsters_4_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "pfx").mkdir()
+            MODULE["dragon_quest_monsters_4_mesh_detail"]("/game/DragonQuestMonsters3.exe", {"STEAM_COMPAT_DATA_PATH": tmp})
+            self.assertEqual(list((Path(tmp) / "pfx").iterdir()), [])
+
     def test_arkham_city_gets_full_x87_precision_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
             city = Path(tmp) / "Batman Arkham City GOTY/Binaries/Win32"
@@ -1865,6 +1925,18 @@ class GameEnvironmentTest(unittest.TestCase):
             config = {"version": 1, "shared": {}, "games": {"1771300": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
             self.assertEqual(MODULE["apply_config"]({}, config, "1771300", env), {"VKD3D_FEATURE_LEVEL": "12_1", "VKD3D_SHADER_MODEL": "6_9"})
             self.assertEqual(MODULE["engine_fixes"](str(exe), [], "42")[0], {})
+
+    def test_hades_ii_runs_at_feature_level_12_2_from_steam_and_xbox_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for exe in (Path(tmp) / "Hades II/Ship/Hades2.exe", Path(tmp) / "Xbox/Hades II/Hades2.exe"):
+                exe.parent.mkdir(parents=True)
+                exe.touch()
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
+                self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2"}, str(exe))
+                self.assertTrue(notes)
+                config = {"version": 1, "shared": {}, "games": {"42": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+                self.assertEqual(MODULE["apply_config"]({}, config, "42", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
+            self.assertEqual(MODULE["engine_fixes"]("/game/Hades/x64/Hades.exe", [])[0], {})
 
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:

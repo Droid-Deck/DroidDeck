@@ -650,9 +650,11 @@ class InputUdevPreloadTest(unittest.TestCase):
             "nothing added scan -1",
         ])
 
-    def test_only_the_steam_client_runtime_path_gets_the_real_libudev(self):
-        for path, pad in (("steamrt64/steam", 0), ("steamrtarm64/steam", 0), ("steamrt64/steam-probe", 1),
-                          ("xsteamrt64/steam", 1), ("steamrt64/xsteam", 1), ("steamrt/steam", 1)):
+    def test_only_the_steam_client_and_its_remote_play_client_get_the_real_libudev(self):
+        for path, pad in (("steamrt64/steam", 0), ("steamrtarm64/steam", 0), ("steamrt64/streaming_client", 0),
+                          ("steamrtarm64/streaming_client", 0), ("steamrt64/steam-probe", 1),
+                          ("steamrt64/streaming_client2", 1), ("xsteamrt64/steam", 1), ("steamrt64/xsteam", 1),
+                          ("steamrt/steam", 1), ("steamrt/streaming_client", 1)):
             with self.subTest(path=path):
                 client = self.dir / "clients" / path
                 client.parent.mkdir(parents=True, exist_ok=True)

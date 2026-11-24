@@ -72,15 +72,12 @@ static int read_only_copy(const char *data, size_t len, int flags) {
   return ro;
 }
 
-__attribute__((visibility("hidden"))) int dd_status_without_tracer(const char *path, int flags, const void *caller) {
+static __attribute__((noinline)) int status_copy(const char *path, int flags, long pid) {
   char text[STATUS_MAX];
   size_t len = 0;
   int saved = errno;
   int out = -1;
 
-  long pid;
-  if ((flags & O_ACCMODE) != O_RDONLY || (pid = status_pid(path)) < 0 || is_web_helper(caller) || dd_from_ntdll(caller))
-    return -1;
   // through the next open(): the native userland's hook gives the app's ids as root's there
   static int (*next_open)(const char *, int, ...) = NULL;
   if (!next_open) next_open = (int (*)(const char *, int, ...))dlsym(RTLD_NEXT, "open");
@@ -115,4 +112,11 @@ __attribute__((visibility("hidden"))) int dd_status_without_tracer(const char *p
 done:
   errno = saved;
   return out;
+}
+
+__attribute__((visibility("hidden"))) int dd_status_without_tracer(const char *path, int flags, const void *caller) {
+  long pid;
+  if ((flags & O_ACCMODE) != O_RDONLY || (pid = status_pid(path)) < 0 || is_web_helper(caller) || dd_from_ntdll(caller))
+    return -1;
+  return status_copy(path, flags, pid);
 }

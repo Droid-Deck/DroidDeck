@@ -84,6 +84,19 @@ static void init_ddnatv_hook(void) {
             setenv("TZDIR", tzdir_buf, 0);
         }
 
+        const char *curr_locpath = getenv("LOCPATH");
+        if (!curr_locpath || curr_locpath[0] == '\0') {
+            char locpath_buf[PATH_MAX];
+            snprintf(locpath_buf, sizeof(locpath_buf), "%s/usr/lib/locale", g_ddnatv_root);
+            setenv("LOCPATH", locpath_buf, 1);
+        }
+
+        if (!getenv("GCONV_PATH")) {
+            char gconv_buf[PATH_MAX];
+            snprintf(gconv_buf, sizeof(gconv_buf), "%s/usr/lib/aarch64-linux-gnu/gconv", g_ddnatv_root);
+            setenv("GCONV_PATH", gconv_buf, 0);
+        }
+
         const char *curr_cert = getenv("SSL_CERT_FILE");
         if (!curr_cert || curr_cert[0] == '\0' || strcmp(curr_cert, "/etc/ssl/certs/ca-certificates.crt") == 0) {
             char cert_buf[PATH_MAX];
@@ -121,8 +134,11 @@ static void init_ddnatv_hook(void) {
 // environment is kept in. A program that had changed its environment (putenv, setenv) and passed it
 // to execv() before its first call into the hook handed the exec code a block that was freed by the
 // time it was read.
-__attribute__((constructor(103))) static void init_ddnatv_hook_early(void) {
+static void compact_loader_args(int argc, char **argv);
+
+__attribute__((constructor(103))) static void init_ddnatv_hook_early(int argc, char **argv) {
     init_ddnatv_hook();
+    compact_loader_args(argc, argv);
     // The kernel names the process after what it executed, the rootfs ld.so: process monitors, and
     // the app's own checks of /proc/<pid>/comm (steam, wineserver), saw only "ld-linux-aarch64.so.1"
     const char *name = program_invocation_short_name;
@@ -190,15 +206,10 @@ static void exe_from_cmdline(const char *cmdline_path, char *out, size_t outsz) 
 }
 
 static ssize_t copy_guest_exe(const char *real_exe, char *buf, size_t bufsiz) {
-    const char *out_path = real_exe;
-    if (g_ddnatv_root[0] != '\0') {
-        size_t rlen = g_ddnatv_root_len;
-        if (strncmp(real_exe, g_ddnatv_root, rlen) == 0 &&
-            (real_exe[rlen] == '/' || real_exe[rlen] == '\0')) {
-            out_path = real_exe + rlen;
-            if (out_path[0] == '\0') out_path = "/";
-        }
-    }
+    char guest[PATH_MAX];
+    char back[PATH_MAX];
+    const char *out_path = guest_path_of_host_dir(real_exe, guest, sizeof(guest));
+    if (!out_path || strcmp(rewrite_path_in_root(out_path, back, sizeof(back)), real_exe) != 0) out_path = real_exe;
     size_t len = strlen(out_path);
     size_t copy_len = (len < bufsiz) ? len : bufsiz;
     memcpy(buf, out_path, copy_len);
@@ -224,27 +235,39 @@ static ssize_t (*real_readlinkat_fn(void))(int, const char *, char *, size_t) {
     return fn;
 }
 
-static int proc_env_value(pid_t pid, const char *key, char *out, size_t outsz) {
-    char path[64];
-    snprintf(path, sizeof(path), "/proc/%d/environ", (int)pid);
-    int fd = open(path, O_RDONLY | O_CLOEXEC);
-    if (fd < 0) return 0;
-    size_t cap = 65536, used = 0, keylen = strlen(key);
-    char *env = malloc(cap + 1);
-    ssize_t got;
-    while (env && (got = read(fd, env + used, cap - used)) > 0) {
+static char *read_proc_file(const char *path, size_t *len, int *whole) {
+    *len = 0;
+    *whole = 0;
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return NULL;
+    size_t cap = 65536, used = 0;
+    char *text = malloc(cap + 1);
+    ssize_t got = 0;
+    while (text && (got = (ssize_t)syscall(SYS_read, fd, text + used, cap - used)) > 0) {
         used += (size_t)got;
         if (used == cap) {
-            char *bigger = cap < (8u << 20) ? realloc(env, cap * 2 + 1) : NULL;
+            char *bigger = cap < (8u << 20) ? realloc(text, cap * 2 + 1) : NULL;
             if (!bigger) break;
-            env = bigger;
+            text = bigger;
             cap *= 2;
         }
     }
-    close(fd);
+    syscall(SYS_close, fd);
+    if (!text) return NULL;
+    text[used] = '\0';
+    *len = used;
+    *whole = got == 0;
+    return text;
+}
+
+static int proc_env_value(pid_t pid, const char *key, char *out, size_t outsz) {
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%d/environ", (int)pid);
+    size_t used, keylen = strlen(key);
+    int whole;
+    char *env = read_proc_file(path, &used, &whole);
     int found = 0;
     if (env) {
-        env[used] = '\0';
         for (char *e = env; e < env + used; e += strlen(e) + 1) {
             if (strncmp(e, key, keylen) == 0 && e[keylen] == '=' && e[keylen + 1] != '\0') {
                 ddnatv_copy_cstr(out, outsz, e + keylen + 1);
@@ -255,6 +278,94 @@ static int proc_env_value(pid_t pid, const char *key, char *out, size_t outsz) {
         free(env);
     }
     return found;
+}
+
+static int is_loader_option(const char *arg) {
+    return strcmp(arg, "--preload") == 0 || strcmp(arg, "--library-path") == 0 || strcmp(arg, "--argv0") == 0;
+}
+
+static int is_exec_loader(const char *path) {
+    const char *base = strrchr(path, '/');
+    return strcmp(base ? base + 1 : path, "libddexec.so") == 0;
+}
+
+static size_t next_arg(const char *text, size_t pos) {
+    return pos + strlen(text + pos) + 1;
+}
+
+static uintptr_t *execfn_entry(int argc, char **argv) {
+    if (argv[argc]) return NULL;
+    char **env = argv + argc + 1;
+    while (*env) env++;
+    for (uintptr_t *aux = (uintptr_t *)(env + 1); aux[0] != AT_NULL; aux += 2) {
+        if (aux[0] == AT_EXECFN) return aux + 1;
+    }
+    return NULL;
+}
+
+static void compact_loader_args(int argc, char **argv) {
+    if (g_ddnatv_root[0] == '\0' || argc < 1 || !argv || !argv[0]) return;
+    size_t len;
+    int whole;
+    char *text = read_proc_file("/proc/self/cmdline", &len, &whole);
+    size_t *at = text && whole && len > 0 && text[len - 1] == '\0' ? malloc(sizeof(size_t) * (size_t)argc) : NULL;
+    size_t pos = 0, program = 0;
+    if (at && is_exec_loader(text)) {
+        pos = next_arg(text, pos);
+        if (pos < len) pos = next_arg(text, pos);
+    }
+    int ok = at && pos < len && is_ld_linux(text + pos), named = 0;
+    if (ok) pos = next_arg(text, pos);
+    while (ok && pos < len && is_loader_option(text + pos)) {
+        size_t value = next_arg(text, pos);
+        ok = value < len;
+        if (ok && strcmp(text + pos, "--argv0") == 0) {
+            at[0] = value;
+            named = 1;
+        }
+        if (ok) pos = next_arg(text, value);
+    }
+    int count = 0;
+    if (ok && named && pos < len) {
+        program = pos;
+        pos = next_arg(text, pos);
+        for (count = 1; pos < len && count < argc; count++) {
+            at[count] = pos;
+            pos = next_arg(text, pos);
+        }
+    }
+    char *base = count == argc && pos == len ? argv[0] - at[0] : NULL;
+    for (int i = 1; base && i < argc; i++) {
+        if (argv[i] != base + at[i]) base = NULL;
+    }
+    if (base && memcmp(base, text, len) != 0) base = NULL;
+    uintptr_t *execfn = base ? execfn_entry(argc, argv) : NULL;
+    char *execfn_text = NULL;
+    if (execfn && *execfn >= (uintptr_t)base && *execfn < (uintptr_t)base + len) {
+        execfn_text = strdup(text + (*execfn - (uintptr_t)base));
+        if (!execfn_text) base = NULL;
+    }
+    if (base) {
+        char *old_name = argv[0];
+        size_t name_len = strlen(old_name);
+        char *name = program_invocation_name, *short_name = program_invocation_short_name;
+        size_t used = 0;
+        for (int i = 0; i < argc; i++) {
+            size_t n = strlen(text + at[i]) + 1;
+            memcpy(base + used, text + at[i], n);
+            argv[i] = base + used;
+            used += n;
+        }
+        memset(base + used, 0, len - used);
+        if (name >= old_name && name <= old_name + name_len) program_invocation_name = argv[0] + (name - old_name);
+        if (short_name >= old_name && short_name <= old_name + name_len) {
+            program_invocation_short_name = argv[0] + (short_name - old_name);
+        }
+        if (g_real_exe[0] == '\0') ddnatv_copy_cstr(g_real_exe, sizeof(g_real_exe), text + program);
+        if (execfn_text) *execfn = (uintptr_t)execfn_text;
+    }
+    free(at);
+    free(text);
 }
 
 // Overlay filesystems report a different device to stat() than in /proc/<pid>/maps; the path, as the
@@ -312,9 +423,7 @@ static ssize_t handle_proc_other_exe(const char *path, char *buf, size_t bufsiz)
     ssize_t n = real_readlinkat(AT_FDCWD, path, loader, sizeof(loader) - 1);
     if (n <= 0) return -1;
     loader[n] = '\0';
-    const char *base = strrchr(loader, '/');
-    base = base ? base + 1 : loader;
-    if (strcmp(base, "libddexec.so") != 0 && !is_ld_linux(loader)) return -1;
+    if (!is_exec_loader(loader) && !is_ld_linux(loader)) return -1;
 
     char real_exe[PATH_MAX] = "";
     if (!proc_env_value(pid, "DDNATV_REAL_EXE", real_exe, sizeof(real_exe))) {
@@ -350,8 +459,11 @@ static ssize_t handle_proc_exe_at(int dirfd, const char *pathname, char *buf, si
 static const char *rewrite_path(const char *path, char *buffer, size_t bufsize) {
     if (!path) return NULL;
     // Relative paths must NEVER be rewritten to rootfs root
-    if (path[0] != '/') return path;
     init_ddnatv_hook();
+    if (path[0] != '/') {
+        const char *walked = map_at(AT_FDCWD, path, buffer, bufsize);
+        return walked ? walked : path;
+    }
     return rewrite_path_in_root(path, buffer, bufsize);
 }
 
@@ -361,7 +473,7 @@ static const char *rewrite_path(const char *path, char *buffer, size_t bufsize) 
 // followed in the guest's view first. The rootfs's own links were made relative already.
 static const char *rewrite_path_follow(const char *path, char *buffer, size_t bufsize) {
     if (!path) return NULL;
-    if (path[0] != '/') return path;
+    if (path[0] != '/') return rewrite_path(path, buffer, bufsize);
     init_ddnatv_hook();
     int moved = 0;
     for (int i = 0; i < g_nbinds; i++) {

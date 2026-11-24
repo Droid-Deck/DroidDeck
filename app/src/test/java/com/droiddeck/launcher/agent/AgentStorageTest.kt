@@ -11,13 +11,13 @@ class AgentStorageTest {
     @Test fun removingAFolderKeepsWhatItsLinksPointAt() {
         val base = Files.createTempDirectory("agent-storage")
         val outside = Files.createDirectories(base.resolve("sdcard"))
-        Files.write(outside.resolve("save.dat"), ByteArray(100))
+        Files.write(outside.resolve("save.dat"), ByteArray(1 shl 20))
         val item = Files.createDirectories(base.resolve("rootfs/android-sdk"))
         Files.write(item.resolve("a.jar"), ByteArray(10))
         val linked = runCatching { Files.createSymbolicLink(item.resolve("saves"), outside) }.isSuccess
         assumeTrue("symbolic links need privileges on this OS", linked)
 
-        assertTrue(AgentStorage.size(item) < 100)
+        assertTrue(AgentStorage.size(item) < 1 shl 20)
         AgentStorage.delete(item)
         assertFalse(Files.exists(item))
         assertTrue(Files.exists(outside.resolve("save.dat")))

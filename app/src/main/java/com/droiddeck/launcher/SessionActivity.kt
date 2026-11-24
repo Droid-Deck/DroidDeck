@@ -850,8 +850,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             SessionState.bottomMenu = false
             SessionState.secondScreenProvisional = false
             SessionState.secondScreenAutomatic = false
-            SessionState.gameOnBottom = false
-            gameOnBottom = false
+            SessionState.gameOnBottom = SessionPrefs.dualScreenSessionMode(this) == com.droiddeck.launcher.input.DualScreen.MODE_SWAPPED
+            gameOnBottom = SessionState.gameOnBottom
         }
         if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
             SessionState.program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
@@ -875,9 +875,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         cornerTap = SessionPrefs.drawerCornerTap(this)
         applyOutputPacing()
         if (!SessionState.running) {
-            SessionState.followScreen = followChoice()
-            SessionState.followScale = followScale()
+            SessionState.followScales = SessionPrefs.followScales(this, displayMode(),
+                com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         }
+        applyFollowChoice()
         applyFollowOrientation(resources.configuration)
         goFullscreen()
         volumeControlStream = android.media.AudioManager.STREAM_MUSIC
@@ -936,11 +937,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         SteamControllerBle.listener = { uiHandler.post { updatePadMotion(); refreshControls() } }
         steamController = SteamControllerBle(this, inputRouter).also { it.start() }
-        if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
-            !SessionPrefs.bluetoothAsked(this)) {
-            SessionPrefs.setBluetoothAsked(this)
-            requestPermissions(arrayOf(BLUETOOTH_CONNECT), REQUEST_BLUETOOTH)
-        }
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {
             @Suppress("DEPRECATION")
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
@@ -1550,6 +1546,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             secondScreenDisplays = secondScreenDisplays,
             selectedSecondScreenDisplay = selectedSecondScreenDisplay,
             onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
+            onHudOnlyDuringGame = { on ->
+                SessionPrefs.setHudOnlyDuringGame(this@SessionActivity, on)
+                hud.refresh()
+            },
             onGpuClockPin = { on ->
                 SessionPrefs.setGpuClockPin(this@SessionActivity, on)
                 gpuClockPin = on
@@ -2996,16 +2996,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun followPortrait(): Boolean = glassesScreen == null && SessionPrefs.portrait(this)
 
-    private fun followScale(): Float {
-        val mode = displayMode()
-        val choice = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), followPortrait())
-        return com.droiddeck.launcher.session.SessionDisplay.followScale(choice) ?: 1f
-    }
-
-    private fun followChoice(): Boolean {
-        val mode = displayMode()
-        return com.droiddeck.launcher.session.SessionDisplay.isFollow(
-            SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), followPortrait()))
+    private fun applyFollowChoice() {
+        val scale = SessionState.followScales.let { if (followPortrait()) it.second else it.first }
+        SessionState.followScreen = scale != null
+        SessionState.followScale = scale ?: 1f
     }
 
     private fun applyFollowOrientation(config: android.content.res.Configuration) {
@@ -3019,6 +3013,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             SessionService.setActivityDisplay(this, sessionActivityDisplayId)
         }
         cancelTouchGestures()
+        applyFollowChoice()
         applyFollowOrientation(newConfig)
         applyNotchInset()
         applyUnfoldedControls()
@@ -3553,6 +3548,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val normalized = com.droiddeck.launcher.input.GuestKeys.normalizeKeyboardEscape(event)
+        if (normalized === event) return dispatchSessionKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            Log.i(TAG, "hardware Esc normalized from Back device=${event.deviceId} scan=${event.scanCode}")
+        }
+        return dispatchSessionKeyEvent(normalized)
+    }
+
+    private fun dispatchSessionKeyEvent(event: KeyEvent): Boolean {
         if (com.droiddeck.launcher.ui.AgentPet.handleBack(this, event)) return true
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> {
@@ -4410,6 +4414,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionState.secondScreenAutoOpened = false
         val menuOnBottom = drawerDocked
         val menuOnTop = drawerOpenState && !drawerDocked
+        if (mode == com.droiddeck.launcher.input.DualScreen.MODE_SWAPPED) {
+            putGameOnBottom(true)
+        } else if (gameOnBottom && mode != com.droiddeck.launcher.input.DualScreen.MODE_OFF) {
+            putGameOnBottom(false)
+        }
         if (mode == com.droiddeck.launcher.input.DualScreen.MODE_OFF) {
             if (gameOnBottom) putGameOnBottom(false)
             if (secondScreenMode != SecondScreenMode.NONE || menuOnBottom) closeSecondScreen(reset = true)
