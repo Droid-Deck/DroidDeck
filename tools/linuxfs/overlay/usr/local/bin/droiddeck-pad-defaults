@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import glob
 import os
 
 HOME = os.environ.get("HOME", "/root")
@@ -904,25 +905,103 @@ input_r_y_minus_axis = "-3"
 """
 
 
+RETROARCH_SYSTEM_CFG = "/etc/retroarch.cfg"
+RETROARCH_PACKAGED = {
+    "assets_directory": "~/.config/retroarch/assets",
+    "libretro_directory": "~/.config/retroarch/cores",
+    "libretro_info_path": "~/.config/retroarch/cores",
+    "menu_show_core_updater": "true",
+}
+
+
+def cfg_value(line):
+    key, sep, value = line.partition("=")
+    return key.strip(), value.strip().strip('"') if sep else None
+
+
+def retroarch_system_values():
+    try:
+        with open(RETROARCH_SYSTEM_CFG, encoding="utf-8", errors="replace") as f:
+            pairs = [cfg_value(l) for l in f if not l.lstrip().startswith("#")]
+    except OSError:
+        return {}
+    return {k: v for k, v in pairs if k in RETROARCH_PACKAGED and v is not None}
+
+
+def retroarch_has_cores(directory):
+    return bool(glob.glob(os.path.join(os.path.expanduser(directory), "*.so")))
+
+
+def retroarch_installed_cores(d):
+    for directory in (os.path.join(d, "cores"), RETROARCH_PACKAGED["libretro_directory"]):
+        if retroarch_has_cores(directory):
+            return directory
+    return None
+
+
 def retroarch():
     d = os.path.join(CONFIG, "retroarch")
     seed(os.path.join(d, "autoconfig/sdl2/Xbox 360 Controller.cfg"), RETROARCH_PROFILE, "RetroArch (profile)")
     cfg = os.path.join(d, "retroarch.cfg")
+    system = retroarch_system_values()
     if not os.path.isfile(cfg):
-        seed(cfg, 'input_joypad_driver = "sdl2"\ninput_autodetect_enable = "true"\n', "RetroArch")
+        if retroarch_installed_cores(d):
+            system.pop("libretro_directory", None)
+        text = 'input_joypad_driver = "sdl2"\ninput_autodetect_enable = "true"\n'
+        text += "".join(f'{k} = "{v}"\n' for k, v in system.items())
+        seed(cfg, text, "RetroArch")
         return
     with open(cfg, encoding="utf-8", errors="replace") as f:
         lines = f.read().splitlines()
     changed = False
+    paths = {}
+    for i, line in enumerate(lines):
+        key, value = cfg_value(line)
+        if key in system and key != "menu_show_core_updater" and value is not None:
+            paths.setdefault(key, []).append((i, value))
+    for key, entries in paths.items():
+        if not any(value == "" for _, value in entries):
+            continue
+        fallback = system[key]
+        if key == "libretro_directory":
+            fallback = retroarch_installed_cores(d) or fallback
+        value = next((value for _, value in entries if value), fallback)
+        first = entries[0][0]
+        replacement = f'{key} = "{value}"'
+        if lines[first] != replacement or len(entries) > 1:
+            changed = True
+        lines[first] = replacement
+        for i, _ in entries[1:]:
+            lines[i] = None
+    lines = [line for line in lines if line is not None]
+    seen = set()
     for i, l in enumerate(lines):
         if l.replace(" ", "").startswith('input_joypad_driver="udev"'):
             lines[i] = 'input_joypad_driver = "sdl2"'
+            changed = True
+        key, value = cfg_value(l)
+        if key in system and value is not None:
+            seen.add(key)
+        if (
+            key == "libretro_directory"
+            and value == RETROARCH_PACKAGED[key]
+            and (retroarch_has_cores(value) or retroarch_has_cores(os.path.join(d, "cores")))
+        ):
+            continue
+        if key in system and key != "menu_show_core_updater" and value == RETROARCH_PACKAGED[key] and system[key] != value:
+            lines[i] = f'{key} = "{system[key]}"'
+            changed = True
+    for key, value in system.items():
+        if key not in seen:
+            if key == "libretro_directory" and retroarch_installed_cores(d):
+                continue
+            lines.append(f'{key} = "{value}"')
             changed = True
     if changed:
         with open(cfg + ".tmp", "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
         os.replace(cfg + ".tmp", cfg)
-        print(f"droiddeck-pad-defaults: RetroArch: joypad driver udev -> sdl2 ({cfg})")
+        print(f"droiddeck-pad-defaults: RetroArch: controller driver and packaged paths ({cfg})")
 
 
 SWITCH_PAD = "engine:sdl,port:0,guid:030000005e0400008e02000010010000,"
