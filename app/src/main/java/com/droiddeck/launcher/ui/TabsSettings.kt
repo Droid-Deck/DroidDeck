@@ -118,6 +118,8 @@ internal fun SortableRows(
     rowHeight: androidx.compose.ui.unit.Dp,
     handleWidth: androidx.compose.ui.unit.Dp,
     onActivate: (String) -> Unit,
+    onGrab: (before: List<String>?) -> Unit = {},
+    releaseSignal: Int = 0,
     row: @Composable (key: String, held: Boolean, offset: Float, hint: String?, modifier: Modifier, onFocus: (Boolean) -> Unit) -> Unit,
 ) {
     val pad = LocalInputModeManager.current.inputMode == InputMode.Keyboard
@@ -129,6 +131,9 @@ internal fun SortableRows(
     val rowPx = with(LocalDensity.current) { rowHeight.toPx() }
     val handlePx = with(LocalDensity.current) { handleWidth.toPx() }
     val list = rows()
+    val grab by rememberUpdatedState(onGrab)
+    LaunchedEffect(grabbed) { grab(if (grabbed != null) before else null) }
+    LaunchedEffect(releaseSignal) { if (releaseSignal > 0) grabbed = null }
     Column(
         Modifier.fillMaxWidth().pointerInput(Unit) {
             awaitEachGesture {
@@ -208,10 +213,10 @@ internal fun SortableRows(
 }
 
 @Composable
-private fun MoreLine() {
+internal fun MoreLine(height: androidx.compose.ui.unit.Dp = TAB_ROW) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    Column(Modifier.fillMaxWidth().height(TAB_ROW).testTag("tab-more-line")) {
+    Column(Modifier.fillMaxWidth().height(height).testTag("tab-more-line")) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),

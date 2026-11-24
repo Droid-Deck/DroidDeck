@@ -11,7 +11,6 @@ import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
-import androidx.core.graphics.PathParser
 import com.droiddeck.launcher.input.DpadStyle
 import com.droiddeck.launcher.input.FaceGlyphs
 import com.droiddeck.launcher.input.InputControl
@@ -25,7 +24,7 @@ import kotlin.math.sin
 
 /** The on-screen controls' shared drawing: one glass material, shaped per virtual controller. */
 internal class PadArt(context: Context) {
-    val density = context.resources.displayMetrics.density
+    private val density = context.resources.displayMetrics.density
     private val body = Paint(Paint.ANTI_ALIAS_FLAG)
     private val shine = Paint(Paint.ANTI_ALIAS_FLAG)
     private val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
@@ -39,7 +38,48 @@ internal class PadArt(context: Context) {
     private var shineTop = Float.NaN
     private var shineHeight = Float.NaN
 
-    fun dp(value: Float) = value * density
+    private fun dp(value: Float) = value * density
+
+    fun button(canvas: Canvas, width: Int, height: Int, control: InputControl, kit: PadKit, pressed: Boolean): Boolean {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        if (min(w, h) <= dp(4f)) return false
+        when (control) {
+            InputControl.A, InputControl.B, InputControl.X, InputControl.Y ->
+                face(canvas, w / 2f, h / 2f, min(w, h) / 2f - dp(2f), control, kit, pressed)
+            InputControl.LB, InputControl.RB, InputControl.LT, InputControl.RT -> shoulder(canvas, w, h, control, kit, pressed)
+            InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5 -> grip(canvas, w, h, control.label, pressed)
+            InputControl.L3, InputControl.R3 -> small(canvas, w, h, control.label, pressed)
+            InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT -> arrow(canvas, w, h, control, pressed)
+            InputControl.SELECT, InputControl.START, InputControl.GUIDE, InputControl.QAM -> {
+                val (shape, icon) = systemLook(kit, control)
+                system(canvas, w, h, shape, icon, pressed)
+            }
+            else -> return false
+        }
+        return true
+    }
+
+    private fun systemLook(kit: PadKit, control: InputControl): Pair<Shape, Icon> = when {
+        kit.steam -> when (control) {
+            InputControl.SELECT -> Shape.CHIP to Icon.VIEW
+            InputControl.START -> Shape.CHIP to Icon.MENU
+            InputControl.GUIDE -> Shape.PILL to Icon.STEAM
+            else -> Shape.PILL to Icon.QAM
+        }
+        kit.playStation -> when (control) {
+            InputControl.SELECT -> Shape.PILL to if (kit == PadKit.DUALSHOCK) Icon.SHARE else Icon.CREATE
+            InputControl.START -> Shape.PILL to if (kit == PadKit.DUALSHOCK) Icon.OPTIONS else Icon.MENU
+            InputControl.GUIDE -> Shape.ROUND to Icon.HOME
+            else -> Shape.ROUND to Icon.QAM
+        }
+        else -> Shape.ROUND to when (control) {
+            InputControl.SELECT -> Icon.BACK
+            InputControl.START -> Icon.START
+            InputControl.GUIDE -> Icon.HOME
+            else -> Icon.QAM
+        }
+    }
 
     fun glass(canvas: Canvas, shape: Path, pressed: Boolean, tint: Int = BODY) {
         shape.computeBounds(rect, false)
@@ -127,7 +167,7 @@ internal class PadArt(context: Context) {
     }
 
     enum class Shape { ROUND, PILL, CHIP }
-    enum class Icon { VIEW, MENU, QAM, KEYBOARD, BACK, START, CREATE, HOME, STEAM, SHARE, OPTIONS, MARK }
+    enum class Icon { VIEW, MENU, QAM, KEYBOARD, BACK, START, CREATE, HOME, STEAM, SHARE, OPTIONS }
 
     fun system(canvas: Canvas, w: Float, h: Float, shape: Shape, icon: Icon, pressed: Boolean, ink: Int = INK) {
         val cx = w / 2f; val cy = h / 2f
@@ -179,20 +219,7 @@ internal class PadArt(context: Context) {
                 text(canvas, when (icon) { Icon.STEAM -> "STEAM"; Icon.SHARE -> "SHARE"; else -> "OPTIONS" }, cx, cy, 14 * u, color, size * 1.9f)
                 ink.letterSpacing = 0f
             }
-            Icon.MARK -> mark(canvas, cx, cy, size * .5f, color, if (color == ON_ACCENT) ON_ACCENT else ACCENT)
         }
-    }
-
-    fun mark(canvas: Canvas, cx: Float, cy: Float, radius: Float, ink: Int, orb: Int) {
-        val k = radius / 111.86f
-        canvas.save()
-        canvas.translate(cx - 71.98f * k, cy - 111.86f * k)
-        canvas.scale(k, k)
-        fill.shader = null; fill.color = ink
-        canvas.drawPath(MARK, fill)
-        fill.color = orb
-        canvas.drawCircle(63.98f, 111.86f, 55.98f, fill)
-        canvas.restore()
     }
 
     private fun chevron(canvas: Canvas, ax: Float, ay: Float, dx: Float, dy: Float, k: Float, color: Int, width: Float) {
@@ -212,10 +239,24 @@ internal class PadArt(context: Context) {
         op(bar, Path.Op.UNION)
     }
 
+    fun arrow(canvas: Canvas, w: Float, h: Float, control: InputControl, pressed: Boolean) {
+        val cx = w / 2f; val cy = h / 2f
+        val s = min(w, h) / 2f - dp(2f)
+        val (dx, dy) = when (control) {
+            InputControl.UP -> 0f to -1f
+            InputControl.RIGHT -> 1f to 0f
+            InputControl.DOWN -> 0f to 1f
+            else -> -1f to 0f
+        }
+        glass(canvas, roundRect(cx - s, cy - s, cx + s, cy + s, s * .32f), pressed)
+        chevron(canvas, cx, cy, dx, dy, s * .3f, if (pressed) ON_ACCENT else INK, s * .14f)
+    }
+
     /** [held] bits: up 1, right 2, down 4, left 8. */
     fun dpad(canvas: Canvas, w: Float, h: Float, kit: PadKit, held: Int, chevrons: Boolean = true, ink: Int = INK) {
         val cx = w / 2f; val cy = h / 2f
         val s = min(w, h) / 2f - dp(3f)
+        if (s <= 0f) return
         val dirs = arrayOf(floatArrayOf(0f, -1f), floatArrayOf(1f, 0f), floatArrayOf(0f, 1f), floatArrayOf(-1f, 0f))
         when (kit.dpad) {
             DpadStyle.CROSS, DpadStyle.DISC -> {
@@ -232,7 +273,7 @@ internal class PadArt(context: Context) {
                 for (i in 0..3) {
                     val dx = dirs[i][0]; val dy = dirs[i][1]
                     val on = held and (1 shl i) != 0
-                    if (on) {
+                    if (on && half > dp(2f)) {
                         fill.shader = null; fill.color = PRESSED
                         val near = half + dp(1f); val far = arms - dp(2f); val side = half - dp(2f)
                         rect.set(if (dx == 0f) cx - side else if (dx > 0) cx + near else cx - far, if (dy == 0f) cy - side else if (dy > 0) cy + near else cy - far,
@@ -269,6 +310,7 @@ internal class PadArt(context: Context) {
     }
 
     fun stick(canvas: Canvas, cx: Float, cy: Float, radius: Float, kit: PadKit, kx: Float, ky: Float, active: Boolean) {
+        fill.alpha = 255
         fill.shader = RadialGradient(cx, cy, radius, WELL_IN, WELL_OUT, Shader.TileMode.CLAMP)
         fill.setShadowLayer(dp(2.5f), 0f, dp(1.5f), SHADOW)
         canvas.drawCircle(cx, cy, radius, fill)
@@ -327,12 +369,6 @@ internal class PadArt(context: Context) {
         fill.color = ACCENT; canvas.drawCircle(fx, fy, dp(5f), fill)
     }
 
-    fun label(canvas: Canvas, w: Float, h: Float, round: Boolean, value: String, pressed: Boolean) {
-        val inset = dp(2f)
-        glass(canvas, if (round) circle(w / 2f, h / 2f, min(w, h) / 2f - inset) else roundRect(inset, inset, w - inset, h - inset, min(w, h) * .25f), pressed)
-        text(canvas, value, w / 2f, h / 2f, min(h * .38f, dp(18f)), if (pressed) ON_ACCENT else INK, w * .82f)
-    }
-
     companion object {
         const val VISUAL = .72f
         val ACCENT = Color.rgb(0x1A, 0x9F, 0xFF)
@@ -352,8 +388,5 @@ internal class PadArt(context: Context) {
             InputControl.X to Color.rgb(0x4C, 0x9B, 0xF0), InputControl.Y to Color.rgb(0xF5, 0xC0, 0x2E))
         private val SYMBOL_COLORS = mapOf(InputControl.A to Color.rgb(0x8D, 0xB4, 0xF2), InputControl.B to Color.rgb(0xF2, 0x61, 0x6B),
             InputControl.X to Color.rgb(0xEE, 0x93, 0xD6), InputControl.Y to Color.rgb(0x45, 0xCB, 0xAA))
-        private const val MARK_DATA = "M-31.98 0H56.055V40.489A71.81 71.81 0 0 0 56.055 183.231V223.72H-31.98Z" +
-            "M71.885 0.28A111.86 111.86 0 0 1 71.885 223.44V183.234A71.81 71.81 0 0 0 71.885 40.486Z"
-        val MARK: Path by lazy { PathParser.createPathFromPathData(MARK_DATA) }
     }
 }

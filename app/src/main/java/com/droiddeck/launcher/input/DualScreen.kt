@@ -14,7 +14,8 @@ object DualScreen {
     const val MODE_AUTO = "auto"
     const val MODE_ON = "on"
     const val MODE_OFF = "off"
-    val modes = listOf(MODE_AUTO, MODE_ON, MODE_OFF)
+    const val MODE_SWAPPED = "swapped"
+    val modes = listOf(MODE_AUTO, MODE_ON, MODE_SWAPPED, MODE_OFF)
     private const val TYPE_INTERNAL = 1
     private const val TYPE_EXTERNAL = 2
     private val knownModels = setOf("retroid pocket duo", "ayn thor")
@@ -22,6 +23,14 @@ object DualScreen {
     private val takenListeners = java.util.concurrent.CopyOnWriteArraySet<() -> Unit>()
     @Volatile private var takenDisplays: Set<Int> = emptySet()
     private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+
+    fun menuOwnsController(open: Boolean, docked: Boolean, optIn: Boolean): Boolean = open && (!docked || optIn)
+
+    fun menuReturnsOnStart(selected: SecondScreenMode, menuWasShown: Boolean, menuUp: Boolean): Boolean =
+        !menuUp && (selected == SecondScreenMode.MENU || menuWasShown)
+
+    fun menuIdleOnBottom(open: Boolean, docked: Boolean, pinned: Boolean, optIn: Boolean): Boolean =
+        docked && (open || pinned) && !menuOwnsController(open, docked, optIn)
 
     fun yieldsBottom(model: String): Boolean = model.trim().lowercase().let { m -> knownModels.any(m::startsWith) }
 
@@ -91,7 +100,7 @@ object DualScreen {
     fun display(context: Context, displayManager: DisplayManager, primaryDisplayId: Int, mode: String = SessionPrefs.dualScreenMode(context)): Display? =
         when (mode) {
             MODE_OFF -> null
-            MODE_ON -> internalDisplay(displayManager, primaryDisplayId) ?: anyDisplay(displayManager, primaryDisplayId)
+            MODE_ON, MODE_SWAPPED -> internalDisplay(displayManager, primaryDisplayId) ?: anyDisplay(displayManager, primaryDisplayId)
             else -> if (dockedToDisplay(displayManager, primaryDisplayId)) null else builtInDisplay(displayManager, primaryDisplayId)
         }?.takeUnless { taken(it.displayId) }
 

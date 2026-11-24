@@ -330,7 +330,7 @@ public final class GogDownloadManager {
             rc = GuestCommand.INSTANCE.run(ctx, Arrays.asList(
                     "/usr/local/bin/droiddeck-innoextract", "--gog", "--silent",
                     "-d", guestDir, guestSetup),
-                    false, "gog-innoextract", null, null, false, cancelled,
+                    false, "gog-innoextract", null, null, false, cancelled, null,
                     line -> { cb.onLog("gog innoextract: " + line); return kotlin.Unit.INSTANCE; });
         } catch (Exception e) {
             throw new InstallException("The installer could not be extracted: " + e.getClass().getSimpleName());

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="input_settings">โปรไฟล์อินพุต</string>
     <string name="input_profiles">โปรไฟล์</string>
     <string name="input_physical">คอนโทรลเลอร์จริง</string>
     <string name="input_primary">หน้าจอหลัก</string>
@@ -22,6 +23,7 @@
     <string name="input_command_steam">เปิดเมนู Steam</string>
     <string name="input_command_qam">เปิดการเข้าถึงด่วนของ Steam</string>
     <string name="input_remove_element">ลบการควบคุม</string>
+    <string name="input_add_element">เพิ่มการควบคุม</string>
     <string name="input_extra_keys">ปุ่มเฉพาะอุปกรณ์</string>
     <string name="input_capture">กำหนดปุ่มจริง</string>
     <string name="input_capture_confirm">ปล่อยปุ่ม แล้วเลือก แก้ไข ลองอีกครั้ง หรือยกเลิก B หรือย้อนกลับจะยกเลิกหลังปล่อย</string>

@@ -263,6 +263,10 @@ private fun Content(
         SyncTabPage(s, modifier.padding(horizontal = padH).padding(top = padV))
         return
     }
+    if (selected == "decky" || selected == "boot-movies") {
+        SteamTabPage(selected, a, modifier.padding(horizontal = padH).padding(top = padV))
+        return
+    }
     if (selected == "updates") {
         UpdatesPage(s, a, modifier.padding(horizontal = padH).padding(top = padV))
         return
@@ -477,7 +481,7 @@ private fun UserAppIcon(app: UserApps.App, size: Int) {
 }
 
 @Composable
-private fun UserAppsProgress() {
+internal fun UserAppsProgress() {
     val colors = MaterialTheme.colorScheme
     val working = UserAppsState.working
     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
@@ -514,7 +518,9 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
             Column {
                 Text(app.name, fontSize = if (narrow) 22.sp else 26.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
                 Text(
-                    (app.repo?.let { stringResource(R.string.user_apps_github_version, it, app.version.orEmpty()) } ?: stringResource(app.kind.label())) +
+                    (app.repo?.let { stringResource(R.string.user_apps_github_version, it, app.version.orEmpty()) }
+                        ?: app.version?.takeIf { app.feed != null }?.let { stringResource(R.string.user_apps_github_version, stringResource(app.kind.label()), it) }
+                        ?: stringResource(app.kind.label())) +
                         (if (app.arch == "x86_64" || app.arch == "i386") " · " + stringResource(R.string.app_fex_x86, app.arch) else ""),
                     fontSize = 14.sp, color = colors.onSurfaceVariant,
                 )
@@ -526,7 +532,7 @@ private fun UserAppPage(app: UserApps.App, s: FrontEndState, a: FrontEndActions,
             PrimaryButton(stringResource(R.string.user_apps_open, app.name), enabled = !s.busy, main = true) { a.onUserApp(app) }
             BusyChip(s)
             SecondaryButton(stringResource(R.string.user_apps_edit), enabled = UserAppsState.working == null) { editing = true }
-            if (app.repo != null) UpdateButton(app, s)
+            if (app.updatable) UpdateButton(app, s)
             RemoveAppButton(app, enabled = !s.busy && !s.sessionRunning && UserAppsState.working == null) {
                 UserAppsState.remove(ctx, app); onSelect("desktop")
             }

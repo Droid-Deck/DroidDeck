@@ -58,17 +58,23 @@ class InputLayoutToolsTest {
     @Test fun builtInGamepadDefaultsComeFromTheGamepadGenerator() {
         val library = InputLibraries.read(context)
         val gamepad = library.layouts.first { it.id == InputLibraries.OVERLAY }
-        val (defaults, aspect) = InputLibraries.defaultPositions(context, library, gamepad)!!
-        assertTrue(gamepad.elements.isEmpty())
-        val (display, metrics) = InputLibraries.primaryDisplay(context)
-        val w = metrics.widthPixels; val h = metrics.heightPixels
-        assertEquals(KitLayout.elements(display, PadKit.current(context), w, h), defaults)
-        assertEquals(w.toFloat() / h, aspect, .0001f)
-        val copy = SavedInputLayout("mine", "Mine", origin = InputLibraries.OVERLAY)
-        assertEquals(defaults, InputLibraries.defaultPositions(context, library, copy)!!.first)
-        assertEquals(KitLayout.elements(display, PadKit.current(context), w, h, scale = 1.2f),
-            InputLibraries.defaultPositions(context, library, gamepad.copy(scale = 1.2f))!!.first)
+        val defaults = InputLibraries.defaultPositions(context, library, gamepad)!!.first
+        assertEquals(gamepad.elements.map { it.id }.toSet(), defaults.map { it.id }.toSet())
         assertNull(InputLibraries.defaultPositions(context, library, SavedInputLayout("new", "New")))
+    }
+
+    @Test fun quickButtonsHideWithoutRemovingElementsAndPersist() {
+        val library = InputLibraries.read(context)
+        val gamepad = library.layouts.first { it.id == InputLibraries.OVERLAY }
+        assertTrue(InputCommand.KEYBOARD in gamepad.quickButtons)
+        assertTrue(InputLibraries.setQuickButton(context, gamepad.id, InputCommand.KEYBOARD, false))
+        val hidden = InputLibraries.read(context).layouts.first { it.id == gamepad.id }
+        assertEquals(gamepad.elements, hidden.elements)
+        assertEquals(setOf(InputCommand.KEYBOARD), hidden.style.hidden)
+        val shown = hidden.style.shown(hidden.elements)
+        assertEquals(gamepad.elements.filterNot { it.id == "builtin:keyboard" }, shown)
+        assertTrue(InputLibraries.setQuickButton(context, gamepad.id, InputCommand.KEYBOARD, true))
+        assertEquals(gamepad, InputLibraries.read(context).layouts.first { it.id == gamepad.id })
     }
 
     @Test fun onlySteamQuickAccessAndKeyboardCanBeHidden() {
@@ -79,6 +85,35 @@ class InputLayoutToolsTest {
         }
         val custom = InputSurfaceElement(InputControl.A, .1f, .1f, .1f, .1f, "custom", name = "Steam")
         assertFalse(InputSurfaceStyle(hidden = QUICK_BUTTONS.toSet()).hides(custom))
+    }
+
+    private fun overlapping(elements: List<InputSurfaceElement>, width: Int, height: Int): List<Pair<String, String>> {
+        fun round(e: InputSurfaceElement) = e.buttonShape == InputButtonShape.CIRCLE && e.kind != InputElementKind.STICK
+        val result = mutableListOf<Pair<String, String>>()
+        for ((i, a) in elements.withIndex()) for (b in elements.drop(i + 1)) {
+            val ax = (a.x + a.width / 2) * width; val ay = (a.y + a.height / 2) * height
+            val bx = (b.x + b.width / 2) * width; val by = (b.y + b.height / 2) * height
+            val hit = if (round(a) && round(b)) {
+                val ra = minOf(a.width * width, a.height * height) / 2; val rb = minOf(b.width * width, b.height * height) / 2
+                kotlin.math.hypot(ax - bx, ay - by) < ra + rb - .5f
+            } else kotlin.math.abs(ax - bx) < (a.width + b.width) * width / 2 - .5f && kotlin.math.abs(ay - by) < (a.height + b.height) * height / 2 - .5f
+            if (hit) result += a.id to b.id
+        }
+        return result
+    }
+
+    @Test fun generatedGamepadSpacingFollowsButtonSize() {
+        for ((w, h) in listOf(1920 to 1080, 1280 to 960)) {
+            val normal = LegacyGamepadLayout(context, w, h).elements()
+            for (scale in listOf(.8f, 1.25f)) {
+                val elements = LegacyGamepadLayout(context, w, h, scale = scale).elements()
+                assertEquals("$w x $h at $scale", emptyList<Pair<String, String>>(), overlapping(elements, w, h))
+                val face = listOf("legacy:a", "legacy:y").map { id -> elements.first { it.id == id } }
+                val faceNormal = listOf("legacy:a", "legacy:y").map { id -> normal.first { it.id == id } }
+                val gap = (face[0].y - face[1].y) / (faceNormal[0].y - faceNormal[1].y)
+                if (scale > 1f) assertTrue(gap > 1f) else assertTrue(gap < 1f)
+            }
+        }
     }
 
     @Test fun scalingACustomLayoutScalesTheGapsBetweenNeighbours() {
@@ -96,4 +131,88 @@ class InputLayoutToolsTest {
         }
     }
 
+    @Test fun aScaledGamepadStaysGeneratedAndRegeneratesOnRotation() {
+        com.droiddeck.launcher.session.SessionPrefs.setSteamController(context, com.droiddeck.launcher.session.SessionPrefs.CONTROLLER_NONE)
+        val (display, metrics) = InputLibraries.primaryDisplay(context)
+        val long = maxOf(metrics.widthPixels, metrics.heightPixels)
+        val short = minOf(metrics.widthPixels, metrics.heightPixels)
+        val gamepad = InputLibraries.read(context).layouts.first { it.id == InputLibraries.OVERLAY }
+        val scaled = gamepad.copy(scale = 1.25f, elements = LegacyGamepadLayout(display, long, short, scale = 1.25f).regenerate(gamepad.elements))
+        assertEquals(long to short, OnScreenLayout.generatedSize(context, scaled, long, short))
+        val rotated = OnScreenLayout.elements(context, scaled, short, long, android.graphics.Rect())
+        assertEquals(LegacyGamepadLayout(context, short, long, scale = 1.25f).regenerate(scaled.elements), rotated)
+        assertNull(OnScreenLayout.generatedSize(context, scaled.copy(scale = 1f), long, short))
+        InputLibraries.update(context) { it.withLayout(scaled) }
+        assertEquals(1.25f, InputLibraries.read(context).layouts.first { it.id == gamepad.id }.scale)
+    }
+
+    private fun assertCross(elements: List<InputSurfaceElement>, width: Int, height: Int, ids: List<String>) {
+        val (up, right, down, left) = ids.map { id -> elements.first { it.id == id }.let { (it.x + it.width / 2) * width to (it.y + it.height / 2) * height } }
+        val cx = (up.first + right.first + down.first + left.first) / 4
+        val cy = (up.second + right.second + down.second + left.second) / 4
+        assertEquals(up.first, down.first, 1f)
+        assertEquals(left.second, right.second, 1f)
+        assertTrue(up.second < down.second && left.first < right.first)
+        val reach = listOf(up, right, down, left).map { kotlin.math.hypot(it.first - cx, it.second - cy) }
+        reach.forEach { assertEquals(reach[0], it, 1f) }
+    }
+
+    private fun assertGamepadShape(elements: List<InputSurfaceElement>, width: Int, height: Int, label: String) {
+        assertCross(elements, width, height, listOf("legacy:y", "legacy:b", "legacy:a", "legacy:x"))
+        assertCross(elements, width, height, listOf("legacy:up", "legacy:right", "legacy:down", "legacy:left"))
+        assertEquals(label, emptyList<Pair<String, String>>(), overlapping(elements, width, height))
+    }
+
+    private fun assertStickView(elements: List<InputSurfaceElement>, width: Int, height: Int, label: String) {
+        for (control in listOf(InputControl.LS, InputControl.RS)) {
+            val stick = elements.first { it.control == control }
+            assertTrue("$label ${stick.id} keeps its widened travel width", stick.width * width >= stick.height * height * 1.25f - 1f)
+            assertTrue("$label ${stick.id} stays on screen", stick.x >= 0f && stick.x + stick.width <= 1.0001f)
+        }
+    }
+
+    @Test fun sticksKeepTheirFullViewAtSurfaceEdges() {
+        for ((width, height) in listOf(2608 to 1200, 1920 to 1080, 1280 to 960)) {
+            ControllerPrefs.setLayout(context, width, height, mapOf("ls" to (0f to .5f), "rs" to (1f to .5f)))
+            val elements = LegacyGamepadLayout(context, width, height).elements()
+            assertStickView(elements, width, height, "$width x $height")
+            ControllerPrefs.resetLayout(context, width, height)
+        }
+    }
+
+    @Test @Config(qualifiers = "w833dp-h468dp-land-369dpi")
+    fun buttonSizeKeepsTheGamepadShapeAtHandheldDensity() {
+        for ((w, h) in listOf(1920 to 1080, 1920 to 1200)) {
+            val normal = LegacyGamepadLayout(context, w, h).elements()
+            assertGamepadShape(normal, w, h, "$w x $h")
+            val right = setOf("legacy:a", "legacy:b", "legacy:x", "legacy:y", "legacy:rs", "legacy:rb", "legacy:rt", "legacy:start")
+            val left = setOf("legacy:up", "legacy:right", "legacy:down", "legacy:left", "legacy:ls", "legacy:lb", "legacy:lt", "legacy:select")
+            val moved = normal.map { e ->
+                when (e.id) {
+                    in right -> e.copy(x = e.x + 21f / w, y = e.y + 18f / h)
+                    in left -> e.copy(x = e.x - 20f / w, y = e.y + 15f / h)
+                    else -> e
+                }
+            }
+            for (scale in listOf(.8f, 1.25f)) {
+                val generator = LegacyGamepadLayout(context, w, h, scale = scale)
+                assertGamepadShape(generator.elements(), w, h, "$w x $h generated at $scale")
+                val rescaled = generator.rescale(moved, LegacyGamepadLayout(context, w, h))
+                assertGamepadShape(rescaled, w, h, "$w x $h moved at $scale")
+                val a = rescaled.first { it.id == "legacy:a" }
+                val generatedA = generator.elements().first { it.id == "legacy:a" }
+                assertEquals(generatedA.x + 21f / w, a.x, .001f)
+                assertEquals(generatedA.y + 18f / h, a.y, .001f)
+                assertEquals(moved, LegacyGamepadLayout(context, w, h).rescale(rescaled, generator).let { back ->
+                    back.zip(moved).map { (b, m) -> if (kotlin.math.abs(b.x - m.x) < .001f && kotlin.math.abs(b.y - m.y) < .001f && kotlin.math.abs(b.width - m.width) < .001f) m else b }
+                })
+            }
+        }
+    }
+
+    @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
+    fun wideHighDensityGamepadKeepsItsShape() {
+        val elements = LegacyGamepadLayout(context, 2608, 1200).elements()
+        assertGamepadShape(elements, 2608, 1200, "2608 x 1200")
+    }
 }

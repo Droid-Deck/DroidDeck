@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.ControllerPrefs
-import com.droiddeck.launcher.input.LegacyControllerPrefs
 import com.droiddeck.launcher.input.PadBridgeRoutingTest
 import com.droiddeck.launcher.input.PhysicalShortcuts
 import org.junit.Assert.*
@@ -128,7 +127,7 @@ class PhysicalShortcutsDialogTest {
     }
 
     @Test fun removalRestoresDefaultAndPreservesOtherAssignmentsAndControllerSettings() {
-        LegacyControllerPrefs.setSelectSteam(context, true)
+        ControllerPrefs.setSelectSteam(context, true)
         PhysicalShortcuts.assign(context, requireNotNull(PhysicalShortcuts.button(event(KeyEvent.KEYCODE_F1, KeyEvent.ACTION_DOWN))),
             PhysicalShortcuts.Action.STEAM)
         PhysicalShortcuts.assign(context, requireNotNull(PhysicalShortcuts.button(event(KeyEvent.KEYCODE_F2, KeyEvent.ACTION_DOWN))),

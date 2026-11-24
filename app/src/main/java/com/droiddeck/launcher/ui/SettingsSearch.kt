@@ -49,6 +49,12 @@ internal fun SettingsPillSearch(
     val icon = remember { FocusRequester() }
     var toIcon by remember { mutableStateOf(false) }
     var focusOnOpen by remember { mutableStateOf(false) }
+    var focusTap by remember { mutableStateOf(0) }
+    var fieldFocused by remember { mutableStateOf(false) }
+    CancelPendingFocus(focusOnOpen, focusTap, fieldFocused) {
+        focusOnOpen = false
+        if (query.isEmpty()) onClose()
+    }
     val close = { toIcon = true; focusOnOpen = false; onClose() }
     BackHandler(enabled = searching) { close() }
     LaunchedEffect(toIcon, searching, open <= 0.01f) {
@@ -73,15 +79,18 @@ internal fun SettingsPillSearch(
                 Box(Modifier.width(w).graphicsLayer { alpha = (open * 1.6f).coerceAtMost(1f) }) {
                     AdbTextField(
                         value = query, onValueChange = onQuery, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
-                        placeholder = stringResource(R.string.settings_search), compact = true, showLabel = false, focusOnShow = focusOnOpen,
+                        placeholder = stringResource(R.string.settings_search), compact = true, showLabel = false, focusOnShow = focusOnOpen, focusAtTap = focusTap,
                         clearFocus = !searching,
-                        onFocusChange = { focused -> if (!focused && query.isEmpty() && searching) { focusOnOpen = false; onClose() } },
+                        onFocusChange = { focused ->
+                            fieldFocused = focused
+                            if (!focused && query.isEmpty() && searching) { focusOnOpen = false; onClose() }
+                        },
                     )
                 }
                 SmallIconButton(Icons.Filled.Close, stringResource(R.string.settings_search_clear), tint = colors.onSurfaceVariant) { close() }
             }
         } else {
-            Box(Modifier.focusRequester(icon)) { SearchIcon(stringResource(R.string.settings_search)) { focusOnOpen = true; onOpen() } }
+            Box(Modifier.focusRequester(icon)) { SearchIcon(stringResource(R.string.settings_search)) { focusTap = ScreenTaps.count; focusOnOpen = true; onOpen() } }
         }
     }
 }

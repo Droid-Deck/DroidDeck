@@ -75,9 +75,14 @@
     <string name="input_independent_copy">Uafhængig kopi</string>
     <string name="input_floating_stick">Start stikket ved berøringspunktet</string>
     <string name="input_hide_idle">Skjul stikket, når det ikke bruges</string>
+    <string name="input_tools">Værktøjer</string>
+    <string name="input_quick_auto">Auto (%1$s)</string>
+    <string name="input_quick_mixed">Brugerdefineret (%1$s)</string>
     <string name="input_save_combination">Gem som ny profil</string>
     <string name="input_profile_controls_mode">Profilbetjening</string>
+    <string name="input_profile">Profil</string>
     <string name="input_mouse_gestures">Musetouchpadbevægelser</string>
+    <string name="input_mouse_gestures_hint">Når tildelt musemarkøren: tryk for at klikke, hold for at trække, og rul med to fingre.</string>
     <string name="input_quick_override_hint">%1$s har en tilsidesættelse af hurtigmenuen. Vælg Auto for at bruge dens standardprofil og alle tre gemte dele.</string>
     <string name="input_route_local">DroidDeck-input</string>
     <string name="input_axis_action_hint" formatted="false">Holdes, mens styrepinden flyttes i en vilkårlig retning: tryk over 55 %, slip under 35 %. Brug Retningstaster til at tildele hver retning separat. DroidDeck-kommandoer kører én gang pr. udsving. Stikklikket konfigureres separat.</string>
@@ -99,11 +104,17 @@
     <string name="input_shortcut_hold_hint">I Steam-tilstand. Hvis du holder Tilbage, åbnes hurtigadgang også.</string>
     <string name="input_restore_shortcut">Gendan standard</string>
     <string name="input_virtual_controller">Virtuel controller</string>
+    <string name="input_virtual_controller_hint">Den controllertype, som Steam eller spillet ser.</string>
     <string name="input_touchscreen">Berøringsskærm</string>
+    <string name="input_touchscreen_hint">Hvordan berøringer på spilskærmen håndteres. Profilknapper beholder deres tildelte handlinger.</string>
     <string name="input_touch_cursor">Berøringsmarkør</string>
+    <string name="input_touch_cursor_hint">Viser en markør ved direkte berøringer på spilskærmen.</string>
     <string name="input_touch_hold">Rør og hold</string>
+    <string name="input_touch_hold_hint">Musehandling, når du holder en finger på spilskærmen.</string>
     <string name="input_back_taps">Tryk på Tilbage-knappen</string>
+    <string name="input_back_taps_hint">Første handling: enkelt tryk. Anden handling: dobbelttryk.</string>
     <string name="input_toggle_button">Skifteknap</string>
+    <string name="input_toggle_button_hint">Tryk for at holde, tryk igen for at slippe. Åbning af en menu eller skift af profil slipper knappen.</string>
     <string name="input_button_shape">Form</string>
     <string name="input_shape_rounded">Afrundet</string>
     <string name="input_shape_pill">Pille</string>

@@ -55,12 +55,12 @@ class InputUiLayoutTest {
     }
 
     @Test @Config(qualifiers = "w360dp-h800dp")
-    fun phoneKeepsTheControllerPageAndRemappingReachable() {
+    fun phoneKeepsLibraryNavigationAndProfileEditingReachable() {
         compose.setContent { root = LocalView.current; DroidDeckTheme { Surface { BoxWithConstraints {
             CompositionLocalProvider(LocalNarrowPane provides (maxWidth < 600.dp)) { InputSettingsPage({}) }
         } } } }
-        compose.onNodeWithTag("osc-edit").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithTag("input-remap").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithTag("input-profile-desktop").performScrollTo().assertIsDisplayed().performClick()
+        compose.onNodeWithTag("input-part-physical").performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithTag("input-binding-a").performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithTag("input-action-save").assertIsDisplayed()
         screenshot("phone-properties")
@@ -75,10 +75,10 @@ class InputUiLayoutTest {
     }
 
     @Test @Config(qualifiers = "w960dp-h600dp")
-    fun largeScreenShowsTheControllerPageInTheExistingTheme() {
+    fun largeScreenShowsTheProfileLibraryInTheExistingTheme() {
         compose.setContent { root = LocalView.current; DroidDeckTheme { Surface { InputSettingsPage({}) } } }
-        compose.onNodeWithTag("osc-edit").assertIsDisplayed()
-        screenshot("controller")
+        compose.onNodeWithTag("input-profile-game").assertIsDisplayed()
+        screenshot("profiles")
     }
 
     @Test @Config(qualifiers = "w960dp-h600dp")
@@ -100,7 +100,7 @@ class InputUiLayoutTest {
                             onInstallPackage = {}, onRemovePackage = {}, onRuntime = {}, onFrameGenPick = {},
                             onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},
                             onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
-                            onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
+                            
                             onSetPhantomProcessLimit = { _, _ -> }, controller = ControllerActions({}),
                         ), onOpenDeveloperOptions = {}, onRequestWirelessAdb = {}, onPairWirelessDebugging = {})
                     }
@@ -108,11 +108,11 @@ class InputUiLayoutTest {
             }
         }
         compose.onNodeWithText(context.getString(R.string.setup_tab_controller)).performClick()
-        compose.onNodeWithTag("osc-edit").assertIsDisplayed()
-        compose.onAllNodesWithText(context.getString(R.string.osc_edit_layout)).assertCountEquals(1)
+        compose.onNodeWithTag("input-profile-game").assertIsDisplayed()
+        compose.onNodeWithText(context.getString(R.string.ctrl_layout)).assertDoesNotExist()
         screenshot("controller-tab")
-        compose.onNodeWithTag("input-remap").performScrollTo().performClick()
-        compose.onNodeWithTag("input-binding-a").assertExists()
+        compose.onNodeWithTag("input-profile-game").performClick()
+        compose.onNodeWithTag("input-part-physical").performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.setup_tab_launcher)).assertIsDisplayed()
         screenshot("controller-physical")
         compose.runOnIdle { assertEquals(InputProfiles.AUTO, InputLibraries.read(context).selected) }

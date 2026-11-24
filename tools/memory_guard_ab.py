@@ -26,30 +26,52 @@ PACKAGE = "com.droiddeck.launcher"
 SESSION = f"{PACKAGE}/.SessionActivity"
 HOG_PATH = "/data/local/tmp/dd-memory-hog.sh"
 HOG_MOUNT = "/dev/dd-memory-hog"
+SEED_PATH = "/data/local/tmp/dd-memory-burst.bin"
 
+# oom_score_adj is read without su: under pressure lmkd kills the root manager app, and each su call
+# can then open its request screen on top of the game.
 # Incompressible data in a private tmpfs: zram cannot shrink it and no app owns it, so lmkd keeps
 # killing by oom_score_adj while it is held.
 HOG = f"""#!/system/bin/sh
-stop_mb=$1; hold=$2
-cleanup() {{ rm -f {HOG_MOUNT}/f*; umount {HOG_MOUNT} 2>/dev/null; }}
+stop_mb=$1; hold=$2; mode=$3
+cleanup() {{ kill $(jobs -p) 2>/dev/null; rm -f {HOG_MOUNT}/f*; umount {HOG_MOUNT} 2>/dev/null; }}
 trap 'cleanup; exit 1' HUP INT TERM
 mkdir -p {HOG_MOUNT}
 grep -q ' {HOG_MOUNT} ' /proc/mounts || mount -t tmpfs -o size=16g tmpfs {HOG_MOUNT}
-i=0
+i=0; failed=0
+if [ "$mode" = burst ]; then
+  [ "$(stat -c %s {SEED_PATH} 2>/dev/null)" = 268435456 ] ||
+    {{ head -c 268435456 /dev/urandom > {SEED_PATH}.tmp && mv {SEED_PATH}.tmp {SEED_PATH}; }} ||
+    {{ rm -f {SEED_PATH}.tmp; cleanup; exit 1; }}
+  cat {SEED_PATH} > /dev/null
+  avail=$(awk '/MemAvailable/ {{print int($2/1024)}}' /proc/meminfo)
+  echo "avail=$avail"
+  take=$((avail - stop_mb))
+  [ "$take" -gt 0 ] || {{ echo "nothing to take"; cleanup; exit 2; }}
+  n=$((take / 256)); rest=$((take % 256)); pids=""
+  echo "burst_mb=$take start=$(date +%s%N)"
+  while [ $i -lt $n ]; do cat {SEED_PATH} > {HOG_MOUNT}/f$i & pids="$pids $!"; i=$((i+1)); done
+  [ "$rest" -gt 0 ] && {{ head -c $((rest * 1048576)) {SEED_PATH} > {HOG_MOUNT}/f$i & pids="$pids $!"; }}
+  for pid in $pids; do wait "$pid" || failed=1; done
+  echo "burst_done=$(date +%s%N)"
+  echo "avail=$(awk '/MemAvailable/ {{print int($2/1024)}}' /proc/meminfo)"
+  i=512
+fi
 while [ $i -lt 512 ]; do
   avail=$(awk '/MemAvailable/ {{print int($2/1024)}}' /proc/meminfo)
   echo "avail=$avail"
   [ "$avail" -le "$stop_mb" ] && break
-  head -c 33554432 /dev/urandom > {HOG_MOUNT}/f$i || break
+  head -c 33554432 /dev/urandom > {HOG_MOUNT}/f$i || {{ failed=1; break; }}
   i=$((i+1))
 done
+[ "$failed" = 0 ] || {{ echo "write failed"; cleanup; exit 1; }}
 sleep "$hold"
 cleanup
 echo released
 """
 # Stops a writer left by an interrupted run before its files go, so the unmount does not fail. The
 # bracketed patterns keep pkill from matching the shell that runs this line.
-HOG_CLEANUP = (f"pkill -f '[d]d-memory-hog.sh'; pkill -f '[h]ead -c 33554432'; sleep 1; rm -f {HOG_MOUNT}/f*; "
+HOG_CLEANUP = (f"pkill -f '[d]d-memory-hog.sh'; pkill -f '[h]ead -c 33554432'; pkill -f '[d]d-memory-burst.bin'; sleep 1; rm -f {HOG_MOUNT}/f*; "
                f"umount {HOG_MOUNT} 2>/dev/null; true")
 
 def focused_display(input_dump: str) -> int | None:
@@ -58,7 +80,7 @@ def focused_display(input_dump: str) -> int | None:
 
 
 def activity_count(activities_dump: str, activity: str) -> int:
-    return len(re.findall(r"Hist\s+#\d+: ActivityRecord\{\S+ u\d+ " + re.escape(activity) + r" ", activities_dump))
+    return len(re.findall(r"Hist\s+#\d+: ActivityRecord\{\S+ u\d+ " + re.escape(activity) + r"[ }]", activities_dump))
 
 
 def guard_count(activities_dump: str) -> int:
@@ -85,7 +107,8 @@ def panel_windows(windows_dump: str, display: int) -> int:
 
 
 def bottom_home(activities_dump: str, session_display: int) -> tuple[int, str] | None:
-    display = None
+    """The visible home on another display, else the visible app on top of it."""
+    display, top = None, None
     for line in activities_dump.splitlines():
         section = re.match(r"Display #(\d+) \(activities", line)
         if section:
@@ -96,7 +119,10 @@ def bottom_home(activities_dump: str, session_display: int) -> tuple[int, str] |
         home = re.search(r"type=home A=\d+:(\S+) .*visible=true", line)
         if home:
             return display, home.group(1)
-    return None
+        app = re.search(r"type=standard A=\d+:([\w.]+) .*visible=true", line)
+        if app and top is None and not app.group(1).startswith(PACKAGE):
+            top = display, app.group(1)
+    return top
 
 
 def logical_size(displays_dump: str, display: int) -> tuple[int, int] | None:
@@ -151,8 +177,11 @@ class Device:
         return self.sh(f"su -c {shlex.quote(command)}", timeout=timeout)
 
     def ctl(self, *args: str, timeout: int = 300) -> subprocess.CompletedProcess[str]:
-        return subprocess.run([str(TOOLS / "droiddeckctl"), "--adb", self.adb, "--serial", self.serial, *args],
-                              capture_output=True, text=True, timeout=timeout)
+        command = [str(TOOLS / "droiddeckctl"), "--adb", self.adb, "--serial", self.serial, *args]
+        try:
+            return subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return subprocess.CompletedProcess(command, -1, "", f"timed out after {timeout} s")
 
     def phase(self) -> str | None:
         match = re.search(r'"phase":\s*"(\w+)"', self.ctl("state").stdout)
@@ -208,7 +237,8 @@ class Bench:
 
     def prepare(self, apk: str | None):
         self.d.sh("input keyevent KEYCODE_WAKEUP")
-        self.d.ctl("stop")
+        if self.d.ctl("stop", timeout=120).returncode != 0:
+            self.d.sh(f"am force-stop {PACKAGE}")
         if apk:
             env = dict(os.environ, ADB_SERIAL=self.d.serial)
             subprocess.run([str(TOOLS / "deploy_local.sh"), apk], env=env, check=True, capture_output=True)
@@ -234,7 +264,7 @@ class Bench:
             "guards": guard_count(activities),
             "sessions": session_count(activities),
             "panel": panel_windows(self.d.sh("dumpsys window windows"), display),
-            "adj": int(self.d.su(f"cat /proc/{pid}/oom_score_adj").strip() or -9999),
+            "adj": int(self.d.sh(f"cat /proc/{pid}/oom_score_adj").strip() or -9999),
             "pid": pid,
         }
 
@@ -251,7 +281,8 @@ class Bench:
         before = self.snapshot()
         _, home = self.bottom()
         self.d.run("logcat", "-b", "events", "-c")
-        samples = self.d.su(f"kill -9 $(pidof {home}); for i in $(seq 50); do cat /proc/{before['pid']}/oom_score_adj"
+        self.d.su(f"kill -9 $(pidof {home})")
+        samples = self.d.sh(f"for i in $(seq 50); do cat /proc/{before['pid']}/oom_score_adj"
                             " 2>/dev/null || echo DEAD; sleep 0.1; done").split()
         events = self.d.run("logcat", "-b", "events", "-d")
         (self.out / f"{self.label}-{state}-events.txt").write_text(events)
@@ -297,7 +328,7 @@ class Bench:
         self.probe("using_bottom_now")
         self.game_front()
 
-    def pressure(self, run: str, stop_mb: int, hold: int):
+    def pressure(self, run: str, stop_mb: int, hold: int, burst: bool = False) -> bool:
         with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as script:
             script.write(HOG)
         try:
@@ -305,16 +336,18 @@ class Bench:
         finally:
             os.unlink(script.name)
         self.d.sh(f"chmod 755 {HOG_PATH}")
-        self.game_front()
         self.close_panel()
+        self.game_front()
+        self.tap(self.session_display, (0.36, 0.11))
+        time.sleep(2)
         before = self.snapshot()
         self.d.run("logcat", "-b", "events", "-c")
-        hog = subprocess.Popen([self.d.adb, "-s", self.d.serial, "shell", f"su -c '{HOG_PATH} {int(stop_mb)} {int(hold)}'"],
+        hog = subprocess.Popen([self.d.adb, "-s", self.d.serial, "shell", f"su -c '{HOG_PATH} {int(stop_mb)} {int(hold)} {'burst' if burst else 'fill'}'"],
                                stdout=subprocess.PIPE, text=True)
         samples = []
         try:
             while hog.poll() is None:
-                samples.append(self.d.su(f"cat /proc/{before['pid']}/oom_score_adj 2>/dev/null || echo DEAD").strip())
+                samples.append(self.d.sh(f"cat /proc/{before['pid']}/oom_score_adj 2>/dev/null || echo DEAD").strip())
                 time.sleep(0.5)
             output = hog.stdout.read() if hog.stdout else ""
         finally:
@@ -324,12 +357,19 @@ class Bench:
         time.sleep(3)
         events = self.d.run("logcat", "-b", "events", "-d")
         (self.out / f"{self.label}-{run}-events.txt").write_text(events)
+        workload_ok = hog.returncode == 0 and "released" in output.splitlines()
+        if not workload_ok:
+            print(f"memory-guard-ab: {run}: the memory hog failed (exit {hog.returncode}): "
+                  f"{output.strip().splitlines()[-1] if output.strip() else 'no output'}", file=sys.stderr)
         available = [int(value) for value in re.findall(r"avail=(\d+)", output)]
+        took = re.search(r"start=(\d+).*?burst_done=(\d+)", output, re.S)
         self.write("pressure", {
-            "run": run, "stop_mb": stop_mb, "hold_s": hold, **{k: v for k, v in before.items() if k != "pid"},
+            "run": run, "workload_ok": workload_ok, "mode": "burst" if burst else "fill", "stop_mb": stop_mb, "hold_s": hold,
+            "burst_ms": (int(took.group(2)) - int(took.group(1))) // 1_000_000 if took else None, **{k: v for k, v in before.items() if k != "pid"},
             "min_available_mb": min(available) if available else None, "adj_max": max_adj(samples),
             "droiddeck_alive": self.d.pid() == before["pid"], "phase": self.d.phase(), **summarize_events(events),
         })
+        return workload_ok
 
 
 def fraction_pair(text: str) -> tuple[float, float]:
@@ -355,6 +395,8 @@ def main() -> int:
     pressure.add_argument("--stop-mb", type=int, default=650, help="stop filling at this MemAvailable")
     pressure.add_argument("--hold", type=int, default=30)
     pressure.add_argument("--runs", type=int, default=1)
+    pressure.add_argument("--burst", action="store_true",
+                          help="take everything above --stop-mb at once instead of filling 32 MiB at a time")
     summarize = commands.add_parser("summarize", help="summarize a saved events log")
     summarize.add_argument("events", type=Path)
     args = parser.parse_args()
@@ -376,9 +418,19 @@ def main() -> int:
             bench.prepare(args.apk)
             bench.states()
         else:
+            completed = 0
             for run in range(args.runs):
-                bench.prepare(args.apk if run == 0 else None)
-                bench.pressure(f"stop{args.stop_mb}-{run + 1}", args.stop_mb, args.hold)
+                try:
+                    bench.prepare(args.apk if run == 0 else None)
+                except RuntimeError as exc:
+                    print(f"memory-guard-ab: run {run + 1} skipped: {exc}", file=sys.stderr)
+                    continue
+                if bench.pressure(f"{'burst' if args.burst else 'stop'}{args.stop_mb}-{run + 1}", args.stop_mb,
+                                  args.hold, args.burst):
+                    completed += 1
+            if completed == 0:
+                print("memory-guard-ab: no pressure run completed", file=sys.stderr)
+                return 1
     except RuntimeError as exc:
         print(f"memory-guard-ab: {exc}", file=sys.stderr)
         return 1

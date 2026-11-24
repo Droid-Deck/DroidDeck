@@ -1,0 +1,32 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index cfec551..e98d320 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -6945,6 +6945,12 @@ handle_system_tray_opcode(xwayland_ctx_t *ctx, XClientMessageEvent *ev)
+ 	}
+ }
+ 
++static bool
++opacity_changes_focus_candidacy( unsigned int oldOpacity, unsigned int newOpacity )
++{
++	return ( oldOpacity > TRANSLUCENT ) != ( newOpacity > TRANSLUCENT );
++}
++
+ /* See http://tronche.com/gui/x/icccm/sec-4.html#s-4.1.4 */
+ static void
+ handle_wm_change_state(xwayland_ctx_t *ctx, steamcompmgr_win_t *w, XClientMessageEvent *ev)
+@@ -7329,8 +7335,14 @@ handle_property_notify(xwayland_ctx_t *ctx, XPropertyEvent *ev)
+ 
+ 			if (newOpacity != w->opacity)
+ 			{
++				const bool bFocusCandidacyChanged = opacity_changes_focus_candidacy( w->opacity, newOpacity );
+ 				w->opacity = newOpacity;
+ 
++				if ( bFocusCandidacyChanged )
++				{
++					MakeFocusDirty();
++				}
++
+ 				if ( gameFocused && ( w == ctx->focus.overlayWindow || w == ctx->focus.notificationWindow ) )
+ 				{
+ 					hasRepaintNonBasePlane = true;
