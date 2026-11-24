@@ -476,7 +476,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
                 return -1;
             }
             int ret;
-            if (is_host_interpreter(rewritten_interp)) {
+            if (is_host_interpreter(interp, rewritten_interp)) {
                 char **sys_env = clean_env_for_system(envp);
                 ret = run_execve(orig_execve, rewritten_interp, new_argv, sys_env);
                 int saved_errno = errno;
@@ -829,7 +829,7 @@ static int spawn_script(pid_t *pid, const char *script, struct exec_probe *probe
     char **new_argv = build_script_argv(rewritten_interp, interp_arg, script, argv);
     if (!new_argv) return ENOMEM;
     int ret;
-    if (is_host_interpreter(rewritten_interp)) {
+    if (is_host_interpreter(interp, rewritten_interp)) {
         orig_posix_spawn_f_type orig_posix_spawn = real_posix_spawn();
         char **sys_env = clean_env_for_system(envp);
         ret = orig_posix_spawn ? orig_posix_spawn(pid, rewritten_interp, file_actions, attrp, new_argv, sys_env) : ENOSYS;
