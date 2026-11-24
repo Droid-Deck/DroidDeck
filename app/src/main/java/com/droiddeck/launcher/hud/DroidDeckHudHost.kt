@@ -54,8 +54,11 @@ class DroidDeckHudHost(context: Context) {
         val now = System.nanoTime()
         val compositorLive = lastCompositorFrameNanos > 0L &&
             now - lastCompositorFrameNanos <= 1_000_000_000L
-        val detected = compositorLive || (feed.live &&
-            (!feed.steamFocusKnown || !feed.steamFocused))
+        val detected = if (feed.live) {
+            feed.steamFocusKnown && !feed.steamFocused
+        } else {
+            compositorLive
+        }
 
         if (detected != candidateGameActive) {
             candidateGameActive = detected
@@ -92,6 +95,7 @@ class DroidDeckHudHost(context: Context) {
         }
 
         override fun onGameFrame() {
+            if (feed.live && (!feed.steamFocusKnown || feed.steamFocused)) return
             lastCompositorFrameNanos = System.nanoTime()
             feed.onCompositorFrame(lastCompositorFrameNanos)
         }
