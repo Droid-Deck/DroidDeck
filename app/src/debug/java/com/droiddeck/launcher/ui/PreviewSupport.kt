@@ -61,7 +61,7 @@ internal val sampleActions: FrontEndActions = FrontEndActions(
     onSteamSettings = {}, onDesktopSettings = {}, onInstallPackage = {}, onRemovePackage = {}, onRuntime = {},
     onFrameGenPick = {}, onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {}, onRoms = {},
     onFiles = {}, onLogs = {}, onOffline = {},
-    onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> }, onSetPhantomProcessLimit = { _, _ -> },
+    onSetPhantomProcessLimit = { _, _ -> },
 )
 
 /** The in-game menu's actions with settled sample values; its switches do nothing. */

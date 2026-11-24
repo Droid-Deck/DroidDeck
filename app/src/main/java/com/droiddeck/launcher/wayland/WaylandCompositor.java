@@ -26,6 +26,7 @@ public final class WaylandCompositor {
     public interface GameListener {
         void onGameSurface(String window, String gpuName);
         void onGameFrame();
+        default void onCompositorFrame() {}
         default void onGameProgram(int pid, String program) {}
     }
 
@@ -68,6 +69,12 @@ public final class WaylandCompositor {
         }
         GameListener l = gameListener;
         if (l != null) l.onGameFrame();
+    }
+
+    @SuppressWarnings("unused")
+    static void onCompositorFrame() {
+        GameListener l = gameListener;
+        if (l != null) l.onCompositorFrame();
     }
 
     @SuppressWarnings("unused")

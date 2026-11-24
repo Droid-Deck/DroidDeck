@@ -163,6 +163,7 @@ struct layer {
     ARect geo_src, geo_dst;
     int geo_valid;
     int alloc_tier;
+    unsigned import_failed_fmts;
     uint64_t pool_modifier;
     int first_logged;
     int64_t drop_logged_ns;
@@ -487,7 +488,8 @@ static const char *tier_name(int tier) {
 
 static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fmt) {
     g_alloc_failed = 0;
-    while (l->alloc_tier <= TIER_LINEAR) {
+    const unsigned fmt_bit = fmt == AHB_RGB10A2 ? 2u : 1u;
+    while (l->alloc_tier <= TIER_LINEAR && !(l->import_failed_fmts & fmt_bit)) {
         const int tier = l->alloc_tier;
         AHardwareBuffer_Desc d = {
             .width = (uint32_t)w, .height = (uint32_t)h, .layers = 1,
@@ -560,6 +562,7 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
                        nh ? nh->numFds : -1, nh ? nh->numInts : -1, hd);
             AHardwareBuffer_release(ahb);
             if (tier < TIER_LINEAR) { l->alloc_tier = tier + 1; continue; }
+            l->import_failed_fmts |= fmt_bit;
             g_alloc_failed = 1;
             return -1;
         }

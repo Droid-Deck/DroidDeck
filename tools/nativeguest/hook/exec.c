@@ -9,17 +9,73 @@
 // Runs before every exec, mostly in a child a shell has just forked: the copies write only the
 // string (ddnatv_copy_cstr), not the whole PATH_MAX buffer, since each page written there is a
 // copy-on-write fault.
+static int follow_link(const char *path, char *target, size_t size) {
+    ssize_t len = readlink(path, target, size - 1);
+    if (len < 0) return 0;
+    target[len] = '\0';
+    // proot's link2symlink leaves hard links as ".l2s.*" files that programs must not see by name
+    const char *base = strrchr(target, '/');
+    return strncmp(base ? base + 1 : target, ".l2s.", 5) != 0;
+}
+
 static void resolve_symlinks(const char *path, char *out, size_t out_size, int depth) {
     if (!path || !out || out_size == 0) return;
     ddnatv_copy_cstr(out, out_size, path);
     if (depth > 8) return;
-
     char link_target[PATH_MAX];
-    ssize_t len = readlink(path, link_target, sizeof(link_target) - 1);
-    if (len < 0) return;
-    link_target[len] = '\0';
-
     char next_path[PATH_MAX];
+    if (g_ddnatv_root_len > 0 && strncmp(path, g_ddnatv_root, g_ddnatv_root_len) == 0 && path[g_ddnatv_root_len] == '/') {
+        char done[PATH_MAX];
+        char todo[PATH_MAX];
+        size_t used = ddnatv_append(done, sizeof(done), 0, g_ddnatv_root, g_ddnatv_root_len);
+        ddnatv_copy_cstr(todo, sizeof(todo), path + g_ddnatv_root_len);
+        int links = 0;
+        char *rest = todo;
+        while (*rest) {
+            while (*rest == '/') rest++;
+            if (!*rest) break;
+            char *end = strchr(rest, '/');
+            size_t n = end ? (size_t)(end - rest) : strlen(rest);
+            if (n == 1 && rest[0] == '.') {
+                rest += n;
+                continue;
+            }
+            if (n == 2 && rest[0] == '.' && rest[1] == '.') {
+                char *slash = strrchr(done + g_ddnatv_root_len, '/');
+                if (slash) used = (size_t)(slash - done);
+                done[used] = '\0';
+                rest += n;
+                continue;
+            }
+            size_t before = used;
+            used = ddnatv_append(done, sizeof(done), used, "/", 1);
+            used = ddnatv_append(done, sizeof(done), used, rest, n);
+            rest += n;
+            if (used >= sizeof(done) - 1) return;
+            if (!follow_link(done, link_target, sizeof(link_target))) {
+                struct stat st;
+                if (rest[strspn(rest, "/")] && (syscall(SYS_newfstatat, AT_FDCWD, done, &st, 0) != 0 || !S_ISDIR(st.st_mode))) return;
+                continue;
+            }
+            if (++links > 40) return;
+            size_t m = ddnatv_append(next_path, sizeof(next_path), 0, link_target, strlen(link_target));
+            m = ddnatv_append(next_path, sizeof(next_path), m, "/", 1);
+            m = ddnatv_append(next_path, sizeof(next_path), m, rest, strlen(rest));
+            if (m >= sizeof(next_path) - 1) return;
+            if (link_target[0] == '/') {
+                char rw_buf[PATH_MAX];
+                resolve_symlinks(rewrite_path(next_path, rw_buf, sizeof(rw_buf)), out, out_size, depth + 1);
+                return;
+            }
+            used = before;
+            done[used] = '\0';
+            ddnatv_copy_cstr(todo, sizeof(todo), next_path);
+            rest = todo;
+        }
+        if (used > g_ddnatv_root_len) ddnatv_copy_cstr(out, out_size, done);
+        return;
+    }
+    if (!follow_link(path, link_target, sizeof(link_target))) return;
     if (link_target[0] == '/') {
         char rw_buf[PATH_MAX];
         const char *rewritten = rewrite_path(link_target, rw_buf, sizeof(rw_buf));
@@ -32,15 +88,11 @@ static void resolve_symlinks(const char *path, char *out, size_t out_size, int d
             memcpy(next_path, path, dir_len);
             next_path[dir_len] = '\0';
             size_t n = ddnatv_append(next_path, sizeof(next_path), dir_len, "/", 1);
-            ddnatv_append(next_path, sizeof(next_path), n, link_target, (size_t)len);
+            ddnatv_append(next_path, sizeof(next_path), n, link_target, strlen(link_target));
         } else {
             ddnatv_copy_cstr(next_path, sizeof(next_path), link_target);
         }
     }
-    // proot's link2symlink leaves hard links as ".l2s.*" files that programs must not see by name
-    const char *next_base = strrchr(next_path, '/');
-    next_base = next_base ? next_base + 1 : next_path;
-    if (strncmp(next_base, ".l2s.", 5) == 0) return;
     resolve_symlinks(next_path, out, out_size, depth + 1);
 }
 
@@ -407,7 +459,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
         if (probe.is_elf && !probe.is_dynamic) static_elf = elf_target;
         // A Go program built for Android asks for Android's linker, so it is started like the dynamic
         // ones, but it makes its own system calls: it gets the code of the static Go programs (#42)
-        if (probe.is_dynamic && probe.android_interp) prepare_static_program_ex(elf_target, 1);
+        if (probe.is_dynamic) prepare_static_program_ex(elf_target, 1);
 
         // 1. Transparently route dynamically linked glibc ELF binaries through ld.so
         // Note: Statically linked binaries (PT_INTERP absent, e.g. Meta Muse Code) must execute directly!
@@ -476,7 +528,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
                 return -1;
             }
             int ret;
-            if (is_host_interpreter(rewritten_interp)) {
+            if (is_host_interpreter(interp, rewritten_interp)) {
                 char **sys_env = clean_env_for_system(envp);
                 ret = run_execve(orig_execve, rewritten_interp, new_argv, sys_env);
                 int saved_errno = errno;
@@ -712,81 +764,82 @@ int execle(const char *path, const char *arg0, ...) {
     return ret;
 }
 
-int execvp(const char *file, char *const argv[]) {
+static int exec_or_script(const char *path, char *const argv[], char *const envp[]) {
+    execve(path, argv, envp);
+    if (errno != ENOEXEC) return -1;
+    int argc = 0;
+    while (argv && argv[argc]) argc++;
+    char **script = (char **)malloc(sizeof(char *) * (size_t)(argc + 3));
+    if (!script) {
+        errno = ENOMEM;
+        return -1;
+    }
+    script[0] = (char *)"/bin/sh";
+    script[1] = (char *)path;
+    int n = 2;
+    for (int i = 1; i < argc; i++) script[n++] = argv[i];
+    script[n] = NULL;
+    execve(script[0], script, envp);
+    int saved_errno = errno;
+    free(script);
+    errno = saved_errno;
+    return -1;
+}
+
+static int exec_search_dir(const char *dir, size_t len, const char *file, char *const argv[], char *const envp[], int *denied) {
+    char candidate[PATH_MAX];
+    int n = len ? snprintf(candidate, sizeof(candidate), "%.*s/%s", (int)len, dir, file)
+                : snprintf(candidate, sizeof(candidate), "%s", file);
+    if (n < 0 || n >= (int)sizeof(candidate)) {
+        errno = ENAMETOOLONG;
+        return 0;
+    }
+    exec_or_script(candidate, argv, envp);
+    switch (errno) {
+    case EACCES:
+        *denied = 1;
+        return 0;
+    case ENOENT: case ENOTDIR: case ESTALE: case ENODEV: case ETIMEDOUT: case ENAMETOOLONG:
+        return 0;
+    default:
+        return 1;
+    }
+}
+
+static int exec_search(const char *file, char *const argv[], char *const envp[], const char *path_env) {
     if (!file || !*file) {
         errno = ENOENT;
         return -1;
     }
-    if (strchr(file, '/')) {
-        return execve(file, argv, environ);
-    }
-    const char *path_env = getenv("PATH");
+    if (strchr(file, '/')) return exec_or_script(file, argv, envp);
     if (!path_env) path_env = "/usr/bin:/bin";
-    char path_copy[4096];
-    strncpy(path_copy, path_env, sizeof(path_copy) - 1);
-    path_copy[sizeof(path_copy) - 1] = '\0';
-    char *saveptr = NULL;
-    char *token = strtok_r(path_copy, ":", &saveptr);
-    while (token) {
-        char candidate[PATH_MAX];
-        snprintf(candidate, sizeof(candidate), "%s/%s", token, file);
-        if (access(candidate, F_OK) == 0) {
-            return execve(candidate, argv, environ);
-        }
-        token = strtok_r(NULL, ":", &saveptr);
+    int denied = 0;
+    for (const char *p = path_env;; ) {
+        const char *end = strchrnul(p, ':');
+        if (exec_search_dir(p, (size_t)(end - p), file, argv, envp, &denied)) return -1;
+        if (!*end) break;
+        p = end + 1;
     }
-    const char *standard_paths[] = {"/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin", NULL};
-    for (int i = 0; standard_paths[i] != NULL; i++) {
-        char candidate[PATH_MAX];
-        snprintf(candidate, sizeof(candidate), "%s/%s", standard_paths[i], file);
-        if (access(candidate, F_OK) == 0) {
-            return execve(candidate, argv, environ);
-        }
-    }
-    return execve(file, argv, environ);
+    static const char *const standard_paths[] = {"/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin"};
+    for (size_t i = 0; i < sizeof(standard_paths) / sizeof(standard_paths[0]); i++)
+        if (exec_search_dir(standard_paths[i], strlen(standard_paths[i]), file, argv, envp, &denied)) return -1;
+    errno = denied ? EACCES : ENOENT;
+    return -1;
+}
+
+int execvp(const char *file, char *const argv[]) {
+    return exec_search(file, argv, environ, getenv("PATH"));
 }
 
 int execvpe(const char *file, char *const argv[], char *const envp[]) {
-    if (!file || !*file) {
-        errno = ENOENT;
-        return -1;
-    }
-    if (strchr(file, '/')) {
-        return execve(file, argv, envp);
-    }
     const char *path_env = NULL;
-    if (envp) {
-        for (char *const *ep = envp; *ep; ep++) {
-            if (strncmp(*ep, "PATH=", 5) == 0) {
-                path_env = *ep + 5;
-                break;
-            }
+    for (char *const *ep = envp; ep && *ep; ep++) {
+        if (strncmp(*ep, "PATH=", 5) == 0) {
+            path_env = *ep + 5;
+            break;
         }
     }
-    if (!path_env) path_env = getenv("PATH");
-    if (!path_env) path_env = "/usr/bin:/bin";
-    char path_copy[4096];
-    strncpy(path_copy, path_env, sizeof(path_copy) - 1);
-    path_copy[sizeof(path_copy) - 1] = '\0';
-    char *saveptr = NULL;
-    char *token = strtok_r(path_copy, ":", &saveptr);
-    while (token) {
-        char candidate[PATH_MAX];
-        snprintf(candidate, sizeof(candidate), "%s/%s", token, file);
-        if (access(candidate, F_OK) == 0) {
-            return execve(candidate, argv, envp);
-        }
-        token = strtok_r(NULL, ":", &saveptr);
-    }
-    const char *standard_paths[] = {"/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin", NULL};
-    for (int i = 0; standard_paths[i] != NULL; i++) {
-        char candidate[PATH_MAX];
-        snprintf(candidate, sizeof(candidate), "%s/%s", standard_paths[i], file);
-        if (access(candidate, F_OK) == 0) {
-            return execve(candidate, argv, envp);
-        }
-    }
-    return execve(file, argv, envp);
+    return exec_search(file, argv, envp, path_env ? path_env : getenv("PATH"));
 }
 
 typedef int (*orig_posix_spawn_f_type)(pid_t *, const char *, const posix_spawn_file_actions_t *,
@@ -829,7 +882,7 @@ static int spawn_script(pid_t *pid, const char *script, struct exec_probe *probe
     char **new_argv = build_script_argv(rewritten_interp, interp_arg, script, argv);
     if (!new_argv) return ENOMEM;
     int ret;
-    if (is_host_interpreter(rewritten_interp)) {
+    if (is_host_interpreter(interp, rewritten_interp)) {
         orig_posix_spawn_f_type orig_posix_spawn = real_posix_spawn();
         char **sys_env = clean_env_for_system(envp);
         ret = orig_posix_spawn ? orig_posix_spawn(pid, rewritten_interp, file_actions, attrp, new_argv, sys_env) : ENOSYS;
@@ -959,7 +1012,7 @@ static int ddnatv_posix_spawn(pid_t *pid, const char *path,
     int ret = -1;
     if (via_ld_so) {
         ensure_exec_bit(elf_target, probe.mode);
-        if (probe.android_interp) prepare_static_program_ex(elf_target, 1); // a Go program built for Android (#42)
+        prepare_static_program_ex(elf_target, 1); // a Go program built for Android (#42)
 
         char hook_buf[PATH_MAX];
         const char *hook_so = ddnatv_hook_library(hook_buf, sizeof(hook_buf));

@@ -1,0 +1,49 @@
+Parts of the DwarFS project are licensed under the MIT license, while others are
+licensed under the GPL-3.0 license. In general, the code used to *read* DwarFS
+images is licensed under the MIT license, while the code used to *write* DwarFS
+images is licensed under the GPL-3.0 license. Also, all testing/benchmarking
+code is currently licensed under the GPL-3.0 license.
+
+That means you can use `mkdwarfs` to create images and then use these images
+with only the MIT-licensed code.
+
+The following libraries and associated header files are licensed under the
+MIT license:
+
+- `dwarfs_common`
+- `dwarfs_compressor`
+- `dwarfs_decompressor`
+- `dwarfs_extractor`
+- `dwarfs_reader`
+
+The following libraries and associated header files are licensed under the
+GPL-3.0 license:
+
+- `dwarfs_rewrite`
+- `dwarfs_writer`
+
+Each header and source file should contain an SPDX identifier near the top
+of the file.
+
+Please also check the licenses of the projects that DwarFS depends on.
+
+----
+
+MIT License
+
+Copyright (c) Marcus Holland-Moritz
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+associated documentation files (the "Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the
+following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial
+portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
+EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+USE OR OTHER DEALINGS IN THE SOFTWARE.

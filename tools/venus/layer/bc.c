@@ -799,7 +799,11 @@ static void recycle_command_buffer(struct device *dev, VkCommandBuffer cmd)
 VKAPI_ATTR VkResult VKAPI_CALL BeginCommandBuffer(VkCommandBuffer cmd, const VkCommandBufferBeginInfo *info)
 {
     struct device *dev = device_from_handle(cmd);
-    recycle_command_buffer(dev, cmd);
+    if (dev->emulated & GAP_BC)
+        recycle_command_buffer(dev, cmd);
+    /* Dynamic state does not carry over from one recording to the next. */
+    if (dev->emulated & GAP_DEPTH_OP)
+        depth_state_forget(dev, cmd);
     return dev->BeginCommandBuffer(cmd, info);
 }
 

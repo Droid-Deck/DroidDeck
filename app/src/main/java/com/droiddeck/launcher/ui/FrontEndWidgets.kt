@@ -205,10 +205,12 @@ internal fun PrimaryButton(
     large: Boolean = false,
     icon: ImageVector? = null,
     fill: Boolean = false,
+    progress: Float? = null,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
+    val shownProgress by animateFloatAsState(progress?.coerceIn(0f, 1f) ?: 0f, Motion.tw(300), label = "btnProgress")
     val pillMode = LocalPillButtons.current
     val btnShape = if (pillMode) CircleShape else Shape12
     val outlined = LocalGradientOutline.current && enabled
@@ -234,6 +236,11 @@ internal fun PrimaryButton(
             .graphicsLayer { alpha = if (LaunchOrigin.flooding === placed) 0f else 1f; scaleX = scale; scaleY = scale; shadowElevation = if (enabled) lift.dp.toPx() else 0f; shape = btnShape; clip = false; ambientShadowColor = pal.signal; spotShadowColor = pal.signal }
             .clip(btnShape)
             .background(if (enabled) Brush.linearGradient(listOf(colors.primary, pal.primary2)) else Brush.linearGradient(listOf(colors.surfaceVariant, colors.surfaceVariant)))
+            .then(if (progress != null) Modifier.drawBehind {
+                val done = size.width * shownProgress
+                if (enabled) drawRect(Color.Black.copy(alpha = 0.32f), topLeft = androidx.compose.ui.geometry.Offset(done, 0f), size = androidx.compose.ui.geometry.Size(size.width - done, size.height))
+                else drawRect(pal.signal.copy(alpha = 0.4f), size = androidx.compose.ui.geometry.Size(done, size.height))
+            } else Modifier)
             .then(if (enabled) Modifier else Modifier.border(1.dp, pal.line2, btnShape))
             .then(if (outlined) Modifier.border(2.dp, Brush.linearGradient(listOf(pal.primary2, colors.primary)), btnShape) else Modifier)
             .glideBorder(hot, btnShape, pal.signal, hotFillAlpha = 0f)

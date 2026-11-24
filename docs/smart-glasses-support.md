@@ -22,7 +22,7 @@ This describes the integrations implemented in DroidDeck as of 2026-10-24. A rec
 | **VITURE Luma Ultra** | SDK-dependent Carina transport | Yes | **Experimental, opt-in** | **Experimental, opt-in** |
 | Recognized RayNeo / TCL Air-series devices | Integrated RayNeo USB transport | Yes, with orientation calibration controls | No | No |
 | RayNeo GT-series devices matching the supported USB identity, including GT Max identification | Integrated GT USB/IMU path | Yes, with orientation calibration controls | No | No |
-| **XREAL 1S, One, One Pro, One Pro+, Aura** | **Experimental**; exact USB identity plus the device's USB-Ethernet control/IMU connection. Head tracking and 2D/3D switching are tested on the Aura | Yes, when that connection is ready | No | No |
+| **XREAL 1S, One, One Pro, One Pro+, Aura** | **Experimental**; exact USB identity plus the device's USB-Ethernet control/IMU connection. Head tracking and 2D/3D switching are tested on the Aura and One Pro+ | Yes, when that connection is ready | No | No |
 | Rokid Max / Max 2; Rokid Air under the Max USB identity | Integrated Rokid USB transport (vendor control requests and HID IMU reports) | Yes | No | No |
 | Other XREAL models (Air family and others); unrecognized glasses; display adapters and docks | Display-only where Android exposes a usable display; automatic glasses routing also requires display recognition | No supported app tracking connection | No | No |
 
@@ -43,7 +43,8 @@ All display modes depend on the phone's video output, the cable/adapter, and And
 | VITURE Pro 2 | 1080p per eye; 2D and SBS | Brightness and volume; no electrochromic-film control |
 | RayNeo Air/GT | 2D/SBS switching; resolution and refresh follow available Android modes | Orientation calibration; no app brightness, volume, or dimming commands |
 | XREAL 1S | Supported 1S display-mode commands, including native 1200p/60 Hz and SBS | Brightness and dimming toggle; no app volume command |
-| XREAL One, One Pro, One Pro+, Aura | 2D and SBS only, switched with the glasses' 3D input command; the display-mode set command is never sent (an unexpected index reboots the Aura) | No app brightness, dimming or volume commands |
+| XREAL One Pro+ | Verified 1920×1080 at 60/90/120 Hz; 3840×1080 SBS at 60 Hz. Native 60 Hz uses mode 9; 1S-only modes 2/29 are rejected | Brightness 0–9 and dimming toggle verified; no app volume command |
+| XREAL One, One Pro, Aura | 2D and SBS only, switched with the glasses' 3D input command; the display-mode set command is never sent (an unexpected index reboots the Aura) | No app brightness, dimming or volume commands |
 | Rokid Max / Max 2 | 1080p at 60 or 120 Hz in 2D; SBS at 1080p/60, 1200p/60, or 1200p/90 | Brightness; volume follows Android's USB audio volume; no dimming film |
 | Rokid Air | 1080p/60 in 2D and SBS | Brightness; volume follows Android's USB audio volume |
 
@@ -54,6 +55,8 @@ In **Automatic** picture mode, ordinary flat content is duplicated in full into 
 With **game on glasses** the compositor draws the guest pointer into its own scene as the last blended draw and mirrors it into both eyes for a side-by-side picture, while the phone stops drawing its Compose cursor. Over the app's own UI — the drawer, the PC keyboard, the achievements panel, PiP controls and the phone panel shown while the glasses have the picture — Android's pointer returns instead, so those controls are still clickable with a mouse.
 
 The pointer is left out of the picture when it cannot be drawn where the game is: while a game holds the pointer lock (it draws its own), and for a game the compositor cannot import — an AHardwareBuffer-only surface, or HDR frames it has no texture for. Those games stay on their own display layer, because composing the scene would drop the game itself. An importable HDR game that would otherwise stay on its own layer is composed through the screen swapchain, so there the pointer does fit.
+
+The One Pro+ uses a verified sensor mounting correction for both gyro and acceleration. The wearer confirmed all three tracking axes, a level horizon, brightness and dimming on a Fold7. Use Follow mode with Stabilizer off. These checks do not establish long-session stability; see the [hardware validation](development/xreal-investigation.md#native-1-pro-implementation-and-hardware-validation--2026-11-13).
 
 ## Setup and app-wide behavior
 

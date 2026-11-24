@@ -92,6 +92,38 @@ class AddedExesTest {
         }
     }
 
+    @Test fun reselectingTheCurrentExeKeepsItWhenTheRankingChanges() {
+        val storage = tmp.newFolder("Ranked")
+        exe(File(storage, "Example/Example.exe"))
+        exe(File(storage, "Example/Other.exe"))
+        SessionPrefs.setAddedGamesDirs(app, emptyList())
+        SessionPrefs.setGameStorage(app, storage.path, "Card")
+        val folder = File(storage, "Example")
+        val current = AddedGames.scan(app).single { it.folder == folder }.exe
+        val other = listOf("Example.exe", "Other.exe").map { File(folder, it) }.single { it.path != current.path }
+        val existing = AddedGames.addExe(app, current)
+        assertTrue(existing is AddedGames.AddResult.Existing)
+        assertEquals(current.path, SessionPrefs.addedGameExe(app, folder.path))
+        File(folder, "MicrosoftGame.config").writeText("<Executable Name=\"${other.name}\" />")
+        assertEquals(other.path, AddedGames.rank(folder).exes.first().path)
+        assertEquals(current.path, AddedGames.scan(app).single { it.folder == folder }.exe.path)
+    }
+
+    @Test fun reselectingASteamInstallsExeThroughAnAliasStoresTheReachablePath() {
+        val storage = tmp.newFolder("Aliased")
+        val pick = exe(File(storage, "steamapps/common/Example/Example.exe"))
+        File(storage, "steamapps/appmanifest_123.acf").writeText("\"installdir\" \"Example\"")
+        SessionPrefs.setAddedGamesDirs(app, emptyList())
+        SessionPrefs.setGameStorage(app, storage.path, "Card")
+        val alias = File(tmp.newFolder("Links"), "Example.exe")
+        java.nio.file.Files.createSymbolicLink(alias.toPath(), pick.toPath())
+        assertTrue(AddedGames.addExe(app, alias) is AddedGames.AddResult.Existing)
+        assertEquals(pick.path, AddedExes.list(app).single { it.folder == pick.parentFile!!.path }.exe)
+        assertEquals(pick.path, SessionPrefs.addedGameExe(app, pick.parentFile!!.path))
+        assertEquals(pick.path, AddedGames.scan(app).single { it.folder == pick.parentFile }.exe.path)
+        AddedExes.drop(app, pick.parentFile!!.path)
+    }
+
     @Test fun anotherExeInTheSameGameSwitchesItsExe() {
         noGamesFolders()
         val first = onStorage("Games2/Hades/Hades.exe")
@@ -295,6 +327,39 @@ class AddedExesTest {
         assertTrue(switched is AddedGames.AddResult.Switched)
         assertEquals(folder.path, (switched as AddedGames.AddResult.Switched).game.folder.path)
         assertEquals(listOf(other.path), AddedGames.scan(app).map { it.exe.path })
+    }
+
+    private fun routeEveryGameTo(steamApp: Int) {
+        val config = File(SessionPrefs.activeSteamRoot(app), "userdata/123/config").apply { mkdirs() }
+        val routes = org.json.JSONObject()
+        AddedGames.scan(app).forEach { routes.put(it.appId.toString(), steamApp) }
+        File(config, ".droiddeck-routes.json").writeText(routes.toString())
+    }
+
+    @Test fun anotherProgramOfASteamInstallIsNotRoutedToTheSteamApp() {
+        noGamesFolders()
+        val main = onStorage("Games2/The Binding of Isaac Rebirth/isaac-ng.exe")
+        val launcher = onStorage("Games2/The Binding of Isaac Rebirth/REPENTOGONLauncher.exe")
+        AddedExes.put(app, AddedExes.Entry(main.parent!!, launcher.path))
+        routeEveryGameTo(250900)
+        val game = AddedGames.scan(app).single()
+        assertEquals(launcher.path, game.exe.path)
+        assertEquals(main.path, game.candidates.first().path)
+        assertNull(game.steamAppId)
+        assertTrue(!game.steamProgram)
+        assertTrue(File(AddedGames.writeListing(app, listOf(game), emptyList()).path).readText().contains("\"route\":false"))
+    }
+
+    @Test fun theSteamAppsOwnProgramStillRoutesToTheSteamApp() {
+        noGamesFolders()
+        val main = onStorage("Games2/The Binding of Isaac Rebirth/isaac-ng.exe")
+        onStorage("Games2/The Binding of Isaac Rebirth/REPENTOGONLauncher.exe")
+        AddedExes.put(app, AddedExes.Entry(main.parent!!, main.path))
+        routeEveryGameTo(250900)
+        val game = AddedGames.scan(app).single()
+        assertEquals(250900, game.steamAppId)
+        assertTrue(game.steamProgram)
+        assertTrue(!File(AddedGames.writeListing(app, listOf(game), emptyList()).path).readText().contains("route"))
     }
 
     @Test fun aDifferentGameWithANumberedNameIsNotTakenAsAnotherBuild() {
