@@ -10,6 +10,13 @@
 // PT_INTERP) literally and failed with "bad interpreter: No such file or directory".
 // getcwd() is not virtualised, so cwd + path is a real path that starts with DDNATV_ROOT.
 static const char *absolutize_exec_path(const char *path, char *buffer, size_t bufsize) {
+    if (is_proc_self_exe(path)) {
+        ssize_t n = handle_proc_self_exe(buffer, bufsize - 1);
+        if (n > 0 && buffer[0] == '/') {
+            buffer[n] = '\0';
+            return buffer;
+        }
+    }
     if (!path || path[0] == '\0' || path[0] == '/') return path;
     char cwd[PATH_MAX];
     static char *(*real_getcwd)(char *, size_t) = NULL;
