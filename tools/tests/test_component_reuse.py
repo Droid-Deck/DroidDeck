@@ -25,8 +25,11 @@ class ComponentReuseTest(unittest.TestCase):
         (self.root / 'tools/ci').mkdir(parents=True)
         (self.root / 'tools/ci/toolchains.env').write_text('CI_ANDROID_NDK_VERSION=30.0.1\n')
         self.local = {'runtime': 'a', 'proot': 'b'}
+        self.unregistered, self.submodules = [], []
         for patcher in [mock.patch.object(prepare, 'registry', lambda root: dict.fromkeys(self.local)),
-                        mock.patch.object(prepare, 'identity', lambda name, root: self.local[name])]:
+                        mock.patch.object(prepare, 'identity', lambda name, root: self.local[name]),
+                        mock.patch.object(reuse, 'unregistered_changes', lambda tree, root: self.unregistered),
+                        mock.patch.object(reuse, 'edited_submodules', lambda root: self.submodules)]:
             patcher.start()
             self.addCleanup(patcher.stop)
         self.archive = self.root / 'prepared-components.tar.gz'
@@ -60,10 +63,27 @@ class ComponentReuseTest(unittest.TestCase):
         self.assertIn('proot', stdout.getvalue())
         self.assertFalse((self.root / prepare.LIBRARIES[0]).exists())
 
-    def test_a_tampered_file_is_rejected(self):
+    def test_a_tampered_file_is_rejected_and_local_outputs_survive(self):
+        local = self.root / prepare.LIBRARIES[0]
+        local.parent.mkdir(parents=True)
+        local.write_bytes(b'local build')
         self.write_archive(dict(self.local), dict(self.contents, **{prepare.LIBRARIES[0]: b'tampered'}))
         with self.assertRaisesRegex(ValueError, 'do not match'):
             reuse.reuse(self.archive, self.root)
+        self.assertEqual(b'local build', local.read_bytes())
+
+    def test_changed_sources_ci_builds_outside_recipes_are_not_reused(self):
+        self.unregistered = ['tools/linuxfs/xclipse-layer/xclipse_layer.c']
+        self.write_archive(dict(self.local))
+        with mock.patch('sys.stdout', new_callable=io.StringIO) as stdout:
+            self.assertFalse(reuse.reuse(self.archive, self.root))
+        self.assertIn('xclipse_layer.c', stdout.getvalue())
+
+    def test_an_edited_submodule_is_not_reused(self):
+        self.submodules = ['external/MaliBridge']
+        self.write_archive(dict(self.local))
+        with mock.patch('sys.stdout', new_callable=io.StringIO):
+            self.assertFalse(reuse.reuse(self.archive, self.root))
 
     def test_identities_use_the_ci_runner_and_ndk(self):
         seen = {}

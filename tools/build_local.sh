@@ -138,6 +138,9 @@ ci_run=
 ci_cache="${cache_dir}/ci-components"
 reuse_ci_components() {
     [[ "${DROIDDECK_CI_COMPONENTS:-1}" == 1 ]] && command -v gh >/dev/null 2>&1 || return 1
+    # CI prepares with the pinned NDK and its own PulseAudio source.
+    . "${repo_root}/tools/ci/toolchains.env"
+    [[ "${ndk_version}" == "${CI_ANDROID_NDK_VERSION}" && -z "${DROIDDECK_PA13_SOURCE_DIR:-}" ]] || return 1
     local base candidates run artifact archive part
     base=$(git -C "${repo_root}" merge-base HEAD origin/main 2>/dev/null || true)
     # Only runs of this repository's own main: a fork's pull request can also name its branch main.
@@ -172,11 +175,10 @@ fetch_ci_xbox() {
     if [[ ! -d "${stored}" ]]; then
         part=$(mktemp -d "${ci_cache}/${ci_run}-xbox.part.XXXXXX")
         gh run download "${ci_run}" -R "${github_repo}" -n xbox-arm64 -D "${part}" >/dev/null 2>&1 || { rm -rf "${part}"; return 1; }
-        mv "${part}" "${stored}"
+        # rename(2) refuses a non-empty destination, so a copy another build published first wins.
+        python3 -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' "${part}" "${stored}" 2>/dev/null || rm -rf "${part}"
     fi
-    rm -rf "${xbox_out}"
-    mkdir -p "${xbox_out}"
-    cp -R "${stored}/." "${xbox_out}/"
+    rm -rf "${xbox_out}" && mkdir -p "${xbox_out}" && cp -R "${stored}/." "${xbox_out}/"
 }
 
 git_common=$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir)
@@ -319,16 +321,6 @@ else
         zstd -dc "${sync_archive}" | tar -xf - -C "${sync_assets}"
         test -f "${sync_assets}/index.json"
         test -f "${sync_assets}/index.json.sig"
-        sync_index=$(mktemp)
-        gh release download "${SYNC_BUNDLE_TAG}" -R "${SYNC_BUNDLE_REPO}" -p index.json -O "${sync_index}" --clobber
-        revoked=$(python3 -c 'import json, sys; print(" ".join(p["id"] for p in json.load(open(sys.argv[1]))["packs"] if p.get("revoked") is True))' "${sync_index}")
-        for id in ${revoked}; do
-            if [[ -e "${sync_assets}/packs/${id}.tzst" ]]; then
-                echo "${SYNC_BUNDLE_ASSET} carries revoked pack ${id}; it is left out of the APK" >&2
-                rm -f "${sync_assets}/packs/${id}.tzst"
-            fi
-        done
-        rm -f "${sync_index}"
     elif [[ -d "${sync_assets}" ]]; then
         echo "No tools/droiddeck-esync/release.env: the APK bundles the droiddeck-esync packs already in ${sync_assets}." >&2
     fi
@@ -417,6 +409,22 @@ else
         echo "${proot_inputs}" > "${proot_out}/.proot-inputs"
         (cd "${proot_out}" && shasum -a 256 libproot.so libproot-loader.so > .proot-outputs)
     fi
+fi
+
+sync_assets="${repo_root}/app/src/main/assets/droiddeck-esync"
+if [[ -f "${repo_root}/tools/droiddeck-esync/release.env" ]]; then
+    # Packs revoked after a bundle was published are dropped from local and CI-prepared bundles alike.
+    . "${repo_root}/tools/droiddeck-esync/release.env"
+    sync_index=$(mktemp)
+    gh release download "${SYNC_BUNDLE_TAG}" -R "${SYNC_BUNDLE_REPO}" -p index.json -O "${sync_index}" --clobber
+    revoked=$(python3 -c 'import json, sys; print(" ".join(p["id"] for p in json.load(open(sys.argv[1]))["packs"] if p.get("revoked") is True))' "${sync_index}")
+    for id in ${revoked}; do
+        if [[ -e "${sync_assets}/packs/${id}.tzst" ]]; then
+            echo "${SYNC_BUNDLE_ASSET} carries revoked pack ${id}; it is left out of the APK" >&2
+            rm -f "${sync_assets}/packs/${id}.tzst"
+        fi
+    done
+    rm -f "${sync_index}"
 fi
 
 syncthing_src="${repo_root}/tools/syncthing/syncthing-android/syncthing/src/github.com/syncthing/syncthing"
