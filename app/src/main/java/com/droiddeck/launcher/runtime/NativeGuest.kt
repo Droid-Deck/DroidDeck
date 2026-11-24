@@ -83,10 +83,10 @@ object NativeGuest {
      * The host command line for the guest program at [program] (an absolute guest path to a real
      * file, not a symlink).
      */
-    fun command(root: File, program: String, args: List<String>): List<String> {
+    fun command(root: File, program: String, args: List<String>, libraryPath: String = libraryPath(root)): List<String> {
         val loader = checkNotNull(loader(root)) { "no glibc loader in ${root.path}" }
         val host = File(root, program.removePrefix("/"))
-        val launch = listOf(loader.path, "--library-path", libraryPath(root), "--argv0", host.name, host.path) + args
+        val launch = listOf(loader.path, "--library-path", libraryPath, "--argv0", host.name, host.path) + args
         return simulator(root)?.let { it + launch } ?: (execPrefix(loader.path) + launch)
     }
 
@@ -271,7 +271,9 @@ object NativeGuest {
 
     fun builder(root: File, cwd: String, argv: List<String>, env: Map<String, String>, preload: List<String> = emptyList()): ProcessBuilder {
         val program = argv.first()
-        val cmd = command(root, program, argv.drop(1))
+        val callerDirs = env["LD_LIBRARY_PATH"]?.split(':')?.filter { it.isNotEmpty() }.orEmpty()
+        val rootDirs = libraryPath(root).split(':').filterNot { it in callerDirs }
+        val cmd = command(root, program, argv.drop(1), (callerDirs + rootDirs).joinToString(":"))
         val builder = ProcessBuilder(cmd).redirectErrorStream(false)
         builder.directory(File(root, cwd.removePrefix("/")).takeIf { it.isDirectory } ?: root)
         builder.environment().apply {

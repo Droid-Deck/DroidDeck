@@ -49,6 +49,18 @@ class NativeGuestTest {
     }
 
     @Test
+    fun builderKeepsCallerLibraryPathAheadOfRootfsDirectories() {
+        val root = rootWithLoader()
+        val rootDirs = NativeGuest.libraryPath(root).split(':')
+        val callerPath = "/custom/lib:${rootDirs[1]}:/other/lib"
+        val builder = NativeGuest.builder(root, "/", listOf("/usr/bin/env"), mapOf("LD_LIBRARY_PATH" to callerPath))
+        val command = builder.command()
+        assertEquals(listOf("/custom/lib", rootDirs[1], "/other/lib") + rootDirs.filterNot { it == rootDirs[1] },
+            command[command.indexOf("--library-path") + 1].split(':'))
+        assertEquals(callerPath, builder.environment()["LD_LIBRARY_PATH"])
+    }
+
+    @Test
     fun mountsWithoutADestinationMapToThemselves() {
         val root = rootWithLoader()
         val env = NativeGuest.sessionEnvironment(root, listOf("/dev", "/a:/b"))
