@@ -54,15 +54,18 @@ object MaliGraphics {
             choice,
             selectedDriver = drivers.isMaliCompatible(SessionPrefs.linuxDriver(context)),
             venus = VenusComponent.available(context) && VenusComponent.hostVulkanTooOld(context) == null,
-            bridgeUsable = DeviceSupport.bridgeUsable(),
+            bridgeUsable = DeviceSupport.bridgeUsable() && bridgeBinaryPresent(context),
         )
     }
+
+    private fun bridgeBinaryPresent(context: Context): Boolean =
+        File(context.applicationInfo.nativeLibraryDir, VkBridgeComponent.BINARY).isFile
 
     fun problem(context: Context, route: MaliGraphicsMode): String? = when (route) {
         MaliGraphicsMode.AUTO -> null
         MaliGraphicsMode.BRIDGE -> when {
             !DeviceSupport.bridgeUsable() -> context.getString(R.string.mali_bridge_unsupported)
-            !File(context.applicationInfo.nativeLibraryDir, VkBridgeComponent.BINARY).isFile -> context.getString(R.string.mali_bridge_missing)
+            !bridgeBinaryPresent(context) -> context.getString(R.string.mali_bridge_missing)
             else -> null
         }
         MaliGraphicsMode.VENUS -> when {

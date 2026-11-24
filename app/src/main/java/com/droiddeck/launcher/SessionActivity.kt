@@ -3498,8 +3498,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun sessionExitHint(status: Int): EndHint? =
-        if (SessionState.failureCode == "MALI_GRAPHICS_FAILED") SessionState.failureMessage?.let { EndHint(it) }
-        else if (status == 0) presentationFaultHint()
+        if (SessionState.failureCode == "MALI_GRAPHICS_FAILED") {
+            SessionState.failureMessage?.let { EndHint(it, evenOnSuccess = true) }
+        } else if (status == 0) presentationFaultHint()
         else runtimeDamageHint() ?: sessionEndHint(SessionState.logFile) ?: startFailureHint()
 
     private fun sessionEndHint(log: File?): EndHint? {

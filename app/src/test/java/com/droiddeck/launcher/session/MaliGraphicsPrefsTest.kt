@@ -10,12 +10,15 @@ import com.droiddeck.launcher.gpu.DriverBundle
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.ShadowGpuInfo
+import com.droiddeck.launcher.gpu.VkBridgeComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
@@ -35,10 +38,17 @@ import java.util.concurrent.TimeUnit
     shadows = [ShadowGpuInfo::class, BridgeHostShadow::class],
 )
 class MaliGraphicsPrefsTest {
+    @get:Rule val temporary = TemporaryFolder()
     private val context get() = RuntimeEnvironment.getApplication()
     private val prefs get() = context.getSharedPreferences("session", Context.MODE_PRIVATE)
+    private val bridgeBinary get() = File(context.applicationInfo.nativeLibraryDir, VkBridgeComponent.BINARY)
+    private var previousNativeLibraryDir: String? = null
 
     @Before fun setUp() {
+        val info = context.applicationInfo
+        previousNativeLibraryDir = info.nativeLibraryDir
+        info.nativeLibraryDir = temporary.newFolder().path
+        bridgeBinary.writeText("fixture")
         ShadowGpuInfo.setGpu(GpuInfo.Family.MALI_LATEST, "Mali-G715")
         BridgeHostShadow.usable = true
         prefs.edit().clear().commit()
@@ -46,6 +56,7 @@ class MaliGraphicsPrefsTest {
     }
 
     @After fun tearDown() {
+        context.applicationInfo.nativeLibraryDir = previousNativeLibraryDir
         ShadowGpuInfo.reset()
     }
 
@@ -143,6 +154,22 @@ class MaliGraphicsPrefsTest {
     @Config(shadows = [CompositorShadow::class])
     @Test fun autoKeepsRuntimeEnvironmentWhenBridgeIsUnsupported() {
         BridgeHostShadow.usable = false
+        assertAutoKeepsRuntimeEnvironment()
+    }
+
+    @Config(shadows = [CompositorShadow::class])
+    @Test fun missingBridgeBinaryUsesAutoFallbackAndReportsFixedBridgeFailure() {
+        assertTrue(DeviceSupport.bridgeUsable())
+        assertTrue(bridgeBinary.delete())
+        assertAutoKeepsRuntimeEnvironment()
+
+        SessionPrefs.setMaliGraphicsMode(context, MaliGraphicsMode.BRIDGE)
+        val route = MaliGraphics.resolve(context)
+        assertEquals(MaliGraphicsMode.BRIDGE, route)
+        assertEquals(context.getString(R.string.mali_bridge_missing), MaliGraphics.problem(context, route))
+    }
+
+    private fun assertAutoKeepsRuntimeEnvironment() {
         SessionPrefs.setMaliGraphicsMode(context, MaliGraphicsMode.AUTO)
         val icd = File(LinuxRuntime.rootDir(context), "usr/share/vulkan/icd.d/runtime.json")
         icd.parentFile!!.mkdirs()
@@ -156,6 +183,7 @@ class MaliGraphicsPrefsTest {
             assertEquals("auto", guest["DD_MALI_GRAPHICS_MODE"])
             assertEquals(icd.path, guest["VK_ICD_FILENAMES"])
             assertFalse(guest.containsKey("DD_VKBRIDGE"))
+            assertFalse(guest.containsKey("VKBRIDGE_SOCKET"))
             assertFalse(guest.containsKey("DD_VENUS"))
             assertEquals("auto", prefs.getString("maliGraphicsMode", null))
         } finally { icd.delete() }

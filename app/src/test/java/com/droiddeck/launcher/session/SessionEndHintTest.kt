@@ -77,6 +77,16 @@ class SessionEndHintTest {
     }
 
     @Test
+    fun cleanExitRetainsTheRecordedMaliStartupFailure() {
+        SessionState.failureCode = "MALI_GRAPHICS_FAILED"
+        SessionState.failureMessage = "MaliBridge is unavailable."
+        val hint = exitHint(0)
+        assertNotNull(hint)
+        assertEquals("MaliBridge is unavailable.", ReflectionHelpers.getField<String>(hint, "text"))
+        assertTrue(ReflectionHelpers.getField(hint, "evenOnSuccess"))
+    }
+
+    @Test
     fun sigillOnArm64IncludesTheExperimentalX64Fallback() {
         SessionState.steamClientArch = "arm64"
 
