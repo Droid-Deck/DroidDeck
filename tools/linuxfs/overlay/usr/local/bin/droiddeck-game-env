@@ -1286,6 +1286,16 @@ def system_graphics_launch(command, env):
     return [str(wrapper), *command], result
 
 
+AUDIO_STREAMS_PROBE = (
+    'folder=$1; launch=$2; shift 2; n=0; '
+    'for t in "$@"; do '
+    'while [ "$n" -lt "$t" ]; do kill -0 "$launch" 2>/dev/null || exit 0; sleep 1; n=$((n + 1)); done; '
+    'kill -0 "$launch" 2>/dev/null || exit 0; '
+    '{ echo "== $(date +%T)"; pactl list sink-inputs 2>&1 | head -80; } >> "$folder/audio-streams.txt"; '
+    'done'
+)
+
+
 def game_logs(command, env, app_id, now=None):
     """Detailed graphics logs for one game launch, in the session's log folder: Proton's own log,
     DXVK's and vkd3d-proton's, and the Vulkan driver's startup messages. The app turns this on
@@ -1327,8 +1337,7 @@ def game_logs(command, env, app_id, now=None):
         pass
     # Whether the game's sound reaches PulseAudio: the streams 20 s and 60 s in, without waiting.
     try:
-        subprocess.Popen(["sh", "-c", 'for t in 20 40; do sleep $t; { echo "== $(date +%T)"; '
-                          'pactl list sink-inputs 2>&1 | head -80; } >> "$1/audio-streams.txt"; done', "audio", str(folder)],
+        subprocess.Popen(["sh", "-c", AUDIO_STREAMS_PROBE, "audio", str(folder), str(os.getpid()), "20", "60"],
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                          start_new_session=True)
     except OSError:
