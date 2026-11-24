@@ -63,6 +63,13 @@ object SessionPrefs {
             .takeIf { value -> orientationOptions.any { it.first == value } }
             ?: ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
+    /** The session menu's width in dp the user dragged it to; null keeps the default. */
+    fun drawerWidthDp(context: Context): Int? = prefs(context).getInt("drawerWidthDp", 0).takeIf { it > 0 }
+
+    fun setDrawerWidthDp(context: Context, dp: Int) {
+        prefs(context).edit().putInt("drawerWidthDp", dp).apply()
+    }
+
     fun setOrientation(context: Context, orientation: Int) {
         require(orientationOptions.any { it.first == orientation })
         prefs(context).edit().putInt("orientation", orientation).apply()
@@ -494,6 +501,13 @@ object SessionPrefs {
     }
 
     fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), false)
+
+    fun hudOnlyDuringGame(context: Context): Boolean =
+        prefs(context).getBoolean("hudOnlyDuringGame", false)
+
+    fun setHudOnlyDuringGame(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("hudOnlyDuringGame", on).apply()
+    }
 
     fun setHudEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(hudKey(context), on).apply()

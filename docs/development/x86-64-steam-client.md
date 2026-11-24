@@ -291,6 +291,18 @@ alone would then read as an installed client.
     spins until a `SIGALRM` handler sets a register (R12, or ESI in 32-bit `rt` and legacy frames):
     FEX-2611.1 with 0001 to 0011 never sees it in any of the three frame types, with this patch all
     three see it on the first signal, as natively.
+  - `0013-path-syscalls-through-libc`: FEX passes most path system calls of the guest (`mkdirat`,
+    `unlinkat`, `renameat`, `renameat2`, `symlinkat`, `linkat`, `mknodat`, `fchmodat`, `fchmodat2`,
+    `fchownat`, `utimensat`, `truncate`, `chdir`, `chroot`, `inotify_add_watch`) straight to the kernel
+    with an inline `svc`, which the native userland's path hook never sees, so an x86-64 program wrote
+    `/opt/...` or `/root/...` to the Android root instead of the rootfs, and `cd` into a rootfs folder
+    failed. They now go through libc's `syscall()`, which the hook maps like every other path; without
+    the hook it is the same system call. `tools/tests/test_native_hook_path_syscalls.py` checks the hook
+    side, including that an allocator which opens files before the hook has started does not hang.
+    FEX also mirrors each guest signal handler with `syscall(SYS_rt_sigaction, ...)`; for `SIGSYS` the
+    hook records the guest handler as it does for `sigaction()` and keeps its own installed, so a
+    program that sets a crash handler is no longer killed by the next blocked system call
+    (`tools/tests/test_native_hook_sigsys_mask.py`).
 - **Building and publishing.** Droid-Deck/DroidDeck-Components' `build-fex.yml` builds `tools/fex` from
   this repository at a chosen ref (default `main`) with host thunks, in the same Arch Linux ARM container
   with a read-only token, then a separate job replaces `fex.tzst` on Components' single `fex` release,

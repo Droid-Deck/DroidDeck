@@ -60,9 +60,11 @@ static uint64_t hash(uint64_t key)
     return key;
 }
 
+/* Key 0 marks an empty slot, so VK_NULL_HANDLE is never looked up, stored or removed. Destroying a
+ * null handle is valid Vulkan, and map_remove(0) would otherwise match an empty slot and drop count. */
 void *map_get(const struct handle_map *map, uint64_t key)
 {
-    if (!map->capacity)
+    if (!map->capacity || !key)
         return NULL;
     for (uint32_t i = hash(key) & (map->capacity - 1);; i = (i + 1) & (map->capacity - 1)) {
         if (map->keys[i] == key)
@@ -90,6 +92,8 @@ static void map_grow(struct handle_map *map)
 
 void map_put(struct handle_map *map, uint64_t key, void *value)
 {
+    if (!key)
+        return;
     if ((map->count + 1) * 4 > map->capacity * 3)
         map_grow(map);
     uint32_t i = hash(key) & (map->capacity - 1);
@@ -103,7 +107,7 @@ void map_put(struct handle_map *map, uint64_t key, void *value)
 
 void *map_remove(struct handle_map *map, uint64_t key)
 {
-    if (!map->capacity)
+    if (!map->capacity || !key)
         return NULL;
     uint32_t mask = map->capacity - 1;
     uint32_t i = hash(key) & mask;
@@ -602,7 +606,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
     dev->key = dispatch_key(*device);
     dev->handle = *device;
     dev->gdpa = gdpa;
-    dev->emulated = requested;
+    dev->emulated = requested | (gaps ? GAP_DEPTH_OP : 0);
     pthread_mutex_init(&dev->lock, NULL);
 #define LOAD(name) \
     dev->name = (PFN_vk##name)gdpa(*device, "vk" #name); \
@@ -638,6 +642,8 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
                   (requested & GAP_NULL_DESCRIPTOR) ? " nullDescriptor" : "",
                   (requested & GAP_DUAL_SRC_BLEND) ? " dualSrcBlend" : "", properties.deviceName);
     }
+    if (dev->emulated & GAP_DEPTH_OP)
+        layer_log("depthCompareOp becomes ALWAYS while the depth test is off");
     return VK_SUCCESS;
 }
 
@@ -665,6 +671,7 @@ static VKAPI_ATTR void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocat
         }
     }
     map_free(&dev->shader_modules);
+    map_free(&dev->depth_states);
     pthread_mutex_destroy(&dev->lock);
     free(dev);
 }
@@ -692,6 +699,10 @@ static const struct hook device_hooks[] = {
     HOOK(CmdSetScissorWithCount, GAP_MULTI_VIEWPORT),
     HOOK_ALIAS(CmdSetScissorWithCount, CmdSetScissorWithCountEXT, GAP_MULTI_VIEWPORT),
     HOOK(CmdSetColorBlendEquationEXT, GAP_DUAL_SRC_BLEND),
+    HOOK(CmdSetDepthTestEnable, GAP_DEPTH_OP),
+    HOOK_ALIAS(CmdSetDepthTestEnable, CmdSetDepthTestEnableEXT, GAP_DEPTH_OP),
+    HOOK(CmdSetDepthCompareOp, GAP_DEPTH_OP),
+    HOOK_ALIAS(CmdSetDepthCompareOp, CmdSetDepthCompareOpEXT, GAP_DEPTH_OP),
     HOOK(CreateImage, GAP_BC),
     HOOK(DestroyImage, GAP_BC),
     HOOK(CreateImageView, GAP_BC),
@@ -723,7 +734,7 @@ static const struct hook device_hooks[] = {
     HOOK_ALIAS(UnmapMemory2, UnmapMemory2KHR, GAP_BC),
     HOOK(AllocateCommandBuffers, GAP_BC),
     HOOK(FreeCommandBuffers, GAP_BC),
-    HOOK(BeginCommandBuffer, GAP_BC),
+    HOOK(BeginCommandBuffer, GAP_BC | GAP_DEPTH_OP),
     HOOK(ResetCommandBuffer, GAP_BC),
     HOOK(ResetCommandPool, GAP_BC),
     HOOK(DestroyCommandPool, GAP_BC),

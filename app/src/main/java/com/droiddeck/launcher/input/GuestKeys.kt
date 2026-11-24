@@ -3,6 +3,12 @@ package com.droiddeck.launcher.input
 import android.view.KeyEvent
 
 object GuestKeys {
+    fun normalizeKeyboardEscape(event: KeyEvent): KeyEvent {
+        if (!isKeyboardEscape(event.keyCode, event.scanCode)) return event
+        return KeyEvent(event.downTime, event.eventTime, event.action, KeyEvent.KEYCODE_ESCAPE,
+            event.repeatCount, event.metaState, event.deviceId, event.scanCode, event.flags, event.source)
+    }
+
     /** Sends [event] as evdev presses, with Shift around characters typed by a keyboard that has no Shift key; false when it has no evdev code. */
     fun send(event: KeyEvent, sendKey: (code: Int, down: Boolean) -> Unit): Boolean {
         val down = event.action == KeyEvent.ACTION_DOWN

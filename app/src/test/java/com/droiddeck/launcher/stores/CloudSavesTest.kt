@@ -25,7 +25,9 @@ class CloudSavesTest {
         val puts = ArrayList<String>()
         var onGet: (CloudFile) -> Unit = {}
         var raceAfter = Int.MAX_VALUE
-        override fun list() = files.map { (k, v) -> CloudFile(k, v.second, CloudSaves.md5(v.first)) }
+        val gone = HashSet<String>()
+        override fun deleted(file: CloudFile) = file.md5 == GOG_DELETED_MD5
+        override fun list() = files.map { (k, v) -> CloudFile(k, v.second, CloudSaves.md5(v.first)) } + gone.map { CloudFile(it, 5000L, GOG_DELETED_MD5) }
         override fun get(file: CloudFile) = files.getValue(file.name).also { onGet(file) }
         override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>): Map<String, Long> {
             val sent = LinkedHashMap<String, Long>()
@@ -39,6 +41,40 @@ class CloudSavesTest {
 
     private fun dir() = File(app.filesDir, "saves-${System.nanoTime()}").apply { mkdirs() }
     private val id get() = "g${System.nanoTime()}"
+
+    @Test fun savesTheCloudMarksDeletedAreNotDownloaded() {
+        val dir = dir()
+        val cloud = Memory().apply {
+            files["save1.ess"] = "kept".toByteArray() to 1000L
+            gone += listOf("save2.ess", "save3.ess", "save3.skse")
+        }
+        val r = CloudSaves.downWith(app, Store.GOG, id, dir, cloud, force = true)
+        assertEquals("ok", r.result); assertEquals(1, r.files)
+        assertEquals(listOf("save1.ess"), dir.list()!!.sorted())
+    }
+
+    @Test fun aLocalSaveTheCloudMarksDeletedIsLeftAlone() {
+        val dir = dir(); File(dir, "save2.ess").writeText("mine")
+        val cloud = Memory().apply { files["save1.ess"] = "kept".toByteArray() to 1000L; gone += "save2.ess" }
+        assertEquals("ok", CloudSaves.downWith(app, Store.GOG, id, dir, cloud, force = false).result)
+        assertEquals("mine", File(dir, "save2.ess").readText())
+        assertEquals("kept", File(dir, "save1.ess").readText())
+    }
+
+    @Test fun anUnchangedSaveDeletedInTheCloudIsNotSentBackButANewerOneIs() {
+        val game = id; val dir = dir()
+        val cloud = Memory().apply { files["save1.ess"] = "a".toByteArray() to 1000L; files["save2.ess"] = "b".toByteArray() to 1000L }
+        assertEquals("ok", CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false).result)
+        cloud.files.remove("save2.ess"); cloud.gone += "save2.ess"
+        val idle = CloudSaves.upWith(app, Store.GOG, game, dir, cloud, force = false)
+        assertEquals("up-to-date", idle.reason)
+        assertTrue(cloud.puts.isEmpty())
+        File(dir, "save2.ess").writeText("b played again")
+        val r = CloudSaves.upWith(app, Store.GOG, game, dir, cloud, force = false)
+        assertEquals(listOf("save2.ess"), cloud.puts)
+        assertEquals("b played again", String(cloud.files.getValue("save2.ess").first))
+        assertEquals(1, r.files)
+    }
 
     @Test fun anUploadBeforeAnyDownloadIsRefused() {
         val dir = dir(); File(dir, "slot0.sav").writeText("fresh profile")

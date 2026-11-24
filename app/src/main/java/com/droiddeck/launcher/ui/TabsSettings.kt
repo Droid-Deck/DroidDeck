@@ -213,10 +213,10 @@ internal fun SortableRows(
 }
 
 @Composable
-private fun MoreLine() {
+internal fun MoreLine(height: androidx.compose.ui.unit.Dp = TAB_ROW) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    Column(Modifier.fillMaxWidth().height(TAB_ROW).testTag("tab-more-line")) {
+    Column(Modifier.fillMaxWidth().height(height).testTag("tab-more-line")) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),

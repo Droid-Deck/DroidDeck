@@ -143,6 +143,7 @@ struct pipeline_rewrite {
     /* VK_EXT_depth_clip_enable's state, taken out of the application's chain for the call. */
     VkBaseOutStructure *clip_prev, *clip_node;
     VkPipelineViewportStateCreateInfo viewport;
+    VkPipelineDepthStencilStateCreateInfo depth_stencil;
     VkPipelineShaderStageCreateInfo stages[MAX_STAGES];
     VkShaderModuleCreateInfo modules[MAX_STAGES];
     struct spirv_code code[MAX_STAGES];
@@ -400,6 +401,19 @@ static void rewrite_pipeline(struct device *dev, VkGraphicsPipelineCreateInfo *i
         if (rw->viewport.scissorCount > 1)
             rw->viewport.scissorCount = 1;
         info->pViewportState = &rw->viewport;
+    }
+    if ((dev->emulated & GAP_DEPTH_OP) && info->pDepthStencilState && !info->pDepthStencilState->depthTestEnable &&
+        info->pDepthStencilState->depthCompareOp != VK_COMPARE_OP_ALWAYS) {
+        bool dynamic = false;
+        for (uint32_t i = 0; info->pDynamicState && i < info->pDynamicState->dynamicStateCount; i++) {
+            VkDynamicState state = info->pDynamicState->pDynamicStates[i];
+            dynamic |= state == VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE || state == VK_DYNAMIC_STATE_DEPTH_COMPARE_OP;
+        }
+        if (!dynamic) {
+            rw->depth_stencil = *info->pDepthStencilState;
+            rw->depth_stencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+            info->pDepthStencilState = &rw->depth_stencil;
+        }
     }
     if (dev->emulated & GAP_DUAL_SRC_BLEND) {
         rewrite_blend(info, rw);

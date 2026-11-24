@@ -70,17 +70,24 @@ class XrealProtocolTest {
     }
 
     @Test fun stereoOnlyControlSwitches3dWithoutDisplayModeCommands() {
-        val output = ByteArrayOutputStream()
-        val replies = response(XrealProtocol.GET_INPUT, 1, byteArrayOf(0x22, 0)) +
-            response(XrealProtocol.SET_INPUT, 2, byteArrayOf(0x22, 0)) +
-            response(XrealProtocol.GET_INPUT, 3, byteArrayOf(0x22, 2, 0x10, 1))
-        val control = XrealControl(channels(replies.inputStream(), output), stereoOnly = true, settleDelayMs = 0)
-        assertEquals(XrealModel.NATIVE_60HZ, control.display())
-        assertEquals(5, control.changeDisplay(5))
-        val written = output.toByteArray().inputStream()
-        val commands = List(3) { XrealProtocol.read(written).command }
-        assertEquals(listOf(XrealProtocol.GET_INPUT, XrealProtocol.SET_INPUT, XrealProtocol.GET_INPUT), commands)
-        assertFalse(commands.any { it == XrealProtocol.GET_DISPLAY || it == XrealProtocol.SET_DISPLAY })
+        for (model in listOf(XrealModel.ONE, XrealModel.ONE_PRO, XrealModel.AURA)) {
+            assertFalse(model.hardwareControls)
+            assertFalse(model.hasSunblock)
+            assertEquals(listOf(60), model.rates2d)
+            assertFalse(model.supportsDisplayMode(9))
+            assertFalse(model.supportsDisplayMode(3))
+            val output = ByteArrayOutputStream()
+            val replies = response(XrealProtocol.GET_INPUT, 1, byteArrayOf(0x22, 0)) +
+                response(XrealProtocol.SET_INPUT, 2, byteArrayOf(0x22, 0)) +
+                response(XrealProtocol.GET_INPUT, 3, byteArrayOf(0x22, 2, 0x10, 1))
+            val control = XrealControl(channels(replies.inputStream(), output), model = model, settleDelayMs = 0)
+            assertEquals(XrealModel.NATIVE_60HZ, control.display())
+            assertEquals(5, control.changeDisplay(5))
+            val written = output.toByteArray().inputStream()
+            val commands = List(3) { XrealProtocol.read(written).command }
+            assertEquals(listOf(XrealProtocol.GET_INPUT, XrealProtocol.SET_INPUT, XrealProtocol.GET_INPUT), commands)
+            assertFalse(commands.any { it == XrealProtocol.GET_DISPLAY || it == XrealProtocol.SET_DISPLAY })
+        }
     }
 
     @Test fun unrelatedResponsesCannotKeepControlWaitingForever() {
@@ -123,6 +130,44 @@ class XrealProtocolTest {
         }
         val control = XrealControl(channels(stalled.toByteArray().inputStream(), ByteArrayOutputStream()), 0)
         assertThrows(IOException::class.java) { control.changeDisplay(5) }
+    }
+
+    @Test fun proPlusKeeps1080pModesSeparateFrom1sNative1200p() {
+        val pro = XrealModel.ONE_PRO_PLUS
+        assertEquals(9, pro.mode(60, false))
+        assertEquals(3, pro.mode(90, false))
+        assertEquals(4, pro.mode(120, false))
+        assertEquals(5, pro.mode(120, true))
+        assertFalse(pro.sbs90)
+        assertEquals(listOf(60, 90, 120), pro.rates2d)
+        assertEquals(57f, pro.diagonalFovDeg, 0f)
+        assertEquals(29, XrealModel.ONE_S.mode(60, false))
+        assertEquals(52f, XrealModel.ONE_S.diagonalFovDeg, 0f)
+    }
+
+    @Test fun proPlusRejects1sOnlyDisplayResponsesAndCommands() {
+        for (mode in listOf(2, 29)) {
+            val response = response(XrealProtocol.GET_DISPLAY, 1, byteArrayOf(0x22, 2, 0x10, mode.toByte()))
+            val output = ByteArrayOutputStream()
+            val control = XrealControl(channels(response.inputStream(), output), model = XrealModel.ONE_PRO_PLUS)
+            assertThrows(IOException::class.java) { control.display() }
+            output.reset()
+            assertThrows(IllegalArgumentException::class.java) { control.changeDisplay(mode) }
+            assertEquals(0, output.size())
+        }
+    }
+
+    @Test fun proPlusCanReturnFromStereoToIts1080p60HzMode() {
+        val output = ByteArrayOutputStream()
+        val replies = response(XrealProtocol.SET_INPUT, 1, byteArrayOf(0x22, 0)) +
+            response(XrealProtocol.GET_DISPLAY, 2, byteArrayOf(0x22, 0)) +
+            response(XrealProtocol.GET_DISPLAY, 3, byteArrayOf(0x22, 2, 0x10, 9))
+        val control = XrealControl(channels(replies.inputStream(), output), 0, XrealModel.ONE_PRO_PLUS)
+        assertEquals(9, control.changeDisplay(XrealModel.ONE_PRO_PLUS.mode(60, false)))
+        val requests = output.toByteArray().inputStream()
+        assertEquals(XrealProtocol.SET_INPUT, XrealProtocol.read(requests).command)
+        repeat(2) { assertEquals(XrealProtocol.GET_DISPLAY, XrealProtocol.read(requests).command) }
+        assertEquals(0, requests.available())
     }
 
     companion object {

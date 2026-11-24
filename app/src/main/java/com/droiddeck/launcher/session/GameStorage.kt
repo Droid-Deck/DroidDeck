@@ -43,6 +43,17 @@ object GameStorage {
         }
     }
 
+    fun isFat32(path: String): Boolean = runCatching { isFat32(path, File("/proc/mounts").readText()) }.getOrDefault(false)
+
+    /** Android mounts FAT32 as vfat and exFAT as exfat; /storage is a FUSE view, so the lookup uses the raw mount. */
+    internal fun isFat32(path: String, mounts: String): Boolean {
+        val raw = UsbLink.rawPath(path)
+        return mounts.lineSequence().map { it.split(' ') }
+            .filter { it.size >= 3 }
+            .filter { val point = it[1].replace("\\040", " "); raw == point || raw.startsWith("${point.trimEnd('/')}/") }
+            .maxByOrNull { it[1].length }?.get(2) == "vfat"
+    }
+
     fun effective(context: Context): Option? {
         val pref = SessionPrefs.gameStorage(context)
         return when {
