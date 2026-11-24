@@ -584,8 +584,8 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
     const int nfx = effect_count(s);
     const int resize = cw != scene_w || ch != scene_h;
     const int fuse_toon_color = s->toon && s->color_on && g_fx_fmt == FX_FORMAT;
-    const int fuse_fxaa_toon = s->aa_mode == 1 && s->toon &&
-        !s->color_on && g_fx_fmt == FX_FORMAT;
+    /* Keep FXAA and Toon separate so Toon detects edges on FXAA output. */
+    const int fuse_fxaa_toon = 0;
     const int chain_passes = ((spatial || resize) ? 1 : 0) +
         effect_count(s) - (fuse_toon_color ? 1 : 0) -
         (fuse_fxaa_toon ? 1 : 0);
@@ -672,7 +672,7 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             cur = NULL; cur_ds = g_scene.ds;
         }
 
-        enum { FX_FXAA, FX_SMAA, FX_TOON, FX_COLOR, FX_TOON_COLOR, FX_CAS, FX_HDR, FX_NTSC, FX_CRT, FX_DEBAND };
+        enum { FX_FXAA, FX_FXAA_TOON, FX_SMAA, FX_TOON, FX_COLOR, FX_TOON_COLOR, FX_CAS, FX_HDR, FX_NTSC, FX_CRT, FX_DEBAND };
         int order[8], n = 0;
         if (s->aa_mode == 1)
             order[n++] = fuse_fxaa_toon ? FX_FXAA_TOON : FX_FXAA;
