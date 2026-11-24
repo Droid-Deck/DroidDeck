@@ -141,10 +141,14 @@ void main() {
     float shortDiagonalFallback =
         (span > 0.0 && span <= 1.0 && crossingContrast <= threshold && diagonalStrength > threshold)
             ? 1.0 : 0.0;
+    bool saturatedCrossing =
+        (verticalLine ? dL : dU) > threshold * 2.5 &&
+        (verticalLine ? dR : dD) > threshold * 2.5 &&
+        negativeRun >= 6.0 && positiveRun >= 6.0;
     float diagonalFallback = 0.16 * diagonalPattern * edgeConfidence
-        * cornerFactor * max(
+        * cornerFactor * (saturatedCrossing ? 0.0 : max(
             diagonalContinuity * max(crossingPattern, balancedCrossing),
-            shortDiagonalFallback);
+            shortDiagonalFallback));
 
     float weight = clamp(max(baseWeight, diagonalFallback), 0.0, 0.42);
     outColor = vec4(weight, normal.x * 0.5 + 0.5, normal.y * 0.5 + 0.5, 1.0);
