@@ -156,7 +156,10 @@ internal fun DesktopPage(s: FrontEndState, a: FrontEndActions, modifier: Modifie
         },
         rows = { tab ->
             if (tab == SheetTab.FILES) DesktopFiles(s, a)
-            else a.modeSheet(mode, tab, SheetExtras())
+            else a.modeSheet(mode, tab, SheetExtras(
+                performance = { PerformanceLink(a, "desktop", SheetTab.SESSION) },
+                drivers = { summary -> DriversLink(a, summary, "desktop", stringResource(R.string.hop_from_play)) },
+            ))
         },
     )
     if (adding && !s.busy) AddAppDialog(s.ready, onDismiss = { adding = false }) { request, label -> UserAppsState.add(ctx, request, label) }
@@ -306,7 +309,7 @@ private fun DesktopCard(
     Column(
         Modifier.width(width).paneItem("tile:desktop:$key").then(if (first) Modifier.firstTile() else Modifier)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(shape).background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
+            .clip(shape).background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.10f)) else Modifier)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button) { onClick(artAt) }
             .controllerConfirm { onClick(artAt) }

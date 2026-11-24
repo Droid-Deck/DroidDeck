@@ -7,7 +7,7 @@ case ":${XDG_DATA_DIRS:-}:" in
   *) export XDG_DATA_DIRS=$HOME/.local/share/flatpak/exports/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share} ;;
 esac
 socket=()
-if [ -n "${BL_INSIDE:-}" ] || [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
+if [ -n "${DD_INSIDE:-}" ] || [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
   unset WAYLAND_DISPLAY
   export XDG_SESSION_TYPE=x11
   socket=(--nosocket=wayland --socket=x11)

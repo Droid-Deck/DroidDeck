@@ -6,7 +6,8 @@ layout(binding = 0) uniform sampler2D Mixed;
 layout(push_constant) uniform PC {
     vec4 ndc;
     vec4 params;
-    vec4 rects[6];
+    uvec2 rects[6];
+    vec4 conv[3];
 } pc;
 
 layout(location = 0) in vec2 fragTexCoord;
@@ -55,28 +56,38 @@ float toneCurve(float x, float peak) {
     return knee + (1.0 - knee) * (1.0 - exp(-(x - knee) / rate));
 }
 
-bool isHdrPixel(vec2 p) {
-    float packed = pc.params.w;
-    float count = mod(packed, 16.0);
-    float mask = floor(packed / 16.0);
+int rectAt(vec2 p) {
+    float count = mod(pc.params.w, 16.0);
     for (int i = 0; i < 6; i++) {
         if (float(i) >= count - 0.5) break;
-        vec4 r = pc.rects[i];
-        if (p.x >= r.x && p.y >= r.y && p.x < r.z && p.y < r.w) {
-            float bit = mod(floor(mask / exp2(float(i))), 2.0);
-            return bit > 0.5;
-        }
+        uvec2 r = pc.rects[i];
+        vec2 lo = vec2(float(r.x & 0xFFFFu), float(r.x >> 16));
+        vec2 hi = vec2(float(r.y & 0xFFFFu), float(r.y >> 16));
+        if (p.x >= lo.x && p.y >= lo.y && p.x < hi.x && p.y < hi.y) return i;
     }
-    return false;
+    return -1;
+}
+
+bool bitOf(float mask, int i) {
+    return i >= 0 && mod(floor(mask / exp2(float(i))), 2.0) > 0.5;
+}
+
+vec3 convertedNits(vec3 c) {
+    vec3 lin = pc.conv[1].w > 0.5 ? c : pqToLinear(c);
+    return vec3(dot(pc.conv[0].xyz, lin), dot(pc.conv[1].xyz, lin), dot(pc.conv[2].xyz, lin)) * pc.conv[2].w;
 }
 
 void main() {
     vec3 c = texelFetch(Mixed, ivec2(gl_FragCoord.xy), 0).rgb;
-    bool hdr = isHdrPixel(gl_FragCoord.xy);
+    int at = rectAt(gl_FragCoord.xy);
+    bool hdr = bitOf(floor(pc.params.w / 16.0), at);
+    bool conv = hdr && bitOf(pc.conv[0].w, at);
     float sdrWhite = max(pc.params.x, 1.0);
     vec3 outc;
     if (pc.params.z < 0.5) {
-        if (hdr) {
+        if (conv) {
+            outc = linearToPq(max(convertedNits(c), 0.0) / 10000.0);
+        } else if (hdr) {
             outc = c;
         } else {
             vec3 nits = (BT709_TO_BT2020 * srgbToLinear(c)) * sdrWhite;
@@ -86,7 +97,8 @@ void main() {
         if (!hdr) {
             outc = c;
         } else {
-            vec3 rel = max(BT2020_TO_BT709 * (pqToLinear(c) * 10000.0), 0.0) / sdrWhite;
+            vec3 nits = conv ? convertedNits(c) : pqToLinear(c) * 10000.0;
+            vec3 rel = max(BT2020_TO_BT709 * nits, 0.0) / sdrWhite;
             float m = max(max(rel.r, rel.g), rel.b);
             if (m > 1e-6) rel *= toneCurve(m, max(pc.params.y, sdrWhite) / sdrWhite) / m;
             outc = linearToSrgb(clamp(rel, 0.0, 1.0));

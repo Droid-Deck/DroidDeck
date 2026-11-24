@@ -7,6 +7,7 @@ import android.os.Looper
 import androidx.compose.ui.geometry.Rect
 import com.droiddeck.launcher.frontend.AutoComponents
 import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.ExperimentalProtons
 import com.droiddeck.launcher.session.ProtonExtras
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SessionPhase
@@ -25,13 +26,16 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.util.ReflectionHelpers
 import java.io.File
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28], manifest = Config.NONE)
 class ProtonMenuAutoTest {
     private val online = AutoComponents.online
     private val constrained = AutoComponents.unfavourable
+    private val firstRunHeldBack = AutoComponents.firstRunHeldBack
     private lateinit var activity: Activity
     private lateinit var menu: ProtonMenu
     private lateinit var root: File
@@ -46,6 +50,7 @@ class ProtonMenuAutoTest {
         }
         AutoComponents.online = { true }
         AutoComponents.unfavourable = { false }
+        AutoComponents.firstRunHeldBack = { false }
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
         SessionState.stopRequested = false
@@ -60,6 +65,7 @@ class ProtonMenuAutoTest {
         menu.protonProblem = null
         menu.protonStage = null
         menu.protonPercent = -1
+        menu.experimentalRefresh = { emptyList() }
         menu.installer = { tool, progress ->
             progress("Installing ${tool.name}", 50)
             install("${tool.prefix}-11-12")
@@ -74,6 +80,7 @@ class ProtonMenuAutoTest {
         menu.protonPercent = -1
         AutoComponents.online = online
         AutoComponents.unfavourable = constrained
+        AutoComponents.firstRunHeldBack = firstRunHeldBack
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
         SessionState.stopRequested = false
@@ -86,6 +93,67 @@ class ProtonMenuAutoTest {
         File(this, "toolmanifest.vdf").writeText("\"manifest\" { \"commandline\" \"/proton %verb%\" }")
         File(this, "compatibilitytool.vdf").writeText("\"from_oslist\" \"windows\"")
         File(this, "proton").apply { writeText(""); setExecutable(true) }
+    }
+
+    private fun prerelease(tag: String) = ExperimentalProtons.Release(tag, "$tag.tar.xz", "https://github.com/o/r/releases/download/$tag/$tag.tar.xz", null, 1L)
+
+    private fun recreatedMenu(refreshes: AtomicInteger, tag: String) = ProtonMenu(activity, Handler(Looper.getMainLooper())) { idle }.apply {
+        installer = menu.installer
+        latestCheck = { false }
+        experimentalRefresh = {
+            refreshes.incrementAndGet()
+            listOf(prerelease(tag))
+        }
+    }
+
+    @Test
+    fun aRecreatedMenuJoinsTheRunningRefresh() {
+        idle = false
+        val started = CountDownLatch(1)
+        val gate = CountDownLatch(1)
+        val refreshes = AtomicInteger()
+        menu.latestCheck = { false }
+        menu.experimentalRefresh = {
+            started.countDown()
+            gate.await(5, TimeUnit.SECONDS)
+            listOf(prerelease("first"))
+        }
+        menu.checkUpdates()
+        assertTrue(started.await(5, TimeUnit.SECONDS))
+        val recreated = recreatedMenu(refreshes, "second")
+        recreated.checkUpdates()
+        gate.countDown()
+        waitUntil { recreated.experimentalReleases.map { it.tag } == listOf("first") }
+        assertEquals(0, refreshes.get())
+        recreated.checkUpdates()
+        waitUntil { recreated.experimentalReleases.map { it.tag } == listOf("second") }
+        assertEquals(1, refreshes.get())
+    }
+
+    @Test
+    fun aFinishedRefreshIsPublishedBeforeTheNextOneStarts() {
+        idle = false
+        val finished = CountDownLatch(1)
+        val refreshes = AtomicInteger()
+        menu.experimentalReleases = emptyList()
+        menu.latestCheck = { false }
+        menu.experimentalRefresh = {
+            finished.countDown()
+            listOf(prerelease("older"))
+        }
+        menu.checkUpdates()
+        assertTrue(finished.await(5, TimeUnit.SECONDS))
+        val recreated = recreatedMenu(refreshes, "newer")
+        repeat(20) {
+            recreated.checkUpdates()
+            Thread.sleep(10)
+        }
+        assertEquals(0, refreshes.get())
+        assertTrue(recreated.experimentalReleases.isEmpty())
+        waitUntil { recreated.experimentalReleases.map { it.tag } == listOf("older") }
+        recreated.checkUpdates()
+        waitUntil { recreated.experimentalReleases.map { it.tag } == listOf("newer") }
+        assertEquals(1, refreshes.get())
     }
 
     private fun waitUntil(done: () -> Boolean) {

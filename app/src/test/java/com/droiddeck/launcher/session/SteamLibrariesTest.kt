@@ -4,6 +4,7 @@ import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
 import java.io.File
 import org.junit.Assert.*
+import org.junit.Assume.assumeFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -145,6 +146,7 @@ class SteamLibrariesTest {
     }
 
     @Test fun rawAndStorageMountViewsOverlapButDistinctFoldersDoNot() {
+        assumeFalse(java.nio.file.Files.isSymbolicLink(File("/mnt").toPath()))
         val raw = SteamLibraries.canonical(File("/mnt/media_rw/ABCD-1234/Games"))
         val storage = SteamLibraries.canonical(File("/storage/ABCD-1234/Games"))
         assertEquals(storage, raw)

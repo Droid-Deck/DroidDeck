@@ -12,20 +12,25 @@ import com.droiddeck.launcher.session.SessionDisplay
 
 @Composable
 fun ResolutionRow(
-    host: MenuHost, choice: String, panel: Pair<Int, Int>, onPick: (String) -> Unit,
+    host: MenuHost, id: String, title: String, stored: String, choice: String, link: String, followTarget: String,
+    panel: Pair<Int, Int>, onPick: (String) -> Unit,
     chipModifier: Modifier = Modifier,
     portrait: Boolean = false,
 ) {
     val custom = "custom"
+    val linked = stored == link
     val size = SessionDisplay.resolveChoice(panel, choice, portrait)
     val screen = SessionDisplay.resolveChoice(panel, SessionDisplay.MATCH_SCREEN, portrait)
     val choices = SessionDisplay.resolutionOptions(panel)
-    val customFollow = SessionDisplay.isFollow(choice) && choice !in choices
-    val selected = if (SessionDisplay.isFollow(choice)) choice
+    val customFollow = !linked && SessionDisplay.isFollow(choice) && choice !in choices
+    val selected = if (linked) link else if (SessionDisplay.isFollow(choice)) choice
         else if (size == screen) SessionDisplay.MATCH_SCREEN else choice
     var editCustom by remember { mutableStateOf(false) }
     var editFollow by remember { mutableStateOf(false) }
-    val options = choices.map { value ->
+    val followSize = SessionDisplay.resolveChoice(panel, followTarget, portrait)
+    val linkLabel = stringResource(if (link == SessionDisplay.LINK_LANDSCAPE) R.string.display_follow_landscape else R.string.display_follow_portrait,
+        followSize.first, followSize.second)
+    val options = listOf(link to linkLabel) + choices.map { value ->
         val dimensions = SessionDisplay.resolveChoice(panel, value, portrait)
         value to if (value == SessionDisplay.MATCH_SCREEN) stringResource(R.string.display_match_screen, screen.first, screen.second)
         else if (value == SessionDisplay.FOLLOW_SCREEN) stringResource(R.string.display_follow_screen)
@@ -35,18 +40,18 @@ fun ResolutionRow(
         else "${dimensions.first}×${dimensions.second}"
     } + listOf(SessionDisplay.FOLLOW_CUSTOM to stringResource(R.string.display_follow_screen_scaled,
         if (customFollow) SessionDisplay.formatScale(SessionDisplay.followScale(choice) ?: 1f) else "…"
-    ) + if (customFollow) " (${size.first}×${size.second})" else "") + (custom to if (selected in choices) stringResource(R.string.mode_res_custom)
+    ) + if (customFollow) " (${size.first}×${size.second})" else "") + (custom to if (selected in choices || linked) stringResource(R.string.mode_res_custom)
         else stringResource(R.string.mode_res_custom_value, size.first, size.second))
-    ChoiceRow(host, "resolution", stringResource(R.string.display_resolution),
+    ChoiceRow(host, id, title,
         stringResource(R.string.common_applies_next_session),
-        options, if (selected in choices) selected else if (customFollow) SessionDisplay.FOLLOW_CUSTOM else custom, chipModifier = chipModifier,
+        options, if (linked || selected in choices) selected else if (customFollow) SessionDisplay.FOLLOW_CUSTOM else custom, chipModifier = chipModifier,
         onPick = { value ->
             if (value == custom) editCustom = true
             else if (value == SessionDisplay.FOLLOW_CUSTOM) editFollow = true
             else onPick(value) })
     if (editCustom) CustomResolutionDialog(size,
         onSave = { value -> editCustom = false; onPick("${value.first}x${value.second}") },
-        onDismiss = { editCustom = false })
+        onDismiss = { editCustom = false }, portrait = portrait)
     if (editFollow) CustomFollowScaleDialog(SessionDisplay.followScale(choice)?.takeIf { it > 1f },
         onSave = { value -> editFollow = false; onPick(SessionDisplay.followScaled(value)) },
         onDismiss = { editFollow = false })

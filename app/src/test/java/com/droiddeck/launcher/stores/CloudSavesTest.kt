@@ -1,5 +1,8 @@
 package com.droiddeck.launcher.stores
 
+import com.droiddeck.launcher.stores.ubisoft.MemorySlots
+import com.droiddeck.launcher.stores.ubisoft.UbisoftCloud
+import com.droiddeck.launcher.stores.ubisoft.UbisoftCloudTransport
 import java.io.File
 import java.util.concurrent.Executor
 import org.junit.Assert.assertArrayEquals
@@ -20,14 +23,58 @@ class CloudSavesTest {
     private class Memory : CloudTransport {
         val files = HashMap<String, Pair<ByteArray, Long>>()
         val puts = ArrayList<String>()
-        override fun list() = files.map { (k, v) -> CloudFile(k, v.second, CloudSaves.md5(v.first)) }
-        override fun get(file: CloudFile) = files.getValue(file.name)
-        override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>): Map<String, Long> =
-            files.mapValues { (k, v) -> puts += k; this.files[k] = v to 99_000L; 99_000L }
+        var onGet: (CloudFile) -> Unit = {}
+        var raceAfter = Int.MAX_VALUE
+        val gone = HashSet<String>()
+        override fun deleted(file: CloudFile) = file.md5 == GOG_DELETED_MD5
+        override fun list() = files.map { (k, v) -> CloudFile(k, v.second, CloudSaves.md5(v.first)) } + gone.map { CloudFile(it, 5000L, GOG_DELETED_MD5) }
+        override fun get(file: CloudFile) = files.getValue(file.name).also { onGet(file) }
+        override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>): Map<String, Long> {
+            val sent = LinkedHashMap<String, Long>()
+            for ((k, v) in files) {
+                if (sent.size >= raceAfter) throw CloudChanged(sent, files.keys.filter { it !in sent })
+                puts += k; this.files[k] = v to 99_000L; sent[k] = 99_000L
+            }
+            return sent
+        }
     }
 
     private fun dir() = File(app.filesDir, "saves-${System.nanoTime()}").apply { mkdirs() }
     private val id get() = "g${System.nanoTime()}"
+
+    @Test fun savesTheCloudMarksDeletedAreNotDownloaded() {
+        val dir = dir()
+        val cloud = Memory().apply {
+            files["save1.ess"] = "kept".toByteArray() to 1000L
+            gone += listOf("save2.ess", "save3.ess", "save3.skse")
+        }
+        val r = CloudSaves.downWith(app, Store.GOG, id, dir, cloud, force = true)
+        assertEquals("ok", r.result); assertEquals(1, r.files)
+        assertEquals(listOf("save1.ess"), dir.list()!!.sorted())
+    }
+
+    @Test fun aLocalSaveTheCloudMarksDeletedIsLeftAlone() {
+        val dir = dir(); File(dir, "save2.ess").writeText("mine")
+        val cloud = Memory().apply { files["save1.ess"] = "kept".toByteArray() to 1000L; gone += "save2.ess" }
+        assertEquals("ok", CloudSaves.downWith(app, Store.GOG, id, dir, cloud, force = false).result)
+        assertEquals("mine", File(dir, "save2.ess").readText())
+        assertEquals("kept", File(dir, "save1.ess").readText())
+    }
+
+    @Test fun anUnchangedSaveDeletedInTheCloudIsNotSentBackButANewerOneIs() {
+        val game = id; val dir = dir()
+        val cloud = Memory().apply { files["save1.ess"] = "a".toByteArray() to 1000L; files["save2.ess"] = "b".toByteArray() to 1000L }
+        assertEquals("ok", CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false).result)
+        cloud.files.remove("save2.ess"); cloud.gone += "save2.ess"
+        val idle = CloudSaves.upWith(app, Store.GOG, game, dir, cloud, force = false)
+        assertEquals("up-to-date", idle.reason)
+        assertTrue(cloud.puts.isEmpty())
+        File(dir, "save2.ess").writeText("b played again")
+        val r = CloudSaves.upWith(app, Store.GOG, game, dir, cloud, force = false)
+        assertEquals(listOf("save2.ess"), cloud.puts)
+        assertEquals("b played again", String(cloud.files.getValue("save2.ess").first))
+        assertEquals(1, r.files)
+    }
 
     @Test fun anUploadBeforeAnyDownloadIsRefused() {
         val dir = dir(); File(dir, "slot0.sav").writeText("fresh profile")
@@ -50,6 +97,72 @@ class CloudSavesTest {
         assertEquals("v1", File(kept, "slot0.sav").readText())
     }
 
+    @Test fun aFolderAliasNeverHidesTheRealSaveFromARestore() {
+        val game = id; val dir = dir()
+        File(dir, "SaveData").mkdirs(); File(dir, "SaveData/slot.sav").writeText("local")
+        val link = runCatching { java.nio.file.Files.createSymbolicLink(File(dir, "Cache").toPath(), File(dir, "SaveData").toPath()) }
+        org.junit.Assume.assumeTrue(link.isSuccess)
+        val memory = Memory().apply { files["SaveData/slot.sav"] = "cloud".toByteArray() to 1000L }
+        val cloud = object : CloudTransport by memory {
+            override fun wants(name: String) = name.startsWith("SaveData/")
+        }
+        CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = true)
+        assertEquals("cloud", File(dir, "SaveData/slot.sav").readText())
+        val kept = File(app.filesDir, "stores/cloud-backups/gog-$game").listFiles { f -> f.name.startsWith("local-") }!!.single()
+        assertEquals("local", File(kept, "SaveData/slot.sav").readText())
+    }
+
+    @Test fun aSaveReachedOnlyThroughAFolderAliasStillGoesUp() {
+        val game = id; val dir = dir()
+        File(dir, "Actual").mkdirs(); File(dir, "Actual/slot.sav").writeText("played")
+        val link = runCatching { java.nio.file.Files.createSymbolicLink(File(dir, "SaveData").toPath(), File(dir, "Actual").toPath()) }
+        org.junit.Assume.assumeTrue(link.isSuccess)
+        java.nio.file.Files.createSymbolicLink(File(dir, "Actual/loop").toPath(), dir.toPath())
+        val memory = Memory()
+        val cloud = object : CloudTransport by memory {
+            override fun wants(name: String) = name.startsWith("SaveData/")
+        }
+        CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false)
+        val r = CloudSaves.upWith(app, Store.GOG, game, dir, cloud, force = false)
+        assertEquals("uploaded", r.reason)
+        assertEquals(listOf("SaveData/slot.sav"), memory.puts)
+        assertEquals("played", String(memory.files.getValue("SaveData/slot.sav").first))
+    }
+
+    @Test fun onlySelectedSavesCanCollideByCase() {
+        val names = listOf("Logs/A.txt", "Logs/a.txt", "SaveGame/1")
+        assertFalse(CloudSaves.caseCollision(names) { !it.startsWith("Logs/") })
+        assertTrue(CloudSaves.caseCollision(names) { true })
+        assertTrue(CloudSaves.caseCollision(listOf("SaveGame/1", "savegame/1")) { it.lowercase().startsWith("savegame/") })
+    }
+
+    @Test fun aSavedConflictWhoseSidesNowMatchIsCleared() {
+        val game = id; val dir = dir()
+        val cloud = Memory().apply { files["slot0.sav"] = "v1".toByteArray() to 1000L }
+        CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false)
+        cloud.files["slot0.sav"] = "v2".toByteArray() to 50_000L
+        File(dir, "slot0.sav").writeText("v2")
+        com.droiddeck.launcher.stores.gog.GogPrefs.get(app).edit().putString("cloud_conflicts_$game", "slot0.sav").apply()
+        assertEquals("up-to-date", CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false).reason)
+        assertTrue(CloudSaves.conflicts(app, Store.GOG, game).isEmpty())
+        com.droiddeck.launcher.stores.gog.GogPrefs.get(app).edit().putString("cloud_conflicts_$game", "slot0.sav").apply()
+        CloudSaves.upWith(app, Store.GOG, game, dir, cloud, force = false)
+        assertTrue(CloudSaves.conflicts(app, Store.GOG, game).isEmpty())
+    }
+
+    @Test fun aDownloadTheLaunchStoppedWaitingForWritesNothing() {
+        val game = id; val dir = dir()
+        File(dir, "slot0.sav").writeText("local")
+        val cloud = Memory().apply { files["slot0.sav"] = "v1".toByteArray() to 1000L }
+        val r = CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = true, claim = { false })
+        assertEquals("skipped", r.result); assertEquals("launch-moved-on", r.reason)
+        assertEquals("local", File(dir, "slot0.sav").readText())
+        assertFalse(File(app.filesDir, "stores/cloud-backups/gog-$game").exists())
+        var claimed = 0
+        assertEquals("ok", CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = true, claim = { claimed++; true }).result)
+        assertEquals(1, claimed); assertEquals("v1", File(dir, "slot0.sav").readText())
+    }
+
     @Test fun aFileChangedOnBothSidesIsLeftForTheUser() {
         val game = id; val dir = dir()
         val cloud = Memory().apply { files["slot0.sav"] = "v1".toByteArray() to 1000L }
@@ -63,6 +176,134 @@ class CloudSavesTest {
         CloudSaves.upWith(app, Store.GOG, game, dir, cloud, force = true)
         assertEquals("local v2", String(cloud.files.getValue("slot0.sav").first))
         assertTrue(CloudSaves.conflicts(app, Store.GOG, game).isEmpty())
+    }
+
+    @Test fun aSlotTheGameRewritesDuringADownloadIsKeptAndNamedAsAConflict() {
+        val game = id; val dir = dir()
+        val cloud = Memory().apply { files["slot0.sav"] = "v1".toByteArray() to 1000L }
+        CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false)
+        cloud.files["slot0.sav"] = "cloud v2".toByteArray() to 50_000L
+        cloud.onGet = { File(dir, "slot0.sav").writeText("game wrote") }
+        val r = CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false)
+        assertEquals("partial", r.result); assertEquals("changed-locally", r.reason); assertEquals(1, r.conflicts)
+        assertTrue(r.detail.contains("slot0.sav"))
+        assertEquals("game wrote", File(dir, "slot0.sav").readText())
+        assertEquals(listOf("slot0.sav"), CloudSaves.conflicts(app, Store.GOG, game))
+    }
+
+    @Test fun aCloudNameOutsideTheSaveFolderIsBlockedNotAConflict() {
+        val game = id; val dir = dir()
+        val cloud = Memory().apply { files["../escape.sav"] = "x".toByteArray() to 1000L }
+        val r = CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false)
+        assertEquals("partial", r.result); assertEquals("blocked-path", r.reason); assertEquals(0, r.conflicts)
+        assertTrue(r.detail.contains("../escape.sav"))
+        assertFalse(File(dir.parentFile, "escape.sav").exists())
+        assertTrue(CloudSaves.conflicts(app, Store.GOG, game).isEmpty())
+    }
+
+    @Test fun anUploadStoppedByANewerCloudWriteKeepsTheRestAsConflicts() {
+        val game = id; val dir = dir()
+        val cloud = Memory().apply { files["a.sav"] = "a1".toByteArray() to 1000L; files["b.sav"] = "b1".toByteArray() to 1000L }
+        CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false)
+        File(dir, "a.sav").writeText("a2"); File(dir, "b.sav").writeText("b2")
+        cloud.raceAfter = 1
+        val r = CloudSaves.upWith(app, Store.GOG, game, dir, cloud, force = false)
+        assertEquals("partial", r.result); assertEquals("changed-in-cloud", r.reason); assertEquals(1, r.files)
+        val unsent = listOf("a.sav", "b.sav").single { it !in cloud.puts }
+        assertEquals(listOf(unsent), CloudSaves.conflicts(app, Store.GOG, game))
+    }
+
+    @Test fun aForcedUploadKeepsConflictsForSlotsItDidNotSend() {
+        val game = id; val dir = dir()
+        val cloud = Memory().apply { files["slot0.sav"] = "v1".toByteArray() to 1000L; files["slot1.sav"] = "w1".toByteArray() to 1000L }
+        CloudSaves.downWith(app, Store.GOG, game, dir, cloud, force = false)
+        File(dir, "slot0.sav").writeText("local v2"); File(dir, "slot1.sav").delete()
+        cloud.files["slot0.sav"] = "cloud v2".toByteArray() to 50_000L
+        com.droiddeck.launcher.stores.gog.GogPrefs.get(app).edit().putString("cloud_conflicts_$game", "slot0.sav\nslot1.sav").apply()
+        CloudSaves.upWith(app, Store.GOG, game, dir, cloud, force = true)
+        assertEquals("local v2", String(cloud.files.getValue("slot0.sav").first))
+        assertEquals(listOf("slot1.sav"), CloudSaves.conflicts(app, Store.GOG, game))
+    }
+
+    private fun ubisoftDir(user: String, root: File = File(app.filesDir, "ubi-${System.nanoTime()}")) = File(root, "$user/77").apply { mkdirs() }
+
+    @Test fun aSlotBothSidesSavedAlikeIsNotAConflictWhenTheCloudNamesOnlyAVersion() {
+        val game = id; val dir = ubisoftDir("u1")
+        val slots = MemorySlots().apply { store("1", MemorySlots.save("a1")) }
+        assertEquals("ok", CloudSaves.downWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false).result)
+        File(dir, "1.save").writeBytes(MemorySlots.save("a2"))
+        slots.store("1", MemorySlots.save("a2"))
+        val down = CloudSaves.downWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false)
+        assertEquals(0, down.conflicts)
+        assertTrue(CloudSaves.conflicts(app, Store.UBISOFT, game, dir).isEmpty())
+        val up = CloudSaves.upWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false)
+        assertEquals("up-to-date", up.reason); assertEquals(0, up.conflicts)
+        File(dir, "1.save").writeBytes(MemorySlots.save("a3 local"))
+        slots.store("1", MemorySlots.save("a3 cloud"))
+        assertEquals(1, CloudSaves.downWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false).conflicts)
+    }
+
+    @Test fun aNewUbisoftSaveWithAnEmptyIdentifierIsStampedAndUploaded() {
+        val game = id; val dir = ubisoftDir("u1")
+        val slots = MemorySlots().apply { store("1", MemorySlots.save("a1")) }
+        CloudSaves.downWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false)
+        File(dir, "2.save").writeBytes("UBISAVE0".toByteArray() + ByteArray(32) + "fresh slot".toByteArray())
+        File(dir, "3.save").writeBytes("UBISAVE0".toByteArray() + "not-an-identifier-but-not-empty!".toByteArray())
+        val up = CloudSaves.upWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false)
+        assertEquals("uploaded", up.reason)
+        val stamped = UbisoftCloud.mark(File(dir, "2.save").readBytes())
+        assertTrue(stamped != null)
+        assertEquals("fresh slot", String(File(dir, "2.save").readBytes().copyOfRange(40, 50)))
+        assertEquals(stamped, UbisoftCloud.mark(slots.data.getValue("2")))
+        assertFalse("3" in slots.data)
+        assertEquals("not-an-identifier-but-not-empty!", String(File(dir, "3.save").readBytes().copyOfRange(8, 40)))
+    }
+
+    @Test fun aSlotCommittedBeforeALaterOneFailsReachesTheBaseline() {
+        val game = id; val dir = ubisoftDir("u1")
+        val slots = MemorySlots().apply { store("1", MemorySlots.save("a1")); store("2", MemorySlots.save("b1")) }
+        CloudSaves.downWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false)
+        File(dir, "1.save").writeBytes(MemorySlots.save("a2")); File(dir, "2.save").writeBytes(MemorySlots.save("b2"))
+        slots.uploadsLeft = 1
+        assertTrue(runCatching { CloudSaves.upWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false) }
+            .exceptionOrNull() is java.io.IOException)
+        val base = CloudSaves.baseline(app, Store.UBISOFT, CloudSaves.scope(Store.UBISOFT, game, dir))!!
+        val sent = listOf("1", "2").single { slots.data.getValue(it).contentEquals(MemorySlots.save(if (it == "1") "a2" else "b2")) }
+        val kept = if (sent == "1") "2" else "1"
+        assertEquals(CloudSaves.md5(File(dir, "$sent.save")), base.getValue("$sent.save").localMd5)
+        assertEquals(CloudSaves.md5(MemorySlots.save(if (kept == "1") "a1" else "b1")), base.getValue("$kept.save").localMd5)
+        slots.uploadsLeft = Int.MAX_VALUE
+        val r = CloudSaves.upWith(app, Store.UBISOFT, game, dir, UbisoftCloudTransport(slots, "u1"), force = false)
+        assertEquals("ok", r.result); assertEquals(1, r.files); assertEquals(0, r.conflicts)
+    }
+
+    @Test fun ubisoftConflictsBelongToTheAccountAndProductThatHadThem() {
+        val game = id; val root = File(app.filesDir, "ubi-${System.nanoTime()}")
+        val a = ubisoftDir("uA", root); val b = ubisoftDir("uB", root)
+        val cloudB = Memory().apply { files["slot0.save"] = "b1".toByteArray() to 1000L }
+        CloudSaves.downWith(app, Store.UBISOFT, game, b, cloudB, force = false)
+        File(b, "slot0.save").writeText("b local")
+        val cloudA = Memory().apply { files["slot0.save"] = "a1".toByteArray() to 1000L }
+        CloudSaves.downWith(app, Store.UBISOFT, game, a, cloudA, force = false)
+        File(a, "slot0.save").writeText("a local")
+        cloudA.files["slot0.save"] = "a2".toByteArray() to 50_000L
+        assertEquals(1, CloudSaves.downWith(app, Store.UBISOFT, game, a, cloudA, force = false).conflicts)
+        assertEquals(listOf("slot0.save"), CloudSaves.conflicts(app, Store.UBISOFT, game, a))
+        assertTrue(CloudSaves.conflicts(app, Store.UBISOFT, game, b).isEmpty())
+        CloudSaves.downWith(app, Store.UBISOFT, game, b, cloudB, force = true)
+        assertEquals("b local", File(b, "slot0.save").readText())
+        com.droiddeck.launcher.stores.epic.EpicPrefs.get(app).edit().putString("cloud_conflicts_$game", "slot0.save").apply()
+        assertTrue(CloudSaves.conflicts(app, Store.UBISOFT, game, ubisoftDir("uC", root)).isEmpty())
+        assertTrue(CloudSaves.conflicts(app, Store.UBISOFT, game).isEmpty())
+    }
+
+    @Test fun aUbisoftGameAddedFromAnotherFolderIsFoundForCloudSaves() {
+        val game = id
+        val folder = File(app.filesDir, "Elsewhere/Anno-$game").apply { mkdirs() }
+        File(folder, "Anno.exe").writeText("MZ")
+        StoreGameSidecar(Store.UBISOFT, game, "Anno", "Anno.exe", extra = mapOf("productId" to "77")).write(folder)
+        com.droiddeck.launcher.session.SessionPrefs.followStoreGame(app, "ubisoft:$game", folder.path) { true }
+        assertEquals("not-signed-in", CloudSaves.status(app, Store.UBISOFT, game).reason)
     }
 
     @Test fun aDirtyMarkStaysUntilAnUploadGoesThroughOrIsSkippedForGood() {

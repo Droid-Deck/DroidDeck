@@ -238,6 +238,20 @@ object ComponentsManager {
         saveState(context, state)
     }
 
+    private val UNPINNED_FEX = Regex("""(?i)FEXCore-\d+(?:\.\d+)*-d2rfix\d+-linux\.wcp""")
+
+    fun migrateBattleNetFex(context: Context) = synchronized(lock) {
+        val marker = File(dataDir(context), ".battlenet-fex-unpinned")
+        if (marker.isFile) return@synchronized
+        migratePlugin(context)
+        val scope = com.droiddeck.launcher.runtime.BattleNet.APP_ID.toString()
+        if (gameComponents(context, scope)["fex"]?.let(UNPINNED_FEX::matches) == true) {
+            setGameComponent(context, scope, "fex", null)
+            Log.i(TAG, "Battle.net follows the selected FEX again")
+        }
+        marker.writeText("1\n")
+    }
+
     private fun migratePlugin(context: Context) {
         val marker = File(dataDir(context), ".plugin-imported")
         if (marker.isFile) return
@@ -282,6 +296,8 @@ object ComponentsManager {
         if (parts.size > 1) parts[1] else parts.firstOrNull()?.ifEmpty { null } ?: "unknown"
     }.getOrDefault("unknown")
 
+    internal fun isProtonTree(dir: File): Boolean = File(dir, WINE).isDirectory && File(dir, "proton").isFile
+
     fun protons(context: Context): List<Proton> {
         val found = LinkedHashMap<String, Proton>()
         val bases = listOf(File(steam(context), "compatibilitytools.d") to false) +
@@ -290,7 +306,7 @@ object ComponentsManager {
         for ((base, valve) in bases) {
             val entries = base.listFiles()?.sortedBy { it.name } ?: continue
             for (dir in entries) {
-                if (!File(dir, WINE).isDirectory || !File(dir, "proton").isFile) continue
+                if (!isProtonTree(dir)) continue
                 val real = runCatching { dir.canonicalPath }.getOrDefault(dir.path)
                 if (found.containsKey(real)) continue
                 val guest = if (dir.absolutePath.startsWith(rootPath)) dir.absolutePath.removePrefix(rootPath) else dir.absolutePath
@@ -485,6 +501,7 @@ object ComponentsManager {
 
     fun snapshotAll(context: Context) = synchronized(lock) {
         migratePlugin(context)
+        runCatching { migrateBattleNetFex(context) }.onFailure { Log.w(TAG, "Battle.net FEX selection", it) }
         val state = loadState(context)
         for (p in protons(context)) for (comp in COMPONENTS) {
             runCatching { ensureOriginal(context, p, comp, state) }.onFailure { Log.w(TAG, "original $comp of ${p.name}", it) }
@@ -495,6 +512,7 @@ object ComponentsManager {
 
     fun snapshot(context: Context): Snapshot = synchronized(lock) {
         migratePlugin(context)
+        runCatching { migrateBattleNetFex(context) }.onFailure { Log.w(TAG, "Battle.net FEX selection", it) }
         val state = loadState(context)
         val reapplied = HashMap<String, Long>()
         runCatching {
@@ -900,15 +918,26 @@ object ComponentsManager {
         }
     }
 
-    fun forgetProton(context: Context, dirName: String) {
-        synchronized(lock) {
-            val id = safeName(dirName)
-            if (protons(context).any { it.id == id }) return
-            val state = loadState(context)
-            val selected = listOf("active", "queued").map { state.sub(it).remove(id) != null }.any { it }
-            if (selected && runCatching { saveState(context, state) }.onFailure { Log.w(TAG, "forget $id", it) }.isFailure) return
-            File(originalsDir(context), id).deleteRecursively()
-        }
+    fun forgetProton(context: Context, dirName: String): Boolean = synchronized(lock) {
+        val id = safeName(dirName)
+        if (protons(context).any { it.id == id }) return true
+        val state = loadState(context)
+        val selected = listOf("active", "queued").map { state.sub(it).remove(id) != null }.any { it }
+        val published = File(launchDir(context), "desired.tsv")
+        val listed = published.takeIf { it.isFile }
+            ?.useLines { rows -> rows.any { it.split('\t').getOrNull(1) == dirName } } == true
+        if ((selected || listed) && runCatching { saveState(context, state) }.onFailure { Log.w(TAG, "forget $id", it) }.isFailure) return false
+        val originals = File(originalsDir(context), id)
+        val store = File(launchDir(context), "store")
+        val used = published.takeIf { it.isFile }?.useLines { rows ->
+            rows.mapNotNull { it.substringAfterLast('\t').substringAfter("/store/", "").substringBefore('/').ifEmpty { null } }.toSet()
+        }.orEmpty()
+        val unpacked = originals.listFiles().orEmpty().flatMap { version ->
+            version.listFiles().orEmpty().map { File(store, "original-$id-${version.name}-${it.name.removeSuffix(".wcp")}") }
+        }.filter { it.name !in used }
+        if (unpacked.any { File(it, ".complete").delete(); !it.deleteRecursively() && it.exists() }) return false
+        originals.deleteRecursively()
+        true
     }
 
     private fun storePackage(context: Context, part: File, dest: File) {

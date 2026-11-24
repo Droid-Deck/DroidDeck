@@ -107,7 +107,7 @@ class BinfmtPreloadTest(unittest.TestCase):
     def environment(self, desktop=True, **extra):
         env = {"PATH": "%s:/usr/bin:/bin" % self.dir, "LD_PRELOAD": str(self.library), "HANDLER_LOG": str(self.log)}
         if desktop:
-            env["BL_DESKTOP"] = "1"
+            env["DD_DESKTOP"] = "1"
         env.update(extra)
         return env
 
@@ -137,6 +137,27 @@ class BinfmtPreloadTest(unittest.TestCase):
         arm64[0:4], arm64[4], arm64[5], arm64[18] = b"\x7fELF", 2, 1, 183
         program = self.file("arm64", bytes(arm64))
         self.assertEqual(self.run_program("execve", program), (3, "errno %d" % errno.ENOEXEC, None))
+
+    def arm64_appimage(self, name, filesystem):
+        image = bytearray(128)
+        image[0:4], image[4], image[5], image[8:11], image[18] = b"\x7fELF", 2, 1, b"AI\x02", 183
+        image[0x28:0x30] = (64).to_bytes(8, "little")
+        image[0x3A:0x3C], image[0x3C:0x3E] = (32).to_bytes(2, "little"), (1).to_bytes(2, "little")
+        image[96:102] = filesystem
+        return self.file(name, bytes(image))
+
+    def test_an_arm64_appimage_goes_to_the_handler(self):
+        program = self.arm64_appimage("App.AppImage", b"hsqs\0\0")
+        for how in ("execve", "execvp"):
+            self.log.unlink(missing_ok=True)
+            target = program if how == "execve" else program.name
+            self.assertEqual(self.run_program(how, target, "--x"), (7, "", ["--exec", str(program), "--x"]))
+        self.log.unlink()
+        self.assertEqual(self.run_program("spawn", program, "y"), (0, "exit 7", ["--exec", str(program), "y"]))
+
+    def test_an_appimage_runtime_without_a_filesystem_keeps_its_error(self):
+        runtime = self.arm64_appimage("uruntime", bytes(6))
+        self.assertEqual(self.run_program("execve", runtime), (3, "errno %d" % errno.ENOEXEC, None))
 
     def test_a_script_runs_as_itself(self):
         script = self.file("script.sh", b"#!/bin/sh\nexit 5\n")
@@ -188,25 +209,43 @@ class BinfmtPreloadTest(unittest.TestCase):
         code = self.chromium_script()
         self.assertEqual(self.run_program("execve", code, "--version"), (0, "--no-sandbox\n--version", None))
 
+    def test_a_chromium_app_named_on_path_receives_no_sandbox(self):
+        (self.dir / "code").symlink_to(self.chromium_script())
+        for how in ("execvp", "execvpe", "spawnp"):
+            out = self.run_program(how, "code", "--version")
+            self.assertEqual(out[1].splitlines()[:2], ["--no-sandbox", "--version"], how)
+
+    def test_a_path_match_that_cannot_run_does_not_decide_the_flags(self):
+        stale = self.dir / "stale"
+        stale.mkdir()
+        (stale / "util").write_text("#!/bin/sh\n")
+        (stale / "chrome-sandbox").touch()
+        util = self.dir / "util"
+        util.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\n")
+        util.chmod(0o755)
+        for how in ("execvp", "execvpe", "spawnp"):
+            out = self.run_program(how, "util", "--version", PATH=f"{stale}:{self.dir}:/usr/bin:/bin")
+            self.assertEqual(out[1].splitlines()[:1], ["--version"], how)
+
     def test_the_hand_off_switch_works_without_the_desktop(self):
         tool = self.x86()
         for how in ("execve", "execvp"):
             self.log.unlink(missing_ok=True)
-            self.assertEqual(self.run_program(how, tool, "a", desktop=False, BL_BINFMT="1"), (7, "", ["--exec", str(tool), "a"]))
+            self.assertEqual(self.run_program(how, tool, "a", desktop=False, DD_BINFMT="1"), (7, "", ["--exec", str(tool), "a"]))
         self.log.unlink()
-        self.assertEqual(self.run_program("spawnp", "tool", "b", desktop=False, BL_BINFMT="1"), (0, "exit 7", ["--exec", str(tool), "b"]))
+        self.assertEqual(self.run_program("spawnp", "tool", "b", desktop=False, DD_BINFMT="1"), (0, "exit 7", ["--exec", str(tool), "b"]))
 
     def test_only_the_value_one_switches_the_hand_off_on(self):
         for value in ("0", "", "11", "yes"):
             with self.subTest(value=value):
-                self.assertEqual(self.run_program("execve", self.x86(), desktop=False, BL_BINFMT=value), (0, "", None))
+                self.assertEqual(self.run_program("execve", self.x86(), desktop=False, DD_BINFMT=value), (0, "", None))
 
     def test_the_desktop_hands_off_whatever_the_switch_says(self):
         tool = self.x86()
         for value in ("0", ""):
             with self.subTest(value=value):
                 self.log.unlink(missing_ok=True)
-                self.assertEqual(self.run_program("execve", tool, BL_BINFMT=value), (7, "", ["--exec", str(tool)]))
+                self.assertEqual(self.run_program("execve", tool, DD_BINFMT=value), (7, "", ["--exec", str(tool)]))
 
     def script_child(self, *lines, **extra):
         script = self.file("start.sh", ("#!/bin/bash\ncd \"${0%%/*}\"\n%s\n" % "\n".join(lines)).encode())
@@ -216,15 +255,15 @@ class BinfmtPreloadTest(unittest.TestCase):
     @unittest.skipUnless(os.path.exists("/bin/bash"), "needs bash")
     def test_an_x86_program_a_native_script_runs_goes_to_the_handler(self):
         tool = self.x86()
-        self.assertEqual(self.script_child("./tool one", "echo after $?", desktop=False, BL_BINFMT="1"),
+        self.assertEqual(self.script_child("./tool one", "echo after $?", desktop=False, DD_BINFMT="1"),
                          (0, "after 7", ["--exec", "./tool", "one"]))
         self.log.unlink()
-        self.assertEqual(self.script_child("exec ./tool two", desktop=False, BL_BINFMT="1"), (7, "", ["--exec", str(tool), "two"]))
+        self.assertEqual(self.script_child("exec ./tool two", desktop=False, DD_BINFMT="1"), (7, "", ["--exec", str(tool), "two"]))
 
     @unittest.skipUnless(os.path.exists("/bin/bash"), "needs bash")
     def test_native_children_of_a_script_run_as_themselves(self):
         self.file("child.sh", b"#!/bin/sh\nexit 5\n")
-        self.assertEqual(self.script_child("./child.sh", "echo $?", desktop=False, BL_BINFMT="1"), (0, "5", None))
+        self.assertEqual(self.script_child("./child.sh", "echo $?", desktop=False, DD_BINFMT="1"), (0, "5", None))
 
     @unittest.skipUnless(os.path.exists("/bin/bash"), "needs bash")
     def test_outside_the_desktop_and_script_runs_a_scripts_children_are_untouched(self):
@@ -242,7 +281,7 @@ class ScriptRunTest(unittest.TestCase):
         (tmp / "app/entry").write_text("go.sh")
         if fex:
             (tmp / "app/fex").write_text(fex)
-        (tmp / "app/files/go.sh").write_text("#!/bin/bash\necho \"${BL_BINFMT-unset} ${BL_DESKTOP-unset}\"\n")
+        (tmp / "app/files/go.sh").write_text("#!/bin/bash\necho \"${DD_BINFMT-unset} ${DD_DESKTOP-unset}\"\n")
         runner = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/droiddeck-script-run"
         base = {"PATH": "/usr/bin:/bin", "DBUS_SESSION_BUS_ADDRESS": "unix:path=/nonexistent"}
         done = subprocess.run(["/bin/bash", str(runner), str(tmp / "app")], stdout=subprocess.PIPE, text=True, timeout=60,
@@ -251,12 +290,12 @@ class ScriptRunTest(unittest.TestCase):
 
     def test_a_script_run_switches_the_hand_off_on_for_its_children_only(self):
         self.assertEqual(self.run_app({}), (0, "1 unset"))
-        self.assertEqual(self.run_app({"BL_BINFMT": "0", "BL_DESKTOP": "1"}), (0, "1 1"))
+        self.assertEqual(self.run_app({"DD_BINFMT": "0", "DD_DESKTOP": "1"}), (0, "1 1"))
         self.assertEqual(self.run_app({}, fex="on"), (0, "1 unset"))
 
     def test_fex_off_keeps_x86_children_away_from_the_hand_off(self):
         self.assertEqual(self.run_app({}, fex="off"), (0, "unset unset"))
-        self.assertEqual(self.run_app({"BL_BINFMT": "1"}, fex="off"), (0, "unset unset"))
+        self.assertEqual(self.run_app({"DD_BINFMT": "1"}, fex="off"), (0, "unset unset"))
 
 
 if __name__ == "__main__":

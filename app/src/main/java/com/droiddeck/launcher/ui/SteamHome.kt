@@ -29,8 +29,13 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -83,12 +88,21 @@ private const val DRIFT_STEP_NS = 15_000_000L
 internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) { com.droiddeck.launcher.frontend.SteamFeatured.load(ctx) }
-    val featured = com.droiddeck.launcher.frontend.SteamFeatured.games
+    rememberHiddenSync()
+    val featuredAll = com.droiddeck.launcher.frontend.SteamFeatured.games
     val signedIn = s.offlineAccount != null
-    val owned by produceState(emptyList<Pair<Int, java.io.File>>(), signedIn) {
-        value = if (!signedIn) emptyList() else withContext(Dispatchers.IO) { runCatching { Library.steamLibraryArt(ctx).shuffled() }.getOrDefault(emptyList()) }
+    val account = LibraryHidden.account
+    val scanned by produceState<Pair<java.io.File?, List<Pair<Int, java.io.File>>>>(account to emptyList(), signedIn, LibraryHidden.steam, account) {
+        val art = if (!signedIn) emptyList() else withContext(Dispatchers.IO) { runCatching { Library.steamLibraryArt(ctx).shuffled() }.getOrDefault(emptyList()) }
+        value = account to art
     }
-    val games = remember(s.steamGames) { s.steamGames.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
+    val ownedAll = if (scanned.first == account) scanned.second else emptyList()
+    val concealed = remember(s.steamGames, LibraryHidden.keys, LibraryHidden.steam) {
+        LibraryHidden.steam + s.steamGames.filter { LibraryHidden.isHidden(hideKey(it), it) }.map { it.appId.toLong() }
+    }
+    val owned = remember(ownedAll, concealed) { ownedAll.filter { it.first.toLong() !in concealed } }
+    val featured = remember(featuredAll, concealed) { featuredAll.filter { it.appId.toLong() !in concealed } }
+    val games = remember(s.steamGames, LibraryHidden.keys, LibraryHidden.steam) { s.steamGames.filterNot { LibraryHidden.isHidden(hideKey(it), it) }.sortedWith(compareByDescending<Library.SteamGame> { it.lastPlayed }.thenBy { it.gameId }) }
     val narrow = LocalNarrowPane.current
     var words by remember { mutableStateOf<Rect?>(null) }
     val mode = com.droiddeck.launcher.session.SessionService.MODE_STEAM
@@ -131,6 +145,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         onOpen = a.onSteamSettings, onPrimary = a.onPlay,
         modifier = modifier.clipToBounds(),
         start = if (narrow) 20.dp else 44.dp, bottom = 44.dp,
+        onTextBounds = { words = it },
         background = {
             when {
                 games.isEmpty() -> EmptyLibrary(
@@ -143,26 +158,56 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         },
         scrim = { if (games.size >= WALL_MIN_GAMES) WallFade() },
         words = {
+            val onboardingActive by com.droiddeck.launcher.session.Onboarding.active.collectAsState()
+            val onboardingFailed by com.droiddeck.launcher.session.Onboarding.failed.collectAsState()
+            val onboardingFacts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
+            val onboardingRows = com.droiddeck.launcher.session.Onboarding.rows(onboardingActive, onboardingFailed, onboardingFacts)
+            val firstRun by com.droiddeck.launcher.session.Onboarding.firstRun.collectAsState()
+            val settling = firstRun && onboardingActive.isNotEmpty() && com.droiddeck.launcher.session.Onboarding.pending(onboardingRows)
+            val limitBlocks = com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+            val mark: @Composable () -> Unit = {
+                Wordmark(if (narrow) 30.dp else 40.dp)
+            }
             val runtimeStatus: @Composable () -> Unit = {
-                if (s.busy || (s.available != null && s.available != s.installed)) RuntimeChip(s)
-                else if (s.integration.suggested && signedIn && !com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus))
+                if (!settling && (s.busy || (s.available != null && s.available != s.installed))) RuntimeChip(s)
+                else if (!settling && setupNeedsAttention(s)) SecondaryButton(stringResource(R.string.play_needs_you), compact = true,
+                    modifier = Modifier.testTag("play-needs-you")) { SetupTabs.openSection = SettingsSection.OVERVIEW }
+                else if (!settling && s.integration.suggested && signedIn && !limitBlocks)
                     IntegrationSuggestion(s.integration, { a.onSteamIntegration(null) }, a.onDismissIntegration)
             }
             if (narrow) Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.onPlaced { words = it.boundsInParent() },
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Wordmark(30.dp)
+                mark()
                 runtimeStatus()
             } else Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.onPlaced { words = it.boundsInParent() },
             ) {
-                Wordmark(if (narrow) 30.dp else 40.dp)
+                mark()
                 runtimeStatus()
             }
         },
         button = { click ->
-            PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = click)
+            val onboardingActive by com.droiddeck.launcher.session.Onboarding.active.collectAsState()
+            val onboardingFailed by com.droiddeck.launcher.session.Onboarding.failed.collectAsState()
+            val onboardingFacts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
+            val onboardingRows = com.droiddeck.launcher.session.Onboarding.rows(onboardingActive, onboardingFailed, onboardingFacts)
+            val firstRun by com.droiddeck.launcher.session.Onboarding.firstRun.collectAsState()
+            val settling = firstRun && onboardingActive.isNotEmpty() && com.droiddeck.launcher.session.Onboarding.pending(onboardingRows)
+            val overall = com.droiddeck.launcher.session.Onboarding.overall(onboardingRows)
+            val limitBlocks = com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+            LaunchedEffect(settling) {
+                while (settling) {
+                    kotlinx.coroutines.delay(2_000)
+                    a.onRefreshPhantomStatus()
+                }
+                a.onRefreshPhantomStatus()
+            }
+            if (settling) PrimaryButton(
+                stringResource(if (limitBlocks) R.string.onboarding_button_finish else R.string.onboarding_button_getting_ready, overall),
+                enabled = limitBlocks, main = true, large = true, progress = overall / 100f,
+                modifier = Modifier.testTag("play-steam"), onClick = { a.onQueuePlaySteam(); ChildProcessSetup.request?.invoke() ?: a.onShowPhantomGate() },
+            ) else PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = click)
         },
         rows = { tab -> a.modeSheet(mode, tab, extras) },
     )
@@ -175,19 +220,19 @@ internal fun Modifier.overhang(by: androidx.compose.ui.unit.Dp = 4.dp): Modifier
 }
 
 @Composable
-internal fun WallFade() {
+internal fun WallFade(modifier: Modifier = Modifier.fillMaxSize().overhang()) {
     val colors = MaterialTheme.colorScheme
     Box(
-        Modifier.fillMaxSize().overhang().background(
+        modifier.background(
             Brush.horizontalGradient(
-                0f to colors.background.copy(alpha = 0.97f),
-                0.34f to colors.background.copy(alpha = 0.86f),
-                0.68f to colors.background.copy(alpha = 0.25f),
-                1f to colors.background.copy(alpha = 0.1f),
+                0f to colors.background.copy(alpha = 0.86f),
+                0.34f to colors.background.copy(alpha = 0.6f),
+                0.68f to colors.background.copy(alpha = 0.14f),
+                1f to colors.background.copy(alpha = 0.04f),
             ),
         ),
     )
-    Box(Modifier.fillMaxSize().overhang().background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to colors.background.copy(alpha = 0.9f))))
+    Box(modifier.background(Brush.verticalGradient(0.6f to Color.Transparent, 1f to colors.background.copy(alpha = 0.75f))))
 }
 
 @Composable

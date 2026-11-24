@@ -146,6 +146,24 @@ class AppImageRunTest(unittest.TestCase):
         env, _ = self.launch(dict(RUN_MODE, TU_DEBUG="sysmem"))
         self.assertEqual("sysmem", env["TU_DEBUG"])
 
+    def test_an_arm64_app_uses_the_sessions_gl_libraries(self):
+        (self.dir / "arch").write_text("arm64")
+        self.bundle("usr/lib/libGLESv2.so.2", "usr/lib/libEGL.so.1", "usr/lib/libglfw.so.3", "usr/lib/libGLESv2.so.2.1.0")
+        _, log = self.launch(RUN_MODE)
+        lib = self.dir / "app/usr/lib"
+        self.assertEqual(["libGLESv2.so.2.1.0", "libglfw.so.3"], sorted(p.name for p in lib.iterdir()))
+        self.assertEqual(["libEGL.so.1", "libGLESv2.so.2"], sorted(p.name for p in (self.dir / "bundled-gl/usr/lib").iterdir()))
+        self.assertIn("the session's libGLESv2.so.2 replaces the bundled one", log)
+        _, log = self.launch(RUN_MODE)
+        self.assertNotIn("replaces the bundled one", log)
+
+    def test_other_architectures_keep_their_gl_libraries(self):
+        (self.dir / "arch").write_text("x86_64")
+        self.bundle("usr/lib/libGLESv2.so.2")
+        self.launch(RUN_MODE)
+        self.assertTrue((self.dir / "app/usr/lib/libGLESv2.so.2").exists())
+        self.assertFalse((self.dir / "bundled-gl").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -48,8 +48,11 @@ object HdrSupport {
         )
     }
 
+    fun blocked(context: Context): String? =
+        if (Build.VERSION.SDK_INT < 29) context.getString(R.string.hdr_needs_android_10) else null
+
     private fun reason(context: Context, hdr10: Boolean, formats: String): String? = when {
-        Build.VERSION.SDK_INT < 29 -> context.getString(R.string.hdr_needs_android_10)
+        Build.VERSION.SDK_INT < 29 -> blocked(context)
         !hdr10 -> if (formats.isEmpty()) context.getString(R.string.hdr_none) else context.getString(R.string.hdr_not_hdr10, formats)
         else -> null
     }

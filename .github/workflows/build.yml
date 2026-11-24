@@ -152,6 +152,9 @@ jobs:
     runs-on: ${{ fromJSON(needs.components-runner.outputs.labels) }}
     timeout-minutes: 40
     steps:
+      - name: Reclaim files a cancelled container build left owned by root
+        if: runner.environment == 'self-hosted'
+        run: sudo -n chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" || echo "::warning::could not reclaim $GITHUB_WORKSPACE"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -161,6 +164,9 @@ jobs:
             !/docs/releases/media/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+      - name: Clear scratch earlier runs left behind
+        if: runner.environment == 'self-hosted'
+        run: bash tools/ci/clear-runner-scratch.sh "$GITHUB_WORKSPACE"
       - name: Merge the pinned APK base
         if: github.event_name == 'pull_request'
         env:
@@ -192,17 +198,17 @@ jobs:
             app/src/main/assets/linuxfs
             !app/src/main/assets/linuxfs/usr/local/lib/droiddeck-comet
             !app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox
-            !app/src/main/assets/linuxfs/i386/libblsession.so
+            !app/src/main/assets/linuxfs/i386/libddsession.so
             !app/src/main/assets/linuxfs/i386/libfakeinput.so
             !app/src/main/assets/linuxfs/i386/libfaultreport.so
-            !app/src/main/assets/linuxfs/libblaudit.so
-            !app/src/main/assets/linuxfs/libblfastpath.so
+            !app/src/main/assets/linuxfs/libddaudit.so
+            !app/src/main/assets/linuxfs/libddfastpath.so
             !app/src/main/assets/linuxfs/libddnatv-hook.so
-            !app/src/main/assets/linuxfs/libblsession.so
+            !app/src/main/assets/linuxfs/libddsession.so
             !app/src/main/assets/linuxfs/libfakeinput.so
             !app/src/main/assets/linuxfs/libssbs.so
             !app/src/main/assets/linuxfs/usr/local/bin/droiddeck-clipboard
-            !app/src/main/assets/linuxfs/x86_64/libblsession.so
+            !app/src/main/assets/linuxfs/x86_64/libddsession.so
             !app/src/main/assets/linuxfs/x86_64/libfakeinput.so
             !app/src/main/assets/linuxfs/x86_64/libfaultreport.so
             !app/src/main/assets/linuxfs/x86_64/libvulkan-thunk.so
@@ -288,7 +294,7 @@ jobs:
       - name: Build the non-Adreno test additions (Mali bridge client, Venus GL probe, Xclipse layer)
         run: |
           set -euo pipefail
-          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libvulkan-dev
+          bash tools/ci/install-ubuntu-packages.sh gcc-aarch64-linux-gnu libc6-dev-arm64-cross libvulkan-dev
           D=app/src/main/assets/linuxfs
           mkdir -p "$D/usr/local/bin" "$D/usr/local/lib/droiddeck-xclipse"
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
@@ -350,6 +356,9 @@ jobs:
     outputs:
       variants: ${{ steps.variants.outputs.list }}
     steps:
+      - name: Reclaim files a cancelled container build left owned by root
+        if: runner.environment == 'self-hosted'
+        run: sudo -n chown -R "$(id -u):$(id -g)" "$GITHUB_WORKSPACE" || echo "::warning::could not reclaim $GITHUB_WORKSPACE"
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -360,6 +369,10 @@ jobs:
           sparse-checkout-cone-mode: false
           persist-credentials: false
           submodules: recursive
+
+      - name: Clear scratch earlier runs left behind
+        if: runner.environment == 'self-hosted'
+        run: bash tools/ci/clear-runner-scratch.sh "$GITHUB_WORKSPACE"
 
       - name: Check human authorship
         env:
@@ -559,17 +572,65 @@ jobs:
           SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
         run: python3 tools/components/prepare.py unpack --tree "$SOURCE_TREE"
 
+      # A hosted runner needs over 20 minutes per launcher; rebuild only when its sources change, and save each
+      # build as soon as it finishes so a later timeout cannot discard it.
+      - name: Restore the Ubisoft launcher build
+        id: ubisoft-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-ubisoft
+          key: ubisoft-launcher-v1-${{ steps.rust.outputs.rustc }}-${{ hashFiles('tools/ubisoft-launcher/src/**', 'tools/ubisoft-launcher/Cargo.toml', 'tools/ubisoft-launcher/Cargo.lock', 'tools/ubisoft-launcher/build.sh', 'tools/ubisoft-launcher/build.rs', 'tools/ubisoft-launcher/.cargo/**') }}
       - name: Ubisoft launcher service (x86_64-pc-windows-gnu)
+        if: steps.ubisoft-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           command -v x86_64-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64; }
           bash tools/ubisoft-launcher/build.sh
+      - name: Save the Ubisoft launcher build
+        if: steps.ubisoft-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-ubisoft
+          key: ${{ steps.ubisoft-cache.outputs.cache-primary-key }}
 
+      - name: Restore the Rockstar launcher build
+        id: rockstar-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-rockstar
+          key: rockstar-launcher-v1-${{ steps.rust.outputs.rustc }}-${{ hashFiles('tools/rockstar-launcher/src/**', 'tools/rockstar-launcher/Cargo.toml', 'tools/rockstar-launcher/Cargo.lock', 'tools/rockstar-launcher/build.sh', 'tools/rockstar-launcher/build.rs', 'tools/rockstar-launcher/.cargo/**') }}
       - name: Rockstar launcher service (32-bit and 64-bit)
+        if: steps.rockstar-cache.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
           command -v i686-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-i686; }
+          command -v x86_64-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64; }
           bash tools/rockstar-launcher/build.sh
+      - name: Save the Rockstar launcher build
+        if: steps.rockstar-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-rockstar
+          key: ${{ steps.rockstar-cache.outputs.cache-primary-key }}
+
+      - name: Restore the Epic launcher build
+        id: epic-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-epic
+          key: epic-launcher-v1-${{ steps.rust.outputs.rustc }}-${{ hashFiles('tools/epic-launcher/src/**', 'tools/epic-launcher/Cargo.toml', 'tools/epic-launcher/Cargo.lock', 'tools/epic-launcher/build.sh', 'tools/epic-launcher/build.rs', 'tools/epic-launcher/.cargo/**') }}
+      - name: Epic Games Launcher parent stand-in (x86_64-pc-windows-gnu)
+        if: steps.epic-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          command -v x86_64-w64-mingw32-gcc >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq gcc-mingw-w64-x86-64; }
+          bash tools/epic-launcher/build.sh
+      - name: Save the Epic launcher build
+        if: steps.epic-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: app/src/main/assets/linuxfs/usr/local/lib/droiddeck-epic
+          key: ${{ steps.epic-cache.outputs.cache-primary-key }}
 
       - uses: actions/download-artifact@v4
         with:
@@ -582,7 +643,7 @@ jobs:
           path: |
             ~/.cache/droiddeck-pack-inputs
             ~/.cache/droiddeck-build
-          key: pack-inputs-v2-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env', 'tools/powervr/release.json') }}
+          key: pack-inputs-v2-${{ hashFiles('tools/packs/build.sh', 'tools/packs/fetch-verified.sh', 'tools/packs/tracking/release.env', 'tools/packs/zstd/release.env', 'tools/powervr/release.json') }}
           restore-keys: pack-inputs-v2-
       - name: Build the add-on packs
         run: |
@@ -613,14 +674,18 @@ jobs:
           export NDK="$ANDROID_HOME/ndk/$NDK_VERSION"
           tools/syncthing/build.sh app/src/main/jniLibs/arm64-v8a
 
-      - name: Note when the proot pack pin is behind this build
+      - name: Check the proot pack pin against this build
         run: |
           set -euo pipefail
           # shellcheck disable=SC1091
           source tools/packs/proot/release.env
           sha=$(sha256sum app/build/packs/proot.tar.zst | cut -d' ' -f1)
-          if [ "$sha" != "$PROOT_PACK_SHA256" ]; then
-            echo "::warning::built proot pack $sha does not match tools/packs/proot/release.env ($PROOT_PACK_SHA256). This build publishes the pack it just built. Source builds keep downloading the pinned pack until release.env is updated."
+          size=$(stat -c %s app/build/packs/proot.tar.zst)
+          if [ "$sha" != "$PROOT_PACK_SHA256" ] || [ "$size" != "$PROOT_PACK_SIZE" ]; then
+            level=warning
+            if [ "$GITHUB_EVENT_NAME" = pull_request ]; then level=error; fi
+            echo "::$level::built proot pack $sha ($size bytes) does not match tools/packs/proot/release.env ($PROOT_PACK_SHA256, $PROOT_PACK_SIZE bytes). Source builds download the pinned pack, so set PROOT_PACK_SHA256=$sha and PROOT_PACK_SIZE=$size in tools/packs/proot/release.env."
+            if [ "$level" = error ]; then exit 1; fi
           fi
 
       - name: Check out MaliBridge
@@ -669,6 +734,32 @@ jobs:
           if-no-files-found: ignore
           overwrite: true
 
+      - name: Resolve the Robolectric version
+        id: robolectric
+        run: |
+          echo "version=$(grep -o "org.robolectric:robolectric:[0-9.]*" app/build.gradle | cut -d: -f3)" >> "$GITHUB_OUTPUT"
+      # Robolectric downloads these from Maven Central on first use without retrying, and 429s fail whole test classes.
+      # The cache path sits beside the workspace because runner homes are at different depths from it, and
+      # actions/cache stores paths relative to the workspace. Runners that keep their own ~/.m2 skip the cache.
+      - name: Place Robolectric's Android jars beside the workspace
+        id: robolectric-jars
+        run: |
+          set -euo pipefail
+          jars="$GITHUB_WORKSPACE/../robolectric-jars"
+          m2="$HOME/.m2/repository/org/robolectric/android-all-instrumented"
+          if [ -d "$m2" ] && [ ! -L "$m2" ]; then
+            echo "cache=false" >> "$GITHUB_OUTPUT"
+          else
+            mkdir -p "$jars" "$(dirname "$m2")"
+            ln -sfn "$(cd "$jars" && pwd)" "$m2"
+            echo "cache=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Cache Robolectric's Android jars
+        if: steps.robolectric-jars.outputs.cache == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ../robolectric-jars
+          key: robolectric-android-all-v2-${{ steps.robolectric.outputs.version }}
       - name: Unit tests
         id: unit-tests
         env:
@@ -759,7 +850,6 @@ jobs:
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    continue-on-error: true
     permissions:
       contents: read
       actions: read
@@ -805,7 +895,6 @@ jobs:
             stores-host-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.rust.outputs.rustc }}-
       - name: Store engines host unit tests
         timeout-minutes: 10
-        continue-on-error: true
         run: |
           set -o pipefail
           cd app/src/main/rust/stores
@@ -815,6 +904,7 @@ jobs:
         run: |
           cargo test --locked --manifest-path tools/ubisoft-launcher/Cargo.toml
           cargo test --locked --manifest-path tools/rockstar-launcher/Cargo.toml
+          cargo test --locked --manifest-path tools/epic-launcher/Cargo.toml
 
   python-tests:
     name: Python and native regression tests
@@ -894,7 +984,7 @@ jobs:
 
   checks:
     name: Compile and test APK
-    needs: [build, python-tests]
+    needs: [build, python-tests, store-tests]
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -903,7 +993,8 @@ jobs:
         env:
           BUILD_RESULT: ${{ needs.build.result }}
           PYTHON_RESULT: ${{ needs.python-tests.result }}
-        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success
+          STORE_RESULT: ${{ needs.store-tests.result }}
+        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success && test "$STORE_RESULT" = success
 
   sign:
     needs: [build, checks]

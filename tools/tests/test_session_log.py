@@ -20,7 +20,7 @@ class SessionLogTest(unittest.TestCase):
         self.log = self.tmp / "session.log"
 
     def run_session(self, body, cap=None):
-        script = "BL_LOG=%s\n%s%s\n%s\n" % (self.log, "BL_LOG_CAP=%d\n" % cap if cap else "", log_redirect(), body)
+        script = "DD_LOG=%s\n%s%s\n%s\n" % (self.log, "DD_LOG_CAP=%d\n" % cap if cap else "", log_redirect(), body)
         subprocess.run(["bash", "-c", script], timeout=30, check=False)
 
     def test_the_last_lines_survive_the_writer_being_killed(self):

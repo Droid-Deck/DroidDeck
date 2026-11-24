@@ -56,9 +56,12 @@ class DownloadRow(val key: String, val label: String, val detail: String, val pr
 class ModeSettings(
     val mode: String,
     val resolution: String,
+    val resolutionPortrait: String = com.droiddeck.launcher.session.SessionDisplay.LINK_LANDSCAPE,
     val panelSize: Pair<Int, Int> = 1280 to 720,
     val hdr: Boolean,
     val hdrReason: String?,
+    val hdrDisplay: Boolean = true,
+    val zeroCopy: Boolean = true,
     val gpuDrivers: String? = null,
     val upscaler: Int = 0,
     val upscaleSharpness: Int = 75,
@@ -75,6 +78,7 @@ class ModeSettings(
     val mic: Boolean?,
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
+    val storageFat32: Boolean = false,
     val steamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Entry> = emptyList(),
     val foundSteamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Found> = emptyList(),
     val allFilesAccessMissing: Boolean = false,
@@ -83,7 +87,9 @@ class ModeSettings(
     val forceSsbs: Boolean = false,
     val syncBackend: String? = null,
     val picturePosition: String? = null,
+    val integerScaling: Boolean? = null,
     val stretch16x9: Boolean? = null,
+    val avoidNotch: Boolean? = null,
     val steamClientArch: String? = null,
     val returnAfterGame: Boolean? = null,
     val shaderPrecache: Boolean? = null,
@@ -108,11 +114,16 @@ class ModeSettings(
     val deckyDownloadingBinary: Boolean = false,
     val deckyEnabled: Boolean = false,
     val deckySessionRunning: Boolean = false,
+    val deckyPlugins: List<com.droiddeck.launcher.runtime.DeckyStore.Installed> = emptyList(),
+    val deckyStore: List<com.droiddeck.launcher.runtime.DeckyStore.Plugin>? = null,
+    val deckyStoreFailed: Boolean = false,
 )
 
 class ModeSettingsActions(
     val onResolution: (String) -> Unit,
+    val onResolutionPortrait: (String) -> Unit = {},
     val onHdr: (Boolean) -> Unit,
+    val onZeroCopy: (Boolean) -> Unit = {},
     val onGpuDrivers: () -> Unit = {},
     val onUpscaler: (Int) -> Unit = {},
     val onUpscaleSharpness: (Int) -> Unit = {},
@@ -139,7 +150,9 @@ class ModeSettingsActions(
     val onForceSsbs: (Boolean) -> Unit = {},
     val onSyncBackend: (String) -> Unit = {},
     val onPicturePosition: (String) -> Unit = {},
+    val onIntegerScaling: (Boolean) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
+    val onAvoidNotch: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
     val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
@@ -162,6 +175,9 @@ class ModeSettingsActions(
     val onDeckyEnabled: (Boolean) -> Unit = {},
     val onDeckyUninstall: () -> Unit = {},
     val onPickDeckyPluginZip: () -> Unit = {},
+    val onDeckyStoreRefresh: () -> Unit = {},
+    val onDeckyStoreInstall: (com.droiddeck.launcher.runtime.DeckyStore.Plugin) -> Unit = {},
+    val onDeckyRemove: (com.droiddeck.launcher.runtime.DeckyStore.Installed) -> Unit = {},
     val onDismiss: () -> Unit,
 )
 
@@ -211,6 +227,16 @@ class SheetExtras(
 fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: SheetExtras = SheetExtras()) {
     val steam = s.mode == SessionService.MODE_STEAM
     val host = rememberMenuHost()
+    if (tab == SheetTab.DECKY) { DeckyGroups(s, a, host); return }
+    if (tab == SheetTab.BOOT_MOVIES) { if (s.bootMovie != null) BootMovieGroup(s, a, host); return }
+    Text(
+        stringResource(when (s.mode) {
+            SessionService.MODE_STEAM -> R.string.sheet_scope_steam
+            SessionService.MODE_DESKTOP -> R.string.sheet_scope_desktop
+            else -> R.string.sheet_scope_other
+        }),
+        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 4.dp),
+    )
     if (tab == SheetTab.DISPLAY) {
         val context = LocalContext.current
         val portraitWindow = SessionPrefs.portrait(context)
@@ -219,9 +245,20 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         val controlsBelow = SessionPrefs.controlsBelowWanted(context, s.mode,
             if (portraitWindow) shortSide else longSide, if (portraitWindow) longSide else shortSide)
         val portrait = portraitWindow && !controlsBelow
-        val displaySize = com.droiddeck.launcher.session.SessionDisplay.resolveChoice(s.panelSize, s.resolution, portrait)
+        val sessionDisplay = com.droiddeck.launcher.session.SessionDisplay
+        val landscapeChoice = sessionDisplay.effectiveChoice(s.resolution, s.resolutionPortrait, false)
+        val portraitChoice = sessionDisplay.effectiveChoice(s.resolution, s.resolutionPortrait, true)
+        val activeChoice = if (portraitWindow) portraitChoice else landscapeChoice
+        val displaySize = sessionDisplay.resolveChoice(s.panelSize, activeChoice, portrait)
         SettingsGroup(stringResource(R.string.display_session)) {
-            ResolutionRow(host, s.resolution, s.panelSize, a.onResolution, portrait = portrait)
+            ResolutionRow(host, "resolution", stringResource(R.string.display_resolution_landscape), s.resolution, landscapeChoice,
+                com.droiddeck.launcher.session.SessionDisplay.LINK_PORTRAIT,
+                if (sessionDisplay.isLink(s.resolutionPortrait)) landscapeChoice else sessionDisplay.orientCustom(s.resolutionPortrait, false),
+                s.panelSize, a.onResolution, portrait = false)
+            ResolutionRow(host, "resolution-portrait", stringResource(R.string.display_resolution_portrait), s.resolutionPortrait, portraitChoice,
+                com.droiddeck.launcher.session.SessionDisplay.LINK_LANDSCAPE,
+                if (sessionDisplay.isLink(s.resolution)) portraitChoice else sessionDisplay.orientCustom(s.resolution, true),
+                s.panelSize, a.onResolutionPortrait, portrait = true)
             s.picturePosition?.let { position ->
                 ChoiceRow(host, "picture-position", stringResource(R.string.display_picture_position), null,
                     listOf("top" to stringResource(R.string.display_position_top),
@@ -233,15 +270,32 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             }
             if (s.stretch16x9 != null && (com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(s.panelSize) ||
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize))) {
-                val canStretch = !com.droiddeck.launcher.session.SessionDisplay.isFollow(s.resolution) &&
+                val canStretch = !com.droiddeck.launcher.session.SessionDisplay.isFollow(activeChoice) &&
                     com.droiddeck.launcher.session.SessionDisplay.canStretch16x9(displaySize)
                 ChoiceRow(host, "game-fit", stringResource(R.string.display_game_fit),
                     stringResource(if (canStretch) R.string.display_game_fit_hint else R.string.display_game_fit_unavailable),
                     listOf(false to stringResource(R.string.display_preserve), true to stringResource(R.string.display_stretch)),
                     s.stretch16x9 && canStretch, enabled = canStretch, onPick = a.onStretch16x9)
             }
+            s.avoidNotch?.let { enabled ->
+                ToggleRow(host, "avoid-notch", stringResource(R.string.display_avoid_notch),
+                    stringResource(R.string.display_avoid_notch_hint), checked = enabled, onChange = a.onAvoidNotch)
+            }
+            ToggleRow(host, "zero-copy", stringResource(R.string.display_zero_copy), null, checked = s.zeroCopy, onChange = a.onZeroCopy)
         }
         SettingsGroup(stringResource(R.string.display_image_scaling)) {
+            s.integerScaling?.let { enabled ->
+                ChoiceRow(
+                    host, "integer-scaling",
+                    stringResource(R.string.display_integer_scaling),
+                    stringResource(R.string.display_integer_scaling_hint),
+                    listOf(
+                        false to stringResource(R.string.display_scaling_fit),
+                        true to stringResource(R.string.display_scaling_integer),
+                    ),
+                    enabled, onPick = a.onIntegerScaling,
+                )
+            }
             ChoiceRow(
                 host, "upscaler", stringResource(R.string.display_filter), null,
                 SessionPrefs.upscalerChoices(LocalContext.current), s.upscaler,
@@ -254,9 +308,8 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         }
         SettingsGroup(stringResource(R.string.mode_hdr)) {
             ToggleRow(
-                host, "hdr", stringResource(R.string.mode_hdr10),
-                s.hdrReason?.let { stringResource(R.string.mode_hdr_unavailable, it) }
-                    ?: stringResource(R.string.mode_hdr_restart),
+                host, "hdr", stringResource(if (s.hdrDisplay) R.string.mode_hdr10 else R.string.drawer_fake_hdr),
+                s.hdrReason?.let { stringResource(R.string.mode_hdr_unavailable, it) },
                 checked = s.hdr && s.hdrReason == null, enabled = s.hdrReason == null, onChange = a.onHdr,
             )
         }
@@ -403,7 +456,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     ValueChip(options.firstOrNull { it.path == s.gameStorage }?.chip ?: "-", open) { host.open = if (open) null else "storage" }
                     AnchoredMenu(
                         open, onDismiss = { if (host.open == "storage") host.open = null }, title = stringResource(R.string.mode_second_library),
-                        note = stringResource(R.string.mode_storage_note),
+                        note = stringResource(R.string.mode_storage_note).let { if (s.storageFat32) stringResource(R.string.main_storage_fat32) + "\n" + it else it },
                     ) { firstItemFocus ->
                         options.forEachIndexed { index, choice ->
                             MenuItem(choice.label, checked = choice.path == s.gameStorage, focusRequester = if (index == 0) firstItemFocus else null) {
@@ -465,75 +518,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     }
     if (tab == SheetTab.STEAM && steam) {
         extras.account(host)
-        SettingsGroup(stringResource(R.string.mode_decky)) {
-            val updateAvailable = s.deckyInstalled != null && s.deckyLatestRelease != null &&
-                s.deckyInstalled != s.deckyLatestRelease.tag
-            val status = when {
-                s.deckyStage != null -> s.deckyStage
-                s.deckyChecking -> stringResource(R.string.mode_decky_checking)
-                s.deckyInstalled == null && s.deckyLatestRelease != null -> stringResource(R.string.mode_decky_ready, s.deckyLatestRelease.tag)
-                s.deckyInstalled == null -> stringResource(R.string.mode_decky_none)
-                s.deckyLatestRelease == null -> stringResource(R.string.mode_decky_installed, s.deckyInstalled)
-                updateAvailable -> stringResource(R.string.mode_decky_update, s.deckyLatestRelease.tag)
-                else -> stringResource(R.string.mode_decky_current, s.deckyInstalled)
-            }
-            SettingsRow(stringResource(R.string.mode_decky_loader), status) {
-                val action = when {
-                    s.deckyStage != null -> stringResource(R.string.common_working)
-                    s.deckyChecking -> stringResource(R.string.common_checking)
-                    s.deckyInstalled == null && s.deckyLatestRelease != null -> stringResource(R.string.mode_decky_install_latest)
-                    s.deckyInstalled != null && updateAvailable -> stringResource(R.string.common_update)
-                    else -> stringResource(R.string.common_check)
-                }
-                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
-                    SecondaryButton(
-                        action,
-                        enabled = s.deckyStage == null && !s.deckyChecking && !s.deckySessionRunning,
-                    ) {
-                        if (s.deckyLatestRelease == null || (s.deckyInstalled != null && !updateAvailable)) a.onDeckyCheck()
-                        else s.deckyLatestRelease?.let(a.onDeckyInstall)
-                    }
-                    if (s.deckyInstalled != null) DeckyUninstall(enabled = s.deckyStage == null && !s.deckySessionRunning, onUninstall = a.onDeckyUninstall)
-                }
-            }
-            ChoiceRow(
-                host, "decky-channel", stringResource(R.string.decky_channel),
-                stringResource(R.string.decky_channel_hint),
-                listOf(
-                    DeckyManager.BRANCH_STABLE to stringResource(R.string.decky_channel_stable),
-                    DeckyManager.BRANCH_PRERELEASE to stringResource(R.string.decky_channel_prerelease),
-                ) + if (s.deckyBranch == DeckyManager.BRANCH_TESTING) listOf(
-                    DeckyManager.BRANCH_TESTING to stringResource(R.string.decky_channel_testing),
-                ) else emptyList(),
-                s.deckyBranch,
-                enabled = s.deckyStage == null && !s.deckySessionRunning,
-                onPick = a.onDeckyBranch,
-            )
-            if (s.deckyInstalled != null) ToggleRow(
-                host, "decky-enabled", stringResource(R.string.mode_decky),
-                if (s.deckyEnabled) stringResource(R.string.mode_decky_on)
-                else stringResource(R.string.mode_decky_off),
-                s.deckyEnabled,
-                enabled = !s.deckySessionRunning && s.deckyStage == null,
-                onChange = a.onDeckyEnabled,
-            )
-            SettingsRow(
-                stringResource(R.string.mode_decky_plugins),
-                stringResource(R.string.mode_decky_plugins_hint),
-            ) {
-                SecondaryButton(
-                    if (s.deckyStage != null && s.deckyDownloadingBinary) stringResource(R.string.mode_decky_plugin_downloading) else stringResource(R.string.mode_decky_plugin_install_zip),
-                    enabled = s.deckyInstalled != null && s.deckyStage == null && !s.deckySessionRunning,
-                    onClick = a.onPickDeckyPluginZip,
-                )
-            }
-            if (s.deckyStage != null && s.deckyPercent >= 0) {
-                LinearProgressIndicator(
-                    progress = { s.deckyPercent / 100f },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
-                )
-            }
-        }
         SettingsGroup(stringResource(R.string.mode_client)) {
             ToggleRow(
                 host, "mangoapp", stringResource(R.string.mode_mangoapp),
@@ -563,7 +547,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 onPick = a.onSteamClientArch,
             )
         }
-        if (s.bootMovie != null) BootMovieGroup(s, a, host)
         if (s.integration != null) SteamIntegrationGroup(s.integration,
             onFeature = a.onIntegration, onAppInfo = a.onIntegrationAppInfo, onLocation = a.onIntegrationLocation)
     }
@@ -625,7 +608,7 @@ internal fun DeckyZipWarningDialog(onConfirm: () -> Unit, onCancel: () -> Unit) 
 private const val DECKY_ZIP_WARNING_SECONDS = 5
 
 @Composable
-private fun DeckyUninstall(enabled: Boolean, onUninstall: () -> Unit) {
+internal fun DeckyUninstall(enabled: Boolean, onUninstall: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val label = stringResource(R.string.common_uninstall)
     val title = stringResource(R.string.mode_decky_remove_title)
@@ -676,10 +659,10 @@ internal fun SgdbKeyDialog(hasKey: Boolean, onSave: (String) -> Unit, onDismiss:
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int, Int>) -> Unit, onDismiss: () -> Unit) {
+internal fun CustomResolutionDialog(initial: Pair<Int, Int>?, onSave: (Pair<Int, Int>) -> Unit, onDismiss: () -> Unit, portrait: Boolean = false) {
     var w by remember { mutableStateOf(initial?.first?.toString() ?: "") }
     var h by remember { mutableStateOf(initial?.second?.toString() ?: "") }
-    val parsed = SessionPrefs.parseResolution("${w}x$h")
+    val parsed = if (portrait) SessionPrefs.parseOrientedResolution("${w}x$h") else SessionPrefs.parseResolution("${w}x$h")
     com.droiddeck.launcher.ui.GlideAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.mode_custom_res_title)) },

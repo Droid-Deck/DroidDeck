@@ -14,6 +14,9 @@ import com.droiddeck.launcher.runtime.ProotFastPath
 import java.io.File
 
 object SessionFiles {
+    // Session start and Flatpak staging can both rewrite Steam's config.vdf; one writer at a time.
+    internal val STEAM_CONFIG = Any()
+
     private const val TAG = "SessionFiles"
     private const val NO_PAD_SWITCH = "Download/droiddeck-no-pad"
     const val DIRECTAUDIO_DIR = "usr/local/lib/directaudio"
@@ -33,45 +36,75 @@ object SessionFiles {
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
     )
 
-    private const val UBISOFT_SERVICE = "usr/local/lib/droiddeck-ubisoft/droiddeck-upc.exe"
+    private val SERVICE_PACKS = mapOf(
+        AddonPack.UBISOFT to "usr/local/lib/droiddeck-ubisoft",
+        AddonPack.ROCKSTAR to "usr/local/lib/droiddeck-rockstar",
+        AddonPack.EPIC to "usr/local/lib/droiddeck-epic",
+        AddonPack.DIRT to "usr/local/lib/droiddeck-dirt",
+    )
 
     /** Fetches the Ubisoft pack and, once it lands, stages the service so a running session gets it without restarting. */
-    fun ensureUbisoftService(context: Context) {
-        AddonPack.UBISOFT.ensure(context) { app ->
+    fun ensureUbisoftService(context: Context) = ensureStoreService(context, AddonPack.UBISOFT)
+
+    fun ensureRockstarService(context: Context) = ensureStoreService(context, AddonPack.ROCKSTAR)
+
+    fun ensureEpicParent(context: Context) = ensureStoreService(context, AddonPack.EPIC)
+
+    /** The DiRT 3 / DiRT Showdown ws2_32 stand-in; droiddeck-game-env applies it only when it is staged. */
+    fun ensureDirtStandIn(context: Context) = ensureStoreService(context, AddonPack.DIRT)
+
+    private fun ensureStoreService(context: Context, pack: AddonPack) {
+        pack.ensure(context) { app ->
             com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app).takeIf { it.isDirectory }
-                ?.let { stageUbisoftService(app, it, null) }
+                ?.let { stageStoreService(app, it, pack, null) }
         }
+    }
+
+    /** Blocks until the store's service pack is installed and staged in [root]; false when it could not be fetched. */
+    fun awaitStoreService(context: Context, store: String, root: File): Boolean {
+        val pack = SERVICE_PACKS.keys.firstOrNull { it.name == store } ?: return false
+        if (!pack.await(context)) return false
+        return stageStoreService(context, root, pack, null)
     }
 
     @Synchronized
-    private fun stageUbisoftService(context: Context, root: File, ledger: StageLedger?) {
-        val pack = AddonPack.UBISOFT.takeIf { it.installed(context) }?.dir(context) ?: return
-        val target = File(root, UBISOFT_SERVICE)
-        if (ledger?.current(UBISOFT_SERVICE, target) == true) return
-        val staged = File(target.parentFile, target.name + ".staged")
-        var installed = false
-        try {
-            target.parentFile?.mkdirs()
-            File(pack, "droiddeck-upc.exe").inputStream().use { input ->
-                staged.outputStream().use { output -> FileUtils.copy(input, output) }
+    private fun stageStoreService(context: Context, root: File, pack: AddonPack, ledger: StageLedger?): Boolean {
+        val dir = pack.takeIf { it.installed(context) }?.dir(context) ?: return false
+        val base = SERVICE_PACKS.getValue(pack)
+        var all = true
+        for (file in dir.listFiles().orEmpty().filter { it.isFile && it.name != AddonPack.COMPLETE }.sortedBy { it.name }) {
+            val relative = "$base/${file.name}"
+            val target = File(root, relative)
+            if (ledger?.current(relative, target) == true) continue
+            val staged = File(target.parentFile, target.name + ".staged")
+            var installed = false
+            try {
+                target.parentFile?.mkdirs()
+                file.inputStream().use { input ->
+                    staged.outputStream().use { output -> FileUtils.copy(input, output) }
+                }
+                installed = staged.setExecutable(true, false) && staged.renameTo(target)
+            } catch (e: Exception) {
+                Log.w(TAG, "could not stage the ${pack.name} pack", e)
+            } finally {
+                if (!installed) staged.delete()
             }
-            installed = staged.setExecutable(true, false) && staged.renameTo(target)
-        } catch (e: Exception) {
-            Log.w(TAG, "could not stage the Ubisoft launcher service", e)
-        } finally {
-            if (!installed) staged.delete()
+            if (installed) ledger?.staged(relative, target) else Log.e(TAG, "$relative NOT staged")
+            all = all && installed
         }
-        if (installed) ledger?.staged(UBISOFT_SERVICE, target) else Log.e(TAG, "$UBISOFT_SERVICE NOT staged")
+        return all
     }
 
-    fun stage(context: Context, root: File, startsSession: Boolean = false) {
+    private val STAGE_LOCK = Any()
+
+    fun stage(context: Context, root: File, startsSession: Boolean = false) = synchronized(STAGE_LOCK) { stageNow(context, root, startsSession) }
+
+    private fun stageNow(context: Context, root: File, startsSession: Boolean) {
         if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
         GameEnvironmentStore.publish(context)
         WinComponents.publish(context)
         val files = arrayOf(
-            "rockstar/helpers/Launcher32.exe" to "usr/local/lib/droiddeck-rockstar/Launcher32.exe",
-            "rockstar/helpers/Launcher64.exe" to "usr/local/lib/droiddeck-rockstar/Launcher64.exe",
             "usr/local/bin/droiddeck-game-env" to "usr/local/bin/droiddeck-game-env",
             "usr/local/bin/droiddeck-game-debug" to "usr/local/bin/droiddeck-game-debug",
             "usr/local/bin/droiddeck-game-gpu" to "usr/local/bin/droiddeck-game-gpu",
@@ -83,11 +116,11 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
             "usr/local/bin/droiddeck-steam-taskset" to "usr/local/libexec/droiddeck-steam/taskset",
             "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
-            "libblsession.so" to "usr/local/lib/libblsession.so",
+            "libddsession.so" to "usr/local/lib/libddsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
-            "libblfastpath.so" to "usr/local/lib/libblfastpath.so",
+            "libddfastpath.so" to "usr/local/lib/libddfastpath.so",
             "libddnatv-hook.so" to "usr/lib/libddnatv-hook.so",
-            "libblaudit.so" to "usr/local/lib/libblaudit.so",
+            "libddaudit.so" to "usr/local/lib/libddaudit.so",
             "libssbs.so" to "usr/local/lib/libssbs.so",
             "usr/local/bin/droiddeck-session" to "usr/local/bin/droiddeck-session",
             "usr/local/bin/droiddeck-fonts" to "usr/local/bin/droiddeck-fonts",
@@ -97,6 +130,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-desktop-clipboard" to "usr/local/bin/droiddeck-desktop-clipboard",
             "usr/local/bin/droiddeck-gpu-window" to "usr/local/bin/droiddeck-gpu-window",
             "usr/local/bin/droiddeck-steam-install" to "usr/local/bin/droiddeck-steam-install",
+            "usr/local/bin/droiddeck-steam-preapply" to "usr/local/bin/droiddeck-steam-preapply",
             "usr/local/bin/droiddeck-steam-ui-scale" to "usr/local/bin/droiddeck-steam-ui-scale",
             "usr/local/bin/droiddeck-steam-language" to "usr/local/bin/droiddeck-steam-language",
             "usr/local/bin/droiddeck-steam-shaders" to "usr/local/bin/droiddeck-steam-shaders",
@@ -151,6 +185,8 @@ object SessionFiles {
             "usr/local/bin/droiddeck-flatpak-run" to "usr/local/bin/droiddeck-flatpak-run",
             "usr/local/bin/droiddeck-appimage-run" to "usr/local/bin/droiddeck-appimage-run",
             "usr/local/bin/droiddeck-appimage-exec" to "usr/local/bin/droiddeck-appimage-exec",
+            "usr/local/bin/droiddeck-curseforge" to "usr/local/bin/droiddeck-curseforge",
+            "usr/local/bin/droiddeck-headless" to "usr/local/bin/droiddeck-headless",
             "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
             "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
@@ -208,11 +244,9 @@ object SessionFiles {
         val gpuLoad = listOf(
             "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_gpuload.so",
             "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_gpu_load.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_gpu_load.json",
-            "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so" to "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so",
-            "usr/local/lib/droiddeck-gpuload/VK_LAYER_DROIDDECK_vram_cap.json" to "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json",
         )
         val fexPreloads = listOf("x86_64", "i386").flatMap { arch ->
-            listOf("libblsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
+            listOf("libddsession.so", "libfakeinput.so", "libfaultreport.so").map { "$arch/$it" to "usr/local/lib/droiddeck-fex/$arch/$it" }
         } + listOf("libvulkan-thunk.so", "libwebkitinput.so").map { "x86_64/$it" to "usr/local/lib/droiddeck-fex/x86_64/$it" }
         // The Mali compatibility layer (tools/venus/layer, David Cimo): an implicit Vulkan layer that
         // fills in the features DXVK requires and Mali lacks. Idle outside Wine and on GPUs that have them.
@@ -231,7 +265,6 @@ object SessionFiles {
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
-            "usr/local/lib/droiddeck-dirt/ws2_32.dll" to "usr/local/lib/droiddeck-dirt/ws2_32.dll",
         ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
@@ -245,7 +278,7 @@ object SessionFiles {
             var installed = false
             try {
                 target.parentFile?.mkdirs()
-                (if (asset.startsWith("rockstar/")) requireNotNull(javaClass.getResourceAsStream("/$asset")) else context.assets.open("linuxfs/$asset")).use { input ->
+                context.assets.open("linuxfs/$asset").use { input ->
                     staged.outputStream().use { output -> FileUtils.copy(input, output) }
                 }
                 installed = staged.setExecutable(true, false) && staged.renameTo(target)
@@ -257,8 +290,11 @@ object SessionFiles {
             if (installed) ledger.staged(relative, target) else Log.e(TAG, "$relative NOT staged")
         }
         File(root, "usr/local/bin/bannerlator-steam-compat").delete()
+        File(root, "usr/local/lib/droiddeck-gpuload/libVkLayer_droiddeck_vramcap.so").delete()
+        File(root, "usr/share/vulkan/implicit_layer.d/droiddeck_vram_cap.json").delete()
         LegacyNames.migrateRootfs(root)
         ComponentsManager.migrateLaunchDir(context)
+        runCatching { ComponentsManager.migrateBattleNetFex(context) }.onFailure { Log.w(TAG, "Battle.net FEX selection", it) }
         EsyncPacks.stageBundled(context, root)
         val directAudio = arrayOf(
             "aarch64-unix/winedirectaudio.so",
@@ -287,10 +323,10 @@ object SessionFiles {
             }
             if (installed) ledger.staged(key, target) else Log.e(TAG, "DirectAudio $set/$relative NOT staged")
         }
-        stageUbisoftService(context, root, ledger)
+        for (pack in SERVICE_PACKS.keys) stageStoreService(context, root, pack, ledger)
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
-        val preload = StringBuilder("/usr/local/lib/libblsession.so\n")
+        val preload = StringBuilder("/usr/local/lib/libddsession.so\n")
         if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }
@@ -357,6 +393,11 @@ object SessionFiles {
                     "staged=$bigPictureMovieInstalled done=$done steam=${home.path} config: $before -> ${startupMoviePath(config)}",
             )
             if (startsSession) {
+                synchronized(STEAM_CONFIG) {
+                    val shuffle = SessionPrefs.bootMovieShuffle(context)
+                    setStartupMovieShuffle(config, shuffle)
+                    if (startupMovieShuffle(config) == shuffle) SessionPrefs.setBootMovieShuffleSeen(context, config, shuffle)
+                }
                 disableIdleSleep(home)
                 seedUserDefaults(home)
             }
@@ -369,28 +410,30 @@ object SessionFiles {
     }
 
     internal fun resetMissingStartupMovie(config: File, force: Boolean): Boolean {
-        if (!config.isFile) return true
-        val text = runCatching { config.readText() }.getOrElse {
-            Log.w(TAG, "could not read Steam config to reset the startup movie", it)
-            return false
-        }
-        val movie = activeStartupMovie(text) ?: return true
-        val block = text.substring(movie.keyStart, movie.close + 1)
-        val path = scalar(block, "LocalPath").orEmpty()
-        if (path.isEmpty()) return true
-        val missing = File(config.parentFile, "uioverrides/movies/" + path.removePrefix(BOOT_MOVIES_DIR))
-        val gone = path.startsWith(BOOT_MOVIES_DIR) && !missing.isFile && (force || path == BOOT_MOVIE_PATH)
-        if (!gone) return false
-        val newline = if (text.contains("\r\n")) "\r\n" else "\n"
-        val updated = setScalar(setScalar(block, "MovieID", "0", newline), "LocalPath", "", newline)
-        val staged = File(config.parentFile, config.name + ".staged")
-        return try {
-            staged.writeText(text.replaceRange(movie.keyStart, movie.close + 1, updated))
-            (staged.renameTo(config)).also { if (!it) staged.delete() }
-        } catch (e: Exception) {
-            staged.delete()
-            Log.w(TAG, "could not reset Steam startup movie selection", e)
-            false
+        synchronized(STEAM_CONFIG) {
+            if (!config.isFile) return true
+            val text = runCatching { config.readText() }.getOrElse {
+                Log.w(TAG, "could not read Steam config to reset the startup movie", it)
+                return false
+            }
+            val movie = activeStartupMovie(text) ?: return true
+            val block = text.substring(movie.keyStart, movie.close + 1)
+            val path = scalar(block, "LocalPath").orEmpty()
+            if (path.isEmpty()) return true
+            val missing = File(config.parentFile, "uioverrides/movies/" + path.removePrefix(BOOT_MOVIES_DIR))
+            val gone = path.startsWith(BOOT_MOVIES_DIR) && !missing.isFile && (force || path == BOOT_MOVIE_PATH)
+            if (!gone) return false
+            val newline = if (text.contains("\r\n")) "\r\n" else "\n"
+            val updated = setScalar(setScalar(block, "MovieID", "0", newline), "LocalPath", "", newline)
+            val staged = File(config.parentFile, config.name + ".staged")
+            return try {
+                staged.writeText(text.replaceRange(movie.keyStart, movie.close + 1, updated))
+                (staged.renameTo(config)).also { if (!it) staged.delete() }
+            } catch (e: Exception) {
+                staged.delete()
+                Log.w(TAG, "could not reset Steam startup movie selection", e)
+                false
+            }
         }
     }
 
@@ -491,6 +534,42 @@ object SessionFiles {
         return scalar(text.substring(movie.keyStart, movie.close + 1), "LocalPath")
     }
 
+    internal fun startupMovieShuffle(config: File): Boolean? {
+        val text = runCatching { config.readText() }.getOrNull() ?: return null
+        val movie = activeStartupMovie(text) ?: return false
+        return scalar(text.substring(movie.keyStart, movie.close + 1), "Shuffle") == "1"
+    }
+
+    internal fun withStartupMovieShuffle(text: String, on: Boolean): String {
+        val newline = if (text.contains("\r\n")) "\r\n" else "\n"
+        val value = if (on) "1" else "0"
+        return listOfNotNull(customizationMovie(text), olderMovie(text)).sortedByDescending { it.keyStart }.fold(text) { acc, movie ->
+            val block = acc.substring(movie.keyStart, movie.close + 1)
+            if (!on && scalar(block, "Shuffle") == null) acc else acc.replaceRange(movie.keyStart, movie.close + 1, setScalar(block, "Shuffle", value, newline))
+        }
+    }
+
+    internal fun setStartupMovieShuffle(config: File, on: Boolean): Boolean {
+        synchronized(STEAM_CONFIG) {
+            if (!config.isFile) return false
+            val text = runCatching { config.readText() }.getOrElse {
+                Log.w(TAG, "could not read Steam config to set the startup movie shuffle", it)
+                return false
+            }
+            val updated = withStartupMovieShuffle(text, on)
+            if (updated == text) return true
+            val staged = File(config.parentFile, config.name + ".staged")
+            return try {
+                staged.writeText(updated)
+                staged.renameTo(config).also { if (!it) staged.delete() }
+            } catch (e: Exception) {
+                staged.delete()
+                Log.w(TAG, "could not set Steam startup movie shuffle", e)
+                false
+            }
+        }
+    }
+
     internal fun startupMovieBlock(config: File): String? {
         val text = runCatching { config.readText() }.getOrNull() ?: return null
         val parts = listOfNotNull(
@@ -513,69 +592,71 @@ object SessionFiles {
     }
 
     internal fun ensureStartupMovieDefault(config: File, force: Boolean = false): Boolean {
-        val path = BOOT_MOVIE_PATH
-        val legacyPath = "/uioverrides/movies/droiddeck-startup.webm"
-        var text = if (config.isFile) runCatching { config.readText() }.getOrElse {
-            Log.w(TAG, "could not read Steam config for startup movie", it)
-            return false
-        } else ""
-        val newline = if (text.contains("\r\n")) "\r\n" else "\n"
-        val custom = customizationMovie(text)
-        val active = custom ?: olderMovie(text)
-        if (active != null) {
-            val block = text.substring(active.keyStart, active.close + 1)
-            val selectedId = scalar(block, "MovieID")
-            val selectedPath = scalar(block, "LocalPath")
-            if (selectedPath == path && custom != null) {
-                Log.i(TAG, "Steam startup movie is set to DroidDeck")
-                return true
-            }
-            val legacyDefault = selectedId == "0" && selectedPath == legacyPath
-            val hasExplicitSelection =
-                (!selectedId.isNullOrEmpty() && selectedId != "0") || !selectedPath.isNullOrEmpty()
-            if (!force && !legacyDefault && hasExplicitSelection && selectedPath != path) {
-                Log.i(TAG, "Steam startup movie selection preserved")
+        synchronized(STEAM_CONFIG) {
+            val path = BOOT_MOVIE_PATH
+            val legacyPath = "/uioverrides/movies/droiddeck-startup.webm"
+            var text = if (config.isFile) runCatching { config.readText() }.getOrElse {
+                Log.w(TAG, "could not read Steam config for startup movie", it)
                 return false
-            }
-        }
-        val targets = listOfNotNull(customizationMovie(text), olderMovie(text)).sortedByDescending { it.keyStart }
-        for (target in targets) text = pointAt(text, target, path, newline)
-        if (olderMovie(text) == null) {
-            val steam = findSteamBlock(text)
-            if (steam == null) {
-                if (text.isNotBlank() && customizationMovie(text) == null) {
-                    Log.w(TAG, "Steam config has no Steam settings block; startup movie default not set")
+            } else ""
+            val newline = if (text.contains("\r\n")) "\r\n" else "\n"
+            val custom = customizationMovie(text)
+            val active = custom ?: olderMovie(text)
+            if (active != null) {
+                val block = text.substring(active.keyStart, active.close + 1)
+                val selectedId = scalar(block, "MovieID")
+                val selectedPath = scalar(block, "LocalPath")
+                if (selectedPath == path && custom != null) {
+                    Log.i(TAG, "Steam startup movie is set to DroidDeck")
+                    return true
+                }
+                val legacyDefault = selectedId == "0" && selectedPath == legacyPath
+                val hasExplicitSelection =
+                    (!selectedId.isNullOrEmpty() && selectedId != "0") || !selectedPath.isNullOrEmpty()
+                if (!force && !legacyDefault && hasExplicitSelection && selectedPath != path) {
+                    Log.i(TAG, "Steam startup movie selection preserved")
                     return false
                 }
-                if (text.isBlank()) {
-                    text = "\"InstallConfigStore\"${newline}{${newline}\t\"Software\"${newline}\t{${newline}\t\t\"Valve\"${newline}\t\t{${newline}\t\t\t\"Steam\"${newline}\t\t\t{${newline}"
-                    val section = startupMovieSection("\t\t\t\t", path, newline)
-                    text += section + newline + "\t\t\t}" + newline + "\t\t}" + newline + "\t}" + newline + "}"
+            }
+            val targets = listOfNotNull(customizationMovie(text), olderMovie(text)).sortedByDescending { it.keyStart }
+            for (target in targets) text = pointAt(text, target, path, newline)
+            if (olderMovie(text) == null) {
+                val steam = findSteamBlock(text)
+                if (steam == null) {
+                    if (text.isNotBlank() && customizationMovie(text) == null) {
+                        Log.w(TAG, "Steam config has no Steam settings block; startup movie default not set")
+                        return false
+                    }
+                    if (text.isBlank()) {
+                        text = "\"InstallConfigStore\"${newline}{${newline}\t\"Software\"${newline}\t{${newline}\t\t\"Valve\"${newline}\t\t{${newline}\t\t\t\"Steam\"${newline}\t\t\t{${newline}"
+                        val section = startupMovieSection("\t\t\t\t", path, newline)
+                        text += section + newline + "\t\t\t}" + newline + "\t\t}" + newline + "\t}" + newline + "}"
+                    }
+                } else {
+                    val lineStart = text.lastIndexOf('\n', steam.close).let { if (it < 0) 0 else it + 1 }
+                    val indent = text.substring(lineStart, steam.close).takeWhile { it == '\t' || it == ' ' }
+                    val section = startupMovieSection(indent + "\t", path, newline)
+                    text = text.substring(0, lineStart) + section + newline + indent + text.substring(lineStart)
                 }
-            } else {
-                val lineStart = text.lastIndexOf('\n', steam.close).let { if (it < 0) 0 else it + 1 }
-                val indent = text.substring(lineStart, steam.close).takeWhile { it == '\t' || it == ' ' }
-                val section = startupMovieSection(indent + "\t", path, newline)
-                text = text.substring(0, lineStart) + section + newline + indent + text.substring(lineStart)
             }
-        }
-        if (customizationMovie(text) == null) text = withCustomization(text, path, newline)
-        val staged = File(config.parentFile, config.name + ".staged")
-        return try {
-            config.parentFile?.mkdirs()
-            staged.writeText(text)
-            if (!staged.renameTo(config)) {
+            if (customizationMovie(text) == null) text = withCustomization(text, path, newline)
+            val staged = File(config.parentFile, config.name + ".staged")
+            return try {
+                config.parentFile?.mkdirs()
+                staged.writeText(text)
+                if (!staged.renameTo(config)) {
+                    staged.delete()
+                    Log.e(TAG, "could not write Steam startup movie selection")
+                    false
+                } else {
+                    Log.i(TAG, "Steam startup movie default selected")
+                    true
+                }
+            } catch (e: Exception) {
                 staged.delete()
-                Log.e(TAG, "could not write Steam startup movie selection")
+                Log.w(TAG, "could not write Steam startup movie selection", e)
                 false
-            } else {
-                Log.i(TAG, "Steam startup movie default selected")
-                true
             }
-        } catch (e: Exception) {
-            staged.delete()
-            Log.w(TAG, "could not write Steam startup movie selection", e)
-            false
         }
     }
 
@@ -584,6 +665,7 @@ object SessionFiles {
     private const val UI_STATE = "UIStoreLocalSteamUIState"
     private const val SORT_RECENT_OFF = "\\\"bSortedByRecent\\\":false"
     private const val SORT_RECENT_ON = "\\\"bSortedByRecent\\\":true"
+    private const val LIBRARY_BIG_ART = "LibraryHomeBigArt"
     private const val BATTERY_PERCENT_ON = "{\\\"bShowBatteryPercentage\\\":true}"
 
     /**
@@ -633,7 +715,12 @@ object SessionFiles {
             val block = out.substring(web.keyStart, web.close + 1)
             out = out.replaceRange(web.keyStart, web.close + 1, setScalar(block, BATTERY_PREFERENCES, BATTERY_PERCENT_ON, newline))
         }
-        return seedRecentSort(out, newline)
+        out = seedRecentSort(out, newline)
+        val last = findObject(out, "UserLocalConfigStore", 0, out.length) ?: return out
+        if (!hasKey(out.substring(last.open + 1, last.close), LIBRARY_BIG_ART)) {
+            out = insertInto(out, last, listOf("\"$LIBRARY_BIG_ART\"\t\t\"1\""), newline)
+        }
+        return out
     }
 
     // The library sort lives inside a JSON string; Steam writes bSortedByRecent:false until the player picks a sort,
@@ -653,40 +740,44 @@ object SessionFiles {
 
     private fun insertInto(text: String, parent: VdfBlock, lines: List<String>, newline: String): String {
         val lineStart = text.lastIndexOf('\n', parent.close).let { if (it < 0) 0 else it + 1 }
-        val indent = text.substring(lineStart, parent.close).takeWhile { it == '\t' || it == ' ' } + "\t"
+        val before = text.substring(lineStart, parent.close)
+        val indent = before.takeWhile { it == '\t' || it == ' ' } + "\t"
         val section = lines.joinToString(newline) { indent + it } + newline
-        return text.substring(0, lineStart) + section + text.substring(lineStart)
+        if (before.isBlank()) return text.substring(0, lineStart) + section + text.substring(lineStart)
+        return text.substring(0, parent.close) + newline + section + text.substring(parent.close)
     }
 
     private val IDLE_SLEEP_TIMERS = listOf("IdleSuspendBatterySeconds", "IdleSuspendACSeconds")
 
     internal fun disableIdleSleep(steamHome: File): Boolean {
-        val config = File(steamHome, "config/config.vdf")
-        val text = runCatching { config.readText() }.getOrNull() ?: return false
-        val newline = if (text.contains("\r\n")) "\r\n" else "\n"
-        val steam = findSteamBlock(text) ?: return false
-        val system = findObject(text, "system", steam.open + 1, steam.close)
-        val updated = if (system != null) {
-            val block = text.substring(system.keyStart, system.close + 1)
-            text.replaceRange(system.keyStart, system.close + 1, IDLE_SLEEP_TIMERS.fold(block) { acc, key -> setScalar(acc, key, "0", newline) })
-        } else {
-            val lineStart = text.lastIndexOf('\n', steam.close).let { if (it < 0) 0 else it + 1 }
-            val indent = text.substring(lineStart, steam.close).takeWhile { it == '\t' || it == ' ' } + "\t"
-            val section = (listOf(indent + "\"system\"", indent + "{") +
-                IDLE_SLEEP_TIMERS.map { "$indent\t\"$it\"\t\t\"0\"" } + (indent + "}")).joinToString(newline) + newline
-            text.substring(0, lineStart) + section + text.substring(lineStart)
-        }
-        val staged = File(config.parentFile, config.name + ".staged")
-        return try {
-            if (updated != text) {
-                staged.writeText(updated)
-                if (!staged.renameTo(config)) { staged.delete(); return false }
+        synchronized(STEAM_CONFIG) {
+            val config = File(steamHome, "config/config.vdf")
+            val text = runCatching { config.readText() }.getOrNull() ?: return false
+            val newline = if (text.contains("\r\n")) "\r\n" else "\n"
+            val steam = findSteamBlock(text) ?: return false
+            val system = findObject(text, "system", steam.open + 1, steam.close)
+            val updated = if (system != null) {
+                val block = text.substring(system.keyStart, system.close + 1)
+                text.replaceRange(system.keyStart, system.close + 1, IDLE_SLEEP_TIMERS.fold(block) { acc, key -> setScalar(acc, key, "0", newline) })
+            } else {
+                val lineStart = text.lastIndexOf('\n', steam.close).let { if (it < 0) 0 else it + 1 }
+                val indent = text.substring(lineStart, steam.close).takeWhile { it == '\t' || it == ' ' } + "\t"
+                val section = (listOf(indent + "\"system\"", indent + "{") +
+                    IDLE_SLEEP_TIMERS.map { "$indent\t\"$it\"\t\t\"0\"" } + (indent + "}")).joinToString(newline) + newline
+                text.substring(0, lineStart) + section + text.substring(lineStart)
             }
-            true
-        } catch (e: Exception) {
-            staged.delete()
-            Log.w(TAG, "could not disable Steam's idle sleep", e)
-            false
+            val staged = File(config.parentFile, config.name + ".staged")
+            return try {
+                if (updated != text) {
+                    staged.writeText(updated)
+                    if (!staged.renameTo(config)) { staged.delete(); return false }
+                }
+                true
+            } catch (e: Exception) {
+                staged.delete()
+                Log.w(TAG, "could not disable Steam's idle sleep", e)
+                false
+            }
         }
     }
 
@@ -738,7 +829,7 @@ object SessionFiles {
     }
 
     private fun setScalar(block: String, key: String, value: String, newline: String): String {
-        val pattern = Regex("(?m)^([\\t ]*\"${Regex.escape(key)}\"[\\t ]+)\"[^\"\\r\\n]*\"([\\t ]*)$")
+        val pattern = Regex("(?m)^([\\t ]*\"${Regex.escape(key)}\"[\\t ]+)\"[^\"\\r\\n]*\"([\\t ]*(?://[^\\r\\n]*)?)$")
         val match = pattern.find(block)
         if (match != null) return block.replaceRange(match.range, match.groupValues[1] + "\"" + value + "\"" + match.groupValues[2])
         val close = block.lastIndexOf('}')

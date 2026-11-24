@@ -17,10 +17,10 @@ class DesktopSteamLaunchTest(unittest.TestCase):
         self.session = self.root / 'session'
         self.session.mkdir()
         self.env = dict(os.environ, HOME=str(self.root), XDG_DATA_HOME=str(self.root / 'data'),
-                        XDG_CACHE_HOME=str(self.root / 'cache'), BL_DESKTOP='1',
-                        BL_LAUNCH_DIR=str(self.session))
+                        XDG_CACHE_HOME=str(self.root / 'cache'), DD_DESKTOP='1',
+                        DD_LAUNCH_DIR=str(self.session))
         supervisor = self.root / 'supervisor'
-        supervisor.write_text('#!/bin/bash\nprintf "%s\\n" "$BL_INSIDE" "$BL_STEAM_UI" "$DISPLAY" "$@"\n')
+        supervisor.write_text('#!/bin/bash\nprintf "%s\\n" "$DD_INSIDE" "$DD_STEAM_UI" "$DISPLAY" "$@"\n')
         supervisor.chmod(0o755)
         x64 = self.root / 'steam-x64'
         x64.write_text('#!/bin/bash\nprintf "%s\\n" x64 "$@"\n')
@@ -102,7 +102,7 @@ class DesktopSteamLaunchTest(unittest.TestCase):
 
     def test_bottom_screen_desktop_hands_games_to_the_running_client(self):
         self._running_client()
-        self.env['BL_BOTTOM_DESKTOP'] = '1'
+        self.env['DD_BOTTOM_DESKTOP'] = '1'
         result = self.launch('desktop', '501590')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.splitlines(), ['-nobigpicture', '-no-cef-sandbox', '-cef-ozone-platform=x11',
@@ -110,7 +110,7 @@ class DesktopSteamLaunchTest(unittest.TestCase):
         self.assertFalse((self.root / 'cache/droiddeck/steam-desktop.lock').exists())
 
     def test_bottom_screen_desktop_starts_its_own_client_when_none_runs(self):
-        self.env.update(BL_BOTTOM_DESKTOP='1', DISPLAY=':7')
+        self.env.update(DD_BOTTOM_DESKTOP='1', DISPLAY=':7')
         result = self.launch('desktop')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.splitlines(), ['1', 'desktop', ':7', 'steam', 'steam://open/library'])
@@ -122,7 +122,7 @@ class DesktopSteamLaunchTest(unittest.TestCase):
         (x64_home / '.steam').mkdir(parents=True)
         os.mkfifo(x64_home / '.steam/steam.pipe')
         (x64_home / '.steam/steam.pid').write_text(str(os.getpid()))
-        self.env.update(BL_STEAM_CLIENT_ARCH='x86_64', BL_X64_HOME=str(x64_home))
+        self.env.update(DD_STEAM_CLIENT_ARCH='x86_64', DD_X64_HOME=str(x64_home))
         with lock.open('w') as handle:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
             result = self.launch('desktop', '501590')
@@ -164,7 +164,7 @@ class DesktopSteamLaunchTest(unittest.TestCase):
         self.assertEqual((self.session / 'steam-launch').read_text(), 'ui=bigpicture\nurl=\n')
 
     def test_outside_desktop_preserves_session_request(self):
-        self.env.pop('BL_DESKTOP')
+        self.env.pop('DD_DESKTOP')
         result = self.launch('desktop', 'steam://open/settings')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.session / 'steam-launch').read_text(),
@@ -176,11 +176,11 @@ class DesktopSteamLaunchTest(unittest.TestCase):
 
     def test_cef_software_is_scoped_to_the_kde_client(self):
         source = (BIN / 'droiddeck-session').read_text()
-        setup = source[source.index('    _bl_ui=(-gamepadui)'):source.index('    if [ "${BL_STEAM_UI:-}" != desktop ]; then')]
+        setup = source[source.index('    _dd_ui=(-gamepadui)'):source.index('    if [ "${DD_STEAM_UI:-}" != desktop ]; then')]
         for desktop, ui, software in [('1', 'desktop', True), ('1', 'bigpicture', False), ('', 'desktop', False)]:
             with self.subTest(desktop=desktop, ui=ui):
-                env = dict(self.env, BL_DESKTOP=desktop, BL_STEAM_UI=ui)
-                result = subprocess.check_output(['bash', '-c', setup + '\nprintf "%s\\n" "${_bl_cef[@]}"'],
+                env = dict(self.env, DD_DESKTOP=desktop, DD_STEAM_UI=ui)
+                result = subprocess.check_output(['bash', '-c', setup + '\nprintf "%s\\n" "${_dd_cef[@]}"'],
                                                  env=env, text=True)
                 self.assertEqual('-cef-disable-gpu' in result, software)
                 self.assertEqual('-cef-use-angle=vulkan' in result, not software)

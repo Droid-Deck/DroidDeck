@@ -37,29 +37,60 @@ class NavTabsTest {
     @Before @After fun reset() {
         ctx.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().commit()
         NavTabs.load(ctx)
-        com.droiddeck.launcher.agent.AgentTab.load(ctx)
     }
 
-    @Test fun musicStartsInMore() {
-        assertEquals(listOf("steam", "games", "stores", "desktop", "components", "setup", "updates", NavTabs.MORE), navigationKeys(state()))
-        assertEquals(listOf("soundtracks"), NavTabs.more(state()))
-        assertEquals(setOf("soundtracks", "agent"), NavTabs.shelved)
-        assertTrue(com.droiddeck.launcher.agent.AgentTab.shown)
+    @Test fun aFreshInstallShowsTheDefaultBarMoreAndHiddenTabs() {
+        assertEquals(listOf("steam", "desktop", "games", "downloads", "setup", "updates", "stores", NavTabs.MORE), navigationKeys(state()))
+        assertEquals(listOf("soundtracks", "components", "storage", "sync", "decky", "boot-movies"), NavTabs.more(state()))
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "android-apps"))
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "agent"))
+        assertFalse(com.droiddeck.launcher.agent.AgentTab.shown)
+        assertTrue(NavTabs.isDefault())
     }
 
     @Test fun showingMusicOnceKeepsItShownAfterReload() {
         place("soundtracks", TabPlace.BAR)
         NavTabs.load(ctx)
-        assertEquals(listOf("steam", "games", "soundtracks", "stores", "desktop", "components", "setup", "updates"), navigationKeys(state()))
+        assertEquals(listOf("steam", "desktop", "games", "downloads", "setup", "updates", "stores", "soundtracks", NavTabs.MORE), navigationKeys(state()))
     }
 
     @Test fun shelvedTabsLeaveTheBarAndAddMoreAtTheEnd() {
-        place("stores", TabPlace.MORE)
-        place("components", TabPlace.MORE)
+        place("desktop", TabPlace.MORE)
         val s = state()
-        assertEquals(listOf("components", "soundtracks", "stores"), NavTabs.more(s))
+        assertEquals(listOf("desktop", "soundtracks", "components", "storage", "sync", "decky", "boot-movies"), NavTabs.more(s))
         assertEquals(NavTabs.MORE, navigationKeys(s).last())
-        assertFalse("stores" in navigationKeys(s))
+        assertFalse("desktop" in navigationKeys(s))
+    }
+
+    @Test fun appsAndTheDevHarnessCanBeShownWithoutHomeScreenOrDeveloperTools() {
+        place("android-apps", TabPlace.MORE)
+        assertTrue("android-apps" in NavTabs.more(state()))
+        place("agent", TabPlace.BAR)
+        assertTrue(com.droiddeck.launcher.agent.AgentTab.shown)
+    }
+
+    @Test fun resettingPutsBackTheDefaultLayout() {
+        place("stores", TabPlace.MORE)
+        place("updates", TabPlace.HIDDEN)
+        moveTab("downloads", -1)
+        assertFalse(NavTabs.isDefault())
+        NavTabs.reset(ctx)
+        NavTabs.load(ctx)
+        assertTrue(NavTabs.isDefault())
+        assertEquals(listOf("steam", "desktop", "games", "downloads", "setup", "updates", "stores", NavTabs.MORE), navigationKeys(state()))
+    }
+
+    @Test fun anOldLayoutKeepsWhatItsSwitchesShowed() {
+        ctx.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear()
+            .putBoolean("gameStoresEnabled", false).putBoolean("soundtracksEnabled", false).commit()
+        NavTabs.load(ctx)
+        val s = state()
+        assertEquals(listOf("steam", "games", "desktop", "components", "setup", "updates", NavTabs.MORE), navigationKeys(s))
+        assertEquals(listOf("storage", "sync", "decky", "boot-movies"), NavTabs.more(s))
+        listOf("stores", "downloads", "soundtracks", "android-apps", "agent").forEach { assertEquals(it, TabPlace.HIDDEN, NavTabs.place(s, it)) }
+        val prefs = ctx.getSharedPreferences("session", Context.MODE_PRIVATE)
+        assertFalse(prefs.contains("gameStoresEnabled"))
+        assertFalse(prefs.contains("soundtracksEnabled"))
     }
 
     @Test fun hiddenTabsAreNowhereAndSetupCannotBeHidden() {
@@ -71,38 +102,54 @@ class NavTabsTest {
         assertTrue("setup" in navigationKeys(s))
     }
 
-    @Test fun disabledStoresFeatureReadsAsHidden() {
-        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(storesOn = false), "stores"))
+    @Test fun storesAndMusicHideLikeAnyOtherTab() {
+        place("stores", TabPlace.HIDDEN)
+        place("soundtracks", TabPlace.HIDDEN)
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "stores"))
+        assertEquals(TabPlace.MORE, NavTabs.place(state(), "components"))
+        assertEquals(TabPlace.BAR, NavTabs.place(state(), "downloads"))
+        assertEquals(listOf("components", "storage", "sync", "decky", "boot-movies"), NavTabs.more(state()))
     }
 
     @Test fun movingSwapsWithTheNextVisibleTabAndPersists() {
-        place("soundtracks", TabPlace.BAR)
-        moveTab("stores", -1)
-        assertEquals(listOf("steam", "games", "stores", "soundtracks"), navigationKeys(state()).take(4))
+        moveTab("games", -1)
+        assertEquals(listOf("steam", "games", "desktop", "downloads"), navigationKeys(state()).take(4))
         NavTabs.load(ctx)
-        assertEquals(listOf("steam", "games", "stores", "soundtracks"), navigationKeys(state()).take(4))
+        assertEquals(listOf("steam", "games", "desktop", "downloads"), navigationKeys(state()).take(4))
     }
 
     @Test fun tabsMissingFromASavedOrderSlotInAfterTheirDefaultNeighbour() {
-        assertEquals(listOf("updates", "steam", "games", "soundtracks", "stores", "desktop", "agent", "components", "android-apps", "setup"),
+        assertEquals(listOf("updates", "stores", "soundtracks", "components", "storage", "sync", "decky", "boot-movies", "android-apps", "agent", "steam", "desktop", "games", "downloads", "setup"),
             NavTabs.arrange(listOf("updates", "steam")))
-        assertEquals(listOf("games", "soundtracks", "steam", "setup", "stores", "desktop", "agent", "components", "android-apps", "updates"),
+        assertEquals(listOf("games", "downloads", "steam", "setup", "stores", "soundtracks", "desktop", "components", "storage", "sync", "decky", "boot-movies", "android-apps", "agent", "updates"),
             NavTabs.arrange(listOf("games", "steam", "setup", "stores", "desktop", "components", "android-apps", "updates", "bogus")))
     }
 
+    @Test fun storageAndSyncJoinMoreForUsersWithASavedLayout() {
+        ctx.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
+            .putString("navTabOrder", "steam,games,soundtracks,stores,desktop,agent,components,android-apps,setup,updates")
+            .putString("navTabShelved", "soundtracks").commit()
+        NavTabs.load(ctx)
+        assertEquals(listOf("soundtracks", "storage", "sync", "decky", "boot-movies"), NavTabs.more(state()))
+        place("sync", TabPlace.BAR)
+        NavTabs.load(ctx)
+        assertTrue("sync" in navigationKeys(state()))
+    }
+
     @Test fun moreCarriesTheDownloadCountAndBadgesOfShelvedTabs() {
-        place("stores", TabPlace.MORE)
+        place("downloads", TabPlace.MORE)
         place("setup", TabPlace.MORE)
         val s = state(downloads = 3, setupReady = false)
         assertEquals(3, railCount(s, NavTabs.MORE))
         assertTrue(railBadge(s, NavTabs.MORE))
-        place("stores", TabPlace.BAR)
+        place("downloads", TabPlace.BAR)
         assertEquals(0, railCount(s, NavTabs.MORE))
-        assertEquals(3, railCount(s, "stores"))
+        assertEquals(3, railCount(s, "downloads"))
+        assertEquals(0, railCount(s, "stores"))
     }
 
-    @Test fun sideRailShowsTheDownloadCountOnMoreWhenStoresIsShelved() {
-        place("stores", TabPlace.MORE)
+    @Test fun sideRailShowsTheDownloadCountOnMoreWhenDownloadsIsShelved() {
+        place("downloads", TabPlace.MORE)
         val s = state(downloads = 2)
         compose.setContent {
             DroidDeckTheme {
@@ -111,13 +158,13 @@ class NavTabsTest {
                 }
             }
         }
-        compose.onNodeWithTag("rail-stores").assertDoesNotExist()
+        compose.onNodeWithTag("rail-downloads").assertDoesNotExist()
         compose.onNode(hasTestTag("rail-more")).assertIsDisplayed()
         compose.onNode(hasText("2") and hasParentTag("rail-more"), useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test fun morePageListsShelvedTabsWithTheirCount() {
-        place("stores", TabPlace.MORE)
+        place("downloads", TabPlace.MORE)
         place("components", TabPlace.MORE)
         val s = state(downloads = 4)
         compose.setContent {
@@ -127,9 +174,9 @@ class NavTabsTest {
                 }
             }
         }
-        compose.onNodeWithTag("more-stores").assertIsDisplayed()
+        compose.onNodeWithTag("more-downloads").assertIsDisplayed()
         compose.onNodeWithTag("more-components").assertIsDisplayed()
-        compose.onNode(hasText("4") and hasParentTag("more-stores"), useUnmergedTree = true).assertIsDisplayed()
+        compose.onNode(hasText("4") and hasParentTag("more-downloads"), useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test fun backFromAShelvedTabReturnsToMore() {
@@ -159,7 +206,7 @@ class NavTabsTest {
         compose.setContent { DroidDeckTheme { FrontEndScreen(state(), actions(), page = null) } }
         compose.mainClock.advanceTimeBy(2_000)
         compose.onNode(hasText(ctx.getString(com.droiddeck.launcher.R.string.content_page_gone))).assertDoesNotExist()
-        compose.onNode(hasTestTag("rail-games") and androidx.compose.ui.test.isSelected()).assertExists()
+        compose.onNode(hasTestTag("rail-desktop") and androidx.compose.ui.test.isSelected()).assertExists()
     }
 
     @Test fun setupListMovesATabAcrossTheMoreLineWithTheControllerAndHidesWithItsSwitch() {
@@ -203,11 +250,11 @@ class NavTabsTest {
 
     private fun hasParentTag(tag: String) = androidx.compose.ui.test.hasAnyAncestor(hasTestTag(tag))
 
-    private fun state(storesOn: Boolean = true, downloads: Int = 0, setupReady: Boolean = true) = FrontEndState(
+    private fun state(downloads: Int = 0, setupReady: Boolean = true) = FrontEndState(
         installed = "r9", ready = setupReady, available = null, busy = false, stage = "", percent = -1,
         desktopInstalled = true, offlineAccount = null, offline = false, frameGenLabel = "", romsDir = null, logsEnabled = false,
         steamGames = emptyList(), emulators = emptyList(), running = null,
-        gameStoresEnabled = storesOn, storeDownloadsActive = downloads,
+        storeDownloadsActive = downloads,
     )
 
     private fun actions() = FrontEndActions(
@@ -215,7 +262,7 @@ class NavTabsTest {
         onSteamSettings = {}, onDesktopSettings = {}, onInstallPackage = {}, onRemovePackage = {},
         onRuntime = {}, onFrameGenPick = {}, onImportLossless = {}, onProtons = {}, onComponents = {},
         onPerformance = {}, onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
-        onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
+        
         onSetPhantomProcessLimit = { _, _ -> }, onRemoveDesktop = {},
     )
 }
