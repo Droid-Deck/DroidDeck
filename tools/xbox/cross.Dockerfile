@@ -15,7 +15,7 @@ RUN dpkg --add-architecture arm64 \
     && apt-get update -qq \
     && apt-get install -y -qq --no-install-recommends \
         build-essential pkg-config protobuf-compiler cmake curl git ca-certificates xz-utils python3 \
-        gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user \
+        gcc-aarch64-linux-gnu g++-aarch64-linux-gnu qemu-user gcc-mingw-w64-x86-64 \
         libssl-dev:arm64 libstdc++6:arm64 \
     && rm -rf /var/lib/apt/lists/*
 

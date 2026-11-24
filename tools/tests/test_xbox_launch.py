@@ -277,9 +277,10 @@ class XboxLaunchTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             prefix = Path(root)
             key = xbox['CLASS_KEY'].replace('\\', '\\\\')
-            present = [name for names in xbox['CLASSES'].values() for name in names
+            section = '[%s%s] 1\n"DllPath"="C:\\\\windows\\\\system32\\\\%s"\n\n'
+            present = [(name, dll) for dll, names in xbox['CLASSES'].items() for name in names
                        if name != 'Windows.ApplicationModel.DataTransfer.DataTransferManager']
-            (prefix / 'system.reg').write_text(''.join('[%s%s] 1\n"DllPath"="x"\n\n' % (key, name) for name in present))
+            (prefix / 'system.reg').write_text(''.join(section % (key, name, dll) for name, dll in present))
             imported = []
             def run(argv, **kwargs):
                 imported.append(Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le'))
@@ -292,11 +293,61 @@ class XboxLaunchTest(unittest.TestCase):
                                         '\\ActivatableClassId\\Windows.ApplicationModel.DataTransfer.DataTransferManager]\r\n'
                                         '"DllPath"="C:\\\\windows\\\\system32\\\\twinapi.appcore.dll"\r\n\r\n'])
             with (prefix / 'system.reg').open('a') as file:
-                file.write('[%sWindows.ApplicationModel.DataTransfer.DataTransferManager] 1\n' % key)
+                file.write(section % (key, 'Windows.ApplicationModel.DataTransfer.DataTransferManager', 'twinapi.appcore.dll'))
             with patch('subprocess.run') as child:
                 xbox['register_classes']('/selected/proton', prefix, {})
                 (prefix / 'system.reg').unlink()
                 xbox['register_classes']('/selected/proton', prefix, {})
+            child.assert_not_called()
+
+    def test_package_classes_come_from_the_manifest(self):
+        with tempfile.TemporaryDirectory() as root:
+            package = Path(root) / 'Game'
+            (package / 'bin').mkdir(parents=True)
+            (package / 'Wheel.dll').write_bytes(b'MZ')
+            (package / 'bin' / 'Live.dll').write_bytes(b'MZ')
+            server = ('<Extension Category="windows.activatableClass.inProcessServer"><InProcessServer>'
+                      '<Path>%s</Path>%s</InProcessServer></Extension>')
+            (package / 'AppxManifest.xml').write_text(''.join((
+                server % ('Wheel.dll', '<ActivatableClass ActivatableClassId="Vendor.Input.Wheel" ThreadingModel="both" />'),
+                server % ('bin\\Live.dll', '<ActivatableClass ActivatableClassId="Vendor.Live.User" />'
+                                           '<ActivatableClass ActivatableClassId="Vendor.Live.Context" />'),
+                server % ('..\\Outside.dll', '<ActivatableClass ActivatableClassId="Vendor.Outside" />'),
+                server % ('C:\\windows\\system32\\kernel32.dll', '<ActivatableClass ActivatableClassId="Vendor.Absolute" />'),
+                server % ('Missing.dll', '<ActivatableClass ActivatableClassId="Vendor.Missing" />'),
+                server % ('Wheel.dll', '<ActivatableClass ActivatableClassId="Vendor.Bad]Name" />'))))
+            windows = 'Z:' + str(package).replace('/', '\\')
+            self.assertEqual(xbox['package_classes'](package),
+                             {windows + '\\Wheel.dll': ['Vendor.Input.Wheel'],
+                              windows + '\\bin\\Live.dll': ['Vendor.Live.User', 'Vendor.Live.Context']})
+            self.assertEqual(xbox['package_classes'](Path('Game')), {})
+
+            prefix = Path(root)
+            key = xbox['CLASS_KEY'].replace('\\', '\\\\')
+            (prefix / 'system.reg').write_text(''.join(
+                '[%s%s] 1\n"DllPath"="C:\\\\windows\\\\system32\\\\%s"\n\n' % (key, name, dll)
+                for dll, names in xbox['CLASSES'].items() for name in names))
+            imported = []
+            def run(argv, **kwargs):
+                imported.append(Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le'))
+                return subprocess.CompletedProcess(argv, 0)
+            with patch('subprocess.run', side_effect=run):
+                xbox['register_classes']('/selected/proton', prefix, {}, {'Z:\\games\\Game\\Wheel.dll': ['Vendor.Input.Wheel']})
+            self.assertEqual(imported, ['Windows Registry Editor Version 5.00\r\n\r\n[HKEY_LOCAL_MACHINE\\Software\\Microsoft\\WindowsRuntime'
+                                        '\\ActivatableClassId\\Vendor.Input.Wheel]\r\n'
+                                        '"DllPath"="Z:\\\\games\\\\Game\\\\Wheel.dll"\r\n\r\n'])
+
+    def test_a_class_named_twice_resolves_to_the_later_dll(self):
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root)
+            key = xbox['CLASS_KEY'].replace('\\', '\\\\')
+            section = '[%s%s] 1\n"DllPath"="C:\\\\windows\\\\system32\\\\%s"\n\n'
+            name = 'Windows.Devices.Enumeration.DeviceInformation'
+            (prefix / 'system.reg').write_text(''.join(
+                section % (key, other, 'uwp-host.dll' if other == name else dll)
+                for dll, names in xbox['CLASSES'].items() for other in names))
+            with patch('subprocess.run') as child:
+                xbox['register_classes']('/selected/proton', prefix, {}, {'uwp-host.dll': (name,)})
             child.assert_not_called()
 
     def test_failed_class_registration_is_reported_and_launch_continues(self):

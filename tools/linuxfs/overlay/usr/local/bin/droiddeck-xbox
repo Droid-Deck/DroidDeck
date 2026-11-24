@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 from pathlib import Path
+import re
 import runpy
 import secrets
 import shutil
@@ -20,15 +21,64 @@ DLLS = ('xgameruntime.dll', 'winhttp.dll', 'windows.web.dll', 'twinapi.appcore.d
 CLASSES = {
     'twinapi.appcore.dll': ('Windows.ApplicationModel.DataTransfer.DataTransferManager',
                             'Windows.Security.ExchangeActiveSyncProvisioning.EasClientDeviceInformation',
-                            'Windows.System.Profile.AnalyticsInfo', 'Windows.System.UserProfile.AdvertisingManager',
-                            'Windows.UI.ViewManagement.ApplicationView'),
+                            'Windows.System.Profile.AnalyticsInfo', 'Windows.System.UserProfile.AdvertisingManager'),
+    # Device enumeration is how a title lists the render devices it can open. Wine carries the DLL but its
+    # class keys only reached the 32-bit view of the registry, so a 64-bit title looks one up and finds nothing.
+    'windows.devices.enumeration.dll': ('Windows.Devices.Enumeration.DeviceInformation',
+                                        'Windows.Devices.Enumeration.DeviceAccessInformation'),
     'windows.web.dll': ('Windows.Data.Json.JsonArray', 'Windows.Data.Json.JsonObject', 'Windows.Data.Json.JsonValue'),
     'wintypes.dll': ('Windows.Foundation.PropertyValue', 'Windows.Foundation.Collections.PropertySet',
                      'Windows.Foundation.Metadata.ApiInformation', 'Windows.Storage.Streams.Buffer',
                      'Windows.Storage.Streams.DataWriter'),
 }
 CLASS_KEY = 'Software\\Microsoft\\WindowsRuntime\\ActivatableClassId\\'
+PACKAGE_KEY = ('Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\'
+               'AppModel\\PackageRepository\\Packages\\')
+VCLIBS_X64 = 'Microsoft.VCLibs.140.00_14.0.30704.0_x64__8wekyb3d8bbwe'
+# A package whose manifest names a view entry point is started by the Windows app model: it asks for
+# CoreApplication to run its IFrameworkView and for the CoreWindow that view draws in. Wine resolves those
+# classes to a DLL and calls DllGetActivationFactory, but ships nothing behind them, so the runtime carries a
+# small host (tools/xbox/uwp-host) that answers them and drives the title's view. A package naming
+# Windows.FullTrustApplication never sees it.
+UWP_HOST = RUNTIME / 'compat' / 'uwp-host.dll'
+# The host answers the app model itself (CoreApplication, CoreWindow) and, because Wine ships nothing behind
+# them, the platform services a packaged title reaches for on the way up: storage, package identity,
+# cryptography, display, media and input. They all resolve to this one DLL.
+UWP_CLASSES = ('Windows.ApplicationModel.Core.CoreApplication', 'Windows.UI.Core.CoreWindow',
+               'Windows.Storage.ApplicationData', 'Windows.ApplicationModel.Package',
+               'Windows.ApplicationModel.PackageCatalog',
+               'Windows.Security.Cryptography.Core.HashAlgorithmProvider',
+               'Windows.Security.Cryptography.Core.HashAlgorithmNames',
+               'Windows.Security.Cryptography.CryptographicBuffer',
+               'Windows.Graphics.Display.DisplayInformation', 'Windows.Media.Devices.MediaDevice',
+               'Windows.System.MemoryManager',
+               'Windows.Devices.Input.MouseDevice', 'Windows.Devices.Input.MouseCapabilities',
+               'Windows.Devices.Input.KeyboardCapabilities',
+               'Windows.UI.ViewManagement.ApplicationView', 'Windows.UI.Popups.MessageDialog',
+               'Windows.Devices.Enumeration.DeviceInformation',
+               'Windows.Services.Store.StoreContext',
+               'Windows.System.Profile.HardwareIdentification',
+               'Windows.System.Profile.SystemIdentification',
+               'Windows.System.User',
+               'Windows.System.KnownUserProperties',
+               'Windows.System.UserPicker',
+               'Windows.Security.Authentication.Web.Core.WebAuthenticationCoreManager',
+               'Windows.Security.Authentication.Web.Core.WebTokenRequest',
+               'Windows.System.Threading.ThreadPoolTimer',
+               'Windows.ApplicationModel.Resources.Core.ResourceContext',
+               'Windows.Gaming.XboxLive.Storage.GameSaveProvider',
+               'Windows.Foundation.Diagnostics.LoggingOptions',
+               'Windows.Foundation.Diagnostics.LoggingChannelOptions',
+               'Windows.Foundation.Diagnostics.LoggingChannel',
+               'Windows.Foundation.Diagnostics.LoggingFields',
+               'Windows.Networking.PushNotifications.PushNotificationChannelManager')
 VIEW_DRIVES = 'xwvutsrqponmlkjihgfe'
+
+
+def trace(env, message):
+    """Name the launch decisions when DROIDDECK_UWP_TRACE is set."""
+    if env.get('DROIDDECK_UWP_TRACE'):
+        print('droiddeck-xbox: ' + message, file=sys.stderr)
 
 
 def bridge(upstream):
@@ -115,18 +165,44 @@ def bridge(upstream):
     return server.getsockname()[1], key.decode('ascii'), close
 
 
-def register_classes(proton, prefix, env):
+def class_paths(registry):
+    """Map each registered ActivatableClassId to the DllPath recorded for it."""
+    paths = {}
+    current = None
+    prefix = CLASS_KEY.replace('\\', '\\\\')
+    for line in registry.splitlines():
+        # Wine writes a section as [key] followed by its modification time.
+        if line.startswith('[') and ']' in line:
+            body = line[1:line.rindex(']')]
+            current = body[len(prefix):] if body.startswith(prefix) else None
+        elif current is not None and line.startswith('"DllPath"='):
+            paths[current.replace('\\\\', '\\')] = line[10:].strip('"').replace('\\\\', '\\')
+    return paths
+
+
+def register_classes(proton, prefix, env, extra=None):
+    """Register CLASSES, plus `extra` ({DLL path: class names}), where the prefix does not already point there.
+
+    A DLL path without a directory is one staged in system32. A class named in `extra` too resolves to the DLL
+    `extra` gives it, so the host can stand in front of a class Wine only partly implements.
+    """
     try:
         registry = (prefix / 'system.reg').read_text(encoding='utf-8', errors='replace')
     except OSError:
         return
-    missing = [(name, dll) for dll, names in CLASSES.items() for name in names
-               if '[%s]' % (CLASS_KEY + name).replace('\\', '\\\\') not in registry]
+    entries = {}
+    for dll, names in [*CLASSES.items(), *(extra or {}).items()]:
+        for name in names:
+            entries[name] = dll if '\\' in dll else 'C:\\windows\\system32\\' + dll
+    installed = class_paths(registry)
+    # Compare the DllPath, not just the section: a section left behind by an older build points at a DLL
+    # that is no longer staged, and resolving that class would fail instead of falling back to the host.
+    missing = [(name, path) for name, path in entries.items() if installed.get(name, '').lower() != path.lower()]
     if not missing:
         return
     text = 'Windows Registry Editor Version 5.00\r\n\r\n' + ''.join(
-        '[HKEY_LOCAL_MACHINE\\%s%s]\r\n"DllPath"="C:\\\\windows\\\\system32\\\\%s"\r\n\r\n' % (CLASS_KEY, name, dll)
-        for name, dll in missing)
+        '[HKEY_LOCAL_MACHINE\\%s%s]\r\n"DllPath"="%s"\r\n\r\n' % (CLASS_KEY, name, path.replace('\\', '\\\\'))
+        for name, path in missing)
     with tempfile.TemporaryDirectory(prefix='droiddeck-xbox-') as temporary:
         source = Path(temporary) / 'classes.reg'
         source.write_bytes(b'\xff\xfe' + text.encode('utf-16-le'))
@@ -273,7 +349,7 @@ def view_drive(prefix, exe):
     return exe, None
 
 
-def wine(argv, source_env=None):
+def wine(argv, source_env=None, package=None):
     source_env = os.environ if source_env is None else source_env
     with open(source_env['DROIDDECK_XBOX_COMMAND_FILE'], encoding='utf-8') as file:
         command = json.load(file)
@@ -296,11 +372,32 @@ def wine(argv, source_env=None):
         if target.is_symlink():
             target.unlink()
         shutil.copyfile(RUNTIME / 'windows' / name, target)
-    register_classes(command[0], prefix, env)
+    package_root = None
+    if package is not None:
+        parsed = package_manifest_identity(package)
+        if parsed is not None:
+            package_root = stage_package_root(prefix, package, parsed[0])
+    classes = package_classes(package, install_path=package_root) if package is not None else {}
+    if env.get('DROIDDECK_XBOX_UWP_HOST') == '1':
+        try:
+            data = UWP_HOST.read_bytes()
+            replace_file(system, 'uwp-host.dll', data)
+        except OSError as error:
+            print('droiddeck-xbox: app-model host unavailable (%s)' % error, file=sys.stderr)
+        else:
+            trace(env, 'app-model host staged (%d bytes)' % len(data))
+            classes['uwp-host.dll'] = UWP_CLASSES
+    register_classes(command[0], prefix, env, classes)
+    if package is not None:
+        register_packages(command[0], prefix, env, package_identities(package, install_path=package_root))
     run_install_actions(command[0], prefix, argv[0], env)
     overrides = ';'.join(name[:-4] + '=n' for name in DLLS if name != 'libnghttp2.dll')
     env['WINEDLLOVERRIDES'] = overrides + ';' + env.get('WINEDLLOVERRIDES', '')
     exe, drive = view_drive(prefix, argv[0])
+    if package is not None and package_root is not None and drive is None:
+        rel_exe = relative_to_package(argv[0], package)
+        if rel_exe is not None:
+            exe = package_root + '\\' + str(rel_exe).replace('/', '\\')
     try:
         return subprocess.call([*command[:2], exe, *command[3:]], env=env)
     finally:
@@ -477,6 +574,192 @@ def stage_playfab_proxy(folder):
     return staged
 
 
+def uwp_view_app(folder):
+    """True when the package's manifest starts it through a view entry point rather than as an ordinary program.
+
+    Read as text and scanned for the entry point instead of parsed: the manifest is untrusted input from the
+    package, and the only answer needed here is whether the entry is Windows.FullTrustApplication.
+    """
+    try:
+        text = (Path(folder) / 'AppxManifest.xml').read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return False
+    marker = 'EntryPoint="'
+    at = text.find(marker)
+    while at >= 0:
+        end = text.find('"', at + len(marker))
+        if end < 0:
+            return False
+        entry = text[at + len(marker):end].strip()
+        if entry and entry.split(',')[0].strip() != 'Windows.FullTrustApplication':
+            return True
+        at = text.find(marker, end)
+    return False
+
+
+def publisher_id(publisher):
+    """AppModel Crockford base32 publisher ID: first 8 bytes of SHA-256(UTF-16LE(publisher))."""
+    alphabet = '0123456789abcdefghjkmnpqrstvwxyz'
+    digest = hashlib.sha256(publisher.encode('utf-16-le')).digest()[:8]
+    value = int.from_bytes(digest, 'big') << 1
+    return ''.join(alphabet[(value >> shift) & 31] for shift in range(60, -1, -5))
+
+
+def package_paths(registry):
+    """Map each PackageRepository entry to the Path recorded for it."""
+    paths = {}
+    current = None
+    prefix = PACKAGE_KEY.replace('\\', '\\\\')
+    for line in registry.splitlines():
+        if line.startswith('[') and ']' in line:
+            body = line[1:line.rindex(']')]
+            current = body[len(prefix):] if body.startswith(prefix) else None
+        elif current is not None and line.startswith('"Path"='):
+            paths[current.replace('\\\\', '\\')] = line[7:].strip('"').replace('\\\\', '\\')
+    return paths
+
+
+def package_manifest_identity(folder):
+    """Return `(full_name, arch, manifest_text)` from `<folder>/AppxManifest.xml`, or None."""
+    folder = Path(folder)
+    if not folder.is_absolute():
+        return None
+    try:
+        text = (folder / 'AppxManifest.xml').read_text(encoding='utf-8', errors='replace')
+        root = ElementTree.fromstring(text)
+    except (OSError, ElementTree.ParseError):
+        return None
+    identity = next((el for el in root if el.tag.endswith('}Identity') or el.tag == 'Identity'), None)
+    if identity is None:
+        return None
+    name = (identity.attrib.get('Name') or '').strip()
+    publisher = (identity.attrib.get('Publisher') or '').strip()
+    version = (identity.attrib.get('Version') or '').strip()
+    arch = (identity.attrib.get('ProcessorArchitecture') or 'neutral').strip().lower()
+    resource_id = (identity.attrib.get('ResourceId') or '').strip()
+    if not (name and publisher and version):
+        return None
+    full = '%s_%s_%s_%s_%s' % (name, version, arch, resource_id, publisher_id(publisher))
+    return full, arch, text
+
+
+def relative_to_package(exe_path, package):
+    """Return `exe_path` relative to `package` even when `exe_path` uses an alternate mount/symlink prefix."""
+    path = Path(exe_path)
+    try:
+        return path.relative_to(Path(package))
+    except ValueError:
+        pass
+    parts = []
+    cur = path
+    for parent in path.parents:
+        parts.append(cur.name)
+        cur = parent
+        try:
+            if os.path.samefile(parent, package):
+                return Path(*reversed(parts))
+        except OSError:
+            pass
+    return None
+
+
+def stage_package_root(prefix, folder, full_name):
+    r"""Expose `folder` under C:\Program Files\WindowsApps\<full_name> inside `prefix` via a directory symlink."""
+    apps_dir = prefix / 'drive_c/Program Files/WindowsApps'
+    link = apps_dir / full_name
+    staged = apps_dir / ('.%s-%s' % (full_name, secrets.token_hex(4)))
+    try:
+        apps_dir.mkdir(parents=True, exist_ok=True)
+        if link.is_symlink() and os.readlink(link) == str(folder):
+            return 'C:\\Program Files\\WindowsApps\\' + full_name
+        if os.path.lexists(link) and not link.is_symlink():
+            return None
+        staged.symlink_to(folder)
+        os.replace(staged, link)
+    except OSError:
+        if os.path.lexists(staged):
+            try:
+                staged.unlink()
+            except OSError:
+                pass
+        return None
+    return 'C:\\Program Files\\WindowsApps\\' + full_name
+
+
+def package_identities(folder, install_path=None):
+    """AppModel PackageRepository entries ({full name: Windows path}) for the package in `folder`."""
+    parsed = package_manifest_identity(folder)
+    if parsed is None:
+        return {}
+    full, arch, text = parsed
+    root = install_path or ('Z:' + str(Path(folder)).replace('/', '\\'))
+    entries = {full: root}
+    if arch == 'x64' and 'Microsoft.VCLibs.140.00' in text:
+        entries[VCLIBS_X64] = 'C:\\windows\\system32'
+    return entries
+
+
+def register_packages(proton, prefix, env, packages):
+    """Register AppModel PackageRepository entries where the prefix does not already record them."""
+    if not packages:
+        return
+    try:
+        registry = (prefix / 'system.reg').read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return
+    installed = package_paths(registry)
+    missing = []
+    for full, target in packages.items():
+        existing = installed.get(full, '')
+        if full == VCLIBS_X64 and existing:
+            continue
+        if existing.lower() != target.lower():
+            missing.append((full, target))
+    if not missing:
+        return
+    text = 'Windows Registry Editor Version 5.00\r\n\r\n' + ''.join(
+        '[HKEY_LOCAL_MACHINE\\%s%s]\r\n"Path"="%s"\r\n\r\n' % (PACKAGE_KEY, full, target.replace('\\', '\\\\'))
+        for full, target in missing)
+    with tempfile.TemporaryDirectory(prefix='droiddeck-xbox-') as temporary:
+        source = Path(temporary) / 'packages.reg'
+        source.write_bytes(b'\xff\xfe' + text.encode('utf-16-le'))
+        result = subprocess.run([proton, 'run', 'reg', 'import', 'Z:' + str(source).replace('/', '\\')],
+                                stdout=sys.stderr, env=env)
+        if result.returncode:
+            print('droiddeck-xbox: package registration exited %d' % result.returncode, file=sys.stderr)
+
+
+def package_classes(folder, install_path=None):
+    """The in-process Windows Runtime classes the package's manifest declares, as {DLL path: class names}.
+
+    Windows registers these when it deploys the package, so a title that activates a class it ships gets the
+    package's own DLL. Scanned as text like uwp_view_app: the manifest is untrusted, so a server's DLL must be a
+    relative path to a file inside the package and a class name a dotted identifier.
+    """
+    folder = Path(folder)
+    if not folder.is_absolute():
+        return {}
+    try:
+        text = (folder / 'AppxManifest.xml').read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return {}
+    classes = {}
+    root_path = install_path or ('Z:' + str(folder).replace('/', '\\'))
+    for server in re.findall(r'<(?:\w+:)?InProcessServer>(.*?)</(?:\w+:)?InProcessServer>', text, re.S):
+        path = re.search(r'<(?:\w+:)?Path>([^<]*)</(?:\w+:)?Path>', server)
+        names = re.findall(r'ActivatableClassId="([A-Za-z0-9_.]+)"', server)
+        if path is None or not names:
+            continue
+        relative = path.group(1).strip().replace('\\', '/')
+        if not relative or relative.startswith('/') or ':' in relative or '..' in relative.split('/'):
+            continue
+        dll = folder / relative
+        if dll.is_file():
+            dll_path = root_path + '\\' + relative.replace('/', '\\')
+            classes.setdefault(dll_path, []).extend(names)
+    return classes
+
+
 def renew_lease(ask, channel, product, lease, stopped):
     while not stopped.wait(15):
         response = ask(channel, {'op': 'xbox-renew', 'id': product, 'lease': lease}, timeout=10)
@@ -496,6 +779,7 @@ def launch(command, env):
     if found is None or found[1].get('store') != 'xbox':
         return None
     folder, sidecar = found
+    trace(env, 'xbox package %s' % folder)
     for name in DLLS:
         if not (RUNTIME / 'windows' / name).is_file():
             raise RuntimeError('Xbox Windows runtime is missing; update the Linux runtime')
@@ -545,7 +829,12 @@ def launch(command, env):
                 stage_playfab_proxy(folder)
             except Exception as error:
                 print('droiddeck-xbox: PlayFab save proxy skipped (%s)' % error, file=sys.stderr)
-            return wine([reply['exe']], owned_env)
+            # Only a view package needs the app model; asking for its host costs nothing else.
+            view = uwp_view_app(folder)
+            trace(env, 'package starts a view: %s' % view)
+            if view:
+                owned_env['DROIDDECK_XBOX_UWP_HOST'] = '1'
+            return wine([reply['exe']], owned_env, folder)
     finally:
         stopped.set()
         close()

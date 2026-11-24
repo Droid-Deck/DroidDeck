@@ -225,7 +225,8 @@
     ],
     "outputs": [
       "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox/xodus-cli",
-      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox/xodus-service"
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox/xodus-service",
+      "app/src/main/assets/linuxfs/usr/local/lib/droiddeck-xbox/compat/uwp-host.dll"
     ],
     "packages": [
       "build-essential",
@@ -233,7 +234,8 @@
       "libssl-dev",
       "protobuf-compiler",
       "cmake",
-      "xz-utils"
+      "xz-utils",
+      "gcc-mingw-w64-x86-64"
     ]
   },
   "vkbridge": {
