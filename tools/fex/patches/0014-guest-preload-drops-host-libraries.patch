@@ -1,0 +1,51 @@
+diff --git a/Source/Tools/FEXInterpreter/ELFCodeLoader.h b/Source/Tools/FEXInterpreter/ELFCodeLoader.h
+index e1f601b..cebf1f5 100644
+--- a/Source/Tools/FEXInterpreter/ELFCodeLoader.h
++++ b/Source/Tools/FEXInterpreter/ELFCodeLoader.h
+@@ -222,6 +222,32 @@ class ELFCodeLoader final : public FEX::CodeLoader {
+ 
+ public:
+ 
++  static fextl::string GuestPreload(const char* List, const fextl::string& RootFS) {
++    fextl::string Result;
++    for (const char* Start = List; *Start; Start += *Start ? 1 : 0) {
++      size_t Length = strcspn(Start, ": ");
++      fextl::string Entry(Start, Length);
++      Start += Length;
++      if (Entry.empty()) {
++        continue;
++      }
++      if (Entry[0] == '/') {
++        auto Type = ::ELFLoader::ELFContainer::GetELFType(ResolveRootfsFile(Entry, RootFS));
++        if (Type == ::ELFLoader::ELFContainer::TYPE_NONE) {
++          Type = ::ELFLoader::ELFContainer::GetELFType(Entry);
++        }
++        if (Type == ::ELFLoader::ELFContainer::TYPE_OTHER_ELF) {
++          continue;
++        }
++      }
++      if (!Result.empty()) {
++        Result += ':';
++      }
++      Result += Entry;
++    }
++    return Result;
++  }
++
+   static fextl::string ResolveRootfsFile(const fextl::string& File, fextl::string RootFS) {
+     // If the path is relative then just run that
+     if (File[0] != '/') {
+@@ -330,6 +356,13 @@ public:
+         if (envp[i] == nullptr) {
+           break;
+         }
++        if (strncmp(envp[i], "LD_PRELOAD=", 11) == 0) {
++          auto Preload = GuestPreload(envp[i] + 11, RootFS);
++          if (!Preload.empty()) {
++            EnvironmentVariables.emplace_back("LD_PRELOAD=" + Preload);
++          }
++          continue;
++        }
+         EnvironmentVariables.emplace_back(envp[i]);
+       }
+     }

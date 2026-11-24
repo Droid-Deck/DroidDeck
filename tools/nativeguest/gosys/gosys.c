@@ -37,7 +37,10 @@ enum {
     NR_CHDIR = 49, NR_CHROOT = 51, NR_FCHMODAT = 53, NR_FCHOWNAT = 54, NR_OPENAT = 56,
     NR_READLINKAT = 78, NR_NEWFSTATAT = 79, NR_UTIMENSAT = 88, NR_BIND = 200, NR_CONNECT = 203,
     NR_EXECVE = 221, NR_NAME_TO_HANDLE_AT = 264, NR_RENAMEAT2 = 276, NR_STATX = 291,
-    NR_OPENAT2 = 437, NR_FACCESSAT2 = 439, NR_FCHMODAT2 = 452,
+    NR_OPENAT2 = 437, NR_FACCESSAT2 = 439, NR_FCHMODAT2 = 452, NR_SETREGID = 143, NR_SETGID = 144,
+    NR_SETREUID = 145, NR_SETUID = 146, NR_SETRESUID = 147, NR_GETRESUID = 148, NR_SETRESGID = 149,
+    NR_GETRESGID = 150, NR_SETGROUPS = 159, NR_GETUID = 174, NR_GETEUID = 175, NR_GETGID = 176,
+    NR_GETEGID = 177,
 };
 
 __attribute__((section(".hdr"), used))
@@ -459,6 +462,9 @@ static i64 handle(const struct gosys_hdr *h, u32 *held, i64 nr, i64 a0, i64 a1, 
     case NR_SETXATTR: case NR_LSETXATTR: case NR_GETXATTR: case NR_LGETXATTR: case NR_LISTXATTR:
     case NR_LLISTXATTR: case NR_REMOVEXATTR: case NR_LREMOVEXATTR: case NR_RENAMEAT: case NR_RENAMEAT2:
     case NR_LINKAT: case NR_SYMLINKAT: case NR_GETCWD: case NR_BIND: case NR_CONNECT: case NR_EXECVE:
+    case NR_GETUID: case NR_GETEUID: case NR_GETGID: case NR_GETEGID: case NR_GETRESUID: case NR_GETRESGID:
+    case NR_SETUID: case NR_SETGID: case NR_SETREUID: case NR_SETREGID: case NR_SETRESUID: case NR_SETRESGID:
+    case NR_SETGROUPS:
         // The calls that carry paths: not mapped where the rootfs is not in its own place (above)
         if (!rewriting(h)) return sc(nr, a0, a1, a2, a3, a4, a5);
         break;
@@ -482,6 +488,14 @@ static i64 handle(const struct gosys_hdr *h, u32 *held, i64 nr, i64 a0, i64 a1, 
     case NR_GETCWD: {
         i64 r = sc(nr, a0, a1, 0, 0, 0, 0);
         return r > 0 ? unmap_prefix(h, (char *)a0, r, 1) : r;
+    }
+    case NR_GETUID: case NR_GETEUID: case NR_GETGID: case NR_GETEGID: case NR_SETUID: case NR_SETGID:
+    case NR_SETREUID: case NR_SETREGID: case NR_SETRESUID: case NR_SETRESGID: case NR_SETGROUPS:
+        return 0;
+    case NR_GETRESUID: case NR_GETRESGID: {
+        i64 r = sc(nr, a0, a1, a2, 0, 0, 0);
+        if (r == 0) *(u32 *)a0 = *(u32 *)a1 = *(u32 *)a2 = 0;
+        return r;
     }
     case NR_BIND: case NR_CONNECT:
         return with_sockaddr(h, held, nr, a0, a1, a2);

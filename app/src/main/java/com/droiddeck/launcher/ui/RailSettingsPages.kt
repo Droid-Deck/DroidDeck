@@ -76,6 +76,19 @@ internal fun SyncTabPage(s: FrontEndState, modifier: Modifier) {
 }
 
 @Composable
+internal fun SteamTabPage(key: String, a: FrontEndActions, modifier: Modifier) {
+    LaunchedEffect(Unit) { a.onSteamSettings() }
+    Column(modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+        PageHeader(stringResource(if (key == "decky") R.string.rail_decky else R.string.rail_boot_movies))
+        a.modeSheet(
+            com.droiddeck.launcher.session.SessionService.MODE_STEAM,
+            if (key == "decky") SheetTab.DECKY else SheetTab.BOOT_MOVIES,
+            SheetExtras(),
+        )
+    }
+}
+
+@Composable
 private fun ResetTabsRow() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val colors = MaterialTheme.colorScheme

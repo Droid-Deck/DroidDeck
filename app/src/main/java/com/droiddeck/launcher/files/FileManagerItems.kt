@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FileCopy
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.InsertDriveFile
@@ -101,8 +102,18 @@ private fun FileContextMenuItems(
     onToggleFavorite: () -> Unit,
     onProperties: () -> Unit,
     onDismissMenu: () -> Unit,
+    onOpen: () -> Unit,
 ) {
     val isDir = file.isDirectory
+    if (!isDir) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.fm_edit_open)) },
+            leadingIcon = { Icon(Icons.Filled.FileOpen, null, tint = MaterialTheme.colorScheme.primary) },
+            onClick = { onDismissMenu(); onOpen() },
+            modifier = Modifier.focusGlide(),
+        )
+        MenuItemDivider()
+    }
     DropdownMenuItem(
         text = { Text(stringResource(R.string.fm_select)) },
         leadingIcon = { Icon(Icons.Filled.Checklist, null, tint = MaterialTheme.colorScheme.primary) },
@@ -180,6 +191,7 @@ internal fun FileItemRow(
     onCut: () -> Unit,
     onDelete: () -> Unit,
     onRename: () -> Unit,
+    onOpen: () -> Unit = {},
     isFavorite: Boolean = false,
     onToggleFavorite: () -> Unit = {},
     onProperties: () -> Unit = {},
@@ -291,6 +303,7 @@ internal fun FileItemRow(
                         file = file,
                         isFavorite = isFavorite,
                         onSelect = onSelect,
+                        onOpen = onOpen,
                         onRename = onRename,
                         onCopy = onCopy,
                         onCut = onCut,
@@ -517,6 +530,7 @@ internal fun FileGridTile(
     isFavorite: Boolean = false,
     onSelect: () -> Unit = {},
     onRename: () -> Unit = {},
+    onOpen: () -> Unit = {},
     onCopy: () -> Unit = {},
     onCut: () -> Unit = {},
     onDelete: () -> Unit = {},
@@ -605,6 +619,7 @@ internal fun FileGridTile(
                 file = file,
                 isFavorite = isFavorite,
                 onSelect = onSelect,
+                onOpen = onOpen,
                 onRename = onRename,
                 onCopy = onCopy,
                 onCut = onCut,

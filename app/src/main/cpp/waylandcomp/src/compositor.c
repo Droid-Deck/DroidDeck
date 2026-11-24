@@ -737,6 +737,11 @@ static void describe(const struct surface *s, char *out, size_t size) {
     else snprintf(out, size, "window %#x (%s)", w->hwnd, prog);
 }
 
+static int is_steam_client_surface(const struct surface *s) {
+    const char *name = client_name(wl_resource_get_client(s->resource));
+    return strcmp(name, "steam") == 0 || strstr(name, "steamwebhelper") != NULL;
+}
+
 static struct surface *toplevel_by_hwnd(uint32_t hwnd) {
     struct surface *s;
     wl_list_for_each(s, &g_toplevels, toplevel_link)
@@ -894,6 +899,7 @@ int droiddeck_hud_frame_times(float *out, int len, int64_t *total) {
 static uint64_t g_game_frames;
 extern void droiddeck_on_game_surface(const char *window, const char *gpu);
 extern void droiddeck_on_game_frame(void);
+extern void droiddeck_on_compositor_frame(void);
 extern void droiddeck_on_content_rate(int fps);
 static int64_t g_cadence_ns;
 static int64_t g_cadence_frames;
@@ -949,9 +955,10 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
             g_hud_shm = s;
             g_hud_shm_ns = now;
             g_hud_new = 1;
-            droiddeck_on_game_frame();
         }
     }
+    if (s == g_hud_shm && (!g_hud_surface || now_ns() - g_hud_last_ns > 1000000000LL))
+        droiddeck_on_compositor_frame();
 }
 
 static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resource *buffer) {
@@ -1025,7 +1032,8 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
             droiddeck_log("error", "could not import GPU frames from %s (%dx%d, modifier %#llx)",
                        name, b->width, b->height, (unsigned long long)b->modifier);
     }
-    if (s != g_hud_surface && (b->img || ahb_swapchain_has_ahb(b)) &&
+    if (s != g_hud_surface && !is_steam_client_surface(s) &&
+        (b->img || ahb_swapchain_has_ahb(b)) &&
         (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL || (!repeat && below_surface(s, g_hud_surface)) ||
          (announced_now && !below_surface(g_hud_surface, s) &&
           (int64_t)b->width * b->height >= (int64_t)g_hud_surface->buf_w * g_hud_surface->buf_h))) {
@@ -1050,9 +1058,12 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
                                : "the compositor's driver could NOT import it (nothing can show it)");
         s->hdr_fmt_logged = b->format;
     }
-    if (s == g_hud_surface) {
+    if (s == g_hud_surface && !is_steam_client_surface(s)) {
         g_hud_alive_ns = now_ns();
         if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_hud_new = 1; g_game_frames++; note_game_frame_gap(); droiddeck_on_game_frame(); }
+    } else if (is_steam_client_surface(s) && !repeat &&
+               (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL)) {
+        droiddeck_on_compositor_frame();
     }
 }
 
