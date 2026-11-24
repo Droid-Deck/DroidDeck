@@ -201,7 +201,7 @@ const float coefUsm[384] = float[384](
 );
 
 float getY(vec3 rgb) {
-    return 0.2126 * rgb.x + 0.7152 * rgb.y + 0.0722 * rgb.z;
+    return dot(rgb, vec3(0.2126, 0.7152, 0.0722));
 }
 
 // GetEdgeMap on a 3x3 luma window (pRC: R=row 0=top, C=col 0=left).
@@ -222,7 +222,7 @@ vec4 edgeAt(float p00, float p01, float p02,
         return vec4(0.0);
     }
 
-    float e_0_90   = min(g_0_90_max / (g_0_90_max + g_45_135_max), 1.0);
+    float e_0_90   = g_0_90_max / (g_0_90_max + g_45_135_max);
     float e_45_135 = 1.0 - e_0_90;
 
     bool c_0_90    = (g_0_90_max > (g_0_90_min * kDetectRatio)) && (g_0_90_max > kDetectThres) && (g_0_90_max > g_45_135_min);
@@ -266,11 +266,9 @@ float calcLTI(float p0, float p1, float p2, float p3, float p4, float p5, int ph
 float evalPoly6(float pxl[6], int phase_int) {
     phase_int = clamp(phase_int, 0, 63);
     float y = 0.0;
-    for (int i = 0; i < 6; ++i) {
-        y += coefScale[phase_int * 6 + i] * pxl[i];
-    }
     float y_usm = 0.0;
     for (int i = 0; i < 6; ++i) {
+        y += coefScale[phase_int * 6 + i] * pxl[i];
         y_usm += coefUsm[phase_int * 6 + i] * pxl[i];
     }
 
@@ -398,7 +396,7 @@ void main() {
     float sharpen_slider = sharpness - 0.5;
     float MaxScale   = (sharpen_slider >= 0.0) ? 1.25 : 1.75;
     float MinScale   = (sharpen_slider >= 0.0) ? 1.25 : 1.0;
-    float LimitScale = (sharpen_slider >= 0.0) ? 1.25 : 1.0;
+    float LimitScale = MinScale;
 
     gSharpStrengthMin   = max(0.0, 0.4 + sharpen_slider * MinScale * 1.2);
     float sharpStrengthMax = 1.6 + sharpen_slider * MaxScale * 1.8;
