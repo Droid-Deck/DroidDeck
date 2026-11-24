@@ -57,6 +57,16 @@ class NativeHookProcExeTest(unittest.TestCase):
         (cls.root / "usr/bin").mkdir(parents=True)
         cls.kwin = cls.root / "usr/bin/kwin_wayland"
         shutil.copy(tmp / "sleeper", cls.kwin)
+        cls.runtime = tmp / "runtime"
+        cls.runtime.mkdir()
+        cls.bound = cls.runtime / "chrome"
+        shutil.copy(tmp / "sleeper", cls.bound)
+        cls.shadowed = cls.runtime / "bin/chrome"
+        cls.shadowed.parent.mkdir()
+        shutil.copy(tmp / "sleeper", cls.shadowed)
+        cls.override = tmp / "override"
+        cls.override.mkdir()
+        shutil.copy(tmp / "sleeper", cls.override / "chrome")
         # The child's /proc/<pid>/exe must name the loader, as DroidDeck's libddexec.so does.
         cls.loader = tmp / "lib/libddexec.so"
         cls.loader.parent.mkdir()
@@ -87,8 +97,10 @@ class NativeHookProcExeTest(unittest.TestCase):
         self.assertEqual("ready", child.stdout.readline().strip())
         return child.pid
 
-    def readlink(self, *paths):
+    def readlink(self, *paths, binds=None):
         hook_env = {"DDNATV_ROOT": str(self.root), "LD_PRELOAD": str(self.hook)}
+        if binds:
+            hook_env["DDNATV_BINDS"] = binds
         env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
         if self.prefix:
             cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
@@ -109,6 +121,17 @@ class NativeHookProcExeTest(unittest.TestCase):
         pid = self.start(loader=True, real_exe=str(self.kwin), program=self.kwin)
         at = f"at:/proc/{pid}"
         self.assertEqual("/usr/bin/kwin_wayland", self.readlink(at)[at])
+
+    def test_a_guest_program_from_a_bind_is_named_by_its_guest_path(self):
+        pid = self.start(loader=True, real_exe=str(self.bound), program=self.bound)
+        link = f"/proc/{pid}/exe"
+        self.assertEqual("/app/extra/chrome", self.readlink(link, binds=f"/proc:/proc|{self.runtime}:/app/extra")[link])
+
+    def test_a_guest_program_shadowed_by_a_nested_bind_keeps_its_own_path(self):
+        pid = self.start(loader=True, real_exe=str(self.shadowed), program=self.shadowed)
+        link = f"/proc/{pid}/exe"
+        binds = f"/proc:/proc|{self.runtime}:/app|{self.override}:/app/bin"
+        self.assertEqual(str(self.shadowed), self.readlink(link, binds=binds)[link])
 
     def test_a_program_named_only_in_the_environment_is_not_believed(self):
         pid = self.start(loader=True, real_exe=str(self.kwin))

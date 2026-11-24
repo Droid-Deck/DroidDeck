@@ -187,6 +187,18 @@ class DualScreenTest {
         assertEquals(DualScreen.MODE_OFF, SessionPrefs.dualScreenMode(context))
     }
 
+    @Test @Config(sdk = [34]) fun gameOnSecondScreenUsesTheSameDisplayAsOn() {
+        withDisplay(EXTERNAL, "HDMI Screen") { monitor ->
+            assertEquals(monitor.displayId, DualScreen.display(context, displays, Display.DEFAULT_DISPLAY, DualScreen.MODE_SWAPPED)?.displayId)
+            assertNull(DualScreen.display(context, displays, Display.DEFAULT_DISPLAY, DualScreen.MODE_AUTO))
+        }
+    }
+
+    @Test fun gameOnSecondScreenIsASavedSessionMode() {
+        SessionPrefs.setDualScreenSessionMode(context, DualScreen.MODE_SWAPPED)
+        assertEquals(DualScreen.MODE_SWAPPED, SessionPrefs.dualScreenSessionMode(context))
+    }
+
     @Test fun launcherAndSessionsKeepSeparateModes() {
         SessionPrefs.setDualScreenMode(context, DualScreen.MODE_OFF)
         assertEquals(DualScreen.MODE_OFF, SessionPrefs.dualScreenMode(context))

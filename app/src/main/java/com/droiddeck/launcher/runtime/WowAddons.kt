@@ -40,11 +40,15 @@ object WowAddons {
 
     class Addon(val name: String, val root: String)
 
-    class Installed(val name: String, val version: String?, val wowiId: String?)
+    class Installed(val name: String, val version: String?, val wowiId: String?, val curseId: String? = null)
 
     class Origin(val id: String, val version: String)
 
     private const val ORIGINS = ".droiddeck-sources"
+    private const val TOC_VERSION = "Version"
+    private const val TOC_WOWI_ID = "X-WoWI-ID"
+    private const val TOC_CURSE_ID = "X-Curse-Project-ID"
+    private val TOC_KEYS = setOf(TOC_VERSION, TOC_WOWI_ID, TOC_CURSE_ID)
 
     internal const val MAX_EXPANDED_BYTES = 4L * 1024 * 1024 * 1024
 
@@ -69,33 +73,52 @@ object WowAddons {
         target.addOns.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }
             .map { it.name }.sortedBy { it.lowercase() }
 
+    fun present(folders: List<String>, exists: (String) -> Boolean): Boolean = folders.isNotEmpty() && folders.all(exists)
+
+    fun folder(addOns: File, name: String): File? {
+        val dirs = addOns.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }
+        return dirs.firstOrNull { it.name == name } ?: dirs.firstOrNull { it.name.equals(name, ignoreCase = true) }
+    }
+
     fun details(target: Target): List<Installed> {
         val origins = origins(target)
         return installed(target).map { name ->
             val toc = toc(File(target.addOns, name))
             val origin = origins[name]
-            Installed(name, origin?.version ?: toc["Version"], origin?.id ?: toc["X-WoWI-ID"])
+            Installed(name, origin?.version ?: toc[TOC_VERSION], origin?.id ?: toc[TOC_WOWI_ID], toc[TOC_CURSE_ID])
         }
     }
 
-    internal fun tocFields(text: String): Map<String, String> {
+    internal fun tocFields(lines: Sequence<String>, keys: Set<String> = TOC_KEYS): Map<String, String> {
         val out = LinkedHashMap<String, String>()
-        for (raw in text.lineSequence()) {
+        for (raw in lines) {
             val line = raw.trim().removePrefix("\uFEFF")
             if (!line.startsWith("##") || ':' !in line) continue
             val key = line.removePrefix("##").substringBefore(':').trim()
+            if (key !in keys || key in out) continue
             val value = line.substringAfter(':').trim()
-            if (key.isNotEmpty() && value.isNotEmpty() && '@' !in value) out.putIfAbsent(key, value)
+            if (value.isNotEmpty() && '@' !in value) out[key] = value
+            if (out.size == keys.size) break
         }
         return out
     }
 
     private fun toc(folder: File): Map<String, String> {
-        val tocs = folder.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".toc", ignoreCase = true) }
-        val main = tocs.firstOrNull { it.name.dropLast(4).equals(folder.name, ignoreCase = true) }
-            ?: tocs.firstOrNull { it.name.dropLast(4).replace(SUFFIX, "").equals(folder.name, ignoreCase = true) }
-            ?: tocs.minByOrNull { it.name.length } ?: return emptyMap()
-        return runCatching { tocFields(main.readText()) }.getOrDefault(emptyMap())
+        val tocs = folder.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".toc", ignoreCase = true) }.sortedWith(
+            compareBy<File>(
+                { !it.name.dropLast(4).equals(folder.name, ignoreCase = true) },
+                { !it.name.dropLast(4).replace(SUFFIX, "").equals(folder.name, ignoreCase = true) },
+                { it.name.length },
+                { it.name },
+            ),
+        )
+        val out = LinkedHashMap<String, String>()
+        for (file in tocs) {
+            if (out.size == TOC_KEYS.size) break
+            val missing = TOC_KEYS - out.keys
+            runCatching { file.bufferedReader().useLines { tocFields(it, missing) } }.getOrNull()?.let(out::putAll)
+        }
+        return out
     }
 
     internal fun parseOrigins(text: String): Map<String, Origin> = text.lineSequence().mapNotNull { line ->

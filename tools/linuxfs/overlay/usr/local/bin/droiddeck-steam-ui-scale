@@ -10,6 +10,7 @@ import tempfile
 DISPLAY = "External: gamescope|||Windowed"
 NATIVE_RESOLUTION = "EnableSteamNativeExternalResolution"
 SCREENSAVER_IN_GAME = ("Customization", "Screensaver", "WhileInGame")
+SCREENSAVER_CURRENT = ("Customization", "Screensaver", "CurrentScreensaver")
 TOKEN = re.compile(r'\s+|//[^\n]*|"(?:\\.|[^"\\])*"|[{}]')
 
 
@@ -137,6 +138,10 @@ def seed_no_screensaver_in_game(text):
     return seed_value(text, SCREENSAVER_IN_GAME, '0')
 
 
+def seed_bouncing_logo(text):
+    return seed_value(text, SCREENSAVER_CURRENT, 'steam-bouncinglogo')
+
+
 def atomic_write(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix='.' + path.name, dir=path.parent)
@@ -179,6 +184,11 @@ def initialize_screensaver(steam_root):
                      '== steam: no screensaver over a running game')
 
 
+def initialize_screensaver_choice(steam_root):
+    return seed_once(steam_root, 'droiddeck-screensaver-choice-initialized', seed_bouncing_logo,
+                     '== steam: bouncing logo screensaver')
+
+
 if __name__ == '__main__':
     status = 0
     try:
@@ -186,7 +196,7 @@ if __name__ == '__main__':
     except (OSError, ValueError, RecursionError) as error:
         print('== steam: left UI scale unchanged: ' + str(error), file=sys.stderr)
         status = 1
-    for what, step in (('native resolution', initialize_native_resolution), ('screensaver', initialize_screensaver)):
+    for what, step in (('native resolution', initialize_native_resolution), ('screensaver', initialize_screensaver), ('screensaver choice', initialize_screensaver_choice)):
         try:
             step(sys.argv[1])
         except (OSError, ValueError, RecursionError) as error:

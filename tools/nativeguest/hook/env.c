@@ -72,7 +72,7 @@ static char *map_preload_paths(const char *value) {
     return out;
 }
 
-static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
+static char **prepare_ddnatv_env(char *const envp[], const char *real_exe, const char *lib_path) {
     init_ddnatv_hook();
     int count = 0;
     int has_preload = 0;
@@ -164,6 +164,9 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         if (chosen_real_exe && envp[i][0] == 'D' && strncmp(envp[i], "DDNATV_REAL_EXE=", 16) == 0) {
             continue;
         }
+        if (chosen_real_exe && envp[i][0] == 'D' && strncmp(envp[i], "DDNATV_LIBRARY_PATH=", 20) == 0) {
+            continue;
+        }
         new_env[dst++] = envp[i];
     }
 
@@ -175,6 +178,15 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         if (str) {
             memcpy(str, "DDNATV_REAL_EXE=", 16);
             memcpy(str + 16, chosen_real_exe, len + 1);
+            new_env[dst++] = str;
+        }
+    }
+    if (chosen_real_exe && lib_path && lib_path[0] != '\0') {
+        size_t len = strlen(lib_path);
+        char *str = malloc(20 + len + 1);
+        if (str) {
+            memcpy(str, "DDNATV_LIBRARY_PATH=", 20);
+            memcpy(str + 20, lib_path, len + 1);
             new_env[dst++] = str;
         }
     }
