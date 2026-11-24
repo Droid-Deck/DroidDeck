@@ -124,7 +124,9 @@ void main() {
     float balancedCrossing = edgeVariation > 0.01
         ? smoothstep(threshold, threshold * 2.5, min(crossingA, crossingB))
         : 0.0;
-    float endpointPattern = max(runEndpointPattern, balancedCrossing);
+    float endpointPattern = runEndpointPattern > 0.01
+        ? max(runEndpointPattern, balancedCrossing)
+        : runEndpointPattern;
     float endpointArea = endpointPattern / (1.0 + span * 0.055);
     float areaWeight = 0.38 * crossingPattern * clamp(span / 4.0, 0.0, 1.0);
     float diagonalContrast = max(
