@@ -61,6 +61,12 @@ class NativeHookProcExeTest(unittest.TestCase):
         cls.runtime.mkdir()
         cls.bound = cls.runtime / "chrome"
         shutil.copy(tmp / "sleeper", cls.bound)
+        cls.shadowed = cls.runtime / "bin/chrome"
+        cls.shadowed.parent.mkdir()
+        shutil.copy(tmp / "sleeper", cls.shadowed)
+        cls.override = tmp / "override"
+        cls.override.mkdir()
+        shutil.copy(tmp / "sleeper", cls.override / "chrome")
         # The child's /proc/<pid>/exe must name the loader, as DroidDeck's libddexec.so does.
         cls.loader = tmp / "lib/libddexec.so"
         cls.loader.parent.mkdir()
@@ -118,6 +124,12 @@ class NativeHookProcExeTest(unittest.TestCase):
         pid = self.start(loader=True, real_exe=str(self.bound), program=self.bound)
         link = f"/proc/{pid}/exe"
         self.assertEqual("/app/extra/chrome", self.readlink(link, binds=f"/proc:/proc|{self.runtime}:/app/extra")[link])
+
+    def test_a_guest_program_shadowed_by_a_nested_bind_keeps_its_own_path(self):
+        pid = self.start(loader=True, real_exe=str(self.shadowed), program=self.shadowed)
+        link = f"/proc/{pid}/exe"
+        binds = f"/proc:/proc|{self.runtime}:/app|{self.override}:/app/bin"
+        self.assertEqual(str(self.shadowed), self.readlink(link, binds=binds)[link])
 
     def test_a_program_named_only_in_the_environment_is_not_believed(self):
         pid = self.start(loader=True, real_exe=str(self.kwin))
