@@ -1061,7 +1061,8 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
     if (s == g_hud_surface && !is_steam_client_surface(s)) {
         g_hud_alive_ns = now_ns();
         if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_hud_new = 1; g_game_frames++; note_game_frame_gap(); droiddeck_on_game_frame(); }
-    } else if (is_steam_client_surface(s)) {
+    } else if (is_steam_client_surface(s) &&
+               (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL)) {
         droiddeck_on_compositor_frame();
     }
 }
