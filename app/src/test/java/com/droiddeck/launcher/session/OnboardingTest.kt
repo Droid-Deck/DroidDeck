@@ -34,7 +34,7 @@ class OnboardingTest {
 
     @Test fun overallWeighsDownloadsBySize() {
         val rows = Onboarding.rows(mapOf(Step.RUNTIME to Progress("x", 50)), emptyMap(), Facts(runtime = false))
-        assertEquals(30 + 15 + 25, Onboarding.overall(rows))
+        assertEquals(10 + 30 + 50, Onboarding.overall(rows))
     }
 
     @Test fun overallNeverGoesBackwardsWhileStepsHandOver() {
@@ -50,7 +50,7 @@ class OnboardingTest {
         Onboarding.overall(Onboarding.rows(mapOf(Step.RUNTIME to Progress("x", 90)), emptyMap(), Facts(runtime = false)))
         assertEquals(100, Onboarding.overall(Onboarding.rows(emptyMap(), emptyMap(), Facts())))
         val again = Onboarding.rows(mapOf(Step.RUNTIME to Progress("x", 10)), emptyMap(), Facts(runtime = false))
-        assertEquals(6 + 15 + 25, Onboarding.overall(again))
+        assertEquals(2 + 30 + 50, Onboarding.overall(again))
     }
 
     @Test fun reportingClearsAPriorFailure() {

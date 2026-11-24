@@ -90,7 +90,7 @@ object Onboarding {
     internal fun resetProgress() { highWater = 0 }
 
     /**
-     * The aggregate fraction of the whole first-run work, weighting each step by what it downloads.
+     * The aggregate fraction of the whole first-run work, weighting each step by what it downloads: about 290 MB, 630 MB and 1,050 MB.
      * Steps download first and install later, restarting their own percent, so the figure only moves forward until everything is done.
      */
     @Synchronized fun overall(rows: List<Row>): Int {
@@ -104,7 +104,7 @@ object Onboarding {
     }
 
     internal fun measure(rows: List<Row>): Int {
-        val weights = mapOf(Step.RUNTIME to 60, Step.PROTON to 15, Step.STEAM to 25)
+        val weights = mapOf(Step.RUNTIME to 20, Step.PROTON to 30, Step.STEAM to 50)
         val total = weights.values.sum()
         val got = rows.sumOf { row ->
             val w = weights.getValue(row.step)
