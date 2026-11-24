@@ -183,7 +183,12 @@ unzip_alone() {
 claim_next() {
   local n
   while :; do
-    n=$( { flock 8; n=$(cat "$state/next" 2>/dev/null || echo 1); echo $((n + 1)) > "$state/next"; echo "$n"; } 8> "$state/claim.lock" )
+    # A counter that cannot be read or written must fail the worker: a stale or empty number would give a package to two workers or to none.
+    n=$( { flock 8 || exit 1
+           n=$(cat "$state/next") || exit 1
+           case $n in ''|*[!0-9]*) exit 1 ;; esac
+           echo $((n + 1)) > "$state/next" || exit 1
+           echo "$n"; } 8> "$state/claim.lock" ) || return 1
     [ "$n" -le "$count" ] || { echo 0; return; }
     if [ ! -e "$state/$n.done" ]; then
       : > "$state/claim.$n"
@@ -203,6 +208,7 @@ run_parallel() {
   state=$work/parallel
   rm -rf "$state"
   mkdir -p "$state"
+  echo 1 > "$state/next"
   while read -r block file sum size; do
     index=$((index + 1))
     blocks[index]=$block files[index]=$file sums[index]=$sum sizes[index]=$size

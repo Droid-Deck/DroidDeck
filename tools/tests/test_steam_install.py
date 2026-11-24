@@ -626,6 +626,7 @@ with open(log, 'a') as out:
         function = source[start:source.index('\n}\n', start) + 3]
         state = self.root / 'claims'
         state.mkdir()
+        (state / 'next').write_text('1\n')
         script = 'state=$1\ncount=$2\n' + function + 'while :; do n=$(claim_next); [ "$n" -gt 0 ] || exit 0; echo "$n"; done\n'
         workers = [subprocess.Popen(['bash', '-c', script, 'bash', str(state), '300'], stdout=subprocess.PIPE, text=True)
                    for _ in range(8)]
@@ -635,6 +636,22 @@ with open(log, 'a') as out:
             self.assertEqual(0, worker.returncode)
             claimed += [int(n) for n in out.split()]
         self.assertEqual(sorted(claimed), list(range(1, 301)), 'a package was claimed twice or never')
+
+    @unittest.skipUnless(shutil.which('flock'), 'needs flock')
+    def test_a_counter_that_cannot_be_used_fails_the_claim(self):
+        source = SCRIPT.read_text()
+        start = source.index('claim_next() {')
+        function = source[start:source.index('\n}\n', start) + 3]
+        for broken in ('directory', 'empty', 'text'):
+            state = self.root / f'claims-{broken}'
+            state.mkdir()
+            if broken == 'directory':
+                (state / 'next').mkdir()
+            else:
+                (state / 'next').write_text('' if broken == 'empty' else 'abc\n')
+            script = 'state=$1\ncount=5\n' + function + 'n=$(claim_next) && echo "claimed $n" || echo failed\n'
+            result = subprocess.run(['bash', '-c', script, 'bash', str(state)], text=True, capture_output=True, timeout=30)
+            self.assertEqual('failed', result.stdout.strip(), f'{broken}: {result.stdout!r} {result.stderr!r}')
 
     def test_the_parallel_workers_use_no_process_substitution(self):
         source = SCRIPT.read_text()
