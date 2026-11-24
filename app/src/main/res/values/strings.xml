@@ -35,8 +35,9 @@
     <string name="wall_settings_fps" translatable="false">Frame rate (fps)</string>
     <string name="wall_settings_match" translatable="false">Match screen</string>
     <string name="wall_settings_speed" translatable="false">Scroll speed</string>
+    <string name="loading_first_run">First launch also downloads Proton Experimental (about 400 MB) and sets Steam up. After this it starts much faster.</string>
     <string-array name="loading_hints">
-        <item>First run downloads Steam. This may take a few minutes.</item>
+        <item>DroidDeck downloads Steam in the background while you set up, so your first launch is quicker.</item>
         <item>Your controller shows up to Steam as a Steam Deck controller. Switch it to a Steam Controller, DualShock 4, DualSense or Xbox 360 pad in the session settings; it applies next session.</item>
         <item>Hold Back on your controller to open Steam\'s Quick Access menu. Hold Back for Steam shortcuts must be on in the session settings.</item>
         <item>Background behavior decides what happens when you leave the app: Native readies Steam for sleep, Auto pauses it, Manual waits for Resume, Never keeps it running.</item>
@@ -704,6 +705,9 @@
     <string name="drawer_prev_page">Previous page</string>
     <string name="drawer_next_page">Next page</string>
     <string name="drawer_manage_pages">Arrange pages</string>
+    <string name="drawer_page_more">More</string>
+    <string name="drawer_more_back">Back to %1$s</string>
+    <string name="drawer_more_empty">Nothing is kept here. Arrange pages and move one below the More row.</string>
     <string name="drawer_pages_reset">Reset</string>
     <string name="drawer_pages_done">Done</string>
     <string name="drawer_hud">Performance HUD</string>
@@ -864,6 +868,7 @@
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
+    <string name="drawer_resize">Resize the menu</string>
     <string name="drawer_second_screen_shows">Shows</string>
     <string name="drawer_android_apps">Android apps</string>
     <string name="drawer_launch_app">Launch an app</string>
@@ -1037,10 +1042,11 @@
     <string name="setup_dual_screen_launcher">Dual screen launcher</string>
     <string name="setup_dual_screen_launcher_hint">Automatic puts the launcher sections (Steam, Library, Stores and the rest) on the second screen of handhelds with a built-in one. On uses any second display. Off keeps the launcher on one screen.</string>
     <string name="setup_dual_screen_sessions">Dual screen sessions</string>
-    <string name="setup_dual_screen_sessions_hint">Automatic docks the in-game menu on the built-in second screen instead of a pop-over. On uses any second display. Off keeps the menu on the game screen; you can still pick a second screen from it.</string>
+    <string name="setup_dual_screen_sessions_hint">Automatic docks the in-game menu on the built-in second screen instead of a pop-over. On uses any second display. On, game on second screen runs the game there and keeps the menu and controls on this screen, for a phone driving a monitor or TV. Off keeps the menu on the game screen; you can still pick a second screen from it.</string>
     <string name="setup_dual_screen_auto">Automatic</string>
     <string name="setup_dual_screen_on">On</string>
     <string name="setup_dual_screen_off">Off</string>
+    <string name="setup_dual_screen_swapped">On, game on second screen</string>
     <string name="setup_dual_screen_controls">Bottom screen controls in games</string>
     <string name="setup_android_text_field_keyboard">Android keyboard for text fields</string>
     <string name="setup_dual_screen_controls_hint">Opens a panel on the second screen when a session starts: the Deck buttons and trackpads with a Steam Deck or Steam Controller, otherwise the one you used last.</string>
@@ -1416,13 +1422,12 @@
     <string name="gate_title">One Android setting to change</string>
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android stops apps that start many background processes, and Steam starts dozens. Until this changes, games close without an error.</string>
+    <string name="gate_notifications_toast">The pairing code goes in a notification. Turn on notifications for DroidDeck, then try again.</string>
     <string name="gate_fix_for_me">Fix it for me</string>
     <string name="gate_toggle_steps">Turn on “Disable child process restrictions”, then come back. Leave Developer options on, or the switch turns off again.</string>
     <string name="gate_open_dev">Open Developer options</string>
     <string name="gate_no_toggle">This Android version has no switch for it, so DroidDeck changes it over Wireless debugging. Takes about a minute, no computer needed.</string>
     <string name="gate_needs_wifi">Wireless debugging needs Wi-Fi. Any network works; it doesn\'t need internet.</string>
-    <string name="gate_needs_notifications">The pairing code goes in a notification. Allow notifications for DroidDeck, or use Other ways.</string>
-    <string name="gate_allow_notifications">Allow notifications</string>
     <string name="gate_step1">Open Settings → Developer options → Wireless debugging and turn it on</string>
     <string name="gate_step2">Tap “Pair device with pairing code”</string>
     <string name="gate_step3">Type the code into the DroidDeck notification</string>
@@ -1439,49 +1444,16 @@
     <string name="gate_status">Status</string>
     <string name="gate_polling">Checking every 2 seconds. This page closes when it\'s off.</string>
     <string name="gate_other_ways">Other ways</string>
-    <string name="gate_other_toggle">Wireless debugging, manual address, computer ADB</string>
-    <string name="gate_other_no_toggle">Manual address, computer ADB, Developer options</string>
+    <string name="gate_other_toggle">Computer ADB</string>
+    <string name="gate_other_no_toggle">Computer ADB, Developer options</string>
     <string name="gate_use_wireless_instead">Use Wireless debugging instead</string>
     <string name="gate_some_roms">Some ROMs add the switch anyway. Look for “child process” in Developer options.</string>
-    <string name="gate_manual_hint">If the notification doesn\'t work, enter the pop-up\'s address and code yourself.</string>
-    <string name="gate_enter_manually">Enter address manually</string>
     <string name="gate_from_computer">From a computer with ADB:</string>
     <string name="gate_copy_command">Copy command</string>
     <string name="gate_sidequest" translatable="false">SideQuest</string>
     <string name="gate_sidequest_steps">Connect the headset to a computer and open SideQuest. Choose “Run ADB Command”, then “Custom Command”, type the command shown below and select “Run Command”.</string>
     <string name="gate_choose_display">Choose which display to open Android Settings on.</string>
     <string name="gate_main_screen">Main screen</string>
-    <string name="wadb_finding_port">Paired. Finding the Wireless debugging port…</string>
-    <string name="wadb_enter_port">Paired. Enter the port from Settings.</string>
-    <string name="wadb_applying">Device found. Applying the setting…</string>
-    <string name="wadb_apply_failed">Couldn\'t apply automatically. Check the address below and retry. %1$s</string>
-    <string name="wadb_title_wireless">Wireless debugging</string>
-    <string name="wadb_title_done">Child-process limit updated</string>
-    <string name="wadb_title">Change the child-process limit</string>
-    <string name="wadb_lede_compact0">If the option is missing, pair over Wireless debugging.</string>
-    <string name="wadb_lede_compact1">Paired. Check the IP address and port in Wireless debugging.</string>
-    <string name="wadb_lede_done">The child-process limit was updated.</string>
-    <string name="wadb_lede0">Use step 2 if Developer options has no child-process setting. Open Developer options → Wireless debugging → Pair device with pairing code.</string>
-    <string name="wadb_lede1">Paired. Use the address below, or update it from Wireless debugging → IP address &amp; Port.</string>
-    <string name="wadb_lede_done_long">The child-process limit was updated over Wireless debugging.</string>
-    <string name="wadb_confirmed_on">Android confirmed the limit is on.</string>
-    <string name="wadb_confirmed_off">Android confirmed the limit is off.</string>
-    <string name="wadb_pair_group">2 · Pair Wireless debugging</string>
-    <string name="wadb_pair_address">Pairing pop-up IP address &amp; port</string>
-    <string name="wadb_pin">Pairing code (PIN)</string>
-    <string name="wadb_pin_placeholder">6 digits</string>
-    <string name="wadb_pair">Pair</string>
-    <string name="wadb_apply_group">2 · Apply over Wireless debugging</string>
-    <string name="wadb_connect_address">Connection IP address &amp; port</string>
-    <string name="wadb_pair_again">Pair again</string>
-    <string name="wadb_turn_off">Turn limit off</string>
-    <string name="wadb_other_ways">Other ways to change it</string>
-    <string name="wadb_dev_try_first">1 · Developer options (try first)</string>
-    <string name="wadb_restrict_on">Turn off “Disable child process restrictions”.</string>
-    <string name="wadb_restrict_off">Turn on “Disable child process restrictions”.</string>
-    <string name="wadb_computer_last">3 · Computer ADB (last resort)</string>
-    <string name="wadb_only_if">Only if Wireless debugging is unavailable.</string>
-    <string name="wadb_computer_group">3 · Computer ADB (last resort)</string>
     <string name="ctrl_color">Color</string>
     <string name="ctrl_custom">Custom</string>
     <string name="ctrl_opacity">Opacity</string>
@@ -1833,8 +1805,6 @@
         <item quantity="one">Cleared %1$d session log folder.</item>
         <item quantity="other">Cleared %1$d session log folders.</item>
     </plurals>
-    <string name="main_wadb_pair_failed">Wireless debugging pairing failed</string>
-    <string name="main_wadb_command_failed">Wireless debugging command failed</string>
     <string name="main_wadb_unavailable">Wireless debugging is unavailable</string>
     <string name="main_adb_copied">ADB command copied</string>
     <string name="main_pick_roms">Choose the ROMs folder</string>
@@ -4148,6 +4118,8 @@
     <string name="integration_wifi_denied">Location denied · allow it in App info</string>
     <string name="integration_brightness_hint">Steam’s slider sets screen brightness</string>
     <string name="integration_home_hint">Home opens the Steam menu in a session</string>
+    <string name="integration_bluetooth">Bluetooth controllers</string>
+    <string name="integration_bluetooth_hint">Lets DroidDeck connect to Steam Controllers and other Bluetooth pads</string>
     <string name="integration_shortcuts_hint">Alt+Tab, Win key and Home button stay in the session</string>
     <string name="integration_shortcuts_maybe_restricted">Greyed out in Android? App info → ⋮ → Allow restricted settings</string>
     <string name="integration_shortcuts_install_failed">System keys didn\'t install</string>
@@ -4395,4 +4367,19 @@
     <string name="tabs_reset_title">Reset tabs</string>
     <string name="tabs_reset_hint">Steam, Desktop, Library, Downloads, Settings and Updates on the bar, the rest under More.</string>
     <string name="tabs_reset_body">Your tab order and what sits under More or is hidden go back to the defaults.</string>
+    <string name="onboarding_title">Getting DroidDeck ready</string>
+    <string name="onboarding_summary">%1$d%% · you can keep using the app</string>
+    <string name="onboarding_step_runtime">Linux runtime</string>
+    <string name="onboarding_step_proton">DroidDeck Proton</string>
+    <string name="onboarding_step_steam">Steam client</string>
+    <string name="onboarding_waiting">Waiting</string>
+    <string name="onboarding_done">Ready</string>
+    <string name="onboarding_failed">Will retry</string>
+    <string name="onboarding_steam_downloading">Downloading the Steam client</string>
+    <string name="onboarding_steam_downloading_mb">Downloading the Steam client (%1$d MB)</string>
+    <string name="onboarding_steam_failed">The Steam client download will retry</string>
+    <string name="onboarding_limit_reason">Android can close Steam’s helper processes. Turn that off now, while the downloads run, and Play is ready the moment they finish.</string>
+    <string name="onboarding_limit_action">Do it for me</string>
+    <string name="onboarding_button_getting_ready">Getting ready · %1$d%%</string>
+    <string name="onboarding_button_finish">Finish setup · %1$d%%</string>
 </resources>

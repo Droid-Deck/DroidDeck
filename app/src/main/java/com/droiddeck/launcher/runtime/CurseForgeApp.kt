@@ -72,6 +72,8 @@ object CurseForgeApp {
         JSONObject().put("instanceId", guid).put("projectId", projectId.toLong()).put("categoryClassId", 1)
             .put("installLatestFile", true).put("installSource", 4)
 
+    private const val CACHE = "__droiddeckServices"
+
     private const val SERVICES = """(() => {
   const seen = new Set(), out = {};
   const walk = (o, d) => {
@@ -91,7 +93,8 @@ object CurseForgeApp {
     internal fun expression(service: String, method: String, args: JSONArray?, pick: String = "r => r"): String {
         val name = JSONObject.quote(method)
         val run = if (args == null) "true" else "($pick)(await s[$name](...$args))"
-        val inner = "(async () => { const s = $SERVICES[${JSONObject.quote(service)}]; " +
+        val key = JSONObject.quote(service)
+        val inner = "(async () => { let m = globalThis.$CACHE; if (!m || !m[$key]) m = globalThis.$CACHE = $SERVICES; const s = m[$key]; " +
             "if (!s || typeof s[$name] !== 'function') return { missing: true }; " +
             "return { value: $run }; })()"
         return "(() => { const w = require('electron').BrowserWindow.getAllWindows()" +
@@ -170,6 +173,7 @@ object CurseForgeApp {
     }
 
     private val holds = ConcurrentHashMap<String, AtomicBoolean>()
+    private val connected = ConcurrentHashMap.newKeySet<String>()
 
     private fun lines(context: Context, argv: List<String>): List<String> {
         val out = ArrayList<String>()
@@ -232,19 +236,25 @@ object CurseForgeApp {
         }
         if (inspector != null) runCatching { call(context, inspector, "CoreService", "shutdown", JSONArray(), 30_000, "r => true") }
         hold.set(true)
+        inspector?.let(connected::remove)
         if (holds.remove(dir, hold)) runCatching { lines(context, helperArgv("stop", dir)) }
     }
 
     private fun connect(context: Context, inspector: String) {
+        if (inspector in connected) return
         call(context, inspector, "CoreService", "connect", JSONArray(), 120_000, "r => true")
+        connected += inspector
     }
+
+    private fun instances(context: Context, inspector: String): Any? =
+        call(context, inspector, "GameAppService", "getGameInstances", JSONArray().put(WOW), 30_000,
+            "r => (r || []).map(i => ({ guid: i.guid, installPath: i.installPath }))")
 
     fun instance(context: Context, inspector: String, root: String, flavorDir: String): String {
         connect(context, inspector)
+        instanceFor(instances(context, inspector), flavorDir, null)?.let { return it }
         val detected = call(context, inspector, "GameDetectionAppService", "detectGameFromPath", JSONArray().put(root).put(WOW), 60_000) as? JSONObject
-        val instances = call(context, inspector, "GameAppService", "getGameInstances", JSONArray().put(WOW), 30_000,
-            "r => (r || []).map(i => ({ guid: i.guid, installPath: i.installPath }))")
-        return instanceFor(instances, flavorDir, detected?.optString("gameInstanceGuid")) ?: throw Failure("CurseForge did not find $flavorDir")
+        return instanceFor(instances(context, inspector), flavorDir, detected?.optString("gameInstanceGuid")) ?: throw Failure("CurseForge did not find $flavorDir")
     }
 
     fun search(context: Context, inspector: String, guid: String, text: String, sort: WowAddonCatalog.Sort, page: Int): WowAddonCatalog.Page =
@@ -260,34 +270,34 @@ object CurseForgeApp {
         "locked: !!(p.installedVersion && p.installedVersion.isLocked), " +
         "folders: ((p.installedVersion && p.installedVersion.addonFolders) || []).map(f => f.name) }))"
 
-    private fun settle(context: Context, inspector: String, guid: String, done: (List<Project>) -> Boolean): Boolean {
+    private fun settle(context: Context, inspector: String, guid: String, done: (List<Project>) -> Boolean): List<Project>? {
         val deadline = System.currentTimeMillis() + INSTALL_MS
         while (System.currentTimeMillis() < deadline) {
             val listed = runCatching { projects(context, inspector, guid) }
             val error = listed.exceptionOrNull()
             if (error is Failure && error.gone) throw error
-            listed.getOrNull()?.let { if (done(it)) return true }
+            listed.getOrNull()?.let { if (done(it)) return it }
             Thread.sleep(1_000)
         }
-        return false
+        return null
     }
 
-    fun install(context: Context, inspector: String, guid: String, projectId: String): Boolean {
+    fun install(context: Context, inspector: String, guid: String, projectId: String): List<Project>? {
         connect(context, inspector)
-        if (call(context, inspector, "InstalledProjectsAppService", "installAddon", JSONArray().put(installRequest(guid, projectId)), 300_000) != true) return false
+        if (call(context, inspector, "InstalledProjectsAppService", "installAddon", JSONArray().put(installRequest(guid, projectId)), 300_000) != true) return null
         return settle(context, inspector, guid) { list -> list.any { it.id == projectId } }
     }
 
-    fun update(context: Context, inspector: String, guid: String, projectId: String): Boolean {
+    fun update(context: Context, inspector: String, guid: String, projectId: String): List<Project>? {
         connect(context, inspector)
-        if (call(context, inspector, "InstalledProjectsAppService", "updateMod", JSONArray().put(guid).put(projectId.toLong()), 300_000) != true) return false
+        if (call(context, inspector, "InstalledProjectsAppService", "updateMod", JSONArray().put(guid).put(projectId.toLong()), 300_000) != true) return null
         return settle(context, inspector, guid) { list -> list.any { it.id == projectId && !it.update } }
     }
 
-    fun uninstall(context: Context, inspector: String, guid: String, project: Project): Boolean {
+    fun uninstall(context: Context, inspector: String, guid: String, project: Project): List<Project>? {
         connect(context, inspector)
         val failed = call(context, inspector, "InstalledProjectsAppService", "deleteMods", JSONArray().put(guid).put(JSONArray().put(project.installedModId)), 120_000) as? JSONArray
-        if (failed == null || failed.length() > 0) return false
+        if (failed == null || failed.length() > 0) return null
         return settle(context, inspector, guid) { list -> list.none { it.id == project.id } }
     }
 }

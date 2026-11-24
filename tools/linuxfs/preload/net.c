@@ -277,6 +277,7 @@ __attribute__((visibility("hidden"))) void dd_binfmt_before_search(const char *f
 __attribute__((visibility("hidden"))) int dd_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error);
 __attribute__((visibility("hidden")))
 char *const *dd_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
+__attribute__((visibility("hidden"))) int dd_program_lookup(const char *file, char *out, size_t size);
 __attribute__((visibility("hidden"))) int dd_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
                                                           const posix_spawnattr_t *attr, char *const argv[], char *const envp[],
                                                           spawn_fn real);
@@ -377,7 +378,8 @@ static int answer_lsof_via_spawn(const char *path, char *const argv[], pid_t *pi
 }
 
 int execvp(const char *file, char *const argv_in[]) {
-  char *const *argv = dd_webhelper_argv(file, argv_in, environ);
+  char resolved[PATH_MAX];
+  char *const *argv = dd_webhelper_argv(dd_program_lookup(file, resolved, sizeof resolved) ? resolved : file, argv_in, environ);
   static int (*real)(const char *, char *const[]);
   if (!real) real = (int (*)(const char *, char *const[]))dlsym(RTLD_NEXT, "execvp");
   maybe_answer_lsof(file, argv);
