@@ -109,7 +109,7 @@ class NativeHookLdsoSpawnTest(unittest.TestCase):
         cls.runtime.mkdir()
         shutil.copy(cls.probe, cls.runtime / "bash")
         (cls.runtime / "bash").chmod(0o755)
-        cls.android = tmp / "android"
+        cls.android = tmp / "root-android"
         cls.android.mkdir()
         subprocess.run([cls.cc, "-O1", "-Wl,--dynamic-linker=/system/bin/linker64", "-o", str(cls.android / "sh"),
                         str(tmp / "probe.c")], check=True)
