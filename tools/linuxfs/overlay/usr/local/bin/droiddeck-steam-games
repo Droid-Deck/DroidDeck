@@ -71,6 +71,10 @@ def store_game(game):
     return bool(game.get("store"))
 
 
+def steam_program(game):
+    return game.get("route") is not False
+
+
 def manifest_ids(steamapps, name):
     matches = []
     try:
@@ -230,7 +234,7 @@ def remember_tried(steam_root, account, appids):
 
 
 def watch(steam_root, listing):
-    games = [game for game in read_json(listing, []) if not store_game(game) and not game.get("native")]
+    games = [game for game in read_json(listing, []) if not store_game(game) and not game.get("native") and steam_program(game)]
     if os.environ.get("DD_STEAM_OFFLINE") == "1" or not games:
         return
     candidates, sources = {}, {}
@@ -526,6 +530,13 @@ def release(steam_root, game, stale, reason):
         print(f"droiddeck-steam-games: {game.get('name', appid)} {reason}; it is no longer Steam app {appid}")
 
 
+def release_stale(steam_root, game, stale):
+    try:
+        release(steam_root, game, stale, "names another Steam app now")
+    except OSError as error:
+        print(f"droiddeck-steam-games: earlier import not undone ({error})")
+
+
 PREFIX_LINKS = ".droiddeck-prefix-links.json"
 
 
@@ -603,17 +614,18 @@ def route(steam_root, acct, games):
         if game.get("native"):
             shortcuts.append(game)
             continue
+        if not steam_program(game):
+            release_stale(steam_root, game, lambda old: old == SPACEWAR)
+            share_prefix(steam_root, game)
+            shortcuts.append(game)
+            continue
         folder = game.get("folder", "")
         appid = candidates.get(folder, candidates.get(legacy_path(folder)))
         stamp = source_stamp(game)
         recorded = sources.get(folder, sources.get(legacy_path(folder)))
         current = stamp is not None and recorded in (stamp, [stamp[0], legacy_path(stamp[1])] + stamp[2:])
         named = isinstance(appid, int) and 0 < appid < 0x80000000 and appid != SPACEWAR
-        try:
-            release(steam_root, game, lambda old: old == SPACEWAR or (current and named and old != appid),
-                    "names another Steam app now")
-        except OSError as error:
-            print(f"droiddeck-steam-games: earlier import not undone ({error})")
+        release_stale(steam_root, game, lambda old: old == SPACEWAR or (current and named and old != appid))
         confirmed = named and current and owned.get(str(appid)) is True
         if confirmed:
             try:
