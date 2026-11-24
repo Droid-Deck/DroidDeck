@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""Extract Steam's cached update packages and record them the way Steam's own updater does."""
+import hashlib, lzma, os, re, stat, struct, sys, time, zipfile, io, zlib, calendar
+
+OSVER = "-184"
+MTIME_OFFSET = 28800
+
+
+def blocks(manifest):
+    out, cur, depth = {}, None, 0
+    for line in manifest.splitlines():
+        m = re.match(r'^(\t+)"([^"]+)"\s*(?:"([^"]*)")?\s*$', line)
+        if m and m.group(3) is None and len(m.group(1)) == 1:
+            cur = m.group(2)
+            out[cur] = {}
+        elif m and m.group(3) is not None and len(m.group(1)) == 2 and cur:
+            out[cur][m.group(2)] = m.group(3)
+    return out
+
+
+def unvz(d):
+    if d[:3] != b"VZa" or d[-2:] != b"zv":
+        raise ValueError("not a VZip")
+    props = d[7]
+    dict_size = struct.unpack("<I", d[8:12])[0]
+    crc, size = struct.unpack("<II", d[-10:-2])
+    f = [{"id": lzma.FILTER_LZMA1, "dict_size": dict_size,
+          "lc": props % 9, "lp": (props // 9) % 5, "pb": props // 45}]
+    out = lzma.LZMADecompressor(format=lzma.FORMAT_RAW, filters=f).decompress(d[12:-10], max_length=size)
+    if len(out) != size or zlib.crc32(out) & 0xFFFFFFFF != crc:
+        raise ValueError("bad VZip")
+    return out
+
+
+def main(package_dir, steam_root, manifest_path, name):
+    manifest = open(manifest_path, encoding="utf-8", errors="replace").read()
+    rows = {}
+    for block, attrs in blocks(manifest).items():
+        for key in ("zipvz", "file"):
+            f = attrs.get(key)
+            if f and os.path.isfile(os.path.join(package_dir, f)):
+                break
+        else:
+            raise SystemExit(f"missing package for {block}")
+        data = open(os.path.join(package_dir, f), "rb").read()
+        zdata = unvz(data) if key == "zipvz" else data
+        del data
+        with zipfile.ZipFile(io.BytesIO(zdata)) as z:
+            for info in z.infolist():
+                rel = info.filename.replace("\\", "/")
+                dest = os.path.join(steam_root, rel)
+                mode = (info.external_attr >> 16) & 0xFFFF
+                mtime = calendar.timegm(info.date_time + (0, 0, 0)) + MTIME_OFFSET
+                if rel.endswith("/"):
+                    os.makedirs(dest, exist_ok=True)
+                    rows[rel] = (-1, mtime, 0)
+                    continue
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                if stat.S_ISLNK(mode):
+                    if os.path.lexists(dest):
+                        os.unlink(dest)
+                    os.symlink(z.read(info).decode(), dest)
+                    rows[rel] = (-2, mtime, info.CRC)
+                    continue
+                with open(dest + ".dd-tmp", "wb") as out:
+                    out.write(z.read(info))
+                os.chmod(dest + ".dd-tmp", (mode & 0o777) | 0o644 if mode else 0o644)
+                os.replace(dest + ".dd-tmp", dest)
+                rows[rel] = (info.file_size, mtime, info.CRC)
+        del zdata
+    body = "".join(f"{p},{s};{m};{c}\n" for p, (s, m, c) in sorted(rows.items(), key=lambda kv: kv[0].upper()))
+    body += f"OSVER={OSVER}\nVERSION=3\n"
+    sha = hashlib.sha1(body.encode()).hexdigest().upper()
+    pkg = os.path.join(steam_root, "package")
+    os.makedirs(pkg, exist_ok=True)
+    tmp = os.path.join(pkg, name + ".installed.dd-tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(body + f"SHA1={sha}\n")
+    os.replace(tmp, os.path.join(pkg, name + ".installed"))
+
+
+if __name__ == "__main__":
+    main(*sys.argv[1:5])

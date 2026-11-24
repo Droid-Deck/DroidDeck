@@ -359,6 +359,42 @@ done(28 if end < len(data) else 0)
         self.assertFalse((package / 'b.zip.9999').exists())
         self.assertEqual('123456\n', (package / 'droiddeck-cached').read_text())
 
+    PREAPPLY = SCRIPT.with_name('droiddeck-steam-preapply')
+
+    def real_cache_manifest(self):
+        import io
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, 'w') as z:
+            z.writestr('steamrtarm64/steam', b'client')
+        data = out.getvalue()
+        (self.cdn / 'a.zip.1111').write_bytes(data)
+        (self.cdn / 'steam_client_steamdeck_publicbeta_linuxarm64').write_text(
+            '"linuxarm64"\n{\n\t"version" "123456"\n\t"a_all"\n\t{\n'
+            f'\t\t"file" "a.zip.1111"\n\t\t"size" "{len(data)}"\n\t\t"sha2" "{hashlib.sha256(data).hexdigest()}"\n'
+            '\t}\n}\n')
+
+    def test_the_cache_pass_applies_the_update_so_steam_has_nothing_to_extract(self):
+        self.real_cache_manifest()
+        result = self.install(None, '--cache', DD_STEAM_PREAPPLY=str(self.PREAPPLY))
+        self.assertEqual(0, result.returncode, result.stderr)
+        package = self.steam / 'package'
+        name = 'steam_client_steamdeck_publicbeta_linuxarm64'
+        self.assertEqual(b'client', (self.steam / 'steamrtarm64/steam').read_bytes())
+        self.assertTrue(os.access(self.steam / 'steamrtarm64/steam', os.X_OK))
+        self.assertIn('steamrtarm64/steam,6;', (package / (name + '.installed')).read_text())
+        self.assertEqual((self.cdn / name).read_text(), (package / (name + '.manifest')).read_text())
+        self.assertFalse((package / 'a.zip.1111').exists())
+        self.assertEqual('123456\n', (package / 'droiddeck-cached').read_text())
+
+    def test_a_cache_pass_that_cannot_apply_the_update_keeps_the_packages_for_steam(self):
+        self.cache_manifest()
+        result = self.install(None, '--cache', DD_STEAM_PREAPPLY=str(self.PREAPPLY))
+        self.assertEqual(0, result.returncode, result.stderr)
+        package = self.steam / 'package'
+        self.assertEqual(b'plain-package', (package / 'a.zip.1111').read_bytes())
+        self.assertFalse(list(package.glob('*.installed')))
+        self.assertFalse(list(package.glob('*.manifest')))
+
     def test_the_cache_pass_is_not_repeated_for_the_same_client_version(self):
         self.cache_manifest()
         self.assertEqual(0, self.install(None, '--cache').returncode)

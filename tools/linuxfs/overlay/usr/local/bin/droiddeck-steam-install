@@ -361,6 +361,13 @@ if [ -n "$cache_only" ]; then
   done < "$work/cache"
   fi
   echo "$version" > "$cached"
+  preapply=${DD_STEAM_PREAPPLY:-/usr/local/bin/droiddeck-steam-preapply}
+  if [ -x "$preapply" ] && command -v python3 >/dev/null 2>&1 \
+     && python3 "$preapply" "$cache" "$steam_root" "$work/manifest" "$manifest"; then
+    cp -f "$work/manifest" "$cache/$manifest.manifest"
+    chmod -R a+x "$steam_root/steamrtarm64" "$steam_root/linuxarm64" 2>/dev/null || true
+    while read -r _ file _; do rm -f "$cache/$file"; done < "$work/cache"
+  fi
   exit 0
 fi
 if [ -n "$sync" ]; then
