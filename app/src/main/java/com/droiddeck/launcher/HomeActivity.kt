@@ -19,24 +19,28 @@ class HomeActivity : FrontEndActivity() {
     override val inHomeTask: Boolean get() = true
 
     override fun handOff(savedInstanceState: Bundle?): Boolean {
-        if (!HomeRoute.isHomeApp(this)) {
-            // Opened while DroidDeck is not the Home app (a "just once" choice, or a game hub that opens Home entries):
-            // keep the old behaviour and open the front end in its own task.
-            if (savedInstanceState == null) {
-                val destination = HomeRoute.outsideHome(this)
-                if (SessionState.pipActive && destination.component?.className == FrontEndActivity::class.java.name) {
-                    HomeApp.showFrontEnd(this, destination)
-                } else startActivityPlain(destination)
-            }
-            finish()
-            return true
-        }
+        if (leaveHome()) return true
         intent = route(intent, launchGuide = savedInstanceState == null)
         return false
     }
 
     override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(route(intent, launchGuide = true))
+        super.onNewIntent(if (HomeRoute.isHomeApp(this)) route(intent, launchGuide = true) else intent)
+    }
+
+    /**
+     * Opened, restored or reached again while DroidDeck is not the Home app (a "just once" choice, a game hub that opens Home
+     * entries, or another launcher made default since): keep the old behaviour and open the front end in its own task. A
+     * restore opens it too, so a Home front end recreated after the Home app changed (a language change) is replaced, not lost.
+     */
+    override fun leaveHome(): Boolean {
+        if (HomeRoute.isHomeApp(this)) return false
+        val destination = HomeRoute.outsideHome(this)
+        if (SessionState.pipActive && destination.component?.className == FrontEndActivity::class.java.name) {
+            HomeApp.showFrontEnd(this, destination)
+        } else startActivityPlain(destination)
+        finish()
+        return true
     }
 
     private fun route(incoming: Intent, launchGuide: Boolean): Intent {

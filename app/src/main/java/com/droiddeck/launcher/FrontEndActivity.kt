@@ -147,7 +147,6 @@ open class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.Age
     private var focusComponentsContent by mutableStateOf(true)
     private var componentsGameKey by mutableStateOf<String?>(null)
     private var showMapping by mutableStateOf(false)
-    private var saveBusy: String? = null
     private var onSavePicked: ((File) -> Unit)? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private var catalog by mutableStateOf<List<DesktopCatalog.Entry>?>(null)
@@ -1270,6 +1269,9 @@ open class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.Age
         return true
     }
 
+    /** Whether this instance hands itself on instead of taking a new intent: the Home front end once DroidDeck is not Home. */
+    protected open fun leaveHome(): Boolean = false
+
     private fun forwardToHome(request: Intent): Boolean {
         // Only the shortcut picker answers its caller, and forwards() keeps it here; any other launch for a result is handed
         // on too, so no second front end (and no second save guard) runs beside the Home one.
@@ -1977,7 +1979,7 @@ open class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.Age
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (forwardToHome(intent)) return
+        if (leaveHome() || forwardToHome(intent)) return
         setIntent(intent)
         gameLaunchRequest.incrementAndGet()
         if (intent.action == SteamIntegration.ACTION_SETUP) {
@@ -3586,6 +3588,11 @@ open class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.Age
     }
 
     companion object {
+        /**
+         * The save import or export running, if any. Shared by every front end (the Home one and the shortcut picker, which also
+         * opens a game's Saves tab), so two of them never work on the same saves at once. Read and written on the main thread.
+         */
+        private var saveBusy: String? = null
         private const val REQUEST_NOTIFICATIONS = 7103
         private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
         private const val STATE_PENDING_GATE_LAUNCH = "pending_gate_launch"

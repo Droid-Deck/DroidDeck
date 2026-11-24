@@ -235,6 +235,30 @@ class HomeTaskTest {
         assertTrue(started.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
     }
 
+    @Test fun aRestoredHomeFrontEndOpensTheFrontEndTaskOnceDroidDeckIsNotHome() {
+        val activity = Robolectric.buildActivity(HomeActivity::class.java, home()).get()
+        context.packageManager.setComponentEnabledSetting(homeEntry, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+        assertTrue(handOff(activity, Bundle()))
+        assertTrue(activity.isFinishing)
+        val started = shadowOf(activity).nextStartedActivity
+        assertEquals(FrontEndActivity::class.java.name, started.component?.className)
+        assertTrue(started.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+    }
+
+    @Test fun aLaterHomePressOpensTheFrontEndTaskOnceDroidDeckIsNotHome() {
+        makeHome()
+        val controller = Robolectric.buildActivity(HomeActivity::class.java, home()).create()
+        shadowOf(Looper.getMainLooper()).idle()
+        val activity = controller.get()
+        while (shadowOf(activity).nextStartedActivity != null) Unit
+        context.packageManager.setComponentEnabledSetting(homeEntry, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+        controller.newIntent(home())
+        assertTrue(activity.isFinishing)
+        val started = shadowOf(activity).nextStartedActivity
+        assertEquals(FrontEndActivity::class.java.name, started.component?.className)
+        assertTrue(started.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
+    }
+
     private fun home() = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
 
     private fun makeHome() {
