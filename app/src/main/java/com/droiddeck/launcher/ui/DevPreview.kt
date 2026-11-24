@@ -175,7 +175,7 @@ internal fun SessionDrawerPreview(secondScreens: List<SecondScreenDisplay>) {
                 val code = e.nativeKeyEvent.keyCode
                 if (code != android.view.KeyEvent.KEYCODE_BUTTON_L1 && code != android.view.KeyEvent.KEYCODE_BUTTON_R1) return@onPreviewKeyEvent false
                 if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) {
-                    page = sessionDrawerPages(secondScreens.isNotEmpty()).step(page, if (code == android.view.KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
+                    page = sessionDrawerPages().let { it.strip().step(it.tabFor(page), if (code == android.view.KeyEvent.KEYCODE_BUTTON_R1) 1 else -1) }
                 }
                 true
             }

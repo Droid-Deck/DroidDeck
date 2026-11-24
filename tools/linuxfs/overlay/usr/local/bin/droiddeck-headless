@@ -1,0 +1,24 @@
+#!/bin/bash
+set -u
+runtime=${1:-}
+shift
+log=
+if [ "${1:-}" = --log ]; then
+  log=${2:-}
+  shift 2
+fi
+if [ -z "$runtime" ] || [ "${1:-}" != -- ] || [ $# -lt 2 ]; then
+  echo "usage: droiddeck-headless <private runtime directory> [--log <file>] -- <command> [args...]" >&2
+  exit 2
+fi
+shift
+umask 077
+mkdir -p "$runtime" && chmod 700 "$runtime" || exit 1
+if [ -n "$log" ]; then
+  size=$(stat -c %s "$log" 2>/dev/null || echo 0)
+  [ "$size" -gt "${DD_HEADLESS_LOG_LIMIT:-4194304}" ] && mv -f "$log" "$log.1"
+  exec >>"$log" 2>&1
+fi
+unset DISPLAY WAYLAND_DISPLAY GAMESCOPE_WAYLAND_DISPLAY XAUTHORITY
+export XDG_RUNTIME_DIR=$runtime
+exec gamescope --backend headless -w 640 -h 480 -- "$@"

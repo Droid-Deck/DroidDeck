@@ -103,7 +103,6 @@
     <string name="input_shortcut_back_modes">वापस · Steam में दो बार, डेस्कटॉप में एक बार</string>
     <string name="input_shortcut_hold_hint">Steam मोड में। वापस दबाए रखने से क्विक एक्सेस भी खुलता है।</string>
     <string name="input_restore_shortcut">डिफ़ॉल्ट पर पुनर्स्थापित करें</string>
-    <string name="input_second_mode_hint">आपका पैनल चयन याद रखा जाता है। डेस्कटॉप दूसरा कार्यक्षेत्र खोलता है; यह सत्र या उसका इनपुट प्रोफ़ाइल नहीं बदलता।</string>
     <string name="input_virtual_controller">वर्चुअल कंट्रोलर</string>
     <string name="input_virtual_controller_hint">Steam या गेम द्वारा देखा जाने वाला कंट्रोलर प्रकार।</string>
     <string name="input_touchscreen">टचस्क्रीन</string>

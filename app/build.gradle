@@ -93,7 +93,7 @@ def trackingPack = rootProject.file('tools/packs/tracking/release.env').readLine
 def prootPackPin = rootProject.file('tools/packs/proot/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
-def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt'].collectEntries { name ->
+def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt', 'epic'].collectEntries { name ->
     def pack = file("build/packs/${name}.tar.zst")
     if (!pack.isFile()) {
         if (ciBuild) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
@@ -125,7 +125,8 @@ def variantSuffixes = rootProject.file('tools/release/variants.txt').readLines()
 android {
     namespace 'com.droiddeck.launcher'
     compileSdk 34
-    ndkVersion project.findProperty('ndkVersion') ?: '27.3.13750724'
+    ndkVersion project.findProperty('ndkVersion') ?: providers.fileContents(rootProject.layout.projectDirectory.file('tools/ci/toolchains.env'))
+        .asText.get().readLines().find { it.startsWith('CI_ANDROID_NDK_VERSION=') }.split('=', 2)[1].trim()
 
     defaultConfig {
         applicationId "com.droiddeck.launcher"
@@ -202,7 +203,7 @@ android {
     }
 
     androidResources {
-        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>droiddeck-ubisoft:<dir>droiddeck-rockstar:<dir>droiddeck-dirt:<dir>directaudio:<dir>hybris'
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:<dir>droiddeck-xbox:<dir>droiddeck-comet:<dir>droiddeck-ubisoft:<dir>droiddeck-rockstar:<dir>droiddeck-dirt:<dir>droiddeck-epic:<dir>directaudio:<dir>hybris'
     }
 
     packagingOptions {
@@ -232,6 +233,9 @@ android {
             }
             maxHeapSize = '2g'
             maxParallelForks = 2
+            def jvmTemp = new File(temporaryDir, 'jvm')
+            systemProperty 'java.io.tmpdir', jvmTemp.absolutePath
+            doFirst { jvmTemp.mkdirs() }
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
         }
@@ -261,11 +265,9 @@ if (vitureSdkDir) {
     tasks.named('preBuild').configure { dependsOn(stageVitureNotices) }
 }
 
-def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
-    from(rootProject.file('tools/linuxfs/overlay')) {
-        include 'usr/local/bin/droiddeck-*', 'usr/local/bin/steam-compatibility', 'usr/bin/**'
-    }
-    into(layout.projectDirectory.dir('src/main/assets/linuxfs'))
+def stageSessionScripts = tasks.register('stageSessionScripts', Exec) {
+    workingDir rootProject.projectDir
+    commandLine pythonExecutable, 'tools/release/check_session_assets.py', '--stage'
 }
 tasks.named('preBuild').configure { dependsOn(stageSessionScripts) }
 

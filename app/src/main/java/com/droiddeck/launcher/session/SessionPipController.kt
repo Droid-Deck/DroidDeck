@@ -16,6 +16,7 @@ class SessionPipController(
     private val activity: SessionActivity,
     private val bounds: () -> Rect,
     private val showPipUi: (Boolean) -> Unit,
+    private val launchedByAnotherApp: () -> Boolean = { false },
 ) {
     var transitioning = false
         private set
@@ -29,7 +30,8 @@ class SessionPipController(
         PipPolicy.eligible(SessionState.running, SessionState.firstFrameSeen, SessionState.phase,
             SessionState.suspended, automatic)
 
-    fun automatic() = !suppressAuto && SessionPrefs.pipAutoEnter(activity) && eligible(true)
+    fun automatic() = !suppressAuto && PipPolicy.autoEnter(SessionPrefs.pipAutoEnter(activity), launchedByAnotherApp()) &&
+        eligible(true)
 
     fun refresh(force: Boolean = false) {
         if (!supported(activity)) return

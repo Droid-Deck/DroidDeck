@@ -39,4 +39,17 @@ class StoreTabsStateTest {
         assertFalse(StoreTabsState.setShown(ctx, last, false))
         assertTrue(StoreTabsState.tabs.single { it.store == last }.shown)
     }
+
+    @Test fun theHiddenTabStartsOffAndItsSwitchSurvivesAReload() {
+        assertTrue(LIBRARY_HIDDEN in StoreTabsState.libraryHidden)
+        StoreTabsState.setLibraryShown(ctx, LIBRARY_HIDDEN, true)
+        assertTrue(SessionPrefs.libraryShowHidden(ctx))
+        StoreTabsState.load(ctx)
+        assertFalse(LIBRARY_HIDDEN in StoreTabsState.libraryHidden)
+        StoreTabsState.setLibraryShown(ctx, LIBRARY_FAVORITES, false)
+        assertEquals(setOf(LIBRARY_FAVORITES), SessionPrefs.libraryTabsHidden(ctx))
+        StoreTabsState.setLibraryShown(ctx, LIBRARY_HIDDEN, false)
+        StoreTabsState.load(ctx)
+        assertEquals(setOf(LIBRARY_FAVORITES, LIBRARY_HIDDEN), StoreTabsState.libraryHidden)
+    }
 }

@@ -1,0 +1,174 @@
+diff --git a/Source/Tools/LinuxEmulation/ArchHelpers/MContext.h b/Source/Tools/LinuxEmulation/ArchHelpers/MContext.h
+index 02bb6bf..2e72492 100644
+--- a/Source/Tools/LinuxEmulation/ArchHelpers/MContext.h
++++ b/Source/Tools/LinuxEmulation/ArchHelpers/MContext.h
+@@ -49,6 +49,11 @@ struct X86ContextBackup {
+   uint64_t FPStateLocation;
+   uint64_t UContextLocation;
+   uint64_t SigInfoLocation;
++  uint64_t PrevGuestFrame;
++  uint64_t GuestFrameEnd;
++  uint64_t GuestInterruptedSP;
++  uint64_t GuestAltBase;
++  uint64_t GuestAltEnd;
+   FEXCore::Core::CPUState GuestState;
+   static constexpr int RedZoneSize = 128;
+ };
+@@ -76,6 +81,11 @@ struct ArmContextBackup {
+   uint64_t FPStateLocation;
+   uint64_t UContextLocation;
+   uint64_t SigInfoLocation;
++  uint64_t PrevGuestFrame;
++  uint64_t GuestFrameEnd;
++  uint64_t GuestInterruptedSP;
++  uint64_t GuestAltBase;
++  uint64_t GuestAltEnd;
+   FEXCore::Core::CPUState GuestState;
+ 
+   // Arm64 doesn't have a red zone
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
+index 643185d..53179c4 100644
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
+@@ -136,6 +136,31 @@ void SignalDelegator::SpillSRA(FEXCore::Core::InternalThreadState* Thread, void*
+ #endif
+ }
+ 
++namespace {
++  bool OnGuestAltStack(const ArchHelpers::Context::ContextBackup* Backup, uint64_t SP) {
++    return Backup->GuestAltEnd != 0 && SP >= Backup->GuestAltBase && SP <= Backup->GuestAltEnd;
++  }
++
++  bool GuestLeftFrame(const ArchHelpers::Context::ContextBackup* Backup, uint64_t GuestSP, uint32_t Limit) {
++    const bool SPOnAlt = OnGuestAltStack(Backup, GuestSP);
++    if (SPOnAlt == OnGuestAltStack(Backup, Backup->GuestFrameEnd)) {
++      return GuestSP >= Backup->GuestFrameEnd;
++    }
++    if (SPOnAlt) {
++      return false;
++    }
++    auto Entry = Backup;
++    while (OnGuestAltStack(Backup, Entry->GuestInterruptedSP)) {
++      if (--Limit == 0 || !Entry->PrevGuestFrame) {
++        return false;
++      }
++      Entry = reinterpret_cast<const ArchHelpers::Context::ContextBackup*>(Entry->PrevGuestFrame);
++    }
++    return OnGuestAltStack(Backup, Entry->GuestFrameEnd) && Entry->GuestAltBase == Backup->GuestAltBase &&
++           Entry->GuestAltEnd == Backup->GuestAltEnd && GuestSP >= Entry->GuestInterruptedSP;
++  }
++}
++
+ ArchHelpers::Context::ContextBackup* SignalDelegator::StoreThreadState(FEXCore::Core::InternalThreadState* Thread, int Signal, void* ucontext) {
+   // We can end up getting a signal at any point in our host state
+   // Jump to a handler that saves all state so we can safely return
+@@ -249,6 +274,19 @@ void SignalDelegator::RestoreThreadState(FEXCore::Core::InternalThreadState* Thr
+     }
+ 
+     OldSP = *reinterpret_cast<uint64_t*>(GuestSP);
++
++    auto& SignalInfo = FEX::HLE::ThreadManager::GetStateObjectFromFEXCoreThread(Thread)->SignalInfo;
++    uint64_t Entry = SignalInfo.GuestFrames;
++    for (uint32_t Depth = 1; Entry && Depth <= SignalInfo.GuestFrameCount; ++Depth) {
++      auto EntryBackup = reinterpret_cast<ArchHelpers::Context::ContextBackup*>(Entry);
++      if (Entry == OldSP) {
++        SignalInfo.GuestFrames = EntryBackup->PrevGuestFrame;
++        SignalInfo.GuestFrameCount -= Depth;
++        Thread->CurrentFrame->SignalHandlerRefCounter -= Depth - 1;
++        break;
++      }
++      Entry = EntryBackup->PrevGuestFrame;
++    }
+   }
+ 
+   uintptr_t NewSP = OldSP;
+@@ -287,6 +325,7 @@ bool SignalDelegator::HandleDispatcherGuestSignal(FEXCore::Core::InternalThreadS
+   auto ContextBackup = StoreThreadState(Thread, Signal, ucontext);
+ 
+   auto Frame = Thread->CurrentFrame;
++  auto& SignalInfo = FEX::HLE::ThreadManager::GetStateObjectFromFEXCoreThread(Thread)->SignalInfo;
+ 
+   // Ref count our faults
+   // We use this to track if it is safe to clear cache
+@@ -336,6 +375,8 @@ bool SignalDelegator::HandleDispatcherGuestSignal(FEXCore::Core::InternalThreadS
+ 
+   uint64_t OldGuestSP = Frame->State.gregs[FEXCore::X86State::REG_RSP];
+   uint64_t NewGuestSP = OldGuestSP;
++  uint64_t GuestAltBase = 0;
++  uint64_t GuestAltEnd = 0;
+ 
+   // altstack is only used if the signal handler was setup with SA_ONSTACK
+   if (GuestAction->sa_flags & SA_ONSTACK) {
+@@ -345,6 +386,8 @@ bool SignalDelegator::HandleDispatcherGuestSignal(FEXCore::Core::InternalThreadS
+       // Then that means we are hitting recursive signals and we need to walk back the stack correctly
+       uint64_t AltStackBase = reinterpret_cast<uint64_t>(GuestStack->ss_sp);
+       uint64_t AltStackEnd = AltStackBase + GuestStack->ss_size;
++      GuestAltBase = AltStackBase;
++      GuestAltEnd = AltStackEnd;
+       if (OldGuestSP >= AltStackBase && OldGuestSP <= AltStackEnd) {
+         // We are already in the alt stack, the rest of the code will handle adjusting this
+       } else {
+@@ -353,6 +396,40 @@ bool SignalDelegator::HandleDispatcherGuestSignal(FEXCore::Core::InternalThreadS
+     }
+   }
+ 
++#ifdef ARCHITECTURE_arm64
++  auto Newest = reinterpret_cast<ArchHelpers::Context::ContextBackup*>(SignalInfo.GuestFrames);
++  if (WasInJIT && Newest && ContextBackup->PrevSP == SignalInfo.GuestFrames &&
++      Frame->SignalHandlerRefCounter == SignalInfo.GuestFrameCount + 1 && GuestLeftFrame(Newest, OldGuestSP, SignalInfo.GuestFrameCount)) {
++    uint32_t LeftFrames = 0;
++    while (Newest && LeftFrames < SignalInfo.GuestFrameCount &&
++           GuestLeftFrame(Newest, OldGuestSP, SignalInfo.GuestFrameCount - LeftFrames)) {
++      Newest = reinterpret_cast<ArchHelpers::Context::ContextBackup*>(Newest->PrevGuestFrame);
++      ++LeftFrames;
++    }
++
++    const uint64_t HostTop = Newest ? reinterpret_cast<uint64_t>(Newest) : Frame->ReturningStackLocation;
++    const uint64_t MovedBackup = FEXCore::AlignDown(
++      HostTop - ArchHelpers::Context::ContextBackup::RedZoneSize - sizeof(ArchHelpers::Context::ContextBackup), 16);
++    if (MovedBackup > reinterpret_cast<uint64_t>(ContextBackup)) {
++      memmove(reinterpret_cast<void*>(MovedBackup), ContextBackup, sizeof(ArchHelpers::Context::ContextBackup));
++      ContextBackup = reinterpret_cast<ArchHelpers::Context::ContextBackup*>(MovedBackup);
++      ContextBackup->PrevSP = HostTop;
++      ArchHelpers::Context::SetSp(ucontext, MovedBackup);
++      SignalInfo.GuestFrames = reinterpret_cast<uint64_t>(Newest);
++      SignalInfo.GuestFrameCount -= LeftFrames;
++      Frame->SignalHandlerRefCounter -= LeftFrames;
++    }
++  }
++#endif
++
++  ContextBackup->GuestFrameEnd = NewGuestSP;
++  ContextBackup->GuestInterruptedSP = OldGuestSP;
++  ContextBackup->GuestAltBase = GuestAltBase;
++  ContextBackup->GuestAltEnd = GuestAltEnd;
++  ContextBackup->PrevGuestFrame = SignalInfo.GuestFrames;
++  SignalInfo.GuestFrames = reinterpret_cast<uint64_t>(ContextBackup);
++  ++SignalInfo.GuestFrameCount;
++
+   // siginfo_t
+   siginfo_t* HostSigInfo = reinterpret_cast<siginfo_t*>(info);
+ 
+@@ -491,6 +568,8 @@ bool SignalDelegator::HandleSignalPause(FEXCore::Core::InternalThreadState* Thre
+ 
+     // Our ref counting doesn't matter anymore
+     Thread->CurrentFrame->SignalHandlerRefCounter = 0;
++    ThreadObject->SignalInfo.GuestFrames = 0;
++    ThreadObject->SignalInfo.GuestFrameCount = 0;
+ 
+     // Set the new PC
+     if (CTX->IsAddressInCodeBuffer(Thread, ArchHelpers::Context::GetPc(ucontext))) {
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/ThreadManager.h b/Source/Tools/LinuxEmulation/LinuxSyscalls/ThreadManager.h
+index dfcd4b0..e4a86a9 100644
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/ThreadManager.h
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/ThreadManager.h
+@@ -83,6 +83,9 @@ struct ThreadStateObject : public FEXCore::Allocator::FEXAllocOperators {
+     // Queue of thread local signal frames that have been deferred.
+     // Async signals aren't guaranteed to be delivered in any particular order, but FEX treats them as FILO.
+     fextl::vector<DeferredSignalState> DeferredSignalFrames;
++
++    uint64_t GuestFrames {};
++    uint32_t GuestFrameCount {};
+   } SignalInfo {};
+ 
+   // Seccomp thread specific data.

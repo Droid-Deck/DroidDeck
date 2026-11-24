@@ -2,15 +2,25 @@ package com.droiddeck.launcher.runtime
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import android.content.Context
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.stores.Store
+import com.droiddeck.launcher.stores.StoreArchiveUnpacker
 import com.droiddeck.launcher.stores.StoreInstalls
+import com.droiddeck.launcher.stores.itch.ItchArchives
 import org.apache.commons.compress.archivers.zip.ZipFile
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
+import java.util.concurrent.atomic.AtomicBoolean
 
 object WowAddons {
     var imports by mutableIntStateOf(0)
@@ -18,9 +28,27 @@ object WowAddons {
 
     class TooLarge : IOException()
 
+    fun changed() {
+        imports++
+    }
+
+    fun flavorDir(target: Target): File? = target.addOns.parentFile?.parentFile
+
+    fun root(target: Target): File? = flavorDir(target)?.parentFile
+
     class Target(val flavor: String, val addOns: File)
 
     class Addon(val name: String, val root: String)
+
+    class Installed(val name: String, val version: String?, val wowiId: String?, val curseId: String? = null)
+
+    class Origin(val id: String, val version: String)
+
+    private const val ORIGINS = ".droiddeck-sources"
+    private const val TOC_VERSION = "Version"
+    private const val TOC_WOWI_ID = "X-WoWI-ID"
+    private const val TOC_CURSE_ID = "X-Curse-Project-ID"
+    private val TOC_KEYS = setOf(TOC_VERSION, TOC_WOWI_ID, TOC_CURSE_ID)
 
     internal const val MAX_EXPANDED_BYTES = 4L * 1024 * 1024 * 1024
 
@@ -45,53 +73,168 @@ object WowAddons {
         target.addOns.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }
             .map { it.name }.sortedBy { it.lowercase() }
 
+    fun present(folders: List<String>, exists: (String) -> Boolean): Boolean = folders.isNotEmpty() && folders.all(exists)
+
+    fun folder(addOns: File, name: String): File? {
+        val dirs = addOns.listFiles().orEmpty().filter { it.isDirectory && !it.name.startsWith(".") }
+        return dirs.firstOrNull { it.name == name } ?: dirs.firstOrNull { it.name.equals(name, ignoreCase = true) }
+    }
+
+    fun details(target: Target): List<Installed> {
+        val origins = origins(target)
+        return installed(target).map { name ->
+            val toc = toc(File(target.addOns, name))
+            val origin = origins[name]
+            Installed(name, origin?.version ?: toc[TOC_VERSION], origin?.id ?: toc[TOC_WOWI_ID], toc[TOC_CURSE_ID])
+        }
+    }
+
+    internal fun tocFields(lines: Sequence<String>, keys: Set<String> = TOC_KEYS): Map<String, String> {
+        val out = LinkedHashMap<String, String>()
+        for (raw in lines) {
+            val line = raw.trim().removePrefix("\uFEFF")
+            if (!line.startsWith("##") || ':' !in line) continue
+            val key = line.removePrefix("##").substringBefore(':').trim()
+            if (key !in keys || key in out) continue
+            val value = line.substringAfter(':').trim()
+            if (value.isNotEmpty() && '@' !in value) out[key] = value
+            if (out.size == keys.size) break
+        }
+        return out
+    }
+
+    private fun toc(folder: File): Map<String, String> {
+        val tocs = folder.listFiles().orEmpty().filter { it.isFile && it.name.endsWith(".toc", ignoreCase = true) }.sortedWith(
+            compareBy<File>(
+                { !it.name.dropLast(4).equals(folder.name, ignoreCase = true) },
+                { !it.name.dropLast(4).replace(SUFFIX, "").equals(folder.name, ignoreCase = true) },
+                { it.name.length },
+                { it.name },
+            ),
+        )
+        val out = LinkedHashMap<String, String>()
+        for (file in tocs) {
+            if (out.size == TOC_KEYS.size) break
+            val missing = TOC_KEYS - out.keys
+            runCatching { file.bufferedReader().useLines { tocFields(it, missing) } }.getOrNull()?.let(out::putAll)
+        }
+        return out
+    }
+
+    internal fun parseOrigins(text: String): Map<String, Origin> = text.lineSequence().mapNotNull { line ->
+        val parts = line.split('\t')
+        if (parts.size != 3 || parts.any { it.isBlank() }) null else parts[0] to Origin(parts[1], parts[2])
+    }.toMap()
+
+    internal fun formatOrigins(origins: Map<String, Origin>): String =
+        origins.entries.sortedBy { it.key.lowercase() }.joinToString("") { (name, o) -> "$name\t${o.id}\t${o.version.replace(Regex("\\s+"), " ")}\n" }
+
+    private fun originsFile(target: Target) = File(target.addOns, ORIGINS)
+
+    private fun origins(target: Target): Map<String, Origin> =
+        runCatching { parseOrigins(originsFile(target).readText()) }.getOrDefault(emptyMap())
+
+    private val originsLock = Any()
+
+    private fun keepOrigins(target: Target, names: List<String>, origin: Origin?) = synchronized(originsLock) {
+        val current = origins(target)
+        val next = current - names.toSet() + (origin?.let { o -> names.associateWith { o } } ?: emptyMap())
+        if (next != current) {
+            val file = originsFile(target)
+            if (next.isEmpty()) file.delete() else {
+                val temp = File(target.addOns, "$ORIGINS.tmp")
+                temp.writeText(formatOrigins(next))
+                if (!temp.renameTo(file)) {
+                    temp.delete()
+                    throw IOException("Cannot save $ORIGINS")
+                }
+            }
+        }
+    }
+
     fun delete(target: Target, name: String) {
         val folder = target.addOns.listFiles()?.firstOrNull { it.name == name && !it.name.startsWith(".") }
             ?: throw IOException("Cannot find $name")
         StoreInstalls.deleteTree(folder)
         if (Files.exists(folder.toPath(), LinkOption.NOFOLLOW_LINKS)) throw IOException("Cannot delete $name")
+        runCatching { keepOrigins(target, listOf(name), null) }
         imports++
     }
 
-    fun import(zipFile: File, target: Target): List<String> {
+    fun import(archive: File, target: Target, origin: Origin? = null, context: Context? = null): List<String> {
+        if (context == null || ItchArchives.kind(archive, archive.name) == "zip") return importZip(archive, target, origin)
+        val work = File(File(context.cacheDir, "wowaddons"), "unpack-${System.nanoTime()}")
+        try {
+            if (!work.mkdirs()) throw IOException("Cannot create ${work.path}")
+            val unpacker = StoreArchiveUnpacker(context, AtomicBoolean(), "Addons", R.string.stores_itch_archive, R.string.stores_itch_extract_failed, "addon-unpack")
+            unpacker.work = work
+            unpacker.limit = MAX_EXPANDED_BYTES
+            try {
+                unpacker.unpack(archive, archive.name, { _, _ -> }, {})
+            } catch (_: StoreArchiveUnpacker.TooLarge) {
+                throw TooLarge()
+            }
+            return importFolder(work, target, origin)
+        } finally {
+            StoreInstalls.deleteTree(work)
+        }
+    }
+
+    private class Entry(val path: String, val open: () -> InputStream)
+
+    private fun importZip(zipFile: File, target: Target, origin: Origin?): List<String> =
         ZipFile.builder().setFile(zipFile).get().use { zip ->
             val all = zip.entries.toList()
             if (all.any { it.isUnixSymlink }) return emptyList()
-            val entries = all.filter { clean(it.name) != null }
-            val addons = addons(entries.filter { !it.isDirectory }.mapNotNull { clean(it.name) })
-            if (addons.isEmpty()) return emptyList()
-            val addOns = target.addOns
-            if (!addOns.isDirectory && !addOns.mkdirs()) throw IOException("Cannot create ${addOns.path}")
-            val stage = File(addOns.parentFile, ".addon-import-${System.nanoTime()}")
-            try {
-                val fresh = File(stage, "new")
-                val buffer = ByteArray(64 * 1024)
-                var written = 0L
-                for (entry in entries) {
-                    if (entry.isDirectory) continue
-                    val path = clean(entry.name) ?: continue
-                    val addon = addons.firstOrNull { path.startsWith(it.root) } ?: continue
-                    val out = inside(fresh, addon.name + "/" + path.removePrefix(addon.root)) ?: continue
-                    out.parentFile?.mkdirs()
-                    zip.getInputStream(entry).use { input ->
-                        out.outputStream().use { output ->
-                            while (true) {
-                                val read = input.read(buffer)
-                                if (read < 0) break
-                                written += read
-                                if (written > MAX_EXPANDED_BYTES) throw TooLarge()
-                                output.write(buffer, 0, read)
-                            }
+            importEntries(all.filter { !it.isDirectory }.mapNotNull { entry -> clean(entry.name)?.let { Entry(it) { zip.getInputStream(entry) } } }, target, origin)
+        }
+
+    internal fun importFolder(folder: File, target: Target, origin: Origin?): List<String> {
+        val entries = ArrayList<Entry>()
+        var links = false
+        Files.walkFileTree(folder.toPath(), object : SimpleFileVisitor<Path>() {
+            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                if (!attrs.isRegularFile) links = true
+                else clean(folder.toPath().relativize(file).joinToString("/"))?.let { entries.add(Entry(it) { Files.newInputStream(file, LinkOption.NOFOLLOW_LINKS) }) }
+                return if (links) FileVisitResult.TERMINATE else FileVisitResult.CONTINUE
+            }
+        })
+        return if (links) emptyList() else importEntries(entries, target, origin)
+    }
+
+    private fun importEntries(entries: List<Entry>, target: Target, origin: Origin?): List<String> {
+        val addons = addons(entries.map { it.path })
+        if (addons.isEmpty()) return emptyList()
+        val addOns = target.addOns
+        if (!addOns.isDirectory && !addOns.mkdirs()) throw IOException("Cannot create ${addOns.path}")
+        val stage = File(addOns.parentFile, ".addon-import-${System.nanoTime()}")
+        try {
+            val fresh = File(stage, "new")
+            val buffer = ByteArray(64 * 1024)
+            var written = 0L
+            for (entry in entries) {
+                val addon = addons.firstOrNull { entry.path.startsWith(it.root) } ?: continue
+                val out = inside(fresh, addon.name + "/" + entry.path.removePrefix(addon.root)) ?: continue
+                out.parentFile?.mkdirs()
+                entry.open().use { input ->
+                    out.outputStream().use { output ->
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read < 0) break
+                            written += read
+                            if (written > MAX_EXPANDED_BYTES) throw TooLarge()
+                            output.write(buffer, 0, read)
                         }
                     }
                 }
-                swap(addons.map { File(fresh, it.name) to it.name }, addOns, File(stage, "old").apply { mkdirs() })
-            } finally {
-                StoreInstalls.deleteTree(stage)
             }
-            imports++
-            return addons.map { it.name }
+            swap(addons.map { File(fresh, it.name) to it.name }, addOns, File(stage, "old").apply { mkdirs() })
+        } finally {
+            StoreInstalls.deleteTree(stage)
         }
+        runCatching { keepOrigins(target, addons.map { it.name }, origin) }
+        imports++
+        return addons.map { it.name }
     }
 
     internal fun addons(files: List<String>): List<Addon> {
