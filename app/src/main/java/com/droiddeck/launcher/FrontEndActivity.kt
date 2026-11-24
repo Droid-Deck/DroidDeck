@@ -926,11 +926,19 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     // recreate() leaves this activity's window drawing nothing and ignoring input on some devices (#2668).
     private fun restartLauncher() {
-        startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val restart = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(LauncherIcon.activity(this))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
             .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "setup:launcher")
-            .putExtra(EXTRA_RESTARTED, true))
+            .putExtra(EXTRA_RESTARTED, true)
+        pendingSwitch?.let { restart.putExtra(KEY_PENDING_SWITCH, it) }
+        switchingTo?.let {
+            restart.putExtra(KEY_SWITCHING_TO, it).putExtra(KEY_SWITCH_DEADLINE, switchDeadline)
+            switchPoll?.let { poll -> ui.removeCallbacks(poll) }
+            switchPoll = null
+            switchingTo = null
+        }
+        startActivity(restart)
         finishAndRemoveTask()
     }
 
@@ -1907,6 +1915,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             !SessionPrefs.allFilesAsked(this)
         if (savedInstanceState == null) {
             if (!askAllFiles) ui.post { startSteamAtStartupIfEnabled(cold = true) }
+            intent.extras?.takeIf { it.getBoolean(EXTRA_RESTARTED) }?.let { carried ->
+                pendingSwitch = savedIntent(carried, KEY_PENDING_SWITCH)
+                savedIntent(carried, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, carried.getLong(KEY_SWITCH_DEADLINE)) }
+            }
         } else {
             restoreCompatLaunch(savedInstanceState)
             pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
