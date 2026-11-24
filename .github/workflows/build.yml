@@ -692,6 +692,16 @@ jobs:
           if-no-files-found: ignore
           overwrite: true
 
+      - name: Resolve the Robolectric version
+        id: robolectric
+        run: |
+          echo "version=$(grep -o "org.robolectric:robolectric:[0-9.]*" app/build.gradle | cut -d: -f3)" >> "$GITHUB_OUTPUT"
+      # Robolectric downloads these from Maven Central on first use without retrying, and 429s fail whole test classes.
+      - name: Cache Robolectric's Android jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric/android-all-instrumented
+          key: robolectric-android-all-${{ steps.robolectric.outputs.version }}
       - name: Unit tests
         id: unit-tests
         env:
