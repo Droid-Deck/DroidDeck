@@ -436,6 +436,55 @@ static void undo_rewrite(struct device *dev, struct pipeline_rewrite *rw)
     free(rw->attachments);
 }
 
+/* Library pipelines and pipelines linked from them are handled as if both depth states were dynamic. */
+static bool uses_libraries(const VkGraphicsPipelineCreateInfo *info)
+{
+    if (info->flags & VK_PIPELINE_CREATE_LIBRARY_BIT_KHR)
+        return true;
+    for (const VkBaseInStructure *s = info->pNext; s; s = s->pNext) {
+        if (s->sType == VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR ||
+            s->sType == VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT)
+            return true;
+    }
+    return false;
+}
+
+static void remember_static_depth(struct device *dev, const VkGraphicsPipelineCreateInfo *info, VkPipeline pipeline)
+{
+    if (pipeline == VK_NULL_HANDLE)
+        return;
+    uintptr_t fixed = STATIC_DEPTH_KEPT;
+    if (!uses_libraries(info)) {
+        bool test_dynamic = false, op_dynamic = false;
+        for (uint32_t i = 0; info->pDynamicState && i < info->pDynamicState->dynamicStateCount; i++) {
+            VkDynamicState state = info->pDynamicState->pDynamicStates[i];
+            test_dynamic |= state == VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE;
+            op_dynamic |= state == VK_DYNAMIC_STATE_DEPTH_COMPARE_OP;
+        }
+        if (!test_dynamic) {
+            bool on = info->pDepthStencilState && info->pDepthStencilState->depthTestEnable;
+            fixed |= STATIC_DEPTH_TEST | (on ? STATIC_DEPTH_TEST_ON : 0);
+        }
+        if (!op_dynamic)
+            fixed |= STATIC_DEPTH_OP;
+    }
+    pthread_mutex_lock(&dev->lock);
+    if (fixed != STATIC_DEPTH_KEPT)
+        map_put(&dev->depth_pipelines, HANDLE(pipeline), (void *)fixed);
+    else
+        map_remove(&dev->depth_pipelines, HANDLE(pipeline));
+    pthread_mutex_unlock(&dev->lock);
+}
+
+VKAPI_ATTR void VKAPI_CALL DestroyPipeline(VkDevice device, VkPipeline pipeline, const VkAllocationCallbacks *allocator)
+{
+    struct device *dev = device_from_handle(device);
+    pthread_mutex_lock(&dev->lock);
+    map_remove(&dev->depth_pipelines, HANDLE(pipeline));
+    pthread_mutex_unlock(&dev->lock);
+    dev->DestroyPipeline(device, pipeline, allocator);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(VkDevice device, VkPipelineCache cache, uint32_t count,
                                                        const VkGraphicsPipelineCreateInfo *infos,
                                                        const VkAllocationCallbacks *allocator, VkPipeline *pipelines)
@@ -455,8 +504,11 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(VkDevice device, VkPipeli
         rewrite_pipeline(dev, &copies[i], &rewrites[i]);
     }
     VkResult result = dev->CreateGraphicsPipelines(device, cache, count, copies, allocator, pipelines);
-    for (uint32_t i = 0; i < count; i++)
+    for (uint32_t i = 0; i < count; i++) {
         undo_rewrite(dev, &rewrites[i]);
+        if (dev->emulated & GAP_DEPTH_OP)
+            remember_static_depth(dev, &infos[i], pipelines[i]);
+    }
     free(rewrites);
     free(copies);
     return result;
