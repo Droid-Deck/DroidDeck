@@ -10,8 +10,8 @@
  *   buffer: its format is not known here, but Zink leaves them unbound and never reads them.
  * - depthCompareOp with the depth test off (GAP_DEPTH_OP): the driver is given ALWAYS while a
  *   command buffer has the test off, and the application's op again once it turns the test on.
- *   The bound pipeline's static test enable counts as well, and a pipeline with a static op is
- *   given no dynamic one.
+ *   While a pipeline with a static test enable is bound, that value counts instead, and a
+ *   pipeline with a static op is given no dynamic one.
  */
 #include <stdlib.h>
 #include <string.h>
@@ -459,9 +459,10 @@ VKAPI_ATTR void VKAPI_CALL CmdBindVertexBuffers2(VkCommandBuffer cmd, uint32_t f
 
 /*
  * Per command buffer, packed into the map's value pointer so it is never NULL: bit 0 always set,
- * bit 1 the test enable is known, bit 2 the test is on, bit 3 the application set an op, bits 4-6
- * that op, bit 7 the driver holds a dynamic op, bits 8-10 that op, bit 11 the bound pipeline has
- * a static op.
+ * bit 1 the application set the test enable, bit 2 to on, bit 3 the application set an op, bits
+ * 4-6 that op, bit 7 the driver holds a dynamic op, bits 8-10 that op, bits 11-13 the bound
+ * pipeline has a static op, a static test enable, and that test on. The application's values stay
+ * while such a pipeline is bound: one that leaves the depth state out does not change them.
  */
 enum {
     DEPTH_VALID = 1,
@@ -470,6 +471,8 @@ enum {
     DEPTH_OP = 8,
     DEPTH_SENT = 0x80,
     DEPTH_STATIC_OP = 0x800,
+    DEPTH_STATIC_TEST = 0x1000,
+    DEPTH_STATIC_ON = 0x2000,
 };
 #define DEPTH_OP_SHIFT 4
 #define DEPTH_SENT_SHIFT 8
@@ -486,6 +489,14 @@ static VkCompareOp depth_op(uintptr_t state, unsigned shift)
     return (VkCompareOp)((state >> shift) & DEPTH_OP_MASK);
 }
 
+/* Whether draws see the depth test off: the bound pipeline's static value, else the application's. */
+static bool depth_off(uintptr_t state)
+{
+    if (state & DEPTH_STATIC_TEST)
+        return !(state & DEPTH_STATIC_ON);
+    return (state & DEPTH_KNOWN) && !(state & DEPTH_ON);
+}
+
 static uintptr_t with_depth_op(uintptr_t state, uintptr_t flag, unsigned shift, VkCompareOp op)
 {
     return (state & ~(DEPTH_OP_MASK << shift)) | flag | (((uintptr_t)op & DEPTH_OP_MASK) << shift);
@@ -499,9 +510,10 @@ void depth_state_forget(struct device *dev, VkCommandBuffer cmd)
 }
 
 /*
- * Binding a pipeline sets what it fixes: its test enable, and its op in place of any dynamic one.
- * A dynamic op stays, so the driver gets ALWAYS or the application's op again when the bind
- * changed which of the two it needs. Nothing is sent for a pipeline whose depth state is unknown.
+ * Binding a pipeline sets what it fixes: its test enable, and its op in place of the driver's
+ * dynamic one. A dynamic op stays, so the driver gets ALWAYS or the application's op again when
+ * the bind changed which of the two it needs. Nothing is sent for a pipeline whose depth state is
+ * unknown.
  */
 VKAPI_ATTR void VKAPI_CALL CmdBindPipeline(VkCommandBuffer cmd, VkPipelineBindPoint point, VkPipeline pipeline)
 {
@@ -511,12 +523,13 @@ VKAPI_ATTR void VKAPI_CALL CmdBindPipeline(VkCommandBuffer cmd, VkPipelineBindPo
         return;
     pthread_mutex_lock(&dev->lock);
     uintptr_t fixed = (uintptr_t)map_get(&dev->depth_pipelines, (uint64_t)(uintptr_t)pipeline);
-    uintptr_t state = depth_state(dev, cmd) & ~(uintptr_t)DEPTH_STATIC_OP;
+    uintptr_t state =
+        depth_state(dev, cmd) & ~(uintptr_t)(DEPTH_STATIC_OP | DEPTH_STATIC_TEST | DEPTH_STATIC_ON);
     if (fixed & STATIC_DEPTH_TEST)
-        state = (state & ~(uintptr_t)DEPTH_ON) | DEPTH_KNOWN | ((fixed & STATIC_DEPTH_TEST_ON) ? DEPTH_ON : 0);
+        state |= DEPTH_STATIC_TEST | ((fixed & STATIC_DEPTH_TEST_ON) ? DEPTH_STATIC_ON : 0);
     if (fixed & STATIC_DEPTH_OP)
-        state = (state & ~(uintptr_t)(DEPTH_OP | DEPTH_SENT)) | DEPTH_STATIC_OP;
-    bool off = (state & DEPTH_KNOWN) && !(state & DEPTH_ON);
+        state = (state & ~(uintptr_t)DEPTH_SENT) | DEPTH_STATIC_OP;
+    bool off = depth_off(state);
     VkCompareOp op = off ? VK_COMPARE_OP_ALWAYS : depth_op(state, DEPTH_OP_SHIFT);
     bool send = fixed && !(state & DEPTH_STATIC_OP) && (off || (state & DEPTH_OP)) &&
                 (!(state & DEPTH_SENT) || depth_op(state, DEPTH_SENT_SHIFT) != op);
@@ -535,8 +548,9 @@ VKAPI_ATTR void VKAPI_CALL CmdSetDepthTestEnable(VkCommandBuffer cmd, VkBool32 e
     pthread_mutex_lock(&dev->lock);
     uintptr_t state = depth_state(dev, cmd);
     uintptr_t next = (state & ~(uintptr_t)DEPTH_ON) | DEPTH_KNOWN | (enable ? DEPTH_ON : 0);
-    /* No dynamic op while the bound pipeline has a static one (VUID-vkCmdDraw-None-08608). */
-    bool send = !(state & DEPTH_STATIC_OP) && (!enable || (state & DEPTH_OP));
+    /* No dynamic op while the bound pipeline has a static one (VUID-vkCmdDraw-None-08608), nor
+     * while its static test enable counts instead of this one. */
+    bool send = !(state & (DEPTH_STATIC_OP | DEPTH_STATIC_TEST)) && (!enable || (state & DEPTH_OP));
     VkCompareOp op = enable ? depth_op(state, DEPTH_OP_SHIFT) : VK_COMPARE_OP_ALWAYS;
     if (send)
         next = with_depth_op(next, DEPTH_SENT, DEPTH_SENT_SHIFT, op);
@@ -551,8 +565,7 @@ VKAPI_ATTR void VKAPI_CALL CmdSetDepthCompareOp(VkCommandBuffer cmd, VkCompareOp
     struct device *dev = device_from_handle(cmd);
     pthread_mutex_lock(&dev->lock);
     uintptr_t state = depth_state(dev, cmd);
-    bool off = (state & DEPTH_KNOWN) && !(state & DEPTH_ON);
-    VkCompareOp given = off ? VK_COMPARE_OP_ALWAYS : op;
+    VkCompareOp given = depth_off(state) ? VK_COMPARE_OP_ALWAYS : op;
     uintptr_t next = with_depth_op(with_depth_op(state, DEPTH_OP, DEPTH_OP_SHIFT, op), DEPTH_SENT, DEPTH_SENT_SHIFT,
                                    given);
     map_put(&dev->depth_states, (uint64_t)(uintptr_t)cmd, (void *)next);

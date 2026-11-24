@@ -436,10 +436,13 @@ static void undo_rewrite(struct device *dev, struct pipeline_rewrite *rw)
     free(rw->attachments);
 }
 
-/* What a pipeline's own fragment shader state fixes of the depth test. */
+/* What a pipeline's own fragment shader state fixes of the depth test. Without depth-stencil
+ * state it fixes nothing, and binding it leaves the command buffer's state alone. */
 static uintptr_t static_depth_of(const VkGraphicsPipelineCreateInfo *info)
 {
     uintptr_t fixed = STATIC_DEPTH_KNOWN;
+    if (!info->pDepthStencilState)
+        return fixed;
     bool test_dynamic = false, op_dynamic = false;
     for (uint32_t i = 0; info->pDynamicState && i < info->pDynamicState->dynamicStateCount; i++) {
         VkDynamicState state = info->pDynamicState->pDynamicStates[i];
@@ -447,8 +450,7 @@ static uintptr_t static_depth_of(const VkGraphicsPipelineCreateInfo *info)
         op_dynamic |= state == VK_DYNAMIC_STATE_DEPTH_COMPARE_OP;
     }
     if (!test_dynamic) {
-        bool on = info->pDepthStencilState && info->pDepthStencilState->depthTestEnable;
-        fixed |= STATIC_DEPTH_TEST | (on ? STATIC_DEPTH_TEST_ON : 0);
+        fixed |= STATIC_DEPTH_TEST | (info->pDepthStencilState->depthTestEnable ? STATIC_DEPTH_TEST_ON : 0);
     }
     if (!op_dynamic)
         fixed |= STATIC_DEPTH_OP;

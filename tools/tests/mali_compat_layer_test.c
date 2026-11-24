@@ -563,6 +563,7 @@ static void test_depth_static_pipeline_state(void)
     depth.depthTestEnable = VK_TRUE;
     VkPipeline static_on = create_depth_pipeline(device, NULL, &depth, op_only, 1);
     VkPipeline dynamic = create_depth_pipeline(device, NULL, &depth, both, 2);
+    VkPipeline no_depth = create_depth_pipeline(device, NULL, NULL, NULL, 0);
 
     /* A linked pipeline takes the depth state of the library with the fragment shader state. */
     VkGraphicsPipelineLibraryCreateInfoEXT vertex_subset = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT,
@@ -579,7 +580,7 @@ static void test_depth_static_pipeline_state(void)
     VkPipeline linked_dynamic = create_depth_pipeline(device, &link, NULL, NULL, 0);
     link.libraryCount = 1;
     VkPipeline linked_unknown = create_depth_pipeline(device, &link, NULL, NULL, 0);
-    assert(dev->depth_pipelines.count == 9);
+    assert(dev->depth_pipelines.count == 10);
     assert(map_get(&dev->depth_pipelines, (uint64_t)(uintptr_t)linked_static) ==
            map_get(&dev->depth_pipelines, (uint64_t)(uintptr_t)static_library));
     assert(!map_get(&dev->depth_pipelines, (uint64_t)(uintptr_t)linked_unknown));
@@ -632,6 +633,8 @@ static void test_depth_static_pipeline_state(void)
      * as well gets no op, nor does one whose depth state is unknown. One with both dynamic gets
      * ALWAYS like any other. */
     assert(begin(cmd, &begin_info) == VK_SUCCESS);
+    bind(cmd, graphics, dynamic);
+    set_test(cmd, VK_FALSE);
     bind(cmd, graphics, all_static_off);
     driver_depth_op_calls = 0;
     bind(cmd, graphics, linked_static);
@@ -642,9 +645,38 @@ static void test_depth_static_pipeline_state(void)
     bind(cmd, graphics, linked_dynamic);
     assert(driver_depth_op_calls == 1 && driver_depth_op == VK_COMPARE_OP_ALWAYS);
 
-    VkPipeline pipelines[] = {static_op,      static_off,      all_static_off, static_on,      dynamic,
-                              vertex_library, static_library,  dynamic_library, linked_static, linked_dynamic,
-                              linked_unknown};
+    /* A pipeline without depth-stencil state leaves the application's values alone: the op set
+     * before it reaches the driver again once a pipeline has the test on. */
+    assert(begin(cmd, &begin_info) == VK_SUCCESS);
+    bind(cmd, graphics, dynamic);
+    set_test(cmd, VK_TRUE);
+    set_op(cmd, VK_COMPARE_OP_LESS);
+    bind(cmd, graphics, no_depth);
+    bind(cmd, graphics, static_off);
+    assert(driver_depth_op == VK_COMPARE_OP_ALWAYS);
+    bind(cmd, graphics, static_on);
+    assert(driver_depth_op == VK_COMPARE_OP_LESS);
+    /* Nor does it fix the op: turning the test off while it is bound gives the driver ALWAYS. */
+    bind(cmd, graphics, no_depth);
+    set_test(cmd, VK_FALSE);
+    assert(driver_depth_op == VK_COMPARE_OP_ALWAYS);
+    /* So does a pipeline whose depth-stencil state is ignored, for example one without a depth
+     * attachment. The layer cannot tell, so the application's values stay under every pipeline. */
+    assert(begin(cmd, &begin_info) == VK_SUCCESS);
+    bind(cmd, graphics, dynamic);
+    set_test(cmd, VK_TRUE);
+    set_op(cmd, VK_COMPARE_OP_LESS);
+    bind(cmd, graphics, all_static_off);
+    driver_depth_op_calls = 0;
+    bind(cmd, graphics, static_on);
+    assert(driver_depth_op_calls == 1 && driver_depth_op == VK_COMPARE_OP_LESS);
+    bind(cmd, graphics, all_static_off);
+    bind(cmd, graphics, dynamic);
+    assert(driver_depth_op_calls == 2 && driver_depth_op == VK_COMPARE_OP_LESS);
+
+    VkPipeline pipelines[] = {static_op,       static_off,      all_static_off, static_on,
+                              dynamic,         no_depth,        vertex_library, static_library,
+                              dynamic_library, linked_static,   linked_dynamic, linked_unknown};
     for (size_t i = 0; i < sizeof(pipelines) / sizeof(pipelines[0]); i++)
         destroy(device, pipelines[i], NULL);
     assert(dev->depth_pipelines.count == 0);
