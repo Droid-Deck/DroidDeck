@@ -627,7 +627,7 @@ with open(log, 'a') as out:
         state = self.root / 'claims'
         state.mkdir()
         (state / 'next').write_text('1\n')
-        script = 'state=$1\ncount=$2\n' + function + 'while :; do n=$(claim_next); [ "$n" -gt 0 ] || exit 0; echo "$n"; done\n'
+        script = 'state=$1\ncount=$2\nflock_command=flock\n' + function + 'while :; do n=$(claim_next); [ "$n" -gt 0 ] || exit 0; echo "$n"; done\n'
         workers = [subprocess.Popen(['bash', '-c', script, 'bash', str(state), '300'], stdout=subprocess.PIPE, text=True)
                    for _ in range(8)]
         claimed = []
@@ -649,9 +649,16 @@ with open(log, 'a') as out:
                 (state / 'next').mkdir()
             else:
                 (state / 'next').write_text('' if broken == 'empty' else 'abc\n')
-            script = 'state=$1\ncount=5\n' + function + 'n=$(claim_next) && echo "claimed $n" || echo failed\n'
+            script = 'state=$1\ncount=5\nflock_command=flock\n' + function + 'n=$(claim_next) && echo "claimed $n" || echo failed\n'
             result = subprocess.run(['bash', '-c', script, 'bash', str(state)], text=True, capture_output=True, timeout=30)
             self.assertEqual('failed', result.stdout.strip(), f'{broken}: {result.stdout!r} {result.stderr!r}')
+
+    def test_a_claim_that_fails_fails_the_install_instead_of_leaving_packages_unclaimed(self):
+        self.many_parts()
+        # false is found like a flock would be, but it never takes the lock, so every claim fails.
+        result = self.install(DD_STEAM_FLOCK='false', timeout=60)
+        self.assertNotEqual(0, result.returncode, result.stdout)
+        self.assertFalse((self.steam / 'package/droiddeck-installed').exists())
 
     def test_the_parallel_workers_use_no_process_substitution(self):
         source = SCRIPT.read_text()
