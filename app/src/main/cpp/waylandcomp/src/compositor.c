@@ -737,6 +737,11 @@ static void describe(const struct surface *s, char *out, size_t size) {
     else snprintf(out, size, "window %#x (%s)", w->hwnd, prog);
 }
 
+static int is_steam_client_surface(const struct surface *s) {
+    const char *name = client_name(wl_resource_get_client(s->resource));
+    return strcmp(name, "steam") == 0 || strstr(name, "steamwebhelper") != NULL;
+}
+
 static struct surface *toplevel_by_hwnd(uint32_t hwnd) {
     struct surface *s;
     wl_list_for_each(s, &g_toplevels, toplevel_link)
@@ -1027,7 +1032,8 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
             droiddeck_log("error", "could not import GPU frames from %s (%dx%d, modifier %#llx)",
                        name, b->width, b->height, (unsigned long long)b->modifier);
     }
-    if (s != g_hud_surface && (b->img || ahb_swapchain_has_ahb(b)) &&
+    if (s != g_hud_surface && !is_steam_client_surface(s) &&
+        (b->img || ahb_swapchain_has_ahb(b)) &&
         (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL || (!repeat && below_surface(s, g_hud_surface)) ||
          (announced_now && !below_surface(g_hud_surface, s) &&
           (int64_t)b->width * b->height >= (int64_t)g_hud_surface->buf_w * g_hud_surface->buf_h))) {
@@ -1052,7 +1058,7 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
                                : "the compositor's driver could NOT import it (nothing can show it)");
         s->hdr_fmt_logged = b->format;
     }
-    if (s == g_hud_surface) {
+    if (s == g_hud_surface && !is_steam_client_surface(s)) {
         g_hud_alive_ns = now_ns();
         if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_hud_new = 1; g_game_frames++; note_game_frame_gap(); droiddeck_on_game_frame(); }
     }
