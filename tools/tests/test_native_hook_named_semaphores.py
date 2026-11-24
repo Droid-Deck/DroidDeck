@@ -1,0 +1,107 @@
+from pathlib import Path
+import os
+import subprocess
+import tempfile
+import unittest
+
+from tools.tests.test_usr2_preload import runner
+
+HOOK_BUILD = Path(__file__).resolve().parents[1] / "nativeguest/build.sh"
+
+PROBE = r"""
+#include <errno.h>
+#include <fcntl.h>
+#include <semaphore.h>
+#include <stdio.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+static void show(const char *name, int ok) { printf("%s\t%d\n", name, ok); fflush(stdout); }
+
+int main(int argc, char **argv) {
+  const char *name = argv[1];
+  sem_t *sem = sem_open(name, O_CREAT | O_EXCL, 0600, 1);
+  show("create", sem != SEM_FAILED);
+  show("exclusive", sem_open(name, O_CREAT | O_EXCL, 0600, 1) == SEM_FAILED && errno == EEXIST);
+  sem_t *again = sem_open(name, O_CREAT, 0600, 5);
+  int value = -1;
+  show("existing", again != SEM_FAILED && sem_getvalue(again, &value) == 0 && value == 1);
+  show("wait", sem_wait(sem) == 0 && sem_trywait(again) == -1 && errno == EAGAIN);
+  pid_t child = fork();
+  if (child == 0) {
+    sem_t *other = sem_open(name, 0);
+    _exit(other != SEM_FAILED && sem_post(other) == 0 && sem_close(other) == 0 ? 0 : 1);
+  }
+  int status = 0;
+  waitpid(child, &status, 0);
+  show("shared", WIFEXITED(status) && WEXITSTATUS(status) == 0 && sem_trywait(sem) == 0);
+  show("close", sem_close(again) == 0 && sem_close(sem) == 0);
+  show("unlink", sem_unlink(name) == 0);
+  show("gone", sem_open(name, 0) == SEM_FAILED && errno == ENOENT);
+  return 0;
+}
+"""
+
+KEEP = r"""
+#include <fcntl.h>
+#include <semaphore.h>
+int main(int argc, char **argv) { return sem_open(argv[1], O_CREAT | O_EXCL, 0640, 3) == SEM_FAILED; }
+"""
+
+CALLS = ("create", "exclusive", "existing", "wait", "shared", "close", "unlink", "gone")
+
+
+class NativeHookNamedSemaphoresTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.cc, cls.prefix = runner()
+        if cls.cc is None:
+            raise unittest.SkipTest("no aarch64 compiler and runner")
+        cls.tmp = tempfile.TemporaryDirectory(dir="/tmp")
+        tmp = Path(cls.tmp.name)
+        cls.hook = tmp / "hook.so"
+        subprocess.run(["bash", str(HOOK_BUILD), str(cls.hook), cls.cc], check=True, capture_output=True)
+        (tmp / "probe.c").write_text(PROBE)
+        cls.probe = tmp / "probe"
+        subprocess.run([cls.cc, "-O1", "-pthread", "-o", str(cls.probe), str(tmp / "probe.c")], check=True)
+        cls.shm = tmp / "root/tmp/shm"
+        cls.shm.mkdir(parents=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def run_hooked(self, program, *args):
+        hook_env = {"DDNATV_ROOT": str(self.shm.parent.parent), "LD_PRELOAD": str(self.hook)}
+        env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
+        if self.prefix:
+            cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
+        else:
+            cmd = []
+            env.update(hook_env)
+        out = subprocess.run(cmd + [str(program), *args], env=env, capture_output=True, text=True, timeout=120)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return dict(line.split("\t") for line in out.stdout.splitlines())
+
+    def test_a_named_semaphore_lives_in_the_rootfs_and_is_shared_between_processes(self):
+        name = f"/ddsem-{os.getpid()}"
+        self.assertEqual({call: "1" for call in CALLS}, self.run_hooked(self.probe, name))
+        self.assertFalse(Path(f"/dev/shm/sem.{name[1:]}").exists())
+        self.assertEqual([], list(self.shm.iterdir()))
+
+    def test_a_created_semaphore_keeps_its_name_and_mode(self):
+        name = f"ddsem-kept-{os.getpid()}"
+        source = self.probe.with_name("keep.c")
+        source.write_text(KEEP)
+        keep = self.probe.with_name("keep")
+        subprocess.run([self.cc, "-O1", "-pthread", "-o", str(keep), str(source)], check=True)
+        self.run_hooked(keep, name)
+        made = self.shm / f"sem.{name}"
+        self.addCleanup(made.unlink)
+        umask = os.umask(0)
+        os.umask(umask)
+        self.assertEqual([made.name], [p.name for p in self.shm.iterdir()])
+        self.assertEqual(0o640 & ~umask, made.stat().st_mode & 0o777)
+
+if __name__ == "__main__":
+    unittest.main()
