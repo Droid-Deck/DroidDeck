@@ -952,7 +952,8 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
             g_hud_new = 1;
         }
     }
-    if (s == g_hud_shm) droiddeck_on_compositor_frame();
+    if (s == g_hud_shm && (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL))
+        droiddeck_on_compositor_frame();
 }
 
 static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resource *buffer) {
