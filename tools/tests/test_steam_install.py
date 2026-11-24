@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 import zipfile
 
@@ -60,6 +61,11 @@ if action[:1] == ['fail']:
     done(int(action[1]), '000')
 if action[:1] == ['http']:
     done(22, action[1])
+if action[:1] == ['killworker']:
+    import signal
+    os.kill(os.getppid(), signal.SIGKILL)
+    import time
+    time.sleep(6)
 if action[:1] == ['norange'] and offset:
     done(33)
 import time
@@ -514,6 +520,15 @@ class SteamInstallParallelTest(SteamInstallTest):
         region = source[source.index('fetch_one() {'):source.index('fetch_manifest() {')]
         self.assertNotIn('<(', region)
         self.assertNotIn('kill -0', region)
+
+    def test_a_worker_killed_from_outside_fails_the_install_instead_of_hanging_it(self):
+        files = self.many_parts()
+        self.plan_for(files['p3_all'], 'killworker')
+        started = time.monotonic()
+        result = self.install(DD_STEAM_STALL='3')
+        self.assertLess(time.monotonic() - started, 40)
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse((self.steam / 'package/droiddeck-installed').exists())
 
     def test_the_cache_pass_with_several_connections_keeps_every_package(self):
         self.cache_manifest()

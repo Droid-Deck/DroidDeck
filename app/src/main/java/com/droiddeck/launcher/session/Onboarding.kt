@@ -26,8 +26,27 @@ object Onboarding {
     @Volatile private var appContext: Context? = null
     private var hold: (() -> Unit)? = null
 
+    /** The setup screens belong to the first run; later runtime, Proton and Steam client updates keep the usual Play button. */
+    val firstRun = MutableStateFlow(true)
+
     fun attach(context: Context) {
         appContext = context.applicationContext
+        val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        var done = prefs.getBoolean(KEY_FIRST_RUN_DONE, false)
+        if (!done && runCatching { LinuxRuntime.isInstalled(context) && !SteamClientPrefetch.pending(context) }.getOrDefault(false)) {
+            done = true
+            prefs.edit().putBoolean(KEY_FIRST_RUN_DONE, true).apply()
+        }
+        firstRun.value = !done
+    }
+
+    private const val PREFS = "onboarding"
+    private const val KEY_FIRST_RUN_DONE = "first_run_done"
+
+    private fun markFirstRunDone() {
+        val context = appContext ?: return
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_FIRST_RUN_DONE, true).apply()
+        firstRun.value = false
     }
 
     /** Keeps the process in the foreground, with one notification, while a step downloads and the runtime installer is not already doing so. */
@@ -52,6 +71,15 @@ object Onboarding {
             proton = ProtonExtras.declined(context) || ProtonExtras.installedAll(context, own).isNotEmpty(),
             steam = runtime && !SteamClientPrefetch.pending(context),
         )
+        settle()
+    }
+
+    /** A new attempt starts from zero once everything is ready, whichever screen is showing. */
+    @Synchronized fun settle() {
+        if (!pending(rows(active.value, failed.value, facts.value))) {
+            resetProgress()
+            markFirstRunDone()
+        }
     }
 
     fun report(step: Step, label: String, percent: Int) {
@@ -85,9 +113,12 @@ object Onboarding {
 
     fun pending(rows: List<Row>): Boolean = rows.any { it.state != State.DONE }
 
+    /** Whether first-run downloads are under way, as the home screen decides it. */
+    fun settling(): Boolean = firstRun.value && active.value.isNotEmpty() && pending(rows(active.value, failed.value, facts.value))
+
     @Volatile private var highWater = 0
 
-    internal fun resetProgress() { highWater = 0 }
+    @Synchronized internal fun resetProgress() { highWater = 0 }
 
     /**
      * The aggregate fraction of the whole first-run work, weighting each step by what it downloads: about 290 MB, 630 MB and 1,050 MB.

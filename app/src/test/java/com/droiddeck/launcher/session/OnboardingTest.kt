@@ -53,6 +53,16 @@ class OnboardingTest {
         assertEquals(2 + 30 + 50, Onboarding.overall(again))
     }
 
+    @Test fun settlingWithEverythingReadyStartsTheNextAttemptFromZero() {
+        Onboarding.overall(Onboarding.rows(mapOf(Step.RUNTIME to Progress("x", 90)), emptyMap(), Facts(runtime = false)))
+        Onboarding.active.value = emptyMap()
+        Onboarding.failed.value = emptyMap()
+        Onboarding.facts.value = Facts()
+        Onboarding.settle()
+        val again = Onboarding.rows(mapOf(Step.RUNTIME to Progress("x", 10)), emptyMap(), Facts(runtime = false))
+        assertEquals(2 + 30 + 50, Onboarding.overall(again))
+    }
+
     @Test fun reportingClearsAPriorFailure() {
         Onboarding.fail(Step.STEAM, "boom")
         Onboarding.report(Step.STEAM, "again", 3)

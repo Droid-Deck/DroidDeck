@@ -162,7 +162,8 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             val onboardingFailed by com.droiddeck.launcher.session.Onboarding.failed.collectAsState()
             val onboardingFacts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
             val onboardingRows = com.droiddeck.launcher.session.Onboarding.rows(onboardingActive, onboardingFailed, onboardingFacts)
-            val settling = onboardingActive.isNotEmpty() && com.droiddeck.launcher.session.Onboarding.pending(onboardingRows)
+            val firstRun by com.droiddeck.launcher.session.Onboarding.firstRun.collectAsState()
+            val settling = firstRun && onboardingActive.isNotEmpty() && com.droiddeck.launcher.session.Onboarding.pending(onboardingRows)
             val limitBlocks = com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
             val mark: @Composable () -> Unit = {
                 Wordmark(if (narrow) 30.dp else 40.dp)
@@ -191,19 +192,21 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             val onboardingFailed by com.droiddeck.launcher.session.Onboarding.failed.collectAsState()
             val onboardingFacts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
             val onboardingRows = com.droiddeck.launcher.session.Onboarding.rows(onboardingActive, onboardingFailed, onboardingFacts)
-            val settling = onboardingActive.isNotEmpty() && com.droiddeck.launcher.session.Onboarding.pending(onboardingRows)
+            val firstRun by com.droiddeck.launcher.session.Onboarding.firstRun.collectAsState()
+            val settling = firstRun && onboardingActive.isNotEmpty() && com.droiddeck.launcher.session.Onboarding.pending(onboardingRows)
             val overall = com.droiddeck.launcher.session.Onboarding.overall(onboardingRows)
             val limitBlocks = com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
-            LaunchedEffect(settling, limitBlocks) {
-                while (settling && limitBlocks) {
+            LaunchedEffect(settling) {
+                while (settling) {
                     kotlinx.coroutines.delay(2_000)
                     a.onRefreshPhantomStatus()
                 }
+                a.onRefreshPhantomStatus()
             }
             if (settling) PrimaryButton(
                 stringResource(if (limitBlocks) R.string.onboarding_button_finish else R.string.onboarding_button_getting_ready, overall),
                 enabled = limitBlocks, main = true, large = true, progress = overall / 100f,
-                modifier = Modifier.testTag("play-steam"), onClick = { ChildProcessSetup.request?.invoke() ?: a.onShowPhantomGate() },
+                modifier = Modifier.testTag("play-steam"), onClick = { a.onQueuePlaySteam(); ChildProcessSetup.request?.invoke() ?: a.onShowPhantomGate() },
             ) else PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = click)
         },
         rows = { tab -> a.modeSheet(mode, tab, extras) },

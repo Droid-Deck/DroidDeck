@@ -1254,6 +1254,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         drivers.restartBlocked = ::runtimeChangesBlocked
         drivers.loadTpUbwcMode()
         pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
+        pendingGateLaunch = savedInstanceState?.let { androidx.core.os.BundleCompat.getParcelable(it, STATE_PENDING_GATE_LAUNCH, Intent::class.java) }
+        pendingGateLaunchAt = android.os.SystemClock.elapsedRealtime()
         homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
         gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
@@ -1402,6 +1404,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     ),
                     FrontEndActions(
                         onPlay = { playSteam() },
+                        onQueuePlaySteam = {
+                            pendingGateLaunch = Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_STEAMVR, false)
+                            pendingGateLaunchAt = android.os.SystemClock.elapsedRealtime()
+                        },
                         onPlaySteamVr = { playSteamVr() },
                         onSteamUrl = { url ->
                             if (!SessionState.running) startSession(
@@ -2199,6 +2205,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
         outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
         pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
+        pendingGateLaunch?.let { outState.putParcelable(STATE_PENDING_GATE_LAUNCH, it) }
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
         saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
@@ -3327,6 +3334,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             pendingGateLaunch = intent
+            pendingGateLaunchAt = android.os.SystemClock.elapsedRealtime()
             showPhantomGate = true
             return false
         }
@@ -3354,9 +3362,14 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun openNotificationSettings() {
         android.widget.Toast.makeText(this, R.string.gate_notifications_toast, android.widget.Toast.LENGTH_LONG).show()
-        startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        val appAllowed = getSystemService(android.app.NotificationManager::class.java)?.areNotificationsEnabled() != false
+        val intent = if (appAllowed && WirelessAdbPairingService.channelBlocked(this)) {
+            Intent(android.provider.Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_CHANNEL_ID, WirelessAdbPairingService.channelId())
+        } else {
+            Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        }
+        startActivity(intent.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -3370,13 +3383,25 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private var pendingGateLaunch: Intent? = null
+    private var pendingGateLaunchAt = 0L
+    private var gateLaunchPosted = false
 
     private fun refreshPhantomStatus() {
         phantomProcessStatus = PhantomProcessLimit.read(this)
-        pendingGateLaunch?.takeIf { !PhantomProcessLimit.blocksSteam(phantomProcessStatus) }?.let { launch ->
-            pendingGateLaunch = null
+        pendingGateLaunch?.takeIf { !PhantomProcessLimit.blocksSteam(phantomProcessStatus) && !gateLaunchPosted }?.let { launch ->
             showPhantomGate = false
-            ui.post { startSession(launch, steamSession = true) }
+            gateLaunchPosted = true
+            ui.post {
+                gateLaunchPosted = false
+                if (pendingGateLaunch !== launch) return@post
+                if (android.os.SystemClock.elapsedRealtime() - pendingGateLaunchAt > GATE_LAUNCH_MS) {
+                    pendingGateLaunch = null
+                    return@post
+                }
+                if (busy || LinuxRuntimeInstaller.isBusy() || com.droiddeck.launcher.session.Onboarding.settling()) return@post
+                pendingGateLaunch = null
+                startSession(launch, steamSession = true)
+            }
         }
         adbPaired = WirelessAdbFix.hasSavedPairing(this)
         phantomWarning = if (PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
@@ -3510,6 +3535,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     companion object {
         private const val REQUEST_NOTIFICATIONS = 7103
         private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
+        private const val STATE_PENDING_GATE_LAUNCH = "pending_gate_launch"
+        private const val GATE_LAUNCH_MS = 15 * 60_000L
         private const val KEY_PENDING_SESSION_LOG_EXPORT = "pending_session_log_export"
         private const val STATE_GAME_SPACE_OFFERED = "game_space_offered"
         private const val TAG = "MainActivity"

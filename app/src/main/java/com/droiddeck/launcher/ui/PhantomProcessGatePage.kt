@@ -107,8 +107,9 @@ private data class GateEnvironment(val onWifi: Boolean) {
         fun read(context: Context): GateEnvironment {
             val connectivity = context.getSystemService(ConnectivityManager::class.java)
             val wifi = runCatching {
-                connectivity?.getNetworkCapabilities(connectivity.activeNetwork)
-                    ?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                connectivity?.allNetworks?.any { network ->
+                    connectivity.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                } == true
             }.getOrDefault(true)
             return GateEnvironment(wifi)
         }

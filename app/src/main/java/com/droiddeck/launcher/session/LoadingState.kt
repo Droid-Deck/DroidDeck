@@ -18,7 +18,7 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
         get() = shown
         set(value) {
             shown = value
-            if (!value) prefs.edit().putBoolean(FIRST_DONE, true).apply()
+            if (!value && steam) prefs.edit().putBoolean(FIRST_DONE, true).apply()
         }
     var step by mutableStateOf(context.getString(com.droiddeck.launcher.R.string.loadstate_starting))
         private set

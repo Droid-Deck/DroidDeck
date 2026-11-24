@@ -220,7 +220,7 @@ run_parallel() {
     ) &
     pids+=($!)
   done
-  local shown="" got n alive mark current
+  local shown="" got n alive mark current last="" since=$SECONDS stall=${DD_STEAM_STALL:-90}
   while :; do
     alive=0
     for slot in $(seq 1 "$parallel"); do [ -e "$state/exit.$slot" ] || alive=1; done
@@ -239,6 +239,10 @@ run_parallel() {
       step "downloading Steam: ${blocks[current]} ($((n + 1))/$count), $mark of $((total_bytes / 1000000)) MB"
     fi
     [ "$n" -lt "$count" ] || alive=0
+    if [ "$got" != "$last" ]; then last=$got since=$SECONDS; fi
+    # A worker killed from outside never writes its exit marker. Stop reporting once nothing has moved for a while
+    # and wait on the workers: wait returns the killed one's status, so the install fails instead of hanging.
+    [ $((SECONDS - since)) -lt "$stall" ] || alive=0
     [ "$alive" = 1 ] || break
     sleep 1
   done

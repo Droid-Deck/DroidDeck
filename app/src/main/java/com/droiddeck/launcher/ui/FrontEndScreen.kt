@@ -319,6 +319,7 @@ class FrontEndActions(
     val onStartWirelessAdbPairing: (Boolean) -> Unit = {},
     val onStartPairingGuide: (Int?, Boolean) -> Boolean = { _, _ -> false },
     val onShowPhantomGate: () -> Unit = {},
+    val onQueuePlaySteam: () -> Unit = {},
     val onEnsureNotifications: ((Boolean) -> Unit) -> Unit = { it(true) },
     val controller: ControllerActions? = null,
     val updates: UpdatesActions = UpdatesActions(),
