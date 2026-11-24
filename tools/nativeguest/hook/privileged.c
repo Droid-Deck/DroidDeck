@@ -724,6 +724,21 @@ long syscall(long number, ...) {
             return (long)bind((int)arg1, (const struct sockaddr *)arg2, (socklen_t)arg3);
         }
 #endif
+#if defined(__NR_sendmsg)
+        if (number == __NR_sendmsg) {
+            return (long)sendmsg((int)arg1, (const struct msghdr *)arg2, (int)arg3);
+        }
+#endif
+#if defined(__NR_recvmsg)
+        if (number == __NR_recvmsg) {
+            return (long)recvmsg((int)arg1, (struct msghdr *)arg2, (int)arg3);
+        }
+#endif
+#if defined(__NR_getsockopt)
+        if (number == __NR_getsockopt) {
+            return (long)getsockopt((int)arg1, (int)arg2, (int)arg3, (void *)arg4, (socklen_t *)arg5);
+        }
+#endif
 #if defined(__NR_truncate)
         if (number == __NR_truncate) {
             return (long)truncate((const char *)arg1, (off_t)arg2);
