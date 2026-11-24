@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">A SteamVR grafikája leállt</string>
     <string name="steamvr_recovery_countdown">A DroidDeck %1$d másodperc múlva újraindul, hogy visszaállítsa a grafikát, és újra megnyissa a SteamVR-t. A futó játék bezárul; a nem mentett előrehaladás nem állítható vissza.</string>
@@ -22,7 +22,6 @@
         <item>Adj hozzá Steam-könyvtárakat SD-kártyáról, USB-meghajtóról vagy SSD-ről, és a DroidDeck egy helyen tartja a játékokat a Könyvtárban.</item>
         <item>Az Áruházak lehetővé teszi, hogy bejelentkezz a Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io és Game Jolt szolgáltatásokba, majd telepítsd és frissítsd a játékaikat a DroidDeckből.</item>
         <item>Az olyan összetevők, mint a FEX, a DXVK és a VKD3D-Proton, maguktól frissülnek, az alapértelmezett pedig a Proton Experimental ARM64, vagy a Proton 11.0 ARM64, ha az a build telepítve van.</item>
-        <item>A Steam tömörítése játék közben RAM-ot szabadít fel a kevés memóriával rendelkező eszközökön.</item>
         <item>Húzd be az ujjad a jobb szélről a munkamenet menü megnyitásához: érintőpad mód, PC-billentyűzet, alacsony késleltetésű mód, játékprofil és más.</item>
         <item>Lassan fut a játék? Korlátozd a képkockasebességet a Gyors hozzáférésben, majd próbálj ki másik Proton-verziót vagy FEX-előbeállítást a játék összetevőiben.</item>
         <item>Ropog vagy hiányzik a játék hangja? Próbáld ki a DirectAudio a játékokhoz kapcsolót a Steam beállításaiban a Hang alatt.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Ez a program %1$s PC-khez készült, és a FEX-en keresztül fut, amely még nincs beállítva. Nyissa meg egyszer a Steamet bejelentkezve: a DroidDeck ekkor letölti a FEX-et és a szükséges Steam Linux Runtime-ot, majd ez megnyílik.</string>
     <string name="session_proot_missing">A DroidDeck proot nem tölthető le. Ellenőrizze a kapcsolatot, és próbálja újra. A munkamenet nem indult el, mert a tartalék proot túl lassú a játékhoz.</string>
     <string name="session_powervr_missing">A PowerVR grafikus környezetet nem sikerült letölteni. Ellenőrizd a kapcsolatot, és próbáld újra.</string>
+    <string name="session_graphics_runtime_failed">A grafikus környezetet nem sikerült előkészíteni, ezért a munkamenet nem indult el.</string>
+    <string name="session_game_environment_failed">A játékkörnyezetet nem sikerült beállítani, ezért a munkamenet nem indult el.</string>
     <string name="session_directaudio_missing">A DirectAudio nem tölthető le, ezért a játékhang ebben a munkamenetben a lassabb útvonalat használja.</string>
     <string name="session_end_program">Ez a program</string>
     <string name="session_end_present_fault">A munkamenet nem tudta megjeleníteni a képet a képernyőn: %1$s. Fekete képernyő helyett ez a képernyő mutatja az okot; a részletek a munkamenet naplóiban találhatók.</string>
@@ -280,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-kimenet</string>
     <string name="mode_hdr_unavailable">Nem elérhető: %1$s.</string>
-    <string name="mode_hdr_restart">Indítsa újra az alkalmazást az érvényesítéshez.</string>
     <string name="mode_drivers">Illesztőprogramok</string>
     <string name="mode_gpu_drivers">GPU-illesztőprogramok</string>
     <string name="mode_gpu_drivers_hint">A Steam és az Asztal közösen használja. Az Összetevők oldalon állítható be.</string>
@@ -332,7 +332,6 @@
     <string name="mode_startup">Indítás</string>
     <string name="mode_startup_session">Megnyitás indításkor</string>
     <string name="mode_startup_session_hint">A DroidDeck indulásakor elindítja ezt a munkamenetet.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Kiadások keresése…</string>
     <string name="mode_decky_ready">Készen áll a %1$s telepítésére.</string>
     <string name="mode_decky_none">Nem található kompatibilis build. Próbálja újra később.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Naprakész · %1$s</string>
     <string name="mode_decky_loader">Betöltő</string>
     <string name="mode_decky_install_latest">Legújabb telepítése</string>
-    <string name="decky_channel">Frissítési csatorna</string>
-    <string name="decky_channel_hint">Mely Decky Loader-kiadások települjenek. A Decky saját frissítője ugyanezt a csatornát használja.</string>
     <string name="decky_channel_stable">Stabil</string>
     <string name="decky_channel_prerelease">Előzetes kiadás</string>
     <string name="decky_channel_testing">Tesztelés</string>
     <string name="decky_channel_failed">Nem sikerült menteni a Decky frissítési csatornáját</string>
-    <string name="mode_decky_on">A Steammel együtt indul. Amíg be van kapcsolva, az eszközön lévő más alkalmazások is irányíthatják a Steamet.</string>
-    <string name="mode_decky_off">Ki. A Steam távoli hibakeresési portja zárva marad.</string>
     <string name="mode_decky_remove_title">Eltávolítja a Decky Loadert?</string>
     <string name="mode_decky_remove_text">Eltávolítja a betöltőt. A bővítményei és beállításai megmaradnak.</string>
     <string name="mode_client">Kliens</string>
@@ -357,7 +352,7 @@
     <string name="mode_return_after_game">Visszatérés a DroidDeckbe játék után</string>
     <string name="mode_return_after_game_hint">Amikor egy a DroidDeckből vagy más indítóból elindított játék bezárul, a Steam szabályosan kilép (előbb befejeződnek a felhőmentések), és oda tér vissza. Ki: a Steamben marad.</string>
     <string name="mode_shader_precache">Shader-előgyorsítótárazás</string>
-    <string name="mode_shader_precache_hint">A Steam előre lefordított shadereket tölt le a játékaihoz, és a háttérben feldolgozza őket, így a játékok kevésbé akadnak. Kikapcsolva adatforgalmat, tárhelyet és akkumulátort takarít meg; a játékok ehelyett játék közben fordítják a shadereket. Ugyanaz a beállítás, mint a Steam Letöltések > Shader-előgyorsítótárazás opciója. A következő munkamenettől érvényes.</string>
+    <string name="mode_shader_precache_hint">A Steam előre lefordított shadereket tölt le a játékaihoz, és a háttérben feldolgozza őket, így a játékok kevésbé akadnak. Kikapcsolva adatforgalmat, tárhelyet és akkumulátort takarít meg; a játékok ehelyett játék közben fordítják a shadereket. Ugyanaz a beállítás, mint a Steam Letöltések &gt; Shader-előgyorsítótárazás opciója. A következő munkamenettől érvényes.</string>
     <string name="mode_steam_repair">Steam-kliens javítása</string>
     <string name="mode_steam_repair_hint">A Steam kliens újbóli letöltése a Steam következő indításakor. Használja, ha a Steam a betöltő képernyőn ragad. A játékok, a bejelentkezés és a beállítások megmaradnak.</string>
     <string name="mode_steam_repair_queued">A Steam kliens újra letöltődik a Steam következő indításakor.</string>
@@ -624,20 +619,8 @@
     <string name="perf_gsrealtime">gamescope: valós idejű GPU-sor</string>
     <string name="perf_gsrealtime_hint">Előnyben részesíti a kompozitor GPU-munkáját. Egyenletesebbé teheti a képkocka-ütemezést, kisebb költséggel a játékoknak.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memória</string>
     <string name="perf_cap_off">Ki</string>
-    <string name="perf_cap_auto">Illesztőprogram alapértéke</string>
-    <string name="perf_zram_client">A Steam tömörítése játék közben</string>
-    <string name="perf_zram_idle">Játék inaktív memóriájának tömörítése</string>
-    <string name="perf_zram_idle_hint">Kevés RAM esetén tömöríti a játék inaktív memóriáját. Kapcsold ki, ha a játékok nagyjából félpercenként néhány másodpercre lefagynak. A munkamenet következő indításakor lép érvénybe.</string>
-    <string name="perf_zram_client_hint">20 mp-cel a játék indulása után a Steam-kliens a zRAM-ba tömörül, hogy több memória maradjon a játéknak, és a játék bezárásakor visszaolvasódik. Kapcsolja ki, ha a munkamenet röviddel a játékok indulása után bezárul. A fenti RAM-korlát akkor is tömöríti a Steamet, ha a munkamenet túllépi.</string>
-    <string name="perf_ram_cap">RAM-korlát</string>
-    <string name="perf_ram_cap_hint">Akkor érvényes, amikor a Steam-kliens fut, Steam módban vagy az asztalról. Ha a munkamenet ennél többet használ, a Steam, majd a munkamenet többi támogatott folyamata a zRAM-ba tömörül. Puha korlát: semmi sem zárul be, de a játékok akadhatnak, amíg a lapok visszatöltődnek.</string>
-    <string name="perf_ram_cap_unavailable">zRAM swap szükséges, amely ezen az eszközön nincs.</string>
-    <string name="perf_vram_cap">VRAM-korlát</string>
-    <string name="perf_vram_cap_hint">Ezt a videomemória-keretet jelzi a Direct3D 9–12 játékoknak a memóriahasználat csökkentésére. A játékok túlléphetik; nem biztosít GPU-lapozást, és nem garantál védelmet a memóriahiány miatti összeomlás ellen. A következő munkamenettől érvényes.</string>
     <string name="perf_gpuclock">A GPU legmagasabb órajelen tartása</string>
-    <string name="perf_gpuclock_hint">Csak Adreno. Kevesebb akadás, nagyobb akkumulátorhasználat és hőtermelés.</string>
     <string name="perf_fixes">Munkamenet-javítások</string>
     <string name="perf_sysmem">Turnip: sysmem renderelés</string>
     <string name="perf_sysmem_hint">A Steam kliensre és a játékokra vonatkozik. Adreno 710/720/722-n szükséges.</string>
@@ -710,7 +693,10 @@
     <string name="hud_size_mega">Mega</string>
     <string name="hud_size_strip">Sáv</string>
     <string name="hud_locked">Rögzítés a helyén</string>
-    <string name="hud_locked_hint">Húzd a HUD-ot az áthelyezéshez; hosszú nyomással rögzítheted vagy feloldhatod. Rögzítve is működnek az alatta lévő képernyős vezérlők.</string>
+    <string name="hud_locked_hint">Húzd a HUD-ot az áthelyezéshez. Rögzítve is működnek az alatta lévő képernyős vezérlők.</string>
+    <string name="hud_hold">Hosszú nyomás</string>
+    <string name="hud_hold_collapse">Összecsukás vagy kinyitás</string>
+    <string name="hud_hold_lock">Rögzítés vagy feloldás</string>
     <string name="hud_snap">Igazítás az oldalakhoz</string>
     <string name="hud_snap_hint">Engedd el a HUD-ot, és a képernyő közelebbi oldalára ugrik. Egy gyors pöccintés abba az irányba dobja.</string>
     <string name="hud_group_look">Megjelenés</string>
@@ -812,7 +798,6 @@
     <string name="drawer_pc_keyboard">PC-billentyűzet</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Második képernyő</string>
-    <string name="drawer_second_screen_mode">Mód</string>
     <string name="drawer_second_screen_shows">Megjelenít</string>
     <string name="drawer_android_apps">Android-alkalmazások</string>
     <string name="drawer_launch_app">Alkalmazás indítása</string>
@@ -962,13 +947,15 @@
     <string name="setup_launcher_orientation_auto">Az eszköz elforgatásának követése</string>
     <string name="setup_orientation_portrait">Álló</string>
     <string name="setup_session_orientation">Munkamenet tájolása</string>
-    <string name="setup_session_orientation_hint">A Steamre, a játékokra, az asztalra és a kontrollerszerkesztőre vonatkozik. A felbontás-előbeállítások a munkamenettel együtt forognak; az egyéni szélesség és magasság a megadott módon marad.</string>
+    <string name="setup_session_orientation_hint">A Steamre, a játékokra, az asztalra és a kontrollerszerkesztőre vonatkozik. A felbontás-előbeállítások a munkamenettel együtt forognak; ha az egyik tájolás a másikat követi, az egyéni szélesség és magasság felcserélődik.</string>
     <string name="setup_orientation_auto">Automatikus fekvő</string>
     <string name="setup_orientation_landscape">Fekvő</string>
     <string name="setup_orientation_reverse">Fordított fekvő</string>
     <string name="setup_fullscreen">Teljes képernyő</string>
     <string name="setup_fullscreen_on">Elrejti az Android állapot- és navigációs sávokat</string>
     <string name="setup_fullscreen_off">Megjeleníti az Android állapot- és navigációs sávokat</string>
+    <string name="setup_page_swipe">Lapozás csúsztatással</string>
+    <string name="setup_page_swipe_hint">Csúsztasson végig egy oldalon a lapváltáshoz.</string>
     <string name="setup_dual_screen_launcher">Kétképernyős indító</string>
     <string name="setup_dual_screen_launcher_hint">Az Automatikus mód a beépített második képernyővel rendelkező kézi eszközökön a második képernyőre helyezi az indító szakaszait (Steam, Könyvtár, Áruházak és a többi). A Be mód bármely második kijelzőt használ. A Ki mód egy képernyőn tartja az indítót.</string>
     <string name="setup_dual_screen_sessions">Kétképernyős munkamenetek</string>
@@ -1145,7 +1132,7 @@
     <string name="lab_off_title">A Lab build kikapcsolva</string>
     <string name="lab_off_other_install">A DroidDeck egy másik verziójához készült. A Frissítések tartalmazza.</string>
     <string name="lab_off_did_not_start">A DroidDeck kétszer nem indult el rajta</string>
-    <string name="rail_agent">Ügynök</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Ügynök</string>
     <string name="agent_working">Az ügynök dolgozik</string>
     <string name="agent_missing">Az ügynök használatához telepítse a Claude Code alkalmazást a Linux felhasználói terébe.</string>
@@ -1289,8 +1276,6 @@
     <string name="gate_open_dev">Fejlesztői beállítások megnyitása</string>
     <string name="gate_no_toggle">Ehhez az Android-verzióhoz nincs kapcsoló, ezért a DroidDeck a vezeték nélküli hibakeresésen keresztül módosítja. Körülbelül egy percet vesz igénybe, számítógép nélkül.</string>
     <string name="gate_needs_wifi">A vezeték nélküli hibakereséshez Wi-Fi szükséges. Bármelyik hálózat megfelel; internetkapcsolat nem szükséges.</string>
-    <string name="gate_needs_notifications">A párosítási kód egy értesítésben jelenik meg. Engedélyezze az értesítéseket a DroidDecknek, vagy használja az Egyéb módokat.</string>
-    <string name="gate_allow_notifications">Értesítések engedélyezése</string>
     <string name="gate_step1">Nyissa meg: Beállítások → Fejlesztői beállítások → Vezeték nélküli hibakeresés, és kapcsolja be</string>
     <string name="gate_step2">Koppintson az „Eszköz párosítása párosítási kóddal” lehetőségre</string>
     <string name="gate_step3">Írja be a kódot a DroidDeck értesítésébe</string>
@@ -1307,47 +1292,13 @@
     <string name="gate_status">Állapot</string>
     <string name="gate_polling">Ellenőrzés 2 másodpercenként. Ez az oldal bezárul, amikor kikapcsol.</string>
     <string name="gate_other_ways">Egyéb módok</string>
-    <string name="gate_other_toggle">Vezeték nélküli hibakeresés, manuális cím, számítógépes ADB</string>
-    <string name="gate_other_no_toggle">Manuális cím, számítógépes ADB, Fejlesztői beállítások</string>
     <string name="gate_use_wireless_instead">Vezeték nélküli hibakeresés használata helyette</string>
     <string name="gate_some_roms">Néhány ROM mindenképpen hozzáadja a kapcsolót. Keresse a „gyermekfolyamat” kifejezést a Fejlesztői beállításokban.</string>
-    <string name="gate_manual_hint">Ha az értesítés nem működik, írja be saját kezűleg a felugró ablak címét és kódját.</string>
-    <string name="gate_enter_manually">Cím kézi megadása</string>
     <string name="gate_from_computer">Egy ADB-vel rendelkező számítógépről:</string>
     <string name="gate_copy_command">Parancs másolása</string>
+    <string name="gate_sidequest_steps">Csatlakoztasd a headsetet egy számítógéphez, és nyisd meg a SideQuestet. Válaszd a „Run ADB Command”, majd a „Custom Command” lehetőséget, írd be az alább látható parancsot, és válaszd a „Run Command” gombot.</string>
     <string name="gate_choose_display">Válassza ki, melyik kijelzőn nyíljon meg az Android Beállítások.</string>
     <string name="gate_main_screen">Fő képernyő</string>
-    <string name="wadb_finding_port">Párosítva. A vezeték nélküli hibakeresés portjának keresése…</string>
-    <string name="wadb_enter_port">Párosítva. Adja meg a portot a Beállításokból.</string>
-    <string name="wadb_applying">Eszköz megtalálva. A beállítás alkalmazása…</string>
-    <string name="wadb_apply_failed">Nem sikerült automatikusan alkalmazni. Ellenőrizze az alábbi címet, és próbálja újra. %1$s</string>
-    <string name="wadb_title_wireless">Vezeték nélküli hibakeresés</string>
-    <string name="wadb_title_done">A gyermekfolyamat-korlát frissítve</string>
-    <string name="wadb_title">A gyermekfolyamat-korlát módosítása</string>
-    <string name="wadb_lede_compact0">Ha a beállítás hiányzik, párosítson a vezeték nélküli hibakeresésen keresztül.</string>
-    <string name="wadb_lede_compact1">Párosítva. Ellenőrizze az IP-címet és a portot a vezeték nélküli hibakeresésben.</string>
-    <string name="wadb_lede_done">A gyermekfolyamat-korlát frissítve.</string>
-    <string name="wadb_lede0">Használja a 2. lépést, ha a Fejlesztői beállításokban nincs gyermekfolyamat-beállítás. Nyissa meg: Fejlesztői beállítások → Vezeték nélküli hibakeresés → Eszköz párosítása párosítási kóddal.</string>
-    <string name="wadb_lede1">Párosítva. Használja az alábbi címet, vagy frissítse a Vezeték nélküli hibakeresés → IP-cím és port menüből.</string>
-    <string name="wadb_lede_done_long">A gyermekfolyamat-korlát frissítve a vezeték nélküli hibakeresésen keresztül.</string>
-    <string name="wadb_confirmed_on">Az Android megerősítette, hogy a korlát be van kapcsolva.</string>
-    <string name="wadb_confirmed_off">Az Android megerősítette, hogy a korlát ki van kapcsolva.</string>
-    <string name="wadb_pair_group">2 · Vezeték nélküli hibakeresés párosítása</string>
-    <string name="wadb_pair_address">A párosítási felugró ablak IP-címe és portja</string>
-    <string name="wadb_pin">Párosítási kód (PIN)</string>
-    <string name="wadb_pin_placeholder">6 számjegy</string>
-    <string name="wadb_pair">Párosítás</string>
-    <string name="wadb_apply_group">2 · Alkalmazás vezeték nélküli hibakeresésen keresztül</string>
-    <string name="wadb_connect_address">Kapcsolat IP-címe és portja</string>
-    <string name="wadb_pair_again">Párosítás újra</string>
-    <string name="wadb_turn_off">Korlát kikapcsolása</string>
-    <string name="wadb_other_ways">Egyéb módok a módosítására</string>
-    <string name="wadb_dev_try_first">1 · Fejlesztői beállítások (próbálja ezt először)</string>
-    <string name="wadb_restrict_on">Kapcsolja ki az „Alárendelt folyamatok korlátozásának kikapcsolása” lehetőséget.</string>
-    <string name="wadb_restrict_off">Kapcsolja be az „Alárendelt folyamatok korlátozásának kikapcsolása” lehetőséget.</string>
-    <string name="wadb_computer_last">3 · Számítógépes ADB (végső megoldás)</string>
-    <string name="wadb_only_if">Csak ha a vezeték nélküli hibakeresés nem elérhető.</string>
-    <string name="wadb_computer_group">3 · Számítógépes ADB (végső megoldás)</string>
     <string name="ctrl_color">Szín</string>
     <string name="ctrl_custom">Egyéni</string>
     <string name="ctrl_opacity">Átlátszatlanság</string>
@@ -1569,6 +1520,8 @@
     <string name="pip_unavailable">Az Android nem tudta megnyitni a kép a képben módot.</string>
     <string name="game_more">Továbbiak</string>
     <string name="game_edit_art">Illusztrációk szerkesztése</string>
+    <string name="game_unhide">Eltávolítás a rejtettek közül</string>
+    <string name="game_hide_failed">Nem sikerült szinkronizálni a Steammel. Zárd be a Steamet, és próbáld újra.</string>
     <string name="stores_in_steam_label">A Steamben</string>
     <string name="game_shortcut">Parancsikon</string>
     <string name="game_shortcut_add">Hozzáadás a kezdőképernyőhöz</string>
@@ -1590,7 +1543,6 @@
     <string name="game_file_folder">Mappa kiválasztása a frontend játékfájlokhoz</string>
     <string name="game_file_exported">A játékfájlok mentve: %1$s</string>
     <string name="game_frontend_files">Frontend-fájlok</string>
-
     <string name="main_wait_runtime">Várja meg a futtatókörnyezet-művelet befejezését</string>
     <string name="main_wait_proton_install">Várja meg a kompatibilitási eszköz telepítésének befejezését</string>
     <string name="load_compat_title">Kompatibilitási eszközök előkészítése</string>
@@ -1634,8 +1586,6 @@
         <item quantity="one">%1$d munkamenet-naplómappa törölve.</item>
         <item quantity="other">%1$d munkamenet-naplómappa törölve.</item>
     </plurals>
-    <string name="main_wadb_pair_failed">A vezeték nélküli hibakeresés párosítása sikertelen</string>
-    <string name="main_wadb_command_failed">A vezeték nélküli hibakeresés parancsa sikertelen</string>
     <string name="main_wadb_unavailable">A vezeték nélküli hibakeresés nem áll rendelkezésre</string>
     <string name="main_adb_copied">ADB-parancs másolva</string>
     <string name="main_pick_roms">ROMs mappa kiválasztása</string>
@@ -1676,7 +1626,6 @@
     <string name="main_removing_runtime">Linux futtatókörnyezet eltávolítása</string>
     <string name="main_settings_main_screen">Nem sikerült megnyitni a Beállításokat az alsó képernyőn; a fő képernyőn nyílt meg.</string>
     <string name="main_open_dev_options">Fejlesztői beállítások megnyitása a Beállításokban</string>
-
     <string name="upd_unknown_apps_failed">Nem sikerült megnyitni az Android „Ismeretlen alkalmazások telepítése” beállítását</string>
     <string name="upd_couldnt_check">Nem sikerült ellenőrizni: %1$s</string>
     <string name="upd_no_download">Ez a build nem rendelkezik letöltéssel a DroidDeck ezen másolatához</string>
@@ -1686,12 +1635,10 @@
     <string name="upd_stage_confirm">Megerősítésre várakozás</string>
     <string name="upd_failed">A frissítés sikertelen</string>
     <string name="upd_not_offered">Az Android nem ajánlotta fel a frissítés telepítését</string>
-
     <string name="decky_install_failed">A Decky telepítése sikertelen: %1$s</string>
     <string name="decky_plugin_starting">Bővítmény importálásának indítása…</string>
     <string name="decky_plugin_failed">A bővítmény importálása sikertelen: %1$s</string>
     <string name="decky_plugin_installed">A bővítmény telepítve. Indítsa újra a Steamet a betöltéséhez.</string>
-
     <string name="drivers_not_checked">Még nincs ellenőrizve – koppintson a frissítésre az új illesztőprogramok kereséséhez</string>
     <string name="drivers_bundle_sets_display">Android + Linux: ezzel együtt beállítja a megjelenítő-illesztőprogramot is</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux: ezzel együtt beállítja a futtatókörnyezet illesztőprogramját is</string>
@@ -1744,7 +1691,6 @@
     <string name="drivers_check_failed">ellenőrzés sikertelen</string>
     <string name="drivers_installed_pick_either">%1$s telepítve – válassza ki bármelyik listában mindkét illesztőprogram beállításához</string>
     <string name="drivers_installed_pick">%1$s telepítve – válassza ki a menüben</string>
-
     <string name="session_wait_removal">Várja meg a futtatókörnyezet eltávolításának befejezését</string>
     <string name="session_title_game">Játék</string>
     <string name="session_touch_auto_touchpad">érintőpad</string>
@@ -1790,7 +1736,6 @@
         <item quantity="one">A napló %1$d „Function not implemented” hibát tartalmaz: a proot seccomp-gyorsítása elutasít egy segédfolyamatot ezen az eszközön. Próbálja ki ezt: %2$s → „%3$s” (vagy „%4$s”), majd indítsa el újra.</item>
         <item quantity="other">A napló %1$d „Function not implemented” hibát tartalmaz: a proot seccomp-gyorsítása elutasít egy segédfolyamatot ezen az eszközön. Próbálja ki ezt: %2$s → „%3$s” (vagy „%4$s”), majd indítsa el újra.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Bővítmények</string>
     <string name="mode_decky_plugins_hint">Telepítsen egy bővítmény ZIP-et a következő Steam-munkamenethez.</string>
     <string name="mode_decky_plugin_downloading">Letöltés…</string>
@@ -2147,7 +2092,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">A(z) %1$d port adatokat fogad (%2$d csomag, egyenként %3$d bájt), de olyan formátumban, amelyet ez az oldal még nem tud olvasni.</string>
     <string name="bottom_telemetry_port_busy">A(z) %1$s portot már egy másik program használja, ezért az a játék itt nem jeleníthető meg.</string>
-
     <string name="rtinst_removing">Linux futtatókörnyezet eltávolítása</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Linux futtatókörnyezet eltávolítása · %1$d bejegyzés</item>
@@ -2162,7 +2106,6 @@
     <string name="rtinst_channel_description">Megjelenik, amíg a Linux futtatókörnyezet telepítése vagy eltávolítása zajlik</string>
     <string name="rtinst_title_installing">A Linux futtatókörnyezet telepítése</string>
     <string name="rtinst_title_removing">A Linux futtatókörnyezet eltávolítása</string>
-
     <string name="deskpkg_runtime_missing">A Linux futtatókörnyezet nincs telepítve</string>
     <string name="deskpkg_no_checksum">A katalógusban nincs ellenőrzőösszeg a %1$s-hez</string>
     <string name="deskpkg_checksum_mismatch">Az ellenőrzőösszeg nem egyezik – semmi nem változott</string>
@@ -2170,7 +2113,6 @@
     <string name="deskpkg_place_failed">Nem sikerült elhelyezni az AppImage-et</string>
     <string name="deskpkg_extract_failed">A kicsomagolás sikertelen</string>
     <string name="deskpkg_install_failed">A telepítés sikertelen</string>
-
     <string name="flatpakmgr_setup_failed">A Flatpak beállítása sikertelen (kilépési kód: %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">A Flatpak beállítása nem fejeződött be</string>
     <string name="flatpakmgr_busy">Egy másik áruházi feladat fut</string>
@@ -2189,7 +2131,6 @@
     <string name="flatpakmgr_ref_media_codecs">médiakodekek</string>
     <string name="flatpakmgr_ref_runtime">%1$s futtatókörnyezet</string>
     <string name="flatpakmgr_ref_runtime_branch">%1$s futtatókörnyezet %2$s</string>
-
     <string name="appimg_too_small">A fájl túl kicsi ahhoz, hogy AppImage legyen</string>
     <string name="appimg_unreadable">A fájl nem olvasható: %1$s</string>
     <string name="appimg_not_linux">Ez nem egy AppImage (nem Linux-program)</string>
@@ -2204,7 +2145,6 @@
     <string name="appimg_extracting">%1$s kicsomagolása</string>
     <string name="appimg_extract_failed">Az AppImage-et nem sikerült kicsomagolni</string>
     <string name="appimg_extract_failed_detail">Az AppImage-et nem sikerült kicsomagolni: %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Állítsa le az aktív munkamenetet a Decky Loader telepítése előtt</string>
     <string name="deckymgr_download_failed">A Decky Loader letöltése sikertelen</string>
     <string name="deckymgr_size_mismatch">A Decky Loader mérete nem egyezett a kiadás metaadataival</string>
@@ -2253,13 +2193,11 @@
     <string name="deckymgr_activate_failed">Nem sikerült aktiválni az importált bővítményt</string>
     <string name="deckymgr_settings_failed">Nem sikerült frissíteni a Decky bővítménybeállításokat</string>
     <string name="deckymgr_restore_failed">Nem sikerült visszaállítani a meglévő bővítményt</string>
-
     <string name="adbfix_save_failed">Nem sikerült menteni a vezeték nélküli hibakeresés azonosítóját</string>
     <string name="adbfix_command_failed">Az ADB-parancs sikertelen (%1$d)</string>
     <string name="adbfix_not_confirmed">Az Android nem erősítette meg a gyermekfolyamat-korlát módosítását: %1$s</string>
     <string name="adbfix_no_pairing">Nincs mentett vezeték nélküli hibakeresés-párosítás</string>
     <string name="adbfix_enter_address">Adja meg a vezeték nélküli hibakeresés jelenlegi IP-címét és portját</string>
-
     <string name="adbpair_timed_out">Időtúllépés a párosítási felugró ablakra várva. Próbálja újra a DroidDeckből.</string>
     <string name="adbpair_discovery_failed_code">Nem sikerült megkeresni a párosítási felugró ablakot (%1$d). Ellenőrizze, hogy a Wi-Fi be van kapcsolva.</string>
     <string name="adbpair_discovery_failed">Nem sikerült megkeresni a párosítási felugró ablakot: %1$s</string>
@@ -2285,7 +2223,6 @@
     <string name="adbpair_title_done">A Steam készen áll</string>
     <string name="adbpair_done_text">Koppintson a DroidDeckhez való visszatéréshez. A vezeték nélküli hibakeresést most kikapcsolhatja.</string>
     <string name="adbpair_title_failed">A vezeték nélküli hibakeresés beállítása megállt</string>
-
     <string name="selfinst_download_failed">A letöltés nem sikerült</string>
     <string name="selfinst_size_mismatch">A letöltés mérete nem egyezett a közzétett APK-val, és elvetésre került – próbálja újra</string>
     <string name="selfinst_checksum_mismatch">A letöltés nem egyezett az ellenőrzőösszegével, és elvetésre került – próbálja újra</string>
@@ -2298,13 +2235,11 @@
     <string name="selfinst_no_signing">A letöltött APK nem tartalmaz aláírási információt</string>
     <string name="selfinst_wrong_signer">A letöltött APK nincs aláírva a DroidDeck kiadási kulcsával</string>
     <string name="appupd_http">A frissítési katalógus HTTP %1$d választ adott</string>
-
     <string name="loadstate_starting">A munkamenet indítása…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d eltelt · még dolgozik</string>
     <string name="loadstate_steam_update">A Steam-kliens frissítésének letöltése · %1$d%%</string>
     <string name="loadstate_steam_update_applying">A Steam-kliens frissítésének alkalmazása…</string>
     <string name="loadstate_steam_client">A Steam-kliens letöltése · %1$s</string>
-
     <string name="pextra_busy">Már fut egy kompatibilitási eszköz telepítése</string>
     <string name="pextra_stop_session">Állítsa le az aktív munkamenetet a kompatibilitási eszközök telepítése előtt</string>
     <string name="pextra_no_release">Nem található ARM64-es kiadás a %1$s-hez</string>
@@ -2321,10 +2256,20 @@
     <string name="pextra_checksum_mismatch">Az ellenőrzőösszeg nem egyezik; a letöltés törlésre került</string>
     <string name="pextra_session_started">Egy munkamenet elindult a letöltés közben; állítsa le a kompatibilitási eszközök telepítése előtt</string>
     <string name="pextra_installing">%1$s telepítése</string>
+    <string name="xproton_title">Kísérleti buildek</string>
+    <string name="xproton_install_file">Telepítés fájlból</string>
+    <string name="xproton_archive_unsafe">Az archívum nem biztonságos hivatkozást vagy útvonalat tartalmaz</string>
+    <string name="xproton_archive_invalid">Nem támogatott vagy érvénytelen archívum</string>
+    <string name="xproton_no_space">Nincs elég szabad hely ehhez a Proton-buildhez</string>
+    <string name="xproton_unpacking">A Proton kibontása (néhány perc)</string>
+    <string name="xproton_untar_failed">A kibontás nem sikerült (tar %1$d)</string>
+    <string name="xproton_no_tree">Az archívum nem tartalmaz Proton-buildet</string>
+    <string name="xproton_place_failed">Nem sikerült elhelyezni a Proton-buildet</string>
+    <string name="xproton_remove_failed">Nem sikerült teljesen eltávolítani: %1$s</string>
+    <string name="xproton_installed">A kísérleti Proton telepítve. Válaszd ki a Steam → Tulajdonságok → Kompatibilitás menüben.</string>
     <string name="pextra_install_failed">A %1$s telepítése sikertelen (kilépési kód: %2$d)</string>
     <string name="pextra_could_not_install">Nem sikerült telepíteni a %1$s-t</string>
     <string name="esync_fetching">droiddeck-esync csomag letöltése</string>
-
     <string name="cmgr_fex_linux_helpers">Linux segédprogramokkal</string>
     <string name="cmgr_fex_dlls_only">Csak DLL-ek</string>
     <string name="cmgr_original_proton_updated">Eredeti (a Proton frissült az utolsó csere óta)</string>
@@ -2347,13 +2292,11 @@
     <string name="cmgr_nightly_replaced">A letöltés sikertelen: lehet, hogy ezt a nightly buildet egy újabb váltotta. Frissítse a listát, és próbálja újra.</string>
     <string name="cmgr_list_predates_checksums">Ez a csomaglista régebbi, mint az ellenőrzőösszegek – frissítse, és próbálja újra</string>
     <string name="cmgr_checksum_mismatch">Az ellenőrzőösszeg nem egyezik</string>
-
     <string name="sprefs_upscaler_linear">Lineáris</string>
     <string name="sprefs_upscaler_nearest">Legközelebbi</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (minőség)</string>
     <string name="sprefs_upscaler_sharpen">Csak élesítés</string>
     <string name="sprefs_lod_bias_auto">Automatikus (illeszkedik a méretezéshez)</string>
-
     <string name="look_off_desc">Semmi nincs alkalmazva.</string>
     <string name="look_game_clarity">Játéktisztaság</string>
     <string name="look_game_clarity_desc">Élesítés egy csipetnyi kontraszttal – a mindennapi.</string>
@@ -2377,7 +2320,6 @@
     <string name="look_pixel_clean_desc">Éles pixelek 2D-s és régi játékokhoz.</string>
     <string name="look_anime_edge">Anime élek</string>
     <string name="look_anime_edge_desc">Rajzfilmes körvonalak plusz élesítés.</string>
-
     <string name="gpuinfo_not_adreno">Nem Adreno GPU</string>
     <string name="gpuinfo_powervr">A rendszer PowerVR-illesztőprogramja: a kompatibilitás eszközönként változó</string>
     <string name="gpuinfo_xclipse">Kísérleti: RADV vagy a rendszer Xclipse-illesztőprogramja</string>
@@ -2402,7 +2344,6 @@
     <string name="gpuinfo_unsupported">Nem támogatott: nincs kompatibilis grafikus háttérrendszer ehhez a GPU-hoz</string>
     <string name="gpuinfo_bridge">A Mali hídon keresztül, a telefon saját Vulkan illesztőprogramján fut</string>
     <string name="gpuinfo_bridge_off">Nem támogatott, ha a Mali híd ki van kapcsolva: a Turnip Adreno (Snapdragon) GPU-t igényel</string>
-
     <string name="turnip_rate_limited">A GitHub korlátja elérve – próbálja újra később</string>
     <string name="turnip_github_http">A GitHub HTTP %1$d választ adott</string>
     <string name="turnip_download_failed">A letöltés nem sikerült</string>
@@ -2423,16 +2364,12 @@
     <string name="bundle_no_manifest">Nem illesztőprogram-csomag: nincs manifest.json, amely android és linux illesztőprogramot nevez meg</string>
     <string name="bundle_entry_outside">Nem illesztőprogram-csomag: a %1$s rajta kívülre mutat</string>
     <string name="bundle_too_large">Nem illesztőprogram-csomag: kicsomagolva több mint %1$d MB</string>
-
     <string name="gstore_sd_card">SD-kártya</string>
     <string name="gstore_folder">Mappa</string>
-
     <string name="logshare_chooser">Munkamenet-naplók megosztása</string>
-
     <string name="hdr_needs_android_10">Android 10 vagy újabb szükséges (színtérrel rendelkező megjelenítési rétegek)</string>
     <string name="hdr_none">ez a kijelző nem jelez HDR-támogatást</string>
     <string name="hdr_not_hdr10">ez a kijelző a %1$s-t támogatja, nem a HDR10-et</string>
-
     <string name="gpu_this_gpu">ez a GPU</string>
     <string name="phantom_title_on">A gyermekfolyamat-korlát be van kapcsolva</string>
     <string name="phantom_title_unset">A gyermekfolyamat-korlát nincs beállítva</string>
@@ -2481,10 +2418,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Munkamenet kijelzője</string>
-    <string name="display_resolution">Felbontás</string>
+    <string name="display_zero_copy">Másolásmentes megjelenítés</string>
+    <string name="display_resolution_landscape">Fekvő felbontás</string>
+    <string name="display_resolution_portrait">Álló felbontás</string>
+    <string name="display_follow_landscape">Mint a fekvő (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Mint az álló (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9 játék illesztése</string>
     <string name="display_game_fit_hint">Hogyan illeszkednek a 16:9 játékok ehhez a kijelzőhöz. A következő munkamenettől.</string>
     <string name="display_game_fit_unavailable">Válassza a Képernyőhöz illesztést, vagy egy 16:9-nél szűkebb egyéni méretet.</string>
+    <string name="display_avoid_notch">Kamera-kivágás kerülése</string>
+    <string name="display_avoid_notch_hint">A képet távol tartja a kameralyuktól. A munkamenetbe való visszatéréskor lép életbe.</string>
     <string name="display_preserve">Arányok megtartása</string>
     <string name="display_stretch">Nyújtás a kijelzőhöz</string>
     <string name="display_image_scaling">Képméretezés</string>
@@ -2506,7 +2449,6 @@
     <string name="device_info_copied">Másolva.</string>
     <string name="force_ssbs_title">SSBS kényszerítése</string>
     <string name="force_ssbs_hint">Bekapcsolva tartja azt a CPU-sebesség-beállítást, amelyet a Wine folyton kikapcsol. Gyorsíthatja a Windows-os játékokat Snapdragon 8 Elite-n; régebbi chipeken alig van hatása. A következő játékindítástól érvényes.</string>
-
     <string name="rail_stores">Áruházak</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Egyéni</string>
@@ -2772,6 +2714,7 @@
     <string name="stores_login_error_ssl">A kapcsolat a bejelentkezési oldalhoz nem biztonságos.</string>
     <string name="stores_login_error_verification">A bejelentkezést nem sikerült ellenőrizni. Próbálja újra.</string>
     <string name="stores_login_error_generic">A bejelentkezés sikertelen. Próbálja újra.</string>
+    <string name="stores_login_continue_in_browser">A(z) %1$s még egy lépést kér. Fejezze be a megnyílt böngészőben, majd próbálja újra.</string>
     <string name="common_close">Bezárás</string>
     <string name="common_back">Vissza</string>
     <string name="common_edit">Szerkesztés</string>
@@ -2992,7 +2935,6 @@
     <string name="touch_icon_color">Ikon színe</string>
     <string name="touch_button_color">Gomb színe</string>
     <string name="touch_no_icon">Nincs ikon</string>
-
     <string name="stores_sync_sign_in">Bejelentkezés ellenőrzése…</string>
     <string name="stores_sync_library">Könyvtárad lekérése…</string>
     <string name="stores_sync_game_list">Játéklista lekérése…</string>
@@ -3157,7 +3099,7 @@
     <string name="hand_camera_done">Kész</string>
     <string name="glasses_xreal_network_missing">Várakozás a szemüveg USB-s Ethernet-kapcsolatára. Lehet, hogy ez a telefon nem teszi elérhetővé az alkalmazások számára.</string>
     <string name="glasses_xreal_connection_failed">Az XREAL-kapcsolat megszakadt, vagy nem támogatott választ adott. Újrapróbálkozás…</string>
-    <string name="glasses_xreal_experimental">Kísérleti 1S-támogatás. Használja a Follow módot, és kapcsolja ki a stabilizálást a szemüveg menüjében. A követési irányokat és a megjelenítési módokat még tesztelni kell az eszközön.</string>
+    <string name="glasses_xreal_experimental">Az XREAL 1S, One, One Pro, One Pro+ és Aura kísérleti támogatása. Használja a Follow módot, és kapcsolja ki a stabilizálást a szemüveg menüjében; az Aura esetén a Spatial Anchor funkciót is kapcsolja ki. A fejkövetést és a 2D/3D-váltást az Aura és a One Pro+ modelleken teszteltük.</string>
     <string name="glasses_pro2_experimental">Kísérleti fejkövetés a Pro 2-höz. A fényerő és a hangerő beállítása, valamint a megjelenítési mód váltása még nem támogatott.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard mód</string>
@@ -3364,10 +3306,19 @@
     <string name="storage_shared_prefix">A Steam megosztott prefixe</string>
     <string name="storage_shared_prefix_detail">A Steam itt futtatja saját Windows-segédprogramjait</string>
     <string name="storage_reset_shared_confirm">Törli (%1$s). A Steam újat hoz létre, amikor legközelebb szüksége lesz rá.</string>
+    <string name="storage_remove_launcher_confirm">Törli ennek az áruházalkalmazásnak a Wine-prefixét és shadergyorsítótárát (%1$s), a bejelentkezéssel és a csak ott tárolt mentésekkel együtt. A benne futó játékok új prefixet kapnak, és lehet, hogy az alkalmazást újra be kell állítani. A felhőmentések a fiókodban maradnak.</string>
+    <string name="storage_system_clearable">%1$s üríthető</string>
+    <string name="storage_item_system_caches">Linux- és Steam-gyorsítótárak</string>
+    <string name="storage_item_system_caches_detail">Régi ideiglenes fájlok, letöltött csomagok és a Steam webes gyorsítótára</string>
+    <string name="storage_cache_temp">Régi ideiglenes fájlok</string>
+    <string name="storage_cache_packages">Letöltött csomagok</string>
+    <string name="storage_cache_steam_web">Steam webes gyorsítótár</string>
+    <string name="storage_cache_steam_corrupt">Sérült Steam-letöltések</string>
+    <string name="storage_cache_detail">Szükség esetén újra létrejön</string>
+    <string name="storage_clear">Ürítés</string>
     <string name="storage_launcher_prefix">Egy áruházalkalmazás és a vele futó játékok</string>
     <string name="storage_launcher_used_by">Használja: %1$s</string>
     <string name="storage_shortcut_app">Nem Steam-es játék: %1$s</string>
-    <string name="storage_unknown_prefix_detail">Nem tartozik játékhoz, ezért megmarad</string>
     <string name="storage_remove_selected">Kijelöltek eltávolítása · %1$s</string>
     <string name="storage_uninstall_selected">Kijelöltek eltávolítása · %1$s</string>
     <string name="storage_bulk_prefixes">Wine-prefixek</string>
@@ -4023,16 +3974,15 @@
     <string name="addons_sort_downloads">Legtöbbet letöltött</string>
     <string name="addons_category_all">Minden kategória</string>
     <string name="addons_none_found">Nem található kiegészítő</string>
+    <string name="addons_curse_busy">Előbb zárd be a CurseForge-ot</string>
     <string name="addons_unreachable">A(z) %1$s nem érhető el</string>
     <string name="addons_no_file">Nincs fájl ehhez a játékverzióhoz</string>
     <string name="input_reset_positions">Pozíciók visszaállítása</string>
     <string name="input_show_label">Címke megjelenítése</string>
     <string name="input_layout_import_failed">Ez az elrendezés nem importálható</string>
     <string name="epic_third_party_managed">A telepítés itt történik: %1$s</string>
-
     <string name="theme_white_red">Skarlátvörös hó</string>
     <string name="theme_white_red_detail">Fehér felületek piros kiemelésekkel.</string>
-
     <string name="rail_soundtracks">Soundtrackek</string>
     <string name="rail_music">Zene</string>
     <string name="soundtracks_options">Lejátszási beállítások</string>
@@ -4109,9 +4059,25 @@
     <string name="hud_readings_shown">Megjelenítve</string>
     <string name="hud_readings_count">%1$d / %2$d</string>
     <string name="exit_hint_back">Nyomd meg még egyszer a visszát a kilépéshez</string>
-
     <string name="display_integer_scaling">Egész számú méretezés</string>
     <string name="display_integer_scaling_hint">A legnagyobb elférő egész számú méretezést használja. A szélek levágódhatnak. Ha a forrás nagyobb a kimenetnél, a tört méretezés a teljes képet jeleníti meg. A felbontás külön állítható.</string>
     <string name="display_scaling_integer">Egész szám</string>
     <string name="display_scaling_fit">Igazítás</string>
+    <string name="drawer_antialiasing">Élsimítás</string>
+    <string name="theme_custom">Egyéni</string>
+    <string name="theme_custom_detail">Válaszd ki külön a felület minden színét.</string>
+    <string name="theme_custom_background">Háttér</string>
+    <string name="theme_custom_surface">Panelek</string>
+    <string name="theme_custom_surface_variant">Kiemelt panelek</string>
+    <string name="theme_custom_line">Elválasztók</string>
+    <string name="theme_custom_line2">Szegélyek</string>
+    <string name="theme_custom_on_background">Fő szöveg</string>
+    <string name="theme_custom_on_surface_variant">Másodlagos szöveg</string>
+    <string name="theme_custom_primary">Gombok és fő kiemelés</string>
+    <string name="theme_custom_on_primary">Gombok szövege</string>
+    <string name="theme_custom_signal">Kiemelések</string>
+    <string name="theme_custom_good">Siker</string>
+    <string name="theme_custom_error">Hiba</string>
+    <string name="hud_only_during_game">HUD megjelenítése csak játék közben</string>
+    <string name="hud_only_during_game_hint">HUD elrejtése, ha nem észlelhetők játék képkockái.</string>
 </resources>

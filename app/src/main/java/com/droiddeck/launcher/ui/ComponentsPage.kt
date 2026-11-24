@@ -84,6 +84,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.ComponentUpdater
 import com.droiddeck.launcher.session.ComponentUpdates
 import com.droiddeck.launcher.session.ComponentsManager
+import com.droiddeck.launcher.session.ExperimentalProtons
 import com.droiddeck.launcher.session.ComponentsManager.CatalogItem
 import com.droiddeck.launcher.session.ComponentsManager.Snapshot
 import kotlinx.coroutines.delay
@@ -524,7 +525,7 @@ fun ComponentsPage(
     }
     val availableTitle: @Composable (String) -> String = { l ->
         when (l) {
-            PROTON_TAB -> stringResource(R.string.comp_available_count, protons.rows.count { it.installed == null || it.update != null })
+            PROTON_TAB -> stringResource(R.string.comp_available_count, protons.rows.count(ProtonRow::available))
             else -> stringResource(R.string.comp_nightlies_count, availableRows(l, catalog, snapshot).size)
         }
     }
@@ -539,7 +540,8 @@ fun ComponentsPage(
                     val key = "proton:${v.proton.id}"
                     val swaps = v.components.values.count { it.activeFile != null }
                     val extra = protons.rows.firstOrNull { v.proton.dir.name in it.installedAll }
-                    val removable = extra != null && protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
+                    val experimental = v.proton.dir.name in protons.experimental
+                    val removable = (extra != null || experimental) && protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
                     ChoiceLine(
                         v.proton.name,
                         (if (swaps > 0) stringResource(R.string.comp_swapped, v.proton.version, swaps) else stringResource(R.string.comp_all_original, v.proton.version))
@@ -548,7 +550,10 @@ fun ComponentsPage(
                         modifier = (if (i == 0 && !moded(l)) Modifier.focusRequester(firstRow) else Modifier).trackRow(key, rowsAt),
                         onSelect = { if (v.proton.id != view?.proton?.id) { onProton(v.proton.id); flyHome(key, PROTON_TAB) } },
                         onDelete = {
-                            if (extra != null) ask(key, right, ctx.getString(R.string.proton_remove_title, v.proton.name), ctx.getString(R.string.proton_remove_body), ctx.getString(R.string.store_remove), true, v.proton.name) {
+                            if (experimental) ask(key, right, ctx.getString(R.string.proton_remove_title, v.proton.name), ctx.getString(R.string.proton_remove_body), ctx.getString(R.string.store_remove), true, v.proton.name) {
+                                protonActions.onRemoveExperimental(v.proton.dir.name)
+                            }
+                            else if (extra != null) ask(key, right, ctx.getString(R.string.proton_remove_title, v.proton.name), ctx.getString(R.string.proton_remove_body), ctx.getString(R.string.store_remove), true, v.proton.name) {
                                 protonActions.onRemove(extra.id, v.proton.dir.name)
                             }
                         },
@@ -589,21 +594,24 @@ fun ComponentsPage(
     val availableRows: @Composable ColumnScope.(String) -> Unit = { l ->
         when (l) {
             PROTON_TAB -> {
-                val rows = protons.rows.filter { it.installed == null || it.update != null }
+                val rows = protons.rows.filter(ProtonRow::available)
                 if (rows.isEmpty()) EmptyLine(stringResource(R.string.comp_nothing_new))
-                for (row in rows) GetLine(
-                    row.name,
-                    when {
-                        row.update != null -> stringResource(R.string.proton_update_available, row.update)
-                        row.queued -> stringResource(R.string.proton_queued)
-                        else -> stringResource(R.string.proton_not_installed)
-                    },
-                    progress = if (protons.busyId == row.id) protons.percent else null,
-                    stage = if (protons.busyId == row.id) protons.stage else null,
-                    enabled = protons.busyId == null && protons.runtimeReady && !protons.sessionRunning,
-                    onCancel = if (row.queued && protons.busyId == null && !protons.sessionRunning) ({ protonActions.onCancel(row.id) }) else null,
-                    action = if (row.update != null) stringResource(R.string.common_update) else null,
-                ) { protonActions.onInstall(row.id) }
+                for (row in rows) {
+                    val idle = protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
+                    GetLine(
+                        row.name,
+                        when {
+                            row.update != null -> stringResource(R.string.proton_update_available, row.update)
+                            row.queued -> stringResource(R.string.proton_queued)
+                            else -> stringResource(R.string.proton_not_installed)
+                        },
+                        progress = if (protons.busyId == row.id) protons.percent else null,
+                        stage = if (protons.busyId == row.id) protons.stage else null,
+                        enabled = idle,
+                        onCancel = if (row.queued && protons.busyId == null && !protons.sessionRunning) ({ protonActions.onCancel(row.id) }) else null,
+                        action = if (row.update != null) stringResource(R.string.common_update) else null,
+                    ) { protonActions.onInstall(row.id) }
+                }
             }
             else -> {
                 val available = availableRows(l, catalog, snapshot)
@@ -731,6 +739,8 @@ fun ComponentsPage(
                     }
                 }
                 if (l == PROTON_TAB) {
+                    Spacer(Modifier.height(12.dp))
+                    ExperimentalProtonGroup(protons, protonActions)
                     Spacer(Modifier.height(12.dp))
                     Note(stringResource(R.string.comp_about_text))
                 }
@@ -1485,20 +1495,24 @@ private fun ChoiceLine(
             if (progress != null) ProgressBit(progress)
         }
         if (!removable) Spacer(Modifier.padding(end = 6.dp).size(44.dp))
-        else {
-            val delSrc = remember { MutableInteractionSource() }
-            val delHot = rememberHot(delSrc)
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.padding(end = 6.dp).size(44.dp).clip(ROW_SHAPE)
-                    .background(if (delHot) colors.error.copy(alpha = 0.14f) else Color.Transparent)
-                    .glideBorder(delHot, ROW_SHAPE, colors.error)
-                    .hoverable(delSrc).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = delSrc, indication = null, onClick = onDelete)
-                    .controllerConfirm(onClick = onDelete),
-            ) { Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.common_delete_named, name), tint = if (delHot) colors.error else colors.onSurfaceVariant, modifier = Modifier.size(19.dp)) }
-        }
+        else DeleteButton(name, onDelete = onDelete)
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+}
+
+@Composable
+internal fun DeleteButton(name: String, modifier: Modifier = Modifier, enabled: Boolean = true, onDelete: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val delSrc = remember { MutableInteractionSource() }
+    val delHot = rememberHot(delSrc) && enabled
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier.padding(end = 6.dp).size(44.dp).clip(ROW_SHAPE)
+            .background(if (delHot) colors.error.copy(alpha = 0.14f) else Color.Transparent)
+            .glideBorder(delHot, ROW_SHAPE, colors.error)
+            .hoverable(delSrc).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = delSrc, indication = null, enabled = enabled, onClick = onDelete)
+            .controllerConfirm(enabled = enabled, onClick = onDelete),
+    ) { Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.common_delete_named, name), tint = if (delHot) colors.error else colors.onSurfaceVariant, modifier = Modifier.size(19.dp)) }
 }
 
 @Composable
@@ -1528,12 +1542,12 @@ private fun GetLine(
 }
 
 @Composable
-private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit) {
+private fun ChannelToggle(nightly: Boolean, enabled: Boolean, other: Int = R.string.comp_channel_nightly, onFlip: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src) && enabled
-    val state = stringResource(if (nightly) R.string.comp_channel_nightly else R.string.comp_channel_stable)
+    val state = stringResource(if (nightly) other else R.string.comp_channel_stable)
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp),
         modifier = Modifier.heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp))
@@ -1544,12 +1558,12 @@ private fun ChannelToggle(nightly: Boolean, enabled: Boolean, onFlip: () -> Unit
             .semantics { stateDescription = state }
             .padding(4.dp),
     ) {
-        for ((label, on) in listOf(R.string.comp_channel_stable to !nightly, R.string.comp_channel_nightly to nightly)) {
+        for ((label, on) in listOf(R.string.comp_channel_stable to !nightly, other to nightly)) {
             Text(
                 stringResource(label), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
-                color = if (!enabled) colors.onSurfaceVariant else if (on) (if (hot) pal.onSignal else pal.signal) else colors.onSurfaceVariant,
+                color = if (on) (if (hot) pal.onSignal else pal.signal) else colors.onSurfaceVariant,
                 modifier = Modifier.clip(RoundedCornerShape(7.dp))
-                    .background(if (on && enabled) (if (hot) pal.signal else pal.signal.copy(alpha = 0.16f)) else Color.Transparent)
+                    .background(if (on) (if (hot) pal.signal else pal.signal.copy(alpha = 0.16f)) else Color.Transparent)
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             )
         }
@@ -1615,12 +1629,31 @@ private fun DeviceChip(s: GpuDriversState) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.onGloballyPositioned { at = it.boundsInRoot() }.heightIn(min = 44.dp).paneItem("gpu-device").clip(shape)
-            .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface)
+            .background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.14f)) else Modifier)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Button, onClick = open)
             .controllerConfirm(onClick = open)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) { face() }
+}
+
+@Composable
+private fun ExperimentalProtonGroup(protons: ProtonsState, actions: ProtonsActions) {
+    val busy = protons.busyId == com.droiddeck.launcher.ProtonMenu.EXPERIMENTAL
+    val idle = protons.busyId == null && protons.runtimeReady && !protons.sessionRunning
+    RowGroup(stringResource(R.string.xproton_title)) {
+        if (busy) GetLine(stringResource(R.string.xproton_title), "", progress = protons.percent, enabled = false, stage = protons.stage) {}
+        else {
+            protons.experimentalReleases.forEach { release ->
+                GetLine(release.name, release.tag, progress = null, enabled = idle, action = stringResource(R.string.proton_install_now)) {
+                    actions.onExperimentalRelease(release)
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(start = 14.dp, top = 4.dp, bottom = 8.dp)) {
+                SmallButton(stringResource(R.string.xproton_install_file), enabled = idle, onClick = actions.onExperimentalFile)
+            }
+        }
+    }
 }
 
 class ProtonsState(
@@ -1630,6 +1663,8 @@ class ProtonsState(
     val percent: Int = -1,
     val runtimeReady: Boolean = true,
     val sessionRunning: Boolean = false,
+    val experimental: List<String> = emptyList(),
+    val experimentalReleases: List<ExperimentalProtons.Release> = emptyList(),
 )
 
 class ProtonsActions(
@@ -1637,12 +1672,17 @@ class ProtonsActions(
     val onCancel: (String) -> Unit = {},
     val onRemove: (String, String) -> Unit = { _, _ -> },
     val onRemoveOlder: (String) -> Unit = {},
+    val onExperimentalFile: () -> Unit = {},
+    val onExperimentalRelease: (ExperimentalProtons.Release) -> Unit = {},
+    val onRemoveExperimental: (String) -> Unit = {},
 )
 
 class ProtonRow(
     val id: String, val name: String, val installed: String?, val queued: Boolean,
     val installedAll: List<String> = listOfNotNull(installed), val update: String? = null,
-)
+) {
+    val available: Boolean get() = installed == null || update != null
+}
 
 @Composable
 private fun gpuCardValue(gpu: GpuDriversState, auto: String): String {

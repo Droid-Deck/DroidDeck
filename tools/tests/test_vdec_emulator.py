@@ -28,9 +28,9 @@ DRIVER = r'''
 #include <sys/mman.h>
 #include <unistd.h>
 
-int bl_vdec_open(const char *path, int flags);
-int bl_vdec_ioctl(int fd, unsigned long req, void *arg, int *rc);
-void bl_vdec_closed(int fd);
+int dd_vdec_open(const char *path, int flags);
+int dd_vdec_ioctl(int fd, unsigned long req, void *arg, int *rc);
+void dd_vdec_closed(int fd);
 void *SDL_LoadObject(const char *name);
 void *SDL_LoadFunction(void *handle, const char *name);
 
@@ -74,12 +74,12 @@ int ioctl(int fd, unsigned long req, ...) {
 static int vfd;
 static int call(unsigned long req, void *arg) {
     int rc;
-    if (!bl_vdec_ioctl(vfd, req, arg, &rc)) return -100;
+    if (!dd_vdec_ioctl(vfd, req, arg, &rc)) return -100;
     return rc < 0 ? -errno : 0;
 }
 
 int main(void) {
-    if (bl_vdec_open("/dev/video0", O_RDWR) != -2) return 2;
+    if (dd_vdec_open("/dev/video0", O_RDWR) != -2) return 2;
     void *drm = SDL_LoadObject("libdrm.so.2");
     if (!drm) return 3;
     int (*devices)(uint32_t, struct drm_device **, int) = SDL_LoadFunction(drm, "drmGetDevices2");
@@ -90,7 +90,7 @@ int main(void) {
     int card = open(dev[0]->nodes[0], O_RDWR | O_CLOEXEC);
     if (card < 0) return 6;
 
-    vfd = bl_vdec_open("/dev/video-dec0", O_RDWR);
+    vfd = dd_vdec_open("/dev/video-dec0", O_RDWR);
     if (vfd < 0) return 7;
     struct v4l2_capability cap;
     if (call(VIDIOC_QUERYCAP, &cap) || (cap.capabilities & 0x04004000) != 0x04004000) return 8;
@@ -113,12 +113,12 @@ int main(void) {
     f.fmt.pix_mp.width = 1280; f.fmt.pix_mp.height = 736; f.fmt.pix_mp.pixelformat = V4L2_PIX_FMT_NV12;
     if (call(VIDIOC_S_FMT, &f) || f.fmt.pix_mp.num_planes != 1) return 14;
     uint32_t bpl = f.fmt.pix_mp.plane_fmt[0].bytesperline, size = f.fmt.pix_mp.plane_fmt[0].sizeimage;
-    if (bpl != 1280 || size != 1280 * 736 * 3 / 2) return 15;
+    if (bpl != 4096 || size != 4096 * 2304 * 3 / 2) return 15;
     r = (struct v4l2_requestbuffers){ .count = 3, .type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE, .memory = V4L2_MEMORY_DMABUF };
     if (call(VIDIOC_REQBUFS, &r) || r.count != 3) return 16;
     int out[3];
     for (int i = 0; i < 3; i++) {
-        struct create_dumb c = { .height = 736, .width = 1280, .bpp = 16 };
+        struct create_dumb c = { .height = 2304, .width = 4096, .bpp = 16 };
         if (drm_ioctl(card, 0xc02064b2, &c) || !c.handle || c.size < size) return 17;
         struct prime_handle h = { .handle = c.handle, .flags = O_CLOEXEC };
         if (drm_ioctl(card, 0xc00c642d, &h)) return 18;
@@ -148,7 +148,7 @@ int main(void) {
         struct v4l2_buffer cb = { .type = types[1], .memory = V4L2_MEMORY_DMABUF, .length = 1, .m.planes = &cp };
         if (call(VIDIOC_DQBUF, &cb)) return 25;
         unsigned char *m = mmap(NULL, size, PROT_READ, MAP_SHARED, out[cb.index], 0);
-        printf("%ld %u %c%c %u\n", (long)cb.timestamp.tv_usec, cb.index, m[0], m[(size_t)bpl * 736], cp.bytesused == size);
+        printf("%ld %u %c%c %u\n", (long)cb.timestamp.tv_usec, cb.index, m[0], m[(size_t)bpl * 2304], cp.bytesused == size);
         munmap(m, size);
         pf = (struct pollfd){ .fd = vfd, .events = 0x306 };
         if (poll(&pf, 1, 0) != 1) return 26;
@@ -166,7 +166,7 @@ int main(void) {
     size = f.fmt.pix_mp.plane_fmt[0].sizeimage;
     r = (struct v4l2_requestbuffers){ .count = 1, .type = types[1], .memory = V4L2_MEMORY_DMABUF };
     if (call(VIDIOC_REQBUFS, &r)) return 31;
-    struct create_dumb big = { .height = 1088, .width = 1920, .bpp = 16 };
+    struct create_dumb big = { .height = 2304, .width = 4096, .bpp = 16 };
     if (drm_ioctl(card, 0xc02064b2, &big)) return 32;
     struct prime_handle bh = { .handle = big.handle, .flags = O_CLOEXEC };
     if (drm_ioctl(card, 0xc00c642d, &bh)) return 33;
@@ -183,8 +183,8 @@ int main(void) {
     struct v4l2_buffer db = { .type = types[1], .memory = V4L2_MEMORY_DMABUF, .length = 1, .m.planes = &dp };
     if (call(VIDIOC_DQBUF, &db)) return 37;
     unsigned char *m = mmap(NULL, size, PROT_READ, MAP_SHARED, bh.fd, 0);
-    printf("%ld %u %c%c\n", (long)db.timestamp.tv_usec, db.index, m[0], m[(size_t)1920 * 1088]);
-    bl_vdec_closed(vfd);
+    printf("%ld %u %c%c\n", (long)db.timestamp.tv_usec, db.index, m[0], m[(size_t)4096 * 2304]);
+    dd_vdec_closed(vfd);
     return 0;
 }
 '''
@@ -249,19 +249,19 @@ class VdecEmulatorTest(unittest.TestCase):
             driver = tmp / 'driver.c'
             driver.write_text(DRIVER)
             binary = tmp / 'streaming_client'
-            subprocess.run(['cc', '-O1', '-pthread', '-DBL_VDEC_ANY_ARCH', '-o', str(binary), str(driver), str(VDEC),
+            subprocess.run(['cc', '-O1', '-pthread', '-DDD_VDEC_ANY_ARCH', '-o', str(binary), str(driver), str(VDEC),
                             str(VENC), '-ldl'], check=True)
             sock = tmp / 'venc.sock'
             server = FakeDecoder(str(sock))
             self.addCleanup(server.listener.close)
             server.start()
-            done = subprocess.run([str(binary)], env=dict(os.environ, BL_VENC_SOCKET=str(sock)),
+            done = subprocess.run([str(binary)], env=dict(os.environ, DD_VENC_SOCKET=str(sock)),
                                   capture_output=True, text=True, timeout=20)
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
             self.assertEqual(done.stdout.split('\n')[:6],
                              ['1 0 bu 1', '2 1 cu 1', '3 2 du 1', '4 0 eu 1', '5 1 fu 1', '6 0 zu'])
             self.assertEqual([c[1:6] for c in server.configs],
-                             [(1, 1280, 720, 1280, 736), (1, 1280, 720, 1920, 1088)])
+                             [(1, 1280, 720, 4096, 2304), (1, 1280, 720, 4096, 2304)])
             self.assertEqual([p[:3] for p in server.packets],
                              [(1, 101, 0), (2, 102, 1), (3, 103, 2), (0, 104, 0), (1, 105, 1), (2, 50, 0)])
 
@@ -272,7 +272,7 @@ class VdecEmulatorTest(unittest.TestCase):
                 'void *SDL_LoadObject(const char *);\n'
                 'int main(void) { return SDL_LoadObject("libdrm.so.2") != 0; }\n')
             binary = tmp / 'steam'
-            subprocess.run(['cc', '-O1', '-pthread', '-DBL_VDEC_ANY_ARCH', '-o', str(binary), str(tmp / 'main.c'),
+            subprocess.run(['cc', '-O1', '-pthread', '-DDD_VDEC_ANY_ARCH', '-o', str(binary), str(tmp / 'main.c'),
                             str(VDEC), str(VENC), '-ldl'], check=True)
             done = subprocess.run([str(binary)], capture_output=True, text=True, timeout=20)
             self.assertEqual(done.returncode, 0, done.stderr)

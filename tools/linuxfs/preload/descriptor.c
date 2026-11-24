@@ -14,12 +14,12 @@
 #define STORE "/.droiddeck-descriptors"
 #define ENTRY_MAX (PATH_MAX * 2)
 
-int bl_is_wineserver(void) __attribute__((visibility("hidden")));
+int dd_is_wineserver(void) __attribute__((visibility("hidden")));
 
 static int store_seen;
 
 static int kept(const char *name) {
-  return name != NULL && strcmp(name, DESCRIPTOR) == 0 && bl_is_wineserver();
+  return name != NULL && strcmp(name, DESCRIPTOR) == 0 && dd_is_wineserver();
 }
 
 static int store_root(char *out, size_t size) {
@@ -31,7 +31,7 @@ static int store_root(char *out, size_t size) {
   return n > 0 && (size_t)n < size ? n : -1;
 }
 
-static int store_exists(void) {
+static __attribute__((noinline)) int store_exists(void) {
   char root[PATH_MAX];
 
   if (store_seen) return 1;
@@ -223,10 +223,18 @@ int fremovexattr(int fd, const char *name) {
   return 0;
 }
 
+static int watched(void) {
+  int saved = errno, found;
+
+  found = dd_is_wineserver() && store_exists();
+  errno = saved;
+  return found;
+}
+
 static int tracked(const char *path, char *out, size_t size) {
   int saved = errno, found;
 
-  found = bl_is_wineserver() && store_exists() && resolved(path, out, size) == 0;
+  found = resolved(path, out, size) == 0;
   errno = saved;
   return found;
 }
@@ -258,34 +266,38 @@ static void follow(const char *from, const char *to) {
   errno = saved;
 }
 
-__attribute__((visibility("hidden")))
-int bl_descriptor_unlink(const char *path, int (*real)(const char *)) {
+static __attribute__((noinline)) int removed(const char *path, int (*real)(const char *), int folder) {
   char target[PATH_MAX];
   int known = tracked(path, target, sizeof(target)), result = real(path);
 
-  if (result == 0 && known) forget(target, 0);
+  if (result == 0 && known) forget(target, folder);
   return result;
 }
 
-__attribute__((visibility("hidden")))
-int bl_descriptor_rmdir(const char *path, int (*real)(const char *)) {
-  char target[PATH_MAX];
-  int known = tracked(path, target, sizeof(target)), result = real(path);
-
-  if (result == 0 && known) forget(target, 1);
-  return result;
-}
-
-__attribute__((visibility("hidden")))
-int bl_descriptor_remove(const char *path, int (*real)(const char *)) {
-  return bl_descriptor_rmdir(path, real);
-}
-
-__attribute__((visibility("hidden")))
-int bl_descriptor_rename(const char *from, const char *to, int (*real)(const char *, const char *)) {
+static __attribute__((noinline)) int moved(const char *from, const char *to, int (*real)(const char *, const char *)) {
   char old[PATH_MAX], new[PATH_MAX];
   int known = tracked(from, old, sizeof(old)), result = real(from, to);
 
   if (result == 0 && known && tracked(to, new, sizeof(new))) follow(old, new);
   return result;
+}
+
+__attribute__((visibility("hidden")))
+int dd_descriptor_unlink(const char *path, int (*real)(const char *)) {
+  return watched() ? removed(path, real, 0) : real(path);
+}
+
+__attribute__((visibility("hidden")))
+int dd_descriptor_rmdir(const char *path, int (*real)(const char *)) {
+  return watched() ? removed(path, real, 1) : real(path);
+}
+
+__attribute__((visibility("hidden")))
+int dd_descriptor_remove(const char *path, int (*real)(const char *)) {
+  return dd_descriptor_rmdir(path, real);
+}
+
+__attribute__((visibility("hidden")))
+int dd_descriptor_rename(const char *from, const char *to, int (*real)(const char *, const char *)) {
+  return watched() ? moved(from, to, real) : real(from, to);
 }

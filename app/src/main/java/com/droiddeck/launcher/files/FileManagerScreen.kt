@@ -40,12 +40,10 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Smartphone
@@ -193,6 +191,7 @@ fun FileManagerScreen(
     var compactRows by remember { mutableStateOf(browsePrefs.getBoolean("fmCompactRows", false)) }
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<File?>(null) }
+    var editingTarget by remember { mutableStateOf<File?>(null) }
     var propertiesTarget by remember { mutableStateOf<File?>(null) }
     var isOperationRunning by remember { mutableStateOf(false) }
     var operationLabel by remember { mutableStateOf("") }
@@ -296,7 +295,7 @@ fun FileManagerScreen(
         if (isOperationActive()) pendingNavigation = action else navigate(action)
     }
 
-    BackHandler(enabled = operationActive || cancellingNavigation || showFavorites || currentDir != currentRoot || history.isNotEmpty()) {
+    BackHandler(enabled = editingTarget == null && (operationActive || cancellingNavigation || showFavorites || currentDir != currentRoot || history.isNotEmpty())) {
         requestNavigation(FileManagerNavigation.BACK)
     }
 
@@ -698,6 +697,14 @@ fun FileManagerScreen(
 
     val compactToolbar = LocalConfiguration.current.screenWidthDp < 600
     Column(modifier = Modifier.fillMaxSize()) {
+        editingTarget?.let { target ->
+            TextEditorScreen(
+                file = target,
+                onExit = { editingTarget = null },
+                modifier = Modifier.fillMaxSize(),
+            )
+            return@Column
+        }
         if (pickMode && !pickerTitle.isNullOrEmpty()) {
             Text(
                 text = pickerTitle,
@@ -727,11 +734,15 @@ fun FileManagerScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.surfaceContainer)
-                .then(if (compactToolbar) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
         ) {
-            IconButton(onClick = { requestNavigation(FileManagerNavigation.UP) }, enabled = canGoUp && !cancellingNavigation, modifier = Modifier.focusGlide(CircleShape)) {
-                Icon(Icons.Filled.ArrowBack, stringResource(R.string.fm_back), tint = MaterialTheme.colorScheme.primary)
+            val upEnabled = canGoUp && !cancellingNavigation
+            IconButton(onClick = { requestNavigation(FileManagerNavigation.UP) }, enabled = upEnabled, modifier = Modifier.focusGlide(CircleShape)) {
+                Icon(
+                    Icons.Filled.ArrowBack,
+                    stringResource(R.string.fm_back),
+                    tint = if (upEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                )
             }
 
             val currentDriveLabel = stringResource(describeLocation(currentDir).driveLabel)
@@ -794,113 +805,119 @@ fun FileManagerScreen(
 
             Spacer(Modifier.width(4.dp))
 
-            if (showFavorites) {
-                Text(
-                    text = stringResource(R.string.fm_favorites),
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = if (compactToolbar) Modifier.widthIn(max = 140.dp) else Modifier.weight(1f),
-                )
-            } else if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT) {
-                if (!compactToolbar) Spacer(Modifier.weight(1f))
-            } else {
-                Text(
-                    text = currentDir.name.ifBlank { currentDir.absolutePath },
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = if (compactToolbar) Modifier.widthIn(max = 140.dp) else Modifier.weight(1f),
-                )
-            }
-
-            if (launchDir != null) {
-                IconButton(onClick = { requestNavigation(FileManagerNavigation.RETURN_TO_START) }, enabled = !cancellingNavigation, modifier = Modifier.focusGlide(CircleShape)) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardReturn, stringResource(R.string.fm_return_to_start), tint = MaterialTheme.colorScheme.primary)
-                }
-                if (LocalConfiguration.current.screenWidthDp >= 700) Spacer(Modifier.width(56.dp))
-            }
-
-            if (!showFavorites) {
-                if (!pickMode) {
-                    OutlinedButton(
-                        onClick = { showNewFolderDialog = true },
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                        modifier = Modifier.height(32.dp).focusGlide(CircleShape),
-                    ) {
-                        Icon(Icons.Filled.CreateNewFolder, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(5.dp))
-                        Text(stringResource(R.string.fm_new_folder), color = MaterialTheme.colorScheme.onBackground, fontSize = 12.sp)
-                    }
-                }
-                IconButton(onClick = {
-                    gridView = !gridView
-                    browsePrefs.edit().putBoolean("fmGridView", gridView).apply()
-                }, modifier = Modifier.focusGlide(CircleShape)) {
-                    Icon(
-                        if (gridView) Icons.Filled.ViewList else Icons.Filled.GridView,
-                        if (gridView) stringResource(R.string.fm_list_view) else stringResource(R.string.fm_grid_view),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .weight(1f)
+                    .then(if (compactToolbar) Modifier.horizontalScroll(rememberScrollState()) else Modifier),
+            ) {
+                if (showFavorites) {
+                    Text(
+                        text = stringResource(R.string.fm_favorites),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = if (compactToolbar) Modifier.widthIn(max = 140.dp) else Modifier.weight(1f),
+                    )
+                } else if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                    if (!compactToolbar) Spacer(Modifier.weight(1f))
+                } else {
+                    Text(
+                        text = currentDir.name.ifBlank { currentDir.absolutePath },
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = if (compactToolbar) Modifier.widthIn(max = 140.dp) else Modifier.weight(1f),
                     )
                 }
-                IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }, modifier = Modifier.focusGlide(CircleShape)) {
-                    Icon(Icons.Filled.Search, stringResource(R.string.fm_search), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Box {
-                    IconButton(onClick = { showSortMenu = true }, modifier = Modifier.focusGlide(CircleShape)) {
-                        Icon(Icons.Filled.Sort, stringResource(R.string.fm_sort), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                        listOf("name" to stringResource(R.string.fm_sort_name), "date" to stringResource(R.string.fm_sort_date), "size" to stringResource(R.string.fm_prop_size))
-                            .forEach { (key, label) ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(if (sortBy == key) "$label  ${if (sortDesc) "↓" else "↑"}" else label)
-                                    },
-                                    onClick = {
-                                        if (sortBy == key) sortDesc = !sortDesc else { sortBy = key; sortDesc = false }
-                                        browsePrefs.edit().putString("fmSortBy", sortBy)
-                                            .putBoolean("fmSortDesc", sortDesc).apply()
-                                        showSortMenu = false
-                                        loadDirectory(currentDir, resetScroll = false)
-                                    },
-                                    modifier = Modifier.focusGlide(),
-                                )
-                            }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                        DropdownMenuItem(
-                            text = { Text(if (compactRows) stringResource(R.string.fm_rows_comfortable) else stringResource(R.string.fm_rows_compact)) },
-                            onClick = {
-                                compactRows = !compactRows
-                                browsePrefs.edit().putBoolean("fmCompactRows", compactRows).apply()
-                                showSortMenu = false
-                            },
-                            modifier = Modifier.focusGlide(),
-                        )
-                        DropdownMenuItem(
-                            text = { Text(if (showHidden) stringResource(R.string.fm_hide_hidden) else stringResource(R.string.fm_show_hidden)) },
-                            onClick = {
-                                showHidden = !showHidden
-                                browsePrefs.edit().putBoolean("fmShowHidden", showHidden).apply()
-                                showSortMenu = false
-                                loadDirectory(currentDir, resetScroll = false)
-                            },
-                            modifier = Modifier.focusGlide(),
-                        )
-                    }
-                }
-            }
 
-            IconButton(onClick = { showFavorites = !showFavorites }, modifier = Modifier.focusGlide(CircleShape)) {
-                if (showFavorites) {
-                    Icon(Icons.Filled.Star, stringResource(R.string.fm_hide_favorites), tint = MaterialTheme.colorScheme.primary)
-                } else {
-                    Icon(Icons.Filled.StarBorder, stringResource(R.string.fm_show_favorites), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (launchDir != null) {
+                    IconButton(onClick = { requestNavigation(FileManagerNavigation.RETURN_TO_START) }, enabled = !cancellingNavigation, modifier = Modifier.focusGlide(CircleShape)) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardReturn, stringResource(R.string.fm_return_to_start), tint = MaterialTheme.colorScheme.primary)
+                    }
+                    if (LocalConfiguration.current.screenWidthDp >= 700) Spacer(Modifier.width(56.dp))
+                }
+
+                if (!showFavorites) {
+                    if (!pickMode) {
+                        OutlinedButton(
+                            onClick = { showNewFolderDialog = true },
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                            modifier = Modifier.height(32.dp).focusGlide(CircleShape),
+                        ) {
+                            Icon(Icons.Filled.CreateNewFolder, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text(stringResource(R.string.fm_new_folder), color = MaterialTheme.colorScheme.onBackground, fontSize = 12.sp)
+                        }
+                    }
+                    IconButton(onClick = { showSearch = !showSearch; if (!showSearch) searchQuery = "" }, modifier = Modifier.focusGlide(CircleShape)) {
+                        Icon(Icons.Filled.Search, stringResource(R.string.fm_search), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Box {
+                        IconButton(onClick = { showSortMenu = true }, modifier = Modifier.focusGlide(CircleShape)) {
+                            Icon(Icons.Filled.Sort, stringResource(R.string.fm_sort), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                            listOf("name" to stringResource(R.string.fm_sort_name), "date" to stringResource(R.string.fm_sort_date), "size" to stringResource(R.string.fm_prop_size))
+                                .forEach { (key, label) ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(if (sortBy == key) "$label  ${if (sortDesc) "↓" else "↑"}" else label)
+                                        },
+                                        onClick = {
+                                            if (sortBy == key) sortDesc = !sortDesc else { sortBy = key; sortDesc = false }
+                                            browsePrefs.edit().putString("fmSortBy", sortBy)
+                                                .putBoolean("fmSortDesc", sortDesc).apply()
+                                            showSortMenu = false
+                                            loadDirectory(currentDir, resetScroll = false)
+                                        },
+                                        modifier = Modifier.focusGlide(),
+                                    )
+                                }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                            DropdownMenuItem(
+                                text = { Text(if (gridView) stringResource(R.string.fm_list_view) else stringResource(R.string.fm_grid_view)) },
+                                onClick = {
+                                    gridView = !gridView
+                                    browsePrefs.edit().putBoolean("fmGridView", gridView).apply()
+                                    showSortMenu = false
+                                },
+                                modifier = Modifier.focusGlide(),
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (compactRows) stringResource(R.string.fm_rows_comfortable) else stringResource(R.string.fm_rows_compact)) },
+                                onClick = {
+                                    compactRows = !compactRows
+                                    browsePrefs.edit().putBoolean("fmCompactRows", compactRows).apply()
+                                    showSortMenu = false
+                                },
+                                modifier = Modifier.focusGlide(),
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (showHidden) stringResource(R.string.fm_hide_hidden) else stringResource(R.string.fm_show_hidden)) },
+                                onClick = {
+                                    showHidden = !showHidden
+                                    browsePrefs.edit().putBoolean("fmShowHidden", showHidden).apply()
+                                    showSortMenu = false
+                                    loadDirectory(currentDir, resetScroll = false)
+                                },
+                                modifier = Modifier.focusGlide(),
+                            )
+                        }
+                    }
+                }
+
+                IconButton(onClick = { showFavorites = !showFavorites }, modifier = Modifier.focusGlide(CircleShape)) {
+                    if (showFavorites) {
+                        Icon(Icons.Filled.Star, stringResource(R.string.fm_hide_favorites), tint = MaterialTheme.colorScheme.primary)
+                    } else {
+                        Icon(Icons.Filled.StarBorder, stringResource(R.string.fm_show_favorites), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
             if (!pickMode && onExit != null) {
@@ -1186,6 +1203,8 @@ fun FileManagerScreen(
                                         pickPrefs.edit().putString("lastFilePickerDir", currentDir.absolutePath).apply()
                                         onPick?.invoke(file)
                                     }
+                                } else {
+                                    editingTarget = file
                                 }
                             },
                             onMenu = { showMenuFor = file },
@@ -1197,6 +1216,7 @@ fun FileManagerScreen(
                                 selectedPaths = selectedPaths + file.absolutePath
                                 showMenuFor = null
                             },
+                            onOpen = { editingTarget = file; showMenuFor = null },
                             onRename = { renameTarget = file; showMenuFor = null },
                             onCopy = { clipboardFiles = listOf(file); isCutOperation = false; showMenuFor = null },
                             onCut = { clipboardFiles = listOf(file); isCutOperation = true; showMenuFor = null },
@@ -1265,6 +1285,8 @@ fun FileManagerScreen(
                                         pickPrefs.edit().putString("lastFilePickerDir", currentDir.absolutePath).apply()
                                         onPick?.invoke(file)
                                     }
+                                } else {
+                                    editingTarget = file
                                 }
                             },
                             onMenu = { showMenuFor = file },
@@ -1278,6 +1300,7 @@ fun FileManagerScreen(
                             onCopy = { clipboardFiles = listOf(file); isCutOperation = false; showMenuFor = null },
                             onCut = { clipboardFiles = listOf(file); isCutOperation = true; showMenuFor = null },
                             onDelete = { selectedEntry = file; showMenuFor = null },
+                            onOpen = { editingTarget = file; showMenuFor = null },
                             onRename = { renameTarget = file; showMenuFor = null },
                             isFavorite = isFav,
                             onToggleFavorite = {

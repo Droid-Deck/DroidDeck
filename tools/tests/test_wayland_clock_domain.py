@@ -58,7 +58,7 @@ class WaylandClockDomainTest(unittest.TestCase):
 #include <unistd.h>
 #include "clock_domain.h"
 
-struct pending_release { void *buffer; int64_t at_ns; struct pending_release *next; };
+struct pending_release { void *buffer; int64_t at_ns; struct pending_release *next; void *held_by; };
 static struct pending_release *g_pending_releases;
 static int g_release_timer_fd;
 #define wl_list_for_each(pr, list, link) for (pr = *(list); pr; pr = pr->next)
@@ -79,8 +79,8 @@ int main(int argc, char **argv) {
         struct timespec started, ended;
         clock_gettime(CLOCK_MONOTONIC, &started);
         int64_t start = now_ns();
-        struct pending_release blocked = {(void *)1, start + 1000000LL, NULL};
-        struct pending_release release = {NULL, start + 60000000LL, &blocked};
+        struct pending_release blocked = {(void *)1, start + 1000000LL, NULL, NULL};
+        struct pending_release release = {NULL, start + 60000000LL, &blocked, NULL};
         g_pending_releases = &release;
         arm_release_timer();
         int64_t next_offset = offsets[i] + 10000000000LL;

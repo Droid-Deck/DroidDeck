@@ -118,12 +118,18 @@ object HomeWidgets {
         if (live.size != parsed.size) save(context)
     }
 
+    private val listeners: MutableSet<Any> = java.util.Collections.newSetFromMap(java.util.IdentityHashMap())
+
     fun startListening(context: Context) {
+        listeners.add(context)
         load(context)
         runCatching { host(context).startListening() }
     }
 
+    // A restarted launcher starts before the old one stops; the host keeps listening until the last owner stops.
     fun stopListening(context: Context) {
+        listeners.remove(context)
+        if (listeners.isNotEmpty()) return
         runCatching { host(context).stopListening() }
     }
 

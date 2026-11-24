@@ -418,23 +418,36 @@ int renameat2(int olddirfd, const char *oldpath, int newdirfd, const char *newpa
     return ret;
 }
 
+static ssize_t copy_readlink_result(char *buf, size_t bufsiz, const char *out, ssize_t ret) {
+    if (ret <= 0 || out == buf) return ret;
+    size_t n = (size_t)ret < bufsiz ? (size_t)ret : bufsiz;
+    memcpy(buf, out, n);
+    return (ssize_t)n;
+}
+
 // Hook readlink
 ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
     if (is_proc_self_exe(pathname)) {
         ssize_t exe_len = handle_proc_self_exe(buf, bufsiz);
+        if (exe_len >= 0) return exe_len;
+    } else {
+        ssize_t exe_len = handle_proc_other_exe(pathname, buf, bufsiz);
         if (exe_len >= 0) return exe_len;
     }
     static ssize_t (*orig_readlink)(const char *, char *, size_t) = NULL;
     if (!orig_readlink) orig_readlink = (ssize_t (*)(const char *, char *, size_t))dlsym(RTLD_NEXT, "readlink");
     char pbuf[PATH_MAX];
     const char *target = rewrite_path(pathname, pbuf, sizeof(pbuf));
-    ssize_t ret = orig_readlink ? orig_readlink(target, buf, bufsiz) : -1;
+    char whole[PATH_MAX];
+    char *out = bufsiz && bufsiz < sizeof(whole) ? whole : buf;
+    size_t outsiz = out == whole ? sizeof(whole) : bufsiz;
+    ssize_t ret = orig_readlink ? orig_readlink(target, out, outsiz) : -1;
     if (ret < 0 && errno == ENOENT) {
         char alt[PATH_MAX];
         const char *retry = usrmerge_retry_path(target, alt, sizeof(alt));
-        if (retry) ret = orig_readlink(retry, buf, bufsiz);
+        if (retry) ret = orig_readlink(retry, out, outsiz);
     }
-    return postprocess_readlink(pathname, buf, ret, bufsiz);
+    return copy_readlink_result(buf, bufsiz, out, postprocess_readlink(pathname, out, ret, outsiz));
 }
 
 // Hook readlinkat
@@ -443,19 +456,29 @@ ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
     if (!orig_readlinkat) orig_readlinkat = (ssize_t (*)(int, const char *, char *, size_t))dlsym(RTLD_NEXT, "readlinkat");
     DDNATV_AT_REMAP(dirfd, pathname);
     // after the remap: "proc/self/exe" relative to a descriptor for "/" is /proc/self/exe as well
+    {
+        ssize_t exe_len = handle_proc_exe_at(dirfd, pathname, buf, bufsiz);
+        if (exe_len >= 0) return exe_len;
+    }
     if (is_proc_self_exe(pathname)) {
         ssize_t exe_len = handle_proc_self_exe(buf, bufsiz);
+        if (exe_len >= 0) return exe_len;
+    } else {
+        ssize_t exe_len = handle_proc_other_exe(pathname, buf, bufsiz);
         if (exe_len >= 0) return exe_len;
     }
     char pbuf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, pbuf, sizeof(pbuf)) : pathname;
-    ssize_t ret = orig_readlinkat ? orig_readlinkat(dirfd, target, buf, bufsiz) : -1;
+    char whole[PATH_MAX];
+    char *out = bufsiz && bufsiz < sizeof(whole) ? whole : buf;
+    size_t outsiz = out == whole ? sizeof(whole) : bufsiz;
+    ssize_t ret = orig_readlinkat ? orig_readlinkat(dirfd, target, out, outsiz) : -1;
     if (ret < 0 && errno == ENOENT && pathname && pathname[0] == '/') {
         char alt[PATH_MAX];
         const char *retry = usrmerge_retry_path(target, alt, sizeof(alt));
-        if (retry) ret = orig_readlinkat(dirfd, retry, buf, bufsiz);
+        if (retry) ret = orig_readlinkat(dirfd, retry, out, outsiz);
     }
-    return postprocess_readlink(pathname, buf, ret, bufsiz);
+    return copy_readlink_result(buf, bufsiz, out, postprocess_readlink(pathname, out, ret, outsiz));
 }
 
 // Fortified readlink variants used by dpkg / update-alternatives

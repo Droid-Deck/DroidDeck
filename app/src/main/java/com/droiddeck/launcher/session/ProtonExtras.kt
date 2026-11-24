@@ -9,24 +9,34 @@ import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
+import java.util.Locale
 import org.json.JSONArray
 import org.json.JSONObject
 
 object ProtonExtras {
     private const val TAG = "ProtonExtras"
     private const val NEED_BYTES = 4L * 1024 * 1024 * 1024
-    private const val RELEASES = "https://api.github.com/repos/%s/releases?per_page=15"
+    private const val RELEASE_PAGE_SIZE = 15
+    private const val RELEASES = "https://api.github.com/repos/%s/releases?per_page=$RELEASE_PAGE_SIZE&page=%d"
+    private const val RELEASE_PAGES = 5
+    private const val RELEASE_TAG = "https://api.github.com/repos/%s/releases/tags/%s"
     const val CHECK_EVERY_MS = 60L * 60 * 1000
     @Volatile
     var installInProgress = false
+    @Volatile var prefetching = false
         private set
+    @Volatile private var checkedArchive: Triple<String, Long, Long>? = null
+    @Volatile private var checkedDigest: String? = null
+
+    private fun fingerprint(archive: File) = Triple(archive.path, archive.length(), archive.lastModified())
     @Volatile
     private var replacing = false
 
     class Tool(val id: String, val name: String, val prefix: String, val repo: String, val assetPattern: Regex)
 
     internal data class Asset(val tag: String, val name: String, val url: String, val sha512: String?, val size: Long,
-                             val sha256: String? = null)
+                             val sha256: String? = null, val releaseName: String = tag)
+    internal data class ReleaseFetch(val releases: JSONArray, val complete: Boolean)
 
     const val OWN = "droiddeck"
 
@@ -37,7 +47,7 @@ object ProtonExtras {
     )
 
     private fun home(context: Context) = File(LinuxRuntime.rootDir(context), "root")
-    private fun requests(context: Context) = File(home(context), ".bl-proton-extra")
+    private fun requests(context: Context) = File(home(context), ".dd-proton-extra")
     private fun toolsDir(context: Context) = File(home(context), ".local/share/Steam/compatibilitytools.d")
     private fun releasesFile(context: Context) = File(context.filesDir, "proton-extras.json")
     private fun latestFile(context: Context) = File(context.filesDir, "proton-latest.json")
@@ -120,22 +130,25 @@ object ProtonExtras {
             if (due.isEmpty() || !force && (now - lastAttempt) in 0 until RETRY_MS) return false
             lastAttempt = now
             for (tool in due) {
-                val tag = findLatestAsset(tool)?.tag ?: continue
-                cache.put(tool.id, JSONObject().put("tag", tag).put("at", now))
+                updateLatest(cache, tool, releases(tool), now)
             }
             runCatching { file.writeText(cache.toString()) }
             return true
         }
     }
 
+    internal fun recordLatest(latest: JSONObject, tool: Tool, tag: String, now: Long): Boolean {
+        val entry = latest.optJSONObject(tool.id)
+        val known = entry?.optString("tag")
+        if (!known.isNullOrEmpty() && compareVersions(tag, known) < 0) return false
+        latest.put(tool.id, JSONObject().put("tag", tag).put("at", now))
+        return true
+    }
+
     private fun record(context: Context, tool: Tool, dir: String?, tag: String) {
         runCatching {
             val latest = readJson(latestFile(context))
-            val known = latest.optJSONObject(tool.id)?.optString("tag")
-            if (known.isNullOrEmpty() || compareVersions(tag, known) >= 0) {
-                latest.put(tool.id, JSONObject().put("tag", tag).put("at", System.currentTimeMillis()))
-                latestFile(context).writeText(latest.toString())
-            }
+            if (recordLatest(latest, tool, tag, System.currentTimeMillis())) latestFile(context).writeText(latest.toString())
             if (dir != null) {
                 val releases = readJson(releasesFile(context))
                 val present = toolsDir(context).list()?.toSet() ?: emptySet()
@@ -209,24 +222,12 @@ object ProtonExtras {
 
     @Synchronized
     fun install(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
-        if (installInProgress) return context.getString(R.string.pextra_busy)
+        if (installInProgress || prefetching) return context.getString(R.string.pextra_busy)
         installInProgress = true
         return try { installNow(context, tool, onProgress) } finally { installInProgress = false }
     }
 
-    private fun installNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
-        if (SessionState.running) return context.getString(R.string.pextra_stop_session)
-        if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
-
-        val asset = findLatestAsset(tool) ?: return context.getString(R.string.pextra_no_release, tool.name)
-        val downloads = File(context.filesDir, "proton-downloads").apply { mkdirs() }
-        val archive = File(downloads, "${tool.id}-${asset.name}")
-        if (asset.size > 0 && archive.length() > asset.size) archive.delete()
-        val missing = (asset.size - archive.length()).coerceAtLeast(0L)
-        if (StatFs(LinuxRuntime.rootDir(context).path).availableBytes < NEED_BYTES + missing) {
-            return context.getString(R.string.pextra_no_space, tool.name)
-        }
-
+    private fun fetchArchive(context: Context, tool: Tool, asset: Asset, archive: File, onProgress: (String, Int) -> Unit): String? {
         val downloading = context.getString(R.string.pextra_downloading, tool.name, asset.tag)
         onProgress(downloading, 0)
         var downloaded = false
@@ -244,6 +245,46 @@ object ProtonExtras {
             }
         }
         if (!downloaded) return context.getString(R.string.pextra_download_failed)
+        return null
+    }
+
+    /** Downloads the newest build of [tool] ahead of the runtime it installs into; [install] verifies and unpacks it later. */
+    @Synchronized
+    fun prefetch(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
+        if (installInProgress) return context.getString(R.string.pextra_busy)
+        prefetching = true
+        try { return prefetchNow(context, tool, onProgress) } finally { prefetching = false }
+    }
+
+    private fun prefetchNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
+        val asset = releases(tool)?.let { pickAsset(tool, it) } ?: return context.getString(R.string.pextra_no_release, tool.name)
+        val downloads = File(context.filesDir, "proton-downloads").apply { mkdirs() }
+        val archive = File(downloads, "${tool.id}-${asset.name}")
+        if (asset.size > 0 && archive.length() > asset.size) archive.delete()
+        val missing = (asset.size - archive.length()).coerceAtLeast(0L)
+        if (StatFs(context.filesDir.path).availableBytes < NEED_BYTES + missing) return context.getString(R.string.pextra_no_space, tool.name)
+        val problem = fetchArchive(context, tool, asset, archive, onProgress)
+        checkedArchive = if (problem == null && asset.sha256 != null && asset.size > 0 && archive.length() == asset.size) fingerprint(archive) else null
+        checkedDigest = if (checkedArchive != null) asset.sha256 else null
+        return problem
+    }
+
+    private fun installNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
+        if (SessionState.running) return context.getString(R.string.pextra_stop_session)
+        if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
+
+        val asset = releases(tool)?.let { pickAsset(tool, it) } ?: return context.getString(R.string.pextra_no_release, tool.name)
+        val downloads = File(context.filesDir, "proton-downloads").apply { mkdirs() }
+        val archive = File(downloads, "${tool.id}-${asset.name}")
+        if (asset.size > 0 && archive.length() > asset.size) archive.delete()
+        val missing = (asset.size - archive.length()).coerceAtLeast(0L)
+        if (StatFs(LinuxRuntime.rootDir(context).path).availableBytes < NEED_BYTES + missing) {
+            return context.getString(R.string.pextra_no_space, tool.name)
+        }
+
+        val checked = asset.sha256 != null && asset.size > 0 && checkedArchive == fingerprint(archive) &&
+            checkedDigest.equals(asset.sha256, ignoreCase = true)
+        if (!checked) fetchArchive(context, tool, asset, archive, onProgress)?.let { return it }
         if (asset.size > 0 && archive.length() != asset.size) {
             if (archive.length() > asset.size) {
                 archive.delete()
@@ -254,6 +295,7 @@ object ProtonExtras {
 
         onProgress(context.getString(R.string.pextra_verifying), -1)
         val verified = when {
+            checked -> true
             asset.sha256 != null -> asset.sha256.equals(Hashes.sha256(archive), ignoreCase = true)
             asset.sha512 != null -> {
                 val expected = Downloader.downloadDirect(asset.sha512)?.let { Regex("(?i)\\b[0-9a-f]{128}\\b").find(it)?.value }
@@ -277,26 +319,12 @@ object ProtonExtras {
             val root = LinuxRuntime.rootDir(context)
             LinuxRuntime.writeAccounts(context)
             com.droiddeck.launcher.session.SessionFiles.stage(context, root)
-            val runtimeDir = File(context.filesDir, ".proton-install-rt").apply { mkdirs() }
             val guest = listOf(
                 "/usr/bin/env", "-i", "HOME=/root", "USER=root", "PATH=/usr/local/bin:/usr/bin:/bin",
                 "LANG=C.UTF-8", "XDG_DATA_HOME=/root/.local/share",
                 "/usr/local/bin/droiddeck-proton-extra", "/root/.local/share/Steam", archive.absolutePath,
             )
-            val process = if (com.droiddeck.launcher.runtime.NativeGuest.enabled(context)) {
-                com.droiddeck.launcher.runtime.NativeGuest.processBuilder(context, root,
-                    LinuxRuntime.binds(context, null, runtimeDir, null, null), guest).redirectErrorStream(true)
-            } else {
-                ProcessBuilder(LinuxRuntime.command(context, null, runtimeDir, null, guest))
-                    .directory(root)
-                    .redirectErrorStream(true)
-                    .also { builder ->
-                        val hostEnv = builder.environment()
-                        hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(context).path
-                        hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(context).path
-                        LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { hostEnv["LD_LIBRARY_PATH"] = it }
-                    }
-            }
+            val process = guestProcess(context, guest)
             val child = process.start()
             var placed: String? = null
             child.inputStream.bufferedReader().useLines { lines ->
@@ -331,36 +359,106 @@ object ProtonExtras {
         }
     }
 
-    private fun findLatestAsset(tool: Tool): Asset? {
-        val releases = Downloader.downloadString(RELEASES.format(tool.repo)) ?: return null
-        return try {
-            pickAsset(tool, JSONArray(releases))
-        } catch (e: Exception) {
-            Log.w(TAG, "release metadata for ${tool.id}", e)
-            null
+    internal fun guestProcess(context: Context, guest: List<String>): ProcessBuilder {
+        val root = LinuxRuntime.rootDir(context)
+        val runtimeDir = File(context.filesDir, ".proton-install-rt").apply { mkdirs() }
+        return if (com.droiddeck.launcher.runtime.NativeGuest.enabled(context)) {
+            com.droiddeck.launcher.runtime.NativeGuest.processBuilder(context, root,
+                LinuxRuntime.binds(context, null, runtimeDir, null, null), guest).redirectErrorStream(true)
+        } else {
+            ProcessBuilder(LinuxRuntime.command(context, null, runtimeDir, null, guest))
+                .directory(root)
+                .redirectErrorStream(true)
+                .also { builder ->
+                    val hostEnv = builder.environment()
+                    hostEnv["PROOT_LOADER"] = LinuxRuntime.prootLoader(context).path
+                    hostEnv["PROOT_TMP_DIR"] = LinuxRuntime.prootTempDir(context).path
+                    LinuxRuntime.prootLibraryPath(context).takeIf { it.isNotEmpty() }?.let { hostEnv["LD_LIBRARY_PATH"] = it }
+                }
         }
     }
 
+    internal fun releases(tool: Tool): JSONArray? = releases(tool) { page ->
+        Downloader.downloadString(RELEASES.format(Locale.ROOT, tool.repo, page))?.let { body ->
+            try {
+                JSONArray(body)
+            } catch (e: Exception) {
+                Log.w(TAG, "release metadata for ${tool.id}", e)
+                null
+            }
+        }
+    }
+
+    internal fun releases(tool: Tool, fetch: (Int) -> JSONArray?): JSONArray? {
+        return releasesResult(tool, fetch, stopAtStable = true)?.releases
+    }
+
+    internal fun releasesForRemoval(tool: Tool, fetch: (Int) -> JSONArray? = { page ->
+        Downloader.downloadString(RELEASES.format(Locale.ROOT, tool.repo, page))?.let { body ->
+            runCatching { JSONArray(body) }.getOrNull()
+        }
+    }): ReleaseFetch? = releasesResult(tool, fetch, stopAtStable = false)
+
+    internal fun releaseGone(tool: Tool, tag: String): Boolean =
+        Downloader.gone(RELEASE_TAG.format(Locale.ROOT, tool.repo, java.net.URLEncoder.encode(tag, "UTF-8").replace("+", "%20"))) == true
+
+    private fun releasesResult(tool: Tool, fetch: (Int) -> JSONArray?, stopAtStable: Boolean): ReleaseFetch? {
+        val all = fetch(1) ?: return null
+        var page = 1
+        var last = all.length()
+        var complete = last < RELEASE_PAGE_SIZE
+        while (!complete && page < RELEASE_PAGES && (!stopAtStable || pickAsset(tool, all) == null)) {
+            val next = fetch(++page) ?: return null
+            for (i in 0 until next.length()) all.put(next.opt(i))
+            last = next.length()
+            complete = last < RELEASE_PAGE_SIZE
+        }
+        return ReleaseFetch(all, complete)
+    }
+
+    internal fun assets(tool: Tool, array: JSONArray, prerelease: Boolean): List<Asset> {
+        val releases = (0 until array.length()).mapNotNull { array.optJSONObject(it) }.filter { !it.optBoolean("draft", false) }
+        val stableAt = releases.filter { !it.optBoolean("prerelease", false) }.maxOfOrNull { it.optString("published_at") }.orEmpty()
+        return releases
+            .filter { it.optBoolean("prerelease", false) == prerelease && (!prerelease || it.optString("published_at") > stableAt) }
+            .mapNotNull { assetOf(tool, it, experimental = prerelease) }
+    }
+
     internal fun pickAsset(tool: Tool, array: JSONArray): Asset? {
-        for (i in 0 until array.length()) {
-            val release = array.getJSONObject(i)
-            if (release.optBoolean("draft", false) || release.optBoolean("prerelease", false)) continue
-            val assets = release.optJSONArray("assets") ?: continue
-            val entries = (0 until assets.length()).map { assets.getJSONObject(it) }
-            val archive = entries.sortedBy { it.optString("name") }.firstOrNull { tool.assetPattern.containsMatchIn(it.optString("name")) } ?: continue
+        val candidates = (0 until array.length()).asSequence()
+            .mapNotNull { array.optJSONObject(it) }
+            .filter { !it.optBoolean("draft", false) && !it.optBoolean("prerelease", false) }
+        return candidates.firstNotNullOfOrNull { assetOf(tool, it) }
+    }
+
+    internal fun updateLatest(cache: JSONObject, tool: Tool, array: JSONArray?, now: Long) {
+        if (array == null) return
+        val tag = pickAsset(tool, array)?.tag
+        if (tag == null) {
+            return
+        }
+        cache.put(tool.id, JSONObject().put("tag", tag).put("at", now))
+    }
+
+    internal fun assetOf(tool: Tool, release: JSONObject, requireChecksum: Boolean = false, experimental: Boolean = false): Asset? = try {
+        val assets = release.optJSONArray("assets")
+        val entries = assets?.let { list -> (0 until list.length()).mapNotNull { list.optJSONObject(it) } }.orEmpty()
+        entries.sortedBy { it.optString("name") }.filter {
+            val name = it.optString("name")
+            if (experimental && tool.id == OWN) name.startsWith(release.optString("tag_name")) && ExperimentalProtons.TARBALL.containsMatchIn(name) && !ExperimentalProtons.FOREIGN_ARCH.containsMatchIn(name) else tool.assetPattern.containsMatchIn(name)
+        }.mapNotNull { archive ->
             val name = archive.optString("name")
             val stem = name.substringBefore(".tar")
             val checksum = entries.firstOrNull {
                 it.optString("name").startsWith(stem) && it.optString("name").contains("sha512", ignoreCase = true)
             }?.optString("browser_download_url")?.takeIf { it.startsWith("http") }
-            return Asset(
-                release.optString("tag_name"), name,
-                archive.optString("browser_download_url").takeIf { it.startsWith("http") } ?: continue, checksum,
-                archive.optLong("size", 0L),
-                Hashes.githubSha256(archive.optString("digest")),
-            )
-        }
-        return null
+            archive.optString("browser_download_url").takeIf { it.startsWith("http") }?.let { url ->
+                Asset(release.optString("tag_name"), name, url, checksum, archive.optLong("size", 0L), Hashes.githubSha256(archive.optString("digest")), release.optString("name").ifEmpty { release.optString("tag_name") })
+            }
+        }.let { found -> if (requireChecksum) found.firstOrNull { it.sha256 != null || it.sha512 != null } else found.firstOrNull() }
+    } catch (e: Exception) {
+        Log.w(TAG, "release metadata for ${tool.id}", e)
+        null
     }
 
     private fun requestLines(context: Context): List<String> =

@@ -113,4 +113,18 @@ class GameStorageTest {
         SessionPrefs.setGameStorage(app, tmp.newFolder("plugged").path, "USB drive")
         assertFalse(GameStorage.disconnected(app))
     }
+
+    @Test fun onlyAVfatMountCountsAsFat32() {
+        val mounts = """
+            /dev/fuse /storage/emulated fuse rw 0 0
+            /dev/block/vold/public:179,65 /mnt/media_rw/8C5A-1F23 vfat rw 0 0
+            /dev/block/vold/public:8,1 /mnt/media_rw/1111-2222 exfat rw 0 0
+            /dev/fuse /storage/8C5A-1F23 fuse rw 0 0
+        """.trimIndent()
+        assertTrue(GameStorage.isFat32("/storage/8C5A-1F23/Android/data/com.droiddeck.launcher/files/steam", mounts))
+        assertTrue(GameStorage.isFat32("/mnt/media_rw/8C5A-1F23/Games", mounts))
+        assertFalse(GameStorage.isFat32("/storage/1111-2222/Android/data/com.droiddeck.launcher/files/steam", mounts))
+        assertFalse(GameStorage.isFat32("/storage/emulated/0/Android/data/com.droiddeck.launcher/files/steam", mounts))
+        assertFalse(GameStorage.isFat32("/storage/8C5A-1F230/Games", mounts))
+    }
 }

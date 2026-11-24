@@ -103,7 +103,6 @@
     <string name="input_shortcut_back_modes">뒤로 · Steam에서는 두 번, 데스크톱에서는 한 번</string>
     <string name="input_shortcut_hold_hint">Steam 모드에서. 뒤로를 길게 누르면 빠른 액세스도 열립니다.</string>
     <string name="input_restore_shortcut">기본값으로 복원</string>
-    <string name="input_second_mode_hint">패널 선택이 기억됩니다. 데스크톱은 두 번째 작업 공간을 열 뿐 세션이나 입력 프로필을 전환하지 않습니다.</string>
     <string name="input_virtual_controller">가상 컨트롤러</string>
     <string name="input_virtual_controller_hint">Steam 또는 게임이 인식하는 컨트롤러 유형입니다.</string>
     <string name="input_touchscreen">터치스크린</string>

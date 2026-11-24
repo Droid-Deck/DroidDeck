@@ -47,7 +47,7 @@ waits; it does not establish a full-install PRoot overhead percentage.
 ```
 SessionService ─HostProcess─▶ libproot.so (ONE tracer process, nice -6 after 2 s)
   └─ /usr/bin/env -i … droiddeck-session steam
-       └─ gamescope ─▶ droiddeck-session (BL_INSIDE) ─▶ steamrtarm64/steam (+ steamwebhelper/CEF tree)
+       └─ gamescope ─▶ droiddeck-session (DD_INSIDE) ─▶ steamrtarm64/steam (+ steamwebhelper/CEF tree)
             └─ reaper ─▶ droiddeck-game-env ─▶ droiddeck-proton ─▶ Valve ARM64 Proton (python)
                  └─ wine (arm64ec, FEX loaded in-process as a DLL) ─▶ wineserver, game.exe, …
 ```
@@ -56,7 +56,7 @@ SessionService ─HostProcess─▶ libproot.so (ONE tracer process, nice -6 aft
 - The options are `--kill-on-exit`, `--kernel-release=…` (kompat, for the hostname), `-i uid:uid`
   (fake_id0, for Xwayland's `setgid`/`setuid`), and about 25 binds: `/dev`, `/proc`, `/sys`, fake
   `/proc` and `/sys` files, the GPU node, `/dev/shm`, storage and the game libraries.
-- `/etc/ld.so.preload` loads `libblsession.so` (the `tools/linuxfs/preload/*.c` shims) into every
+- `/etc/ld.so.preload` loads `libddsession.so` (the `tools/linuxfs/preload/*.c` shims) into every
   guest process.
 - The Flatpak sandboxes (`BwrapSpawner`) already run in **separate** proot instances, started from
   the Android side.
@@ -187,9 +187,9 @@ Checked against bionic `android16-release`:
 |---|---|---|
 | `rseq`, `set_robust_list` | **blocked** | glibc, at the start of every thread, while all signals are blocked |
 | `faccessat2` | **blocked** | glibc's `faccessat()`, which tries it on **every** call before falling back, so 2 round trips (`access()` calls the plain `faccessat` syscall directly) |
-| `fchmodat2`, `openat2` | **blocked** | newer glibc, Flatpak/libglnx, FEX's rootfs lookups (`libblsession.so` turns `openat2` into `openat`, resolving `RESOLVE_IN_ROOT` paths component by component inside the root) |
+| `fchmodat2`, `openat2` | **blocked** | newer glibc, Flatpak/libglnx, FEX's rootfs lookups (`libddsession.so` turns `openat2` into `openat`, resolving `RESOLVE_IN_ROOT` paths component by component inside the root) |
 | `setuid`, `setgid` and the rest of the family | **blocked** | Xwayland (hence `-i`) |
-| `futex_waitv`, `io_uring_*`, `landlock_*` | **blocked** | Proton's fsync (droiddeck-fsync answers `futex_waitv` in `libblsession.so`), some engines |
+| `futex_waitv`, `io_uring_*`, `landlock_*` | **blocked** | Proton's fsync (droiddeck-fsync answers `futex_waitv` in `libddsession.so`), some engines |
 | `clone3` | blocked before Android 15 | glibc `pthread_create` |
 | `close_range` | blocked on Android 12 | |
 | `statx`, `process_vm_readv`/`writev`, `memfd_create`, `pidfd_*`, `seccomp` | allowed | |
@@ -300,7 +300,7 @@ it needs `patches/0014`, enabled with `PROOT_FASTPATH=1`.
     library file itself at the fixed address instead, as proot's loader does for every program.
   - Nothing claims `0xffff00000` first.
   - The stub's syscalls pass Android's filter. They should: all are allowed.
-- **Integrate into `libblsession.so`** rather than a second preload. `opens.c` and `pathcache.c`
+- **Integrate into `libddsession.so`** rather than a second preload. `opens.c` and `pathcache.c`
   already define `open` and `access`, so their "real" call should become the fast path. That also
   removes the second library's load cost, about 0.2–0.4 ms per exec that is still unexplained (see
   the exec row above).
@@ -375,19 +375,19 @@ Build a **glibc ARM64** library using the same toolchain as the shipped fast pat
 docker run --rm --platform linux/amd64 --user "$(id -u):$(id -g)" \
   -v "$PWD:/src" -w /src droiddeck-local-cross:24.04-v3 \
   aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-  -o /src/libblfastpath.so tools/proot/fastpath/fastpath.c -ldl
+  -o /src/libddfastpath.so tools/proot/fastpath/fastpath.c -ldl
 
 tools/droiddeckctl stop
-tools/droiddeckctl override libblfastpath.so ./libblfastpath.so
+tools/droiddeckctl override libddfastpath.so ./libddfastpath.so
 tools/droiddeckctl proot-profile enable
 tools/droiddeckctl start steam --wait
 ```
 
-The existing override bridge now recognizes `libblfastpath.so`: it checks ELF class, endianness,
+The existing override bridge now recognizes `libddfastpath.so`: it checks ELF class, endianness,
 type, and machine, reports SHA-256, and selects that file in `/etc/ld.so.preload` for one session.
 It rejects installation while a session is active. This is an architecture check, not validation
 of libc compatibility or the library's behavior. The fast path still requires its normal enabled
-setting and the patched PRoot pack. Its basename stays `libblfastpath.so`, so `libblsession`'s FEX
+setting and the patched PRoot pack. Its basename stays `libddfastpath.so`, so `libddsession`'s FEX
 routing finds it. Guest-command restaging retains the active selection. After stopping, the next
 session stages the bundled preload again; `env clear all` cancels queued overrides.
 

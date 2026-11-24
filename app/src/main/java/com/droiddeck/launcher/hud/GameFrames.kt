@@ -183,6 +183,8 @@ internal class GameFrameFeed(
         private set
     @Volatile var steamFocused = false
         private set
+    @Volatile var steamFocusKnown = false
+        private set
     @Volatile var pid = 0
         private set
     @Volatile var outputWidth = 0
@@ -198,10 +200,16 @@ internal class GameFrameFeed(
         val compositorAdded = compositorFrames != seenCompositorFrames
         seenCompositorFrames = compositorFrames
         if (handle == 0L) {
-            if (nowNs < nextOpenNs) return compositorAdded
+            if (nowNs < nextOpenNs) {
+
+                return compositorAdded
+            }
             nextOpenNs = nowNs + REOPEN_NS
             handle = runCatching { HudFrames.nativeOpen(file.path) }.getOrDefault(0L)
-            if (handle == 0L) return compositorAdded
+            if (handle == 0L) {
+
+                return compositorAdded
+            }
             HudFrames.nativePoll(handle, frametimes, times)
         }
         val n = HudFrames.nativePoll(handle, frametimes, times)
@@ -219,6 +227,7 @@ internal class GameFrameFeed(
             fromGamescope = false
         }
         if (n <= 0 && nowNs - maxOf(lastRingFrameNs, nextOpenNs - REOPEN_NS) > STALE_NS) close()
+
         if (nowNs - lastInfoNs >= INFO_NS) {
             lastInfoNs = nowNs
             readInfo()
@@ -250,6 +259,7 @@ internal class GameFrameFeed(
     }
 
     fun close() {
+        fromGamescope = false
         if (handle != 0L) HudFrames.nativeClose(handle)
         handle = 0L
     }
@@ -265,6 +275,7 @@ internal class GameFrameFeed(
         outputHeight = info[2]
         refreshMilliHz = info[3]
         steamFocused = info[4] != 0
+        steamFocusKnown = true
         engine = engineLabel(name)
     }
 
@@ -275,7 +286,7 @@ internal class GameFrameFeed(
         private const val INFO_NS = 500_000_000L
         private const val SHIFT_NS = 1_000_000_000L
         private const val SHIFT_RECHECK_NS = 100_000_000L
-        private const val CLOCK_CONTROL_PATH = "tmp/.bl-clock"
+        private const val CLOCK_CONTROL_PATH = "tmp/.dd-clock"
 
         fun forRoot(root: File) = GameFrameFeed(File(root, HudFrames.PATH), clockControl = File(root, CLOCK_CONTROL_PATH))
 

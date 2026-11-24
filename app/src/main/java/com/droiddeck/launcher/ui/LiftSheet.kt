@@ -126,6 +126,8 @@ internal object SheetTab {
     const val LIBRARY = "library"
     const val STEAM = "steam"
     const val FILES = "files"
+    const val DECKY = "decky"
+    const val BOOT_MOVIES = "boot-movies"
 }
 
 internal fun sheetTop(paneH: Float, buttonH: Float, minAbove: Float, ride: Float): Float =
@@ -189,6 +191,7 @@ internal fun LiftHero(
     onOpenChange: (Boolean) -> Unit = {},
     start: Dp = 44.dp,
     bottom: Dp = 44.dp,
+    onTextBounds: (Rect) -> Unit = {},
     drop: DropSheetState? = null,
     overlay: @Composable BoxWithConstraintsScope.(lifted: () -> Float) -> Unit = {},
 ) {
@@ -322,7 +325,7 @@ internal fun LiftHero(
 
     val touchOnly = inputMode.inputMode == InputMode.Touch
     val lipFocus = remember { FocusRequester() }
-    val settingsLabel = stringResource(R.string.drawer_page_settings)
+    val settingsLabel = stringResource(R.string.sheet_lip)
     var lipFocused by remember { mutableStateOf(false) }
     val lipWanted = !open && (!shown || lipBack) && (playFocused || playHovered || touchOnly || lipFocused) && drop?.let { it.open || it.shown } != true
     LaunchedEffect(lipWanted) {
@@ -573,7 +576,7 @@ internal fun LiftHero(
             }
         }
 
-        Column(Modifier.align(Alignment.BottomStart).padding(start = start, bottom = bottom, end = 20.dp)) {
+        Column(Modifier.align(Alignment.BottomStart).padding(start = start, bottom = bottom, end = 20.dp).onGloballyPositioned { onTextBounds(it.boundsInRoot()) }) {
             Box(Modifier.graphicsLayer { alpha = 1f - wallSink() }) { words() }
             Spacer(Modifier.height(18.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -666,7 +669,7 @@ internal fun Handle(height: Dp, above: Boolean = false) {
             .drawBorderSidesAndFoot(pal.line, 12.dp, flip = above)
             .padding(start = 14.dp, end = 10.dp),
     ) {
-        Text(stringResource(R.string.drawer_page_settings), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, maxLines = 1)
+        Text(stringResource(R.string.sheet_lip), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, maxLines = 1)
         Icon(
             if (above) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp, null, tint = colors.onSurfaceVariant,
             modifier = Modifier.size(16.dp).graphicsLayer { translationY = if (still) 0f else (if (above) 3.dp else -3.dp).toPx() * lift },

@@ -125,6 +125,14 @@ RECORD = ".droiddeck-shortcuts.json"
 AWAY_LIMIT = 256
 FIELDS = ("AppName", "Exe", "StartDir", "icon", "LaunchOptions")
 FOLLOWED = ("StartDir", "LaunchOptions")
+# Guest mountpoints whose contents live on storage the user can unplug. The app creates
+# the mountpoint before binding it, so it outlives a removed card; libraries, store
+# volumes and added game folders get one mountpoint each under these families.
+REMOVABLE_ROOTS = ("/mnt/droiddeck-sd", "/mnt/bannerlator-sd")
+REMOVABLE_FAMILIES = ("/mnt/droiddeck-lib", "/mnt/droiddeck-stores", "/root/Games")
+# Guest trees the app always has, whatever storage is in the device. A target that is
+# missing from one of these is gone even when its whole folder was removed.
+INTERNAL_ROOTS = ("/root/Games/Stores", "/root/.local/share/Steam")
 
 
 def unquoted(value):
@@ -146,6 +154,46 @@ def read_record(path):
     }
 
 
+def under(path, root):
+    return path == root or path.startswith(root + "/")
+
+
+def internal_target(target):
+    path = os.path.normpath(target)
+    return any(under(path, root) for root in INTERNAL_ROOTS)
+
+
+def removable_mount(target):
+    """The guest mountpoint holding target, when it is storage the user can unplug."""
+    path = os.path.normpath(target)
+    for root in REMOVABLE_ROOTS:
+        if under(path, root):
+            return root
+    for family in REMOVABLE_FAMILIES:
+        prefix = family + "/"
+        if path.startswith(prefix):
+            return prefix + path[len(prefix):].split("/", 1)[0]
+    return None
+
+
+def storage_mounted(target):
+    """Whether the storage holding target is there this session.
+
+    The app creates a guest mountpoint before binding storage to it, so a mountpoint that
+    lists nothing is one a removed card or volume left behind. A target under it may work
+    again when that storage returns, so its absence is not proof the file is gone.
+    """
+    if internal_target(target):
+        return True
+    mount = removable_mount(target)
+    if mount is None:
+        return True
+    try:
+        return bool(os.listdir(mount))
+    except OSError:
+        return False
+
+
 def merge(fresh, current, state, seen):
     state = state if isinstance(state, dict) else {}
     rev = state.get("rev") if isinstance(state.get("rev"), int) else 0
@@ -158,7 +206,16 @@ def merge(fresh, current, state, seen):
     entry = dict(current)
     entry["appid"] = fresh["appid"]
     exe = unquoted(fresh["Exe"])
-    if exe != unquoted(current.get("Exe")) and (exe != unquoted(base.get("Exe")) or seen == rev):
+    target = unquoted(current.get("Exe"))
+    # A target Steam still points at after the file is gone starts nothing, so it is not
+    # an edit to keep: the app's own exe replaces it (#694: a hand-typed Target outlived
+    # the game update that removed the file, and every launch died before the game ran).
+    # Only when its storage is mounted and it is missing from a tree the app always has or
+    # from a folder that is still there. An absent folder under a mountpoint can equally be
+    # unplugged storage, and that target may work again next session.
+    gone = (bool(target) and not os.path.isfile(target) and storage_mounted(target) and
+            (internal_target(target) or os.path.isdir(os.path.dirname(target))))
+    if exe != target and (gone or exe != unquoted(base.get("Exe")) or seen == rev):
         entry["Exe"], entry["StartDir"] = fresh["Exe"], fresh["StartDir"]
     for field in ("AppName", "icon"):
         if current.get(field) == base.get(field):
@@ -345,7 +402,7 @@ def main():
         cfg = os.path.join(steam_root, "config", "config.vdf")
         if os.path.isfile(cfg) and (ours or routes):
             tools = os.path.join(steam_root, "compatibilitytools.d")
-            x64_tool = os.environ.get("BL_COMPAT_TOOL")
+            x64_tool = os.environ.get("DD_COMPAT_TOOL")
             own = {}
             if x64_tool:
                 protect = {compat.first_key(os.path.join(tools, e, "compatibilitytool.vdf"), ["compatibilitytools", "compat_tools"]) or e: e

@@ -155,4 +155,37 @@ class LinuxNetworkLinkComponentTest {
         })
         assertEquals(before, link)
     }
+
+    @Test fun parallelPublishersFromSeparateComponentsAllLandAndLeaveNoStagedCopy() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val link = properties("10.0.0.1/24").route("1.0.0.0", 8).route("128.0.0.0", 1)
+        val failures = java.util.concurrent.atomic.AtomicInteger()
+        val threads = (0 until 8).map {
+            Thread {
+                val component = LinuxNetworkLinkComponent(context, temporary.root)
+                repeat(25) {
+                    runCatching {
+                        ReflectionHelpers.callInstanceMethod<Unit>(component, "replace",
+                            from(java.io.File::class.java, temporary.root.resolve("etc/droiddeck-net").apply { parentFile!!.mkdirs() }),
+                            from(String::class.java, "if tun0 $it\n"))
+                    }.onFailure { failures.incrementAndGet() }
+                }
+            }.apply { start() }
+        }
+        threads.forEach { it.join() }
+        assertEquals(0, failures.get())
+        assertFalse(temporary.root.resolve("etc/droiddeck-net.staged").exists())
+        assertEquals("if tun0 24\n", temporary.root.resolve("etc/droiddeck-net").readText())
+    }
+
+    @Test fun anUnchangedFileIsNotRewritten() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val component = LinuxNetworkLinkComponent(context, temporary.root)
+        val file = temporary.root.resolve("etc/resolv.conf").apply { parentFile!!.mkdirs(); writeText("nameserver 1.1.1.1\n") }
+        assertTrue(file.setLastModified(1_000_000L))
+        ReflectionHelpers.callInstanceMethod<Unit>(component, "replace", from(java.io.File::class.java, file), from(String::class.java, "nameserver 1.1.1.1\n"))
+        assertEquals(1_000_000L, file.lastModified())
+        ReflectionHelpers.callInstanceMethod<Unit>(component, "replace", from(java.io.File::class.java, file), from(String::class.java, "nameserver 8.8.8.8\n"))
+        assertEquals("nameserver 8.8.8.8\n", file.readText())
+    }
 }

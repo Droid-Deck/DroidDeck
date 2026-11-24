@@ -38,7 +38,7 @@ RUNTIMES = {SNIPER_APPID: ("sniper_platform_", "Steam Linux Runtime 3.0 (sniper"
             SLR4_APPID: ("steamrt4_platform_", "Steam Linux Runtime 4.0 (steamrt4")}
 MARKER = ".droiddeck-fex"
 LAYOUT = 1
-ROOTFS_LAYOUT = 4
+ROOTFS_LAYOUT = 10
 BLOB_DIRS = re.compile(r"^(?:\.ref|[0-9a-f]{2})$")
 ROOTFS_LIBRARY_DIRS = ("lib", "lib64")
 ARCH_DIRS = ("x86_64-linux-gnu", "i386-linux-gnu")
@@ -49,10 +49,18 @@ PROVIDED = frozenset((
     "libnss_compat.so.2", "libnss_dns.so.2", "libnss_files.so.2", "libnss_hesiod.so.2", "libthread_db.so.1",
     "libmemusage.so", "libpcprofile.so", "libc_malloc_debug.so.0", "gconv", "libstdc++.so.6", "libgcc_s.so.1",
     "libssl.so.3", "libcrypto.so.3",
+    "libfreetype.so.6", "libpng16.so.16", "libbrotlidec.so.1", "libbrotlicommon.so.1", "libbz2.so.1.0", "libz.so.1",
+    "libwayland-client.so.0", "libwayland-egl.so.1", "libwayland-server.so.0", "libffi.so.8",
+    "libgbm.so.1", "libdrm.so.2", "libexpat.so.1", "libOpenGL.so.0",
 ))
+PROVIDED_NEEDS = {
+    "libwayland-client.so.0": ("libffi.so.8",),
+    "libwayland-server.so.0": ("libffi.so.8",),
+    "libgbm.so.1": ("libdrm.so.2", "libexpat.so.1"),
+}
 GLIBC_BUILD = re.compile(r"^(?:ld|lib[A-Za-z_]+)-2\.[0-9]+\.so$|^libSegFault\.so$")
 GUEST_LIBDIRS = (("x86_64", "lib/x86_64-linux-gnu"), ("i386", "lib/i386-linux-gnu"))
-PRELOAD_NAMES = ("libblsession.so", "libfakeinput.so")
+PRELOAD_NAMES = ("libddsession.so", "libfakeinput.so")
 FAULT_REPORT = "libfaultreport.so"
 VULKAN_PIN = "libvulkan-thunk.so"
 VULKAN_PIN_DIR = "lib/x86_64-linux-gnu/droiddeck/vulkan"
@@ -174,7 +182,7 @@ def own_fex_loads():
 
 
 def update_own_fex():
-    wanted = os.environ.get("BL_FEX_TAG")
+    wanted = os.environ.get("DD_FEX_TAG")
     if not wanted:
         return
     if (read_text(OWN_FEX_TAG) or "").strip() == wanted and own_fex_loads():
@@ -343,10 +351,14 @@ def stays_in_libraries(root, target, link):
 
 
 def mirror(source, provider, name, target, root):
-    if provider and name in PROVIDED and os.path.lexists(os.path.join(provider, name)):
+    usable_provider = provider and all(os.path.exists(os.path.join(provider, needed))
+                                       for needed in (name,) + PROVIDED_NEEDS.get(name, ()))
+    if name in PROVIDED and usable_provider:
         clone(os.path.join(provider, name), os.path.join(target, name))
         return
     path = os.path.join(source, name)
+    if not os.path.lexists(path):
+        return
     link = os.readlink(path) if os.path.islink(path) else None
     if link and GLIBC_BUILD.match(os.path.basename(link)):
         if name not in INTERPRETERS:
@@ -365,6 +377,16 @@ def build_rootfs(base, provider):
     rootfs = os.path.join(STATE, "rootfs")
     stamp = "%d\n%s\n%s%s\n%s" % (ROOTFS_LAYOUT, os.path.realpath(base), read_text(os.path.join(base_files, MARKER)) or "",
                                     os.path.realpath(provider), read_text(os.path.join(provider_files, MARKER)) or "")
+    for top in ("lib", "lib64"):
+        for arch in ARCH_DIRS:
+            for name in sorted(PROVIDED):
+                path = os.path.join(provider_files, top, arch, name)
+                try:
+                    info = os.stat(path)
+                    stamp += "\n%s %s %d %d %d %d" % (path, os.path.realpath(path), info.st_ino, info.st_size,
+                                                        info.st_mtime_ns, info.st_ctime_ns)
+                except OSError:
+                    stamp += "\n%s missing" % path
     if read_text(os.path.join(rootfs, MARKER)) == stamp:
         return False
     for entry in os.listdir(STATE):
@@ -384,7 +406,7 @@ def build_rootfs(base, provider):
             if entry in ARCH_DIRS and os.path.isdir(path) and not os.path.islink(path):
                 provided = os.path.join(provider_files, top, entry)
                 os.makedirs(os.path.join(tmp, top, entry))
-                for name in set(os.listdir(path)) | {name for name in PROVIDED if os.path.lexists(os.path.join(provided, name))}:
+                for name in set(os.listdir(path)) | {name for name in PROVIDED if os.path.exists(os.path.join(provided, name))}:
                     mirror(path, provided, name, os.path.join(tmp, top, entry), tmp)
             else:
                 mirror(source, None, entry, os.path.join(tmp, top), tmp)
@@ -648,6 +670,8 @@ def guest_environment(fex, env):
     result.setdefault("FEX_SILENTLOG", "0")
     result.setdefault("FEX_OUTPUTLOG", "stderr")
     result.pop("GLIBC_TUNABLES", None)
+    if "aarch64" in result.get("GCONV_PATH", ""):
+        result["GCONV_PATH"] = ""
     result.setdefault("GC_DISABLE_INCREMENTAL", "1")
     if fex["portable"]:
         result["FEX_PORTABLE"] = "1"
@@ -827,8 +851,12 @@ def extract(image):
     clear_extracted()
     x86 = elf_arch(image) in X86.values()
     if os.access(URUNTIME, os.X_OK):
-        run = subprocess.run([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                             env=dict(os.environ, TARGET_APPIMAGE=image))
+        with open(image, "rb") as source:
+            native = bool(os.environ.get("DDNATV_ROOT"))
+            target = "/proc/self/fd/%d" % source.fileno() if native else image
+            run = subprocess.run([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                 env=dict(os.environ, TARGET_APPIMAGE=target),
+                                 pass_fds=(source.fileno(),) if native else ())
         errors = run.stderr.decode("utf-8", "replace")
         sys.stderr.write(errors)
         status = run.returncode
@@ -858,7 +886,17 @@ def extract(image):
                 want_fex()
             return 0
         say("unsquashfs could not extract it (status %d)" % status)
-    elif fex is None:
+    seven = shutil.which("7z")
+    if seven:
+        clear_extracted()
+        status = subprocess.call([seven, "x", "-tSquashFS", "-y", "-osquashfs-root", image], stdout=subprocess.DEVNULL)
+        if status == 0 and extracted():
+            if x86:
+                want_fex()
+            return 0
+        say("7-Zip could not extract it (status %d)" % status)
+        clear_extracted()
+    elif fex is None and not unsquashfs:
         say("this AppImage could not be unpacked here: no AppImage runtime for ARM64, no FEX yet and no unsquashfs")
     return 1
 

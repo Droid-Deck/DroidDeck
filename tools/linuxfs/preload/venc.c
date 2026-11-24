@@ -115,14 +115,14 @@ static void vn_free_queue(struct vq *q) {
     memset(q, 0, sizeof *q);
 }
 
-__attribute__((visibility("hidden"))) int bl_venc_streaming(void) {
+__attribute__((visibility("hidden"))) int dd_venc_streaming(void) {
     return __atomic_load_n(&vn_open_count, __ATOMIC_ACQUIRE) > 0;
 }
 
-__attribute__((visibility("hidden"))) int bl_venc_connect(void);
+__attribute__((visibility("hidden"))) int dd_venc_connect(void);
 
-int bl_venc_connect(void) {
-    const char *path = getenv("BL_VENC_SOCKET");
+int dd_venc_connect(void) {
+    const char *path = getenv("DD_VENC_SOCKET");
     if (path == NULL || *path == '\0') return -1;
     struct sockaddr_un addr = { .sun_family = AF_UNIX };
     if (strlen(path) >= sizeof addr.sun_path) return -1;
@@ -138,10 +138,10 @@ int bl_venc_connect(void) {
     return fd;
 }
 
-__attribute__((visibility("hidden"))) int bl_venc_open(const char *path, int flags) {
+__attribute__((visibility("hidden"))) int dd_venc_open(const char *path, int flags) {
     (void)flags;
     if (path == NULL || strcmp(path, VENC_DEVICE) != 0) return -2;
-    int fd = bl_venc_connect();
+    int fd = dd_venc_connect();
     if (fd < 0) return -2;
     pthread_mutex_lock(&vn_lock);
     struct venc *v = NULL;
@@ -546,7 +546,7 @@ static int vn_ioctl(struct venc *v, unsigned long req, void *arg) {
     }
 }
 
-__attribute__((visibility("hidden"))) int bl_venc_ioctl(int fd, unsigned long req, void *arg, int *rc) {
+__attribute__((visibility("hidden"))) int dd_venc_ioctl(int fd, unsigned long req, void *arg, int *rc) {
     struct venc *v = vn_find(fd);
     if (v == NULL) return 0;
     pthread_mutex_lock(&vn_lock);
@@ -561,7 +561,7 @@ __attribute__((visibility("hidden"))) int bl_venc_ioctl(int fd, unsigned long re
     return 1;
 }
 
-__attribute__((visibility("hidden"))) int bl_venc_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off,
+__attribute__((visibility("hidden"))) int dd_venc_mmap(void *addr, size_t len, int prot, int flags, int fd, off_t off,
                                                        void *(*real)(void *, size_t, int, int, int, off_t), void **out) {
     struct venc *v = vn_find(fd);
     if (v == NULL) return 0;
@@ -579,7 +579,7 @@ __attribute__((visibility("hidden"))) int bl_venc_mmap(void *addr, size_t len, i
     return 1;
 }
 
-__attribute__((visibility("hidden"))) void bl_venc_closed(int fd) {
+__attribute__((visibility("hidden"))) void dd_venc_closed(int fd) {
     struct venc *v = vn_find(fd);
     if (v == NULL) return;
     pthread_mutex_lock(&vn_lock);
@@ -623,14 +623,14 @@ static int vn_poll(struct pollfd *fds, nfds_t n, int timeout_ms, int (*real)(str
     return r + ready;
 }
 
-__attribute__((weak, visibility("hidden"))) int bl_vdec_poll(struct pollfd *fds, nfds_t n, int timeout_ms,
+__attribute__((weak, visibility("hidden"))) int dd_vdec_poll(struct pollfd *fds, nfds_t n, int timeout_ms,
                                                              int (*real)(struct pollfd *, nfds_t, int), int *ret);
 
 int poll(struct pollfd *fds, nfds_t n, int timeout_ms) {
     static int (*real)(struct pollfd *, nfds_t, int);
     if (!real) real = (int (*)(struct pollfd *, nfds_t, int))dlsym(RTLD_NEXT, "poll");
     int ret;
-    if (bl_vdec_poll && bl_vdec_poll(fds, n, timeout_ms, real, &ret)) return ret;
+    if (dd_vdec_poll && dd_vdec_poll(fds, n, timeout_ms, real, &ret)) return ret;
     if (__atomic_load_n(&vn_open_count, __ATOMIC_ACQUIRE) == 0) return real(fds, n, timeout_ms);
     return vn_poll(fds, n, timeout_ms, real);
 }

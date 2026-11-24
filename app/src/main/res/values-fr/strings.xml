@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="steamvr_recovery_title">Le rendu graphique de SteamVR s\'est arrêté</string>
     <string name="steamvr_recovery_countdown">DroidDeck va redémarrer dans %1$d secondes pour réinitialiser le rendu graphique et rouvrir SteamVR. Votre jeu en cours sera fermé ; la progression non sauvegardée ne pourra pas être récupérée.</string>
@@ -22,7 +22,6 @@
         <item>Ajoutez des bibliothèques Steam depuis une carte SD, une clé USB ou un SSD, et DroidDeck réunit les jeux dans votre Bibliothèque.</item>
         <item>Boutiques vous permet de vous connecter à Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io et Game Jolt, puis d\'installer et de mettre à jour leurs jeux depuis DroidDeck.</item>
         <item>Les composants comme FEX, DXVK et VKD3D-Proton se mettent à jour seuls, et Proton Experimental ARM64 est la valeur par défaut, ou Proton 11.0 ARM64 une fois cette version installée.</item>
-        <item>Compresser Steam pendant un jeu libère de la RAM sur les appareils qui en manquent.</item>
         <item>Balayez depuis le bord droit pour ouvrir le menu de session : mode pavé tactile, Clavier PC, Mode faible latence, Profil du jeu et plus encore.</item>
         <item>Jeu lent ? Limitez la fréquence d\'images dans Accès rapide, puis essayez une autre version de Proton ou un autre préréglage FEX dans les composants du jeu.</item>
         <item>Audio du jeu qui grésille ou absent ? Essayez l\'option Utiliser DirectAudio pour le jeu dans les paramètres Steam, sous Audio.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Ce programme est conçu pour les PC %1$s et s\'exécute via FEX, qui n\'est pas encore configuré. Ouvrez Steam une fois en étant connecté : DroidDeck lui fait télécharger FEX et le Steam Linux Runtime nécessaires, puis ce programme s\'ouvre.</string>
     <string name="session_proot_missing">Impossible de télécharger le proot de DroidDeck. Vérifiez la connexion et réessayez. La session n\'a pas été démarrée, car le proot de secours est trop lent pour jouer.</string>
     <string name="session_powervr_missing">L\'environnement graphique PowerVR n\'a pas pu être téléchargé. Vérifiez la connexion et réessayez.</string>
+    <string name="session_graphics_runtime_failed">L\'environnement graphique n\'a pas pu être préparé, la session n\'a donc pas été lancée.</string>
+    <string name="session_game_environment_failed">L\'environnement de jeu n\'a pas pu être configuré, la session n\'a donc pas été lancée.</string>
     <string name="session_directaudio_missing">Impossible de télécharger DirectAudio ; l\'audio des jeux utilise le chemin plus lent pour cette session.</string>
     <string name="session_end_program">Ce programme</string>
     <string name="session_end_present_fault">La session n\'a pas pu dessiner à l\'écran : %1$s. Cet écran affiche la raison au lieu d\'un écran noir ; les journaux de la session contiennent les détails.</string>
@@ -280,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Sortie HDR10</string>
     <string name="mode_hdr_unavailable">Non disponible : %1$s.</string>
-    <string name="mode_hdr_restart">Prendra effet après le redémarrage de l\'application.</string>
     <string name="mode_drivers">Pilotes</string>
     <string name="mode_gpu_drivers">Pilotes GPU</string>
     <string name="mode_gpu_drivers_hint">Partagés entre Steam et le bureau. À configurer dans la page « Composants ».</string>
@@ -332,7 +332,6 @@
     <string name="mode_startup">Démarrage</string>
     <string name="mode_startup_session">Ouvrir au démarrage</string>
     <string name="mode_startup_session_hint">Lance cette session au démarrage de DroidDeck.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Vérification des versions…</string>
     <string name="mode_decky_ready">Prêt à installer %1$s.</string>
     <string name="mode_decky_none">Aucune version compatible trouvée. Veuillez réessayer plus tard.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">À jour · %1$s</string>
     <string name="mode_decky_loader">Chargeur</string>
     <string name="mode_decky_install_latest">Installer la dernière version</string>
-    <string name="decky_channel">Canal de mise à jour</string>
-    <string name="decky_channel_hint">Les versions de Decky Loader à installer. Le programme de mise à jour de Decky utilise le même canal.</string>
     <string name="decky_channel_stable">Stable</string>
     <string name="decky_channel_prerelease">Préversion</string>
     <string name="decky_channel_testing">Test</string>
     <string name="decky_channel_failed">Impossible d\'enregistrer le canal de mise à jour de Decky</string>
-    <string name="mode_decky_on">Démarre avec Steam. Une fois activé, d\'autres applications sur cet appareil peuvent contrôler Steam.</string>
-    <string name="mode_decky_off">Désactivé. Le port de débogage distant de Steam reste fermé.</string>
     <string name="mode_decky_remove_title">Désinstaller Decky Loader ?</string>
     <string name="mode_decky_remove_text">Supprime le chargeur. Vos plugins et paramètres seront conservés.</string>
     <string name="mode_client">Client</string>
@@ -357,7 +352,7 @@
     <string name="mode_return_after_game">Revenir à DroidDeck après un jeu</string>
     <string name="mode_return_after_game_hint">Quand un jeu lancé depuis DroidDeck ou un autre lanceur se ferme, Steam se ferme proprement (après la synchronisation des sauvegardes cloud) et vous y revenez. Désactivé : vous restez dans Steam.</string>
     <string name="mode_shader_precache">Pré-mise en cache des shaders</string>
-    <string name="mode_shader_precache_hint">Steam télécharge des shaders précompilés pour vos jeux et les traite en arrière-plan, pour moins de saccades. Désactivé, vous économisez données, stockage et batterie ; les jeux compilent alors leurs shaders en cours de partie. Même paramètre que Téléchargements > Pré-mise en cache des shaders dans Steam. Prendra effet à la prochaine session.</string>
+    <string name="mode_shader_precache_hint">Steam télécharge des shaders précompilés pour vos jeux et les traite en arrière-plan, pour moins de saccades. Désactivé, vous économisez données, stockage et batterie ; les jeux compilent alors leurs shaders en cours de partie. Même paramètre que Téléchargements &gt; Pré-mise en cache des shaders dans Steam. Prendra effet à la prochaine session.</string>
     <string name="mode_steam_repair">Réparer le client Steam</string>
     <string name="mode_steam_repair_hint">Retélécharge le client Steam au prochain démarrage de Steam. Utile si Steam reste bloqué sur son écran de chargement. Les jeux, la connexion et les paramètres sont conservés.</string>
     <string name="mode_steam_repair_queued">Le client Steam sera retéléchargé au prochain démarrage de Steam.</string>
@@ -626,20 +621,8 @@
     <string name="perf_gsrealtime">gamescope : file d\'attente GPU temps réel</string>
     <string name="perf_gsrealtime_hint">Augmente la priorité du travail GPU du compositeur. Peut améliorer la stabilité du temps de frame, mais consomme une partie des performances du jeu.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Mémoire</string>
     <string name="perf_cap_off">Désactivé</string>
-    <string name="perf_cap_auto">Valeur par défaut du pilote</string>
-    <string name="perf_zram_client">Compresser Steam pendant un jeu</string>
-    <string name="perf_zram_idle">Compresser la mémoire inactive du jeu</string>
-    <string name="perf_zram_idle_hint">Compresse la mémoire inactive du jeu quand la RAM manque. Désactivez-le si les jeux se figent quelques secondes environ toutes les trente secondes. S\'applique au prochain démarrage de la session.</string>
-    <string name="perf_zram_client_hint">20 s après le démarrage d\'un jeu, le client Steam est compressé dans zRAM pour laisser plus de mémoire au jeu, puis relu à la fermeture du jeu. Désactivez cette option si la session se ferme peu après le démarrage des jeux. Une limite de RAM ci-dessus compresse toujours Steam lorsque la session la dépasse.</string>
-    <string name="perf_ram_cap">Limite de RAM</string>
-    <string name="perf_ram_cap_hint">S\'applique tant que le client Steam fonctionne, en mode Steam ou depuis le bureau. Lorsque la session dépasse cette valeur, Steam puis les autres processus pris en charge de la session sont compressés dans zRAM. Limite souple : rien n\'est fermé, mais les jeux peuvent saccader pendant le rechargement des pages.</string>
-    <string name="perf_ram_cap_unavailable">Nécessite un swap zRAM, dont cet appareil ne dispose pas.</string>
-    <string name="perf_vram_cap">Limite de VRAM</string>
-    <string name="perf_vram_cap_hint">Signale ce budget de mémoire vidéo aux jeux Direct3D 9 à 12 pour réduire leur consommation. Les jeux peuvent le dépasser ; cela ne fournit pas de pagination GPU et ne garantit pas une protection contre les plantages par manque de mémoire. Prend effet à la prochaine session.</string>
     <string name="perf_gpuclock">Maintenir le GPU à sa fréquence maximale</string>
-    <string name="perf_gpuclock_hint">Uniquement pour Adreno. Moins de saccades, mais plus de consommation d\'énergie et de chaleur.</string>
     <string name="perf_fixes">Correctifs de session</string>
     <string name="perf_sysmem">Turnip : rendu sysmem</string>
     <string name="perf_sysmem_hint">S’applique au client Steam et aux jeux. Requis sur Adreno 710/720/722.</string>
@@ -712,7 +695,10 @@
     <string name="hud_size_mega">Méga</string>
     <string name="hud_size_strip">Bandeau</string>
     <string name="hud_locked">Verrouiller la position</string>
-    <string name="hud_locked_hint">Faites glisser le HUD pour le déplacer ; un appui long le verrouille ou le déverrouille. Tant qu\'il est verrouillé, les commandes à l\'écran situées dessous restent utilisables.</string>
+    <string name="hud_locked_hint">Faites glisser le HUD pour le déplacer. Tant qu\'il est verrouillé, les commandes à l\'écran situées dessous restent utilisables.</string>
+    <string name="hud_hold">Appui long</string>
+    <string name="hud_hold_collapse">Réduire ou développer</string>
+    <string name="hud_hold_lock">Verrouiller ou déverrouiller</string>
     <string name="hud_snap">Aimanter sur les côtés</string>
     <string name="hud_snap_hint">Relâchez le HUD et il rejoint le côté de l’écran le plus proche. Un geste rapide le lance dans cette direction.</string>
     <string name="hud_group_look">Apparence</string>
@@ -814,7 +800,6 @@
     <string name="drawer_pc_keyboard">Clavier PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Deuxième écran</string>
-    <string name="drawer_second_screen_mode">Mode</string>
     <string name="drawer_second_screen_shows">Afficher</string>
     <string name="drawer_android_apps">Applications Android</string>
     <string name="drawer_launch_app">Lancer l\'application</string>
@@ -965,13 +950,15 @@
     <string name="setup_launcher_orientation_auto">Suivre la rotation de l\'appareil</string>
     <string name="setup_orientation_portrait">Portrait</string>
     <string name="setup_session_orientation">Orientation de la session</string>
-    <string name="setup_session_orientation_hint">S\'applique à Steam, aux jeux, au bureau et à l\'éditeur de manette. Les préréglages de résolution pivotent avec la session ; la largeur et la hauteur personnalisées restent telles que saisies.</string>
+    <string name="setup_session_orientation_hint">S\'applique à Steam, aux jeux, au bureau et à l\'éditeur de manette. Les préréglages de résolution pivotent avec la session ; lorsqu\'une orientation suit l\'autre, la largeur et la hauteur personnalisées sont inversées pour correspondre.</string>
     <string name="setup_orientation_auto">Paysage automatique</string>
     <string name="setup_orientation_landscape">Paysage</string>
     <string name="setup_orientation_reverse">Paysage inversé</string>
     <string name="setup_fullscreen">Plein écran</string>
     <string name="setup_fullscreen_on">Masquer la barre d\'état et la barre de navigation Android</string>
     <string name="setup_fullscreen_off">Afficher la barre d\'état et la barre de navigation Android</string>
+    <string name="setup_page_swipe">Balayer entre les pages</string>
+    <string name="setup_page_swipe_hint">Balayez une page pour changer d\'onglet.</string>
     <string name="setup_dual_screen_launcher">Lanceur double écran</string>
     <string name="setup_dual_screen_launcher_hint">Automatique place les sections du lanceur (Steam, Bibliothèque, Boutiques et les autres) sur le second écran intégré des consoles portables qui en sont équipées. Activé utilise n\'importe quel écran secondaire. Désactivé conserve le lanceur sur un seul écran.</string>
     <string name="setup_dual_screen_sessions">Sessions double écran</string>
@@ -1148,7 +1135,7 @@
     <string name="lab_off_title">Version Lab désactivée</string>
     <string name="lab_off_other_install">Elle a été créée pour une autre version de DroidDeck. Elle est conservée dans Mises à jour.</string>
     <string name="lab_off_did_not_start">DroidDeck n\'a pas démarré dessus à deux reprises</string>
-    <string name="rail_agent">Agent</string>
+    <string name="rail_agent">Dev Harness</string>
     <string name="agent_channel_name">Agent</string>
     <string name="agent_working">L\'agent travaille</string>
     <string name="agent_missing">Installez Claude Code dans l\'environnement utilisateur Linux pour utiliser l\'agent.</string>
@@ -1295,8 +1282,6 @@
     <string name="gate_open_dev">Ouvrir les options pour les développeurs</string>
     <string name="gate_no_toggle">Cette version d\'Android ne dispose pas de cet interrupteur, DroidDeck effectuera donc la modification via le débogage sans fil. Cela prend environ une minute, sans ordinateur.</string>
     <string name="gate_needs_wifi">Le débogage sans fil nécessite un Wi-Fi. N\'importe quel réseau convient, Internet n\'est pas nécessaire.</string>
-    <string name="gate_needs_notifications">Le code d\'appairage s\'affichera dans une notification. Veuillez autoriser DroidDeck à envoyer des notifications, ou utilisez « Autre méthode ».</string>
-    <string name="gate_allow_notifications">Autoriser les notifications</string>
     <string name="gate_step1">Ouvrez Paramètres → Options pour les développeurs → Débogage sans fil, et activez-le</string>
     <string name="gate_step2">Appuyez sur « Associer l\'appareil avec un code d\'appairage »</string>
     <string name="gate_step3">Saisissez le code d\'appairage dans la notification DroidDeck</string>
@@ -1313,47 +1298,13 @@
     <string name="gate_status">État</string>
     <string name="gate_polling">Vérification toutes les 2 secondes. Cette page se fermera automatiquement une fois cet interrupteur désactivé.</string>
     <string name="gate_other_ways">Autres méthodes</string>
-    <string name="gate_other_toggle">Débogage sans fil, saisie manuelle de l\'adresse, ADB sur PC</string>
-    <string name="gate_other_no_toggle">Saisie manuelle de l\'adresse, ADB sur PC, options pour les développeurs</string>
     <string name="gate_use_wireless_instead">Utiliser plutôt le débogage sans fil</string>
     <string name="gate_some_roms">Certaines ROM proposent encore cet interrupteur. Recherchez « processus enfants » dans les options pour les développeurs.</string>
-    <string name="gate_manual_hint">Si la méthode par notification ne fonctionne pas, saisissez manuellement l\'adresse et le code d\'appairage de la fenêtre.</string>
-    <string name="gate_enter_manually">Saisir l\'adresse manuellement</string>
     <string name="gate_from_computer">Utiliser ADB depuis un ordinateur :</string>
     <string name="gate_copy_command">Copier la commande</string>
+    <string name="gate_sidequest_steps">Branchez le casque à un ordinateur et ouvrez SideQuest. Choisissez « Run ADB Command », puis « Custom Command », saisissez la commande affichée ci-dessous et sélectionnez « Run Command ».</string>
     <string name="gate_choose_display">Choisissez l\'écran sur lequel ouvrir les paramètres Android.</string>
     <string name="gate_main_screen">Écran principal</string>
-    <string name="wadb_finding_port">Appairé. Recherche du port de débogage sans fil…</string>
-    <string name="wadb_enter_port">Appairé. Veuillez saisir le port indiqué dans les paramètres.</string>
-    <string name="wadb_applying">Appareil trouvé. Application des paramètres…</string>
-    <string name="wadb_apply_failed">Impossible d\'appliquer automatiquement. Veuillez vérifier l\'adresse ci-dessous et réessayer. %1$s</string>
-    <string name="wadb_title_wireless">Débogage sans fil</string>
-    <string name="wadb_title_done">Limite des processus enfants mise à jour</string>
-    <string name="wadb_title">Modifier la limite des processus enfants</string>
-    <string name="wadb_lede_compact0">Si cette option n\'est pas disponible, appairez via le débogage sans fil.</string>
-    <string name="wadb_lede_compact1">Appairé. Veuillez vérifier l\'adresse IP et le port dans le débogage sans fil.</string>
-    <string name="wadb_lede_done">La limite des processus enfants a été mise à jour.</string>
-    <string name="wadb_lede0">Si l\'option de processus enfants n\'est pas disponible dans les options pour les développeurs, utilisez l\'étape 2. Ouvrez Options pour les développeurs → Débogage sans fil → Associer l\'appareil avec un code d\'appairage.</string>
-    <string name="wadb_lede1">Appairé. Utilisez l\'adresse ci-dessous, ou mettez-la à jour dans Débogage sans fil → Adresse IP et port.</string>
-    <string name="wadb_lede_done_long">Limite des processus enfants mise à jour via le débogage sans fil.</string>
-    <string name="wadb_confirmed_on">Android a confirmé que la limite est activée.</string>
-    <string name="wadb_confirmed_off">Android a confirmé que la limite est désactivée.</string>
-    <string name="wadb_pair_group">2 · Appairer le débogage sans fil</string>
-    <string name="wadb_pair_address">Adresse IP et port dans la fenêtre d\'appairage</string>
-    <string name="wadb_pin">Code d\'appairage (PIN)</string>
-    <string name="wadb_pin_placeholder">6 chiffres</string>
-    <string name="wadb_pair">Appairer</string>
-    <string name="wadb_apply_group">2 · Appliquer via le débogage sans fil</string>
-    <string name="wadb_connect_address">Adresse IP et port de connexion</string>
-    <string name="wadb_pair_again">Réappairer</string>
-    <string name="wadb_turn_off">Désactiver la limite</string>
-    <string name="wadb_other_ways">Autres méthodes de modification</string>
-    <string name="wadb_dev_try_first">1 · Options pour les développeurs (à essayer en premier)</string>
-    <string name="wadb_restrict_on">Désactivez « Désactiver les limites pour les processus enfant ».</string>
-    <string name="wadb_restrict_off">Activez « Désactiver les limites pour les processus enfant ».</string>
-    <string name="wadb_computer_last">3 · ADB sur PC (en dernier recours)</string>
-    <string name="wadb_only_if">À utiliser uniquement si le débogage sans fil n\'est pas disponible.</string>
-    <string name="wadb_computer_group">3 · ADB sur PC (en dernier recours)</string>
     <string name="ctrl_color">Couleur</string>
     <string name="ctrl_custom">Personnalisée</string>
     <string name="ctrl_opacity">Opacité</string>
@@ -1576,6 +1527,8 @@
     <string name="pip_unavailable">Android ne peut pas ouvrir le mode PiP.</string>
     <string name="game_more">Plus</string>
     <string name="game_edit_art">Modifier les illustrations</string>
+    <string name="game_unhide">Ne plus masquer</string>
+    <string name="game_hide_failed">Synchronisation avec Steam impossible. Fermez Steam et réessayez.</string>
     <string name="stores_in_steam_label">Dans Steam</string>
     <string name="game_shortcut">Raccourci</string>
     <string name="game_shortcut_add">Ajouter à l\'écran d\'accueil</string>
@@ -1597,7 +1550,6 @@
     <string name="game_file_folder">Choisir un dossier pour les fichiers du jeu frontal</string>
     <string name="game_file_exported">Fichiers du jeu enregistrés dans %1$s</string>
     <string name="game_frontend_files">Fichiers frontaux</string>
-
     <string name="main_wait_runtime">Attendez la fin de l\'opération sur l\'environnement d\'exécution</string>
     <string name="main_wait_proton_install">Attendez la fin de l\'installation de l\'outil de compatibilité</string>
     <string name="load_compat_title">Préparation des outils de compatibilité</string>
@@ -1646,8 +1598,6 @@
         <item quantity="many">%1$d dossiers de journaux de session effacés.</item>
         <item quantity="other">%1$d dossiers de journaux de session effacés.</item>
     </plurals>
-    <string name="main_wadb_pair_failed">Échec de l\'appairage du débogage sans fil</string>
-    <string name="main_wadb_command_failed">Échec de la commande de débogage sans fil</string>
     <string name="main_wadb_unavailable">Le débogage sans fil n\'est pas disponible</string>
     <string name="main_adb_copied">Commande ADB copiée</string>
     <string name="main_pick_roms">Choisir le dossier ROM</string>
@@ -1688,7 +1638,6 @@
     <string name="main_removing_runtime">Suppression de l\'environnement d\'exécution Linux</string>
     <string name="main_settings_main_screen">Impossible d\'ouvrir les paramètres sur l\'écran inférieur ; ils ont été ouverts sur l\'écran principal.</string>
     <string name="main_open_dev_options">Ouvrez les options pour les développeurs dans les paramètres</string>
-
     <string name="upd_unknown_apps_failed">Impossible d\'ouvrir le paramètre Android « Installer des applis inconnues »</string>
     <string name="upd_couldnt_check">Vérification impossible : %1$s</string>
     <string name="upd_no_download">Cette version ne propose aucun téléchargement pour cette copie de DroidDeck</string>
@@ -1698,12 +1647,10 @@
     <string name="upd_stage_confirm">En attente de votre confirmation</string>
     <string name="upd_failed">La mise à jour a échoué</string>
     <string name="upd_not_offered">Android n\'a pas proposé d\'installer la mise à jour</string>
-
     <string name="decky_install_failed">Échec de l\'installation de Decky : %1$s</string>
     <string name="decky_plugin_starting">Démarrage de l\'importation du plugin…</string>
     <string name="decky_plugin_failed">Échec de l\'importation du plugin : %1$s</string>
     <string name="decky_plugin_installed">Plugin installé. Redémarrez Steam pour le charger.</string>
-
     <string name="drivers_not_checked">Pas encore vérifié - appuyez sur Actualiser pour rechercher de nouveaux pilotes</string>
     <string name="drivers_bundle_sets_display">Android + Linux : définit aussi le pilote d\'affichage</string>
     <string name="drivers_bundle_sets_runtime">Android + Linux : définit aussi le pilote d\'exécution</string>
@@ -1759,7 +1706,6 @@
     <string name="drivers_check_failed">échec de la vérification</string>
     <string name="drivers_installed_pick_either">%1$s installé - choisissez-le dans l\'une ou l\'autre liste pour définir les deux pilotes</string>
     <string name="drivers_installed_pick">%1$s installé - choisissez-le dans le menu</string>
-
     <string name="session_wait_removal">Attendez la fin de la suppression de l\'environnement d\'exécution</string>
     <string name="session_title_game">Jeu</string>
     <string name="session_touch_auto_touchpad">pavé tactile</string>
@@ -1807,7 +1753,6 @@
         <item quantity="many">Le journal indique %1$d erreurs « Function not implemented » : l\'accélération seccomp de proot fait échouer un utilitaire sur cet appareil. Essayez %2$s → « %3$s » (ou « %4$s ») et relancez.</item>
         <item quantity="other">Le journal indique %1$d erreurs « Function not implemented » : l\'accélération seccomp de proot fait échouer un utilitaire sur cet appareil. Essayez %2$s → « %3$s » (ou « %4$s ») et relancez.</item>
     </plurals>
-
     <string name="mode_decky_plugins">Plugins</string>
     <string name="mode_decky_plugins_hint">Installez un ZIP de plugin pour la prochaine session Steam.</string>
     <string name="mode_decky_plugin_downloading">Téléchargement…</string>
@@ -2171,7 +2116,6 @@
     <string name="bottom_telemetry_elite">Elite Dangerous</string>
     <string name="bottom_telemetry_unknown_format">Le port %1$d reçoit des données (%2$d paquets de %3$d octets), mais dans un format que cette page ne sait pas encore lire.</string>
     <string name="bottom_telemetry_port_busy">Un autre programme utilise déjà le port %1$s ; ce jeu ne peut donc pas s\'afficher ici.</string>
-
     <string name="rtinst_removing">Suppression de l\'environnement d\'exécution Linux</string>
     <plurals name="rtinst_removing_entries">
         <item quantity="one">Suppression de l\'environnement d\'exécution Linux · %1$d élément</item>
@@ -2187,7 +2131,6 @@
     <string name="rtinst_channel_description">Affiché pendant l\'installation ou la suppression de l\'environnement d\'exécution Linux</string>
     <string name="rtinst_title_installing">Installation de l\'environnement d\'exécution Linux</string>
     <string name="rtinst_title_removing">Suppression de l\'environnement d\'exécution Linux</string>
-
     <string name="deskpkg_runtime_missing">L\'environnement d\'exécution Linux n\'est pas installé</string>
     <string name="deskpkg_no_checksum">Le catalogue n\'a pas de somme de contrôle pour %1$s</string>
     <string name="deskpkg_checksum_mismatch">Somme de contrôle incorrecte - rien n\'a été modifié</string>
@@ -2195,7 +2138,6 @@
     <string name="deskpkg_place_failed">Impossible de placer l\'AppImage</string>
     <string name="deskpkg_extract_failed">Échec de l\'extraction</string>
     <string name="deskpkg_install_failed">Échec de l\'installation</string>
-
     <string name="flatpakmgr_setup_failed">Échec de la configuration de Flatpak (code %1$d)</string>
     <string name="flatpakmgr_setup_unfinished">La configuration de Flatpak ne s\'est pas terminée</string>
     <string name="flatpakmgr_busy">Une autre tâche de la boutique est en cours</string>
@@ -2214,7 +2156,6 @@
     <string name="flatpakmgr_ref_media_codecs">codecs multimédias</string>
     <string name="flatpakmgr_ref_runtime">environnement d\'exécution %1$s</string>
     <string name="flatpakmgr_ref_runtime_branch">environnement d\'exécution %1$s %2$s</string>
-
     <string name="appimg_too_small">Le fichier est trop petit pour être un AppImage</string>
     <string name="appimg_unreadable">Impossible de lire le fichier : %1$s</string>
     <string name="appimg_not_linux">Ce n\'est pas un AppImage (ce n\'est pas un programme Linux)</string>
@@ -2229,7 +2170,6 @@
     <string name="appimg_extracting">Extraction de %1$s</string>
     <string name="appimg_extract_failed">Impossible d\'extraire l\'AppImage</string>
     <string name="appimg_extract_failed_detail">Impossible d\'extraire l\'AppImage : %1$s</string>
-
     <string name="deckymgr_stop_session_loader">Arrêtez la session en cours avant d\'installer Decky Loader</string>
     <string name="deckymgr_download_failed">Échec du téléchargement de Decky Loader</string>
     <string name="deckymgr_size_mismatch">La taille de Decky Loader ne correspond pas aux métadonnées de la version</string>
@@ -2278,13 +2218,11 @@
     <string name="deckymgr_activate_failed">Impossible d\'activer le plugin importé</string>
     <string name="deckymgr_settings_failed">Impossible de mettre à jour les paramètres des plugins Decky</string>
     <string name="deckymgr_restore_failed">Impossible de restaurer le plugin existant</string>
-
     <string name="adbfix_save_failed">Impossible d\'enregistrer l\'identité du débogage sans fil</string>
     <string name="adbfix_command_failed">Échec de la commande ADB (%1$d)</string>
     <string name="adbfix_not_confirmed">Android n\'a pas confirmé la modification de la limite des processus enfants : %1$s</string>
     <string name="adbfix_no_pairing">Aucun appairage de débogage sans fil n\'est enregistré</string>
     <string name="adbfix_enter_address">Saisissez l\'adresse IP et le port actuels du débogage sans fil</string>
-
     <string name="adbpair_timed_out">Délai dépassé en attendant la fenêtre d\'appairage. Réessayez depuis DroidDeck.</string>
     <string name="adbpair_discovery_failed_code">Impossible de rechercher la fenêtre d\'appairage (%1$d). Vérifiez que le Wi-Fi est activé.</string>
     <string name="adbpair_discovery_failed">Impossible de rechercher la fenêtre d\'appairage : %1$s</string>
@@ -2310,7 +2248,6 @@
     <string name="adbpair_title_done">Steam est prêt</string>
     <string name="adbpair_done_text">Appuyez pour revenir à DroidDeck. Vous pouvez maintenant désactiver le débogage sans fil.</string>
     <string name="adbpair_title_failed">Configuration du débogage sans fil interrompue</string>
-
     <string name="selfinst_download_failed">Échec du téléchargement</string>
     <string name="selfinst_size_mismatch">La taille du téléchargement ne correspond pas à l\'APK publié ; il a été supprimé - réessayez</string>
     <string name="selfinst_checksum_mismatch">Le téléchargement ne correspond pas à sa somme de contrôle et a été supprimé - réessayez</string>
@@ -2323,13 +2260,11 @@
     <string name="selfinst_no_signing">L\'APK téléchargé ne contient aucune information de signature</string>
     <string name="selfinst_wrong_signer">L\'APK téléchargé n\'est pas signé avec la clé de publication de DroidDeck</string>
     <string name="appupd_http">Le catalogue des mises à jour a renvoyé HTTP %1$d</string>
-
     <string name="loadstate_starting">Démarrage de la session…</string>
     <string name="loadstate_elapsed">%1$d:%2$02d écoulées · toujours en cours</string>
     <string name="loadstate_steam_update">Téléchargement de la mise à jour du client Steam · %1$d%%</string>
     <string name="loadstate_steam_update_applying">Application de la mise à jour du client Steam…</string>
     <string name="loadstate_steam_client">Téléchargement du client Steam · %1$s</string>
-
     <string name="pextra_busy">Une installation d\'outil de compatibilité est déjà en cours</string>
     <string name="pextra_stop_session">Arrêtez la session en cours avant d\'installer des outils de compatibilité</string>
     <string name="pextra_no_release">Aucune version ARM64 trouvée pour %1$s</string>
@@ -2346,10 +2281,20 @@
     <string name="pextra_checksum_mismatch">Somme de contrôle incorrecte ; le téléchargement a été supprimé</string>
     <string name="pextra_session_started">Une session a démarré pendant le téléchargement ; arrêtez-la avant d\'installer des outils de compatibilité</string>
     <string name="pextra_installing">Installation de %1$s</string>
+    <string name="xproton_title">Versions expérimentales</string>
+    <string name="xproton_install_file">Installer depuis un fichier</string>
+    <string name="xproton_archive_unsafe">L’archive contient un lien ou chemin dangereux</string>
+    <string name="xproton_archive_invalid">Archive non prise en charge ou invalide</string>
+    <string name="xproton_no_space">Espace libre insuffisant pour cette version de Proton</string>
+    <string name="xproton_unpacking">Extraction de Proton (quelques minutes)</string>
+    <string name="xproton_untar_failed">Échec de l\'extraction (tar %1$d)</string>
+    <string name="xproton_no_tree">L\'archive ne contient aucune version de Proton</string>
+    <string name="xproton_place_failed">Impossible de placer la version de Proton</string>
+    <string name="xproton_remove_failed">Impossible de supprimer entièrement %1$s</string>
+    <string name="xproton_installed">Proton expérimental installé. Sélectionnez-le dans Steam → Propriétés → Compatibilité.</string>
     <string name="pextra_install_failed">Échec de l\'installation de %1$s (code %2$d)</string>
     <string name="pextra_could_not_install">Impossible d\'installer %1$s</string>
     <string name="esync_fetching">Récupération du pack droiddeck-esync</string>
-
     <string name="cmgr_fex_linux_helpers">avec les utilitaires Linux</string>
     <string name="cmgr_fex_dlls_only">DLL uniquement</string>
     <string name="cmgr_original_proton_updated">Original (Proton mis à jour depuis le dernier remplacement)</string>
@@ -2372,13 +2317,11 @@
     <string name="cmgr_nightly_replaced">Échec du téléchargement : cette version nightly a peut-être été remplacée par une plus récente. Actualisez la liste et réessayez.</string>
     <string name="cmgr_list_predates_checksums">Cette liste de paquets est antérieure aux sommes de contrôle - actualisez-la et réessayez</string>
     <string name="cmgr_checksum_mismatch">Somme de contrôle incorrecte</string>
-
     <string name="sprefs_upscaler_linear">Linéaire</string>
     <string name="sprefs_upscaler_nearest">Plus proche voisin</string>
     <string name="sprefs_upscaler_gsr_quality">Snapdragon GSR (qualité)</string>
     <string name="sprefs_upscaler_sharpen">Netteté seule</string>
     <string name="sprefs_lod_bias_auto">Auto (selon la mise à l\'échelle)</string>
-
     <string name="look_off_desc">Aucun effet appliqué.</string>
     <string name="look_game_clarity">Clarté de jeu</string>
     <string name="look_game_clarity_desc">Netteté avec une pointe de contraste - pour tous les jours.</string>
@@ -2402,7 +2345,6 @@
     <string name="look_pixel_clean_desc">Pixels nets pour la 2D et les vieux jeux.</string>
     <string name="look_anime_edge">Contours anime</string>
     <string name="look_anime_edge_desc">Contours façon dessin animé et netteté accrue.</string>
-
     <string name="gpuinfo_not_adreno">GPU non Adreno</string>
     <string name="gpuinfo_powervr">Pilote système PowerVR : la compatibilité varie selon chaque appareil</string>
     <string name="gpuinfo_xclipse">Expérimental : RADV ou le pilote système Xclipse</string>
@@ -2427,7 +2369,6 @@
     <string name="gpuinfo_unsupported">Non pris en charge : aucun moteur graphique compatible n’est disponible pour ce GPU</string>
     <string name="gpuinfo_bridge">Passe par le pont Mali, sur le pilote Vulkan du téléphone</string>
     <string name="gpuinfo_bridge_off">Non pris en charge lorsque le pont Mali est désactivé : Turnip nécessite un GPU Adreno (Snapdragon)</string>
-
     <string name="turnip_rate_limited">Limite de requêtes GitHub atteinte - réessayez plus tard</string>
     <string name="turnip_github_http">GitHub a répondu HTTP %1$d</string>
     <string name="turnip_download_failed">Échec du téléchargement</string>
@@ -2448,16 +2389,12 @@
     <string name="bundle_no_manifest">Ce n\'est pas un bundle de pilotes : aucun manifest.json désignant un pilote Android et un pilote Linux</string>
     <string name="bundle_entry_outside">Ce n\'est pas un bundle de pilotes : %1$s pointe en dehors de celui-ci</string>
     <string name="bundle_too_large">Ce n\'est pas un bundle de pilotes : il dépasse %1$d Mo une fois décompressé</string>
-
     <string name="gstore_sd_card">Carte SD</string>
     <string name="gstore_folder">Dossier</string>
-
     <string name="logshare_chooser">Partager les journaux de session</string>
-
     <string name="hdr_needs_android_10">nécessite Android 10 ou plus récent (couches d\'affichage avec espace colorimétrique)</string>
     <string name="hdr_none">cet écran n\'indique aucune prise en charge HDR</string>
     <string name="hdr_not_hdr10">cet écran prend en charge %1$s, mais pas HDR10</string>
-
     <string name="gpu_this_gpu">ce GPU</string>
     <string name="phantom_title_on">Limite des processus enfants activée</string>
     <string name="phantom_title_unset">Limite des processus enfants non définie</string>
@@ -2506,10 +2443,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Affichage de la session</string>
-    <string name="display_resolution">Résolution</string>
+    <string name="display_zero_copy">Affichage sans copie</string>
+    <string name="display_resolution_landscape">Résolution en paysage</string>
+    <string name="display_resolution_portrait">Résolution en portrait</string>
+    <string name="display_follow_landscape">Comme le paysage (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Comme le portrait (%1$d×%2$d)</string>
     <string name="display_game_fit">Ajustement des jeux 16:9</string>
     <string name="display_game_fit_hint">Comment les jeux 16:9 s\'adaptent à cet écran. À la prochaine session.</string>
     <string name="display_game_fit_unavailable">Choisissez « Adapter à l\'écran » ou une taille personnalisée plus étroite que 16:9.</string>
+    <string name="display_avoid_notch">Éviter l\'encoche</string>
+    <string name="display_avoid_notch_hint">Garde l\'image hors de la découpe de la caméra. S\'applique au retour dans la session.</string>
     <string name="display_preserve">Conserver les proportions</string>
     <string name="display_stretch">Étirer sur l\'écran</string>
     <string name="display_image_scaling">Mise à l\'échelle de l\'image</string>
@@ -2531,7 +2474,6 @@
     <string name="device_info_copied">Copié.</string>
     <string name="force_ssbs_title">Forcer SSBS</string>
     <string name="force_ssbs_hint">Maintient activé un réglage de vitesse du CPU que Wine désactive sans cesse. Peut accélérer les jeux Windows sur Snapdragon 8 Elite ; peu de différence constatée sur les puces plus anciennes. Prendra effet au prochain lancement du jeu.</string>
-
     <string name="rail_stores">Boutiques</string>
     <string name="source_steam">Steam</string>
     <string name="source_added">Personnalisé</string>
@@ -2794,6 +2736,7 @@
     <string name="stores_login_error_ssl">La liaison avec la page de connexion n\'est pas sécurisée.</string>
     <string name="stores_login_error_verification">Impossible de vérifier la connexion. Réessayez.</string>
     <string name="stores_login_error_generic">Échec de la connexion. Réessayez.</string>
+    <string name="stores_login_continue_in_browser">%1$s demande une étape de plus. Terminez-la dans le navigateur qui s\'est ouvert, puis réessayez.</string>
     <string name="common_close">Fermer</string>
     <string name="common_back">Retour</string>
     <string name="common_edit">Modifier</string>
@@ -3017,7 +2960,6 @@
     <string name="touch_icon_color">Couleur de l\'icône</string>
     <string name="touch_button_color">Couleur du bouton</string>
     <string name="touch_no_icon">Aucune icône</string>
-
     <string name="stores_sync_sign_in">Vérification de la connexion…</string>
     <string name="stores_sync_library">Récupération de votre bibliothèque…</string>
     <string name="stores_sync_game_list">Récupération de la liste des jeux…</string>
@@ -3183,7 +3125,7 @@
     <string name="hand_camera_done">Terminé</string>
     <string name="glasses_xreal_network_missing">En attente de la connexion Ethernet USB des lunettes. Ce téléphone ne la rend peut-être pas accessible aux applications.</string>
     <string name="glasses_xreal_connection_failed">La connexion XREAL a été interrompue ou a renvoyé une réponse non prise en charge. Nouvelle tentative…</string>
-    <string name="glasses_xreal_experimental">Prise en charge expérimentale des 1S. Utilisez le mode Follow et désactivez la stabilisation dans le menu des lunettes. Le sens du suivi et les modes d\'affichage restent à tester sur l\'appareil.</string>
+    <string name="glasses_xreal_experimental">Prise en charge expérimentale des XREAL 1S, One, One Pro, One Pro+ et Aura. Utilisez le mode Follow et désactivez la stabilisation dans le menu des lunettes ; sur les Aura, désactivez aussi Spatial Anchor. Le suivi de la tête et le passage entre 2D/3D ont été testés sur les Aura et les One Pro+.</string>
     <string name="glasses_pro2_experimental">Suivi expérimental des mouvements de la tête pour Pro 2. Le réglage de la luminosité et du volume ainsi que le changement de mode d\'affichage ne sont pas encore pris en charge.</string>
     <string name="stores_fact_developer">Développeur</string>
     <string name="stores_fact_publisher">Éditeur</string>
@@ -3400,10 +3342,19 @@
     <string name="storage_shared_prefix">Préfixe partagé de Steam</string>
     <string name="storage_shared_prefix_detail">Steam y exécute ses propres utilitaires Windows</string>
     <string name="storage_reset_shared_confirm">Le supprime (%1$s). Steam en crée un nouveau la prochaine fois qu\'il en a besoin.</string>
+    <string name="storage_remove_launcher_confirm">Supprime le préfixe Wine et le cache de shaders de cette app de boutique (%1$s), avec sa connexion et les sauvegardes présentes uniquement là. Les jeux qui s\'y exécutent reçoivent un nouveau préfixe, et il faudra peut-être reconfigurer l\'app. Les sauvegardes cloud restent dans votre compte.</string>
+    <string name="storage_system_clearable">%1$s peuvent être libérés</string>
+    <string name="storage_item_system_caches">Caches de Linux et de Steam</string>
+    <string name="storage_item_system_caches_detail">Anciens fichiers temporaires, paquets téléchargés et cache web de Steam</string>
+    <string name="storage_cache_temp">Anciens fichiers temporaires</string>
+    <string name="storage_cache_packages">Paquets téléchargés</string>
+    <string name="storage_cache_steam_web">Cache web de Steam</string>
+    <string name="storage_cache_steam_corrupt">Téléchargements Steam endommagés</string>
+    <string name="storage_cache_detail">Recréés au besoin</string>
+    <string name="storage_clear">Vider</string>
     <string name="storage_launcher_prefix">Une app de boutique et les jeux qui tournent avec elle</string>
     <string name="storage_launcher_used_by">Utilisé par %1$s</string>
     <string name="storage_shortcut_app">Jeu hors Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Associé à aucun jeu, il est donc conservé</string>
     <string name="storage_remove_selected">Supprimer la sélection · %1$s</string>
     <string name="storage_uninstall_selected">Désinstaller la sélection · %1$s</string>
     <string name="storage_bulk_prefixes">Préfixes Wine</string>
@@ -4062,16 +4013,15 @@
     <string name="addons_sort_downloads">Les plus téléchargés</string>
     <string name="addons_category_all">Toutes les catégories</string>
     <string name="addons_none_found">Aucun addon trouvé</string>
+    <string name="addons_curse_busy">Fermez d\'abord CurseForge</string>
     <string name="addons_unreachable">Impossible de joindre %1$s</string>
     <string name="addons_no_file">Aucun fichier pour cette version du jeu</string>
     <string name="input_reset_positions">Réinitialiser les positions</string>
     <string name="input_show_label">Afficher le libellé</string>
     <string name="input_layout_import_failed">Impossible d’importer cette disposition</string>
     <string name="epic_third_party_managed">S’installe via %1$s</string>
-
     <string name="theme_white_red">Neige écarlate</string>
     <string name="theme_white_red_detail">Surfaces blanches avec des accents rouges.</string>
-
     <string name="rail_soundtracks">Bandes originales</string>
     <string name="rail_music">Musique</string>
     <string name="soundtracks_options">Options de lecture</string>
@@ -4148,9 +4098,25 @@
     <string name="hud_readings_shown">Affichés</string>
     <string name="hud_readings_count">%1$d sur %2$d</string>
     <string name="exit_hint_back">Appuyez à nouveau sur retour pour quitter</string>
-
     <string name="display_integer_scaling">Mise à l’échelle entière</string>
     <string name="display_integer_scaling_hint">Utilise le plus grand facteur d’échelle entier adapté. Les bords peuvent être rognés. Si la source est plus grande que la sortie, la mise à l’échelle fractionnaire affiche l’image entière. La résolution se règle séparément.</string>
     <string name="display_scaling_integer">Entier</string>
     <string name="display_scaling_fit">Ajuster</string>
+    <string name="drawer_antialiasing">Anticrénelage</string>
+    <string name="theme_custom">Personnalisé</string>
+    <string name="theme_custom_detail">Choisissez séparément chaque couleur de l’interface.</string>
+    <string name="theme_custom_background">Arrière-plan</string>
+    <string name="theme_custom_surface">Panneaux</string>
+    <string name="theme_custom_surface_variant">Panneaux surélevés</string>
+    <string name="theme_custom_line">Séparateurs</string>
+    <string name="theme_custom_line2">Bordures</string>
+    <string name="theme_custom_on_background">Texte principal</string>
+    <string name="theme_custom_on_surface_variant">Texte secondaire</string>
+    <string name="theme_custom_primary">Boutons et accent principal</string>
+    <string name="theme_custom_on_primary">Texte des boutons</string>
+    <string name="theme_custom_signal">Mises en évidence</string>
+    <string name="theme_custom_good">Succès</string>
+    <string name="theme_custom_error">Erreur</string>
+    <string name="hud_only_during_game">Afficher le HUD uniquement pendant une partie</string>
+    <string name="hud_only_during_game_hint">Masquer le HUD lorsqu’aucune image du jeu n’est détectée.</string>
 </resources>

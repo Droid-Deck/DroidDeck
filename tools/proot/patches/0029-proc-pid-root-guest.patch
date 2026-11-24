@@ -1,0 +1,11 @@
+--- a/src/path/proc.c
++++ b/src/path/proc.c
+@@ -112,7 +112,7 @@
+ 		 * of tracee->???.  */
+ 		SUBSTITUTE(exe, known_tracee->exe);
+ 		SUBSTITUTE(cwd, known_tracee->fs->cwd);
+-		SUBSTITUTE(root, get_root(known_tracee));
++		SUBSTITUTE(root, "/");
+ #undef SUBSTITUTE
+ 		return DEFAULT;
+ 

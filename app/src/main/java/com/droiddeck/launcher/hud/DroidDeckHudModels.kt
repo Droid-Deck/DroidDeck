@@ -118,7 +118,7 @@ enum class DroidDeckHudSize(val token: String, val label: String) {
 }
 
 enum class DroidDeckHudDock(val token: String) {
-    NONE("none"), LEFT("left"), RIGHT("right"), TOP("top"), BOTTOM("bottom");
+    NONE("none"), LEFT("left"), RIGHT("right"), TOP("top"), BOTTOM("bottom"), FLOAT("float");
 
     companion object {
         fun from(token: String?): DroidDeckHudDock = values().firstOrNull { it.token == token } ?: NONE
