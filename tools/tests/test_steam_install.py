@@ -528,13 +528,13 @@ class SteamInstallParallelTest(SteamInstallTest):
         region = source[source.index('run_parallel() {'):source.index('fetch_manifest() {')]
         self.assertNotIn('unzip -qo', region)
         self.assertIn('unzip_alone', region)
-        self.assertIn('flock 9', source)
+        self.assertIn('"$flock_command" 9', source)
 
     def unzip_alone_script(self):
         source = SCRIPT.read_text()
         start = source.index('unzip_alone() {')
         function = source[start:source.index('\n}\n', start) + 3]
-        return 'state=$1\nsteam_root=$2\n' + function + '\nunzip_alone "$3"\n'
+        return 'state=$1\nsteam_root=$2\nflock_command=flock\n' + function + '\nunzip_alone "$3"\n'
 
     def unzip_alone_archive(self, name='one.zip', entry='steamrtarm64/steam'):
         archive = self.root / name
@@ -551,18 +551,29 @@ class SteamInstallParallelTest(SteamInstallTest):
         except subprocess.TimeoutExpired:
             return None
 
+    def hold_the_lock(self):
+        """Starts a process that holds the unzip lock and returns once it says it has it."""
+        ready = self.root / 'holder-ready'
+        holder = subprocess.Popen(
+            ['flock', str(self.root / 'state/unzip.lock'), 'sh', '-c', f'touch {ready}; sleep 60'], start_new_session=True)
+        self.addCleanup(lambda: os.killpg(holder.pid, signal.SIGKILL) if holder.poll() is None else None)
+        deadline = time.monotonic() + 10
+        while not ready.exists():
+            self.assertLess(time.monotonic(), deadline, 'the holder never took the lock')
+            time.sleep(0.05)
+        return holder
+
+    @unittest.skipUnless(shutil.which('flock'), 'needs flock')
     def test_a_package_waits_for_a_worker_that_is_unpacking(self):
         archive = self.unzip_alone_archive()
-        holder = subprocess.Popen(['flock', str(self.root / 'state/unzip.lock'), 'sleep', '60'])
-        self.addCleanup(holder.kill)
-        time.sleep(0.5)
+        self.hold_the_lock()
         self.assertIsNone(self.run_unzip_alone(archive, timeout=4), 'unzip_alone did not wait for the holder')
         self.assertFalse((self.steam / 'steamrtarm64/steam').exists())
 
+    @unittest.skipUnless(shutil.which('flock'), 'needs flock')
     def test_a_worker_killed_while_unpacking_hands_the_lock_on(self):
         archive = self.unzip_alone_archive()
-        holder = subprocess.Popen(['flock', str(self.root / 'state/unzip.lock'), 'sleep', '60'], start_new_session=True)
-        time.sleep(0.5)
+        holder = self.hold_the_lock()
         os.killpg(holder.pid, signal.SIGKILL)
         holder.wait()
         result = self.run_unzip_alone(archive, timeout=20)
@@ -570,6 +581,7 @@ class SteamInstallParallelTest(SteamInstallTest):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertTrue((self.steam / 'steamrtarm64/steam').is_file())
 
+    @unittest.skipUnless(shutil.which('flock'), 'needs flock')
     def test_several_workers_never_unpack_at_the_same_moment(self):
         log = self.root / 'unzip.log'
         fake = self.bin / 'unzip'
@@ -594,9 +606,12 @@ with open(log, 'a') as out:
         self.assertEqual(['start', 'end'] * 8, events, 'two workers unpacked at the same time')
 
     def test_without_flock_the_downloads_go_one_at_a_time(self):
-        source = SCRIPT.read_text()
-        self.assertIn('command -v flock', source)
-        self.assertIn('|| parallel=1', source)
+        self.two_parts()
+        result = self.install(DD_STEAM_FLOCK='flock-that-is-not-installed')
+        self.assertEqual(0, result.returncode, result.stderr)
+        # Only the sequential path counts parts as (1/2) and (2/2).
+        self.assertIn('downloading Steam: a_all (1/2), 0 of 2 MB\n', result.stdout)
+        self.assertIn('downloading Steam: client_linuxarm64_linuxarm64 (2/2), 1 of 2 MB\n', result.stdout)
 
     def test_the_parallel_workers_use_no_process_substitution(self):
         source = SCRIPT.read_text()

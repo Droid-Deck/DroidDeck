@@ -166,14 +166,15 @@ fetch_one() {
 
 parallel=${DD_STEAM_PARALLEL:-4}
 case $parallel in ''|*[!0-9]*|0) parallel=1 ;; esac
-command -v flock > /dev/null 2>&1 || parallel=1
+flock_command=${DD_STEAM_FLOCK:-flock}
+command -v "$flock_command" > /dev/null 2>&1 || parallel=1
 
 # unzip creates parent directories without guarding against another unzip doing the same, so two packages unpacked into
 # one tree at once fail now and then. Unpacking is quick next to downloading, so the workers take turns on a flock: the
 # kernel hands it on when its holder ends, however it ends, so there is no stale lock to recover.
 unzip_alone() {
   local rc
-  ( flock 9 && unzip -qo "$1" -d "$steam_root" ) 9> "$state/unzip.lock" && rc=0 || rc=$?
+  ( "$flock_command" 9 && unzip -qo "$1" -d "$steam_root" ) 9> "$state/unzip.lock" && rc=0 || rc=$?
   return $rc
 }
 
