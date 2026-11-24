@@ -59,7 +59,7 @@ FORKER = r"""
 #include <unistd.h>
 
 static const char *name;
-static volatile int done;
+static _Atomic int done;
 
 static void *churn(void *arg) {
   while (!done) {
@@ -72,10 +72,11 @@ static void *churn(void *arg) {
 int main(int argc, char **argv) {
   name = argv[1];
   pthread_t thread;
-  pthread_create(&thread, NULL, churn, NULL);
+  if (pthread_create(&thread, NULL, churn, NULL) != 0) return 1;
   int finished = 0;
   for (int i = 0; i < 200; i++) {
     pid_t pid = fork();
+    if (pid < 0) break;
     if (pid == 0) {
       alarm(10);
       sem_t *sem = sem_open(name, O_CREAT, 0600, 0);
