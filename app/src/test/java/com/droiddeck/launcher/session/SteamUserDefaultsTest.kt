@@ -59,6 +59,27 @@ class SteamUserDefaultsTest {
         assertFalse(File(home, "userdata/123/config/droiddeck-user-defaults-initialized").exists())
     }
 
+    @Test fun libraryHomeUsesBigArtUnlessChosenOtherwise() {
+        val fresh = home("")
+        SessionFiles.seedUserDefaults(fresh)
+        assertTrue(text(fresh).contains("\"LibraryHomeBigArt\"\t\t\"1\""))
+        val chosen = home("\t\"LibraryHomeBigArt\"\t\t\"0\"\n")
+        SessionFiles.seedUserDefaults(chosen)
+        assertTrue(text(chosen).contains("\"LibraryHomeBigArt\"\t\t\"0\""))
+        assertEquals(1, Regex("LibraryHomeBigArt").findAll(text(chosen)).count())
+    }
+
+    @Test fun bigArtLandsInTheRootWhenNestedStoresCloseOnItsLastLine() {
+        val home = home("")
+        File(home, "userdata/123/config/localconfig.vdf").writeText(
+            "\"UserLocalConfigStore\"\n{\n\t\"WebStorage\"\n\t{\n\t\t\"Other\"\t\t\"x\"\n\t}}\n")
+        SessionFiles.seedUserDefaults(home)
+        val t = text(home)
+        val beforeBigArt = t.substring(0, t.indexOf("\"LibraryHomeBigArt\""))
+        assertEquals(beforeBigArt.count { it == '{' }, beforeBigArt.count { it == '}' } + 1)
+        assertTrue(t.indexOf("\"CachedBatteryPreferences\"") < t.indexOf("\"LibraryHomeBigArt\""))
+    }
+
     @Test fun librarySortsByRecentlyPlayed() {
         val fresh = home("")
         SessionFiles.seedUserDefaults(fresh)

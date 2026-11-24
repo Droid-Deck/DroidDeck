@@ -41,6 +41,7 @@
 #include <elf.h>
 #include <sys/sendfile.h>
 #include <sys/mman.h>
+#include <semaphore.h>
 #include <sched.h>
 #include <time.h>
 #include <sys/xattr.h>

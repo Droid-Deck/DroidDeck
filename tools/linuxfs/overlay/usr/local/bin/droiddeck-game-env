@@ -153,9 +153,21 @@ def deep_rock_gdk_raytracing(game):
 
 
 @fix
+def dragons_dogma_2_wine_detection(game):
+    if game.app_id == "2054970" and not any(a.lower().startswith("/winedetectionenabled:") for a in game.args):
+        return {}, ["/WineDetectionEnabled:False"], "Dragon's Dogma 2: the game's Wine detection off (its Wine path does not start)"
+
+
+@fix
 def ff7_rebirth_feature_level(game):
     if game.stem in ("ff7rebirth", "ff7rebirth_"):
         return {"VKD3D_FEATURE_LEVEL": "12_2"}, [], "Final Fantasy VII Rebirth: D3D12 feature level 12_2 (the device-reported level fails its DX12 check)"
+
+
+@fix
+def hades2_feature_level(game):
+    if game.stem == "hades2":
+        return {"VKD3D_FEATURE_LEVEL": "12_2"}, [], "Hades II: D3D12 feature level 12_2 (on Adreno 6xx/7xx it finds no D3D12 adapter at the detected level)"
 
 
 @fix

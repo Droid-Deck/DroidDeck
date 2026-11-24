@@ -29,11 +29,14 @@ jobs:
           persist-credentials: false
       - name: Build in Arch Linux ARM
         env:
+          GH_TOKEN: ${{ github.token }}
           FEX_EXTRA_CXXFLAGS: ${{ inputs.cxxflags }}
           FEX_THUNKS: ${{ inputs.thunks == 'true' && '1' || '0' }}
         run: |
           set -euo pipefail
-          docker run --rm -e FEX_EXTRA_CXXFLAGS="$FEX_EXTRA_CXXFLAGS" -e FEX_THUNKS="$FEX_THUNKS" -v "$PWD:/work" -w /work menci/archlinuxarm:base-devel bash tools/fex/build-in-arch.sh
+          FEX_VERSION=$(gh api repos/FEX-Emu/FEX/releases/latest --jq .tag_name)
+          echo "Building $FEX_VERSION, FEX's latest release"
+          docker run --rm -e FEX_VERSION="$FEX_VERSION" -e FEX_EXTRA_CXXFLAGS="$FEX_EXTRA_CXXFLAGS" -e FEX_THUNKS="$FEX_THUNKS" -v "$PWD:/work" -w /work menci/archlinuxarm:base-devel bash tools/fex/build-in-arch.sh
           sudo chown -R "$(id -u):$(id -g)" .
       - uses: actions/upload-artifact@v4
         with:

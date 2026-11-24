@@ -30,6 +30,10 @@ enum gap {
     GAP_DEPTH_CLIP = 1u << 7,     /* VK_EXT_depth_clip_enable: depthClipEnable off becomes depth clamp */
     GAP_NULL_DESCRIPTOR = 1u << 8, /* VK_EXT_robustness2 missing entirely: nullDescriptor stand-ins */
     GAP_DUAL_SRC_BLEND = 1u << 9,
+    /* A driver bug, not a missing feature: the Mali-G610 driver behind Venus applies depthCompareOp
+     * with the depth test off, so Zink's NEVER discards every fragment. On for every device with
+     * gaps; ALWAYS for a disabled test changes nothing on a driver that follows the spec. */
+    GAP_DEPTH_OP = 1u << 10,
 };
 
 #define GAPS_SHADER (GAP_CLIP_DISTANCE | GAP_CULL_DISTANCE)
@@ -89,6 +93,7 @@ struct instance {
     X(CreateShaderModule) \
     X(DestroyShaderModule) \
     X(CreateGraphicsPipelines) \
+    X(CreateComputePipelines) \
     X(CmdSetViewport) \
     X(CmdSetScissor) \
     X(CmdSetViewportWithCount) \
@@ -137,7 +142,9 @@ struct instance {
     X(CmdPushDescriptorSetWithTemplate) \
     X(CmdBindVertexBuffers) \
     X(CmdBindVertexBuffers2) \
-    X(CmdSetColorBlendEquationEXT)
+    X(CmdSetColorBlendEquationEXT) \
+    X(CmdSetDepthTestEnable) \
+    X(CmdSetDepthCompareOp)
 
 struct staging_block;
 
@@ -145,6 +152,7 @@ struct device {
     void *key;
     VkDevice handle;
     PFN_vkGetDeviceProcAddr gdpa;
+    bool active;
     /* The gaps the application enabled a made-up feature for. */
     uint32_t emulated;
     /* Locations a clip distance varying may use, from the vertex output and fragment input limits. */
@@ -161,6 +169,7 @@ struct device {
     struct handle_map command_buffers; /* VkCommandBuffer -> struct command_buffer */
     struct staging_block *free_staging;
     struct handle_map templates;       /* VkDescriptorUpdateTemplate -> struct template_info (draw.c) */
+    struct handle_map depth_states;    /* VkCommandBuffer -> packed depth test state (draw.c) */
     /* nullDescriptor stand-ins (draw.c): 0 not made yet, 1 ready, -1 failed. */
     int null_ready;
     VkBuffer null_buffer;
@@ -185,6 +194,8 @@ struct spirv_code {
 bool spirv_uses_distances(const uint32_t *words, size_t count);
 /* The module with clip and cull distances taken out; false when it cannot be rewritten. */
 bool spirv_strip_distances(const uint32_t *words, size_t count, struct spirv_code *out);
+uint32_t spirv_version(const uint32_t *words, size_t count);
+bool spirv_cap_version(const uint32_t *words, size_t count, struct spirv_code *out);
 bool spirv_uses_dual_source(const uint32_t *words, size_t count);
 bool spirv_strip_dual_source(const uint32_t *words, size_t count, struct spirv_code *out);
 
@@ -213,6 +224,9 @@ VKAPI_ATTR void VKAPI_CALL DestroyShaderModule(VkDevice device, VkShaderModule m
 VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(VkDevice device, VkPipelineCache cache, uint32_t count,
                                                        const VkGraphicsPipelineCreateInfo *infos,
                                                        const VkAllocationCallbacks *allocator, VkPipeline *pipelines);
+VKAPI_ATTR VkResult VKAPI_CALL CreateComputePipelines(VkDevice device, VkPipelineCache cache, uint32_t count,
+                                                      const VkComputePipelineCreateInfo *infos,
+                                                      const VkAllocationCallbacks *allocator, VkPipeline *pipelines);
 VKAPI_ATTR void VKAPI_CALL CmdSetViewport(VkCommandBuffer cmd, uint32_t first, uint32_t count,
                                           const VkViewport *viewports);
 VKAPI_ATTR void VKAPI_CALL CmdSetScissor(VkCommandBuffer cmd, uint32_t first, uint32_t count,
@@ -304,4 +318,7 @@ VKAPI_ATTR void VKAPI_CALL CmdPushDescriptorSetWithTemplate(VkCommandBuffer cmd,
 VKAPI_ATTR void VKAPI_CALL CmdBindVertexBuffers(VkCommandBuffer cmd, uint32_t first, uint32_t count, const VkBuffer *buffers, const VkDeviceSize *offsets);
 VKAPI_ATTR void VKAPI_CALL CmdBindVertexBuffers2(VkCommandBuffer cmd, uint32_t first, uint32_t count, const VkBuffer *buffers, const VkDeviceSize *offsets, const VkDeviceSize *sizes, const VkDeviceSize *strides);
 void null_resources_destroy(struct device *dev);
+VKAPI_ATTR void VKAPI_CALL CmdSetDepthTestEnable(VkCommandBuffer cmd, VkBool32 enable);
+VKAPI_ATTR void VKAPI_CALL CmdSetDepthCompareOp(VkCommandBuffer cmd, VkCompareOp op);
+void depth_state_forget(struct device *dev, VkCommandBuffer cmd);
 #endif

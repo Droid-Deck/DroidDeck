@@ -37,9 +37,6 @@ USER_PREFERENCES = "UserPreferencesMask"
 WINE_USER_PREFERENCES = bytes((0x10, 0x00, 0x00, 0x80, 0x12, 0x00, 0x00, 0x00))
 CLIENT_AREA_ANIMATION = (4, 0x02)
 WALLPAPER_MAX = (1280, 720)
-FEX_REQUEST = "battlenet-fex.request"
-FEX_RESULT = "battlenet-fex.result"
-FEX_WAIT = 120
 START_GRACE = 90
 POLL = 2
 STOP_WAIT = 5
@@ -82,8 +79,7 @@ AGENT_START = 90
 AGENT_HELPER = "agent.js"
 AGENT_RUNTIME = "agent-runtime"
 AGENT_LOG = "agent.log"
-AGENT_LOG_LIMIT = 4 << 20
-HEADLESS = ["--backend", "headless", "-w", "640", "-h", "480"]
+HEADLESS = "/usr/local/bin/droiddeck-headless"
 PRODUCT = re.compile(r"[a-z0-9_]{1,32}")
 LOCALE = re.compile(r"[a-z]{2}[A-Z]{2}")
 COUNTRY = re.compile(r"[A-Z]{3}")
@@ -779,32 +775,6 @@ def write_menu(path=MENU):
         say("menu entry not written: %s" % error)
 
 
-def ask_fex(launch_dir, wait=FEX_WAIT):
-    if not launch_dir or not os.path.isdir(launch_dir):
-        say("not inside a DroidDeck session; FEX stays as Components has it")
-        return None
-    result = os.path.join(launch_dir, FEX_RESULT)
-    request = os.path.join(launch_dir, FEX_REQUEST)
-    try:
-        os.unlink(result)
-    except OSError:
-        pass
-    with open(request + ".tmp", "w", encoding="utf-8") as f:
-        f.write("appid=%s\n" % APP_ID)
-    os.replace(request + ".tmp", request)
-    deadline = time.monotonic() + wait
-    while time.monotonic() < deadline:
-        try:
-            with open(result, encoding="utf-8") as f:
-                answer = f.read().strip()
-        except OSError:
-            time.sleep(0.5)
-            continue
-        os.unlink(result)
-        return answer
-    return None
-
-
 def wine_processes(pfx, proc="/proc"):
     want = os.path.realpath(pfx).rstrip("/")
     found = []
@@ -1148,8 +1118,6 @@ def stop_leftovers(pfx):
 def open_client(root, reinstall=False):
     pfx = os.path.join(prefix(root), "pfx")
     write_menu()
-    answer = ask_fex(os.environ.get("DD_LAUNCH_DIR"))
-    say("FEX: %s" % (answer or "no answer from the app; Components' choice stays"))
     if running(pfx):
         say("Battle.net is already running in its prefix; waiting for it to close")
         wait_while_open(pfx, grace=0)
@@ -1238,8 +1206,6 @@ def launch(root, code):
     try:
         own = None
         if lock is not None and not running(pfx):
-            answer = ask_fex(os.environ.get("DD_LAUNCH_DIR"))
-            say("FEX: %s" % (answer or "no answer from the app; Components' choice stays"))
             verb = None if stop_leftovers(pfx) else "run"
             configure(root, LIBRARY)
             own = start(launcher(root), verb)
@@ -1449,33 +1415,23 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
             windows = install_path(root, folder)
         emit("STATE", "starting")
         base = os.path.join(CACHE, "agent-%s" % uid)
+        os.makedirs(CACHE, exist_ok=True)
         for suffix in (".json", ".game", ".form", ".error"):
             try:
                 os.unlink(base + suffix)
             except OSError:
                 pass
-        runtime = os.path.join(CACHE, AGENT_RUNTIME)
-        os.makedirs(runtime, mode=0o700, exist_ok=True)
         env = agent_env()
-        for name in ("DISPLAY", "WAYLAND_DISPLAY"):
-            env.pop(name, None)
-        env["XDG_RUNTIME_DIR"] = runtime
-        cmd = ["gamescope"] + HEADLESS + ["--", os.path.abspath(sys.argv[0]), "agent-serve", action, uid, product or "-",
-                                          windows or "-", locale, country, region, "Z:" + base.replace("/", "\\")]
+        cmd = [HEADLESS, os.path.join(CACHE, AGENT_RUNTIME), "--log", os.path.join(CACHE, AGENT_LOG), "--",
+               os.path.abspath(sys.argv[0]), "agent-serve", action, uid, product or "-",
+               windows or "-", locale, country, region, "Z:" + base.replace("/", "\\")]
         say("%s %s through the Agent: %s" % (action, uid, " ".join(cmd)))
-        output = os.path.join(CACHE, AGENT_LOG)
-        try:
-            if os.path.getsize(output) > AGENT_LOG_LIMIT:
-                os.replace(output, output + ".1")
-        except OSError:
-            pass
         before = {pid for pid, _ in wine_processes(pfx)}
-        with open(output, "ab") as log:
-            try:
-                child = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env)
-            except OSError as error:
-                emit("ERROR", "stopped gamescope: %s" % error)
-                return 1
+        try:
+            child = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+        except OSError as error:
+            emit("ERROR", "stopped gamescope: %s" % error)
+            return 1
         seen = None
         mark = None
         moved = time.monotonic()
