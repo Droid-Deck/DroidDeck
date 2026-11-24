@@ -27,6 +27,7 @@ static void show(const char *path, char *const argv[], char *const envp[]) {
   printf("\n");
   for (int i = 0; envp && envp[i]; i++)
     if (strncmp(envp[i], "DDNATV_LIBRARY_PATH=", 20) == 0) printf("libpath\t%s\n", envp[i] + 20);
+    else if (strncmp(envp[i], "LD_LIBRARY_PATH=", 16) == 0) printf("envpath\t%s\n", envp[i] + 16);
   fflush(stdout);
 }
 
@@ -124,12 +125,14 @@ class NativeHookLdsoSpawnTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def call(self, how, *argv, binds=None, real_exe=None):
+    def call(self, how, *argv, binds=None, real_exe=None, ld_library_path=None):
         hook_env = {"DDNATV_ROOT": str(self.root), "LD_PRELOAD": f"{self.hook}:{self.recorder}"}
         if binds:
             hook_env["DDNATV_BINDS"] = binds
         if real_exe:
             hook_env["DDNATV_REAL_EXE"] = real_exe
+        if ld_library_path is not None:
+            hook_env["LD_LIBRARY_PATH"] = ld_library_path
         env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "DDNATV_EXEC", "LD_LIBRARY_PATH")}
         if self.prefix:
             cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
@@ -139,6 +142,7 @@ class NativeHookLdsoSpawnTest(unittest.TestCase):
         out = subprocess.run(cmd + [str(self.probe), how, *argv], env=env, capture_output=True, text=True, timeout=120)
         calls = [line.split("\t")[1:] for line in out.stdout.splitlines() if line.startswith("call\t")]
         self.library_paths = [line.split("\t", 1)[1] for line in out.stdout.splitlines() if line.startswith("libpath\t")]
+        self.env_paths = [line.split("\t", 1)[1] for line in out.stdout.splitlines() if line.startswith("envpath\t")]
         self.assertEqual(1, len(calls), out.stdout + out.stderr)
         if how == "spawn":
             self.assertIn("ret\t0", out.stdout.splitlines(), out.stdout + out.stderr)
@@ -166,6 +170,14 @@ class NativeHookLdsoSpawnTest(unittest.TestCase):
 
     def test_spawn_and_exec_start_a_dynamic_program_the_same_way(self):
         self.assertEqual(self.call("exec", GUEST_TOOL, "x"), self.call("spawn", GUEST_TOOL, "x"))
+
+    def test_guest_library_environment_is_preserved(self):
+        for how in ("exec", "spawn"):
+            for value in (None, "", "/custom/lib:/other/lib"):
+                with self.subTest(how=how, value=value):
+                    argv = self.call(how, GUEST_TOOL, ld_library_path=value)[1:]
+                    self.assertEqual([] if value is None else [value], self.env_paths)
+                    self.assertIn(str(self.root / "usr/lib/aarch64-linux-gnu"), argv[argv.index("--library-path") + 1])
 
     def test_a_program_started_through_ldso_records_its_library_path(self):
         for how in ("exec", "spawn"):
