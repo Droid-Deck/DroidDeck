@@ -72,11 +72,10 @@ static char *map_preload_paths(const char *value) {
     return out;
 }
 
-static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
+static char **prepare_ddnatv_env(char *const envp[], const char *real_exe, const char *lib_path) {
     init_ddnatv_hook();
     int count = 0;
     int has_preload = 0;
-    int has_ld_library_path = 0;
     int has_root = 0;
     int has_tunables = 0;
     int has_path = 0;
@@ -104,7 +103,6 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         switch (e[0]) {
         case 'L':
             if (strncmp(e, "LD_PRELOAD=", 11) == 0) { has_preload = 1; preload_value = e + 11; }
-            else if (strncmp(e, "LD_LIBRARY_PATH=", 16) == 0) has_ld_library_path = 1;
             break;
         case 'G':
             if (strncmp(e, "GLIBC_TUNABLES=", 15) == 0) has_tunables = 1;
@@ -164,6 +162,9 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         if (chosen_real_exe && envp[i][0] == 'D' && strncmp(envp[i], "DDNATV_REAL_EXE=", 16) == 0) {
             continue;
         }
+        if (chosen_real_exe && envp[i][0] == 'D' && strncmp(envp[i], "DDNATV_LIBRARY_PATH=", 20) == 0) {
+            continue;
+        }
         new_env[dst++] = envp[i];
     }
 
@@ -175,6 +176,15 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         if (str) {
             memcpy(str, "DDNATV_REAL_EXE=", 16);
             memcpy(str + 16, chosen_real_exe, len + 1);
+            new_env[dst++] = str;
+        }
+    }
+    if (chosen_real_exe && lib_path && lib_path[0] != '\0') {
+        size_t len = strlen(lib_path);
+        char *str = malloc(20 + len + 1);
+        if (str) {
+            memcpy(str, "DDNATV_LIBRARY_PATH=", 20);
+            memcpy(str + 20, lib_path, len + 1);
             new_env[dst++] = str;
         }
     }
@@ -202,19 +212,6 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         if (str) {
             memcpy(str, "DDNATV_PRELOAD=", 15);
             memcpy(str + 15, g_preload_guest, len + 1);
-            new_env[dst++] = str;
-        }
-    }
-    if (!has_ld_library_path && g_ddnatv_root[0] != '\0') {
-        size_t size = 16 + 1;
-        for (size_t i = 0; i < sizeof(k_rootfs_lib_dirs) / sizeof(k_rootfs_lib_dirs[0]); i++) {
-            char dir[PATH_MAX];
-            size += 1 + strlen(rewrite_path_in_root(k_rootfs_lib_dirs[i], dir, sizeof(dir)));
-        }
-        char *str = malloc(size);
-        if (str) {
-            size_t n = ddnatv_append(str, size, 0, "LD_LIBRARY_PATH=", 16);
-            append_rootfs_lib_dirs(str, size, n, 0);
             new_env[dst++] = str;
         }
     }

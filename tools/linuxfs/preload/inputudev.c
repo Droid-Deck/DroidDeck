@@ -582,6 +582,16 @@ const char *udev_device_get_action(void *device) {
   return real_get(device);
 }
 
+const char *udev_device_get_driver(void *device) {
+  static const char *(*real_get)(void *);
+  struct pad *pad = device_pad(device);
+
+  if (pad != NULL) return NULL;
+  if (real_get == NULL) real_get = next_symbol("udev_device_get_driver");
+  if (real_get == NULL) return NULL;
+  return real_get(device);
+}
+
 dev_t udev_device_get_devnum(void *device) {
   static dev_t (*real_get)(void *);
   struct pad *pad = device_pad(device);
@@ -684,6 +694,54 @@ void *udev_device_get_sysattr_list_entry(void *device) {
   if (device_pad(device) != NULL) return NULL;
   if (real_get == NULL) real_get = next_symbol("udev_device_get_sysattr_list_entry");
   return real_get != NULL ? real_get(device) : NULL;
+}
+
+void *udev_device_get_current_tags_list_entry(void *device) {
+  static void *(*real_get)(void *);
+
+  if (device_pad(device) != NULL) return NULL;
+  if (real_get == NULL) real_get = next_symbol("udev_device_get_current_tags_list_entry");
+  return real_get != NULL ? real_get(device) : NULL;
+}
+
+int udev_device_has_current_tag(void *device, const char *tag) {
+  static int (*real_has)(void *, const char *);
+
+  if (device_pad(device) != NULL) return 0;
+  if (real_has == NULL) real_has = next_symbol("udev_device_has_current_tag");
+  return real_has != NULL ? real_has(device, tag) : 0;
+}
+
+void *udev_device_get_devlinks_list_entry(void *device) {
+  static void *(*real_get)(void *);
+
+  if (device_pad(device) != NULL) return NULL;
+  if (real_get == NULL) real_get = next_symbol("udev_device_get_devlinks_list_entry");
+  return real_get != NULL ? real_get(device) : NULL;
+}
+
+unsigned long long udev_device_get_seqnum(void *device) {
+  static unsigned long long (*real_get)(void *);
+
+  if (device_pad(device) != NULL) return 0;
+  if (real_get == NULL) real_get = next_symbol("udev_device_get_seqnum");
+  return real_get != NULL ? real_get(device) : 0;
+}
+
+unsigned long long udev_device_get_usec_since_initialized(void *device) {
+  static unsigned long long (*real_get)(void *);
+
+  if (device_pad(device) != NULL) return 0;
+  if (real_get == NULL) real_get = next_symbol("udev_device_get_usec_since_initialized");
+  return real_get != NULL ? real_get(device) : 0;
+}
+
+int udev_device_set_sysattr_value(void *device, const char *sysattr, const char *value) {
+  static int (*real_set)(void *, const char *, const char *);
+
+  if (device_pad(device) != NULL) return -EACCES;
+  if (real_set == NULL) real_set = next_symbol("udev_device_set_sysattr_value");
+  return real_set != NULL ? real_set(device, sysattr, value) : -ENOSYS;
 }
 
 void *udev_device_new_from_devnum(void *udev, char type, dev_t devnum) {
@@ -1011,6 +1069,7 @@ static const struct udev_symbol udev_symbols[] = {
     {"udev_device_get_subsystem", (void *)udev_device_get_subsystem},
     {"udev_device_get_devtype", (void *)udev_device_get_devtype},
     {"udev_device_get_action", (void *)udev_device_get_action},
+    {"udev_device_get_driver", (void *)udev_device_get_driver},
     {"udev_device_get_devnum", (void *)udev_device_get_devnum},
     {"udev_device_get_sysattr_value", (void *)udev_device_get_sysattr_value},
     {"udev_device_get_property_value", (void *)udev_device_get_property_value},
@@ -1023,6 +1082,12 @@ static const struct udev_symbol udev_symbols[] = {
     {"udev_device_get_properties_list_entry", (void *)udev_device_get_properties_list_entry},
     {"udev_device_get_tags_list_entry", (void *)udev_device_get_tags_list_entry},
     {"udev_device_get_sysattr_list_entry", (void *)udev_device_get_sysattr_list_entry},
+    {"udev_device_get_current_tags_list_entry", (void *)udev_device_get_current_tags_list_entry},
+    {"udev_device_has_current_tag", (void *)udev_device_has_current_tag},
+    {"udev_device_get_devlinks_list_entry", (void *)udev_device_get_devlinks_list_entry},
+    {"udev_device_get_seqnum", (void *)udev_device_get_seqnum},
+    {"udev_device_get_usec_since_initialized", (void *)udev_device_get_usec_since_initialized},
+    {"udev_device_set_sysattr_value", (void *)udev_device_set_sysattr_value},
     {"udev_enumerate_new", (void *)udev_enumerate_new},
     {"udev_enumerate_ref", (void *)udev_enumerate_ref},
     {"udev_enumerate_unref", (void *)udev_enumerate_unref},
@@ -1045,7 +1110,15 @@ static void *own_udev_symbol(const char *name) {
 }
 
 static void *dlvsym_any(const char *name) {
+#if defined(__aarch64__)
+  static const char *versions[] = {"GLIBC_2.17", "GLIBC_2.34"};
+#elif defined(__x86_64__)
+  static const char *versions[] = {"GLIBC_2.2.5", "GLIBC_2.34"};
+#elif defined(__i386__)
+  static const char *versions[] = {"GLIBC_2.0", "GLIBC_2.34"};
+#else
   static const char *versions[] = {"GLIBC_2.17", "GLIBC_2.2.5", "GLIBC_2.0", "GLIBC_2.34"};
+#endif
   size_t i;
   void *resolved = NULL;
 
@@ -1073,7 +1146,7 @@ static int steam_runtime_path(const char *path) {
   const char *name = strrchr(path, '/');
   size_t i;
 
-  if (name == NULL || strcmp(name + 1, "steam") != 0) return 0;
+  if (name == NULL || (strcmp(name + 1, "steam") != 0 && strcmp(name + 1, "streaming_client") != 0)) return 0;
   for (i = 0; i < sizeof(runtimes) / sizeof(runtimes[0]); i++) {
     size_t length = strlen(runtimes[i]);
 

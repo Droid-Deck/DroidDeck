@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.wayland
 
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Process
@@ -29,11 +30,28 @@ object CompositorHost {
     @Volatile
     private var vsyncGeneration = 0
 
-    private fun vsyncCallback(generation: Int) = object : Choreographer.FrameCallback {
-        override fun doFrame(frameTimeNanos: Long) {
-            if (generation != vsyncGeneration) return
+    private fun postVsync(generation: Int) {
+        val choreographer = Choreographer.getInstance()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            choreographer.postVsyncCallback { data ->
+                if (generation != vsyncGeneration) return@postVsyncCallback
+                val lines = data.frameTimelines
+                val line = data.preferredFrameTimeline
+                val period = if (lines.size > 1) {
+                    lines[1].expectedPresentationTimeNanos - lines[0].expectedPresentationTimeNanos
+                } else {
+                    0L
+                }
+                WaylandCompositor.nativeFrameTimeline(line.expectedPresentationTimeNanos, line.deadlineNanos, period)
+                WaylandCompositor.nativeVsync(data.frameTimeNanos)
+                if (vsyncRunning) postVsync(generation)
+            }
+            return
+        }
+        choreographer.postFrameCallback { frameTimeNanos ->
+            if (generation != vsyncGeneration) return@postFrameCallback
             WaylandCompositor.nativeVsync(frameTimeNanos)
-            if (vsyncRunning) Choreographer.getInstance().postFrameCallback(this)
+            if (vsyncRunning) postVsync(generation)
         }
     }
 
@@ -66,7 +84,7 @@ object CompositorHost {
         com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess(context)
         WaylandCompositor.nativeStartWithSurface(
             surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir,
-            SessionPrefs.androidDriver(context).isEmpty(),
+            SessionPrefs.displayDriverFromAuto(context),
         )
         attached = surface
         started = true
@@ -149,14 +167,14 @@ object CompositorHost {
 
     private fun resumeVsync() {
         if (vsyncRunning) return
-        val callback = vsyncCallback(++vsyncGeneration)
+        val generation = ++vsyncGeneration
         vsyncRunning = true
         WaylandCompositor.nativeLog("screen", if (ownVsyncThread) "screen tick runs on its own display-priority thread" else "screen tick runs on the main thread")
         if (!ownVsyncThread) {
-            Choreographer.getInstance().postFrameCallback(callback)
+            postVsync(generation)
             return
         }
-        vsyncHandler.post { Choreographer.getInstance().postFrameCallback(callback) }
+        vsyncHandler.post { postVsync(generation) }
     }
 
     private fun pauseVsync() {

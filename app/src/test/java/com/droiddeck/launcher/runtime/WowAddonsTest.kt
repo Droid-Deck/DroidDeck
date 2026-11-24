@@ -218,4 +218,100 @@ class WowAddonsTest {
         File(root, "_retail_").mkdirs()
         assertEquals(emptyList<String>(), WowAddons.targets(BattleNet.title("fenris")!!, root).map { it.flavor })
     }
+
+    @Test fun tocFieldsReadVersionAndSourceIds() {
+        val fields = WowAddons.tocFields("\uFEFF## Interface: 110002\n## Title: Foo\n## Version: 1.4.2\n## X-WoWI-ID: 1234\n## Version: 9\n## X-Curse-Project-ID: @curse-id@\nFoo.lua\n".lineSequence(), setOf("Version", "X-WoWI-ID", "X-Curse-Project-ID"))
+        assertEquals("1.4.2", fields["Version"])
+        assertEquals("1234", fields["X-WoWI-ID"])
+        assertEquals(null, fields["X-Curse-Project-ID"])
+    }
+
+    @Test fun tocFieldsKeepOnlyTheRequestedKeysAndStopOnceFound() {
+        var read = 0
+        val lines = sequence {
+            yield("## Version: 2.0")
+            yield("## X-WoWI-ID: 5")
+            yield("## X-Curse-Project-ID: 9")
+            repeat(100_000) { read++; yield("## X-Data-$it: payload") }
+        }
+        val fields = WowAddons.tocFields(lines)
+        assertEquals(mapOf("Version" to "2.0", "X-WoWI-ID" to "5", "X-Curse-Project-ID" to "9"), fields)
+        assertEquals(0, read)
+    }
+
+    @Test fun detailsSkipDataRowsInLargeTocs() {
+        val target = target()
+        val db = File(target.addOns, "BigDB").apply { mkdirs() }
+        File(db, "BigDB_Mists.toc").bufferedWriter().use { w ->
+            w.write("## Title: BigDB\nsrc\\main.lua\n")
+            repeat(50_000) { w.write("## X-Data-$it: ${"x".repeat(200)}\n") }
+            w.write("## Version: 3.1\n")
+        }
+        val details = WowAddons.details(target).single()
+        assertEquals("3.1", details.version)
+        assertEquals(null, details.wowiId)
+    }
+
+    @Test fun detailsUseTheTocAndTheRecordedSource() {
+        val target = target()
+        val foo = File(target.addOns, "Foo").apply { mkdirs() }
+        File(foo, "Foo_Mainline.toc").writeText("## Version: 1.0\n## X-WoWI-ID: 77\n## X-Curse-Project-ID: 334372\n")
+        File(target.addOns, "Bar").mkdirs()
+        val details = WowAddons.details(target).associateBy { it.name }
+        assertEquals(setOf("Bar", "Foo"), details.keys)
+        assertEquals("1.0", details.getValue("Foo").version)
+        assertEquals("77", details.getValue("Foo").wowiId)
+        assertEquals("334372", details.getValue("Foo").curseId)
+        assertEquals(null, details.getValue("Bar").curseId)
+        assertEquals(null, details.getValue("Bar").version)
+    }
+
+    @Test fun detailsFillFieldsTheMainTocLacksFromTheFlavourTocs() {
+        val target = target()
+        val questie = File(target.addOns, "Questie").apply { mkdirs() }
+        File(questie, "Questie.toc").writeText("## Interface: 00000\n## Title: Questie\n")
+        File(questie, "Questie_Vanilla.toc").writeText("## Version: 12.6.4\n## X-Curse-Project-ID: 334372\n")
+        File(questie, "Questie_Wrath.toc").writeText("## Version: 12.6.4\n")
+        val questieDetails = WowAddons.details(target).single()
+        assertEquals("12.6.4", questieDetails.version)
+        assertEquals("334372", questieDetails.curseId)
+    }
+
+    @Test fun detailsKeepTheMainTocWhenItHasTheFields() {
+        val target = target()
+        val foo = File(target.addOns, "Foo").apply { mkdirs() }
+        File(foo, "Foo.toc").writeText("## Version: 2.0\n## X-Curse-Project-ID: 5\n")
+        File(foo, "Foo_Classic.toc").writeText("## Version: 1.0\n## X-Curse-Project-ID: 6\n## X-WoWI-ID: 7\n")
+        val fooDetails = WowAddons.details(target).single()
+        assertEquals("2.0", fooDetails.version)
+        assertEquals("5", fooDetails.curseId)
+        assertEquals("7", fooDetails.wowiId)
+    }
+
+    @Test fun importRecordsTheSourceAndPlainImportsClearIt() {
+        val target = target()
+        WowAddons.import(zip("Foo/Foo.toc" to "## Version: 1.0\n"), target, WowAddons.Origin("55", "2.0"))
+        val recorded = WowAddons.details(target).single()
+        assertEquals("2.0", recorded.version)
+        assertEquals("55", recorded.wowiId)
+        WowAddons.import(zip("Foo/Foo.toc" to "## Version: 3.0\n"), target)
+        val plain = WowAddons.details(target).single()
+        assertEquals("3.0", plain.version)
+        assertEquals(null, plain.wowiId)
+        assertFalse(File(target.addOns, ".droiddeck-sources").exists())
+    }
+
+    @Test fun deleteForgetsTheRecordedSource() {
+        val target = target()
+        WowAddons.import(zip("Foo/Foo.toc" to "x", "Bar/Bar.toc" to "y"), target, WowAddons.Origin("55", "2.0"))
+        WowAddons.delete(target, "Foo")
+        assertEquals(mapOf("Bar" to "55"), WowAddons.parseOrigins(File(target.addOns, ".droiddeck-sources").readText()).mapValues { it.value.id })
+        assertEquals(listOf("Bar"), WowAddons.installed(target))
+    }
+
+    @Test fun originsRoundTripAndSkipBrokenLines() {
+        val text = WowAddons.formatOrigins(mapOf("A" to WowAddons.Origin("1", "1.0 beta\t2")))
+        assertEquals("1.0 beta 2", WowAddons.parseOrigins(text).getValue("A").version)
+        assertEquals(emptyMap<String, WowAddons.Origin>(), WowAddons.parseOrigins("bad line\nA\t\t1\n"))
+    }
 }

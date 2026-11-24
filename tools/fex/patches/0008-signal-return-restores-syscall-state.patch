@@ -1,0 +1,18 @@
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
+index b4c7b24..643185d 100644
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
+@@ -264,12 +264,13 @@ void SignalDelegator::RestoreThreadState(FEXCore::Core::InternalThreadState* Thr
+     auto Frame = Thread->CurrentFrame;
+ 
+     if (Context->Flags & ArchHelpers::Context::ContextFlags::CONTEXT_FLAG_INJIT) {
+       // XXX: Unsupported since it needs state reconstruction
+       // If we are in the JIT then SRA might need to be restored to values from the context
+       // We can't currently support this since it might result in tearing without real state reconstruction
++      Frame->InSyscallInfo = Context->InSyscallInfo;
+     }
+ 
+     if (Is64BitMode) {
+       RestoreFrame_x64(Thread, Context, Frame, ucontext);
+     } else {
+       if (Type == RestoreType::TYPE_NONREALTIME) {

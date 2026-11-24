@@ -15,18 +15,18 @@ MANIFEST = Path('app/build/runtime-inputs.json')
 PACKS = Path('app/build/packs')
 PACKED = {'assets/linuxfs/usr/local/lib/droiddeck-xbox/': 'xbox', 'assets/linuxfs/usr/local/lib/droiddeck-comet/': 'comet',
           'assets/linuxfs/usr/local/lib/droiddeck-ubisoft/': 'ubisoft', 'assets/linuxfs/usr/local/lib/droiddeck-rockstar/': 'rockstar',
-          'assets/linuxfs/usr/local/lib/droiddeck-dirt/': 'dirt',
+          'assets/linuxfs/usr/local/lib/droiddeck-dirt/': 'dirt', 'assets/linuxfs/usr/local/lib/droiddeck-epic/': 'epic',
           'assets/directaudio/': 'directaudio', 'assets/hybris/': 'powervr'}
 # DrWeb flags proot itself as Tool.Linux.Proot; the app runs the pack's copy through Android's linker.
 PACKED_FILES = {'lib/arm64-v8a/libproot.so': ('proot', 'libproot.so')}
 # The loader is execve'd, which targetSdk 29+ allows only from the APK's native library directory.
 PROOT_LOADER = {'lib/arm64-v8a/libproot-loader.so': 'libproot-loader.so'}
 PACKED_LIBRARIES = ['lib/arm64-v8a/libopencv_java4.so', 'lib/arm64-v8a/libmediapipe_tasks_jni.so']
-PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt']
+PACK_NAMES = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt', 'epic']
 SOURCE_PATHS = ['app/build.gradle', 'app/src/main/cpp/fakeinput_steam.cpp', 'app/src/main/assets/pulseaudio.tzst',
                 'tools/linuxfs', 'tools/proot', 'tools/aaudio-sink', 'tools/directaudio', 'tools/packs',
                 'tools/gamescope/release.env', 'tools/droiddeck-esync/release.env',
-                'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/ubisoft-launcher', 'tools/rockstar-launcher', 'tools/components', 'tools/ci', 'tools/build_local.sh',
+                'tools/mangoapp', 'tools/msitools', 'tools/pipewire', 'tools/comet', 'tools/xbox', 'tools/dirt-ws2', 'tools/ubisoft-launcher', 'tools/rockstar-launcher', 'tools/epic-launcher', 'tools/components', 'tools/ci', 'tools/build_local.sh',
                 'tools/powervr', 'tools/hybris', 'tools/dxvk', 'tools/vulkan-wsi',
                 'tools/release/runtime_inputs.py', 'app/src/main/assets/desktop-removal',
                 'tools/quest', 'tools/vr/src', 'tools/vr/driver_droiddeck', 'tools/vr/layer', 'tools/vr/build.sh',
@@ -48,20 +48,38 @@ def digest(path):
     return result.hexdigest()
 
 
+def copied(root):
+    # Helper scripts are staged verbatim on every Gradle build and checked against the APK by
+    # check_session_assets.py, so they are neither preparation inputs nor prepared outputs.
+    if str(Path(__file__).resolve().parent) not in sys.path:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from check_session_assets import OVERLAY, source_assets
+    found = source_assets() if root == ROOT else source_assets(root / OVERLAY.relative_to(ROOT))
+    return {source.relative_to(root).as_posix(): 'app/src/main/' + asset for source, asset in found.items()}
+
+
 def sources(root):
-    files = []
+    files, builds = [], set()
+    skipped = set(copied(root))
     for name in SOURCE_PATHS:
         path = root / name
         files.extend(path.rglob('*') if path.is_dir() else [path])
+        if path.is_dir():
+            builds.update(manifest.parent / 'target' for manifest in path.rglob('Cargo.toml'))
     return {path.relative_to(root).as_posix(): digest(path) for path in sorted(set(files))
-            if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc'}
+            if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc'
+            and path.relative_to(root).as_posix() not in skipped
+            and not any(build in path.parents for build in builds)}
 
 
 def outputs(root):
     result = {}
+    skipped = set(copied(root).values())
     for tree in ['linuxfs', 'directaudio', 'droiddeck-esync', 'desktop-removal', 'hybris']:
         base = root / 'app/src/main/assets' / tree
         for path in base.rglob('*'):
+            if path.relative_to(root).as_posix() in skipped:
+                continue
             if path.is_file() and not any(part.startswith('.') for part in path.relative_to(base).parts):
                 result['assets/' + tree + '/' + path.relative_to(base).as_posix()] = path.relative_to(root).as_posix()
     for library in ['libproot.so', 'libproot-loader.so', 'libdirectaudiorelay.so']:
@@ -81,8 +99,7 @@ def required():
               for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
     paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libddsession.so',
              'libddfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
-             'usr/local/bin/droiddeck-gog-maintenance',
-             'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime',
+             'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime', 'usr/local/lib/droiddeck/dwarfsextract',
              'usr/local/lib/droiddeck-pipewire.tzst']]
     for arch in ['x86_64', 'i386']:
         paths += ['assets/linuxfs/' + arch + '/' + lib for lib in ['libfakeinput.so', 'libddsession.so']]
@@ -175,6 +192,10 @@ def verify(root=ROOT, stale_sources_ok=False):
         raise ValueError('Runtime inputs have not been prepared. Run tools/build_local.sh.')
     if data.get('version') != 1:
         raise ValueError('Runtime sources changed since preparation. Run tools/build_local.sh.')
+    copies = copied(root)
+    data['sources'] = {name: value for name, value in (data.get('sources') or {}).items() if name not in copies}
+    data['outputs'] = {name: output for name, output in (data.get('outputs') or {}).items()
+                       if output.get('path') not in copies.values()}
     current = sources(root)
     if data.get('sources') != current:
         if not stale_sources_ok:
@@ -192,6 +213,11 @@ def verify(root=ROOT, stale_sources_ok=False):
             raise ValueError('Missing or changed runtime input: ' + name + '. Run tools/build_local.sh.')
     if outputs(root) != {name: output['path'] for name, output in data['outputs'].items()}:
         raise ValueError('Runtime file set changed. Run tools/build_local.sh.')
+    for source, asset in copies.items():
+        path = root / asset
+        if not path.is_file() or path.read_bytes() != (root / source).read_bytes():
+            raise ValueError(asset + ' is not a current copy of ' + source
+                             + '. Run python3 tools/release/check_session_assets.py --stage.')
     return data
 
 
@@ -227,7 +253,7 @@ def windows_binaries(package):
 def check_apk(apk, root=ROOT):
     data = verify(root)
     packs = {name: pack_digests(root, name) for name in PACK_NAMES
-             if name not in ('ubisoft', 'rockstar', 'dirt') or (root / PACKS / (name + '.tar.zst')).is_file()}
+             if name not in ('ubisoft', 'rockstar', 'dirt', 'epic') or (root / PACKS / (name + '.tar.zst')).is_file()}
     for name, rel in PROOT_LOADER.items():
         if packs['proot'].get(rel) != data['outputs'][name]['sha256']:
             raise ValueError('Add-on pack proot is missing or has a stale ' + rel)

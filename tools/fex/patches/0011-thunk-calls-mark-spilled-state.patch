@@ -1,0 +1,109 @@
+diff --git a/FEXCore/Source/Interface/Core/Core.cpp b/FEXCore/Source/Interface/Core/Core.cpp
+--- a/FEXCore/Source/Interface/Core/Core.cpp
++++ b/FEXCore/Source/Interface/Core/Core.cpp
+@@ -383,7 +383,11 @@
+ }
+ 
+ void ContextImpl::HandleCallback(FEXCore::Core::InternalThreadState* Thread, uint64_t RIP) {
+-  static_cast<ContextImpl*>(Thread->CTX)->Dispatcher->ExecuteJITCallback(Thread->CurrentFrame, RIP);
++  auto Frame = Thread->CurrentFrame;
++  const auto InSyscallInfo = Frame->InSyscallInfo;
++  Frame->InSyscallInfo = 0;
++  static_cast<ContextImpl*>(Thread->CTX)->Dispatcher->ExecuteJITCallback(Frame, RIP);
++  Frame->InSyscallInfo = InSyscallInfo;
+ }
+ 
+ void ContextImpl::ExecuteThread(FEXCore::Core::InternalThreadState* Thread) {
+diff --git a/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp b/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
+--- a/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
++++ b/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
+@@ -305,6 +305,9 @@
+ 
+   PushDynamicRegs(TMP1);
+ 
++  LoadConstant(ARMEmitter::Size::i64Bit, TMP1, 0xFFFF);
++  str(TMP1, STATE, offsetof(FEXCore::Core::CpuStateFrame, InSyscallInfo));
++
+   mov(ARMEmitter::Size::i64Bit, ARMEmitter::Reg::r0, GetReg(Op->ArgPtr));
+ 
+   InsertNamedThunkRelocation(ARMEmitter::Reg::r2, Op->ThunkNameHash);
+@@ -320,6 +323,8 @@
+   FillStaticRegs({
+     .NZCV = false,
+   });
++
++  str(ARMEmitter::XReg::zr, STATE, offsetof(FEXCore::Core::CpuStateFrame, InSyscallInfo));
+ }
+ 
+ DEF_OP(ValidateCode) {
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
+@@ -107,6 +107,10 @@
+ #ifdef ARCHITECTURE_arm64
+   Thread->CurrentFrame->State.rip = CTX->RestoreRIPFromHostPC(Thread, ArchHelpers::Context::GetPc(ucontext));
+ 
++  if ((IgnoreMask & 0xFFFF) == 0xFFFF) {
++    return;
++  }
++
+   for (size_t i = 0; i < Config.SRAGPRCount; i++) {
+     const uint8_t SRAIdxMap = Config.SRAGPRMapping[i];
+     if (IgnoreMask & (1U << SRAIdxMap)) {
+@@ -301,12 +305,10 @@
+   if (Context->UContextLocation) {
+     auto Frame = Thread->CurrentFrame;
+ 
+-    if (Context->Flags & ArchHelpers::Context::ContextFlags::CONTEXT_FLAG_INJIT) {
+-      // XXX: Unsupported since it needs state reconstruction
+-      // If we are in the JIT then SRA might need to be restored to values from the context
+-      // We can't currently support this since it might result in tearing without real state reconstruction
+-      Frame->InSyscallInfo = Context->InSyscallInfo;
+-    }
++    // XXX: Unsupported since it needs state reconstruction
++    // If we are in the JIT then SRA might need to be restored to values from the context
++    // We can't currently support this since it might result in tearing without real state reconstruction
++    Frame->InSyscallInfo = Context->InSyscallInfo;
+ 
+     if (Is64BitMode) {
+       RestoreFrame_x64(Thread, Context, Frame, ucontext);
+@@ -361,6 +363,9 @@
+     ContextBackup->InSyscallInfo = Thread->CurrentFrame->InSyscallInfo;
+     Thread->CurrentFrame->InSyscallInfo = 0;
+   } else {
++    ContextBackup->InSyscallInfo = Frame->InSyscallInfo;
++    Frame->InSyscallInfo = 0;
++
+     if (!IsAddressInDispatcher(OldPC)) {
+       // This is likely to cause issues but in some cases it isn't fatal
+       // This can also happen if we have put a signal on hold, then we just reenabled the signal
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp
+@@ -131,7 +131,7 @@
+   if (Context->OriginalRIP != guest_uctx->uc_mcontext.gregs[FEXCore::x86_64::FEX_REG_RIP] || Context->FaultToTopAndGeneratedException) {
+ 
+     // Restore previous `InSyscallInfo` structure.
+-    Frame->InSyscallInfo = Context->InSyscallInfo;
++    Frame->InSyscallInfo = 0;
+ 
+     // Hack! Go back to the top of the dispatcher top
+     // This is only safe inside the JIT rather than anything outside of it
+@@ -211,7 +211,7 @@
+   // If the guest modified the RIP then we need to take special precautions here
+   if (Context->OriginalRIP != guest_uctx->sc.ip || Context->FaultToTopAndGeneratedException) {
+     // Restore previous `InSyscallInfo` structure.
+-    Frame->InSyscallInfo = Context->InSyscallInfo;
++    Frame->InSyscallInfo = 0;
+ 
+     // Hack! Go back to the top of the dispatcher top
+     // This is only safe inside the JIT rather than anything outside of it
+@@ -290,7 +290,7 @@
+   if (Context->OriginalRIP != guest_uctx->uc.uc_mcontext.gregs[FEXCore::x86::FEX_REG_EIP] || Context->FaultToTopAndGeneratedException) {
+ 
+     // Restore previous `InSyscallInfo` structure.
+-    Frame->InSyscallInfo = Context->InSyscallInfo;
++    Frame->InSyscallInfo = 0;
+ 
+     // Hack! Go back to the top of the dispatcher top
+     // This is only safe inside the JIT rather than anything outside of it

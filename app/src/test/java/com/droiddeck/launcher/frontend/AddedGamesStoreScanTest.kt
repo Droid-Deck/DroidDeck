@@ -66,6 +66,27 @@ class AddedGamesStoreScanTest {
         assertTrue(game.guestExe.endsWith("/Tools/Editor.exe"))
     }
 
+    @Test fun everyStoreKeepsItsLauncherWhenItsOwnExeIsReselected() {
+        for (store in listOf(Store.GOG, Store.AMAZON, Store.EPIC)) {
+            val folder = install(store, "own-${store.id}", "Own ${store.label}", "Binaries/Game.exe", launcher = true)
+            val own = File(folder, "Binaries/Game.exe")
+            val before = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+            assertTrue(AddedGames.addExe(app, own) is AddedGames.AddResult.Existing)
+            val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+            assertEquals(own.path, game.exe.path)
+            assertTrue(game.guestExe.endsWith("/" + StoreLaunch.LAUNCHER))
+            assertEquals(before.appId, game.appId)
+        }
+    }
+
+    @Test fun aDifferentPickedExeOnAnyStoreGameIsRunDirectly() {
+        val folder = install(Store.GOG, "tool", "Tool GOG", "Binaries/Game.exe", launcher = true)
+        val tool = File(folder, "Tools/Editor.exe").apply { parentFile!!.mkdirs(); writeText("tool") }
+        AddedExes.put(app, AddedExes.Entry(folder.path, tool.path, picked = true))
+        val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
+        assertTrue(game.guestExe.endsWith("/Tools/Editor.exe"))
+    }
+
     @Test fun anOlderSidecarsSteamSwitchIsIgnoredEveryInstallIsListed() {
         val folder = install(Store.AMAZON, "amzn1.adg.product.x", "Yakuza 0", "Yakuza0.exe")
         val file = StoreGameSidecar.file(folder)

@@ -358,3 +358,70 @@ and clears the held flag. wlroots counts repeated presses of one button and send
 reaches zero, so a second finger touching before the first lifted left the button pressed in the seat for good: the
 game saw a held click, and later taps only raised and lowered the count. A finger now presses the button only when no
 earlier finger holds it. `tools/tests/test_gamescope_touch_click.py` compiles the rule from this patch.
+
+## 0135 Wayland backend: a limit on the planes handed to the host
+
+`wayland_overlay_planes` says how many planes above the base one the host compositor shows without composing them
+itself. With more layers than that, gamescope composites them into one picture, as it already does for a scaler or
+`composite_force`. -1, the default, keeps every layer on its own plane. The app sets it while a host that shows the
+game picture directly cannot give an overlay a display layer of its own, so the overlay is drawn into the game
+picture here and the frame still reaches the display without a copy.
+
+## 0136 rendervulkan, Wayland backend: composite only into output images the host has released
+
+The composite output images were used in a fixed rotation of three, with no check that the host compositor had
+released the one about to be written. A host that puts the buffer on the display itself, without copying it, was
+still reading that image when the next composite wrote into it. A backend framebuffer now says whether the host
+holds it, the Wayland backend answers from the buffer's release event, and the composite takes the next image the
+host does not hold. Backends that are not a session get five images instead of three, so one is free while the
+host holds two and the last and deferred pictures stay intact. Session backends keep three images and their order.
+
+## 0137 Wayland backend: the host's refresh rates and the app's target
+
+A nested session had one refresh rate, the host's, so Steam offered no refresh control and a frame limit never moved
+the display. The backend binds the host's `droiddeck_refresh_v1`, takes the list of rates the host display can switch
+between and returns it as the connector's dynamic refresh rates, so the rates reach Steam with the rest of the
+display state and are sent again when the list changes. On every present it tells the host the refresh rate the
+frame limit resolves to and the limit itself; the host switches its display and the new rate comes back through
+`wl_output`, which the nested refresh already follows. A host without the global leaves all of this as it was.
+
+## 0138 Frame limiter: a limit the refresh rate does not divide is spread evenly
+
+The limiter held a window for a whole number of refreshes, the refresh rate divided by the limit and rounded down. A
+limit of 45 or 40 on a 60 Hz display rounded to one refresh per frame, so the limit did nothing, and each frame was
+timed from the moment the previous one was shown, so a late frame pushed every frame after it. The limited cycle is
+now the exact time between frames at the limit, and each window keeps the time its next frame is due on that line.
+A frame is released on the refresh nearest its due time: 45 on 60 Hz shows frames for one, one and two refreshes in
+turn, 40 for one and two, and a limit that divides the refresh rate is paced as before. A frame that arrives most of a
+refresh late, or more than a refresh early, starts the line again from that frame, so a stall is not followed by a
+burst. `tools/tests/test_gamescope_limiter_cadence.py` compiles the two rules from this patch and runs them across
+refresh rates and limits.
+
+## 0139 HDR output can be switched while a session runs
+
+The Wayland backend read `hdr_enabled` once, when the host compositor described its output, and kept the answer: a
+session started with HDR off told its clients the display had no HDR for as long as it ran, and its environment
+carried `DXVK_HDR=0`. Whether the display can show HDR now comes from the host's output description alone, and
+`hdr_enabled` decides only whether HDR is used, so setting it during a session takes effect on the next frame in
+either direction. The 10-bit output format is chosen only while HDR is enabled, so an SDR session keeps the 8-bit
+output it had, and the output images are made again in the other format when the setting changes. On a display that can show HDR, a session that starts with HDR off leaves `DXVK_HDR` unset instead of
+forcing it to 0, so a game started after HDR is switched on finds it.
+
+## 0140 Focus is chosen again when a window turns visible or fully transparent
+
+A window is a focus candidate only while its `_NET_WM_WINDOW_OPACITY` is above zero, but a change of that property
+did not ask for focus to be chosen again. Wine sets the property for layered windows, and a window that fades in maps
+fully transparent, so it was skipped when it mapped and stayed skipped once it was opaque until something else
+changed focus. In a nested session with no other window the SDL window stayed hidden, and the game ran with nothing
+on screen. Focus is now chosen again whenever a window's opacity crosses zero in either direction; a change between
+two visible opacities leaves focus alone. `tools/tests/test_gamescope_focus_opacity.py` compiles the rule from this
+patch and checks the property handler applies it.
+
+## 0141 wlserver: the nested mouse moves the pointer while touch is Disabled
+
+The nested Wayland pointer reaches wlserver as touch 0 (`bAlwaysWarpCursor`, see 0111), and in the Disabled touch click
+mode `wlserver_touchmotion` returned before anything moved. Buttons take `wlserver_mousebutton`, so they still arrived,
+at a pointer that never left the top-left corner. Steam picks Disabled for some games (Don't Starve Together): the drawn
+cursor followed the mouse while every click landed at (0,0). In Disabled the nested pointer now warps the X pointer as
+in the other modes; real fingers are still ignored. `tools/tests/test_gamescope_disabled_touch_mouse.py` compiles the
+branch from this patch.

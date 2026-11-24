@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -77,6 +78,66 @@ char *realpath(const char *path, char *resolved) {
 }
 """
 
+LOCKED = r"""
+#include <sys/syscall.h>
+#include <unistd.h>
+
+extern int busy;
+
+__attribute__((constructor)) static void start(void) {
+  busy = 1;
+  syscall(SYS_getpid);
+  busy = 0;
+}
+"""
+
+ARENA = r"""
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+static _Alignas(64) unsigned char arena[1 << 23];
+static size_t used;
+int busy;
+static int busy_allocations;
+
+void *memalign(size_t align, size_t size) {
+  uintptr_t start;
+  if (busy) busy_allocations++;
+  if (align < 16) align = 16;
+  start = ((uintptr_t)(arena + used) + 16 + align - 1) & ~(uintptr_t)(align - 1);
+  if (start + size > (uintptr_t)(arena + sizeof(arena))) return NULL;
+  ((size_t *)start)[-1] = size;
+  used = start + size - (uintptr_t)arena;
+  return (void *)start;
+}
+
+void *malloc(size_t size) { return memalign(16, size); }
+void *aligned_alloc(size_t align, size_t size) { return memalign(align, size); }
+int posix_memalign(void **out, size_t align, size_t size) { return (*out = memalign(align, size)) ? 0 : 12; }
+void free(void *p) { (void)p; }
+
+void *calloc(size_t n, size_t size) {
+  void *p = malloc(n * size);
+  if (p) memset(p, 0, n * size);
+  return p;
+}
+
+void *realloc(void *p, size_t size) {
+  void *q = malloc(size);
+  if (p && q) {
+    size_t old = ((size_t *)p)[-1];
+    memcpy(q, p, old < size ? old : size);
+  }
+  return q;
+}
+
+int main(void) {
+  printf("allocations %d\n", busy_allocations);
+  return 0;
+}
+"""
+
 UDEV = r"""
 #include <stdio.h>
 #include <stdlib.h>
@@ -121,13 +182,40 @@ void *udev_device_new_from_subsystem_sysname(void *udev, const char *subsystem, 
   (void)udev; (void)subsystem; (void)sysname;
   return NULL;
 }
-void *udev_device_unref(void *device) { (void)device; return NULL; }
-void *udev_device_ref(void *device) { (void)device; return NULL; }
-void *udev_device_get_parent(void *device) { (void)device; return NULL; }
-void *udev_device_get_udev(void *device) { (void)device; return NULL; }
-const char *udev_device_get_syspath(void *device) { (void)device; return "real"; }
-const char *udev_device_get_sysnum(void *device) { (void)device; return "real"; }
+int real_device_calls;
+void *udev_device_unref(void *device) { (void)device; real_device_calls++; return NULL; }
+void *udev_device_ref(void *device) { (void)device; real_device_calls++; return NULL; }
+void *udev_device_get_parent(void *device) { (void)device; real_device_calls++; return NULL; }
+void *udev_device_get_udev(void *device) { (void)device; real_device_calls++; return NULL; }
+const char *udev_device_get_syspath(void *device) { (void)device; real_device_calls++; return "real"; }
+const char *udev_device_get_sysnum(void *device) { (void)device; real_device_calls++; return "real"; }
+void *udev_device_new_from_devnum(void *udev, char type, unsigned long devnum) {
+  (void)udev; (void)type; (void)devnum;
+  return NULL;
+}
 """
+
+DEVICE_FUNCTIONS = (
+    "p:udev_device_ref", "p:udev_device_get_udev", "p:udev_device_get_parent",
+    "P:udev_device_get_parent_with_subsystem_devtype", "s:udev_device_get_devpath", "s:udev_device_get_subsystem",
+    "s:udev_device_get_devtype", "s:udev_device_get_syspath", "s:udev_device_get_sysname",
+    "s:udev_device_get_sysnum", "s:udev_device_get_devnode", "i:udev_device_get_is_initialized",
+    "p:udev_device_get_devlinks_list_entry", "p:udev_device_get_properties_list_entry",
+    "p:udev_device_get_tags_list_entry", "p:udev_device_get_current_tags_list_entry",
+    "p:udev_device_get_sysattr_list_entry", "S:udev_device_get_property_value", "s:udev_device_get_driver",
+    "d:udev_device_get_devnum", "s:udev_device_get_action", "u:udev_device_get_seqnum",
+    "u:udev_device_get_usec_since_initialized", "S:udev_device_get_sysattr_value",
+    "W:udev_device_set_sysattr_value", "I:udev_device_has_tag", "I:udev_device_has_current_tag",
+    "p:udev_device_unref",
+)
+SIGNATURES = {
+    "p": ("void *", ""), "s": ("const char *", ""), "i": ("int", ""), "d": ("dev_t", ""),
+    "u": ("unsigned long long", ""), "S": ("const char *", ", const char *a"), "I": ("int", ", const char *a"),
+    "P": ("void *", ", const char *a, const char *b"), "W": ("int", ", const char *a, const char *b"),
+}
+UDEV += "#include <sys/types.h>\n" + "".join(
+    f"{SIGNATURES[kind][0]} {name}(void *device{SIGNATURES[kind][1]}) {{ (void)device; real_device_calls++; return 0; }}\n"
+    for kind, _, name in (entry.partition(":") for entry in DEVICE_FUNCTIONS) if not re.search(rf"\b{name}\(", UDEV))
 
 PROGRAM = r"""
 #define _GNU_SOURCE
@@ -135,6 +223,7 @@ PROGRAM = r"""
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/sysmacros.h>
 #include <unistd.h>
 
 #define PAD "/sys/devices/virtual/input/droiddeck0"
@@ -340,6 +429,37 @@ static void run_enumerate(void) {
   printf("nothing added scan %d\n", scan(other));
 }
 
+static void run_every(int count, char **entries) {
+  void *(*from_devnum)(void *, char, dev_t) = sym("udev_device_new_from_devnum");
+  int *real_calls = dlsym(lib, "real_device_calls");
+  int udev;
+  void *pad = from_devnum(&udev, 'c', makedev(13, 64));
+  int i;
+
+  for (i = 0; pad != NULL && i < count; i++) {
+    const char *name = entries[i] + 2;
+    void *call = sym(name);
+
+    if (call == NULL) {
+      printf("missing %s\n", name);
+      continue;
+    }
+    switch (entries[i][0]) {
+      case 'p': ((void *(*)(void *))call)(pad); break;
+      case 's': ((const char *(*)(void *))call)(pad); break;
+      case 'i': ((int (*)(void *))call)(pad); break;
+      case 'd': ((dev_t (*)(void *))call)(pad); break;
+      case 'u': ((unsigned long long (*)(void *))call)(pad); break;
+      case 'S': ((const char *(*)(void *, const char *))call)(pad, "attr"); break;
+      case 'I': ((int (*)(void *, const char *))call)(pad, "attr"); break;
+      case 'P': ((void *(*)(void *, const char *, const char *))call)(pad, "input", NULL); break;
+      case 'W': ((int (*)(void *, const char *, const char *))call)(pad, "attr", "value"); break;
+      default: printf("unknown signature %s\n", entries[i]);
+    }
+  }
+  printf("pad %d real calls %d\n", pad != NULL, real_calls != NULL ? *real_calls : -1);
+}
+
 static void run_probe(void) {
   int udev;
 
@@ -387,6 +507,7 @@ int main(int argc, char **argv) {
   name = sym("udev_list_entry_get_name");
   value = sym("udev_list_entry_get_value");
   if (strcmp(argv[1], "probe") == 0) run_probe();
+  else if (strcmp(argv[1], "every") == 0) run_every(argc - 3, argv + 3);
   else if (strcmp(argv[1], "stable") == 0) run_stable();
   else if (strcmp(argv[1], "enumerate") == 0) run_enumerate();
   else run_udev();
@@ -414,7 +535,7 @@ class InputUdevPreloadTest(unittest.TestCase):
         if "__GLIBC__" not in compile_c("-dM", "-E", "-x", "c", "-include", "limits.h", "/dev/null"):
             raise unittest.SkipTest("needs a glibc toolchain")
         sources = (("once.c", ONCE), ("first.c", FIRST), ("second.c", SECOND), ("chain.c", CHAIN), ("mark.c", MARK),
-                   ("udev.c", UDEV), ("program.c", PROGRAM))
+                   ("udev.c", UDEV), ("program.c", PROGRAM), ("locked.c", LOCKED), ("arena.c", ARENA))
         for name, text in sources:
             (build / name).write_text(text)
         cls.lib = cls.dir / "libddsession.so"
@@ -427,6 +548,11 @@ class InputUdevPreloadTest(unittest.TestCase):
         compile_c("-shared", "-fPIC", "-O2", "-o", str(cls.udev), str(build / "udev.c"))
         cls.program = cls.dir / "program"
         compile_c("-O0", "-o", str(cls.program), str(build / "program.c"), str(cls.dir / "libfirst.so"), "-ldl")
+        compile_c("-shared", "-fPIC", "-O0", "-o", str(cls.dir / "liblocked.so"), str(build / "locked.c"))
+        cls.arena = cls.dir / "arena"
+        compile_c("-O0", "-rdynamic", "-o", str(cls.arena), str(build / "arena.c"), "-Wl,--no-as-needed",
+                  str(cls.dir / "liblocked.so"),
+                  f"-Wl,-rpath,{cls.dir}")
         cls.pads = cls.pad_dir("pads", "event0")
 
     @classmethod
@@ -437,17 +563,23 @@ class InputUdevPreloadTest(unittest.TestCase):
             (pads / node).write_text("")
         return pads
 
-    def run_program(self, mode, *preloads, pads=None, slots="0=/pad", program=None):
+    def run_program(self, mode, *preloads, pads=None, slots="0=/pad", program=None, args=()):
         env = dict(os.environ, LD_PRELOAD=":".join(str(self.dir / name) for name in ("libddsession.so", *preloads)),
                    FAKE_EVDEV_MEMFD_PATHS=slots, FAKE_EVDEV_DIR=str(pads or self.pads))
         env.pop("FAKE_EVDEV_UINPUT", None)
-        result = subprocess.run([str(program or self.program), mode, str(self.udev)], env=env, capture_output=True, text=True,
+        result = subprocess.run([str(program or self.program), mode, str(self.udev), *args], env=env, capture_output=True, text=True,
                                 timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
         return result.stdout.splitlines()
 
     def test_a_lookup_from_another_preloads_initialiser_does_not_reenter_it(self):
         self.assertEqual(self.run_program("once", "libonce.so"), ["readlink 1"])
+
+    def test_a_first_wrapped_call_inside_the_programs_allocator_does_not_allocate(self):
+        result = subprocess.run([str(self.arena)], env=dict(os.environ, LD_PRELOAD=str(self.lib)), capture_output=True,
+                                text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), ["allocations 0"])
 
     def test_the_real_lookup_still_sees_the_original_caller(self):
         self.assertEqual(self.run_program("next", "libfirst.so", "libsecond.so"), ["next 2"])
@@ -483,6 +615,9 @@ class InputUdevPreloadTest(unittest.TestCase):
             "contexts 1 1",
         ])
 
+    def test_no_device_call_on_a_pad_reaches_the_real_libudev(self):
+        self.assertEqual(self.run_program("every", args=DEVICE_FUNCTIONS), ["pad 1 real calls 0"])
+
     def test_a_handle_keeps_its_strings_after_the_pad_goes_away(self):
         self.assertEqual(self.run_program("stable", pads=self.pad_dir("stable", "event0")), [
             "gone 1",
@@ -515,9 +650,11 @@ class InputUdevPreloadTest(unittest.TestCase):
             "nothing added scan -1",
         ])
 
-    def test_only_the_steam_client_runtime_path_gets_the_real_libudev(self):
-        for path, pad in (("steamrt64/steam", 0), ("steamrtarm64/steam", 0), ("steamrt64/steam-probe", 1),
-                          ("xsteamrt64/steam", 1), ("steamrt64/xsteam", 1), ("steamrt/steam", 1)):
+    def test_only_the_steam_client_and_its_remote_play_client_get_the_real_libudev(self):
+        for path, pad in (("steamrt64/steam", 0), ("steamrtarm64/steam", 0), ("steamrt64/streaming_client", 0),
+                          ("steamrtarm64/streaming_client", 0), ("steamrt64/steam-probe", 1),
+                          ("steamrt64/streaming_client2", 1), ("xsteamrt64/steam", 1), ("steamrt64/xsteam", 1),
+                          ("steamrt/steam", 1), ("steamrt/streaming_client", 1)):
             with self.subTest(path=path):
                 client = self.dir / "clients" / path
                 client.parent.mkdir(parents=True, exist_ok=True)
