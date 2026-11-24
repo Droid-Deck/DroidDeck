@@ -9,6 +9,9 @@ import zipfile
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/droiddeck-steam-install'
+CDNS = ['https://client-update.steamstatic.com',
+        'https://client-update.akamai.steamstatic.com',
+        'https://client-update.fastly.steamstatic.com']
 
 
 class SteamInstallTest(unittest.TestCase):
@@ -33,10 +36,12 @@ url = next(a for a in args if a.startswith('https://'))
 out = args[args.index('-o') + 1]
 name = url.rsplit('/', 1)[1]
 offset = os.path.getsize(out) if '-C' in args and os.path.exists(out) else 0
-with open(os.environ['TEST_REQUESTS'], 'a') as log:
+probe = out == '/dev/null'
+with open(os.environ['TEST_REQUESTS'] + ('.probes' if probe else ''), 'a') as log:
     log.write(url + '\\n')
-with open(os.environ['TEST_REQUESTS'] + '.offsets', 'a') as log:
-    log.write(f'{name} {offset}\\n')
+if not probe:
+    with open(os.environ['TEST_REQUESTS'] + '.offsets', 'a') as log:
+        log.write(f'{name} {offset}\\n')
 def done(status, code='200'):
     if '-w' in args:
         sys.stdout.write(code)
@@ -46,7 +51,7 @@ if host_fail and host_fail in url:
     done(22, '000')
 action = []
 plan = os.environ.get('TEST_PLAN')
-if plan and os.path.exists(plan):
+if plan and os.path.exists(plan) and '-r' not in args:
     lines = open(plan).read().splitlines()
     for n, line in enumerate(lines):
         if line.split()[0] == name:
@@ -111,22 +116,20 @@ done(28 if end < len(data) else 0)
         self.assertEqual(channel, client.read_text())
         self.assertEqual((self.steam / 'linuxarm64').resolve(), (self.home / '.steam/sdkarm64').resolve())
         if expected is None:
-            expected = [
-                'https://client-update.steamstatic.com/steam_client_' + channel + '_linuxarm64',
-                'https://client-update.steamstatic.com/' + channel + '.zip',
-            ]
+            expected = ([CDNS[0] + '/steam_client_' + channel + '_linuxarm64']
+                        + [CDNS[0] + '/' + channel + '.zip'])
         self.assertEqual(expected, self.requests.read_text().splitlines())
         return result
 
     def test_downloads_the_deck_beta_client(self):
         self.assert_installed()
+        self.assertEqual([cdn + '/steamdeck_publicbeta.zip' for cdn in CDNS], self.probed())
 
     def test_a_cdn_that_does_not_answer_hands_over_to_the_next_one(self):
-        akamai = 'https://client-update.akamai.steamstatic.com'
         self.assert_installed(fail_host='client-update.steamstatic.com', expected=[
-            'https://client-update.steamstatic.com/steam_client_steamdeck_publicbeta_linuxarm64',
-            akamai + '/steam_client_steamdeck_publicbeta_linuxarm64',
-            akamai + '/steamdeck_publicbeta.zip',
+            CDNS[0] + '/steam_client_steamdeck_publicbeta_linuxarm64',
+            CDNS[1] + '/steam_client_steamdeck_publicbeta_linuxarm64',
+            CDNS[1] + '/steamdeck_publicbeta.zip',
         ])
 
     def test_an_install_from_another_branch_is_left_for_steam_to_move(self):
@@ -199,6 +202,10 @@ done(28 if end < len(data) else 0)
         if beta_manifest:
             stable.insert(0, 'https://client-update.steamstatic.com/steam_client_steamdeck_publicbeta_linuxarm64')
         return stable
+
+    def probed(self):
+        log = Path(str(self.requests) + '.probes')
+        return log.read_text().splitlines() if log.exists() else []
 
     def test_a_repaired_beta_client_that_still_shows_nothing_falls_back_to_stable(self):
         package = self.break_client(2)

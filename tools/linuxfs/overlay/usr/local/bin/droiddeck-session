@@ -1894,9 +1894,11 @@ case $mode in
         desktop_ui_pid=$!
       fi
       steam_started=$SECONDS
+      package_source=()
+      [ "${steam_x64:-0}" = 0 ] && [ -s "$steam_root/package/droiddeck-cdn" ] && package_source=(-overridepackageurl "https://$(cat "$steam_root/package/droiddeck-cdn")")
       PATH="$dd_steam_path" \
       DD_STEAM_WEBHELPER="$steam_root/steamrtarm64/steamwebhelper" \
-      "${steam_client[@]}" "${_dd_ui[@]}" "${_dd_cdp[@]}" "${_dd_lang[@]}" -clientbeta "$steam_channel" \
+      "${steam_client[@]}" ${package_source[@]+"${package_source[@]}"} "${_dd_ui[@]}" "${_dd_cdp[@]}" "${_dd_lang[@]}" -clientbeta "$steam_channel" \
         -no-cef-sandbox -cef-ozone-platform=x11 "${_dd_cef[@]}" "$@"
       rc=$?
       steam_ran=$((SECONDS - steam_started))
