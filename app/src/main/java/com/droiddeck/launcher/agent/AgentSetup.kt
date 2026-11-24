@@ -143,9 +143,9 @@ object AgentSetup {
                 listOf("sh", "-c", "set -e; export DEBIAN_FRONTEND=noninteractive; " +
                     "apt() { apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 \"\$@\"; }; " +
                     "dpkg --configure -a || echo 'Some packages are not configured yet; repairing dependencies'; " +
-                    "for i in 1 2 3; do apt update -q && break; echo 'Some package sources could not be refreshed; retrying'; sleep 3; done; " +
+                    "for i in 1 2 3; do apt -o APT::Update::Error-Mode=any update -q && break; echo 'Some package sources could not be refreshed; retrying'; sleep 3; done; " +
                     "apt -f install -y --fix-missing; " +
-                    "apt install -y --fix-missing --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
+                    "apt install -y --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
             }
             Step.SIGN_IN -> harness.signIn
             Step.GITHUB -> listOf("dd-gh-login")

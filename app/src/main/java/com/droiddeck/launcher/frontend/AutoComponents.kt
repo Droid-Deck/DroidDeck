@@ -47,6 +47,7 @@ object AutoComponents {
         { c, comp, all, progress -> WinComponents.install(c, comp, all, progress) }
     @VisibleForTesting internal var sessionRunning: () -> Boolean = { SessionState.running }
     @VisibleForTesting internal var unfavourable: (Context) -> Boolean = { c -> constrained(c) }
+    @VisibleForTesting internal var firstRunHeldBack: (Context) -> Boolean = { c -> powerSaveOrMetered(c) }
     @VisibleForTesting internal var online: (Context) -> Boolean = { c -> isOnline(c) }
     @VisibleForTesting @Volatile internal var runNow = false
 
@@ -532,6 +533,10 @@ object AutoComponents {
         return caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
             caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED)
     }
+
+    fun powerSaveOrMetered(context: Context): Boolean =
+        context.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true ||
+            context.getSystemService(ConnectivityManager::class.java)?.isActiveNetworkMetered == true
 
     fun constrained(context: Context): Boolean {
         val power = context.getSystemService(PowerManager::class.java)

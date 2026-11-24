@@ -526,6 +526,21 @@ class PrepareTest(FexTestCase):
             for name in names:
                 self.assertEqual((Path(fex["rootfs"]) / "lib" / arch / name).read_bytes(), b"new ABI " + name.encode())
 
+    def test_opengl_dispatch_library_comes_from_the_newer_runtime_when_the_base_lacks_it(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            self.write(sniper / "files/lib" / arch / "libGLdispatch.so.0", b"base dispatch")
+            self.write(provider / "files/lib" / arch / "libOpenGL.so.0.0.0", b"opengl " + arch.encode())
+            os.symlink("libOpenGL.so.0.0.0", provider / "files/lib" / arch / "libOpenGL.so.0")
+        fex, _ = self.quiet(FEX["prepare"])
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            root = Path(fex["rootfs"]) / "lib" / arch
+            self.assertEqual((root / "libOpenGL.so.0").read_bytes(), b"opengl " + arch.encode())
+            self.assertEqual((root / "libGLdispatch.so.0").read_bytes(), b"base dispatch")
+
     def test_gbm_requires_usable_provider_dependencies_on_both_architectures(self):
         self.fex_tool()
         sniper = self.runtime()
@@ -1008,6 +1023,73 @@ class ExtractTest(FexTestCase):
         self.assertIn("-no-xattrs", commands[-1])
         self.assertTrue(Path("squashfs-root/AppRun").is_file())
 
+    def seven_zip(self, tool, which, works=True):
+        commands = []
+
+        def call(argv, **kwargs):
+            commands.append(argv)
+            if argv[0] != "/usr/bin/7z" or not works:
+                return 2
+            (self.work / "squashfs-root").mkdir()
+            (self.work / "squashfs-root/AppRun").touch()
+            return 0
+
+        with mock.patch.dict(G, {
+            "URUNTIME": tool,
+            "prepare": lambda: None,
+            "fex_install": lambda: None,
+            "steam_running": lambda: False,
+            "want_fex": lambda: None,
+        }), mock.patch("shutil.which", side_effect=lambda name: which.get(name)), \
+                mock.patch("subprocess.call", side_effect=call):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        return status, said, commands
+
+    def test_without_proot_the_shipped_runtime_reads_the_open_image(self):
+        self.write(self.image, elf(183) + b"payload", 0o755)
+        tool = self.uruntime('cmp "$TARGET_APPIMAGE" "%s" || exit 9\nmkdir -p AppDir && touch AppDir/AppRun\n' % self.image)
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(self.tmp / "rootfs")}):
+            status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
+        self.assertEqual((status, said), (0, ""))
+        self.assertEqual([], commands)
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+
+    def test_without_proot_runtime_failure_falls_back_to_7zip(self):
+        self.write(self.image, elf(183) + b"payload", 0o755)
+        tool = self.uruntime("exit 1\n")
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(self.tmp / "rootfs")}):
+            status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertEqual("/usr/bin/7z", commands[-1][0])
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+
+    def test_with_proot_the_shipped_runtime_is_still_tried_first(self):
+        ran = self.tmp / "uruntime-ran"
+        tool = self.uruntime("touch %s\nexit 1\n" % ran)
+        env = {k: v for k, v in os.environ.items() if k != "DDNATV_ROOT"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertTrue(ran.exists())
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertEqual("/usr/bin/7z", commands[-1][0])
+
+    def test_unsquashfs_is_preferred_over_7zip(self):
+        tool = self.uruntime("exit 1\n")
+        status, said, commands = self.seven_zip(tool, {"unsquashfs": "/usr/bin/unsquashfs", "7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertIn("unsquashfs could not extract it (status 2)", said)
+        self.assertEqual(["/usr/bin/unsquashfs", "/usr/bin/7z"], [c[0] for c in commands])
+
+    def test_a_7zip_failure_leaves_nothing_unpacked(self):
+        tool = self.uruntime("exit 1\n")
+        status, said, _ = self.seven_zip(tool, {"7z": "/usr/bin/7z"}, works=False)
+        self.assertEqual(status, 1)
+        self.assertIn("7-Zip could not extract it (status 2)", said)
+        self.assertNotIn("no unsquashfs", said)
+        self.assertFalse(os.path.lexists("squashfs-root"))
+
 
 class LaunchTest(FexTestCase):
     def test_the_guest_environment(self):
@@ -1054,6 +1136,12 @@ class LaunchTest(FexTestCase):
     def test_host_libc_tunables_stay_on_the_host(self):
         guest = FEX["guest_environment"]({"portable": True}, {"GLIBC_TUNABLES": "glibc.pthread.rseq=0"})
         self.assertNotIn("GLIBC_TUNABLES", guest)
+
+    def test_host_iconv_modules_stay_on_the_host(self):
+        guest = FEX["guest_environment"]({"portable": True}, {"GCONV_PATH": "/r/usr/lib/aarch64-linux-gnu/gconv"})
+        self.assertEqual(guest["GCONV_PATH"], "")
+        own = FEX["guest_environment"]({"portable": True}, {"GCONV_PATH": "/opt/gconv"})
+        self.assertEqual(own["GCONV_PATH"], "/opt/gconv")
 
     def test_proton_runs_in_the_runtime_its_manifest_requires(self):
         self.fex_tool()

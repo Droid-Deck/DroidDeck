@@ -21,7 +21,7 @@ int setresuid(uid_t ruid, uid_t euid, uid_t suid) { (void)ruid; (void)euid; (voi
 int setresgid(gid_t rgid, gid_t egid, gid_t sgid) { (void)rgid; (void)egid; (void)sgid; return 0; }
 
 int getgroups(int size, gid_t list[]) {
-    if (size > 0 && list != NULL) list[0] = 0;
+    if (size > 0 && list != NULL && syscall(__NR_getresgid, list, list, list) != 0) return -1;
     return 1;
 }
 // What programs built with _FORTIFY_SOURCE call when the buffer's size is known (the check is

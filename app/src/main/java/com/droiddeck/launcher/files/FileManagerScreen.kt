@@ -191,6 +191,7 @@ fun FileManagerScreen(
     var compactRows by remember { mutableStateOf(browsePrefs.getBoolean("fmCompactRows", false)) }
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<File?>(null) }
+    var editingTarget by remember { mutableStateOf<File?>(null) }
     var propertiesTarget by remember { mutableStateOf<File?>(null) }
     var isOperationRunning by remember { mutableStateOf(false) }
     var operationLabel by remember { mutableStateOf("") }
@@ -294,7 +295,7 @@ fun FileManagerScreen(
         if (isOperationActive()) pendingNavigation = action else navigate(action)
     }
 
-    BackHandler(enabled = operationActive || cancellingNavigation || showFavorites || currentDir != currentRoot || history.isNotEmpty()) {
+    BackHandler(enabled = editingTarget == null && (operationActive || cancellingNavigation || showFavorites || currentDir != currentRoot || history.isNotEmpty())) {
         requestNavigation(FileManagerNavigation.BACK)
     }
 
@@ -696,6 +697,14 @@ fun FileManagerScreen(
 
     val compactToolbar = LocalConfiguration.current.screenWidthDp < 600
     Column(modifier = Modifier.fillMaxSize()) {
+        editingTarget?.let { target ->
+            TextEditorScreen(
+                file = target,
+                onExit = { editingTarget = null },
+                modifier = Modifier.fillMaxSize(),
+            )
+            return@Column
+        }
         if (pickMode && !pickerTitle.isNullOrEmpty()) {
             Text(
                 text = pickerTitle,
@@ -1194,6 +1203,8 @@ fun FileManagerScreen(
                                         pickPrefs.edit().putString("lastFilePickerDir", currentDir.absolutePath).apply()
                                         onPick?.invoke(file)
                                     }
+                                } else {
+                                    editingTarget = file
                                 }
                             },
                             onMenu = { showMenuFor = file },
@@ -1205,6 +1216,7 @@ fun FileManagerScreen(
                                 selectedPaths = selectedPaths + file.absolutePath
                                 showMenuFor = null
                             },
+                            onOpen = { editingTarget = file; showMenuFor = null },
                             onRename = { renameTarget = file; showMenuFor = null },
                             onCopy = { clipboardFiles = listOf(file); isCutOperation = false; showMenuFor = null },
                             onCut = { clipboardFiles = listOf(file); isCutOperation = true; showMenuFor = null },
@@ -1273,6 +1285,8 @@ fun FileManagerScreen(
                                         pickPrefs.edit().putString("lastFilePickerDir", currentDir.absolutePath).apply()
                                         onPick?.invoke(file)
                                     }
+                                } else {
+                                    editingTarget = file
                                 }
                             },
                             onMenu = { showMenuFor = file },
@@ -1286,6 +1300,7 @@ fun FileManagerScreen(
                             onCopy = { clipboardFiles = listOf(file); isCutOperation = false; showMenuFor = null },
                             onCut = { clipboardFiles = listOf(file); isCutOperation = true; showMenuFor = null },
                             onDelete = { selectedEntry = file; showMenuFor = null },
+                            onOpen = { editingTarget = file; showMenuFor = null },
                             onRename = { renameTarget = file; showMenuFor = null },
                             isFavorite = isFav,
                             onToggleFavorite = {

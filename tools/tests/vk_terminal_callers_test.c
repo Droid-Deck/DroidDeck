@@ -123,7 +123,8 @@ static int64_t now_ns(void) { return 0; }
 static struct surface *g_hud_surface, *g_hud_shm;
 static int64_t g_hud_shm_ns, g_hud_last_ns;
 static int g_hud_new;
-static void droiddeck_on_game_frame(void) {}
+static void __attribute__((unused)) droiddeck_on_game_frame(void) {}
+static void __attribute__((unused)) droiddeck_on_compositor_frame(void) {}
 struct client_info { int asked_feedback, shm_frames; };
 struct wl_shm_buffer { int w, h, stride; const void *data; };
 #define WL_SHM_FORMAT_ARGB8888 0
