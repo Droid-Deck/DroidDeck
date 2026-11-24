@@ -305,14 +305,49 @@ static int svc_writable(const void *pointer, size_t size)
 
 static const GUID svc_iid_async_info = {0x00000036, 0x0000, 0x0000,
                                         {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
+static const GUID svc_iid_async_action = {0x5a648006, 0x843a, 0x4da9,
+                                          {0x86, 0x5b, 0x9d, 0x26, 0xe5, 0xdf, 0xad, 0x7b}};
+static const GUID svc_iid_agile_object = {0x94ea2b94, 0xe9cc, 0x49e0,
+                                          {0xc0, 0xff, 0xee, 0x64, 0xca, 0x8f, 0x5b, 0x90}};
+static const GUID svc_iid_async_storage_file = {0x5e52f8ce, 0xaced, 0x5a42,
+                                                {0x95, 0xb4, 0xf6, 0x74, 0xdd, 0x84, 0x88, 0x5e}};
+static const GUID svc_iid_async_storage_folder = {0x6be9e7d7, 0xe83a, 0x5cbc,
+                                                  {0x80, 0x2c, 0x17, 0x68, 0x96, 0x0b, 0x52, 0xc3}};
+static const GUID svc_iid_async_storage_item = {0x5fc9c137, 0xebb7, 0x5e6c,
+                                                {0x9c, 0xba, 0x68, 0x6f, 0x2e, 0xc2, 0xb0, 0xbb}};
+static const GUID svc_iid_async_uicommand = {0xb8770535, 0x6a4b, 0x52b1,
+                                             {0xb5, 0x78, 0xf3, 0xcd, 0xc5, 0x00, 0x7a, 0x1f}};
+static const GUID svc_iid_async_devinfo = {0x07faa053, 0xeb2f, 0x5cba,
+                                           {0xb2, 0x5b, 0xd9, 0xd5, 0x7b, 0xe6, 0x71, 0x5f}};
+static const GUID svc_iid_async_devcoll = {0x45180254, 0x082e, 0x5274,
+                                           {0xb2, 0xe7, 0xac, 0x05, 0x17, 0xf4, 0x4d, 0x07}};
+static const GUID svc_iid_async_store_license = {0x3866370b, 0xafc6, 0x5d01,
+                                                 {0x84, 0xc2, 0x45, 0x74, 0x62, 0x8d, 0xe5, 0x39}};
+static const GUID svc_iid_async_store_product = {0x9e61e86b, 0x6afb, 0x50ae,
+                                                 {0xaf, 0xc1, 0xc5, 0x9f, 0x54, 0x51, 0x08, 0xdd}};
+static const GUID svc_iid_async_store_query = {0x9699e7bb, 0xea1f, 0x5e03,
+                                               {0x94, 0x39, 0xc8, 0x0e, 0x69, 0x77, 0xb7, 0x11}};
+static const GUID svc_iid_async_store_consum = {0x873c497b, 0xc3f7, 0x5657,
+                                                {0xb9, 0x21, 0x3e, 0x58, 0xce, 0x48, 0xee, 0x50}};
+static const GUID svc_iid_async_store_acqlic = {0xdd6c4705, 0xa76c, 0x528e,
+                                                {0x99, 0xa5, 0xcd, 0xd1, 0x31, 0x97, 0xd4, 0xcf}};
+static const GUID svc_iid_async_store_purchase = {0x33d8cc30, 0x78f5, 0x5f81,
+                                                  {0xaa, 0x2d, 0xa4, 0xfa, 0x2a, 0x3b, 0x1c, 0x68}};
+static const GUID svc_iid_async_store_updates = {0x0ac66c33, 0x45b8, 0x546b,
+                                                 {0xaa, 0xaf, 0xd5, 0x8d, 0x62, 0xa4, 0xc5, 0xc5}};
+static const GUID svc_iid_async_hstring = {0x3e1fe603, 0xf897, 0x5263,
+                                           {0xb3, 0x28, 0x08, 0x06, 0x42, 0x6b, 0x8a, 0x79}};
+static const GUID svc_iid_async_push_channel = {0x70945a09, 0x331a, 0x5e40,
+                                                {0xb8, 0x54, 0x66, 0xb7, 0xa3, 0x23, 0x3b, 0xab}};
 
 typedef struct {
     svc_object base;
     /* IAsyncInfo has its own vtable at its own address: slot 6 on IAsyncInfo is
        get_Id while slot 6 on IAsyncOperation is put_Completed. */
     svc_object info;
+    const GUID *op_iid;
     void *result;
-    void *handler;
+    void *volatile handler;
     HRESULT error;
     volatile LONG status;
     volatile LONG fired;
@@ -362,13 +397,17 @@ static HRESULT async_QueryInterface(void *self, const GUID *id, void **out)
 {
     async_object *object = async_from(self);
     if (!out) return E_POINTER;
-    if (id && IsEqualIID(id, &svc_iid_async_info))
+    *out = NULL;
+    if (!id) return E_INVALIDARG;
+    if (IsEqualIID(id, &svc_iid_async_info)) {
         *out = &object->info;
-    else
-        /* IAsyncOperation<T> IIDs are parameterized, so the concrete IID is not
-           nameable here; this object implements the async shapes and answers
-           them. */
+    } else if (IsEqualIID(id, &svc_iid_unknown) || IsEqualIID(id, &svc_iid_inspectable) ||
+               IsEqualIID(id, &svc_iid_agile_object) ||
+               (object->op_iid && IsEqualIID(id, object->op_iid))) {
         *out = object;
+    } else {
+        return E_NOINTERFACE;
+    }
     svc_AddRef(&object->base);
     return S_OK;
 }
@@ -423,9 +462,12 @@ static HRESULT async_put_Completed(void *self, void *handler)
 {
     async_object *object = async_from(self);
     if (!handler || !svc_readable(handler, sizeof(void *))) return E_INVALIDARG;
-    if (object->handler) return E_ILLEGAL_DELEGATE_ASSIGNMENT;
     ((ULONG(__stdcall *)(void *))(*(void ***)handler)[1])(handler);
-    object->handler = handler;
+    if (InterlockedCompareExchangePointer((PVOID volatile *)&object->handler, handler, NULL) !=
+        NULL) {
+        ((ULONG(__stdcall *)(void *))(*(void ***)handler)[2])(handler);
+        return E_ILLEGAL_DELEGATE_ASSIGNMENT;
+    }
     MemoryBarrier();
     if (object->status != ASYNC_STARTED) async_fire(object);
     return S_OK;
@@ -433,7 +475,12 @@ static HRESULT async_put_Completed(void *self, void *handler)
 
 static HRESULT async_get_Completed(void *self, void **out)
 {
-    if (out) *out = async_from(self)->handler;
+    async_object *object = async_from(self);
+    void *handler;
+    if (!out) return E_POINTER;
+    handler = InterlockedCompareExchangePointer((PVOID volatile *)&object->handler, NULL, NULL);
+    if (handler) ((ULONG(__stdcall *)(void *))(*(void ***)handler)[1])(handler);
+    *out = handler;
     return S_OK;
 }
 
@@ -470,7 +517,7 @@ static const void *async_operation_vtable[] = {
     (const void *)async_GetResults,
 };
 
-static async_object *async_new(int operation, HRESULT error, void *result)
+static async_object *async_new_iid(int operation, const GUID *op_iid, HRESULT error, void *result)
 {
     async_object *object = (async_object *)calloc(1, sizeof(async_object));
     if (!object) return NULL;
@@ -482,10 +529,16 @@ static async_object *async_new(int operation, HRESULT error, void *result)
     object->info.refs = 1;
     object->info.permanent = 1;
     object->info.name = "Windows.Foundation.IAsyncInfo";
+    object->op_iid = operation ? op_iid : &svc_iid_async_action;
     object->result = result;
     object->error = error;
     object->status = error ? ASYNC_ERROR : ASYNC_COMPLETED;
     return object;
+}
+
+static async_object *async_new(int operation, HRESULT error, void *result)
+{
+    return async_new_iid(operation, NULL, error, result);
 }
 
 /* An action that finishes later, on another thread: CoreDispatcher work stays
@@ -517,9 +570,9 @@ static HRESULT async_action(HRESULT error, void **out)
     return S_OK;
 }
 
-static HRESULT async_operation(HRESULT error, void *result, void **out)
+static HRESULT async_operation_iid(const GUID *op_iid, HRESULT error, void *result, void **out)
 {
-    async_object *object = async_new(1, error, result);
+    async_object *object = async_new_iid(1, op_iid, error, result);
     if (!object) return E_OUTOFMEMORY;
     svc_trace(error ? "async operation error" : "async operation");
     *out = object;
@@ -1491,9 +1544,10 @@ static HRESULT cb_GenerateRandom(svc_object *self, unsigned length, void **out)
     /* The platform CSPRNG, not a seeded generator: these bytes go into keys and
        tokens, and a guessable sequence would be worse than an error. */
     if (!SystemFunction036(result->data, length)) {
+        DWORD err = GetLastError();
         buffer_Release(result);
         *out = NULL;
-        return HRESULT_FROM_WIN32(GetLastError());
+        return err ? HRESULT_FROM_WIN32(err) : E_FAIL;
     }
     result->length = length;
     *out = result;
@@ -1504,7 +1558,10 @@ static HRESULT cb_GenerateRandomNumber(svc_object *self, unsigned *out)
 {
     (void)self;
     if (!out) return E_POINTER;
-    if (!SystemFunction036(out, sizeof(*out))) return HRESULT_FROM_WIN32(GetLastError());
+    if (!SystemFunction036(out, sizeof(*out))) {
+        DWORD err = GetLastError();
+        return err ? HRESULT_FROM_WIN32(err) : E_FAIL;
+    }
     return S_OK;
 }
 
@@ -1664,7 +1721,8 @@ static HRESULT cb_EncodeToBase64String(svc_object *self, void *buffer, hstring_t
     (void)self;
     if (!out) return E_POINTER;
     *out = NULL;
-    text = (unsigned char *)malloc((size_t)(((count + 2) / 3) * 4) + 1);
+    if (count > 0x3fffffffu) return E_OUTOFMEMORY;
+    text = (unsigned char *)malloc(((((size_t)count + 2) / 3) * 4) + 1);
     if (!text) return E_OUTOFMEMORY;
     encoded = base64_encode(buffer_bytes(buffer), count, text);
     hr = ascii_to_hstring(text, encoded, out);
@@ -1897,47 +1955,54 @@ static HRESULT item_DateCreated(storage_item *self, long long *out)
 static HRESULT item_IsOfType(storage_item *self, int type, unsigned char *out)
 {
     if (!out) return E_POINTER;
-    /* StorageItemTypes: 0 File, 1 Folder. */
-    *out = (unsigned char)((type == 1) == self->is_folder);
+    /* StorageItemTypes flags: None = 0, File = 1, Folder = 2. */
+    *out = (unsigned char)((self->is_folder && (type & 2)) || (!self->is_folder && (type & 1)));
+    return S_OK;
+}
+
+static HRESULT item_rename_impl(storage_item *self, hstring_t name, DWORD flags, void **out)
+{
+    const WCHAR *wide = svc_string_text(name);
+    WCHAR target[MAX_PATH];
+    WCHAR *folder;
+    size_t prefix_len;
+    size_t name_len;
+    async_object *op;
+    if (!out) return E_POINTER;
+    *out = NULL;
+    if (!wide || !wide[0]) return E_INVALIDARG;
+    wcsncpy(target, self->path, MAX_PATH - 1);
+    target[MAX_PATH - 1] = 0;
+    folder = wcsrchr(target, L'\\');
+    if (!folder) return E_INVALIDARG;
+    prefix_len = (size_t)(folder - target) + 1;
+    name_len = wcslen(wide);
+    if (prefix_len + name_len >= MAX_PATH)
+        return async_action(HRESULT_FROM_WIN32(ERROR_FILENAME_EXCED_RANGE), out);
+    memcpy(folder + 1, wide, (name_len + 1) * sizeof(WCHAR));
+    op = async_new_iid(0, &svc_iid_async_action, S_OK, NULL);
+    if (!op) return E_OUTOFMEMORY;
+    if (!MoveFileExW(self->path, target, flags)) {
+        op->error = HRESULT_FROM_WIN32(GetLastError());
+        op->status = ASYNC_ERROR;
+        *out = op;
+        return S_OK;
+    }
+    memcpy(self->path, target, (prefix_len + name_len + 1) * sizeof(WCHAR));
+    *out = op;
     return S_OK;
 }
 
 static HRESULT item_Rename(storage_item *self, hstring_t name, void **out)
 {
     svc_trace_w("item rename", self->path);
-    const WCHAR *wide = svc_string_text(name);
-    WCHAR target[MAX_PATH];
-    WCHAR *folder;
-    if (!out) return E_POINTER;
-    if (!wide) return E_INVALIDARG;
-    wcsncpy(target, self->path, MAX_PATH - 1);
-    target[MAX_PATH - 1] = 0;
-    folder = wcsrchr(target, L'\\');
-    if (!folder) return E_INVALIDARG;
-    wcsncpy(folder + 1, wide, MAX_PATH - (int)(folder - target) - 1);
-    if (!MoveFileExW(self->path, target, 0))
-        return async_action(HRESULT_FROM_WIN32(GetLastError()), out);
-    wcsncpy(self->path, target, MAX_PATH - 1);
-    return async_action(S_OK, out);
+    return item_rename_impl(self, name, 0, out);
 }
 
 static HRESULT item_Rename2(storage_item *self, hstring_t name, int option, void **out)
 {
     svc_trace_w("item rename2", self->path);
-    const WCHAR *wide = svc_string_text(name);
-    WCHAR target[MAX_PATH];
-    WCHAR *folder;
-    if (!out) return E_POINTER;
-    if (!wide) return E_INVALIDARG;
-    wcsncpy(target, self->path, MAX_PATH - 1);
-    target[MAX_PATH - 1] = 0;
-    folder = wcsrchr(target, L'\\');
-    if (!folder) return E_INVALIDARG;
-    wcsncpy(folder + 1, wide, MAX_PATH - (int)(folder - target) - 1);
-    if (!MoveFileExW(self->path, target, option == 1 ? MOVEFILE_REPLACE_EXISTING : 0))
-        return async_action(HRESULT_FROM_WIN32(GetLastError()), out);
-    wcsncpy(self->path, target, MAX_PATH - 1);
-    return async_action(S_OK, out);
+    return item_rename_impl(self, name, option == 1 ? MOVEFILE_REPLACE_EXISTING : 0, out);
 }
 
 static HRESULT item_Delete(storage_item *self, void **out)
@@ -1990,45 +2055,54 @@ static storage_item *item_new(const WCHAR *path, int folder)
     return item;
 }
 
-static void item_join(const WCHAR *folder, const WCHAR *name, WCHAR *out)
+static int item_join(const WCHAR *folder, const WCHAR *name, WCHAR *out)
 {
-    _snwprintf(out, MAX_PATH, L"%s\\%s", folder, name);
-    out[MAX_PATH - 1] = 0;
+    int n;
+    if (!folder || !name || !out) return 0;
+    n = _snwprintf(out, MAX_PATH, L"%s\\%s", folder, name);
+    if (n < 0 || n >= MAX_PATH) {
+        out[0] = 0;
+        return 0;
+    }
+    return 1;
 }
 
 /* CreationCollisionOption: 0 GenerateUniqueName, 1 ReplaceExisting,
    2 FailIfExists, 3 OpenIfExists. */
-static void creation_name(const WCHAR *folder, const WCHAR *name, int option, WCHAR *out)
+static int creation_name(const WCHAR *folder, const WCHAR *name, int option, WCHAR *out)
 {
     WCHAR candidate[MAX_PATH];
-    if (option != 0) {
-        item_join(folder, name, out);
-        return;
-    }
-    item_join(folder, name, candidate);
+    if (option != 0) return item_join(folder, name, out);
+    if (!item_join(folder, name, candidate)) return 0;
     if (GetFileAttributesW(candidate) == INVALID_FILE_ATTRIBUTES) {
         wcscpy(out, candidate);
-        return;
+        return 1;
     }
     {
         const WCHAR *dot = wcsrchr(name, L'.');
         WCHAR stem[MAX_PATH];
         int attempt;
         if (dot) {
-            wcsncpy(stem, name, (size_t)(dot - name));
-            stem[dot - name] = 0;
+            size_t stem_len = (size_t)(dot - name);
+            if (stem_len >= MAX_PATH) return 0;
+            memcpy(stem, name, stem_len * sizeof(WCHAR));
+            stem[stem_len] = 0;
         } else {
-            wcsncpy(stem, name, MAX_PATH - 1);
-            stem[MAX_PATH - 1] = 0;
+            size_t name_len = wcslen(name);
+            if (name_len >= MAX_PATH) return 0;
+            memcpy(stem, name, (name_len + 1) * sizeof(WCHAR));
         }
         for (attempt = 1; attempt < 1000; attempt++) {
-            if (dot)
-                _snwprintf(candidate, MAX_PATH, L"%s\\%s (%d)%s", folder, stem, attempt, dot);
-            else
-                _snwprintf(candidate, MAX_PATH, L"%s\\%s (%d)", folder, stem, attempt);
-            if (GetFileAttributesW(candidate) == INVALID_FILE_ATTRIBUTES) break;
+            int n = dot ? _snwprintf(candidate, MAX_PATH, L"%s\\%s (%d)%s", folder, stem, attempt,
+                                     dot)
+                        : _snwprintf(candidate, MAX_PATH, L"%s\\%s (%d)", folder, stem, attempt);
+            if (n < 0 || n >= MAX_PATH) return 0;
+            if (GetFileAttributesW(candidate) == INVALID_FILE_ATTRIBUTES) {
+                wcscpy(out, candidate);
+                return 1;
+            }
         }
-        wcscpy(out, candidate);
+        return 0;
     }
 }
 
@@ -2059,19 +2133,34 @@ static HRESULT create_file_at(const WCHAR *folder, const WCHAR *name, int option
     WCHAR path[MAX_PATH];
     HANDLE file;
     storage_item *item;
-    creation_name(folder, name, option, path);
+    async_object *op;
+    if (!creation_name(folder, name, option, path))
+        return async_operation_iid(&svc_iid_async_storage_file,
+                                   HRESULT_FROM_WIN32(ERROR_FILENAME_EXCED_RANGE), NULL, out);
+    item = item_new(path, 0);
+    if (!item) return E_OUTOFMEMORY;
+    op = async_new_iid(1, &svc_iid_async_storage_file, S_OK, NULL);
+    if (!op) {
+        item_Release(item);
+        return E_OUTOFMEMORY;
+    }
     file = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                        option == 1 ? CREATE_ALWAYS
                        : option == 2 ? CREATE_NEW
                        : option == 3 ? OPEN_ALWAYS
                                      : CREATE_NEW,
                        FILE_ATTRIBUTE_NORMAL, NULL);
-    if (file == INVALID_HANDLE_VALUE)
-        return async_operation(HRESULT_FROM_WIN32(GetLastError()), NULL, out);
+    if (file == INVALID_HANDLE_VALUE) {
+        op->error = HRESULT_FROM_WIN32(GetLastError());
+        op->status = ASYNC_ERROR;
+        item_Release(item);
+        *out = op;
+        return S_OK;
+    }
     CloseHandle(file);
-    item = item_new(path, 0);
-    if (!item) return E_OUTOFMEMORY;
-    return async_operation(S_OK, item_file_face(item), out);
+    op->result = item_file_face(item);
+    *out = op;
+    return S_OK;
 }
 
 static HRESULT create_folder_at(const WCHAR *folder, const WCHAR *name, int option, void **out)
@@ -2079,24 +2168,58 @@ static HRESULT create_folder_at(const WCHAR *folder, const WCHAR *name, int opti
     WCHAR path[MAX_PATH];
     DWORD attributes;
     storage_item *item;
-    creation_name(folder, name, option, path);
-    attributes = GetFileAttributesW(path);
-    if (attributes != INVALID_FILE_ATTRIBUTES) {
-        if (!(attributes & FILE_ATTRIBUTE_DIRECTORY) || option == 2)
-            return async_operation(HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS), NULL, out);
-        if (option != 1) {
-            item = item_new(path, 1);
-            if (!item) return E_OUTOFMEMORY;
-            return async_operation(S_OK, item_folder_face(item), out);
-        }
-        if (!RemoveDirectoryW(path))
-            return async_operation(HRESULT_FROM_WIN32(GetLastError()), NULL, out);
-    }
-    if (!CreateDirectoryW(path, NULL) && GetLastError() != ERROR_ALREADY_EXISTS)
-        return async_operation(HRESULT_FROM_WIN32(GetLastError()), NULL, out);
+    async_object *op;
+    if (!creation_name(folder, name, option, path))
+        return async_operation_iid(&svc_iid_async_storage_folder,
+                                   HRESULT_FROM_WIN32(ERROR_FILENAME_EXCED_RANGE), NULL, out);
     item = item_new(path, 1);
     if (!item) return E_OUTOFMEMORY;
-    return async_operation(S_OK, item_folder_face(item), out);
+    op = async_new_iid(1, &svc_iid_async_storage_folder, S_OK, NULL);
+    if (!op) {
+        item_Release(item);
+        return E_OUTOFMEMORY;
+    }
+    attributes = GetFileAttributesW(path);
+    if (attributes != INVALID_FILE_ATTRIBUTES) {
+        if (!(attributes & FILE_ATTRIBUTE_DIRECTORY) || option == 2) {
+            op->error = HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS);
+            op->status = ASYNC_ERROR;
+            item_Release(item);
+            *out = op;
+            return S_OK;
+        }
+        if (option != 1) {
+            op->result = item_folder_face(item);
+            *out = op;
+            return S_OK;
+        }
+        if (!RemoveDirectoryW(path)) {
+            op->error = HRESULT_FROM_WIN32(GetLastError());
+            op->status = ASYNC_ERROR;
+            item_Release(item);
+            *out = op;
+            return S_OK;
+        }
+    }
+    if (!CreateDirectoryW(path, NULL)) {
+        DWORD err = GetLastError();
+        if (err == ERROR_ALREADY_EXISTS && option == 3) {
+            DWORD post_attr = GetFileAttributesW(path);
+            if (post_attr != INVALID_FILE_ATTRIBUTES && (post_attr & FILE_ATTRIBUTE_DIRECTORY)) {
+                op->result = item_folder_face(item);
+                *out = op;
+                return S_OK;
+            }
+        }
+        op->error = HRESULT_FROM_WIN32(err);
+        op->status = ASYNC_ERROR;
+        item_Release(item);
+        *out = op;
+        return S_OK;
+    }
+    op->result = item_folder_face(item);
+    *out = op;
+    return S_OK;
 }
 
 static HRESULT folder_CreateFile2(storage_item *self, hstring_t name, int option, void **out)
@@ -2144,13 +2267,16 @@ static HRESULT folder_GetFile1(storage_item *self, hstring_t name, void **out)
     if (!out) return E_POINTER;
     *out = NULL;
     if (!wide) return E_INVALIDARG;
-    item_join(self->path, wide, path);
+    if (!item_join(self->path, wide, path))
+        return async_operation_iid(&svc_iid_async_storage_file,
+                                   HRESULT_FROM_WIN32(ERROR_FILENAME_EXCED_RANGE), NULL, out);
     attributes = GetFileAttributesW(path);
     if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY))
-        return async_operation(HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND), NULL, out);
+        return async_operation_iid(&svc_iid_async_storage_file,
+                                   HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND), NULL, out);
     item = item_new(path, 0);
     if (!item) return E_OUTOFMEMORY;
-    return async_operation(S_OK, item_file_face(item), out);
+    return async_operation_iid(&svc_iid_async_storage_file, S_OK, item_file_face(item), out);
 }
 
 static HRESULT folder_GetFolder1(storage_item *self, hstring_t name, void **out)
@@ -2164,13 +2290,16 @@ static HRESULT folder_GetFolder1(storage_item *self, hstring_t name, void **out)
     if (!out) return E_POINTER;
     *out = NULL;
     if (!wide) return E_INVALIDARG;
-    item_join(self->path, wide, path);
+    if (!item_join(self->path, wide, path))
+        return async_operation_iid(&svc_iid_async_storage_folder,
+                                   HRESULT_FROM_WIN32(ERROR_FILENAME_EXCED_RANGE), NULL, out);
     attributes = GetFileAttributesW(path);
     if (attributes == INVALID_FILE_ATTRIBUTES || !(attributes & FILE_ATTRIBUTE_DIRECTORY))
-        return async_operation(HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND), NULL, out);
+        return async_operation_iid(&svc_iid_async_storage_folder,
+                                   HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND), NULL, out);
     item = item_new(path, 1);
     if (!item) return E_OUTOFMEMORY;
-    return async_operation(S_OK, item_folder_face(item), out);
+    return async_operation_iid(&svc_iid_async_storage_folder, S_OK, item_folder_face(item), out);
 }
 
 static HRESULT folder_GetItem1(storage_item *self, hstring_t name, void **out)
@@ -2184,13 +2313,16 @@ static HRESULT folder_GetItem1(storage_item *self, hstring_t name, void **out)
     if (!out) return E_POINTER;
     *out = NULL;
     if (!wide) return E_INVALIDARG;
-    item_join(self->path, wide, path);
+    if (!item_join(self->path, wide, path))
+        return async_operation_iid(&svc_iid_async_storage_item,
+                                   HRESULT_FROM_WIN32(ERROR_FILENAME_EXCED_RANGE), NULL, out);
     attributes = GetFileAttributesW(path);
     if (attributes == INVALID_FILE_ATTRIBUTES)
-        return async_operation(HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND), NULL, out);
+        return async_operation_iid(&svc_iid_async_storage_item,
+                                   HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND), NULL, out);
     item = item_new(path, (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0);
     if (!item) return E_OUTOFMEMORY;
-    return async_operation(S_OK, &item->base, out);
+    return async_operation_iid(&svc_iid_async_storage_item, S_OK, &item->base, out);
 }
 
 /* IStorageFolder2::TryGetItemAsync answers with a null result when the item is
@@ -2206,12 +2338,15 @@ static HRESULT folder_TryGetItem(storage_item *self, hstring_t name, void **out)
     if (!out) return E_POINTER;
     *out = NULL;
     if (!wide) return E_INVALIDARG;
-    item_join(self->path, wide, path);
+    if (!item_join(self->path, wide, path))
+        return async_operation_iid(&svc_iid_async_storage_item,
+                                   HRESULT_FROM_WIN32(ERROR_FILENAME_EXCED_RANGE), NULL, out);
     attributes = GetFileAttributesW(path);
-    if (attributes == INVALID_FILE_ATTRIBUTES) return async_operation(S_OK, NULL, out);
+    if (attributes == INVALID_FILE_ATTRIBUTES)
+        return async_operation_iid(&svc_iid_async_storage_item, S_OK, NULL, out);
     item = item_new(path, (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0);
     if (!item) return E_OUTOFMEMORY;
-    return async_operation(S_OK, &item->base, out);
+    return async_operation_iid(&svc_iid_async_storage_item, S_OK, &item->base, out);
 }
 
 /* The ABI keeps every storage interface separate: after the six IInspectable
@@ -2297,7 +2432,7 @@ static void svc_hold(void *pointer)
     if (svc_is_storage_face(pointer))
         item_AddRef(pointer);
     else
-        svc_AddRef((svc_object *)pointer);
+        ((ULONG(__stdcall *)(void *))(*(void ***)pointer)[1])(pointer);
 }
 
 static void svc_drop(void *pointer)
@@ -2306,7 +2441,7 @@ static void svc_drop(void *pointer)
     if (svc_is_storage_face(pointer))
         item_Release(pointer);
     else
-        svc_Release((svc_object *)pointer);
+        ((ULONG(__stdcall *)(void *))(*(void ***)pointer)[2])(pointer);
 }
 
 /* IStorageFile and IStorageFolder results are handed to the caller as the
@@ -2360,49 +2495,182 @@ static void identity_hash(const WCHAR *publisher, WCHAR *out)
     out[13] = 0;
 }
 
-static int manifest_value(const char *manifest, const char *attribute, WCHAR *out, int capacity)
+extern int uwp_package_root(WCHAR *out, size_t cap);
+
+static int xml_decode_to_wide(const char *src, size_t len, WCHAR *out, int capacity)
 {
-    const char *at = strstr(manifest, attribute);
-    const char *quote;
-    int i;
-    if (!at) return 0;
-    quote = strchr(at, '"');
-    if (!quote) return 0;
-    quote++;
-    for (i = 0; i < capacity - 1 && quote[i] && quote[i] != '"'; i++)
-        out[i] = (WCHAR)(unsigned char)quote[i];
-    out[i] = 0;
-    return i > 0;
+    char decoded[512];
+    size_t i = 0, o = 0;
+    int wlen;
+    if (!out || capacity < 1) return 0;
+    while (i < len && o + 4 < sizeof(decoded)) {
+        if (src[i] == '&') {
+            if (i + 5 <= len && memcmp(src + i, "&amp;", 5) == 0) {
+                decoded[o++] = '&';
+                i += 5;
+                continue;
+            }
+            if (i + 4 <= len && memcmp(src + i, "&lt;", 4) == 0) {
+                decoded[o++] = '<';
+                i += 4;
+                continue;
+            }
+            if (i + 4 <= len && memcmp(src + i, "&gt;", 4) == 0) {
+                decoded[o++] = '>';
+                i += 4;
+                continue;
+            }
+            if (i + 6 <= len && memcmp(src + i, "&quot;", 6) == 0) {
+                decoded[o++] = '"';
+                i += 6;
+                continue;
+            }
+            if (i + 6 <= len && memcmp(src + i, "&apos;", 6) == 0) {
+                decoded[o++] = '\'';
+                i += 6;
+                continue;
+            }
+            if (i + 3 < len && src[i + 1] == '#') {
+                size_t j = i + 2;
+                unsigned code = 0;
+                int hex = 0;
+                if (j < len && (src[j] == 'x' || src[j] == 'X')) {
+                    hex = 1;
+                    j++;
+                }
+                while (j < len && src[j] != ';') {
+                    char c = src[j++];
+                    if (hex) {
+                        code <<= 4;
+                        if (c >= '0' && c <= '9') code |= (unsigned)(c - '0');
+                        else if (c >= 'a' && c <= 'f') code |= (unsigned)(c - 'a' + 10);
+                        else if (c >= 'A' && c <= 'F') code |= (unsigned)(c - 'A' + 10);
+                        else { code = 0; break; }
+                    } else if (c >= '0' && c <= '9') {
+                        code = code * 10 + (unsigned)(c - '0');
+                    } else {
+                        code = 0;
+                        break;
+                    }
+                }
+                if (j < len && src[j] == ';' && code > 0 && code < 0x80) {
+                    decoded[o++] = (char)code;
+                    i = j + 1;
+                    continue;
+                }
+            }
+        }
+        decoded[o++] = src[i++];
+    }
+    decoded[o] = 0;
+    if (o == 0) {
+        out[0] = 0;
+        return 0;
+    }
+    wlen = MultiByteToWideChar(CP_UTF8, 0, decoded, (int)o, out, capacity - 1);
+    if (wlen <= 0) {
+        size_t k;
+        for (k = 0; k < o && (int)k < capacity - 1; k++) out[k] = (WCHAR)(unsigned char)decoded[k];
+        out[k] = 0;
+        return k > 0;
+    }
+    out[wlen] = 0;
+    return wlen > 0;
+}
+
+static int manifest_tag_attr(const char *manifest, const char *tag_name, const char *attr_name,
+                             WCHAR *out, int capacity)
+{
+    const char *p = manifest;
+    size_t tag_len = strlen(tag_name);
+    size_t attr_len = strlen(attr_name);
+    while (p && (p = strchr(p, '<')) != NULL) {
+        p++;
+        if (*p == '/' || *p == '!' || *p == '?') continue;
+        /* Skip optional namespace prefix before ':' on the element name. */
+        const char *name_start = p;
+        while (*p && *p != '>' && *p != '/' && *p != ' ' && *p != '\t' && *p != '\r' &&
+               *p != '\n') {
+            if (*p == ':') name_start = p + 1;
+            p++;
+        }
+        if ((size_t)(p - name_start) == tag_len && memcmp(name_start, tag_name, tag_len) == 0) {
+            while (*p && *p != '>') {
+                while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n' || *p == '/') p++;
+                if (!*p || *p == '>') break;
+                const char *a = p;
+                while (*p && *p != '=' && *p != '>' && *p != ' ' && *p != '\t' && *p != '\r' &&
+                       *p != '\n')
+                    p++;
+                size_t alen = (size_t)(p - a);
+                while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+                if (*p != '=') continue;
+                p++;
+                while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+                if (*p != '"' && *p != '\'') continue;
+                char q = *p++;
+                const char *val = p;
+                while (*p && *p != q) p++;
+                size_t vlen = (size_t)(p - val);
+                if (*p == q) p++;
+                if (alen == attr_len && memcmp(a, attr_name, attr_len) == 0)
+                    return xml_decode_to_wide(val, vlen, out, capacity);
+            }
+        }
+    }
+    return 0;
 }
 
 /* The text of the first <tag>text</tag>, for the Properties strings. */
-static int manifest_element(const char *manifest, const char *tag, WCHAR *out, int capacity)
+static int manifest_element(const char *manifest, const char *tag_name, WCHAR *out, int capacity)
 {
-    const char *at = strstr(manifest, tag);
-    int i;
-    if (!at) return 0;
-    at += strlen(tag);
-    for (i = 0; i < capacity - 1 && at[i] && at[i] != '<'; i++) out[i] = (WCHAR)(unsigned char)at[i];
-    out[i] = 0;
-    return i > 0;
+    const char *p = manifest;
+    size_t tag_len = strlen(tag_name);
+    while (p && (p = strchr(p, '<')) != NULL) {
+        p++;
+        if (*p == '/' || *p == '!' || *p == '?') continue;
+        const char *name_start = p;
+        while (*p && *p != '>' && *p != '/' && *p != ' ' && *p != '\t' && *p != '\r' &&
+               *p != '\n') {
+            if (*p == ':') name_start = p + 1;
+            p++;
+        }
+        if ((size_t)(p - name_start) == tag_len && memcmp(name_start, tag_name, tag_len) == 0) {
+            const char *gt = strchr(p, '>');
+            const char *end;
+            if (!gt || (gt > p && gt[-1] == '/')) continue;
+            gt++;
+            end = strchr(gt, '<');
+            if (!end) return 0;
+            return xml_decode_to_wide(gt, (size_t)(end - gt), out, capacity);
+        }
+    }
+    return 0;
 }
 
-static void package_load(void)
+static INIT_ONCE package_load_once = INIT_ONCE_STATIC_INIT;
+
+static BOOL CALLBACK package_load_once_fn(PINIT_ONCE once, PVOID param, PVOID *ctx)
 {
     WCHAR module[MAX_PATH];
     WCHAR manifest_path[MAX_PATH];
-    WCHAR *slash;
     char *manifest = NULL;
     HANDLE file;
     DWORD size, read = 0;
+    (void)once;
+    (void)param;
+    (void)ctx;
 
-    if (identity.loaded) return;
-    identity.loaded = 1;
-    GetModuleFileNameW(NULL, module, MAX_PATH);
-    slash = wcsrchr(module, L'\\');
-    if (slash) *slash = 0;
+    if (!uwp_package_root(module, MAX_PATH)) {
+        WCHAR *slash;
+        GetModuleFileNameW(NULL, module, MAX_PATH);
+        slash = wcsrchr(module, L'\\');
+        if (slash) *slash = 0;
+    }
     wcsncpy(identity.root, module, MAX_PATH - 1);
+    identity.root[MAX_PATH - 1] = 0;
     _snwprintf(manifest_path, MAX_PATH, L"%s\\AppxManifest.xml", module);
+    manifest_path[MAX_PATH - 1] = 0;
 
     file = CreateFileW(manifest_path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
                        FILE_ATTRIBUTE_NORMAL, NULL);
@@ -2413,28 +2681,44 @@ static void package_load(void)
         size = GetFileSize(file, NULL);
         if (size && size != INVALID_FILE_SIZE && size < (1u << 20)) {
             manifest = (char *)malloc(size + 1);
-            if (manifest && ReadFile(file, manifest, size, &read, NULL)) manifest[read] = 0;
+            if (manifest) {
+                if (ReadFile(file, manifest, size, &read, NULL)) {
+                    manifest[read] = 0;
+                } else {
+                    free(manifest);
+                    manifest = NULL;
+                }
+            }
         }
         CloseHandle(file);
     }
 
     if (manifest) {
-        manifest_value(manifest, "Name=\"", identity.name, 128);
-        manifest_value(manifest, "Publisher=\"", identity.publisher, 256);
-        manifest_value(manifest, "Version=\"", identity.version, 32);
-        manifest_element(manifest, "<DisplayName>", identity.display_name, 128);
-        manifest_element(manifest, "<PublisherDisplayName>", identity.publisher_display_name, 128);
-        manifest_element(manifest, "<Description>", identity.description, 256);
+        manifest_tag_attr(manifest, "Identity", "Name", identity.name, 128);
+        manifest_tag_attr(manifest, "Identity", "Publisher", identity.publisher, 256);
+        manifest_tag_attr(manifest, "Identity", "Version", identity.version, 32);
+        manifest_element(manifest, "DisplayName", identity.display_name, 128);
+        manifest_element(manifest, "PublisherDisplayName", identity.publisher_display_name, 128);
+        manifest_element(manifest, "Description", identity.description, 256);
     }
     if (!identity.name[0]) wcscpy(identity.name, L"Unknown.Package");
     if (!identity.version[0]) wcscpy(identity.version, L"1.0.0.0");
     identity_hash(identity.publisher, identity.hash);
     _snwprintf(identity.family, 192, L"%s_%s", identity.name, identity.hash);
+    identity.family[191] = 0;
     /* Full name is name_version_architecture_resourceId_publisherId with an
        empty resource id, as PackageId.FullName reports it. */
     _snwprintf(identity.full, 384, L"%s_%s_x64__%s", identity.name, identity.version, identity.hash);
+    identity.full[383] = 0;
     if (manifest) free(manifest);
+    identity.loaded = 1;
     svc_trace_w("package family", identity.family);
+    return TRUE;
+}
+
+static void package_load(void)
+{
+    InitOnceExecuteOnce(&package_load_once, package_load_once_fn, NULL, NULL);
 }
 
 /* The package's AppContainer SID: S-1-15-2 and seven sub-authorities read from
@@ -2480,32 +2764,40 @@ static void package_data_path(const WCHAR *sub, WCHAR *out)
 static svc_object appdata_static;
 static svc_object appdata_object;
 
-static void ensure_directory(const WCHAR *path)
+static int ensure_directory(const WCHAR *path)
 {
     WCHAR walk[MAX_PATH];
     WCHAR *at;
+    DWORD attrs;
+    if (!path || !path[0] || wcslen(path) >= MAX_PATH) return 0;
     wcsncpy(walk, path, MAX_PATH - 1);
     walk[MAX_PATH - 1] = 0;
     for (at = walk + 3; *at; at++) {
-        if (*at == L'\\') {
+        if (*at == L'\\' || *at == L'/') {
+            WCHAR slash = *at;
             *at = 0;
-            CreateDirectoryW(walk, NULL);
-            *at = L'\\';
+            if (!CreateDirectoryW(walk, NULL) && GetLastError() != ERROR_ALREADY_EXISTS)
+                return 0;
+            *at = slash;
         }
     }
-    CreateDirectoryW(walk, NULL);
+    if (!CreateDirectoryW(walk, NULL) && GetLastError() != ERROR_ALREADY_EXISTS)
+        return 0;
+    attrs = GetFileAttributesW(walk);
+    return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
 }
 
-void uwp_local_state_dir(WCHAR *out, size_t cap);
-void uwp_local_state_dir(WCHAR *out, size_t cap)
+int uwp_local_state_dir(WCHAR *out, size_t cap);
+int uwp_local_state_dir(WCHAR *out, size_t cap)
 {
     WCHAR path[MAX_PATH];
+    if (!out || cap == 0) return 0;
+    out[0] = 0;
     package_data_path(L"LocalState", path);
-    ensure_directory(path);
-    if (out && cap) {
-        wcsncpy(out, path, cap - 1);
-        out[cap - 1] = 0;
-    }
+    if (!ensure_directory(path)) return 0;
+    if (wcslen(path) >= cap) return 0;
+    wcscpy(out, path);
+    return 1;
 }
 
 static storage_item *package_folder(const WCHAR *sub)
@@ -2591,22 +2883,21 @@ static HRESULT ad_Settings(svc_object *self, void **out)
     return E_NOTIMPL;
 }
 
-static HRESULT ad_RoamingQuota(svc_object *self, unsigned *out)
+static HRESULT ad_RoamingQuota(svc_object *self, UINT64 *out)
 {
     (void)self;
     if (out) *out = 0;
     return S_OK;
 }
 
-static HRESULT ad_Version(svc_object *self, unsigned long long *out)
+static HRESULT ad_Version(svc_object *self, UINT32 *out)
 {
     (void)self;
     if (out) *out = 0;
     return S_OK;
 }
 
-static HRESULT ad_SetVersionAsync(svc_object *self, unsigned long long version, void *handler,
-                                  void **out)
+static HRESULT ad_SetVersionAsync(svc_object *self, UINT32 version, void *handler, void **out)
 {
     (void)self;
     (void)version;
@@ -2615,30 +2906,67 @@ static HRESULT ad_SetVersionAsync(svc_object *self, unsigned long long version, 
     return async_action(S_OK, out);
 }
 
-static HRESULT ad_ClearAsync(svc_object *self, void **out)
+static HRESULT clear_directory_contents(const WCHAR *dir)
 {
-    WCHAR path[MAX_PATH];
     WCHAR pattern[MAX_PATH];
     WIN32_FIND_DATAW data;
     HANDLE find;
+    HRESULT hr = S_OK;
+    int n = _snwprintf(pattern, MAX_PATH, L"%s\\*", dir);
+    if (n < 0 || n >= MAX_PATH) return HRESULT_FROM_WIN32(ERROR_FILENAME_EXCED_RANGE);
+    find = FindFirstFileW(pattern, &data);
+    if (find == INVALID_HANDLE_VALUE) {
+        DWORD err = GetLastError();
+        if (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND) return S_OK;
+        return HRESULT_FROM_WIN32(err);
+    }
+    for (;;) {
+        if (wcscmp(data.cFileName, L".") != 0 && wcscmp(data.cFileName, L"..") != 0) {
+            WCHAR victim[MAX_PATH];
+            int vn = _snwprintf(victim, MAX_PATH, L"%s\\%s", dir, data.cFileName);
+            if (vn < 0 || vn >= MAX_PATH) {
+                hr = HRESULT_FROM_WIN32(ERROR_FILENAME_EXCED_RANGE);
+                break;
+            }
+            if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                hr = clear_directory_contents(victim);
+                if (FAILED(hr)) break;
+                if (!RemoveDirectoryW(victim)) {
+                    hr = HRESULT_FROM_WIN32(GetLastError());
+                    break;
+                }
+            } else {
+                if (!DeleteFileW(victim)) {
+                    hr = HRESULT_FROM_WIN32(GetLastError());
+                    break;
+                }
+            }
+        }
+        if (!FindNextFileW(find, &data)) {
+            DWORD err = GetLastError();
+            if (err != ERROR_NO_MORE_FILES) hr = HRESULT_FROM_WIN32(err);
+            break;
+        }
+    }
+    FindClose(find);
+    return hr;
+}
+
+static HRESULT ad_ClearAsync(svc_object *self, void **out)
+{
+    static const WCHAR *const dirs[] = {L"LocalState", L"RoamingState", L"TempState",
+                                        L"LocalCache"};
+    size_t i;
+    HRESULT hr = S_OK;
     (void)self;
     if (!out) return E_POINTER;
-    package_data_path(L"LocalState", path);
-    _snwprintf(pattern, MAX_PATH, L"%s\\*", path);
-    find = FindFirstFileW(pattern, &data);
-    if (find != INVALID_HANDLE_VALUE) {
-        do {
-            WCHAR victim[MAX_PATH];
-            if (!wcscmp(data.cFileName, L".") || !wcscmp(data.cFileName, L"..")) continue;
-            _snwprintf(victim, MAX_PATH, L"%s\\%s", path, data.cFileName);
-            if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                RemoveDirectoryW(victim);
-            else
-                DeleteFileW(victim);
-        } while (FindNextFileW(find, &data));
-        FindClose(find);
+    for (i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++) {
+        WCHAR path[MAX_PATH];
+        package_data_path(dirs[i], path);
+        hr = clear_directory_contents(path);
+        if (FAILED(hr)) break;
     }
-    return async_action(S_OK, out);
+    return async_action(hr, out);
 }
 
 static HRESULT ad_ClearTask(svc_object *self, void **out)
@@ -2683,8 +3011,8 @@ static const void *appdata_vtable[] = {
     (const void *)ad_Settings,          /* LocalSettings */
     (const void *)ad_Settings,          /* RoamingSettings */
     (const void *)ad_LocalFolder,
-    (const void *)ad_LocalFolder,
-    (const void *)ad_LocalFolder,
+    (const void *)ad_RoamingFolder,
+    (const void *)ad_TemporaryFolder,
     (const void *)ad_add_DataChanged,
     (const void *)ad_remove_DataChanged,
     (const void *)ad_SignalDataChanged,
@@ -3546,6 +3874,24 @@ static HRESULT md_QI(void *self, const GUID *id, void **out)
    thread that needed FLS. So the getter answers the way a machine with no
    output device answers: the empty id, which a title passes through to the
    default voice. The runtime's own audio init still runs on its own thread. */
+static int endpoint_role_stamp(HKEY item, const WCHAR *val_name, ULONGLONG *stamp)
+{
+    BYTE buf[16];
+    DWORD sz = sizeof(buf), type = 0;
+    if (RegQueryValueExW(item, val_name, NULL, &type, buf, &sz) != ERROR_SUCCESS) return 0;
+    if (sz == sizeof(SYSTEMTIME)) {
+        FILETIME ft;
+        if (SystemTimeToFileTime((const SYSTEMTIME *)buf, &ft)) {
+            *stamp = ((ULONGLONG)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
+            return 1;
+        }
+    } else if (sz == sizeof(ULONGLONG)) {
+        memcpy(stamp, buf, sizeof(ULONGLONG));
+        return 1;
+    }
+    return 0;
+}
+
 static void default_endpoint_id(int capture, int role, WCHAR *out, int capacity)
 {
     HKEY root = NULL;
@@ -3556,15 +3902,21 @@ static void default_endpoint_id(int capture, int role, WCHAR *out, int capacity)
         ? L"{2EEF81BE-33FA-4800-9670-1CD474972C3F}"
         : L"{E6327CAD-DCEC-4949-AE8A-991E976A79D2}";
     const WCHAR *flow_prefix = capture ? L"{0.0.1.00000000}" : L"{0.0.0.00000000}";
-    WCHAR chosen[128] = {0};
+    /* AudioDeviceRole: 0 Default -> Role:0 (eConsole), 1 Communications -> Role:2. */
+    const WCHAR *role_val = (role == 1) ? L"Role:2" : L"Role:0";
+    WCHAR role_chosen[128] = {0};
+    WCHAR fallback_chosen[128] = {0};
+    WCHAR first_active[128] = {0};
+    ULONGLONG best_role_stamp = 0;
+    ULONGLONG best_fallback_stamp = 0;
+    int has_role = 0, has_fallback = 0;
     DWORD index = 0;
-    (void)role;
 
     if (!out || capacity < 1) return;
     out[0] = 0;
 
     /* Read the active MMDevice endpoint GUID straight from the registry (no COM / FLS
-     * deadlock on worker threads), matching what Windows MediaDevice returns. */
+     * deadlock on worker threads), honoring role-specific Role:0 / Role:2 timestamps. */
     if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, subkey, 0, KEY_READ, &root) == ERROR_SUCCESS) {
         for (;;) {
             WCHAR name[128];
@@ -3577,9 +3929,20 @@ static void default_endpoint_id(int capture, int role, WCHAR *out, int capacity)
             if (RegOpenKeyExW(root, name, 0, KEY_READ, &item) == ERROR_SUCCESS) {
                 if (RegQueryValueExW(item, L"DeviceState", NULL, &type, (LPBYTE)&state, &state_sz) == ERROR_SUCCESS &&
                     state == 1) {
-                    lstrcpynW(chosen, name, 128);
-                    RegCloseKey(item);
-                    break;
+                    ULONGLONG stamp = 0;
+                    if (!first_active[0]) lstrcpynW(first_active, name, 128);
+                    if (endpoint_role_stamp(item, role_val, &stamp) &&
+                        (!has_role || stamp >= best_role_stamp)) {
+                        has_role = 1;
+                        best_role_stamp = stamp;
+                        lstrcpynW(role_chosen, name, 128);
+                    }
+                    if (role == 1 && endpoint_role_stamp(item, L"Role:0", &stamp) &&
+                        (!has_fallback || stamp >= best_fallback_stamp)) {
+                        has_fallback = 1;
+                        best_fallback_stamp = stamp;
+                        lstrcpynW(fallback_chosen, name, 128);
+                    }
                 }
                 RegCloseKey(item);
             }
@@ -3587,11 +3950,15 @@ static void default_endpoint_id(int capture, int role, WCHAR *out, int capacity)
         RegCloseKey(root);
     }
 
-    if (chosen[0]) {
-        swprintf(out, (size_t)capacity, L"\\\\?\\SWD#MMDEVAPI#%ls.%ls#%ls",
-                 flow_prefix, chosen, iface_guid);
-    } else {
-        lstrcpynW(out, iface_guid, capacity);
+    {
+        const WCHAR *chosen = has_role ? role_chosen : (has_fallback ? fallback_chosen : first_active);
+        if (chosen[0]) {
+            _snwprintf(out, (size_t)capacity, L"\\\\?\\SWD#MMDEVAPI#%ls.%ls#%ls",
+                       flow_prefix, chosen, iface_guid);
+            out[capacity - 1] = 0;
+        } else {
+            lstrcpynW(out, iface_guid, capacity);
+        }
     }
 }
 
@@ -4110,12 +4477,12 @@ typedef struct {
 
 static ULONG __stdcall svc_ref(void *object)
 {
-    return ((ULONG(__stdcall *)(void *))((const void **)object)[1])(object);
+    return ((ULONG(__stdcall *)(void *))(*(const void ***)object)[1])(object);
 }
 
 static ULONG __stdcall svc_unref(void *object)
 {
-    return ((ULONG(__stdcall *)(void *))((const void **)object)[2])(object);
+    return ((ULONG(__stdcall *)(void *))(*(const void ***)object)[2])(object);
 }
 
 /* Windows.Foundation.Rect: X, Y, Width, Height, in DIPs. */
@@ -4308,7 +4675,7 @@ static HRESULT av_Orientation(svc_object *self, int *out)
     return S_OK;
 }
 
-static HRESULT av_AdjacentToLeft(svc_object *self, int *out)
+static HRESULT av_AdjacentToLeft(svc_object *self, unsigned char *out)
 {
     (void)self;
     svc_trace("appview poll adjacent left");
@@ -4316,7 +4683,7 @@ static HRESULT av_AdjacentToLeft(svc_object *self, int *out)
     return S_OK;
 }
 
-static HRESULT av_AdjacentToRight(svc_object *self, int *out)
+static HRESULT av_AdjacentToRight(svc_object *self, unsigned char *out)
 {
     (void)self;
     svc_trace("appview poll adjacent right");
@@ -4324,15 +4691,15 @@ static HRESULT av_AdjacentToRight(svc_object *self, int *out)
     return S_OK;
 }
 
-static HRESULT av_IsFullScreen(svc_object *self, int *out)
+static HRESULT av_IsFullScreen(svc_object *self, unsigned char *out)
 {
     (void)self;
     svc_trace("appview read fullscreen");
-    if (out) *out = appview_fullscreen_on;
+    if (out) *out = appview_fullscreen_on ? 1 : 0;
     return S_OK;
 }
 
-static HRESULT av_IsOnLockScreen(svc_object *self, int *out)
+static HRESULT av_IsOnLockScreen(svc_object *self, unsigned char *out)
 {
     (void)self;
     svc_trace("appview poll lock screen");
@@ -4340,18 +4707,18 @@ static HRESULT av_IsOnLockScreen(svc_object *self, int *out)
     return S_OK;
 }
 
-static HRESULT av_CaptureEnabled(svc_object *self, int *out)
+static HRESULT av_CaptureEnabled(svc_object *self, unsigned char *out)
 {
     (void)self;
     svc_trace("appview poll capture enabled");
-    if (out) *out = appview_capture_enabled;
+    if (out) *out = appview_capture_enabled ? 1 : 0;
     return S_OK;
 }
 
-static HRESULT av_put_CaptureEnabled(svc_object *self, int value)
+static HRESULT av_put_CaptureEnabled(svc_object *self, unsigned char value)
 {
     (void)self;
-    appview_capture_enabled = value;
+    appview_capture_enabled = value ? 1 : 0;
     return S_OK;
 }
 
@@ -4434,19 +4801,19 @@ static HRESULT av2_QI(void *self, const GUID *id, void **out)
     return simple_QI(self, id, &svc_iid_appview2, out);
 }
 
-static HRESULT av2_SuppressOverlays(svc_object *self, int *out)
+static HRESULT av2_SuppressOverlays(svc_object *self, unsigned char *out)
 {
     (void)self;
     svc_trace("appview read suppress overlays");
-    if (out) *out = appview_suppress_overlays;
+    if (out) *out = appview_suppress_overlays ? 1 : 0;
     return S_OK;
 }
 
-static HRESULT av2_put_SuppressOverlays(svc_object *self, int value)
+static HRESULT av2_put_SuppressOverlays(svc_object *self, unsigned char value)
 {
     (void)self;
-    svc_tracef("appview set suppress overlays %d", value);
-    appview_suppress_overlays = value;
+    svc_tracef("appview set suppress overlays %d", (int)value);
+    appview_suppress_overlays = value ? 1 : 0;
     return S_OK;
 }
 
@@ -4475,7 +4842,7 @@ static HRESULT av2_remove_BoundsChanged(svc_object *self, long long token)
     return S_OK;
 }
 
-static HRESULT av2_SetDesiredBoundsMode(svc_object *self, int mode, int *success)
+static HRESULT av2_SetDesiredBoundsMode(svc_object *self, int mode, unsigned char *success)
 {
     (void)self;
     svc_tracef("appview set bounds mode %d", mode);
@@ -4548,14 +4915,14 @@ static HRESULT av3_put_OverlayMode(svc_object *self, int value)
     return S_OK;
 }
 
-static HRESULT av3_IsFullScreenMode(svc_object *self, int *out)
+static HRESULT av3_IsFullScreenMode(svc_object *self, unsigned char *out)
 {
     (void)self;
-    if (out) *out = appview_fullscreen_on;
+    if (out) *out = appview_fullscreen_on ? 1 : 0;
     return S_OK;
 }
 
-static HRESULT av3_TryEnterFullScreen(svc_object *self, int *success)
+static HRESULT av3_TryEnterFullScreen(svc_object *self, unsigned char *success)
 {
     (void)self;
     svc_trace("appview enter fullscreen");
@@ -4579,7 +4946,7 @@ static HRESULT av3_ShowOverlays(svc_object *self)
     return S_OK;
 }
 
-static HRESULT av3_TryResizeView(svc_object *self, svc_size size, int *success)
+static HRESULT av3_TryResizeView(svc_object *self, svc_size size, unsigned char *success)
 {
     (void)self;
     svc_tracef("appview try resize %ldx%ld", (long)size.width, (long)size.height);
@@ -4807,6 +5174,8 @@ static HRESULT dialog_put_Options(message_dialog *self, int value)
 typedef struct {
     message_dialog *dialog;
     async_object *operation;
+    WCHAR *title;
+    WCHAR *content;
 } dialog_show;
 
 /* A dialog with no commands of its own shows a single Close button, and
@@ -4814,12 +5183,14 @@ typedef struct {
 static DWORD WINAPI dialog_show_thread(void *parameter)
 {
     dialog_show *show = (dialog_show *)parameter;
-    MessageBoxW(NULL, show->dialog->content ? show->dialog->content : L"",
-                show->dialog->title ? show->dialog->title : L"", MB_OK | MB_TOPMOST);
+    MessageBoxW(NULL, show->content ? show->content : L"", show->title ? show->title : L"",
+                MB_OK | MB_TOPMOST);
     svc_trace("message dialog dismissed");
     svc_action_finish(show->operation, S_OK);
     async_Release(show->operation);
     dialog_Release(show->dialog);
+    free(show->title);
+    free(show->content);
     free(show);
     return 0;
 }
@@ -4827,30 +5198,45 @@ static DWORD WINAPI dialog_show_thread(void *parameter)
 static HRESULT dialog_ShowAsync(message_dialog *self, void **out)
 {
     dialog_show *show;
+    async_object *op;
     HANDLE thread;
     if (!out) return E_POINTER;
+    *out = NULL;
     show = (dialog_show *)calloc(1, sizeof(dialog_show));
     if (!show) return E_OUTOFMEMORY;
-    show->operation = async_new(1, S_OK, NULL);
-    if (!show->operation) {
+    op = async_new_iid(1, &svc_iid_async_uicommand, S_OK, NULL);
+    if (!op) {
         free(show);
         return E_OUTOFMEMORY;
     }
-    show->operation->status = ASYNC_STARTED;
+    show->title = _wcsdup(self->title ? self->title : L"");
+    show->content = _wcsdup(self->content ? self->content : L"");
+    if (!show->title || !show->content) {
+        free(show->title);
+        free(show->content);
+        async_Release(op);
+        free(show);
+        return E_OUTOFMEMORY;
+    }
+    op->status = ASYNC_STARTED;
+    show->operation = op;
     show->dialog = self;
     svc_AddRef(&self->base);
-    svc_AddRef(&show->operation->base);
+    svc_AddRef(&op->base);
     svc_trace("message dialog show");
     thread = CreateThread(NULL, 0, dialog_show_thread, show, 0, NULL);
     if (!thread) {
-        async_Release(show->operation);
-        async_Release(show->operation);
+        DWORD err = GetLastError();
+        async_Release(op);
+        async_Release(op);
         dialog_Release(self);
+        free(show->title);
+        free(show->content);
         free(show);
-        return HRESULT_FROM_WIN32(GetLastError());
+        return HRESULT_FROM_WIN32(err);
     }
     CloseHandle(thread);
-    *out = show->operation;
+    *out = op;
     return S_OK;
 }
 
@@ -5504,17 +5890,29 @@ static HRESULT audio_watcher_Start(audio_watcher *self)
     dev_dbg("Watcher::Start render=%d capture=%d count=%u", self->want_render, self->want_capture, coll ? coll->count : 0);
     if (coll) {
         unsigned i;
-        if (self->on_added) {
-            invoke_fn inv = ((invoke_fn *)(*(void ***)self->on_added))[3];
-            for (i = 0; i < coll->count; i++)
-                inv(self->on_added, self, coll->items[i]);
+        for (i = 0; i < coll->count && self->status == 1; i++) {
+            void *handler = self->on_added;
+            if (!handler) break;
+            ((ULONG(__stdcall *)(void *))(*(void ***)handler)[1])(handler);
+            {
+                invoke_fn inv = ((invoke_fn *)(*(void ***)handler))[3];
+                inv(handler, self, coll->items[i]);
+            }
+            ((ULONG(__stdcall *)(void *))(*(void ***)handler)[2])(handler);
         }
         audio_devcoll_Release(coll);
     }
-    self->status = 2;
-    if (self->on_enum_done) {
-        invoke_fn inv = ((invoke_fn *)(*(void ***)self->on_enum_done))[3];
-        inv(self->on_enum_done, self, NULL);
+    if (self->status == 1) {
+        void *done = self->on_enum_done;
+        self->status = 2;
+        if (done) {
+            ((ULONG(__stdcall *)(void *))(*(void ***)done)[1])(done);
+            {
+                invoke_fn inv = ((invoke_fn *)(*(void ***)done))[3];
+                inv(done, self, NULL);
+            }
+            ((ULONG(__stdcall *)(void *))(*(void ***)done)[2])(done);
+        }
     }
     return S_OK;
 }
@@ -5680,11 +6078,11 @@ static HRESULT device_find_by_aqs(const WCHAR *aqs, void **out)
         audio_devcoll *coll = audio_devcoll_enum(wr, wc);
         if (!coll) return E_OUTOFMEMORY;
         dev_dbg("FindAllAsync(aqs) render=%d capture=%d -> %u devices", wr, wc, coll->count);
-        return async_operation(S_OK, coll, out);
+        return async_operation_iid(&svc_iid_async_devcoll, S_OK, coll, out);
     }
     dev_dbg("FindAllAsync(non-audio aqs) -> 0 devices");
     svc_AddRef(&device_collection);
-    return async_operation(S_OK, &device_collection, out);
+    return async_operation_iid(&svc_iid_async_devcoll, S_OK, &device_collection, out);
 }
 
 static HRESULT device_create_from_id(hstring_t id_h, void **out)
@@ -5693,29 +6091,26 @@ static HRESULT device_create_from_id(hstring_t id_h, void **out)
     audio_devcoll *coll;
     audio_devinfo *match = NULL;
     unsigned i;
-    int want_cap = id && (wstr_contains_ci(id, L"2eef81be-33fa-4800-9670-1cd474972c3f") ||
-                          wstr_contains_ci(id, L"{0.0.1."));
-    coll = audio_devcoll_enum(!want_cap, want_cap);
+    if (!id || !id[0])
+        return async_operation_iid(&svc_iid_async_devinfo, E_INVALIDARG, NULL, out);
+    coll = audio_devcoll_enum(1, 1);
     if (coll) {
         for (i = 0; i < coll->count; i++) {
-            if (id && lstrcmpiW(coll->items[i]->id, id) == 0) {
+            if (lstrcmpiW(coll->items[i]->id, id) == 0) {
                 match = coll->items[i];
                 svc_AddRef(&match->base);
                 break;
             }
         }
-        if (!match && coll->count > 0) {
-            match = coll->items[0];
-            svc_AddRef(&match->base);
-        }
         audio_devcoll_Release(coll);
     }
     if (!match) {
-        match = audio_devinfo_new(id ? id : L"", want_cap ? L"Microphone" : L"Speakers", TRUE, TRUE);
-        if (!match) return E_OUTOFMEMORY;
+        dev_dbg("CreateFromIdAsync -> not found for %ls", id);
+        return async_operation_iid(&svc_iid_async_devinfo, HRESULT_FROM_WIN32(ERROR_NOT_FOUND),
+                                   NULL, out);
     }
     dev_dbg("CreateFromIdAsync -> name=%ls", match->name);
-    return async_operation(S_OK, match, out);
+    return async_operation_iid(&svc_iid_async_devinfo, S_OK, match, out);
 }
 
 /* ---- IDeviceInformationStatics ---- */
@@ -5754,11 +6149,11 @@ static HRESULT device_s1_FindAllAsyncDeviceClass(svc_object *self, int dev_class
         audio_devcoll *coll = audio_devcoll_enum(wr, wc);
         if (!coll) return E_OUTOFMEMORY;
         dev_dbg("FindAllAsync(class=%d) -> %u devices", dev_class, coll->count);
-        return async_operation(S_OK, coll, out);
+        return async_operation_iid(&svc_iid_async_devcoll, S_OK, coll, out);
     }
     dev_dbg("FindAllAsync(class=%d) -> 0 devices", dev_class);
     svc_AddRef(&device_collection);
-    return async_operation(S_OK, &device_collection, out);
+    return async_operation_iid(&svc_iid_async_devcoll, S_OK, &device_collection, out);
 }
 static HRESULT device_s1_FindAllAsyncAqs(svc_object *self, hstring_t filter, void **out)
 {
@@ -6577,20 +6972,20 @@ static HRESULT store_context_GetCustomerIdAsync(svc_object *self, hstring_t tick
     (void)self;
     (void)ticket;
     (void)publisher_user_id;
-    return async_operation(S_OK, NULL, out);
+    return async_operation_iid(&svc_iid_async_hstring, S_OK, NULL, out);
 }
 
 static HRESULT store_context_GetAppLicenseAsync(svc_object *self, void **out)
 {
     (void)self;
     svc_trace("StoreContext::GetAppLicenseAsync");
-    return async_operation(S_OK, &store_app_license_object, out);
+    return async_operation_iid(&svc_iid_async_store_license, S_OK, &store_app_license_object, out);
 }
 
 static HRESULT store_context_GetStoreProductForCurrentAppAsync(svc_object *self, void **out)
 {
     (void)self;
-    return async_operation(S_OK, &store_product_result, out);
+    return async_operation_iid(&svc_iid_async_store_product, S_OK, &store_product_result, out);
 }
 
 static HRESULT store_context_GetStoreProductsAsync(svc_object *self, void *kinds, void *store_ids,
@@ -6599,7 +6994,7 @@ static HRESULT store_context_GetStoreProductsAsync(svc_object *self, void *kinds
     (void)self;
     (void)kinds;
     (void)store_ids;
-    return async_operation(S_OK, &store_product_query_result, out);
+    return async_operation_iid(&svc_iid_async_store_query, S_OK, &store_product_query_result, out);
 }
 
 static HRESULT store_context_GetAssociatedOrCollectionAsync(svc_object *self, void *kinds,
@@ -6607,7 +7002,7 @@ static HRESULT store_context_GetAssociatedOrCollectionAsync(svc_object *self, vo
 {
     (void)self;
     (void)kinds;
-    return async_operation(S_OK, &store_product_query_result, out);
+    return async_operation_iid(&svc_iid_async_store_query, S_OK, &store_product_query_result, out);
 }
 
 static HRESULT store_context_GetAssociatedOrCollectionPagedAsync(svc_object *self, void *kinds,
@@ -6616,7 +7011,7 @@ static HRESULT store_context_GetAssociatedOrCollectionPagedAsync(svc_object *sel
     (void)self;
     (void)kinds;
     (void)max_items;
-    return async_operation(S_OK, &store_product_query_result, out);
+    return async_operation_iid(&svc_iid_async_store_query, S_OK, &store_product_query_result, out);
 }
 
 static HRESULT store_context_ReportConsumableFulfillmentAsync(svc_object *self, hstring_t store_id,
@@ -6627,7 +7022,7 @@ static HRESULT store_context_ReportConsumableFulfillmentAsync(svc_object *self, 
     (void)store_id;
     (void)quantity;
     (void)tracking_id;
-    return async_operation(S_OK, &store_consumable_result, out);
+    return async_operation_iid(&svc_iid_async_store_consum, S_OK, &store_consumable_result, out);
 }
 
 static HRESULT store_context_GetConsumableBalanceRemainingAsync(svc_object *self,
@@ -6635,7 +7030,7 @@ static HRESULT store_context_GetConsumableBalanceRemainingAsync(svc_object *self
 {
     (void)self;
     (void)store_id;
-    return async_operation(S_OK, &store_consumable_result, out);
+    return async_operation_iid(&svc_iid_async_store_consum, S_OK, &store_consumable_result, out);
 }
 
 static HRESULT store_context_AcquireStoreLicenseForOptionalPackageAsync(svc_object *self,
@@ -6644,14 +7039,15 @@ static HRESULT store_context_AcquireStoreLicenseForOptionalPackageAsync(svc_obje
 {
     (void)self;
     (void)optional_pkg;
-    return async_operation(S_OK, &store_acquire_license_result, out);
+    return async_operation_iid(&svc_iid_async_store_acqlic, S_OK, &store_acquire_license_result,
+                               out);
 }
 
 static HRESULT store_context_RequestPurchaseAsync(svc_object *self, hstring_t store_id, void **out)
 {
     (void)self;
     (void)store_id;
-    return async_operation(S_OK, &store_purchase_result, out);
+    return async_operation_iid(&svc_iid_async_store_purchase, S_OK, &store_purchase_result, out);
 }
 
 static HRESULT store_context_RequestPurchaseWithPropsAsync(svc_object *self, hstring_t store_id,
@@ -6660,13 +7056,13 @@ static HRESULT store_context_RequestPurchaseWithPropsAsync(svc_object *self, hst
     (void)self;
     (void)store_id;
     (void)props;
-    return async_operation(S_OK, &store_purchase_result, out);
+    return async_operation_iid(&svc_iid_async_store_purchase, S_OK, &store_purchase_result, out);
 }
 
 static HRESULT store_context_GetAppAndOptionalStorePackageUpdatesAsync(svc_object *self, void **out)
 {
     (void)self;
-    return async_operation(S_OK, &store_updates_vector, out);
+    return async_operation_iid(&svc_iid_async_store_updates, S_OK, &store_updates_vector, out);
 }
 
 static HRESULT store_context2_FindStoreProductForPackageAsync(svc_object *self, void *kinds,
@@ -6675,7 +7071,7 @@ static HRESULT store_context2_FindStoreProductForPackageAsync(svc_object *self, 
     (void)self;
     (void)kinds;
     (void)pkg;
-    return async_operation(S_OK, &store_product_result, out);
+    return async_operation_iid(&svc_iid_async_store_product, S_OK, &store_product_result, out);
 }
 
 static const void *store_context_vtable[] = {
@@ -6929,6 +7325,9 @@ typedef struct {
     INT64 period;
     INT64 delay;
     int periodic;
+    CRITICAL_SECTION lock;
+    LONG active_callbacks;
+    DWORD callback_tid;
     LONG canceled;
     LONG destroyed_fired;
     LONG sched_ref;
@@ -6970,6 +7369,7 @@ static ULONG __stdcall tpt_timer_Release(tpt_timer *self)
         }
         tpt_unk_release(self->elapsed_handler);
         tpt_unk_release(self->destroyed_handler);
+        DeleteCriticalSection(&self->lock);
         free(self);
     }
     return (ULONG)left;
@@ -7004,16 +7404,38 @@ static HRESULT __stdcall tpt_timer_get_Delay(tpt_timer *self, INT64 *value)
 
 static HRESULT __stdcall tpt_timer_Cancel(tpt_timer *self)
 {
-    if (InterlockedExchange(&self->canceled, 1) == 0) {
-        if (self->tp_timer) SetThreadpoolTimer(self->tp_timer, NULL, 0, 0);
-        if (self->destroyed_handler &&
-            InterlockedCompareExchange(&self->destroyed_fired, 1, 0) == 0) {
-            tpt_invoke_handler(self->destroyed_handler, self);
-        }
-        if (InterlockedExchange(&self->sched_ref, 0) == 1) {
-            tpt_timer_Release(self);
+    PTP_TIMER tp;
+    int in_callback;
+    int fire_destroyed = 0;
+    int drop_sched = 0;
+
+    tpt_timer_AddRef(self);
+    EnterCriticalSection(&self->lock);
+    self->canceled = 1;
+    tp = self->tp_timer;
+    in_callback = (self->active_callbacks > 0 && self->callback_tid == GetCurrentThreadId());
+    LeaveCriticalSection(&self->lock);
+
+    if (tp) {
+        SetThreadpoolTimer(tp, NULL, 0, 0);
+        if (!in_callback) WaitForThreadpoolTimerCallbacks(tp, TRUE);
+    }
+
+    EnterCriticalSection(&self->lock);
+    if (self->active_callbacks == 0 && !self->destroyed_fired) {
+        self->destroyed_fired = 1;
+        fire_destroyed = 1;
+        if (self->sched_ref) {
+            self->sched_ref = 0;
+            drop_sched = 1;
         }
     }
+    LeaveCriticalSection(&self->lock);
+
+    if (fire_destroyed && self->destroyed_handler)
+        tpt_invoke_handler(self->destroyed_handler, self);
+    if (drop_sched) tpt_timer_Release(self);
+    tpt_timer_Release(self);
     return S_OK;
 }
 
@@ -7027,23 +7449,41 @@ static const void *tpt_timer_vtable[] = {
 static VOID CALLBACK tpt_timer_callback(PTP_CALLBACK_INSTANCE inst, PVOID ctx, PTP_TIMER tp)
 {
     tpt_timer *obj = (tpt_timer *)ctx;
+    int fire_destroyed = 0;
+    int drop_sched = 0;
     (void)inst;
     (void)tp;
     if (!obj) return;
     tpt_timer_AddRef(obj);
-    if (InterlockedCompareExchange(&obj->canceled, 0, 0) == 0) {
-        tpt_invoke_handler(obj->elapsed_handler, obj);
-        if (!obj->periodic) {
-            InterlockedExchange(&obj->canceled, 1);
-            if (obj->destroyed_handler &&
-                InterlockedCompareExchange(&obj->destroyed_fired, 1, 0) == 0) {
-                tpt_invoke_handler(obj->destroyed_handler, obj);
-            }
-            if (InterlockedExchange(&obj->sched_ref, 0) == 1) {
-                tpt_timer_Release(obj);
-            }
+    EnterCriticalSection(&obj->lock);
+    if (obj->canceled) {
+        LeaveCriticalSection(&obj->lock);
+        tpt_timer_Release(obj);
+        return;
+    }
+    obj->active_callbacks++;
+    obj->callback_tid = GetCurrentThreadId();
+    LeaveCriticalSection(&obj->lock);
+
+    tpt_invoke_handler(obj->elapsed_handler, obj);
+
+    EnterCriticalSection(&obj->lock);
+    obj->active_callbacks--;
+    if (obj->active_callbacks == 0) obj->callback_tid = 0;
+    if (!obj->periodic) obj->canceled = 1;
+    if (obj->canceled && obj->active_callbacks == 0 && !obj->destroyed_fired) {
+        obj->destroyed_fired = 1;
+        fire_destroyed = 1;
+        if (obj->sched_ref) {
+            obj->sched_ref = 0;
+            drop_sched = 1;
         }
     }
+    LeaveCriticalSection(&obj->lock);
+
+    if (fire_destroyed && obj->destroyed_handler)
+        tpt_invoke_handler(obj->destroyed_handler, obj);
+    if (drop_sched) tpt_timer_Release(obj);
     tpt_timer_Release(obj);
 }
 
@@ -7065,6 +7505,7 @@ static HRESULT tpt_create_impl(void *handler, INT64 duration, void *destroyed, i
     obj->base.vtbl = tpt_timer_vtable;
     obj->base.refs = 2; /* 1 for caller, 1 for active scheduled timer */
     obj->base.name = "Windows.System.Threading.ThreadPoolTimer";
+    InitializeCriticalSection(&obj->lock);
     obj->periodic = periodic;
     obj->period = periodic ? duration : 0;
     obj->delay = periodic ? 0 : duration;
@@ -7817,7 +8258,7 @@ static HRESULT __stdcall push_mgr_CreateForAppAsync(svc_object *self, void **out
 {
     (void)self;
     if (!out) return E_POINTER;
-    return async_operation(E_FAIL, NULL, out);
+    return async_operation_iid(&svc_iid_async_push_channel, E_FAIL, NULL, out);
 }
 
 static HRESULT __stdcall push_mgr_CreateForAppWithIdAsync(svc_object *self, hstring_t app_id,
@@ -7826,7 +8267,7 @@ static HRESULT __stdcall push_mgr_CreateForAppWithIdAsync(svc_object *self, hstr
     (void)self;
     (void)app_id;
     if (!out) return E_POINTER;
-    return async_operation(E_FAIL, NULL, out);
+    return async_operation_iid(&svc_iid_async_push_channel, E_FAIL, NULL, out);
 }
 
 static HRESULT __stdcall push_mgr_CreateForTileAsync(svc_object *self, hstring_t tile_id,
@@ -7835,7 +8276,7 @@ static HRESULT __stdcall push_mgr_CreateForTileAsync(svc_object *self, hstring_t
     (void)self;
     (void)tile_id;
     if (!out) return E_POINTER;
-    return async_operation(E_FAIL, NULL, out);
+    return async_operation_iid(&svc_iid_async_push_channel, E_FAIL, NULL, out);
 }
 
 static const void *push_mgr_statics_vtable[] = {

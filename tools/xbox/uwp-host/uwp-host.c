@@ -99,25 +99,34 @@ static HINSTANCE host_module;
 static const char *trace_path(void)
 {
     static char beside[1024];
+    static const char suffix[] = "uwp-host-trace.log";
+    DWORD got;
     if (beside[0]) return beside;
-    if (GetModuleFileNameA(host_module, beside, sizeof beside) == 0) {
+    got = GetModuleFileNameA(host_module, beside, sizeof beside);
+    if (got == 0 || got >= sizeof beside) {
         beside[0] = 0;
         return "C:\\uwp-host-trace.log";
     }
     {
-        size_t at = strlen(beside);
+        size_t at = got;
         while (at > 0 && beside[at - 1] != '\\') at--;
-        strcpy(beside + at, "uwp-host-trace.log");
+        if (at + sizeof(suffix) > sizeof(beside)) {
+            beside[0] = 0;
+            return "C:\\uwp-host-trace.log";
+        }
+        memcpy(beside + at, suffix, sizeof(suffix));
     }
     return beside;
 }
 
 static const char *temp_path(void)
 {
-    static char in_temp[MAX_PATH + 16];
+    static char in_temp[MAX_PATH + 32];
+    static const char suffix[] = "uwp-host-trace.log";
     DWORD length = GetTempPathA(MAX_PATH, in_temp);
-    if (!length || length > MAX_PATH) return NULL;
-    strcpy(in_temp + length, "uwp-host-trace.log");
+    if (!length || length >= MAX_PATH || (size_t)length + sizeof(suffix) > sizeof(in_temp))
+        return NULL;
+    memcpy(in_temp + length, suffix, sizeof(suffix));
     return in_temp;
 }
 
@@ -405,10 +414,14 @@ static HRESULT host_null_out(void *self, void *out)
 
 static HWND host_window;
 static int host_quit;
+static void run_dispatched(void);
 
 static LRESULT CALLBACK host_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
     switch (message) {
+    case WM_NULL:
+        run_dispatched();
+        return 0;
     case WM_CLOSE:
         DestroyWindow(hwnd);
         return 0;
@@ -482,22 +495,60 @@ static void deliver_activation(void)
    title that dispatches from a worker waits for the handler to have run there.
    Forza Horizon 4's game thread dispatches to its view and sleeps until the
    handler has set its flags. */
+#define HOST_RO_E_CLOSED ((HRESULT)0x80000013L)
+
 typedef struct dispatched_work {
     struct dispatched_work *next;
     void *callback;
     void *action;
+    int is_idle;
 } dispatched_work;
 
 static SRWLOCK dispatch_lock = SRWLOCK_INIT;
 static dispatched_work *dispatch_head;
 static dispatched_work *dispatch_tail;
+static int dispatch_closed;
 static DWORD view_thread;
 
 void *svc_action_started(void);
 void svc_action_finish(void *action, HRESULT error);
 
-/* DispatchedHandler is an IUnknown delegate: Invoke is slot 3. */
+/* IIdleDispatchedHandlerArgs {98bb6a24-dc1c-43cb-b4ed-d1c0eb2391f3}: slot 6 is get_IsDispatcherIdle. */
+static const GUID iid_idle_args = {0x98bb6a24, 0xdc1c, 0x43cb,
+                                   {0xb4, 0xed, 0xd1, 0xc0, 0xeb, 0x23, 0x91, 0xf3}};
+
+static HRESULT idle_args_qi(host_object *self, const GUID *id, void **out)
+{
+    return host_query_interface(self, id, &iid_idle_args, out);
+}
+
+static HRESULT idle_args_IsDispatcherIdle(host_object *self, unsigned char *out)
+{
+    int idle;
+    (void)self;
+    if (!out) return E_POINTER;
+    AcquireSRWLockExclusive(&dispatch_lock);
+    idle = (dispatch_head == NULL);
+    ReleaseSRWLockExclusive(&dispatch_lock);
+    if (idle && HIWORD(GetQueueStatus(QS_ALLINPUT)) != 0) idle = 0;
+    *out = (unsigned char)(idle ? 1 : 0);
+    return S_OK;
+}
+
+static const void *idle_args_vtable[] = {
+    (const void *)idle_args_qi, (const void *)host_add_ref, (const void *)host_release,
+    (const void *)host_get_iids, (const void *)host_get_runtime_class_name,
+    (const void *)host_get_trust_level,
+    (const void *)idle_args_IsDispatcherIdle,
+};
+
+static host_object idle_args_singleton = {
+    idle_args_vtable, 1000, "Windows.UI.Core.IdleDispatchedHandlerArgs", 1, NULL,
+};
+
+/* DispatchedHandler::Invoke(self) and IdleDispatchedHandler::Invoke(self, args) are slot 3. */
 typedef HRESULT(__stdcall *dispatched_invoke_fn)(void *);
+typedef HRESULT(__stdcall *idle_dispatched_invoke_fn)(void *, void *);
 
 static void run_dispatched(void)
 {
@@ -513,7 +564,12 @@ static void run_dispatched(void)
         }
         ReleaseSRWLockExclusive(&dispatch_lock);
         if (!work) return;
-        hr = ((dispatched_invoke_fn)(*(void ***)work->callback)[3])(work->callback);
+        if (work->is_idle) {
+            hr = ((idle_dispatched_invoke_fn)(*(void ***)work->callback)[3])(work->callback,
+                                                                             &idle_args_singleton);
+        } else {
+            hr = ((dispatched_invoke_fn)(*(void ***)work->callback)[3])(work->callback);
+        }
         if (FAILED(hr)) {
             char line[64];
             snprintf(line, sizeof line, "dispatched handler failed 0x%08lx", (unsigned long)hr);
@@ -526,7 +582,26 @@ static void run_dispatched(void)
     }
 }
 
-static void pump_once(int wait)
+static void close_dispatcher_queue(void)
+{
+    dispatched_work *work, *next;
+    AcquireSRWLockExclusive(&dispatch_lock);
+    dispatch_closed = 1;
+    work = dispatch_head;
+    dispatch_head = NULL;
+    dispatch_tail = NULL;
+    ReleaseSRWLockExclusive(&dispatch_lock);
+    while (work) {
+        next = work->next;
+        svc_action_finish(work->action, HOST_RO_E_CLOSED);
+        com_release(work->action);
+        com_release(work->callback);
+        free(work);
+        work = next;
+    }
+}
+
+static void pump_messages(int wait, int single)
 {
     MSG msg;
     int pumped = 0;
@@ -551,7 +626,13 @@ static void pump_once(int wait)
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
         pumped++;
+        if (single) return;
     }
+}
+
+static void pump_once(int wait)
+{
+    pump_messages(wait, 0);
 }
 
 /* ------------------------------------------------------------- CoreWindow */
@@ -728,8 +809,11 @@ static HRESULT cw_Close(core_window *self)
 {
     (void)self;
     trace("window Close");
-    host_quit = 1;
-    if (host_window) PostMessageW(host_window, WM_CLOSE, 0, 0);
+    if (host_window) {
+        if (!PostMessageW(host_window, WM_CLOSE, 0, 0)) host_quit = 1;
+    } else {
+        host_quit = 1;
+    }
     return S_OK;
 }
 
@@ -774,16 +858,29 @@ static HRESULT cd_HasThreadAccess(core_dispatcher *self, unsigned char *out)
 static HRESULT cd_ProcessEvents(core_dispatcher *self, int option)
 {
     (void)self;
-    (void)option;
-    pump_once(0);
+    switch (option) {
+    case 0: /* CoreProcessEventsOption::ProcessOneAndAllPending */
+        pump_messages(1, 0);
+        break;
+    case 1: /* CoreProcessEventsOption::ProcessOneIfPresent */
+        pump_messages(0, 1);
+        break;
+    case 2: /* CoreProcessEventsOption::ProcessUntilQuit */
+        while (!host_quit) pump_messages(1, 0);
+        break;
+    case 3: /* CoreProcessEventsOption::ProcessAllIfPresent */
+    default:
+        pump_messages(0, 0);
+        break;
+    }
     return S_OK;
 }
 
-static HRESULT cd_RunAsync(core_dispatcher *self, int priority, void *callback, void **operation)
+static HRESULT cd_enqueue(void *callback, int is_idle, void **operation)
 {
     dispatched_work *work;
-    (void)self;
-    (void)priority;
+    int closed;
+
     if (operation) *operation = NULL;
     if (!callback) return E_INVALIDARG;
     work = (dispatched_work *)calloc(1, sizeof *work);
@@ -793,24 +890,46 @@ static HRESULT cd_RunAsync(core_dispatcher *self, int priority, void *callback, 
         free(work);
         return E_OUTOFMEMORY;
     }
+    work->is_idle = is_idle;
     com_add_ref(callback);
     work->callback = callback;
+
+    AcquireSRWLockExclusive(&dispatch_lock);
+    closed = dispatch_closed;
+    if (!closed) {
+        if (dispatch_tail) dispatch_tail->next = work;
+        else dispatch_head = work;
+        dispatch_tail = work;
+    }
+    ReleaseSRWLockExclusive(&dispatch_lock);
+
+    if (closed) {
+        svc_action_finish(work->action, HOST_RO_E_CLOSED);
+        com_release(work->action);
+        com_release(work->callback);
+        free(work);
+        return HOST_RO_E_CLOSED;
+    }
+
     if (operation) {
         com_add_ref(work->action);
         *operation = work->action;
     }
-    AcquireSRWLockExclusive(&dispatch_lock);
-    if (dispatch_tail) dispatch_tail->next = work;
-    else dispatch_head = work;
-    dispatch_tail = work;
-    ReleaseSRWLockExclusive(&dispatch_lock);
     if (host_window) PostMessageW(host_window, WM_NULL, 0, 0);
     return S_OK;
 }
 
+static HRESULT cd_RunAsync(core_dispatcher *self, int priority, void *callback, void **operation)
+{
+    (void)self;
+    (void)priority;
+    return cd_enqueue(callback, 0, operation);
+}
+
 static HRESULT cd_RunIdleAsync(core_dispatcher *self, void *callback, void **operation)
 {
-    return cd_RunAsync(self, 0, callback, operation);
+    (void)self;
+    return cd_enqueue(callback, 1, operation);
 }
 
 /* Order follows Windows.UI.Core.ICoreDispatcher: HasThreadAccess, ProcessEvents,
@@ -994,29 +1113,57 @@ static HRESULT cav_CoreWindow(core_application_view *self, void **out)
 /* ICoreApplicationView::Activated. The title hands over a delegate and expects
    a live token back; it drops its own reference straight after the call, so the
    subscription has to hold one. */
-static void *view_activated_handler;
-static long long view_activated_token;
+#define MAX_VIEW_ACTIVATED_SUBS 16
+
+typedef struct {
+    long long token;
+    void *handler;
+} view_activated_sub;
+
+static SRWLOCK view_activated_lock = SRWLOCK_INIT;
+static view_activated_sub view_activated_subs[MAX_VIEW_ACTIVATED_SUBS];
+static long long view_activated_next_token;
 
 static HRESULT cav_activated_add(core_application_view *self, void *handler, long long *token)
 {
+    size_t i;
     (void)self;
     trace("view add Activated");
     if (!token) return E_POINTER;
-    if (view_activated_handler) com_release(view_activated_handler);
-    view_activated_handler = handler;
-    com_add_ref(handler);
-    view_activated_token++;
-    *token = view_activated_token;
-    return S_OK;
+    *token = 0;
+    if (!handler) return E_INVALIDARG;
+    AcquireSRWLockExclusive(&view_activated_lock);
+    for (i = 0; i < MAX_VIEW_ACTIVATED_SUBS; i++) {
+        if (!view_activated_subs[i].handler) {
+            com_add_ref(handler);
+            view_activated_subs[i].handler = handler;
+            view_activated_subs[i].token = ++view_activated_next_token;
+            *token = view_activated_subs[i].token;
+            ReleaseSRWLockExclusive(&view_activated_lock);
+            return S_OK;
+        }
+    }
+    ReleaseSRWLockExclusive(&view_activated_lock);
+    return E_OUTOFMEMORY;
 }
 
 static HRESULT cav_activated_remove(core_application_view *self, long long token)
 {
+    size_t i;
+    void *to_release = NULL;
     (void)self;
     trace("view remove Activated");
-    if (token != view_activated_token) return S_OK;
-    com_release(view_activated_handler);
-    view_activated_handler = NULL;
+    AcquireSRWLockExclusive(&view_activated_lock);
+    for (i = 0; i < MAX_VIEW_ACTIVATED_SUBS; i++) {
+        if (view_activated_subs[i].handler && view_activated_subs[i].token == token) {
+            to_release = view_activated_subs[i].handler;
+            view_activated_subs[i].handler = NULL;
+            view_activated_subs[i].token = 0;
+            break;
+        }
+    }
+    ReleaseSRWLockExclusive(&view_activated_lock);
+    if (to_release) com_release(to_release);
     return S_OK;
 }
 
@@ -1154,30 +1301,13 @@ static HRESULT wea_put_handled(host_object *self, unsigned char value)
     return S_OK;
 }
 
-/* The same two slots reached through the event's own interface. A derived
-   WinRT interface repeats its base interface's methods before its own, so
-   Handled is slots 6 and 7 of *every* window event argument, not only of the
-   ICoreWindowEventArgs view of it. */
-static HRESULT wea_get_handled_main(void *self, unsigned char *out)
-{
-    window_event_args *args = (window_event_args *)self;
-    if (!out) return E_POINTER;
-    *out = args->state.handled;
-    return S_OK;
-}
-
-static HRESULT wea_put_handled_main(void *self, unsigned char value)
-{
-    ((window_event_args *)self)->state.handled = value;
-    return S_OK;
-}
-
+/* WinRT interfaces do not inherit each other's vtable slots; ICoreWindowEventArgs
+   is reached via QueryInterface (handled_face), so each event interface places
+   its own property at slot 6 immediately after IInspectable. */
 static const void *activated_args_vtable[] = {
     (const void *)wea_query_interface, (const void *)host_add_ref, (const void *)host_release,
     (const void *)host_get_iids, (const void *)host_get_runtime_class_name,
     (const void *)host_get_trust_level,
-    (const void *)wea_get_handled_main,     /* Handled */
-    (const void *)wea_put_handled_main,     /* SetHandled */
     (const void *)wea_get_activation_state, /* WindowActivationState */
 };
 
@@ -1185,18 +1315,14 @@ static const void *size_args_vtable[] = {
     (const void *)wea_query_interface, (const void *)host_add_ref, (const void *)host_release,
     (const void *)host_get_iids, (const void *)host_get_runtime_class_name,
     (const void *)host_get_trust_level,
-    (const void *)wea_get_handled_main, /* Handled */
-    (const void *)wea_put_handled_main, /* SetHandled */
-    (const void *)wea_get_size,         /* Size */
+    (const void *)wea_get_size, /* Size */
 };
 
 static const void *visibility_args_vtable[] = {
     (const void *)wea_query_interface, (const void *)host_add_ref, (const void *)host_release,
     (const void *)host_get_iids, (const void *)host_get_runtime_class_name,
     (const void *)host_get_trust_level,
-    (const void *)wea_get_handled_main, /* Handled */
-    (const void *)wea_put_handled_main, /* SetHandled */
-    (const void *)wea_get_visible,      /* Visible */
+    (const void *)wea_get_visible, /* Visible */
 };
 
 static const void *handled_args_vtable[] = {
@@ -1451,8 +1577,22 @@ static void raise_activation(void)
     fire_delegate(cw_event_handler[CW_EV_VISIBILITY_CHANGED], &window, &visibility_args);
     fire_delegate(cw_event_handler[CW_EV_SIZE_CHANGED], &window, &size_args);
     fire_delegate(cw_event_handler[CW_EV_ACTIVATED], &window, &activated_args);
-    if (view_activated_handler)
-        fire_delegate(view_activated_handler, &app_view, &launch_args);
+    {
+        void *snapshot[MAX_VIEW_ACTIVATED_SUBS];
+        size_t count = 0, i;
+        AcquireSRWLockExclusive(&view_activated_lock);
+        for (i = 0; i < MAX_VIEW_ACTIVATED_SUBS; i++) {
+            if (view_activated_subs[i].handler) {
+                com_add_ref(view_activated_subs[i].handler);
+                snapshot[count++] = view_activated_subs[i].handler;
+            }
+        }
+        ReleaseSRWLockExclusive(&view_activated_lock);
+        for (i = 0; i < count; i++) {
+            fire_delegate(snapshot[i], &app_view, &launch_args);
+            com_release(snapshot[i]);
+        }
+    }
 }
 
 /* --------------------------------------------------------- CoreApplication */
@@ -1464,15 +1604,113 @@ typedef struct {
 static core_application application;
 static int app_running;
 
+static HRESULT ca_query_interface(core_application *self, const GUID *id, void **out);
+
+static HRESULT ca_face_qi(host_object *self, const GUID *id, void **out)
+{
+    (void)self;
+    return ca_query_interface(&application, id, out);
+}
+
+static HRESULT ca_exit_Exit(host_object *self)
+{
+    (void)self;
+    trace("CoreApplication::Exit");
+    return cw_Close(&window);
+}
+
+static HRESULT ca_exit_add_Exiting(host_object *self, void *handler, long long *token)
+{
+    (void)self;
+    (void)handler;
+    if (!token) return E_POINTER;
+    *token = 1;
+    return S_OK;
+}
+
+static HRESULT ca_exit_remove_Exiting(host_object *self, long long token)
+{
+    (void)self;
+    (void)token;
+    return S_OK;
+}
+
+static const void *ca_exit_vtable[] = {
+    (const void *)ca_face_qi, (const void *)host_add_ref, (const void *)host_release,
+    (const void *)host_get_iids, (const void *)host_get_runtime_class_name,
+    (const void *)host_get_trust_level,
+    (const void *)ca_exit_Exit,           /* Exit */
+    (const void *)ca_exit_add_Exiting,    /* add_Exiting */
+    (const void *)ca_exit_remove_Exiting, /* remove_Exiting */
+};
+
+static host_object ca_exit_face = {
+    ca_exit_vtable, 1000, "Windows.ApplicationModel.Core.CoreApplication", 1, NULL,
+};
+
+static HRESULT ca_use_count_noop(host_object *self)
+{
+    (void)self;
+    return S_OK;
+}
+
+static const void *ca_use_count_vtable[] = {
+    (const void *)ca_face_qi, (const void *)host_add_ref, (const void *)host_release,
+    (const void *)host_get_iids, (const void *)host_get_runtime_class_name,
+    (const void *)host_get_trust_level,
+    (const void *)ca_use_count_noop, /* IncrementApplicationUseCount */
+    (const void *)ca_use_count_noop, /* DecrementApplicationUseCount */
+};
+
+static host_object ca_use_count_face = {
+    ca_use_count_vtable, 1000, "Windows.ApplicationModel.Core.CoreApplication", 1, NULL,
+};
+
+static HRESULT ca_unhandled_add(host_object *self, void *handler, long long *token)
+{
+    (void)self;
+    (void)handler;
+    if (!token) return E_POINTER;
+    *token = 1;
+    return S_OK;
+}
+
+static HRESULT ca_unhandled_remove(host_object *self, long long token)
+{
+    (void)self;
+    (void)token;
+    return S_OK;
+}
+
+static const void *ca_unhandled_vtable[] = {
+    (const void *)ca_face_qi, (const void *)host_add_ref, (const void *)host_release,
+    (const void *)host_get_iids, (const void *)host_get_runtime_class_name,
+    (const void *)host_get_trust_level,
+    (const void *)ca_unhandled_add,    /* add_UnhandledErrorDetected */
+    (const void *)ca_unhandled_remove, /* remove_UnhandledErrorDetected */
+};
+
+static host_object ca_unhandled_face = {
+    ca_unhandled_vtable, 1000, "Windows.ApplicationModel.Core.CoreApplication", 1, NULL,
+};
+
 static HRESULT ca_query_interface(core_application *self, const GUID *id, void **out)
 {
     trace_guid("application QI", id);
     if (!out) return E_POINTER;
-    if (IsEqualIID(id, &iid_core_application) || IsEqualIID(id, &iid_core_application_exit) ||
-        IsEqualIID(id, &iid_core_application_use_count) ||
-        IsEqualIID(id, &iid_core_application_unhandled)) {
-        *out = self;
-        self->base.refs++;
+    if (IsEqualIID(id, &iid_core_application_exit)) {
+        *out = &ca_exit_face;
+        host_add_ref(&ca_exit_face);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &iid_core_application_use_count)) {
+        *out = &ca_use_count_face;
+        host_add_ref(&ca_use_count_face);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &iid_core_application_unhandled)) {
+        *out = &ca_unhandled_face;
+        host_add_ref(&ca_unhandled_face);
         return S_OK;
     }
     return host_query_interface(&self->base, id, &iid_core_application, out);
@@ -1506,24 +1744,73 @@ static HRESULT ca_GetCurrentView(core_application *self, void **out)
    refuses absolute paths and paths that climb out of it. Wine has no package
    graph and fails every call with APPMODEL_ERROR_NO_PACKAGE, so the host
    answers it for the package it is running. */
+int uwp_package_root(WCHAR *out, size_t cap);
+int uwp_package_root(WCHAR *out, size_t cap)
+{
+    WCHAR probe[MAX_PATH];
+    DWORD length;
+    WCHAR *slash;
+
+    if (!out || cap == 0) return 0;
+    out[0] = 0;
+
+    length = GetEnvironmentVariableW(L"DROIDDECK_XBOX_PACKAGE_ROOT", out, (DWORD)cap);
+    if (length > 0 && length < cap) {
+        while (length > 0 && (out[length - 1] == L'\\' || out[length - 1] == L'/'))
+            out[--length] = 0;
+        if (length > 0) return 1;
+    }
+
+    length = GetModuleFileNameW(NULL, probe, MAX_PATH);
+    if (!length || length >= MAX_PATH) return 0;
+    slash = wcsrchr(probe, L'\\');
+    if (!slash) return 0;
+    *slash = 0;
+
+    /* Walk up from the executable directory to find AppxManifest.xml for nested EXEs. */
+    {
+        WCHAR walk[MAX_PATH];
+        wcsncpy(walk, probe, MAX_PATH - 1);
+        walk[MAX_PATH - 1] = 0;
+        for (;;) {
+            WCHAR manifest[MAX_PATH];
+            int n = _snwprintf(manifest, MAX_PATH, L"%ls\\AppxManifest.xml", walk);
+            if (n > 0 && n < MAX_PATH && GetFileAttributesW(manifest) != INVALID_FILE_ATTRIBUTES) {
+                if (wcslen(walk) >= cap) return 0;
+                wcscpy(out, walk);
+                return 1;
+            }
+            slash = wcsrchr(walk, L'\\');
+            if (!slash || slash <= walk + 2) break;
+            *slash = 0;
+        }
+    }
+
+    if (wcslen(probe) >= cap) return 0;
+    wcscpy(out, probe);
+    return 1;
+}
+
 static HMODULE WINAPI host_LoadPackagedLibrary(LPCWSTR name, DWORD reserved)
 {
+    WCHAR root[MAX_PATH];
     WCHAR path[MAX_PATH];
-    WCHAR *slash;
-    DWORD length;
+    int n;
 
     if (reserved || !name || !name[0] || name[0] == L'\\' || name[0] == L'/' ||
         wcschr(name, L':') || wcsstr(name, L"..")) {
         SetLastError(ERROR_INVALID_PARAMETER);
         return NULL;
     }
-    length = GetModuleFileNameW(NULL, path, MAX_PATH);
-    slash = length && length < MAX_PATH ? wcsrchr(path, L'\\') : NULL;
-    if (!slash || (size_t)(slash - path) + 1 + wcslen(name) >= MAX_PATH) {
+    if (!uwp_package_root(root, MAX_PATH)) {
         SetLastError(ERROR_FILENAME_EXCED_RANGE);
         return NULL;
     }
-    wcscpy(slash + 1, name);
+    n = _snwprintf(path, MAX_PATH, L"%ls\\%ls", root, name);
+    if (n < 0 || n >= MAX_PATH) {
+        SetLastError(ERROR_FILENAME_EXCED_RANGE);
+        return NULL;
+    }
     {
         HMODULE module = LoadLibraryExW(path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
         DWORD error = GetLastError();
@@ -1540,7 +1827,7 @@ static HMODULE WINAPI host_LoadPackagedLibrary(LPCWSTR name, DWORD reserved)
    title checks what its own imports point at, so its table is left alone:
    these exports are thunks that jump through their DLL's import of
    kernelbase, and that slot is answered. */
-static void *answer_export(const char *dll, const char *name, void *answer)
+static void *answer_export_store(const char *dll, const char *name, void *answer, void **store_next)
 {
     const BYTE *thunk = (const BYTE *)GetProcAddress(GetModuleHandleA(dll), name);
     ULONG_PTR *slot, previous;
@@ -1553,11 +1840,19 @@ static void *answer_export(const char *dll, const char *name, void *answer)
         return NULL;
     }
     slot = (ULONG_PTR *)(thunk + 6 + *(const int *)(thunk + 2));
-    if (!VirtualProtect(slot, sizeof(*slot), PAGE_READWRITE, &old)) return NULL;
     previous = *slot;
+    if ((void *)previous == answer) return store_next ? *store_next : NULL;
+    if (store_next) *store_next = (void *)previous;
+    MemoryBarrier();
+    if (!VirtualProtect(slot, sizeof(*slot), PAGE_READWRITE, &old)) return NULL;
     *slot = (ULONG_PTR)answer;
     VirtualProtect(slot, sizeof(*slot), old, &old);
     return (void *)previous;
+}
+
+static void *answer_export(const char *dll, const char *name, void *answer)
+{
+    return answer_export_store(dll, name, answer, NULL);
 }
 
 typedef BOOL(WINAPI *token_information_fn)(HANDLE, TOKEN_INFORMATION_CLASS, void *, DWORD, DWORD *);
@@ -1607,10 +1902,13 @@ static void install_app_container(void)
 
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return;
     if (GetTokenInformation(token, TokenStatistics, &statistics, sizeof statistics, &length)) {
+        void *prev = NULL;
         hosted_token = statistics.TokenId;
-        token_information_next = (token_information_fn)answer_export(
-            "advapi32.dll", "GetTokenInformation", (void *)host_GetTokenInformation);
-        if (token_information_next) trace("app container installed");
+        MemoryBarrier();
+        prev = answer_export_store("advapi32.dll", "GetTokenInformation",
+                                   (void *)host_GetTokenInformation,
+                                   (void **)&token_information_next);
+        if (prev) trace("app container installed");
     }
     CloseHandle(token);
 }
@@ -1630,34 +1928,50 @@ typedef HRESULT(__stdcall *view_lifecycle_fn)(void *, void *);
 static HRESULT drive_view(void *source)
 {
     const void **source_vtbl;
-    const void **view_vtbl;
+    const void **view_vtbl = NULL;
     void *view = NULL;
     hstring_t entry;
-    HRESULT hr;
+    HRESULT hr = S_OK;
+    int initialized = 0;
+    int owns_window = 0;
 
     if (!source) return E_INVALIDARG;
-    if (!host_window && !create_host_window()) return E_FAIL;
+    host_quit = 0;
+    AcquireSRWLockExclusive(&dispatch_lock);
+    dispatch_closed = 0;
+    ReleaseSRWLockExclusive(&dispatch_lock);
+
+    if (!host_window) {
+        if (!create_host_window()) {
+            close_dispatcher_queue();
+            return E_FAIL;
+        }
+        owns_window = 1;
+    }
     view_thread = GetCurrentThreadId();
     install_package_loader();
 
     source_vtbl = *(const void ***)source;
     if (!source_vtbl || !source_vtbl[6]) {
         trace("view source has no CreateView");
-        return E_NOINTERFACE;
+        hr = E_NOINTERFACE;
+        goto cleanup;
     }
     hr = ((create_view_fn)(void *)source_vtbl[6])(source, &view);
     if (FAILED(hr) || !view) {
         char line[96];
         snprintf(line, sizeof line, "CreateView failed 0x%08lx view %p", (unsigned long)hr, view);
         trace(line);
-        return FAILED(hr) ? hr : E_FAIL;
+        hr = FAILED(hr) ? hr : E_FAIL;
+        goto cleanup;
     }
     trace("CreateView ok");
 
     view_vtbl = *(const void ***)view;
     if (!view_vtbl || !view_vtbl[6]) {
         trace("view has no lifecycle slots");
-        return E_NOINTERFACE;
+        hr = E_NOINTERFACE;
+        goto cleanup;
     }
     {
         char line[160];
@@ -1667,19 +1981,20 @@ static HRESULT drive_view(void *source)
     }
     hr = ((view_lifecycle_fn)(void *)view_vtbl[6])(view, &app_view);
     trace(hr ? "Initialize failed" : "Initialize ok");
-    if (FAILED(hr)) return hr;
+    if (FAILED(hr)) goto cleanup;
+    initialized = 1;
 
     trace("SetWindow enter");
     hr = ((view_lifecycle_fn)(void *)view_vtbl[7])(view, &window);
     trace(hr ? "SetWindow failed" : "SetWindow ok");
-    if (FAILED(hr)) return hr;
+    if (FAILED(hr)) goto cleanup;
 
     entry = make_hstring(L"App");
     trace("Load enter");
     hr = ((view_lifecycle_fn)(void *)view_vtbl[8])(view, entry);
     if (p_delete_hstring) p_delete_hstring(entry);
     trace(hr ? "Load failed" : "Load ok");
-    if (FAILED(hr)) return hr;
+    if (FAILED(hr)) goto cleanup;
 
     /* Windows activates the view after Load has returned and before Run is
        called, so the handler runs on the same thread that is about to enter
@@ -1705,14 +2020,25 @@ static HRESULT drive_view(void *source)
     }
     app_running = 0;
 
-    /* A title whose Run returns immediately leaves the window up with nothing
-       drawing; pumping until the window closes keeps the model honest rather
-       than reporting a frame the title never drew. */
-    while (!host_quit) pump_once(1);
+    /* A title whose Run returns immediately with S_OK leaves the window up;
+       pumping until the window closes keeps the model honest. On failure, skip
+       the fallback pump and return the original Run HRESULT after cleanup. */
+    if (SUCCEEDED(hr)) {
+        while (!host_quit) pump_once(1);
+    }
 
-    hr = ((view_lifecycle_fn)(void *)view_vtbl[10])(view, NULL);
-    trace(hr ? "Uninitialize failed" : "Uninitialize ok");
-    return S_OK;
+cleanup:
+    close_dispatcher_queue();
+    if (initialized && view && view_vtbl && view_vtbl[10]) {
+        HRESULT uninit_hr = ((view_lifecycle_fn)(void *)view_vtbl[10])(view, NULL);
+        trace(uninit_hr ? "Uninitialize failed" : "Uninitialize ok");
+    }
+    if (view) com_release(view);
+    if (owns_window && host_window) {
+        if (IsWindow(host_window)) DestroyWindow(host_window);
+        host_window = NULL;
+    }
+    return hr;
 }
 
 static HRESULT ca_Run(core_application *self, void *source)
@@ -1878,12 +2204,14 @@ extern int uwp_gamesave_lookup(const WCHAR *class_name, void **factory);
 
 static host_object factories[sizeof(classes) / sizeof(classes[0])];
 
-static void ensure_installed(void)
-{
-    static int installed;
-    size_t i;
+static INIT_ONCE host_install_once = INIT_ONCE_STATIC_INIT;
 
-    if (installed) return;
+static BOOL CALLBACK host_install_cb(PINIT_ONCE once, PVOID param, PVOID *ctx)
+{
+    size_t i;
+    (void)once;
+    (void)param;
+    (void)ctx;
     install_objects();
     uwp_services_install();
     uwp_auth_install();
@@ -1896,7 +2224,12 @@ static void ensure_installed(void)
         factories[i].name = classes[i].object->name;
         factories[i].owner = &classes[i];
     }
-    installed = 1;
+    return TRUE;
+}
+
+static void ensure_installed(void)
+{
+    InitOnceExecuteOnce(&host_install_once, host_install_cb, NULL, NULL);
 }
 
 
