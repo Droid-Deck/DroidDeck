@@ -24,6 +24,7 @@ java_dir="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents
 [[ -x "$java_dir/bin/java" ]] || java_dir="${HOME}/.local/share/mise/installs/java/temurin-17"
 [[ "$java_dir" == */homebrew/* ]] && echo "using homebrew java path: $java_dir"
 [[ "$java_dir" == */mise/* ]] && echo "using mise java path: $java_dir"
+requested_image=${DROIDDECK_BUILD_IMAGE:-}
 . "${repo_root}/tools/docker_platform.sh"
 image_name=${DROIDDECK_BUILD_IMAGE}
 build_variant=${DROIDDECK_BUILD_VARIANT:-release}
@@ -138,9 +139,10 @@ ci_run=
 ci_cache="${cache_dir}/ci-components"
 reuse_ci_components() {
     [[ "${DROIDDECK_CI_COMPONENTS:-1}" == 1 ]] && command -v gh >/dev/null 2>&1 || return 1
-    # CI prepares with the pinned NDK, its own PulseAudio source and the system Vulkan headers.
+    # CI prepares with the pinned NDK, its own build image and PulseAudio source, and the system Vulkan headers.
     . "${repo_root}/tools/ci/toolchains.env"
-    [[ "${ndk_version}" == "${CI_ANDROID_NDK_VERSION}" && -z "${DROIDDECK_PA13_SOURCE_DIR:-}" && -z "${VK_INCLUDE:-}" ]] || return 1
+    [[ "${ndk_version}" == "${CI_ANDROID_NDK_VERSION}" && -z "${DROIDDECK_PA13_SOURCE_DIR:-}" && -z "${VK_INCLUDE:-}" \
+        && -z "${requested_image}" ]] || return 1
     local base candidates run artifact archive part
     base=$(git -C "${repo_root}" merge-base HEAD origin/main 2>/dev/null || true)
     # Only runs of this repository's own main: a fork's pull request can also name its branch main.
