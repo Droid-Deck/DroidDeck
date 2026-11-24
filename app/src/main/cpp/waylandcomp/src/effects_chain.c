@@ -17,8 +17,11 @@
 #include "cas_frag.h"
 #include "color_frag.h"
 #include "fxaa_frag.h"
-#include "smaa_frag.h"
+#include "smaa_edge_frag.h"
+#include "smaa_weights_frag.h"
+#include "smaa_blend_frag.h"
 #include "toon_frag.h"
+#include "toon_color_frag.h"
 #include "hdr_frag.h"
 #include "ntsc_frag.h"
 #include "crt_frag.h"
@@ -30,6 +33,7 @@
 
 
 static VkFormat g_fx_fmt = FX_FORMAT, g_scene_fmt = FX_FORMAT;
+static int g_scene_is_pq;
 #define FX_MAX_DIM 4096
 
 
@@ -104,9 +108,11 @@ static const char *scaling_name(int m) {
 }
 static int spatial_mode(int m) { return m >= 3 && m <= 8; }
 static int cas_active(const struct fx_settings *s) { return s->cas_on && s->cas_pct > 0; }
+static int deband_active(const struct fx_settings *s) { return s->deband_on && s->deband_pct > 0; }
 static int effect_count(const struct fx_settings *s) {
-    return (s->aa_mode != 0) + s->toon + s->color_on + cas_active(s) + s->hdr_on + s->ntsc + s->crt + s->deband_on;
+    return (s->aa_mode != 0) + s->toon + s->color_on + cas_active(s) + s->hdr_on + s->ntsc + s->crt + deband_active(s);
 }
+
 
 static void log_settings(const struct fx_settings *s) {
     char line[400];
@@ -129,7 +135,7 @@ static void log_settings(const struct fx_settings *s) {
     if (s->hdr_on) n += snprintf(line + n, sizeof(line) - n, ", HDR on");
     if (s->ntsc) n += snprintf(line + n, sizeof(line) - n, ", NTSC on");
     if (s->crt) n += snprintf(line + n, sizeof(line) - n, ", CRT on");
-    if (s->deband_on) n += snprintf(line + n, sizeof(line) - n, ", Deband on %d%%", s->deband_pct);
+    if (deband_active(s)) n += snprintf(line + n, sizeof(line) - n, ", Deband on %d%%", s->deband_pct);
     (void)n;
     droiddeck_log("effects", "%s", line);
 }
@@ -176,6 +182,11 @@ struct pc_easu  { float ndc[4]; uint32_t con0[4], con1[4], con2[4], con3[4]; flo
 struct pc_rcas  { float ndc[4]; uint32_t con[4]; float outW, outH; };
 struct pc_res   { float ndc[4]; float res[2]; float extra; float pad; };
 struct pc_color { float ndc[4]; float b, c, g, s; };
+struct pc_toon_color {
+    float ndc[4]; float res[2]; float b, c, g, s;
+};
+_Static_assert(sizeof(struct pc_toon_color) == 40,
+               "toon_color push constants layout mismatch");
 #define PC_MAX_SIZE sizeof(struct pc_easu)
 
 static uint32_t packf(float f) { uint32_t u; memcpy(&u, &f, 4); return u; }
@@ -204,17 +215,16 @@ static VkDevice g_dev;
 static VkPhysicalDevice g_pd;
 static VkPhysicalDeviceMemoryProperties g_mp;
 static int g_ready;
-static VkRenderPass g_rp;
+static VkRenderPass g_rp, g_smaa_rp;
 static VkDescriptorSetLayout g_dsl;
 static VkPipelineLayout g_pl;
 static VkDescriptorPool g_dpool;
 static VkSampler g_sampler;
-enum { P_SGSR, P_SGSR_HQ, P_NIS, P_EASU, P_RCAS, P_CAS, P_COLOR, P_FXAA, P_SMAA, P_TOON, P_HDR, P_NTSC, P_CRT, P_DEBAND, P_COUNT };
+enum { P_SGSR, P_SGSR_HQ, P_NIS, P_EASU, P_RCAS, P_CAS, P_COLOR, P_FXAA, P_SMAA_EDGE, P_SMAA_WEIGHTS, P_SMAA_BLEND, P_TOON, P_TOON_COLOR, P_HDR, P_NTSC, P_CRT, P_DEBAND, P_COUNT };
 static VkPipeline g_pipe[P_COUNT];
-static struct fx_target g_t[2], g_mid;
+static struct fx_target g_t[2], g_mid, g_smaa_edges, g_smaa_weights;
 
 static struct { VkImage img; VkImageView view; VkDescriptorSet ds; int w, h; } g_scene;
-static uint32_t g_ntsc_frame;
 
 void vkp_effects_bind_device(VkDevice dev, VkPhysicalDevice pd,
                              const VkPhysicalDeviceMemoryProperties *memprops) {
@@ -260,15 +270,20 @@ static void target_destroy(struct fx_target *t) {
     memset(t, 0, sizeof(*t));
 }
 
-static int target_ensure(struct fx_target *t, int w, int h, const char *what) {
+#define FX_TARGET_USAGE (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | \
+                            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+#define FX_SCRATCH_USAGE (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT)
+
+static int target_ensure_format(struct fx_target *t, int w, int h,
+                                VkImageUsageFlags usage, const char *what,
+                                VkFormat format, VkRenderPass render_pass) {
     if (t->img && t->w == w && t->h == h) return 0;
     target_destroy(t);
     VkImageCreateInfo ii = {.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
                             .flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT, .imageType = VK_IMAGE_TYPE_2D,
-                            .format = g_fx_fmt, .extent = {(uint32_t)w, (uint32_t)h, 1}, .mipLevels = 1,
+                            .format = format, .extent = {(uint32_t)w, (uint32_t)h, 1}, .mipLevels = 1,
                             .arrayLayers = 1, .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
-                            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-                                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                            .usage = usage,
                             .sharingMode = VK_SHARING_MODE_EXCLUSIVE, .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED};
     VkResult r = g_vk.CreateImage(g_dev, &ii, NULL, &t->img);
     if (r != VK_SUCCESS) { droiddeck_log("error", "effects: %s image %dx%d: vkCreateImage %d", what, w, h, (int)r); return -1; }
@@ -285,14 +300,19 @@ static int target_ensure(struct fx_target *t, int w, int h, const char *what) {
         target_destroy(t); return -1;
     }
     g_vk.BindImageMemory(g_dev, t->img, t->mem, 0);
-    if (!(t->view = make_view(t->img, g_fx_fmt))) { target_destroy(t); return -1; }
-    VkFramebufferCreateInfo fi = {.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, .renderPass = g_rp,
+    if (!(t->view = make_view(t->img, format))) { target_destroy(t); return -1; }
+    VkFramebufferCreateInfo fi = {.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO, .renderPass = render_pass,
                                   .attachmentCount = 1, .pAttachments = &t->view, .width = (uint32_t)w,
                                   .height = (uint32_t)h, .layers = 1};
     if (g_vk.CreateFramebuffer(g_dev, &fi, NULL, &t->fb) != VK_SUCCESS) { target_destroy(t); return -1; }
     if (!(t->ds = alloc_ds(t->view))) { target_destroy(t); return -1; }
     t->w = w; t->h = h;
     return 0;
+}
+
+static int target_ensure(struct fx_target *t, int w, int h,
+                         VkImageUsageFlags usage, const char *what) {
+    return target_ensure_format(t, w, h, usage, what, g_fx_fmt, g_rp);
 }
 
 static void scene_release(void) {
@@ -321,7 +341,9 @@ static VkShaderModule shader(const uint32_t *code, size_t size) {
     return m;
 }
 
-static VkPipeline post_pipeline(VkShaderModule vert, const uint32_t *frag_code, size_t frag_size, const char *name) {
+static VkPipeline post_pipeline_for_renderpass(VkShaderModule vert,
+        const uint32_t *frag_code, size_t frag_size, VkRenderPass render_pass,
+        const char *name) {
     VkShaderModule frag = shader(frag_code, frag_size);
     if (!frag) { droiddeck_log("error", "effects: %s: vkCreateShaderModule failed", name); return VK_NULL_HANDLE; }
     VkPipelineShaderStageCreateInfo st[2] = {
@@ -347,7 +369,7 @@ static VkPipeline post_pipeline(VkShaderModule vert, const uint32_t *frag_code, 
                                        .pStages = st, .pVertexInputState = &vi, .pInputAssemblyState = &ia,
                                        .pViewportState = &vp, .pRasterizationState = &rs, .pMultisampleState = &ms,
                                        .pColorBlendState = &cb, .pDynamicState = &ds, .layout = g_pl,
-                                       .renderPass = g_rp, .subpass = 0};
+                                       .renderPass = render_pass, .subpass = 0};
     VkPipeline p = VK_NULL_HANDLE;
     VkResult r = g_vk.CreateGraphicsPipelines(g_dev, VK_NULL_HANDLE, 1, &pi, NULL, &p);
     g_vk.DestroyShaderModule(g_dev, frag, NULL);
@@ -355,23 +377,32 @@ static VkPipeline post_pipeline(VkShaderModule vert, const uint32_t *frag_code, 
     return p;
 }
 
+static VkPipeline post_pipeline(VkShaderModule vert, const uint32_t *frag_code,
+                                size_t frag_size, const char *name) {
+    return post_pipeline_for_renderpass(vert, frag_code, frag_size, g_rp, name);
+}
+
 static void objects_destroy(void) {
     if (!g_dev) return;
     scene_release();
     target_destroy(&g_t[0]); target_destroy(&g_t[1]); target_destroy(&g_mid);
+    target_destroy(&g_smaa_edges); target_destroy(&g_smaa_weights);
     for (int i = 0; i < P_COUNT; i++) { if (g_pipe[i]) g_vk.DestroyPipeline(g_dev, g_pipe[i], NULL); g_pipe[i] = VK_NULL_HANDLE; }
     if (g_dpool) g_vk.DestroyDescriptorPool(g_dev, g_dpool, NULL);
     if (g_pl) g_vk.DestroyPipelineLayout(g_dev, g_pl, NULL);
     if (g_dsl) g_vk.DestroyDescriptorSetLayout(g_dev, g_dsl, NULL);
     if (g_sampler) g_vk.DestroySampler(g_dev, g_sampler, NULL);
+    if (g_smaa_rp) g_vk.DestroyRenderPass(g_dev, g_smaa_rp, NULL);
     if (g_rp) g_vk.DestroyRenderPass(g_dev, g_rp, NULL);
-    g_dpool = VK_NULL_HANDLE; g_pl = VK_NULL_HANDLE; g_dsl = VK_NULL_HANDLE; g_sampler = VK_NULL_HANDLE; g_rp = VK_NULL_HANDLE;
+    g_dpool = VK_NULL_HANDLE; g_pl = VK_NULL_HANDLE; g_dsl = VK_NULL_HANDLE;
+    g_sampler = VK_NULL_HANDLE; g_rp = VK_NULL_HANDLE; g_smaa_rp = VK_NULL_HANDLE;
     g_ready = 0;
 }
 
 void vkp_effects_destroy(void) { objects_destroy(); g_dev = VK_NULL_HANDLE; }
 
-void vkp_effects_set_formats(VkFormat scene_fmt, VkFormat target_fmt) {
+void vkp_effects_set_formats(VkFormat scene_fmt, VkFormat target_fmt, int scene_is_pq) {
+    g_scene_is_pq = scene_is_pq != 0;
     if (target_fmt != g_fx_fmt) {
         if (g_ready) objects_destroy();
         g_fx_fmt = target_fmt;
@@ -413,6 +444,12 @@ static int objects_ensure(void) {
                                   .subpassCount = 1, .pSubpasses = &sub, .dependencyCount = 2, .pDependencies = deps};
     if (g_vk.CreateRenderPass(g_dev, &rci, NULL, &g_rp) != VK_SUCCESS) goto fail;
 
+    VkAttachmentDescription smaa_att = att;
+    smaa_att.format = FX_FORMAT;
+    VkRenderPassCreateInfo smaa_rci = rci;
+    smaa_rci.pAttachments = &smaa_att;
+    if (g_vk.CreateRenderPass(g_dev, &smaa_rci, NULL, &g_smaa_rp) != VK_SUCCESS) goto fail;
+
     VkSamplerCreateInfo sci = {.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, .magFilter = VK_FILTER_LINEAR,
                                .minFilter = VK_FILTER_LINEAR, .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
                                .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
@@ -425,7 +462,8 @@ static int objects_ensure(void) {
     VkDescriptorSetLayoutCreateInfo dli = {.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, .bindingCount = 1, .pBindings = &b};
     if (g_vk.CreateDescriptorSetLayout(g_dev, &dli, NULL, &g_dsl) != VK_SUCCESS) goto fail;
     VkPushConstantRange pcr = {.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, .offset = 0, .size = PC_MAX_SIZE};
-    VkPipelineLayoutCreateInfo pli = {.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .setLayoutCount = 1, .pSetLayouts = &g_dsl,
+    VkDescriptorSetLayout set_layouts[2] = {g_dsl, g_dsl};
+    VkPipelineLayoutCreateInfo pli = {.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .setLayoutCount = 2, .pSetLayouts = set_layouts,
                                       .pushConstantRangeCount = 1, .pPushConstantRanges = &pcr};
     if (g_vk.CreatePipelineLayout(g_dev, &pli, NULL, &g_pl) != VK_SUCCESS) goto fail;
     VkDescriptorPoolSize ps = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 8};
@@ -445,8 +483,15 @@ static int objects_ensure(void) {
     MK(P_CAS, cas_code, "cas");
     MK(P_COLOR, color_code, "color");
     MK(P_FXAA, fxaa_code, "fxaa");
-    MK(P_SMAA, smaa_code, "smaa");
+    g_pipe[P_SMAA_EDGE] = post_pipeline_for_renderpass(
+        vert, smaa_edge_code, sizeof(smaa_edge_code), g_smaa_rp, "smaa_edge");
+    if (!g_pipe[P_SMAA_EDGE]) { g_vk.DestroyShaderModule(g_dev, vert, NULL); goto fail; }
+    g_pipe[P_SMAA_WEIGHTS] = post_pipeline_for_renderpass(
+        vert, smaa_weights_code, sizeof(smaa_weights_code), g_smaa_rp, "smaa_weights");
+    if (!g_pipe[P_SMAA_WEIGHTS]) { g_vk.DestroyShaderModule(g_dev, vert, NULL); goto fail; }
+    MK(P_SMAA_BLEND, smaa_blend_code, "smaa_blend");
     MK(P_TOON, toon_code, "toon");
+    MK(P_TOON_COLOR, toon_color_code, "toon_color");
     MK(P_HDR, hdr_code, "hdr");
     MK(P_NTSC, ntsc_code, "ntsc");
     MK(P_CRT, crt_code, "crt");
@@ -454,7 +499,7 @@ static int objects_ensure(void) {
 #undef MK
     g_vk.DestroyShaderModule(g_dev, vert, NULL);
     g_ready = 1;
-    droiddeck_log("effects", "chain ready: 14 pipelines (SGSR, SGSR HQ, NIS, FSR EASU+RCAS, CAS, colour, FXAA, SMAA, Toon, HDR, NTSC, CRT, deband) on %s", vkp_gpu_name());
+    droiddeck_log("effects", "chain ready: 16 pipelines (SGSR, SGSR HQ, NIS, FSR EASU+RCAS, CAS, colour, FXAA, SMAA edge/weights/blend, Toon, HDR, NTSC, CRT, deband) on %s", vkp_gpu_name());
     return 0;
 fail:
     objects_destroy();
@@ -474,17 +519,33 @@ static void barrier(VkCommandBuffer cmd, VkImage img, VkImageLayout from, VkImag
     g_vk.CmdPipelineBarrier(cmd, src_stage, dst_stage, 0, 0, NULL, 0, NULL, 1, &b);
 }
 
-static void pass(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst, VkDescriptorSet src,
+static void pass_renderpass(VkCommandBuffer cmd, VkRenderPass render_pass,
+                 VkPipeline p, struct fx_target *dst, VkDescriptorSet src,
                  const void *pc, uint32_t pcsz) {
-    VkRenderPassBeginInfo rpi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = g_rp, .framebuffer = dst->fb,
+    VkRenderPassBeginInfo rpi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = render_pass, .framebuffer = dst->fb,
                                  .renderArea = {{0, 0}, {(uint32_t)dst->w, (uint32_t)dst->h}}};
-    VkViewport vp = {0, 0, (float)dst->w, (float)dst->h, 0, 1};
-    VkRect2D sc = {{0, 0}, {(uint32_t)dst->w, (uint32_t)dst->h}};
     g_vk.CmdBeginRenderPass(cmd, &rpi, VK_SUBPASS_CONTENTS_INLINE);
-    g_vk.CmdSetViewport(cmd, 0, 1, &vp);
-    g_vk.CmdSetScissor(cmd, 0, 1, &sc);
     g_vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p);
     g_vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pl, 0, 1, &src, 0, NULL);
+    g_vk.CmdPushConstants(cmd, g_pl, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, pcsz, pc);
+    g_vk.CmdDraw(cmd, 4, 1, 0, 0);
+    g_vk.CmdEndRenderPass(cmd);
+}
+
+static void pass(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst,
+                 VkDescriptorSet src, const void *pc, uint32_t pcsz) {
+    pass_renderpass(cmd, g_rp, p, dst, src, pc, pcsz);
+}
+
+static void pass_dual(VkCommandBuffer cmd, VkPipeline p, struct fx_target *dst,
+                      VkDescriptorSet src, VkDescriptorSet second,
+                      const void *pc, uint32_t pcsz) {
+    VkRenderPassBeginInfo rpi = {.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO, .renderPass = g_rp, .framebuffer = dst->fb,
+                                 .renderArea = {{0, 0}, {(uint32_t)dst->w, (uint32_t)dst->h}}};
+    VkDescriptorSet sets[2] = {src, second};
+    g_vk.CmdBeginRenderPass(cmd, &rpi, VK_SUBPASS_CONTENTS_INLINE);
+    g_vk.CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, p);
+    g_vk.CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pl, 0, 2, sets, 0, NULL);
     g_vk.CmdPushConstants(cmd, g_pl, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, pcsz, pc);
     g_vk.CmdDraw(cmd, 4, 1, 0, 0);
     g_vk.CmdEndRenderPass(cmd);
@@ -495,9 +556,13 @@ static const float FULL_NDC[4] = {-1.0f, -1.0f, 1.0f, 1.0f};
 
 VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int scene_h,
                         int out_w, int out_h, int *res_w, int *res_h) {
+    struct fx_settings snapshot;
     const struct fx_settings *s;
     vkp_effects_sync();
-    s = &g_cur;
+    pthread_mutex_lock(&g_lock);
+    snapshot = g_cur;
+    pthread_mutex_unlock(&g_lock);
+    s = &snapshot;
     *res_w = scene_w; *res_h = scene_h;
 
     int cw = out_w > 0 ? out_w : scene_w, ch = out_h > 0 ? out_h : scene_h;
@@ -508,17 +573,40 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
     const int upscaling = cw > scene_w || ch > scene_h;
     int spatial = 0;
     if (spatial_mode(s->scaling) && (s->scaling == 6 || upscaling)) spatial = s->scaling;
+    /* NIS here is the SDR implementation and is documented for <=2x upscales. */
+    if (spatial == 7 &&
+        (g_scene_is_pq || cw < scene_w || ch < scene_h ||
+         (double)cw > (double)scene_w * 2.0 ||
+         (double)ch > (double)scene_h * 2.0))
+        spatial = 0;
     const int nfx = effect_count(s);
     const int resize = cw != scene_w || ch != scene_h;
-    const int npasses = ((spatial || resize) ? 1 : 0) + nfx;
+    const int fuse_toon_color = s->toon && s->color_on && g_fx_fmt == FX_FORMAT;
+    const int chain_passes = ((spatial || resize) ? 1 : 0) +
+        effect_count(s) - (fuse_toon_color ? 1 : 0);
 
     if ((spatial || nfx) && objects_ensure() == 0 && scene_ensure(scene, scene_w, scene_h) == 0 &&
-        target_ensure(&g_t[0], cw, ch, "chain") == 0 && (npasses < 2 || target_ensure(&g_t[1], cw, ch, "chain") == 0) &&
-        (!(spatial == 4 || spatial == 5) || target_ensure(&g_mid, cw, ch, "EASU") == 0)) {
+        target_ensure(&g_t[0], cw, ch, FX_TARGET_USAGE, "chain") == 0 && (chain_passes < 2 || target_ensure(&g_t[1], cw, ch, FX_TARGET_USAGE, "chain") == 0) &&
+        (!(spatial == 4 || spatial == 5) || target_ensure(&g_mid, cw, ch, FX_SCRATCH_USAGE, "EASU") == 0)) {
+        if (s->aa_mode == 2 &&
+            (target_ensure_format(&g_smaa_edges, cw, ch, FX_SCRATCH_USAGE,
+                                  "SMAA edges", FX_FORMAT, g_smaa_rp) != 0 ||
+             target_ensure_format(&g_smaa_weights, cw, ch, FX_SCRATCH_USAGE,
+                                  "SMAA weights", FX_FORMAT, g_smaa_rp) != 0)) {
+            droiddeck_log("error", "effects: SMAA scratch allocation failed; falling back to FXAA");
+            snapshot.aa_mode = 1;
+            s = &snapshot;
+        }
+
         VkDescriptorSet cur_ds;
         struct fx_target *cur = NULL;
 #define FREE_TARGET() ((cur == &g_t[0]) ? &g_t[1] : &g_t[0])
         const float sharp01 = (float)s->sharp_pct / 100.0f;
+
+        VkViewport chain_vp = {0, 0, (float)cw, (float)ch, 0, 1};
+        VkRect2D chain_sc = {{0, 0}, {(uint32_t)cw, (uint32_t)ch}};
+        g_vk.CmdSetViewport(cmd, 0, 1, &chain_vp);
+        g_vk.CmdSetScissor(cmd, 0, 1, &chain_sc);
 
         if (spatial) {
             barrier(cmd, scene, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -563,7 +651,7 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             VkImageBlit bl = {.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, .srcOffsets = {{0, 0, 0}, {scene_w, scene_h, 1}},
                               .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, .dstOffsets = {{0, 0, 0}, {cw, ch, 1}}};
             g_vk.CmdBlitImage(cmd, scene, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                              1, &bl, vkp_effects_blit_filter());
+                              1, &bl, s->scaling == 2 ? VK_FILTER_NEAREST : VK_FILTER_LINEAR);
             barrier(cmd, dst->img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT);
@@ -575,17 +663,21 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             cur = NULL; cur_ds = g_scene.ds;
         }
 
-        enum { FX_FXAA, FX_SMAA, FX_TOON, FX_COLOR, FX_CAS, FX_HDR, FX_NTSC, FX_CRT, FX_DEBAND };
+        enum { FX_FXAA, FX_SMAA, FX_TOON, FX_COLOR, FX_TOON_COLOR, FX_CAS, FX_HDR, FX_NTSC, FX_CRT, FX_DEBAND };
         int order[8], n = 0;
         if (s->aa_mode == 1) order[n++] = FX_FXAA;
         else if (s->aa_mode == 2) order[n++] = FX_SMAA;
-        if (s->toon) order[n++] = FX_TOON;
-        if (s->color_on) order[n++] = FX_COLOR;
+        if (s->toon && s->color_on && g_fx_fmt == FX_FORMAT) {
+            order[n++] = FX_TOON_COLOR;
+        } else {
+            if (s->toon) order[n++] = FX_TOON;
+            if (s->color_on) order[n++] = FX_COLOR;
+        }
         if (cas_active(s)) order[n++] = FX_CAS;
         if (s->hdr_on) order[n++] = FX_HDR;
         if (s->ntsc) order[n++] = FX_NTSC;
         if (s->crt) order[n++] = FX_CRT;
-        if (s->deband_on) order[n++] = FX_DEBAND;
+        if (deband_active(s)) order[n++] = FX_DEBAND;
         for (int i = 0; i < n; i++) {
             struct fx_target *dst = FREE_TARGET();
             struct pc_res pr = {0};
@@ -593,8 +685,28 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             pr.res[0] = (float)cw; pr.res[1] = (float)ch;
             switch (order[i]) {
             case FX_FXAA: pass(cmd, g_pipe[P_FXAA], dst, cur_ds, &pr, sizeof(pr)); break;
-            case FX_SMAA: pass(cmd, g_pipe[P_SMAA], dst, cur_ds, &pr, sizeof(pr)); break;
+            case FX_SMAA:
+                pass_renderpass(cmd, g_smaa_rp, g_pipe[P_SMAA_EDGE],
+                                &g_smaa_edges, cur_ds, &pr, sizeof(pr));
+                pass_renderpass(cmd, g_smaa_rp, g_pipe[P_SMAA_WEIGHTS],
+                                &g_smaa_weights, g_smaa_edges.ds, &pr, sizeof(pr));
+                pass_dual(cmd, g_pipe[P_SMAA_BLEND], dst, cur_ds,
+                          g_smaa_weights.ds, &pr, sizeof(pr));
+                break;
             case FX_TOON: pass(cmd, g_pipe[P_TOON], dst, cur_ds, &pr, sizeof(pr)); break;
+            case FX_TOON_COLOR: {
+                struct pc_toon_color pc = {0};
+                SET_NDC(pc);
+                pc.res[0] = (float)cw;
+                pc.res[1] = (float)ch;
+                pc.b = s->brightness;
+                pc.c = s->contrast;
+                pc.g = s->gamma;
+                pc.s = s->saturation;
+                pass(cmd, g_pipe[P_TOON_COLOR], dst, cur_ds,
+                     &pc, sizeof(pc));
+                break;
+            }
             case FX_COLOR: {
                 struct pc_color pc = {0};
                 SET_NDC(pc);
@@ -605,7 +717,6 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
             case FX_CAS: pr.extra = (float)s->cas_pct / 100.0f; pass(cmd, g_pipe[P_CAS], dst, cur_ds, &pr, sizeof(pr)); break;
             case FX_HDR: pass(cmd, g_pipe[P_HDR], dst, cur_ds, &pr, sizeof(pr)); break;
             case FX_NTSC:
-                pr.extra = (float)(g_ntsc_frame++ & 3u);
                 pass(cmd, g_pipe[P_NTSC], dst, cur_ds, &pr, sizeof(pr));
                 break;
             case FX_CRT: pass(cmd, g_pipe[P_CRT], dst, cur_ds, &pr, sizeof(pr)); break;

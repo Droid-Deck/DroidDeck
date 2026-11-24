@@ -20,14 +20,14 @@ import java.io.PrintWriter
  * on the device's own Vulkan driver. Both ends of the socket are under the app's files directory,
  * which the session binds at its own path, so the same path works inside and out.
  */
-class VenusComponent(private val logFile: File?) : SessionPart() {
+class VenusComponent(private val logFile: File?, private val socketPath: File? = null) : SessionPart() {
     @Volatile private var pid = -1
 
     override fun start() {
         val context = app()
         stageIcd(context)
         val libDir = context.applicationInfo.nativeLibraryDir
-        val socket = socket(context)
+        val socket = socketPath ?: socket(context)
         socket.delete()
         val env = arrayOf(
             "LD_LIBRARY_PATH=$libDir",
@@ -90,12 +90,12 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
 
         /** What the guest needs to find the ICD and the server. */
         @JvmStatic
-        fun guestEnv(context: Context): List<String> {
+        fun guestEnv(context: Context, socket: File = socket(context)): List<String> {
             val dir = File(context.filesDir, DIR)
             return listOf(
                 "VK_ICD_FILENAMES=" + File(dir, ICD).path,
                 "VN_DEBUG=vtest",
-                "VTEST_SOCKET_NAME=" + socket(context).path,
+                "VTEST_SOCKET_NAME=" + socket.path,
                 // Xwayland has no DRI3 without a DRM node, so swapchains present through shared memory.
                 "MESA_VK_WSI_DEBUG=sw",
                 // The Mali compatibility layer in every process but gamescope, not only Wine: Zink
