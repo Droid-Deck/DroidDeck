@@ -31,8 +31,7 @@ class BattleNetRequestTest {
         BattleNetClient.request(root, listOf("launch", "WTCG"))
         java.io.File(root, "battlenet-request").writeText("launch\nPro\n")
         java.io.File(root, "battlenet-request.1.tmp").writeText("launch\nPro\n")
-        java.io.File(root, "battlenet-fex.request").writeText("x")
         BattleNetClient.clearRequests(root)
-        assertEquals(listOf("battlenet-fex.request"), root.list()!!.toList())
+        assertEquals(0, root.list()!!.size)
     }
 }

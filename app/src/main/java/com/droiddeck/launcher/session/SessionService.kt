@@ -589,7 +589,10 @@ class SessionService : Service() {
 
         val sessionDir = openSessionFolder()
         try {
-            SessionEvents.step("game-environment") { GameEnvironmentStore.publish(this) }
+            SessionEvents.step("game-environment") {
+                com.droiddeck.launcher.runtime.BattleNet.ensureDefaults(this, SessionState.program)
+                GameEnvironmentStore.publish(this)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "could not publish the game environment", e)
             failSession(gen, "GAME_ENVIRONMENT_FAILED", getString(R.string.session_game_environment_failed), -1)
@@ -1025,6 +1028,9 @@ class SessionService : Service() {
         if (!bridge && !venus && SystemVulkanDriver.usesDefault(linuxDriverId)) {
             SystemVulkanDriver.addEnvironment(this, guest)
         }
+        com.droiddeck.launcher.wayland.WaylandCompositor.nativeSetDisplayBufferDriver(
+            !bridge && !venus && LinuxVulkanDriverManager(this).rendersToDisplayBuffers(linuxDriverId),
+        )
         (if (bridge || venus) null else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno() && lastXwaylandCrashed()) {
@@ -1948,11 +1954,6 @@ class SessionService : Service() {
                     }
                     return
                 }
-                if (path == com.droiddeck.launcher.runtime.BattleNet.FEX_REQUEST) {
-                    File(dir, path).delete()
-                    com.droiddeck.launcher.runtime.BattleNet.answerFexRequest(this@SessionService, dir)
-                    return
-                }
                 if (path != null && path.startsWith("desktop-import-") && path.endsWith(".request")) {
                     val request = File(dir, path)
                     val text = runCatching { request.readText() }.getOrNull() ?: return
@@ -2704,6 +2705,7 @@ class SessionService : Service() {
             gameId: String? = null,
             displayId: Int = Display.DEFAULT_DISPLAY,
         ) {
+            SteamClientPrefetch.cancel()
             SessionState.activityDisplayId = displayId
             val intent = Intent(context, SessionService::class.java).putExtra(EXTRA_MODE, mode)
                 .putExtra(EXTRA_DISPLAY_ID, displayId)

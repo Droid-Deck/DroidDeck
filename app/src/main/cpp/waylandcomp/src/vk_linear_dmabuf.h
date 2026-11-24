@@ -24,6 +24,12 @@ static inline uint32_t vkp_linear_dmabuf_texel_bytes(VkFormat fmt) {
     return fmt == VK_FORMAT_R16G16B16A16_SFLOAT ? 8u : 4u;
 }
 
+static inline int vkp_padded_linear_target_needs_layout(int drm_modifiers, uint64_t modifier, VkFormat fmt,
+                                                        int w, uint32_t stride, uint32_t offset) {
+    return !drm_modifiers && modifier == 0 &&
+           (offset != 0 || (uint64_t)stride != (uint64_t)w * vkp_linear_dmabuf_texel_bytes(fmt));
+}
+
 static inline VkDeviceSize vkp_linear_dmabuf_copy(VkFormat fmt, int w, int h, uint32_t stride, uint32_t offset,
                                                   VkBufferImageCopy *copy) {
     const uint32_t texel = vkp_linear_dmabuf_texel_bytes(fmt);
@@ -39,11 +45,11 @@ static inline VkDeviceSize vkp_linear_dmabuf_copy(VkFormat fmt, int w, int h, ui
 }
 
 static inline VkBufferMemoryBarrier vkp_linear_dmabuf_ownership(VkBuffer buffer, uint32_t queue_family,
-                                                                int acquire) {
+                                                                VkAccessFlags access, int acquire) {
     return (VkBufferMemoryBarrier){
         .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask = acquire ? 0 : VK_ACCESS_TRANSFER_READ_BIT,
-        .dstAccessMask = acquire ? VK_ACCESS_TRANSFER_READ_BIT : 0,
+        .srcAccessMask = acquire ? 0 : access,
+        .dstAccessMask = acquire ? access : 0,
         .srcQueueFamilyIndex = acquire ? VK_QUEUE_FAMILY_FOREIGN_EXT : queue_family,
         .dstQueueFamilyIndex = acquire ? queue_family : VK_QUEUE_FAMILY_FOREIGN_EXT,
         .buffer = buffer,

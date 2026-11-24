@@ -16,6 +16,9 @@ struct droiddeck_color {
     float max_lum, min_lum;
     int has_cta861;
     float max_cll, max_fall;
+    int convert;
+    float to2020[9];
+    float gain;
     char text[256];
 };
 

@@ -232,6 +232,9 @@ android {
             }
             maxHeapSize = '2g'
             maxParallelForks = 2
+            def jvmTemp = new File(temporaryDir, 'jvm')
+            systemProperty 'java.io.tmpdir', jvmTemp.absolutePath
+            doFirst { jvmTemp.mkdirs() }
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
         }

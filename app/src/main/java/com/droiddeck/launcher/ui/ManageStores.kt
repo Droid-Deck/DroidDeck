@@ -202,7 +202,7 @@ internal fun SideSheet(open: Boolean, onClose: () -> Unit, returnFocus: FocusReq
                     if (!pad) return@LaunchedEffect
                     repeat(60) {
                         androidx.compose.runtime.withFrameNanos { }
-                        if (holds || !open) return@LaunchedEffect
+                        if (holds || !open || Steps.open) return@LaunchedEffect
                         runCatching { inside.requestFocus() }
                     }
                 }
@@ -210,7 +210,7 @@ internal fun SideSheet(open: Boolean, onClose: () -> Unit, returnFocus: FocusReq
                     Modifier.width(width).fillMaxHeight()
                         .onFocusChanged { holds = it.hasFocus }
                         .focusRequester(inside)
-                        .focusProperties { exit = { if (open) FocusRequester.Cancel else FocusRequester.Default } }
+                        .focusProperties { exit = { if (open && !Steps.open) FocusRequester.Cancel else FocusRequester.Default } }
                         .focusGroup()
                         .background(MaterialTheme.colorScheme.background)
                         .border(1.dp, pal.line).padding(horizontal = 18.dp, vertical = 16.dp).testTag(tag),
@@ -221,8 +221,8 @@ internal fun SideSheet(open: Boolean, onClose: () -> Unit, returnFocus: FocusReq
     }
 }
 
-private val STORE_ROW = 60.dp
-private val STORE_HANDLE = 44.dp
+internal val STORE_ROW = 60.dp
+internal val STORE_HANDLE = 44.dp
 
 @Composable
 internal fun ManageStoresSheet() {
@@ -302,7 +302,7 @@ private fun StoreSortRow(
 }
 
 @Composable
-private fun SortRowFrame(
+internal fun SortRowFrame(
     held: Boolean, offset: Float, modifier: Modifier, hot: Boolean, src: MutableInteractionSource, onFocus: (Boolean) -> Unit,
     content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
 ) {

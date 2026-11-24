@@ -1123,7 +1123,7 @@ static void release_external_client_draws(VkCommandBuffer cmd, const struct vkp_
 static void stage_linear_dmabuf(VkCommandBuffer cmd, const struct vkp_image *img) {
     if (!img || !img->linear_buf) return;
     const VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    VkBufferMemoryBarrier acquire = vkp_linear_dmabuf_ownership(img->linear_buf, g_qfam, 1);
+    VkBufferMemoryBarrier acquire = vkp_linear_dmabuf_ownership(img->linear_buf, g_qfam, VK_ACCESS_TRANSFER_READ_BIT, 1);
     VkImageMemoryBarrier write = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .newLayout = VK_IMAGE_LAYOUT_GENERAL,
@@ -1132,7 +1132,7 @@ static void stage_linear_dmabuf(VkCommandBuffer cmd, const struct vkp_image *img
     g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
                             0, NULL, 1, &acquire, 1, &write);
     g_vk.CmdCopyBufferToImage(cmd, img->linear_buf, img->image, VK_IMAGE_LAYOUT_GENERAL, 1, &img->linear_copy);
-    VkBufferMemoryBarrier release = vkp_linear_dmabuf_ownership(img->linear_buf, g_qfam, 0);
+    VkBufferMemoryBarrier release = vkp_linear_dmabuf_ownership(img->linear_buf, g_qfam, VK_ACCESS_TRANSFER_READ_BIT, 0);
     VkImageMemoryBarrier read = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
         .newLayout = VK_IMAGE_LAYOUT_GENERAL,
@@ -1259,7 +1259,8 @@ static int import_linear_dmabuf(struct vkp_image *img, int fd, const VkBufferIma
         .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
         .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT};
     VkBufferCreateInfo bci = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .pNext = &ext, .size = size,
-                              .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .sharingMode = VK_SHARING_MODE_EXCLUSIVE};
+                              .usage = img->blit_dst ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                              .sharingMode = VK_SHARING_MODE_EXCLUSIVE};
     VkResult r = g_vk.CreateBuffer(g_dev, &bci, NULL, &img->linear_buf);
     if (r != VK_SUCCESS) goto fail;
     uint32_t allowed = 0xffffffff;
@@ -1312,8 +1313,8 @@ static int import_linear_dmabuf(struct vkp_image *img, int fd, const VkBufferIma
     img->in_general = 1;
     return 0;
 fail:
-    LOGE("dmabuf: reading the linear %dx%d buffer at its row pitch failed (%s); importing it as an image",
-         img->w, img->h, vk_result_name(r));
+    LOGE("dmabuf: %s the linear %dx%d buffer at its row pitch failed (%s)",
+         img->blit_dst ? "writing" : "reading", img->w, img->h, vk_result_name(r));
     if (dupfd >= 0) close(dupfd);
     destroy_image_objects(img);
     return -1;
@@ -1324,15 +1325,20 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
     if (modifier == MOD_INVALID || w <= 0 || h <= 0) return NULL;
     if (dev_init() != 0) return NULL;
 
+    const VkFormat format = drm_to_vk(drm_format);
+    const int padded_target = as_blit_dst &&
+                              vkp_padded_linear_target_needs_layout(g_drm_modifiers, modifier, format, w, stride, offset);
+    if (padded_target && !g_vk.CmdCopyImageToBuffer) return NULL;
+
     struct vkp_image *img = calloc(1, sizeof(*img));
     if (!img) return NULL;
     img->w = w; img->h = h; img->dmabuf = 1; img->blit_dst = as_blit_dst ? 1 : 0;
-    img->fmt = drm_to_vk(drm_format);
-    const int through_buffer = vkp_linear_dmabuf_through_buffer(g_drm_modifiers, modifier, as_blit_dst);
+    img->fmt = format;
+    const int through_buffer = padded_target || vkp_linear_dmabuf_through_buffer(g_drm_modifiers, modifier, as_blit_dst);
     const VkImageUsageFlags sampled_usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     const int modifier_sampled = !as_blit_dst && g_drm_modifiers && g_vk.GetPhysicalDeviceImageFormatProperties2 &&
                                  modifier_importable(img->fmt, modifier, sampled_usage);
-    img->sampled = through_buffer ? optimal_sampled(img->fmt) : modifier_sampled;
+    img->sampled = !as_blit_dst && (through_buffer ? optimal_sampled(img->fmt) : modifier_sampled);
     /* Each new format/modifier/size a client hands over, once, for the graphics report: a colour
      * or swizzle mismatch on a non-Adreno driver shows up as the pair it arrived as. */
     {
@@ -1358,7 +1364,12 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
     if (through_buffer) {
         VkBufferImageCopy linear_copy;
         const VkDeviceSize linear_size = vkp_linear_dmabuf_copy(img->fmt, w, h, stride, offset, &linear_copy);
-        if (linear_size && import_linear_dmabuf(img, fd, &linear_copy, linear_size) == 0) return img;
+        if (linear_size && import_linear_dmabuf(img, fd, &linear_copy, linear_size) == 0) {
+            if (padded_target) droiddeck_log("gpu", "linear layer target %dx%d writes at pitch %u via DMA-BUF",
+                                            w, h, stride);
+            return img;
+        }
+        if (padded_target) { free(img); return NULL; }
         img->sampled = modifier_sampled;
     }
     VkSubresourceLayout plane = {.offset = offset, .rowPitch = stride};
@@ -1880,6 +1891,11 @@ static int compose_hdr(VkCommandBuffer cmd, const struct vkp_draw *draws, int n,
 
     struct hdrc_params p = {.mode = mode, .sdr_white_nits = droiddeck_color_sdr_white(),
                             .peak_nits = hf->peak_nits > 0.0f ? hf->peak_nits : 1000.0f};
+    if (hf->convert) {
+        p.conv_linear = hf->convert->convert == 2;
+        p.conv_gain = hf->convert->gain;
+        memcpy(p.conv, hf->convert->to2020, sizeof(p.conv));
+    }
     int lowest_hdr = -1;
     for (int i = 0; i < n; i++) {
         VkImageBlit blit;
@@ -1896,6 +1912,7 @@ static int compose_hdr(VkCommandBuffer cmd, const struct vkp_draw *draws, int n,
             p.rects[p.count][0] = (float)blit.dstOffsets[0].x; p.rects[p.count][1] = (float)blit.dstOffsets[0].y;
             p.rects[p.count][2] = (float)blit.dstOffsets[1].x; p.rects[p.count][3] = (float)blit.dstOffsets[1].y;
             if (hf->is_hdr[i]) p.hdr_mask |= 1u << p.count;
+            if (hf->is_hdr[i] == 2 && hf->convert) p.conv_mask |= 1u << p.count;
             p.count++;
         }
         if (i >= lowest_hdr && !truncated_said) {
@@ -2500,9 +2517,9 @@ int vkp_update_map(int scene_w, int scene_h) {
     return g_map.valid ? 0 : -1;
 }
 
-int vkp_map_rect(int img_w, int img_h, int scene_w, int scene_h, int out[8]) {
+int vkp_map_rect(int img_w, int img_h, const int dst[4], int out[8]) {
     struct vkp_image tmp = {.w = img_w, .h = img_h};
-    struct vkp_draw d = {&tmp, 0, 0, (float)img_w, (float)img_h, 0, 0, scene_w, scene_h};
+    struct vkp_draw d = {&tmp, 0, 0, (float)img_w, (float)img_h, dst[0], dst[1], dst[2], dst[3]};
     return vkp_map_draw(&d, out);
 }
 
@@ -2514,6 +2531,48 @@ int vkp_map_draw(const struct vkp_draw *d, int out[8]) {
     out[4] = blit.dstOffsets[0].x; out[5] = blit.dstOffsets[0].y;
     out[6] = blit.dstOffsets[1].x; out[7] = blit.dstOffsets[1].y;
     return 1;
+}
+
+static void blit_to_layer(VkCommandBuffer cmd, VkImage src, VkImageLayout src_layout, struct vkp_image *dst,
+                          const VkImageBlit *blit, VkFilter filter) {
+    const VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    const VkImageMemoryBarrier acquire = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .srcQueueFamilyIndex = dst->staged ? VK_QUEUE_FAMILY_IGNORED : VK_QUEUE_FAMILY_FOREIGN_EXT,
+        .dstQueueFamilyIndex = dst->staged ? VK_QUEUE_FAMILY_IGNORED : g_qfam,
+        .image = dst->image, .subresourceRange = range, .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
+    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                            0, 0, NULL, 0, NULL, 1, &acquire);
+    g_vk.CmdBlitImage(cmd, src, src_layout, dst->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, blit, filter);
+    if (dst->staged) {
+        const VkImageMemoryBarrier read = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = dst->image, .subresourceRange = range, .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT};
+        g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                0, 0, NULL, 0, NULL, 1, &read);
+        const VkBufferMemoryBarrier write = vkp_linear_dmabuf_ownership(dst->linear_buf, g_qfam, VK_ACCESS_TRANSFER_WRITE_BIT, 1);
+        g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                0, 0, NULL, 1, &write, 0, NULL);
+        VkBufferImageCopy copy = dst->linear_copy;
+        copy.imageExtent.width = (uint32_t)blit->dstOffsets[1].x;
+        copy.imageExtent.height = (uint32_t)blit->dstOffsets[1].y;
+        g_vk.CmdCopyImageToBuffer(cmd, dst->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->linear_buf, 1, &copy);
+        const VkBufferMemoryBarrier release = vkp_linear_dmabuf_ownership(dst->linear_buf, g_qfam, VK_ACCESS_TRANSFER_WRITE_BIT, 0);
+        g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                0, 0, NULL, 1, &release, 0, NULL);
+        return;
+    }
+    const VkImageMemoryBarrier release = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_GENERAL, .srcQueueFamilyIndex = g_qfam,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT, .image = dst->image, .subresourceRange = range,
+        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
+    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                            0, 0, NULL, 0, NULL, 1, &release);
 }
 
 int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd) {
@@ -2534,41 +2593,28 @@ int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd) {
     struct vkp_external_client_barrier_pair src_pair;
     const int src_external = vkp_external_client_barrier_pair(
         src->image, g_qfam, foreign_image(src), src->blit_dst, &src_pair);
-    VkImageMemoryBarrier acq[2] = {
-        src_external ? src_pair.acquire : (VkImageMemoryBarrier){
+    VkImageMemoryBarrier acq = src_external ? src_pair.acquire : (VkImageMemoryBarrier){
          .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
          .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-         .image = src->image, .subresourceRange = range, .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT},
-        {.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-         .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT, .dstQueueFamilyIndex = g_qfam,
-         .image = dst->image, .subresourceRange = range, .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT}};
+         .image = src->image, .subresourceRange = range, .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT};
     if (!src_external) {
-        acq[0].oldLayout = src->in_general ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_PREINITIALIZED;
-        acq[0].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-        acq[0].srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+        acq.oldLayout = src->in_general ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_PREINITIALIZED;
+        acq.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+        acq.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
         src->in_general = 1;
     }
     g_vk.CmdPipelineBarrier(g_cmd, VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 2, acq);
+                            VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, NULL, 0, NULL, 1, &acq);
     int bw = src->w < dst->w ? src->w : dst->w, bh = src->h < dst->h ? src->h : dst->h;
     VkImageBlit blit = {.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
                         .srcOffsets = {{0, 0, 0}, {bw, bh, 1}},
                         .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
                         .dstOffsets = {{0, 0, 0}, {bw, bh, 1}}};
-    g_vk.CmdBlitImage(g_cmd, src->image,
-                      src_external ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL,
-                      dst->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_NEAREST);
+    blit_to_layer(g_cmd, src->image, src_external ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL : VK_IMAGE_LAYOUT_GENERAL,
+                  dst, &blit, VK_FILTER_NEAREST);
     release_external_client_image(g_cmd, src);
-    VkImageMemoryBarrier rel = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .newLayout = VK_IMAGE_LAYOUT_GENERAL, .srcQueueFamilyIndex = g_qfam,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT, .image = dst->image, .subresourceRange = range,
-        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
-    g_vk.CmdPipelineBarrier(g_cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                            0, 0, NULL, 0, NULL, 1, &rel);
     g_vk.EndCommandBuffer(g_cmd);
 
     VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -2703,24 +2749,33 @@ static struct {
     int active;
     VkImage result;
     int rw, rh;
+    int ngen;
+    VkImage gens[VKP_FG_MAX_GENERATIONS];
 } g_pass;
 
 static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
-                           const struct vkp_hdr_frame *hf, int *rw, int *rh);
+                           const struct vkp_hdr_frame *hf, int generate, int *rw, int *rh);
 
 int vkp_pass_begin(int scene_w, int scene_h, const struct vkp_draw *draws, int n, int *rw, int *rh) {
-    return pass_begin_impl(scene_w, scene_h, draws, n, NULL, rw, rh);
+    return pass_begin_impl(scene_w, scene_h, draws, n, NULL, 0, rw, rh);
+}
+
+int vkp_pass_begin_generate(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
+                            const struct vkp_hdr_frame *hf, int *rw, int *rh) {
+    if (pass_begin_impl(scene_w, scene_h, draws, n, hf, 1, rw, rh) != 0) return -1;
+    return g_pass.ngen;
 }
 
 int vkp_pass_begin_hdr(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                        const struct vkp_hdr_frame *hf, int *rw, int *rh) {
     if (!hf) return -1;
-    return pass_begin_impl(scene_w, scene_h, draws, n, hf, rw, rh);
+    return pass_begin_impl(scene_w, scene_h, draws, n, hf, 0, rw, rh);
 }
 
 static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
-                           const struct vkp_hdr_frame *hf, int *rw, int *rh) {
+                           const struct vkp_hdr_frame *hf, int generate, int *rw, int *rh) {
     if (g_pass.active) vkp_pass_abort();
+    g_pass.ngen = 0;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
     int input_w = scene_w, input_h = scene_h;
     int pass_n = n, overlay_start = n;
@@ -2740,13 +2795,31 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
         effects_source_note(scene_w, scene_h, draws, n, input_w, input_h,
                             (int)(scene_w * g_map.kx + 0.5f), (int)(scene_h * g_map.ky + 0.5f));
     }
-    if (hf) {
+    const int deep = hf && generate && !hf->tonemap && vkp_framegen_format_ok(FG_HDR_FMT) &&
+                     ensure_img(&g_fgscene, scene_w, scene_h, FG_HDR_FMT,
+                                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                "HDR frame generation (scene)") == 0;
+    const int narrow = hf && generate && !deep;
+    if (hf && !deep && !narrow) {
         if (ensure_img(&g_hdrscene, scene_w, scene_h, HDR_FMT,
                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                        VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
                        "HDR composition (picture)") != 0)
             return -1;
-    } else if (ensure_scene_image(input_w, input_h) != 0) return -1;
+    } else if (!deep && ensure_scene_image(input_w, input_h) != 0) return -1;
+    const VkFormat scene_fmt = deep ? FG_HDR_FMT : narrow || !hf ? SCENE_FMT : HDR_FMT;
+    if (hf && generate) {
+        static int said = -1;
+        if (said != deep + 2 * hf->tonemap) {
+            said = deep + 2 * hf->tonemap;
+            droiddeck_log("color", hf->tonemap
+                ? "frame generation runs on the tone-mapped picture in 8 bits, onto the game's display layer"
+                : deep ? "frame generation runs on the HDR picture in FP16 (RGBA16F), onto the game's display layer"
+                       : "frame generation runs on the HDR picture in 8 bits (the engine cannot take FP16 here), onto "
+                         "the game's display layer: banding possible in smooth gradients");
+        }
+    }
 
     VkCommandBuffer cmd = g_cmds[0];
     g_vk.ResetCommandBuffer(cmd, 0);
@@ -2760,7 +2833,7 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
     VkImageMemoryBarrier *bars = calloc((size_t)n + 1, sizeof(*bars));
     if (!bars) { g_vk.EndCommandBuffer(cmd); return -1; }
     int nb = 0;
-    VkImage scene_img = hf ? g_hdrscene.img : g_scene.img;
+    VkImage scene_img = deep ? g_fgscene.img : narrow || !hf ? g_scene.img : g_hdrscene.img;
     bars[nb++] = (VkImageMemoryBarrier){
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -2791,12 +2864,12 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
     free(bars);
 
     if (hf) {
-        if (compose_hdr(cmd, draws, n, hf, scene_w, scene_h, g_hdrscene.img, HDR_FMT,
+        if (compose_hdr(cmd, draws, n, hf, scene_w, scene_h, scene_img, scene_fmt,
                         hf->tonemap ? HDRC_OUT_SDR : HDRC_OUT_PQ) != 0) {
             g_vk.EndCommandBuffer(cmd);
             return -1;
         }
-        if (vkp_effects_active()) vkp_effects_set_formats(HDR_FMT, HDR_FMT);
+        if (vkp_effects_active()) vkp_effects_set_formats(scene_fmt, scene_fmt);
     } else {
         VkClearColorValue black = {.float32 = {0.0f, 0.0f, 0.0f, 1.0f}};
         g_vk.CmdClearColorImage(cmd, g_scene.img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black, 1, &range);
@@ -2815,53 +2888,57 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
     }
 
     int mapped_w = (int)(scene_w * g_map.kx + 0.5f), mapped_h = (int)(scene_h * g_map.ky + 0.5f);
+    if (generate && !vkp_effects_sharpening()) { mapped_w = scene_w; mapped_h = scene_h; }
     g_pass.rw = input_w; g_pass.rh = input_h;
     g_pass.result = vkp_effects_run(cmd, scene_img, input_w, input_h, mapped_w, mapped_h,
                                     &g_pass.rw, &g_pass.rh);
     effects_overlay_draws(cmd, g_pass.result, g_pass.rw, g_pass.rh, scene_w, scene_h,
                           draws ? draws + overlay_start : NULL, n - overlay_start);
     release_external_client_draws(cmd, draws, n);
+    if (generate) {
+        VkImageMemoryBarrier b = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = g_pass.result, .subresourceRange = range,
+            .srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_READ_BIT};
+        g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                                VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                0, 0, NULL, 0, NULL, 1, &b);
+        int ngen = vkp_framegen_run(cmd, g_pass.result, VK_NULL_HANDLE, g_pass.rw, g_pass.rh, scene_fmt, g_pass.gens);
+        if (ngen < 0) ngen = 0;
+        g_pass.ngen = ngen > VKP_FG_MAX_GENERATIONS ? VKP_FG_MAX_GENERATIONS : ngen;
+    }
     g_pass.active = 1;
     if (rw) *rw = g_pass.rw;
     if (rh) *rh = g_pass.rh;
     return 0;
 }
 
-int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
+static int pass_finish(const VkImage *srcs, VkImageLayout src_layout, struct vkp_image *const *dsts, int n,
+                       int wait_fd) {
     if (!g_pass.active) { if (wait_fd >= 0) close(wait_fd); return -1; }
     g_pass.active = 0;
     if (g_dev_state != 1) { if (wait_fd >= 0) close(wait_fd); return -1; }
     VkCommandBuffer cmd = g_cmds[0];
-    if (!dst || !dst->blit_dst) {
+    for (int i = 0; i < n; i++) {
+        if (dsts[i] && dsts[i]->blit_dst) continue;
         if (wait_fd >= 0) close(wait_fd);
         g_vk.EndCommandBuffer(cmd);
         return -1;
     }
     const int gpu_wait = take_wait_fd(wait_fd);
     if (gpu_wait < 0) { g_vk.EndCommandBuffer(cmd); return -1; }
-    VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-
-    VkImageMemoryBarrier acq = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, .srcQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT,
-        .dstQueueFamilyIndex = g_qfam, .image = dst->image, .subresourceRange = range,
-        .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
-    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                            0, 0, NULL, 0, NULL, 1, &acq);
-    VkImageBlit blit = {.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-                        .srcOffsets = {{0, 0, 0}, {g_pass.rw, g_pass.rh, 1}},
-                        .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
-                        .dstOffsets = {{0, 0, 0}, {dst->w, dst->h, 1}}};
-    g_vk.CmdBlitImage(cmd, g_pass.result, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst->image,
-                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit,
+    for (int i = 0; i < n; i++) {
+        struct vkp_image *dst = dsts[i];
+        VkImageBlit blit = {.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                            .srcOffsets = {{0, 0, 0}, {g_pass.rw, g_pass.rh, 1}},
+                            .dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1},
+                            .dstOffsets = {{0, 0, 0}, {dst->w, dst->h, 1}}};
+        blit_to_layer(cmd, srcs[i], src_layout, dst, &blit,
                       (g_pass.rw == dst->w && g_pass.rh == dst->h) ? VK_FILTER_NEAREST : VK_FILTER_LINEAR);
-    VkImageMemoryBarrier rel = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        .newLayout = VK_IMAGE_LAYOUT_GENERAL, .srcQueueFamilyIndex = g_qfam,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_FOREIGN_EXT, .image = dst->image, .subresourceRange = range,
-        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT};
-    g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                            0, 0, NULL, 0, NULL, 1, &rel);
+    }
     g_vk.EndCommandBuffer(cmd);
 
     VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
@@ -2879,6 +2956,19 @@ int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
     if (fr == VK_ERROR_DEVICE_LOST) { device_lost("layer pass"); return -1; }
     if (fr != VK_SUCCESS) { LOGE("layer: effects pass fence wait -> %s", vk_result_name(fr)); return -1; }
     return 0;
+}
+
+int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
+    return pass_finish(&g_pass.result, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, &dst, 1, wait_fd);
+}
+
+int vkp_pass_copy_generated(struct vkp_image *const *dsts, int n, struct vkp_image *real, int wait_fd) {
+    VkImage srcs[VKP_FG_MAX_GENERATIONS + 1];
+    struct vkp_image *all[VKP_FG_MAX_GENERATIONS + 1];
+    if (n > g_pass.ngen) n = g_pass.ngen;
+    for (int i = 0; i < n; i++) { srcs[i] = g_pass.gens[i]; all[i] = dsts[i]; }
+    if (real) { srcs[n] = g_pass.result; all[n] = real; }
+    return pass_finish(srcs, VK_IMAGE_LAYOUT_GENERAL, all, n + (real ? 1 : 0), wait_fd);
 }
 
 void vkp_pass_abort(void) {

@@ -22,7 +22,7 @@
     X(ResetCommandBuffer) X(BeginCommandBuffer) X(CmdPipelineBarrier) X(CmdBlitImage) \
     X(EndCommandBuffer) X(ResetFences) X(QueueSubmit) X(QueuePresentKHR) X(WaitForFences) \
     X(QueueWaitIdle) X(GetMemoryFdPropertiesKHR) X(GetAndroidHardwareBufferPropertiesANDROID) \
-    X(GetImageSubresourceLayout) X(MapMemory) X(UnmapMemory) X(CmdClearColorImage) \
+    X(GetImageSubresourceLayout) X(MapMemory) X(UnmapMemory) X(CmdClearColorImage) X(CmdCopyImageToBuffer) \
     X(CreateBuffer) X(DestroyBuffer) X(GetBufferMemoryRequirements) X(BindBufferMemory) \
     X(CmdCopyBufferToImage) \
       \
