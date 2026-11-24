@@ -332,7 +332,6 @@
     <string name="mode_startup">Indítás</string>
     <string name="mode_startup_session">Megnyitás indításkor</string>
     <string name="mode_startup_session_hint">A DroidDeck indulásakor elindítja ezt a munkamenetet.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Kiadások keresése…</string>
     <string name="mode_decky_ready">Készen áll a %1$s telepítésére.</string>
     <string name="mode_decky_none">Nem található kompatibilis build. Próbálja újra később.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Naprakész · %1$s</string>
     <string name="mode_decky_loader">Betöltő</string>
     <string name="mode_decky_install_latest">Legújabb telepítése</string>
-    <string name="decky_channel">Frissítési csatorna</string>
-    <string name="decky_channel_hint">Mely Decky Loader-kiadások települjenek. A Decky saját frissítője ugyanezt a csatornát használja.</string>
     <string name="decky_channel_stable">Stabil</string>
     <string name="decky_channel_prerelease">Előzetes kiadás</string>
     <string name="decky_channel_testing">Tesztelés</string>
     <string name="decky_channel_failed">Nem sikerült menteni a Decky frissítési csatornáját</string>
-    <string name="mode_decky_on">A Steammel együtt indul. Amíg be van kapcsolva, az eszközön lévő más alkalmazások is irányíthatják a Steamet.</string>
-    <string name="mode_decky_off">Ki. A Steam távoli hibakeresési portja zárva marad.</string>
     <string name="mode_decky_remove_title">Eltávolítja a Decky Loadert?</string>
     <string name="mode_decky_remove_text">Eltávolítja a betöltőt. A bővítményei és beállításai megmaradnak.</string>
     <string name="mode_client">Kliens</string>

@@ -314,6 +314,46 @@ done(28 if end < len(data) else 0)
     def download(self):
         return self.steam / 'package/droiddeck-download'
 
+    def cache_manifest(self):
+        plain = b'plain-package'
+        packed = b'packed-package'
+        (self.cdn / 'a.zip.1111').write_bytes(plain)
+        (self.cdn / 'b.zip.vz.2222_14').write_bytes(packed)
+        (self.cdn / 'steam_client_steamdeck_publicbeta_linuxarm64').write_text(
+            '"linuxarm64"\n{\n\t"version" "123456"\n'
+            '\t"a_all"\n\t{\n'
+            f'\t\t"file" "a.zip.1111"\n\t\t"size" "{len(plain)}"\n\t\t"sha2" "{hashlib.sha256(plain).hexdigest()}"\n'
+            '\t}\n'
+            '\t"b_all"\n\t{\n'
+            '\t\t"file" "b.zip.9999"\n\t\t"size" "99"\n\t\t"sha2" "00"\n'
+            '\t\t"zipvz" "b.zip.vz.2222_14"\n'
+            f'\t\t"sha2vz" "{hashlib.sha256(packed).hexdigest()}"\n'
+            '\t}\n}\n')
+
+    def test_the_cache_pass_keeps_every_package_under_the_names_steam_looks_for(self):
+        self.cache_manifest()
+        result = self.install(None, '--cache')
+        self.assertEqual(0, result.returncode, result.stderr)
+        package = self.steam / 'package'
+        self.assertEqual(b'plain-package', (package / 'a.zip.1111').read_bytes())
+        self.assertEqual(b'packed-package', (package / 'b.zip.vz.2222_14').read_bytes())
+        self.assertFalse((package / 'b.zip.9999').exists())
+        self.assertEqual('123456\n', (package / 'droiddeck-cached').read_text())
+
+    def test_the_cache_pass_is_not_repeated_for_the_same_client_version(self):
+        self.cache_manifest()
+        self.assertEqual(0, self.install(None, '--cache').returncode)
+        requests = len(self.requests.read_text().splitlines())
+        self.assertEqual(0, self.install(None, '--cache').returncode)
+        self.assertEqual(requests + 1, len(self.requests.read_text().splitlines()))
+
+    def test_a_cached_package_is_not_fetched_again(self):
+        self.cache_manifest()
+        (self.steam / 'package').mkdir(parents=True)
+        (self.steam / 'package/a.zip.1111').write_bytes(b'plain-package')
+        self.assertEqual(0, self.install(None, '--cache').returncode)
+        self.assertNotIn('a.zip.1111', self.requests.read_text())
+
     def test_progress_is_counted_in_megabytes_across_parts(self):
         self.two_parts()
         result = self.install()

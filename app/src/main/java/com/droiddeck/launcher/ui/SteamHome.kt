@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -140,6 +141,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         onOpen = a.onSteamSettings, onPrimary = a.onPlay,
         modifier = modifier.clipToBounds(),
         start = if (narrow) 20.dp else 44.dp, bottom = 44.dp,
+        onTextBounds = { words = it },
         background = {
             when {
                 games.isEmpty() -> EmptyLibrary(
@@ -153,20 +155,35 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         scrim = { if (games.size >= WALL_MIN_GAMES) WallFade() },
         words = {
             val runtimeStatus: @Composable () -> Unit = {
-                if (s.busy || (s.available != null && s.available != s.installed)) RuntimeChip(s)
-                else if (setupNeedsAttention(s)) SecondaryButton(stringResource(R.string.play_needs_you), compact = true,
+                val onboardingActive by com.droiddeck.launcher.session.Onboarding.active.collectAsState()
+                val onboardingFailed by com.droiddeck.launcher.session.Onboarding.failed.collectAsState()
+                val onboardingFacts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
+                val onboardingRows = com.droiddeck.launcher.session.Onboarding.rows(onboardingActive, onboardingFailed, onboardingFacts)
+                val settling = onboardingActive.isNotEmpty() && com.droiddeck.launcher.session.Onboarding.pending(onboardingRows)
+                if (settling || s.busy || (s.available != null && s.available != s.installed)) {
+                    if (settling) {
+                        val overall = com.droiddeck.launcher.session.Onboarding.overall(onboardingRows)
+                        Chip(
+                            stringResource(R.string.onboarding_chip, overall, onboardingRows.firstOrNull { it.state == com.droiddeck.launcher.session.Onboarding.State.ACTIVE }?.label.orEmpty()),
+                            ok = false, fraction = overall / 100f,
+                        )
+                    } else RuntimeChip(s)
+                    if (com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)) {
+                        SecondaryButton(stringResource(R.string.onboarding_limit_while_waiting), compact = true,
+                            modifier = Modifier.testTag("setup-while-waiting"), onClick = a.onShowPhantomGate)
+                    }
+                } else if (setupNeedsAttention(s)) SecondaryButton(stringResource(R.string.play_needs_you), compact = true,
                     modifier = Modifier.testTag("play-needs-you")) { SetupTabs.openSection = SettingsSection.OVERVIEW }
                 else if (s.integration.suggested && signedIn && !com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus))
                     IntegrationSuggestion(s.integration, { a.onSteamIntegration(null) }, a.onDismissIntegration)
             }
             if (narrow) Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.onPlaced { words = it.boundsInParent() },
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Wordmark(30.dp)
                 runtimeStatus()
             } else Row(
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.onPlaced { words = it.boundsInParent() },
             ) {
                 Wordmark(if (narrow) 30.dp else 40.dp)
                 runtimeStatus()

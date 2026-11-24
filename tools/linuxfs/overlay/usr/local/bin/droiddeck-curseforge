@@ -5,38 +5,16 @@ self=${BASH_SOURCE[0]}
 proc=${DD_PROC:-/proc}
 state=${DD_CURSEFORGE_STATE:-${XDG_RUNTIME_DIR:-/tmp}/droiddeck-curseforge}
 runner=${DD_APPIMAGE_RUN:-${self%/*}/droiddeck-appimage-run}
+headless=${DD_HEADLESS_RUN:-${self%/*}/droiddeck-headless}
 wait_s=${DD_CURSEFORGE_WAIT:-60}
 cmd=${1:-}
 dir=${2:-}
 flag=--inspect-publish-uid=stderr
-case $cmd in start|hold|stop|display) ;; *) echo "usage: droiddeck-curseforge start|hold|stop|display <imported AppImage directory>" >&2; exit 2 ;; esac
-if [ "$cmd" != display ] && [ ! -d "$dir/app" ]; then
+case $cmd in start|stop) ;; *) echo "usage: droiddeck-curseforge start|stop <imported AppImage directory>" >&2; exit 2 ;; esac
+if [ ! -d "$dir/app" ]; then
   echo "droiddeck-curseforge: $dir is not an imported AppImage" >&2
   exit 2
 fi
-
-x_display() {
-  if [ -n "${DISPLAY:-}" ]; then
-    printf '%s\n%s\n' "$DISPLAY" "${XAUTHORITY:-}"
-    return 0
-  fi
-  local p name a prev display auth
-  for p in "$proc"/[0-9]*; do
-    name=$(tr '\0' '\n' 2>/dev/null < "$p/cmdline" | head -n 1)
-    case ${name##*/} in Xwayland|Xorg|Xvfb) ;; *) continue ;; esac
-    display= auth= prev=
-    while IFS= read -r a; do
-      case $a in :[0-9]*) [ -z "$display" ] && display=$a ;; esac
-      [ "$prev" = -auth ] && auth=$a
-      prev=$a
-    done < <(tr '\0' '\n' 2>/dev/null < "$p/cmdline")
-    if [ -n "$display" ]; then
-      printf '%s\n%s\n' "$display" "$auth"
-      return 0
-    fi
-  done
-  return 1
-}
 
 running() {
   local p
@@ -79,7 +57,7 @@ inspector() {
 }
 
 start() {
-  local shown display auth url pid
+  local url pid child=
   lock || { echo "droiddeck-curseforge: cannot lock $state" >&2; return 5; }
   if ! ours >/dev/null; then
     if tracked >/dev/null || running; then
@@ -87,18 +65,18 @@ start() {
       echo busy
       return 3
     fi
-    shown=$(x_display) || { exec 9>&-; echo "no X display" >&2; return 4; }
-    display=$(sed -n 1p <<<"$shown")
-    auth=$(sed -n 2p <<<"$shown")
-    env -u DBUS_SESSION_BUS_ADDRESS -u WAYLAND_DISPLAY -u GAMESCOPE_WAYLAND_DISPLAY DISPLAY="$display" ${auth:+XAUTHORITY="$auth"} \
-      setsid "$runner" "$dir" --minimized --inspect=127.0.0.1:0 "$flag" </dev/null >"$state/log" 2>&1 9>&- &
+    mv -f "$state/log" "$state/log.1" 2>/dev/null
+    env -u DBUS_SESSION_BUS_ADDRESS setsid "$headless" "$state/runtime" --log "$state/log" -- \
+      "$runner" "$dir" --minimized --inspect=127.0.0.1:0 "$flag" </dev/null >/dev/null 2>&1 9>&- &
     pid=$!
+    child=$pid
     printf '%s %s %s\n' "$pid" "$(started_at "$pid")" "$dir" > "$state/pid"
   fi
   exec 9>&-
   for _ in $(seq 1 $((wait_s * 2))); do
     if url=$(inspector); then
       echo "$url"
+      hold "$child"
       return 0
     fi
     ours >/dev/null || break
@@ -106,6 +84,18 @@ start() {
   done
   tail -n 20 "$state/log" >&2
   return 5
+}
+
+hold() {
+  local pid
+  if [ -n "$1" ]; then
+    wait "$1"
+    return 0
+  fi
+  pid=$(ours) || return 0
+  while kill -0 "$pid" 2>/dev/null && [ "$(ours)" = "$pid" ]; do
+    sleep 1
+  done
 }
 
 stop() {
@@ -118,6 +108,7 @@ stop() {
     sleep 0.5
   done
   kill -KILL -- "-$pid" 2>/dev/null
+  kill -KILL "$pid" 2>/dev/null
   for p in "$proc"/[0-9]*; do
     tr '\0' '\n' 2>/dev/null < "$p/cmdline" | grep -qF -- "$dir/app/" && kill -KILL "${p##*/}" 2>/dev/null
   done
@@ -127,21 +118,9 @@ stop() {
 }
 
 case $cmd in
-  display)
-    x_display || exit 4
-    ;;
   start)
     start
     exit $?
-    ;;
-  hold)
-    start >/dev/null || exit $?
-    trap 'stop; exit 0' TERM INT HUP
-    while ours >/dev/null; do
-      sleep 1 &
-      wait $!
-    done
-    exit 0
     ;;
   stop)
     stop

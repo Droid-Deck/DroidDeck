@@ -348,6 +348,28 @@ class AgentTest(unittest.TestCase):
                 self.assertEqual("INVALID_TARGET", caught.exception.code)
                 connect.assert_not_called()
 
+    def test_one_shot_inspector_eval_prints_the_session_answer_without_a_launch_dir(self):
+        import contextlib
+        import io
+        url = "ws://127.0.0.1:43117/0f8fad5b-d9cb-469f-a165-70867728950e"
+        seen = {}
+
+        def evaluate(agent_dir, expression, target=None, await_promise=True, timeout=15, inspector=None, command_line_api=False):
+            seen.update(expression=expression, timeout=timeout, inspector=inspector, api=command_line_api)
+            return {"target": "inspector", "type": "string", "value": "ok", "description": None}
+
+        out = io.StringIO()
+        with patch.dict(os.environ, {}, clear=False), patch.object(agent, "cdp_eval", evaluate), contextlib.redirect_stdout(out):
+            os.environ.pop("DD_LAUNCH_DIR", None)
+            self.assertEqual(0, agent.main(["--cdp-inspector", url, "12.5", "1 + 1"]))
+        self.assertEqual({"target": "inspector", "type": "string", "value": "ok", "description": None, "ok": True}, json.loads(out.getvalue()))
+        self.assertEqual({"expression": "1 + 1", "timeout": 12.5, "inspector": url, "api": True}, seen)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(0, agent.main(["--cdp-inspector", "ws://example.com:9229/x", "5", "1"]))
+        self.assertEqual("INVALID_REQUEST", json.loads(out.getvalue())["error"]["code"])
+        self.assertEqual(2, agent.main(["--cdp-inspector", url]))
+
     def test_a_devtools_endpoint_lost_while_sending_is_reported_as_gone(self):
         class Lost:
             def __init__(self, *args, **kwargs):

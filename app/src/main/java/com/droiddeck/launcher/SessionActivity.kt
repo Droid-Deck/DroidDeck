@@ -154,6 +154,8 @@ import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.session.LatestRequestCoordinator
 import com.droiddeck.launcher.ui.SessionDrawerPage
 import com.droiddeck.launcher.ui.sessionDrawerPages
+import com.droiddeck.launcher.ui.strip
+import com.droiddeck.launcher.ui.tabFor
 import com.droiddeck.launcher.ui.step
 import kotlin.math.abs
 
@@ -594,6 +596,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var backHold by mutableStateOf(true)
     private var dockedMenuController by mutableStateOf(false)
     private var sessionOrientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+    private var dualScreenSessionMode by mutableStateOf(com.droiddeck.launcher.input.DualScreen.MODE_AUTO)
     private var backActionsInverted by mutableStateOf(false)
     private var backDoubleTapMs by mutableStateOf(500)
     private var lowLatency by mutableStateOf(true)
@@ -933,11 +936,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         SteamControllerBle.listener = { uiHandler.post { updatePadMotion(); refreshControls() } }
         steamController = SteamControllerBle(this, inputRouter).also { it.start() }
-        if (Build.VERSION.SDK_INT >= 31 && checkSelfPermission(BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
-            !SessionPrefs.bluetoothAsked(this)) {
-            SessionPrefs.setBluetoothAsked(this)
-            requestPermissions(arrayOf(BLUETOOTH_CONNECT), REQUEST_BLUETOOTH)
-        }
         padMotion = com.droiddeck.launcher.input.PadMotion(this) {
             @Suppress("DEPRECATION")
             (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay)?.rotation ?: android.view.Surface.ROTATION_0
@@ -1535,6 +1533,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             fexPreset = fexPreset,
             secondScreenMode = secondScreenMode,
             secondScreenNone = !bottomOutputActive && !dockDrawer(),
+            dualScreenMode = dualScreenSessionMode,
+            onDualScreenMode = ::chooseDualScreenSessionMode,
             gameOnBottom = bottomOutputActive,
             gameSwapAvailable = bottomSwapAvailable,
             gameSwapBuiltIn = !::displayManager.isInitialized || displayManager.getDisplay(selectedSecondScreenDisplay)
@@ -2659,6 +2659,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         backHold = SessionPrefs.backHold(this)
         dockedMenuController = SessionPrefs.dockedMenuController(this)
         sessionOrientation = SessionPrefs.orientation(this)
+        dualScreenSessionMode = SessionPrefs.dualScreenSessionMode(this)
         backActionsInverted = SessionPrefs.backActionsInverted(this)
         physicalShortcuts.bindings = PhysicalShortcuts.read(this)
         backDoubleTapMs = SessionPrefs.backDoubleTapMs(this)
@@ -2846,7 +2847,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (!SessionState.running) {
             SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
         }
-        val output = CompositorHost.prepare(this)
+        val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
+        FileUtils.copyAsset(this, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
+        com.droiddeck.launcher.input.VrControllers.publish(this)
+
+        val turnip = TurnipDriver(this)
+        com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "surface.driver-setup")
+        if (!CompositorHost.isStarted) {
+            CompositorHost.displayChoice = SessionPrefs.androidDriver(this)
+            com.droiddeck.launcher.gpu.AutoDriverTrial.displayStarting(this, SessionPrefs.androidDriver(this))
+        }
+        val driverId = if (CompositorHost.isStarted) null else turnip.install()
 
         val previous = SessionState.outputSize
         val live = windowOutputSize(holder.surfaceFrame.width(), holder.surfaceFrame.height())
@@ -2873,7 +2884,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         pushCardboard(activeCardboard)
         WaylandCompositor.nativeSetCardboardPoseFile(File(filesDir, ".wayland-rt/droiddeck-headpose").path)
         com.droiddeck.launcher.glasses.SpatialTracking.attachPublisher(File(filesDir, ".wayland-rt/droiddeck-spatialpose").path)
-        if (!SessionState.running) CompositorHost.logToSession(this)
+        if (!SessionState.running) {
+            val waylandLog = File(SessionPaths.beginOrCurrent(this), "wayland.log")
+            WaylandCompositor.setSessionLogFile(waylandLog)
+            try {
+                android.system.Os.setenv("DD_WAYLAND_LOG", waylandLog.path, true)
+            } catch (e: Exception) {
+                Log.w(TAG, "could not point the compositor's log at $waylandLog", e)
+            }
+        }
         val mode = hdrPrefMode()
         if (probe != null) {
             WaylandCompositor.nativeSetHdrDisplay(
@@ -2893,8 +2912,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             )
             Log.i(TAG, "hdr: " + (if (tonemap) "tone-mapped (${probe.reason})" else if (capable) "available" else "unavailable") + " · display ${probe.formats.ifEmpty { "SDR" }}")
         }
-        if (!SessionState.running) CompositorHost.applyHdr(this, mode)
-        CompositorHost.start(this, output, holder.surface, size, refreshHz(holder), outputFpsLimit())
+        if (!SessionState.running) {
+            val on = SessionState.hdrCapable && SessionPrefs.hdr(this, mode)
+            SessionState.hdr = on
+            WaylandCompositor.nativeSetHdrOutput(on)
+            WaylandCompositor.nativeSetZeroCopy(on || SessionPrefs.zeroCopy(this, mode))
+            Log.i(TAG, "hdr: " + (if (on) "on" else "off") + " for this $mode session")
+        }
+        com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "compositor.start driver=$driverId")
+        CompositorHost.startOrAttach(
+            this, holder.surface, runtimeDir.path,
+            driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
+            applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(holder), outputFpsLimit(),
+        )
         onOutputAttached(holder)
         if (SessionState.running && size != previous) {
             Log.i(TAG, "output resized: ${previous.first}x${previous.second} -> ${size.first}x${size.second} on a new surface")
@@ -3635,8 +3665,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (drawerOpen && (menuOwnsController || (!fromController && !(dockedTouchOnly && event.keyCode == KeyEvent.KEYCODE_BACK)))) {
             if (fromController && (event.keyCode == KeyEvent.KEYCODE_BUTTON_L1 || event.keyCode == KeyEvent.KEYCODE_BUTTON_R1)) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                    drawerPage = sessionDrawerPages(glasses.present)
-                        .step(drawerPage, if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
+                    // The bumpers walk the tabs on the strip; a page kept inside More counts as the More tab.
+                    val pages = sessionDrawerPages(glasses.present)
+                    drawerPage = pages.strip().step(pages.tabFor(drawerPage), if (event.keyCode == KeyEvent.KEYCODE_BUTTON_R1) 1 else -1)
                     releaseDrawerDirection()
                 }
                 return true
@@ -4365,6 +4396,27 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (wanted == SecondScreenMode.MENU) {
             if (!menuShownOnBottom()) selectSecondScreenMode(wanted) else secondScreenPresentation?.retryTerminal()
         } else if (wanted != secondScreenMode) selectSecondScreenMode(wanted) else secondScreenPresentation?.retryTerminal()
+    }
+
+    private fun chooseDualScreenSessionMode(mode: String) {
+        if (mode !in com.droiddeck.launcher.input.DualScreen.modes || mode == dualScreenSessionMode) return
+        SessionPrefs.setDualScreenSessionMode(this, mode)
+        dualScreenSessionMode = mode
+        SessionState.secondScreenAutoOpened = false
+        val menuOnBottom = drawerDocked
+        val menuOnTop = drawerOpenState && !drawerDocked
+        if (mode == com.droiddeck.launcher.input.DualScreen.MODE_OFF) {
+            if (gameOnBottom) putGameOnBottom(false)
+            if (secondScreenMode != SecondScreenMode.NONE || menuOnBottom) closeSecondScreen(reset = true)
+            if (menuOnBottom) drawerOpen = true
+        } else if (menuOnTop) {
+            // The menu moves to the second screen as the menu itself, not as one of the control panels.
+            SessionState.secondScreenAutoOpened = true
+            refreshSecondScreenDisplays()
+            pinDockedMenu()
+            return
+        }
+        refreshSecondScreenDisplays()
     }
 
     private fun selectSecondScreenDisplay(displayId: Int) {
@@ -5929,7 +5981,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             if (secondScreenPresentation == null) showSecondScreen(secondScreenMode)
             if (com.droiddeck.launcher.input.DualScreen.menuReturnsOnStart(openingPanel(), SessionState.bottomMenu, menuShownOnBottom())) pinDockedMenu()
             SessionState.bottomMenu = false
-        } else openDualScreenControls()
+        } else {
+            if (SessionState.bottomMenu && !menuShownOnBottom()) pinDockedMenu()
+            SessionState.bottomMenu = false
+            if (!menuShownOnBottom()) openDualScreenControls()
+        }
         startedScreens++
         SessionService.setActivityVisible(this, true, sessionActivityDisplayId)
         Glasses.rescan()

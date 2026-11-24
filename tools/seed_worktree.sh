@@ -10,14 +10,19 @@ paths=(
     app/build/packs app/build/localPackAssets app/build/packs-local-aside app/build/quest-inputs
     app/build/rustJniLibs app/build/vkbridgeJniLibs
     app/src/main/assets/directaudio app/src/main/assets/droiddeck-esync app/src/main/assets/linuxfs
-    app/src/main/assets/desktop-removal
+    app/src/main/assets/desktop-removal app/src/main/assets/hybris
     app/src/main/jniLibs/arm64-v8a
     app/src/main/rust/stores/target
 )
 for path in "${paths[@]}"; do
     [[ -e "${main_root}/${path}" ]] || continue
     if [[ -d "${main_root}/${path}" ]]; then
-        [[ -z "$(ls -A "${repo_root}/${path}" 2>/dev/null)" ]] || continue
+        if [[ -n "$(ls -A "${repo_root}/${path}" 2>/dev/null)" ]]; then
+            # A directory holding only tracked files (jniLibs) still lacks every built library.
+            [[ -z "$(git -C "${repo_root}" ls-files --others -- "${path}")" ]] || continue
+            cp -Rn "${main_root}/${path}/." "${repo_root}/${path}/"
+            continue
+        fi
         mkdir -p "$(dirname "${repo_root}/${path}")"
         staged=$(mktemp -d "${repo_root}/${path}.seed.XXXXXX")
         trap 'rm -rf "${staged}"' EXIT
