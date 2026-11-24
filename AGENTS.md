@@ -5,6 +5,7 @@
 # Building and testing
 
 - For an install-and-look iteration, use `tools/quick_deploy.sh` (build without lint, sign, install, about 30 s). Run `tools/build_local.sh` once to prepare the runtime and again only before a PR. It is not a per-change step.
+- `tools/build_local.sh` reuses the components a main CI run prepared when every recipe identity matches the local tree (it prints `components: … reusing`). It builds them locally only after you change their inputs, or with `DROIDDECK_CI_COMPONENTS=0`.
 - Helper scripts (`tools/linuxfs/overlay`, `tools/linuxfs/desktop`) are staged on every Gradle build, so editing them needs no `build_local.sh`. After preloads or other runtime components change, the fast loop warns and reuses the old binaries; run `tools/build_local.sh` when those matter. "Missing or changed runtime input" means the prepared files themselves changed: run `tools/build_local.sh` once. Do not revert scripts or copy `app/build` between checkouts; `tools/seed_worktree.sh` seeds a new worktree from the main checkout.
 - Every build defaults to the NDK in `tools/ci/toolchains.env`, as CI does. CI runs `testReleaseUnitTest`; when a test fails only in CI, run the release variant locally.
 - Run the tests that cover what you changed, including unchanged tests of code you edited: `./gradlew -PskipRust=true :app:testDebugUnitTest --tests '<class>'` and `python3 -m unittest discover -s tools/tests -p 'test_<area>*.py'`. The full Python suite takes about 9 minutes, and some preload tests fail on any host without zram/ntsync. Leave full runs to CI.
