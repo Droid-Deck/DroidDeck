@@ -49,6 +49,8 @@ typedef struct {
 
 static const GUID iid_unknown = {0x00000000, 0x0000, 0x0000,
                                  {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
+static const GUID iid_agile_object = {0x94ea2b94, 0xe9cc, 0x49e0,
+                                      {0xc0, 0xff, 0xee, 0x64, 0xca, 0x8f, 0x5b, 0x90}};
 static const GUID iid_inspectable = {0xaf86e2e0, 0xb12d, 0x4c6a,
                                      {0x9c, 0x5a, 0xd7, 0xaa, 0x65, 0x10, 0x1e, 0x90}};
 static const GUID iid_activation_factory = {0x00000035, 0x0000, 0x0000,
@@ -2113,7 +2115,7 @@ static HRESULT factory_query_interface(host_object *self, const GUID *id, void *
     host_class *entry = factory_entry_of(self);
     if (!out) return E_POINTER;
     if (IsEqualIID(id, &iid_activation_factory) || IsEqualIID(id, &iid_unknown) ||
-        IsEqualIID(id, &iid_inspectable)) {
+        IsEqualIID(id, &iid_inspectable) || IsEqualIID(id, &iid_agile_object)) {
         *out = self;
         self->refs++;
         return S_OK;

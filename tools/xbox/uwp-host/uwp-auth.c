@@ -746,6 +746,7 @@ static HRESULT __stdcall str_map_QI(void *self, const GUID *id, void **out)
     str_map *m = str_map_from(self);
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IMapStrStr)) {
         *out = &m->base;
         str_map_AddRef(m);
@@ -788,6 +789,7 @@ static HRESULT __stdcall str_kvp_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IKvpStrStr)) {
         *out = self;
         obj_AddRef(self);
@@ -853,6 +855,7 @@ static HRESULT __stdcall str_map_iter_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IIteratorKvpSS)) {
         *out = self;
         obj_AddRef(self);
@@ -1216,6 +1219,7 @@ static HRESULT __stdcall vec_QI(void *self, const GUID *id, void **out)
     vec_view *v = vec_from(self);
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, v->iid_vec)) {
         *out = &v->base;
         vec_AddRef(v);
@@ -1246,6 +1250,7 @@ static HRESULT __stdcall vec_iter_QI(void *self, const GUID *id, void **out)
     vec_iter *it = (vec_iter *)self;
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, it->vec->iid_iter)) {
         *out = it;
         obj_AddRef(it);
@@ -1426,6 +1431,7 @@ static HRESULT __stdcall prop_str_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IPropertyValue_a)) {
         *out = self;
         obj_AddRef(self);
@@ -2745,6 +2751,7 @@ static HRESULT __stdcall user_QI(void *self, const GUID *id, void **out)
     winrt_user *u = user_from(self);
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IUser)) {
         *out = &u->base;
         user_AddRef(u);
@@ -2862,6 +2869,7 @@ static HRESULT __stdcall ucea_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IUserChangedEA)) {
         *out = self;
         obj_AddRef(self);
@@ -2986,6 +2994,7 @@ static HRESULT __stdcall uw_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IUserWatcher)) {
         *out = self;
         obj_AddRef(self);
@@ -3159,6 +3168,7 @@ static HRESULT __stdcall user_statics_QI(void *self, const GUID *id, void **out)
     (void)self;
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IFactory_a)) {
         auth_obj *fac = auth_class_factory_for_statics(&g_user_statics);
         *out = fac ? fac : &g_user_statics;
@@ -3316,6 +3326,7 @@ static HRESULT __stdcall kup_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IFactory_a)) {
         auth_obj *fac = auth_class_factory_for_statics(&g_known_user_props);
         *out = fac ? fac : self;
@@ -3379,6 +3390,7 @@ static HRESULT __stdcall up_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IUserPicker)) {
         *out = self;
         obj_AddRef(self);
@@ -3434,6 +3446,7 @@ static HRESULT __stdcall up_statics_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IFactory_a)) {
         auth_obj *fac = auth_class_factory_for_statics(&g_user_picker_statics);
         *out = fac ? fac : self;
@@ -3515,6 +3528,7 @@ static HRESULT __stdcall wap_QI(void *self, const GUID *id, void **out)
     web_provider *p = wap_from(self);
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IWebAccProv)) {
         *out = &p->base; wap_AddRef(p); return S_OK;
     }
@@ -3655,6 +3669,7 @@ static HRESULT __stdcall wa_QI(void *self, const GUID *id, void **out)
     web_account *a = wa_from(self);
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IWebAccount)) {
         *out = &a->base; wa_AddRef(a); return S_OK;
     }
@@ -3816,6 +3831,7 @@ static HRESULT __stdcall wtr_QI(void *self, const GUID *id, void **out)
     web_token_req *r = wtr_from(self);
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IWtr)) {
         *out = &r->base; wtr_AddRef(r); return S_OK;
     }
@@ -3932,6 +3948,7 @@ static HRESULT __stdcall wtr_factory_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IFactory_a)) {
         auth_obj *fac = auth_class_factory_for_statics(&g_wtr_factory);
         *out = fac ? fac : self;
@@ -4001,6 +4018,7 @@ static HRESULT __stdcall wpe_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IWebProvError)) {
         *out = self; obj_AddRef(self); return S_OK;
     }
@@ -4077,6 +4095,7 @@ static HRESULT __stdcall wtresp_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IWtrResponse)) {
         *out = self; obj_AddRef(self); return S_OK;
     }
@@ -4145,6 +4164,7 @@ static HRESULT __stdcall wtres_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IWtrResult)) {
         *out = self; obj_AddRef(self); return S_OK;
     }
@@ -4393,6 +4413,7 @@ static HRESULT __stdcall wacm_QI(void *self, const GUID *id, void **out)
     (void)self;
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+        IsEqualIID(id, &IID_IAgileObject_a) ||
         IsEqualIID(id, &IID_IFactory_a)) {
         auth_obj *fac = auth_class_factory_for_statics(&g_wacm_statics);
         *out = fac ? fac : &g_wacm_statics;
@@ -4558,7 +4579,7 @@ static HRESULT __stdcall auth_factory_QI(void *self, const GUID *id, void **out)
     auth_class *entry = (auth_class *)o->name;
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IFactory_a) || IsEqualIID(id, &IID_IUnknown_a) ||
-        IsEqualIID(id, &IID_IInspectable_a)) {
+        IsEqualIID(id, &IID_IInspectable_a) || IsEqualIID(id, &IID_IAgileObject_a)) {
         *out = self;
         obj_AddRef(self);
         return S_OK;
