@@ -184,7 +184,7 @@ claim_next() {
   local n
   while :; do
     # A counter that cannot be read or written must fail the worker: a stale or empty number would give a package to two workers or to none.
-    n=$( { flock 8 || exit 1
+    n=$( { "$flock_command" 8 || exit 1
            n=$(cat "$state/next") || exit 1
            case $n in ''|*[!0-9]*) exit 1 ;; esac
            echo $((n + 1)) > "$state/next" || exit 1
@@ -223,7 +223,8 @@ run_parallel() {
     (
       trap ': > "$state/exit.$slot"' EXIT
       while [ ! -e "$state/failed" ]; do
-        index=$(claim_next)
+        # run_parallel is called in an || list, which switches set -e off in here: a failed claim has to be checked by hand.
+        index=$(claim_next) || { : > "$state/failed"; exit 1; }
         [ "$index" -gt 0 ] || exit 0
         file=${files[index]}
         fetched=""
