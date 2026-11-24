@@ -23,7 +23,8 @@ while IFS= read -r dir; do
 done < <(ls -d "${sdk_dir}"/build-tools/* 2>/dev/null | sort -rV)
 [[ -n "${build_tools}" ]] || { echo "No build-tools with aapt, zipalign and apksigner under ${sdk_dir}." >&2; exit 1; }
 
-./gradlew -q -PallowStaleRuntime=true :app:assembleRelease
+# Lint vital is most of an incremental build and CI runs it.
+./gradlew -q -PallowStaleRuntime=true :app:assembleRelease -x lintVitalAnalyzeRelease
 (
     cd "$(dirname "${signing_env}")"
     set -a; . "${signing_env}"; set +a

@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.runtime.DeckyManager
+import com.droiddeck.launcher.runtime.DeckyStore
 import com.droiddeck.launcher.session.SessionState
 import java.io.File
 
@@ -21,6 +22,59 @@ internal class DeckyMenu(private val activity: android.app.Activity, private val
     var deckySupervisor by mutableStateOf(false)
     var deckyPendingZip by mutableStateOf<File?>(null)
     var deckyReleaseRequest = 0
+    var deckyPlugins by mutableStateOf<List<DeckyStore.Installed>>(emptyList())
+    var deckyStore by mutableStateOf<List<DeckyStore.Plugin>?>(null)
+    var deckyStoreFailed by mutableStateOf(false)
+    private var storeRequest = 0
+
+    fun refreshPlugins() {
+        Thread({
+            val found = DeckyStore.installed(activity)
+            ui.post { deckyPlugins = found }
+        }, "decky-plugins").start()
+    }
+
+    fun refreshStore() {
+        val request = ++storeRequest
+        deckyStore = null; deckyStoreFailed = false
+        Thread({
+            val listing = DeckyStore.fetch()
+            ui.post {
+                if (request != storeRequest) return@post
+                deckyStore = listing.orEmpty(); deckyStoreFailed = listing == null
+            }
+        }, "decky-store").start()
+    }
+
+    fun installStorePlugin(plugin: DeckyStore.Plugin) {
+        val version = plugin.latest ?: return
+        if (deckyStage != null || SessionState.running || deckyInstalled == null) return
+        deckyStage = activity.getString(R.string.decky_plugin_starting); deckyPercent = -1
+        Thread({
+            val problem = runCatching {
+                DeckyStore.install(activity, plugin, version) { label, value ->
+                    val binary = DeckyManager.downloadingBinary
+                    ui.post { deckyStage = label; deckyPercent = value; deckyDownloadingBinary = binary }
+                }
+            }.getOrElse { error -> activity.getString(R.string.decky_plugin_failed, error.message ?: error.javaClass.simpleName) }
+            ui.post {
+                deckyStage = null; deckyPercent = -1; deckyDownloadingBinary = false
+                android.widget.Toast.makeText(activity, problem ?: activity.getString(R.string.decky_plugin_installed), android.widget.Toast.LENGTH_LONG).show()
+                refreshPlugins()
+            }
+        }, "install-decky-store").start()
+    }
+
+    fun removePlugin(plugin: DeckyStore.Installed) {
+        if (deckyStage != null || SessionState.running) return
+        Thread({
+            val problem = DeckyStore.remove(activity, plugin)
+            ui.post {
+                if (problem != null) android.widget.Toast.makeText(activity, problem, android.widget.Toast.LENGTH_LONG).show()
+                refreshPlugins()
+            }
+        }, "remove-decky-plugin").start()
+    }
 
     fun refreshDecky() {
         val request = ++deckyReleaseRequest
@@ -90,6 +144,7 @@ internal class DeckyMenu(private val activity: android.app.Activity, private val
                 deckyStage = null; deckyPercent = -1; deckyDownloadingBinary = false
                 val message = problem ?: activity.getString(R.string.decky_plugin_installed)
                 android.widget.Toast.makeText(activity, message, android.widget.Toast.LENGTH_LONG).show()
+                refreshPlugins()
             }
         }, "import-decky-plugin").start()
     }

@@ -354,13 +354,15 @@ class BattleNetTest {
         assertEquals(codes.distinct(), codes)
         assertTrue("Fen" in codes && "OSI" in codes && "WTCG" in codes)
         assertFalse(BattleNet.STORE.any { it.uid == "d3cn" || it.uid == "fen" })
-        assertFalse(BattleNet.STORE.any { it.code == "WoWC" || it.code == "WoWF" })
+        assertFalse(BattleNet.STORE.any { it.code == "WoWC" })
+        assertEquals("wow_forever", BattleNet.STORE.first { it.code == "WoWF" }.uid)
         assertEquals("fenris", BattleNet.STORE.first { it.code == "Fen" }.uid)
         assertTrue(BattleNet.STORE.all { it.uid.matches(Regex("[a-z0-9_]{1,32}")) })
         val installed = listOf("fenris", "diablo3_enus", null)
         val offered = BattleNet.STORE.filter { BattleNet.notInstalled(it, installed) }.map { it.code }
         assertFalse("Fen" in offered || "D3" in offered)
-        assertTrue("OSI" in offered)
+        assertTrue("OSI" in offered && "WoWF" in offered)
+        assertFalse("WoWF" in BattleNet.STORE.filter { BattleNet.notInstalled(it, listOf("wow_forever")) }.map { it.code })
     }
 
     @Test fun aBattleNetGameStartsWithoutSteamThroughItsShortcutUntilThatIsSwitchedOff() {
