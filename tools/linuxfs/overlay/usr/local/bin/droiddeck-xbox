@@ -71,7 +71,10 @@ UWP_CLASSES = ('Windows.ApplicationModel.Core.CoreApplication', 'Windows.UI.Core
                'Windows.Foundation.Diagnostics.LoggingChannelOptions',
                'Windows.Foundation.Diagnostics.LoggingChannel',
                'Windows.Foundation.Diagnostics.LoggingFields',
-               'Windows.Networking.PushNotifications.PushNotificationChannelManager')
+               'Windows.Networking.PushNotifications.PushNotificationChannelManager',
+               'Windows.Networking.XboxLive.XboxLiveDeviceAddress',
+               'Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionSession',
+               'Windows.Networking.Sockets.MessageWebSocket')
 VIEW_DRIVES = 'xwvutsrqponmlkjihgfe'
 
 

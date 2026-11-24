@@ -232,6 +232,8 @@ static const GUID svc_iid_unknown = {0x00000000, 0x0000, 0x0000,
                                      {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
 static const GUID svc_iid_inspectable = {0xaf86e2e0, 0xb12d, 0x4c6a,
                                          {0x9c, 0x5a, 0xd7, 0xaa, 0x65, 0x10, 0x1e, 0x90}};
+static const GUID svc_iid_agile_object = {0x94ea2b94, 0xe9cc, 0x49e0,
+                                          {0xc0, 0xff, 0xee, 0x64, 0xca, 0x8f, 0x5b, 0x90}};
 static const GUID svc_iid_factory = {0x00000035, 0x0000, 0x0000,
                                      {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
 
@@ -307,8 +309,6 @@ static const GUID svc_iid_async_info = {0x00000036, 0x0000, 0x0000,
                                         {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
 static const GUID svc_iid_async_action = {0x5a648006, 0x843a, 0x4da9,
                                           {0x86, 0x5b, 0x9d, 0x26, 0xe5, 0xdf, 0xad, 0x7b}};
-static const GUID svc_iid_agile_object = {0x94ea2b94, 0xe9cc, 0x49e0,
-                                          {0xc0, 0xff, 0xee, 0x64, 0xca, 0x8f, 0x5b, 0x90}};
 static const GUID svc_iid_async_storage_file = {0x5e52f8ce, 0xaced, 0x5a42,
                                                 {0x95, 0xb4, 0xf6, 0x74, 0xdd, 0x84, 0x88, 0x5e}};
 static const GUID svc_iid_async_storage_folder = {0x6be9e7d7, 0xe83a, 0x5cbc,
@@ -339,6 +339,8 @@ static const GUID svc_iid_async_hstring = {0x3e1fe603, 0xf897, 0x5263,
                                            {0xb3, 0x28, 0x08, 0x06, 0x42, 0x6b, 0x8a, 0x79}};
 static const GUID svc_iid_async_push_channel = {0x70945a09, 0x331a, 0x5e40,
                                                 {0xb8, 0x54, 0x66, 0xb7, 0xa3, 0x23, 0x3b, 0xab}};
+static const GUID svc_iid_async_ext_exec_result = {0x1dbb1bc9, 0x6cd7, 0x5947,
+                                                   {0x8c, 0xd1, 0x29, 0x63, 0x2b, 0x5a, 0xa9, 0x50}};
 
 typedef struct {
     svc_object base;
@@ -349,6 +351,7 @@ typedef struct {
     void *result;
     void *volatile handler;
     HRESULT error;
+    UINT32 u32_result;
     volatile LONG status;
     volatile LONG fired;
 } async_object;
@@ -579,6 +582,32 @@ static HRESULT async_operation_iid(const GUID *op_iid, HRESULT error, void *resu
     return S_OK;
 }
 
+static HRESULT __stdcall async_u32_GetResults(void *self, UINT32 *out)
+{
+    async_object *object = async_from(self);
+    if (!out) return E_POINTER;
+    *out = object->u32_result;
+    return object->error;
+}
+
+static const void *async_u32_operation_vtable[] = {
+    (const void *)async_QueryInterface, (const void *)async_AddRef, (const void *)async_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)async_put_Completed, (const void *)async_get_Completed,
+    (const void *)async_u32_GetResults,
+};
+
+static HRESULT async_u32_operation_iid(const GUID *op_iid, HRESULT error, UINT32 value, void **out)
+{
+    async_object *object = async_new_iid(1, op_iid, error, NULL);
+    if (!object) return E_OUTOFMEMORY;
+    object->base.vtbl = async_u32_operation_vtable;
+    object->u32_result = value;
+    svc_trace(error ? "async u32 operation error" : "async u32 operation");
+    *out = object;
+    return S_OK;
+}
+
 /* ------------------------------------------------------------ IBuffer */
 
 static const GUID svc_iid_buffer = {0x905a0fe0, 0xbc53, 0x11df,
@@ -625,7 +654,7 @@ static HRESULT buffer_QueryInterface(void *self, const GUID *id, void **out)
     if (IsEqualIID(id, &svc_iid_buffer_bytes))
         *out = &buffer->bytes;
     else if (IsEqualIID(id, &svc_iid_buffer) || IsEqualIID(id, &svc_iid_unknown) ||
-             IsEqualIID(id, &svc_iid_inspectable))
+             IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object))
         *out = buffer;
     else {
         *out = NULL;
@@ -1310,7 +1339,7 @@ static HRESULT simple_QI(void *self, const GUID *id, const GUID *own, void **out
 {
     if (!out) return E_POINTER;
     if (IsEqualIID(id, own) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable))
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object))
         *out = self;
     else {
         *out = NULL;
@@ -1893,7 +1922,7 @@ static HRESULT item_QueryInterface(void *self, const GUID *id, void **out)
     svc_trace_iid("storage QI", id);
     *out = NULL;
     if (IsEqualIID(id, &svc_iid_storage_item) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable))
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object))
         *out = &item->base;
     else if (IsEqualIID(id, &svc_iid_storage_folder2) && item->is_folder)
         *out = &item->folder2;
@@ -2816,7 +2845,8 @@ static HRESULT appdata_QI(void *self, const GUID *id, void **out)
     /* The projection reaches ApplicationData through IApplicationData and also
        asks the same object for the statics IID its metadata carries. */
     if (IsEqualIID(id, &svc_iid_appdata) || IsEqualIID(id, &svc_iid_appdata_statics) ||
-        IsEqualIID(id, &svc_iid_unknown) || IsEqualIID(id, &svc_iid_inspectable))
+        IsEqualIID(id, &svc_iid_unknown) || IsEqualIID(id, &svc_iid_inspectable) ||
+        IsEqualIID(id, &svc_iid_agile_object))
         *out = self;
     else {
         *out = NULL;
@@ -3079,7 +3109,7 @@ static HRESULT pkg_QI(void *self, const GUID *id, void **out)
     (void)self;
     if (!out) return E_POINTER;
     if (IsEqualIID(id, &svc_iid_package) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable))
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object))
         *out = &package_object;
     else if (IsEqualIID(id, &svc_iid_package2))
         *out = &package2_face;
@@ -3217,7 +3247,7 @@ static HRESULT pkg_deps_QI(svc_object *self, const GUID *id, void **out)
     (void)self;
     if (!out) return E_POINTER;
     if (IsEqualIID(id, &svc_iid_package_vector) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable))
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object))
         *out = &package_deps;
     else if (IsEqualIID(id, &svc_iid_package_iterable))
         *out = &package_deps_iterable;
@@ -3617,7 +3647,7 @@ static HRESULT di_QI(void *self, const GUID *id, void **out)
     (void)self;
     if (!out) return E_POINTER;
     if (IsEqualIID(id, &svc_iid_display) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable))
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object))
         *out = &display_info;
     else if (IsEqualIID(id, &svc_iid_display2))
         *out = &display2_face;
@@ -4233,9 +4263,11 @@ static unsigned long long memory_app_limit(void)
 
 static HRESULT mr_QI(void *self, const GUID *id, void **out)
 {
-    if (!IsEqualIID(id, &svc_iid_unknown) && !IsEqualIID(id, &svc_iid_inspectable))
+    if (!IsEqualIID(id, &svc_iid_unknown) && !IsEqualIID(id, &svc_iid_inspectable) &&
+        !IsEqualIID(id, &svc_iid_agile_object))
         svc_trace_iid("memory report QI", id);
-    if (IsEqualIID(id, &svc_iid_unknown) || IsEqualIID(id, &svc_iid_inspectable)) {
+    if (IsEqualIID(id, &svc_iid_unknown) || IsEqualIID(id, &svc_iid_inspectable) ||
+        IsEqualIID(id, &svc_iid_agile_object)) {
         if (!out) return E_POINTER;
         *out = self;
         svc_AddRef((svc_object *)self);
@@ -4654,7 +4686,7 @@ static HRESULT av_QI(void *self, const GUID *id, void **out)
         return S_OK;
     }
     if (!IsEqualIID(id, &svc_iid_appview) && !IsEqualIID(id, &svc_iid_unknown) &&
-        !IsEqualIID(id, &svc_iid_inspectable)) {
+        !IsEqualIID(id, &svc_iid_inspectable) && !IsEqualIID(id, &svc_iid_agile_object)) {
         for (i = 0; i < missing_count; i++)
             if (IsEqualIID(id, &missing[i])) break;
         if (i == missing_count && missing_count < 8) {
@@ -5081,7 +5113,7 @@ static HRESULT dialog_QI(message_dialog *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (IsEqualIID(id, &svc_iid_message_dialog) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable)) {
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
         *out = self;
         svc_AddRef(&self->base);
         return S_OK;
@@ -6428,7 +6460,7 @@ static HRESULT store_addon_map_QI(svc_object *self, const GUID *id, void **out)
         return S_OK;
     }
     if (IsEqualIID(id, &svc_iid_store_addon_map) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable)) {
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
         *out = &store_addon_map;
         svc_AddRef(&store_addon_map);
         return S_OK;
@@ -6483,7 +6515,7 @@ static HRESULT store_product_map_QI(svc_object *self, const GUID *id, void **out
         return S_OK;
     }
     if (IsEqualIID(id, &svc_iid_store_product_map) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable)) {
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
         *out = &store_product_map;
         svc_AddRef(&store_product_map);
         return S_OK;
@@ -6538,7 +6570,7 @@ static HRESULT store_updates_QI(svc_object *self, const GUID *id, void **out)
         return S_OK;
     }
     if (IsEqualIID(id, &svc_iid_store_updates_vector) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable)) {
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
         *out = &store_updates_vector;
         svc_AddRef(&store_updates_vector);
         return S_OK;
@@ -6836,7 +6868,7 @@ static HRESULT store_package_license_QI(svc_object *self, const GUID *id, void *
         return S_OK;
     }
     if (IsEqualIID(id, &svc_iid_store_package_license) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable)) {
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
         *out = &store_package_license;
         svc_AddRef(&store_package_license);
         return S_OK;
@@ -6933,7 +6965,7 @@ static HRESULT store_context_QI(svc_object *self, const GUID *id, void **out)
         return S_OK;
     }
     if (IsEqualIID(id, &svc_iid_store_context) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable)) {
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
         *out = &store_context_object;
         svc_AddRef(&store_context_object);
         return S_OK;
@@ -8287,6 +8319,1418 @@ static const void *push_mgr_statics_vtable[] = {
     (const void *)push_mgr_CreateForTileAsync,
 };
 
+/* ----------------------- Windows.Networking.XboxLive.XboxLiveDeviceAddress */
+
+static const GUID svc_iid_xbl_devaddr_statics = {
+    0x5954a819, 0x4a79, 0x4931, {0x82, 0x7c, 0x7f, 0x50, 0x3e, 0x96, 0x32, 0x63}};
+static const GUID svc_iid_xbl_devaddr = {
+    0xf5bbd279, 0x3c86, 0x4b57, {0xa3, 0x1a, 0xb9, 0x46, 0x24, 0x08, 0xfd, 0x01}};
+
+typedef struct {
+    svc_object base;
+    unsigned char snapshot[1024];
+    UINT32 snapshot_len;
+    BOOLEAN is_valid;
+    BOOLEAN is_local;
+} xbl_devaddr_object;
+
+static svc_object xbl_devaddr_static;
+static xbl_devaddr_object xbl_devaddr_local;
+
+static HRESULT __stdcall xbl_devaddr_QI(xbl_devaddr_object *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_xbl_devaddr) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = self;
+        svc_AddRef(&self->base);
+        return S_OK;
+    }
+    svc_trace_iid("xbl_devaddr QI miss", id);
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall xbl_devaddr_add_SnapshotChanged(xbl_devaddr_object *self, void *handler,
+                                                         long long *token)
+{
+    (void)self;
+    (void)handler;
+    if (token) *token = 1;
+    return S_OK;
+}
+
+static HRESULT __stdcall xbl_devaddr_remove_SnapshotChanged(xbl_devaddr_object *self,
+                                                            long long token)
+{
+    (void)self;
+    (void)token;
+    return S_OK;
+}
+
+static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBase64(xbl_devaddr_object *self, hstring_t *out)
+{
+    unsigned char encoded[1400];
+    WCHAR wide[1400];
+    unsigned len, i;
+    if (!out) return E_POINTER;
+    if (!self->snapshot_len) {
+        *out = svc_string(L"");
+        return S_OK;
+    }
+    len = base64_encode(self->snapshot, self->snapshot_len, encoded);
+    for (i = 0; i < len && i < 1399; i++) wide[i] = (WCHAR)encoded[i];
+    wide[i] = 0;
+    *out = svc_string_len(wide, i);
+    return S_OK;
+}
+
+static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBuffer(xbl_devaddr_object *self, void **out)
+{
+    winrt_buffer *buf;
+    if (!out) return E_POINTER;
+    buf = buffer_from_bytes(self->snapshot, self->snapshot_len);
+    if (!buf) return E_OUTOFMEMORY;
+    *out = buf;
+    return S_OK;
+}
+
+static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBytes(xbl_devaddr_object *self, UINT32 cap,
+                                                        unsigned char *buf, UINT32 *written)
+{
+    if (written) *written = self->snapshot_len;
+    if (buf && cap > 0 && self->snapshot_len > 0) {
+        UINT32 n = cap < self->snapshot_len ? cap : self->snapshot_len;
+        memcpy(buf, self->snapshot, n);
+        if (written) *written = n;
+    }
+    return S_OK;
+}
+
+static HRESULT __stdcall xbl_devaddr_Compare(xbl_devaddr_object *self, xbl_devaddr_object *other,
+                                             INT32 *out)
+{
+    if (!out) return E_POINTER;
+    if (!other) {
+        *out = 1;
+        return S_OK;
+    }
+    if (self == other) {
+        *out = 0;
+        return S_OK;
+    }
+    if (self->snapshot_len != other->snapshot_len) {
+        *out = self->snapshot_len < other->snapshot_len ? -1 : 1;
+        return S_OK;
+    }
+    *out = memcmp(self->snapshot, other->snapshot, self->snapshot_len);
+    return S_OK;
+}
+
+static HRESULT __stdcall xbl_devaddr_get_IsValid(xbl_devaddr_object *self, BOOLEAN *out)
+{
+    if (!out) return E_POINTER;
+    *out = self->is_valid;
+    return S_OK;
+}
+
+static HRESULT __stdcall xbl_devaddr_get_IsLocal(xbl_devaddr_object *self, BOOLEAN *out)
+{
+    if (!out) return E_POINTER;
+    *out = self->is_local;
+    return S_OK;
+}
+
+static HRESULT __stdcall xbl_devaddr_get_NetworkAccessKind(xbl_devaddr_object *self, INT32 *out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = 0; /* XboxLiveNetworkAccessKind_Open */
+    return S_OK;
+}
+
+static const void *xbl_devaddr_vtable[] = {
+    (const void *)xbl_devaddr_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)xbl_devaddr_add_SnapshotChanged,
+    (const void *)xbl_devaddr_remove_SnapshotChanged,
+    (const void *)xbl_devaddr_GetSnapshotAsBase64,
+    (const void *)xbl_devaddr_GetSnapshotAsBuffer,
+    (const void *)xbl_devaddr_GetSnapshotAsBytes,
+    (const void *)xbl_devaddr_Compare,
+    (const void *)xbl_devaddr_get_IsValid,
+    (const void *)xbl_devaddr_get_IsLocal,
+    (const void *)xbl_devaddr_get_NetworkAccessKind,
+};
+
+static HRESULT xbl_devaddr_from_bytes(const unsigned char *data, UINT32 len, void **out)
+{
+    xbl_devaddr_object *obj;
+    if (!out) return E_POINTER;
+    obj = (xbl_devaddr_object *)calloc(1, sizeof(*obj));
+    if (!obj) return E_OUTOFMEMORY;
+    obj->base.vtbl = xbl_devaddr_vtable;
+    obj->base.refs = 1;
+    obj->base.name = "Windows.Networking.XboxLive.XboxLiveDeviceAddress";
+    if (data && len > 0) {
+        if (len > sizeof(obj->snapshot)) len = (UINT32)sizeof(obj->snapshot);
+        memcpy(obj->snapshot, data, len);
+        obj->snapshot_len = len;
+        obj->is_valid = TRUE;
+    }
+    *out = obj;
+    return S_OK;
+}
+
+static HRESULT __stdcall xbl_devaddr_statics_QI(svc_object *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_xbl_devaddr_statics) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = self;
+        svc_AddRef(self);
+        return S_OK;
+    }
+    svc_trace_iid("xbl_devaddr_statics QI miss", id);
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall xbl_devaddr_CreateFromSnapshotBase64(svc_object *self, hstring_t base64,
+                                                              void **out)
+{
+    const WCHAR *wide = svc_string_text(base64);
+    char narrow[1400];
+    unsigned char decoded[1024];
+    unsigned i, len;
+    (void)self;
+    if (!out) return E_POINTER;
+    for (i = 0; i < 1399 && wide && wide[i]; i++) narrow[i] = (char)wide[i];
+    narrow[i] = 0;
+    len = base64_decode(narrow, decoded);
+    return xbl_devaddr_from_bytes(decoded, len, out);
+}
+
+static HRESULT __stdcall xbl_devaddr_CreateFromSnapshotBuffer(svc_object *self, void *buf,
+                                                              void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    if (!buf) return xbl_devaddr_from_bytes(NULL, 0, out);
+    return xbl_devaddr_from_bytes(buffer_bytes(buf), buffer_length(buf), out);
+}
+
+static HRESULT __stdcall xbl_devaddr_CreateFromSnapshotBytes(svc_object *self, UINT32 len,
+                                                             const unsigned char *buf, void **out)
+{
+    (void)self;
+    return xbl_devaddr_from_bytes(buf, len, out);
+}
+
+static HRESULT __stdcall xbl_devaddr_GetLocal(svc_object *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    svc_AddRef(&xbl_devaddr_local.base);
+    *out = &xbl_devaddr_local;
+    return S_OK;
+}
+
+static HRESULT __stdcall xbl_devaddr_get_MaxSnapshotBytesSize(svc_object *self, UINT32 *out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = 1024;
+    return S_OK;
+}
+
+static const void *xbl_devaddr_statics_vtable[] = {
+    (const void *)xbl_devaddr_statics_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)xbl_devaddr_CreateFromSnapshotBase64,
+    (const void *)xbl_devaddr_CreateFromSnapshotBuffer,
+    (const void *)xbl_devaddr_CreateFromSnapshotBytes,
+    (const void *)xbl_devaddr_GetLocal,
+    (const void *)xbl_devaddr_get_MaxSnapshotBytesSize,
+};
+
+
+/* ----------------------- Windows.ApplicationModel.Resources.Core.ResourceContext */
+
+static const GUID svc_iid_resctx_statics = {
+    0x98be9d6c, 0x6338, 0x4b31, {0x99, 0xdf, 0xb2, 0xb4, 0x42, 0xf1, 0x71, 0x49}};
+static const GUID svc_iid_resctx_statics2 = {
+    0x41f752ef, 0x12af, 0x41b9, {0xab, 0x36, 0xb1, 0xeb, 0x4b, 0x51, 0x24, 0x60}};
+static const GUID svc_iid_resctx_statics3 = {
+    0x20cf492c, 0xaf0f, 0x450b, {0x9d, 0xa6, 0x10, 0x6d, 0xd0, 0xc2, 0x9a, 0x39}};
+static const GUID svc_iid_resctx = {
+    0x2fa22f4b, 0x707e, 0x4b27, {0xad, 0x0d, 0xd0, 0xd8, 0xcd, 0x46, 0x8f, 0xd2}};
+static const GUID svc_iid_map_str_str = {
+    0xf6d1f700, 0x49c2, 0x52ae, {0x81, 0x54, 0x82, 0x6f, 0x99, 0x08, 0x77, 0x3c}};
+static const GUID svc_iid_obsmap_str_str = {
+    0x1e036276, 0x2f60, 0x55f6, {0xb7, 0xf3, 0xf8, 0x60, 0x79, 0xe6, 0x90, 0x0b}};
+static const GUID svc_iid_mapview_str_str = {
+    0xac7f26f2, 0xfeb7, 0x5b2a, {0x8a, 0xc4, 0x34, 0x5b, 0xc6, 0x2c, 0xae, 0xde}};
+static const GUID svc_iid_vecview_str = {
+    0x2f13c006, 0xa03a, 0x5f69, {0xb0, 0x90, 0x75, 0xa4, 0x3e, 0x33, 0x42, 0x3e}};
+static const GUID svc_iid_iterable_str = {
+    0xe2fcc7c1, 0x3bfc, 0x5a0b, {0xb2, 0xb0, 0x72, 0xe7, 0x69, 0xd1, 0xcb, 0x7e}};
+static const GUID svc_iid_iterator_str = {
+    0x8c304ebb, 0x6615, 0x50a4, {0x88, 0x29, 0x87, 0x9e, 0xcd, 0x44, 0x32, 0x36}};
+
+static svc_object resctx_static;
+static svc_object resctx_static2;
+static svc_object resctx_static3;
+static svc_object resctx_singleton;
+static svc_object resctx_qual_map;
+static svc_object resctx_qual_obs;
+static svc_object resctx_qual_view;
+static svc_object resctx_lang_vec;
+static svc_object resctx_lang_iter;
+
+typedef struct {
+    svc_object base;
+    UINT32 index;
+} resctx_str_iterator;
+
+static HRESULT __stdcall resctx_str_it_QI(resctx_str_iterator *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_iterator_str) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = self;
+        svc_AddRef(&self->base);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall resctx_str_it_Current(resctx_str_iterator *self, hstring_t *out)
+{
+    if (!out) return E_POINTER;
+    if (self->index != 0) {
+        *out = NULL;
+        return E_BOUNDS;
+    }
+    *out = svc_string(L"en-US");
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_str_it_HasCurrent(resctx_str_iterator *self, BOOLEAN *out)
+{
+    if (!out) return E_POINTER;
+    *out = self->index == 0 ? TRUE : FALSE;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_str_it_MoveNext(resctx_str_iterator *self, BOOLEAN *out)
+{
+    if (self->index == 0) self->index = 1;
+    if (out) *out = FALSE;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_str_it_GetMany(resctx_str_iterator *self, UINT32 cap,
+                                               hstring_t *items, UINT32 *actual)
+{
+    if (self->index == 0 && cap > 0 && items) {
+        items[0] = svc_string(L"en-US");
+        self->index = 1;
+        if (actual) *actual = 1;
+        return S_OK;
+    }
+    if (actual) *actual = 0;
+    return S_OK;
+}
+
+static const void *resctx_str_it_vtable[] = {
+    (const void *)resctx_str_it_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)resctx_str_it_Current, (const void *)resctx_str_it_HasCurrent,
+    (const void *)resctx_str_it_MoveNext, (const void *)resctx_str_it_GetMany,
+};
+
+static HRESULT __stdcall resctx_lang_QI(svc_object *self, const GUID *id, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_iterable_str)) {
+        *out = &resctx_lang_iter;
+        svc_AddRef(&resctx_lang_iter);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_vecview_str) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &resctx_lang_vec;
+        svc_AddRef(&resctx_lang_vec);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall resctx_lang_GetAt(svc_object *self, UINT32 index, hstring_t *out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    if (index != 0) {
+        *out = NULL;
+        return E_BOUNDS;
+    }
+    *out = svc_string(L"en-US");
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_lang_get_Size(svc_object *self, UINT32 *out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = 1;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_lang_IndexOf(svc_object *self, hstring_t val, UINT32 *index,
+                                             BOOLEAN *found)
+{
+    const WCHAR *text = svc_string_text(val);
+    (void)self;
+    if (text && _wcsicmp(text, L"en-US") == 0) {
+        if (index) *index = 0;
+        if (found) *found = TRUE;
+    } else {
+        if (index) *index = 0;
+        if (found) *found = FALSE;
+    }
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_lang_GetMany(svc_object *self, UINT32 start, UINT32 cap,
+                                             hstring_t *items, UINT32 *actual)
+{
+    (void)self;
+    if (start == 0 && cap > 0 && items) {
+        items[0] = svc_string(L"en-US");
+        if (actual) *actual = 1;
+        return S_OK;
+    }
+    if (actual) *actual = 0;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_lang_First(svc_object *self, void **out)
+{
+    resctx_str_iterator *it;
+    (void)self;
+    if (!out) return E_POINTER;
+    it = (resctx_str_iterator *)calloc(1, sizeof(*it));
+    if (!it) return E_OUTOFMEMORY;
+    it->base.vtbl = resctx_str_it_vtable;
+    it->base.refs = 1;
+    it->base.name = "Windows.Foundation.Collections.IIterator";
+    *out = it;
+    return S_OK;
+}
+
+static const void *resctx_lang_vec_vtable[] = {
+    (const void *)resctx_lang_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)resctx_lang_GetAt, (const void *)resctx_lang_get_Size,
+    (const void *)resctx_lang_IndexOf, (const void *)resctx_lang_GetMany,
+};
+
+static const void *resctx_lang_iter_vtable[] = {
+    (const void *)resctx_lang_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)resctx_lang_First,
+};
+
+static const WCHAR *resctx_lookup_value(const WCHAR *key)
+{
+    if (!key) return NULL;
+    if (_wcsicmp(key, L"Language") == 0) return L"en-US";
+    if (_wcsicmp(key, L"HomeRegion") == 0) return L"US";
+    if (_wcsicmp(key, L"Scale") == 0) return L"100";
+    if (_wcsicmp(key, L"Contrast") == 0) return L"standard";
+    if (_wcsicmp(key, L"LayoutDirection") == 0) return L"LTR";
+    return NULL;
+}
+
+static HRESULT __stdcall resctx_qual_QI(svc_object *self, const GUID *id, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_obsmap_str_str)) {
+        *out = &resctx_qual_obs;
+        svc_AddRef(&resctx_qual_obs);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_mapview_str_str)) {
+        *out = &resctx_qual_view;
+        svc_AddRef(&resctx_qual_view);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_map_str_str) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &resctx_qual_map;
+        svc_AddRef(&resctx_qual_map);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall resctx_qual_Lookup(svc_object *self, hstring_t key, hstring_t *out)
+{
+    const WCHAR *val = resctx_lookup_value(svc_string_text(key));
+    (void)self;
+    if (!out) return E_POINTER;
+    if (!val) {
+        *out = NULL;
+        return E_BOUNDS;
+    }
+    *out = svc_string(val);
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_qual_get_Size(svc_object *self, UINT32 *out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = 5;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_qual_HasKey(svc_object *self, hstring_t key, BOOLEAN *out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = resctx_lookup_value(svc_string_text(key)) ? TRUE : FALSE;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_qual_GetView(svc_object *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    svc_AddRef(&resctx_qual_view);
+    *out = &resctx_qual_view;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_qual_Insert(svc_object *self, hstring_t key, hstring_t val,
+                                            BOOLEAN *replaced)
+{
+    (void)self;
+    (void)key;
+    (void)val;
+    if (replaced) *replaced = FALSE;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_qual_Remove(svc_object *self, hstring_t key)
+{
+    (void)self;
+    (void)key;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_qual_Clear(svc_object *self)
+{
+    (void)self;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_qual_Split(svc_object *self, void **first, void **second)
+{
+    (void)self;
+    if (first) *first = NULL;
+    if (second) *second = NULL;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_qual_add_MapChanged(svc_object *self, void *handler,
+                                                    long long *token)
+{
+    (void)self;
+    (void)handler;
+    if (token) *token = 1;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_qual_remove_MapChanged(svc_object *self, long long token)
+{
+    (void)self;
+    (void)token;
+    return S_OK;
+}
+
+static const void *resctx_qual_map_vtable[] = {
+    (const void *)resctx_qual_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)resctx_qual_Lookup, (const void *)resctx_qual_get_Size,
+    (const void *)resctx_qual_HasKey, (const void *)resctx_qual_GetView,
+    (const void *)resctx_qual_Insert, (const void *)resctx_qual_Remove,
+    (const void *)resctx_qual_Clear,
+};
+
+static const void *resctx_qual_obs_vtable[] = {
+    (const void *)resctx_qual_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)resctx_qual_add_MapChanged, (const void *)resctx_qual_remove_MapChanged,
+};
+
+static const void *resctx_qual_view_vtable[] = {
+    (const void *)resctx_qual_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)resctx_qual_Lookup, (const void *)resctx_qual_get_Size,
+    (const void *)resctx_qual_HasKey, (const void *)resctx_qual_Split,
+};
+
+static HRESULT __stdcall resctx_QI(svc_object *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_resctx) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = self;
+        svc_AddRef(self);
+        return S_OK;
+    }
+    svc_trace_iid("resctx QI miss", id);
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall resctx_get_QualifierValues(svc_object *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    svc_AddRef(&resctx_qual_obs);
+    *out = &resctx_qual_obs;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_Reset(svc_object *self)
+{
+    (void)self;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_ResetByNames(svc_object *self, void *names)
+{
+    (void)self;
+    (void)names;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_OverrideToMatch(svc_object *self, void *result)
+{
+    (void)self;
+    (void)result;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_Clone(svc_object *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    svc_AddRef(&resctx_singleton);
+    *out = &resctx_singleton;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_get_Languages(svc_object *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    svc_AddRef(&resctx_lang_vec);
+    *out = &resctx_lang_vec;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_put_Languages(svc_object *self, void *langs)
+{
+    (void)self;
+    (void)langs;
+    return S_OK;
+}
+
+static const void *resctx_vtable[] = {
+    (const void *)resctx_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)resctx_get_QualifierValues,
+    (const void *)resctx_Reset,
+    (const void *)resctx_ResetByNames,
+    (const void *)resctx_OverrideToMatch,
+    (const void *)resctx_Clone,
+    (const void *)resctx_get_Languages,
+    (const void *)resctx_put_Languages,
+};
+
+static HRESULT __stdcall resctx_statics_QI(svc_object *self, const GUID *id, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_resctx_statics2)) {
+        *out = &resctx_static2;
+        svc_AddRef(&resctx_static2);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_resctx_statics3)) {
+        *out = &resctx_static3;
+        svc_AddRef(&resctx_static3);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_resctx_statics) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &resctx_static;
+        svc_AddRef(&resctx_static);
+        return S_OK;
+    }
+    svc_trace_iid("resctx_statics QI miss", id);
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall resctx_CreateMatchingContext(svc_object *self, void *result, void **out)
+{
+    (void)self;
+    (void)result;
+    if (!out) return E_POINTER;
+    svc_AddRef(&resctx_singleton);
+    *out = &resctx_singleton;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_GetForCurrentView(svc_object *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    svc_AddRef(&resctx_singleton);
+    *out = &resctx_singleton;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_SetGlobalQualifierValue(svc_object *self, hstring_t key,
+                                                        hstring_t val)
+{
+    (void)self;
+    (void)key;
+    (void)val;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_ResetGlobalQualifierValues(svc_object *self)
+{
+    (void)self;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_ResetGlobalQualifierValuesByNames(svc_object *self, void *names)
+{
+    (void)self;
+    (void)names;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_GetForViewIndependentUse(svc_object *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    svc_AddRef(&resctx_singleton);
+    *out = &resctx_singleton;
+    return S_OK;
+}
+
+static HRESULT __stdcall resctx_SetGlobalQualifierValueWithPersistence(svc_object *self,
+                                                                       hstring_t key, hstring_t val,
+                                                                       INT32 persistence)
+{
+    (void)self;
+    (void)key;
+    (void)val;
+    (void)persistence;
+    return S_OK;
+}
+
+static const void *resctx_statics_vtable[] = {
+    (const void *)resctx_statics_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)resctx_CreateMatchingContext,
+};
+
+static const void *resctx_statics2_vtable[] = {
+    (const void *)resctx_statics_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)resctx_GetForCurrentView,
+    (const void *)resctx_SetGlobalQualifierValue,
+    (const void *)resctx_ResetGlobalQualifierValues,
+    (const void *)resctx_ResetGlobalQualifierValuesByNames,
+    (const void *)resctx_GetForViewIndependentUse,
+};
+
+static const void *resctx_statics3_vtable[] = {
+    (const void *)resctx_statics_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)resctx_SetGlobalQualifierValueWithPersistence,
+};
+
+
+/* ----------------------- Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionSession */
+
+static const GUID svc_iid_ext_exec_session = {
+    0xaf908a2d, 0x118b, 0x48f1, {0x93, 0x08, 0x0c, 0x4f, 0xc4, 0x1e, 0x20, 0x0f}};
+
+typedef struct {
+    svc_object base;
+    svc_object closable;
+    INT32 reason;
+    UINT32 percent;
+    WCHAR description[128];
+} ext_exec_object;
+
+static const void *ext_exec_closable_vtable[];
+
+static ext_exec_object *ext_exec_from(void *self)
+{
+    svc_object *hdr = (svc_object *)self;
+    if (hdr && hdr->vtbl == ext_exec_closable_vtable)
+        return (ext_exec_object *)((char *)self - offsetof(ext_exec_object, closable));
+    return (ext_exec_object *)self;
+}
+
+static ULONG __stdcall ext_exec_AddRef(void *self)
+{
+    return svc_AddRef(&ext_exec_from(self)->base);
+}
+
+static ULONG __stdcall ext_exec_Release(void *self)
+{
+    return svc_Release(&ext_exec_from(self)->base);
+}
+
+static HRESULT __stdcall ext_exec_QI(void *self, const GUID *id, void **out)
+{
+    ext_exec_object *obj = ext_exec_from(self);
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_closable)) {
+        *out = &obj->closable;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_ext_exec_session) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &obj->base;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
+    svc_trace_iid("ext_exec QI miss", id);
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall ext_exec_get_Reason(void *self, INT32 *out)
+{
+    if (!out) return E_POINTER;
+    *out = ext_exec_from(self)->reason;
+    return S_OK;
+}
+
+static HRESULT __stdcall ext_exec_put_Reason(void *self, INT32 val)
+{
+    ext_exec_from(self)->reason = val;
+    return S_OK;
+}
+
+static HRESULT __stdcall ext_exec_get_Description(void *self, hstring_t *out)
+{
+    if (!out) return E_POINTER;
+    *out = svc_string(ext_exec_from(self)->description);
+    return S_OK;
+}
+
+static HRESULT __stdcall ext_exec_put_Description(void *self, hstring_t val)
+{
+    ext_exec_object *obj = ext_exec_from(self);
+    const WCHAR *w = svc_string_text(val);
+    if (w) {
+        wcsncpy(obj->description, w, 127);
+        obj->description[127] = 0;
+    } else {
+        obj->description[0] = 0;
+    }
+    return S_OK;
+}
+
+static HRESULT __stdcall ext_exec_get_PercentProgress(void *self, UINT32 *out)
+{
+    if (!out) return E_POINTER;
+    *out = ext_exec_from(self)->percent;
+    return S_OK;
+}
+
+static HRESULT __stdcall ext_exec_put_PercentProgress(void *self, UINT32 val)
+{
+    ext_exec_from(self)->percent = val;
+    return S_OK;
+}
+
+static HRESULT __stdcall ext_exec_add_Revoked(void *self, void *handler, long long *token)
+{
+    (void)self;
+    (void)handler;
+    if (token) *token = 1;
+    return S_OK;
+}
+
+static HRESULT __stdcall ext_exec_remove_Revoked(void *self, long long token)
+{
+    (void)self;
+    (void)token;
+    return S_OK;
+}
+
+static HRESULT __stdcall ext_exec_RequestExtensionAsync(void *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    return async_u32_operation_iid(&svc_iid_async_ext_exec_result, S_OK, 0 /* ExtendedExecutionResult_Allowed */, out);
+}
+
+static HRESULT __stdcall ext_exec_Close(void *self)
+{
+    (void)self;
+    return S_OK;
+}
+
+static const void *ext_exec_vtable[] = {
+    (const void *)ext_exec_QI, (const void *)ext_exec_AddRef, (const void *)ext_exec_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ext_exec_get_Reason, (const void *)ext_exec_put_Reason,
+    (const void *)ext_exec_get_Description, (const void *)ext_exec_put_Description,
+    (const void *)ext_exec_get_PercentProgress, (const void *)ext_exec_put_PercentProgress,
+    (const void *)ext_exec_add_Revoked, (const void *)ext_exec_remove_Revoked,
+    (const void *)ext_exec_RequestExtensionAsync,
+};
+
+static const void *ext_exec_closable_vtable[] = {
+    (const void *)ext_exec_QI, (const void *)ext_exec_AddRef, (const void *)ext_exec_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ext_exec_Close,
+};
+
+static HRESULT ext_exec_new(void **out)
+{
+    ext_exec_object *obj;
+    if (!out) return E_POINTER;
+    obj = (ext_exec_object *)calloc(1, sizeof(*obj));
+    if (!obj) return E_OUTOFMEMORY;
+    obj->base.vtbl = ext_exec_vtable;
+    obj->base.refs = 1;
+    obj->base.name = "Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionSession";
+    obj->closable.vtbl = ext_exec_closable_vtable;
+    obj->closable.refs = 1;
+    obj->closable.permanent = 1;
+    obj->closable.name = obj->base.name;
+    *out = &obj->base;
+    return S_OK;
+}
+
+
+/* ----------------------- Windows.Networking.Sockets.MessageWebSocket */
+
+static const GUID svc_iid_msg_ws = {
+    0x33727d08, 0x34d5, 0x4746, {0xad, 0x7b, 0x8d, 0xde, 0x5b, 0xc2, 0xef, 0x88}};
+static const GUID svc_iid_msg_ws2 = {
+    0xbed0cee7, 0xf9c8, 0x440a, {0x9a, 0xd5, 0x73, 0x72, 0x81, 0xd9, 0x74, 0x2e}};
+static const GUID svc_iid_ws = {
+    0xf877396f, 0x99b1, 0x4e18, {0xbc, 0x08, 0x85, 0x0c, 0x9a, 0xdf, 0x15, 0x6e}};
+static const GUID svc_iid_msg_ws_ctrl = {
+    0x8118388a, 0xc629, 0x4f0a, {0x80, 0xfb, 0x81, 0xfc, 0x05, 0x53, 0x88, 0x62}};
+static const GUID svc_iid_ws_ctrl = {
+    0x2ec4bdc3, 0xd9a5, 0x455a, {0x98, 0x11, 0xde, 0x24, 0xd4, 0x53, 0x37, 0xe9}};
+
+typedef struct {
+    svc_object base;
+    svc_object ws_ctrl;
+    UINT32 max_msg_size;
+    INT32 msg_type;
+    UINT32 outbound_buf_size;
+} msg_ws_ctrl_object;
+
+static const void *msg_ws_ctrl_base_vtable[];
+
+static msg_ws_ctrl_object *msg_ws_ctrl_from(void *self)
+{
+    svc_object *hdr = (svc_object *)self;
+    if (hdr && hdr->vtbl == msg_ws_ctrl_base_vtable)
+        return (msg_ws_ctrl_object *)((char *)self - offsetof(msg_ws_ctrl_object, ws_ctrl));
+    return (msg_ws_ctrl_object *)self;
+}
+
+static ULONG __stdcall msg_ws_ctrl_AddRef(void *self)
+{
+    return svc_AddRef(&msg_ws_ctrl_from(self)->base);
+}
+
+static ULONG __stdcall msg_ws_ctrl_Release(void *self)
+{
+    return svc_Release(&msg_ws_ctrl_from(self)->base);
+}
+
+static HRESULT __stdcall msg_ws_ctrl_QI(void *self, const GUID *id, void **out)
+{
+    msg_ws_ctrl_object *obj = msg_ws_ctrl_from(self);
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_ws_ctrl)) {
+        *out = &obj->ws_ctrl;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_msg_ws_ctrl) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &obj->base;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall msg_ws_ctrl_get_MaxMessageSize(void *self, UINT32 *out)
+{
+    if (!out) return E_POINTER;
+    *out = msg_ws_ctrl_from(self)->max_msg_size;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_ctrl_put_MaxMessageSize(void *self, UINT32 val)
+{
+    msg_ws_ctrl_from(self)->max_msg_size = val;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_ctrl_get_MessageType(void *self, INT32 *out)
+{
+    if (!out) return E_POINTER;
+    *out = msg_ws_ctrl_from(self)->msg_type;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_ctrl_put_MessageType(void *self, INT32 val)
+{
+    msg_ws_ctrl_from(self)->msg_type = val;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_ctrl_get_OutboundBuf(void *self, UINT32 *out)
+{
+    if (!out) return E_POINTER;
+    *out = msg_ws_ctrl_from(self)->outbound_buf_size;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_ctrl_put_OutboundBuf(void *self, UINT32 val)
+{
+    msg_ws_ctrl_from(self)->outbound_buf_size = val;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_ctrl_get_Null(void *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = NULL;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_ctrl_put_Nop(void *self, void *val)
+{
+    (void)self;
+    (void)val;
+    return S_OK;
+}
+
+/* Minimal IVector<HSTRING> for IWebSocketControl::SupportedProtocols */
+static const GUID svc_iid_ivector_hstring = {
+    0x98b9acc1, 0x4b56, 0x532e, {0xac, 0x73, 0x03, 0xd5, 0x29, 0x1c, 0xca, 0x90}};
+
+static HRESULT __stdcall ws_proto_vec_QI(void *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_ivector_hstring) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = self;
+        svc_AddRef((svc_object *)self);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall ws_proto_vec_GetAt(void *self, UINT32 index, hstring_t *out)
+{
+    (void)self;
+    (void)index;
+    if (out) *out = NULL;
+    return E_BOUNDS;
+}
+
+static HRESULT __stdcall ws_proto_vec_get_Size(void *self, UINT32 *out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = 0;
+    return S_OK;
+}
+
+static const GUID svc_iid_ivectorview_hstring = {
+    0x2f13c006, 0xa03a, 0x5f69, {0xb0, 0x90, 0x75, 0xa4, 0x3e, 0x33, 0x42, 0x3e}};
+
+static HRESULT __stdcall ws_proto_view_QI(void *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_ivectorview_hstring) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = self;
+        svc_AddRef((svc_object *)self);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall ws_proto_vec_IndexOf(void *self, hstring_t val, UINT32 *idx, BOOLEAN *found);
+static HRESULT __stdcall ws_proto_vec_GetMany(void *self, UINT32 start, UINT32 cap, hstring_t *items, UINT32 *actual);
+
+static const void *ws_proto_view_vtable[] = {
+    (const void *)ws_proto_view_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ws_proto_vec_GetAt, (const void *)ws_proto_vec_get_Size,
+    (const void *)ws_proto_vec_IndexOf, (const void *)ws_proto_vec_GetMany,
+};
+
+static svc_object ws_proto_view_singleton = {
+    ws_proto_view_vtable, 1, "Windows.Foundation.Collections.IVectorView`1<String>", 1};
+
+static HRESULT __stdcall ws_proto_vec_GetView(void *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    svc_AddRef(&ws_proto_view_singleton);
+    *out = &ws_proto_view_singleton;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_proto_vec_IndexOf(void *self, hstring_t val, UINT32 *idx, BOOLEAN *found)
+{
+    (void)self;
+    (void)val;
+    if (idx) *idx = 0;
+    if (found) *found = 0;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_proto_vec_SetAt(void *self, UINT32 index, hstring_t val)
+{
+    (void)self;
+    (void)index;
+    (void)val;
+    return E_BOUNDS;
+}
+
+static HRESULT __stdcall ws_proto_vec_InsertAt(void *self, UINT32 index, hstring_t val)
+{
+    (void)self;
+    (void)index;
+    (void)val;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_proto_vec_RemoveAt(void *self, UINT32 index)
+{
+    (void)self;
+    (void)index;
+    return E_BOUNDS;
+}
+
+static HRESULT __stdcall ws_proto_vec_Append(void *self, hstring_t val)
+{
+    (void)self;
+    (void)val;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_proto_vec_Nop(void *self)
+{
+    (void)self;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_proto_vec_GetMany(void *self, UINT32 start, UINT32 cap, hstring_t *items, UINT32 *actual)
+{
+    (void)self;
+    (void)start;
+    (void)cap;
+    (void)items;
+    if (actual) *actual = 0;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_proto_vec_ReplaceAll(void *self, UINT32 count, hstring_t *items)
+{
+    (void)self;
+    (void)count;
+    (void)items;
+    return S_OK;
+}
+
+static const void *ws_proto_vec_vtable[] = {
+    (const void *)ws_proto_vec_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ws_proto_vec_GetAt, (const void *)ws_proto_vec_get_Size,
+    (const void *)ws_proto_vec_GetView, (const void *)ws_proto_vec_IndexOf,
+    (const void *)ws_proto_vec_SetAt, (const void *)ws_proto_vec_InsertAt,
+    (const void *)ws_proto_vec_RemoveAt, (const void *)ws_proto_vec_Append,
+    (const void *)ws_proto_vec_Nop, (const void *)ws_proto_vec_Nop,
+    (const void *)ws_proto_vec_GetMany, (const void *)ws_proto_vec_ReplaceAll,
+};
+
+static svc_object ws_proto_vec_singleton = {
+    ws_proto_vec_vtable, 1, "Windows.Foundation.Collections.IVector`1<String>", 1};
+
+static HRESULT __stdcall msg_ws_ctrl_get_SupportedProtocols(void *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    svc_AddRef(&ws_proto_vec_singleton);
+    *out = &ws_proto_vec_singleton;
+    return S_OK;
+}
+
+static const void *msg_ws_ctrl_vtable[] = {
+    (const void *)msg_ws_ctrl_QI, (const void *)msg_ws_ctrl_AddRef,
+    (const void *)msg_ws_ctrl_Release, (const void *)svc_get_iids,
+    (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)msg_ws_ctrl_get_MaxMessageSize, (const void *)msg_ws_ctrl_put_MaxMessageSize,
+    (const void *)msg_ws_ctrl_get_MessageType, (const void *)msg_ws_ctrl_put_MessageType,
+};
+
+static const void *msg_ws_ctrl_base_vtable[] = {
+    (const void *)msg_ws_ctrl_QI, (const void *)msg_ws_ctrl_AddRef,
+    (const void *)msg_ws_ctrl_Release, (const void *)svc_get_iids,
+    (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)msg_ws_ctrl_get_OutboundBuf, (const void *)msg_ws_ctrl_put_OutboundBuf,
+    (const void *)msg_ws_ctrl_get_Null, (const void *)msg_ws_ctrl_put_Nop,
+    (const void *)msg_ws_ctrl_get_Null, (const void *)msg_ws_ctrl_put_Nop,
+    (const void *)msg_ws_ctrl_get_SupportedProtocols,
+};
+
+typedef struct {
+    svc_object base;
+    svc_object msg_ws2;
+    svc_object ws;
+    svc_object closable;
+    msg_ws_ctrl_object *ctrl;
+} msg_ws_object;
+
+static const void *msg_ws2_vtable[];
+static const void *msg_ws_base_vtable[];
+static const void *msg_ws_closable_vtable[];
+
+static msg_ws_object *msg_ws_from(void *self)
+{
+    svc_object *hdr = (svc_object *)self;
+    if (hdr && hdr->vtbl == msg_ws2_vtable)
+        return (msg_ws_object *)((char *)self - offsetof(msg_ws_object, msg_ws2));
+    if (hdr && hdr->vtbl == msg_ws_base_vtable)
+        return (msg_ws_object *)((char *)self - offsetof(msg_ws_object, ws));
+    if (hdr && hdr->vtbl == msg_ws_closable_vtable)
+        return (msg_ws_object *)((char *)self - offsetof(msg_ws_object, closable));
+    return (msg_ws_object *)self;
+}
+
+static ULONG __stdcall msg_ws_AddRef(void *self)
+{
+    return svc_AddRef(&msg_ws_from(self)->base);
+}
+
+static ULONG __stdcall msg_ws_Release(void *self)
+{
+    msg_ws_object *obj = msg_ws_from(self);
+    LONG left = InterlockedDecrement(&obj->base.refs);
+    if (left <= 0) {
+        if (obj->ctrl) svc_Release(&obj->ctrl->base);
+        free(obj);
+    }
+    return (ULONG)left;
+}
+
+static HRESULT __stdcall msg_ws_QI(void *self, const GUID *id, void **out)
+{
+    msg_ws_object *obj = msg_ws_from(self);
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_msg_ws2)) {
+        *out = &obj->msg_ws2;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_ws)) {
+        *out = &obj->ws;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_closable)) {
+        *out = &obj->closable;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_msg_ws) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &obj->base;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
+    svc_trace_iid("msg_ws QI miss", id);
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall msg_ws_get_Control(void *self, void **out)
+{
+    msg_ws_object *obj = msg_ws_from(self);
+    if (!out) return E_POINTER;
+    if (!obj->ctrl) {
+        obj->ctrl = (msg_ws_ctrl_object *)calloc(1, sizeof(*obj->ctrl));
+        if (!obj->ctrl) return E_OUTOFMEMORY;
+        obj->ctrl->base.vtbl = msg_ws_ctrl_vtable;
+        obj->ctrl->base.refs = 1;
+        obj->ctrl->base.name = "Windows.Networking.Sockets.MessageWebSocketControl";
+        obj->ctrl->ws_ctrl.vtbl = msg_ws_ctrl_base_vtable;
+        obj->ctrl->ws_ctrl.refs = 1;
+        obj->ctrl->ws_ctrl.permanent = 1;
+        obj->ctrl->ws_ctrl.name = obj->ctrl->base.name;
+        obj->ctrl->max_msg_size = 65536;
+        obj->ctrl->outbound_buf_size = 65536;
+    }
+    svc_AddRef(&obj->ctrl->base);
+    *out = &obj->ctrl->base;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_get_Information(void *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = NULL;
+    return E_NOTIMPL;
+}
+
+static HRESULT __stdcall msg_ws_add_Event(void *self, void *handler, long long *token)
+{
+    (void)self;
+    (void)handler;
+    if (token) *token = 1;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_remove_Event(void *self, long long token)
+{
+    (void)self;
+    (void)token;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_get_OutputStream(void *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = NULL;
+    return E_FAIL;
+}
+
+static HRESULT __stdcall msg_ws_ConnectAsync(void *self, void *uri, void **out)
+{
+    (void)self;
+    (void)uri;
+    if (!out) return E_POINTER;
+    return async_action(E_FAIL, out);
+}
+
+static HRESULT __stdcall msg_ws_SetRequestHeader(void *self, hstring_t name, hstring_t val)
+{
+    (void)self;
+    (void)name;
+    (void)val;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_CloseWithStatus(void *self, UINT16 code, hstring_t reason)
+{
+    (void)self;
+    (void)code;
+    (void)reason;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_Close(void *self)
+{
+    (void)self;
+    return S_OK;
+}
+
+static const void *msg_ws_vtable[] = {
+    (const void *)msg_ws_QI, (const void *)msg_ws_AddRef, (const void *)msg_ws_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)msg_ws_get_Control, (const void *)msg_ws_get_Information,
+    (const void *)msg_ws_add_Event, (const void *)msg_ws_remove_Event,
+};
+
+static const void *msg_ws2_vtable[] = {
+    (const void *)msg_ws_QI, (const void *)msg_ws_AddRef, (const void *)msg_ws_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)msg_ws_add_Event, (const void *)msg_ws_remove_Event,
+};
+
+static const void *msg_ws_base_vtable[] = {
+    (const void *)msg_ws_QI, (const void *)msg_ws_AddRef, (const void *)msg_ws_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)msg_ws_get_OutputStream, (const void *)msg_ws_ConnectAsync,
+    (const void *)msg_ws_SetRequestHeader, (const void *)msg_ws_add_Event,
+    (const void *)msg_ws_remove_Event, (const void *)msg_ws_CloseWithStatus,
+};
+
+static const void *msg_ws_closable_vtable[] = {
+    (const void *)msg_ws_QI, (const void *)msg_ws_AddRef, (const void *)msg_ws_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)msg_ws_Close,
+};
+
+static HRESULT msg_ws_new(void **out)
+{
+    msg_ws_object *obj;
+    if (!out) return E_POINTER;
+    obj = (msg_ws_object *)calloc(1, sizeof(*obj));
+    if (!obj) return E_OUTOFMEMORY;
+    obj->base.vtbl = msg_ws_vtable;
+    obj->base.refs = 1;
+    obj->base.name = "Windows.Networking.Sockets.MessageWebSocket";
+    obj->msg_ws2.vtbl = msg_ws2_vtable;
+    obj->msg_ws2.refs = 1;
+    obj->msg_ws2.permanent = 1;
+    obj->msg_ws2.name = obj->base.name;
+    obj->ws.vtbl = msg_ws_base_vtable;
+    obj->ws.refs = 1;
+    obj->ws.permanent = 1;
+    obj->ws.name = obj->base.name;
+    obj->closable.vtbl = msg_ws_closable_vtable;
+    obj->closable.refs = 1;
+    obj->closable.permanent = 1;
+    obj->closable.name = obj->base.name;
+    *out = &obj->base;
+    return S_OK;
+}
+
 /* ------------------------------------------------------ class registration */
 
 typedef struct {
@@ -8322,6 +9766,10 @@ static svc_class service_classes[] = {
     {L"Windows.Foundation.Diagnostics.LoggingChannel", &diag_logging_channel_static, NULL, 0, {0}},
     {L"Windows.Foundation.Diagnostics.LoggingFields", NULL, diag_logging_fields_vtable, 1, {0}},
     {L"Windows.Networking.PushNotifications.PushNotificationChannelManager", &push_mgr_static, NULL, 0, {0}},
+    {L"Windows.Networking.XboxLive.XboxLiveDeviceAddress", &xbl_devaddr_static, NULL, 0, {0}},
+    {L"Windows.ApplicationModel.Resources.Core.ResourceContext", &resctx_static, resctx_vtable, 1, {0}},
+    {L"Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionSession", NULL, ext_exec_vtable, 1, {0}},
+    {L"Windows.Networking.Sockets.MessageWebSocket", NULL, msg_ws_vtable, 1, {0}},
 };
 
 static HRESULT svc_factory_QI(svc_object *self, const GUID *id, void **out)
@@ -8329,7 +9777,7 @@ static HRESULT svc_factory_QI(svc_object *self, const GUID *id, void **out)
     svc_class *entry = (svc_class *)self->name;
     if (!out) return E_POINTER;
     if (IsEqualIID(id, &svc_iid_factory) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable)) {
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
         *out = self;
         svc_AddRef(self);
         return S_OK;
@@ -8367,6 +9815,15 @@ static HRESULT svc_factory_activate(svc_object *self, void **out)
         return diag_logging_channel_options_new(NULL, out);
     if (entry->instance_vtable == diag_logging_fields_vtable)
         return diag_logging_fields_new(out);
+    if (entry->instance_vtable == resctx_vtable) {
+        svc_AddRef(&resctx_singleton);
+        *out = &resctx_singleton;
+        return S_OK;
+    }
+    if (entry->instance_vtable == ext_exec_vtable)
+        return ext_exec_new(out);
+    if (entry->instance_vtable == msg_ws_vtable)
+        return msg_ws_new(out);
     object = (svc_object *)calloc(1, sizeof(svc_object));
     if (!object) return E_OUTOFMEMORY;
     object->vtbl = (const void **)entry->instance_vtable;
@@ -8505,6 +9962,30 @@ void uwp_services_install(void)
             "Windows.Foundation.Diagnostics.LoggingChannel");
     INSTALL(push_mgr_static, push_mgr_statics_vtable,
             "Windows.Networking.PushNotifications.PushNotificationChannelManager");
+    INSTALL(xbl_devaddr_static, xbl_devaddr_statics_vtable,
+            "Windows.Networking.XboxLive.XboxLiveDeviceAddress");
+    INSTALL(xbl_devaddr_local.base, xbl_devaddr_vtable,
+            "Windows.Networking.XboxLive.XboxLiveDeviceAddress");
+    xbl_devaddr_local.is_local = TRUE;
+    xbl_devaddr_local.is_valid = FALSE;
+    INSTALL(resctx_static, resctx_statics_vtable,
+            "Windows.ApplicationModel.Resources.Core.ResourceContext");
+    INSTALL(resctx_static2, resctx_statics2_vtable,
+            "Windows.ApplicationModel.Resources.Core.ResourceContext");
+    INSTALL(resctx_static3, resctx_statics3_vtable,
+            "Windows.ApplicationModel.Resources.Core.ResourceContext");
+    INSTALL(resctx_singleton, resctx_vtable,
+            "Windows.ApplicationModel.Resources.Core.ResourceContext");
+    INSTALL(resctx_qual_map, resctx_qual_map_vtable,
+            "Windows.Foundation.Collections.IMap");
+    INSTALL(resctx_qual_obs, resctx_qual_obs_vtable,
+            "Windows.Foundation.Collections.IObservableMap");
+    INSTALL(resctx_qual_view, resctx_qual_view_vtable,
+            "Windows.Foundation.Collections.IMapView");
+    INSTALL(resctx_lang_vec, resctx_lang_vec_vtable,
+            "Windows.Foundation.Collections.IVectorView");
+    INSTALL(resctx_lang_iter, resctx_lang_iter_vtable,
+            "Windows.Foundation.Collections.IIterable");
 #undef INSTALL
 
     for (i = 0; i < sizeof(service_classes) / sizeof(service_classes[0]); i++) {
