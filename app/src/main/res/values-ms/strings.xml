@@ -4047,4 +4047,6 @@
     <string name="theme_custom_signal">Sorotan</string>
     <string name="theme_custom_good">Berjaya</string>
     <string name="theme_custom_error">Ralat</string>
+    <string name="hud_only_during_game">Paparkan HUD hanya semasa bermain</string>
+    <string name="hud_only_during_game_hint">Sembunyikan HUD apabila bingkai permainan tidak dikesan.</string>
 </resources>

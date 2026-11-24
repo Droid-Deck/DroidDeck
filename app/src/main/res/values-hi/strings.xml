@@ -4077,4 +4077,6 @@
     <string name="theme_custom_signal">हाइलाइट</string>
     <string name="theme_custom_good">सफलता</string>
     <string name="theme_custom_error">त्रुटि</string>
+    <string name="hud_only_during_game">HUD केवल गेम के दौरान दिखाएँ</string>
+    <string name="hud_only_during_game_hint">गेम के फ़्रेम का पता न चलने पर HUD छिपाएँ।</string>
 </resources>

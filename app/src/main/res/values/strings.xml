@@ -4380,6 +4380,10 @@
     <string name="onboarding_steam_failed">The Steam client download will retry</string>
     <string name="onboarding_limit_reason">Android can close Steam’s helper processes. Turn that off now, while the downloads run, and Play is ready the moment they finish.</string>
     <string name="onboarding_limit_action">Do it for me</string>
+    <string name="onboarding_limit_while_waiting">Set up while you wait</string>
+    <string name="onboarding_chip">Getting ready · %1$d%% · %2$s</string>
+    <string name="hud_only_during_game">Show HUD only during a game</string>
+    <string name="hud_only_during_game_hint">Hide the HUD when no game frames are detected.</string>
     <string name="onboarding_button_getting_ready">Getting ready · %1$d%%</string>
     <string name="onboarding_button_finish">Finish setup · %1$d%%</string>
 </resources>

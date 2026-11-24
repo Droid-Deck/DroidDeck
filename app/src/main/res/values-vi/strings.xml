@@ -4047,4 +4047,6 @@
     <string name="theme_custom_signal">Điểm nhấn</string>
     <string name="theme_custom_good">Thành công</string>
     <string name="theme_custom_error">Lỗi</string>
+    <string name="hud_only_during_game">Chỉ hiển thị HUD khi đang chơi</string>
+    <string name="hud_only_during_game_hint">Ẩn HUD khi không phát hiện khung hình trò chơi.</string>
 </resources>

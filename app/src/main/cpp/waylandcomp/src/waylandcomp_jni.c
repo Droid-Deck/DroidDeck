@@ -63,6 +63,7 @@ static jclass g_compositor_cls;
 static jmethodID g_on_first_frame;
 static jmethodID g_on_game_surface;
 static jmethodID g_on_game_frame;
+static jmethodID g_on_compositor_frame;
 static jmethodID g_on_game_program;
 static jmethodID g_on_pointer_lock;
 static jmethodID g_on_clipboard;
@@ -84,6 +85,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
             g_on_game_surface = (*env)->GetStaticMethodID(env, g_compositor_cls, "onGameSurface",
                                                           "(Ljava/lang/String;Ljava/lang/String;)V");
             g_on_game_frame = (*env)->GetStaticMethodID(env, g_compositor_cls, "onGameFrame", "()V");
+            g_on_compositor_frame = (*env)->GetStaticMethodID(env, g_compositor_cls, "onCompositorFrame", "()V");
             g_on_game_program = (*env)->GetStaticMethodID(env, g_compositor_cls, "onGameProgram",
                                                           "(ILjava/lang/String;)V");
             if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); g_on_game_program = NULL; }
@@ -151,6 +153,13 @@ void droiddeck_on_game_frame(void) {
     JNIEnv *env;
     if (!g_compositor_cls || !g_on_game_frame || !(env = thread_env())) return;
     (*env)->CallStaticVoidMethod(env, g_compositor_cls, g_on_game_frame);
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+}
+
+void droiddeck_on_compositor_frame(void) {
+    JNIEnv *env;
+    if (!g_compositor_cls || !g_on_compositor_frame || !(env = thread_env())) return;
+    (*env)->CallStaticVoidMethod(env, g_compositor_cls, g_on_compositor_frame);
     if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
 }
 

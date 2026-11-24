@@ -4237,4 +4237,6 @@
     <string name="theme_custom_signal">الإبرازات</string>
     <string name="theme_custom_good">نجاح</string>
     <string name="theme_custom_error">خطأ</string>
+    <string name="hud_only_during_game">عرض HUD أثناء اللعب فقط</string>
+    <string name="hud_only_during_game_hint">إخفاء HUD عند عدم اكتشاف إطارات اللعبة.</string>
 </resources>

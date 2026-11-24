@@ -4117,4 +4117,6 @@
     <string name="theme_custom_signal">Evidențieri</string>
     <string name="theme_custom_good">Succes</string>
     <string name="theme_custom_error">Eroare</string>
+    <string name="hud_only_during_game">Afișează HUD-ul doar în timpul jocului</string>
+    <string name="hud_only_during_game_hint">Ascunde HUD-ul când nu sunt detectate cadre ale jocului.</string>
 </resources>
