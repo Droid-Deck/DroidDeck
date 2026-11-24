@@ -13,6 +13,15 @@ chmod 700 "$state"
 
 PKG_URL=https://steamdeck-packages.steamos.cloud/archlinux-deckard-hotfixes/release/0.3.x/deckard-steamvr-rel-r25358740%2B28b72a4f-1-aarch64.pkg.tar.zst
 PKG_SHA256=90a600775eb3e8856dc475f83166a93a290a0b1f3b4e82a69c8e2a8f06b9ddc9
+PKG_SIZE=571309057
+pkg=$HOME/.cache/droiddeck-vr/steamvr.pkg.tar.zst
+install_log=$logs/droiddeck-steamvr-install.log
+
+bytes() { stat -c %s "$1" 2>/dev/null || echo 0; }
+note() {
+    mkdir -p "$logs"
+    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" | tee -a "$install_log"
+}
 
 running() { pgrep -x vrserver >/dev/null 2>&1; }
 installed() { [ -x "$steamvr/bin/linuxarm64/vrstartup" ]; }
@@ -90,7 +99,7 @@ status)
     if idle; then unregister; fi
     n=0; [ -f "$state/installing" ] && n=1
     d=0; [ -f "$driver/bin/linuxarm64/driver_droiddeck.so" ] && [ -f "$layer/libVkLayer_droiddeck_vr.so" ] && d=1
-    echo "installed=$i running=$r installing=$n driver=$d"
+    echo "installed=$i running=$r installing=$n driver=$d downloaded=$(bytes "$pkg") size=$PKG_SIZE"
     ;;
 install)
     exec 7>"$state/install.lock"
@@ -98,18 +107,30 @@ install)
     installed && { echo "SteamVR is already in $steamvr"; exit 0; }
     : > "$state/installing"
     trap 'rm -f "$state/installing"' EXIT
-    cache=$HOME/.cache/droiddeck-vr
+    cache=$(dirname "$pkg")
     mkdir -p "$cache"
-    pkg=$cache/steamvr.pkg.tar.zst
-    echo "downloading SteamVR (571 MB) from Valve's package server"
-    curl -fsSL --retry 5 -C - -o "$pkg" "$PKG_URL" || { echo "download failed"; exit 1; }
-    echo "$PKG_SHA256  $pkg" | sha256sum -c - >/dev/null 2>&1 || { echo "checksum mismatch: removing the download"; rm -f "$pkg"; exit 1; }
+    attempt=1
+    while [ "$(bytes "$pkg")" -lt "$PKG_SIZE" ]; do
+        before=$(bytes "$pkg")
+        note "downloading SteamVR from Valve's package server: attempt $attempt, $before of $PKG_SIZE bytes"
+        curl -fsSL --connect-timeout 30 --speed-limit 1024 --speed-time 60 -C - -o "$pkg" "$PKG_URL" 2>>"$install_log"
+        code=$?
+        note "curl exited $code with $(bytes "$pkg") of $PKG_SIZE bytes"
+        [ "$code" = 0 ] && break
+        [ "$(bytes "$pkg")" -gt "$before" ] && attempt=0
+        [ "$attempt" -lt 5 ] || { note "download failed"; exit 1; }
+        attempt=$((attempt + 1))
+        sleep 5
+    done
+    note "checking sha256"
+    echo "$PKG_SHA256  $pkg" | sha256sum -c - >/dev/null 2>&1 || { note "checksum mismatch: removing the download"; rm -f "$pkg"; exit 1; }
     tmp=$cache/extract
     rm -rf "$tmp" && mkdir -p "$tmp"
-    zstd -dc "$pkg" | tar -x -C "$tmp" opt/steamvr || { echo "extract failed"; rm -rf "$tmp"; exit 1; }
+    note "unpacking SteamVR"
+    zstd -dc "$pkg" 2>>"$install_log" | tar -x -C "$tmp" opt/steamvr 2>>"$install_log" || { note "extract failed"; rm -rf "$tmp"; exit 1; }
     mkdir -p "$(dirname "$steamvr")"
-    rm -rf "$steamvr" && mv "$tmp/opt/steamvr" "$steamvr" && rm -rf "$tmp" "$pkg"
-    echo "SteamVR installed in $steamvr"
+    rm -rf "$steamvr" && mv "$tmp/opt/steamvr" "$steamvr" && rm -rf "$tmp" "$pkg" || { note "could not move SteamVR into $steamvr"; exit 1; }
+    note "SteamVR installed in $steamvr"
     ;;
 stop)
     stop || exit 1

@@ -948,7 +948,7 @@ internal object EnhancedSessionLogShare {
         "droiddeck", "droiddeck-esync", "session.log", "app.log", "wayland.log", "audio.log",
         "device.txt", "network.txt", "events.jsonl", "memory.csv", "capture.json", "crash.log",
         "frame-trace.log", "process-trace.log", "game-lifecycle.log", "launches.log", "tools.tsv", "wanted.tsv", "prefixes.json",
-        "battlenet.log", "spawned.log", "flatpak-install.log", "cef_log.txt", "cef_log.previous.txt",
+        "battlenet.log", "spawned.log", "flatpak-install.log", "droiddeck-steamvr-install.log", "cef_log.txt", "cef_log.previous.txt",
         "console_log.txt", "webhelper_js.txt", "controller_support.txt", "systemperfmanager.txt",
         "rpcs3", "RPCS3.log",
     )

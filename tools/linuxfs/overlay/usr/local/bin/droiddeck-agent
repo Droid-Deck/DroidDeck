@@ -1082,6 +1082,8 @@ def steamvr(req):
             key, _, value = part.partition("=")
             if key in ("installed", "running", "installing", "driver"):
                 result[key] = value == "1"
+            elif key in ("downloaded", "size") and value.isdigit():
+                result[key] = int(value)
     return result
 
 
