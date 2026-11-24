@@ -34,6 +34,12 @@ ln -sf /usr/local/bin/droiddeck-steam-launch /usr/local/bin/steamdeck-steam 2>/d
 ln -sf /usr/local/bin/droiddeck-steam-shim /usr/local/bin/steam 2>/dev/null
 python3 /usr/local/bin/droiddeck-desktop-games 2>&1 | sed 's/^/[games] /'
 python3 /usr/local/bin/droiddeck-desktop-programs 2>&1 | sed 's/^/[programs] /'
+# Plasma lays out the SteamOS panel only for a profile without one; a panel made from Kubuntu's own
+# layout keeps its Ubuntu launcher icon and a single pin, so it is set aside for the SteamOS one.
+dd_panel_rc="${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"
+if grep -qs '^icon=start-here-kubuntu$' "$dd_panel_rc"; then
+  mv -f "$dd_panel_rc" "$dd_panel_rc.kubuntu-layout"
+fi
 # startplasma applies this file over the session environment, and keeps what an earlier session wrote.
 kwriteconfig6 --file plasma-localerc --group Formats --key LANG "${LANG:-C.UTF-8}"
 if [ -n "${LANGUAGE:-}" ]; then
