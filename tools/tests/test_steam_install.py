@@ -49,13 +49,16 @@ if host_fail and host_fail in url:
 action = []
 plan = os.environ.get('TEST_PLAN')
 if plan and os.path.exists(plan):
-    lines = open(plan).read().splitlines()
-    for n, line in enumerate(lines):
-        if line.split()[0] == name:
-            action = line.split()[1:]
-            del lines[n]
-            open(plan, 'w').write(''.join(l + '\\n' for l in lines))
-            break
+    import fcntl
+    with open(plan + '.lock', 'w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        lines = open(plan).read().splitlines()
+        for n, line in enumerate(lines):
+            if line.split()[0] == name:
+                action = line.split()[1:]
+                del lines[n]
+                open(plan, 'w').write(''.join(l + '\\n' for l in lines))
+                break
 if action[:1] == ['fail']:
     done(int(action[1]), '000')
 if action[:1] == ['http']:
@@ -517,6 +520,13 @@ class SteamInstallParallelTest(SteamInstallTest):
         lines = [line for line in result.stdout.splitlines() if 'downloading Steam:' in line and ' of ' in line]
         self.assertGreaterEqual(len(lines), 2, result.stdout)
         self.assertIn(' MB', lines[-1])
+
+    def test_packages_are_unpacked_one_at_a_time(self):
+        source = SCRIPT.read_text()
+        region = source[source.index('run_parallel() {'):source.index('fetch_manifest() {')]
+        self.assertNotIn('unzip -qo', region)
+        self.assertIn('unzip_alone', region)
+        self.assertIn('mkdir "$lock"', source)
 
     def test_the_parallel_workers_use_no_process_substitution(self):
         source = SCRIPT.read_text()

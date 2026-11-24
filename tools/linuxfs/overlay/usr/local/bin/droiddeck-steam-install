@@ -167,6 +167,21 @@ fetch_one() {
 parallel=${DD_STEAM_PARALLEL:-4}
 case $parallel in ''|*[!0-9]*|0) parallel=1 ;; esac
 
+# unzip creates parent directories without guarding against another unzip doing the same, so two packages unpacked into
+# one tree at once fail now and then. Unpacking is quick next to downloading: take turns, and go ahead without the lock
+# if a worker that held it was killed.
+unzip_alone() {
+  local lock=$state/unzip.lock tries=0 rc
+  until mkdir "$lock" 2>/dev/null; do
+    tries=$((tries + 1))
+    [ "$tries" -lt 2400 ] || break
+    sleep 0.05
+  done
+  unzip -qo "$1" -d "$steam_root" && rc=0 || rc=$?
+  rmdir "$lock" 2>/dev/null || true
+  return $rc
+}
+
 # Fetches every line of a list ("block file sum size") into $dir with up to $parallel connections. With a third
 # argument each package is also unpacked into the client as it lands. One connection tops out near half of what a
 # Wi-Fi link carries, so the packages arrive about twice as fast. Workers take the next unclaimed line themselves
@@ -211,7 +226,7 @@ run_parallel() {
           exit 1
         fi
         if [ -n "$unpack" ]; then
-          unzip -qo "$dir/$file" -d "$steam_root" || { : > "$state/failed"; exit 1; }
+          unzip_alone "$dir/$file" || { : > "$state/failed"; exit 1; }
           : > "$dir/$file.unpacked"
           rm -f "$dir/$file"
         fi
