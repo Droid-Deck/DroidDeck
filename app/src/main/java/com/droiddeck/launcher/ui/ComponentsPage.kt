@@ -1629,7 +1629,7 @@ private fun DeviceChip(s: GpuDriversState) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.onGloballyPositioned { at = it.boundsInRoot() }.heightIn(min = 44.dp).paneItem("gpu-device").clip(shape)
-            .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface)
+            .background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.14f)) else Modifier)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Button, onClick = open)
             .controllerConfirm(onClick = open)

@@ -35,6 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class ProtonMenuAutoTest {
     private val online = AutoComponents.online
     private val constrained = AutoComponents.unfavourable
+    private val firstRunHeldBack = AutoComponents.firstRunHeldBack
     private lateinit var activity: Activity
     private lateinit var menu: ProtonMenu
     private lateinit var root: File
@@ -49,6 +50,7 @@ class ProtonMenuAutoTest {
         }
         AutoComponents.online = { true }
         AutoComponents.unfavourable = { false }
+        AutoComponents.firstRunHeldBack = { false }
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
         SessionState.stopRequested = false
@@ -63,6 +65,7 @@ class ProtonMenuAutoTest {
         menu.protonProblem = null
         menu.protonStage = null
         menu.protonPercent = -1
+        menu.experimentalRefresh = { emptyList() }
         menu.installer = { tool, progress ->
             progress("Installing ${tool.name}", 50)
             install("${tool.prefix}-11-12")
@@ -77,6 +80,7 @@ class ProtonMenuAutoTest {
         menu.protonPercent = -1
         AutoComponents.online = online
         AutoComponents.unfavourable = constrained
+        AutoComponents.firstRunHeldBack = firstRunHeldBack
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
         SessionState.stopRequested = false

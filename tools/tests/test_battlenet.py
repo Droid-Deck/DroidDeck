@@ -1413,7 +1413,8 @@ class AgentJobTest(Harness):
         self.assertEqual(code, 0)
         self.assertTrue(os.path.isdir(folder))
         cmd = self.started[0]
-        self.assertEqual(cmd[:6], ["gamescope", "--backend", "headless", "-w", "640", "-h"])
+        self.assertEqual(cmd[:4], ["/usr/local/bin/droiddeck-headless", str(self.tmp / "cache" / "agent-runtime"), "--log",
+                                   str(self.tmp / "cache" / "agent.log")])
         self.assertEqual(cmd[cmd.index("--") + 2:-1], ["agent-serve", "install", "gryphon", "gryphon", "Z:" + folder, "enUS", "USA", "US"])
         self.assertEqual([kind for kind, _ in self.lines], ["STATE", "PROGRESS", "DONE"])
         self.assertEqual(json.loads(self.lines[-1][1]), {"install_dir": "Z:" + folder, "exe": "WarcraftRumble.exe", "version": "16.1.2.119725"})
@@ -1641,16 +1642,6 @@ class AgentJobTest(Harness):
         path.write_bytes(json.dumps({"state": 1004}).encode("utf-8"))
         self.assertEqual(BNET["read_status"](str(path)), {"state": 1004})
 
-    def test_a_large_agent_log_is_rotated_before_a_job(self):
-        self.install()
-        os.makedirs(self.tmp / "cache")
-        log = self.tmp / "cache" / "agent.log"
-        log.write_bytes(b"x" * (BNET["AGENT_LOG_LIMIT"] + 1))
-        self.files = {".game": json.dumps({"installed": False})}
-        BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0)
-        self.assertEqual((self.tmp / "cache" / "agent.log.1").stat().st_size, BNET["AGENT_LOG_LIMIT"] + 1)
-        self.assertEqual(log.stat().st_size, 0)
-
     def test_it_queues_behind_another_battle_net_job(self):
         self.install()
         self.files = {".game": json.dumps({"installed": False})}
@@ -1681,13 +1672,11 @@ class AgentJobTest(Harness):
         self.assertEqual(self.lines[0], ("STATE", "waiting"))
         self.assertEqual(self.lines[1], ("STATE", "starting"))
 
-    def test_gamescope_gets_no_display_but_the_agent_keeps_the_one_gamescope_gives_it(self):
+    def test_the_agent_keeps_the_display_gamescope_gives_it_and_launches_through_the_shared_headless_helper(self):
         self.install()
-        os.environ.update(DISPLAY=":5", WAYLAND_DISPLAY="wayland-1")
         self.files = {".game": json.dumps({"installed": False})}
         BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0)
-        self.assertNotIn("DISPLAY", self.envs[0])
-        self.assertNotIn("WAYLAND_DISPLAY", self.envs[0])
+        self.assertEqual(self.started[0][0], BNET["HEADLESS"])
         self.assertEqual(self.envs[0]["PROTON_USE_XALIA"], "0")
         os.environ["DISPLAY"] = ":0"
         self.assertEqual(BNET["agent_env"]()["DISPLAY"], ":0")

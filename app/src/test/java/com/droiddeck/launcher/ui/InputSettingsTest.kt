@@ -258,6 +258,18 @@ class InputSettingsTest {
         compose.onNodeWithTag("input-layout-canvas").assertExists()
     }
 
+    @Test fun everyScreenOpensWithItsEditorFirst() {
+        compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
+        compose.onNodeWithTag("input-profile-game").performScrollTo().performClick()
+        val tops = listOf("primary", "secondary").map { screen ->
+            compose.onNodeWithTag("input-part-$screen").performScrollTo().performClick()
+            val top = compose.onNodeWithTag("input-surface-$screen").assertIsDisplayed().fetchSemanticsNode().boundsInRoot.top
+            compose.onNodeWithText(context.getString(R.string.mode_back)).performClick()
+            top
+        }
+        assertEquals(tops[1], tops[0])
+    }
+
     @Test fun deviceSettingsAreInlineBelowProfiles() {
         compose.setContent { DroidDeckTheme { InputSettingsPage({}) } }
         compose.onNodeWithTag("input-more").assertDoesNotExist()

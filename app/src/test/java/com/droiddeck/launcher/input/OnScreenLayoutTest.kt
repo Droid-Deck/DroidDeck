@@ -307,6 +307,51 @@ class OnScreenLayoutTest {
         assertEquals(.1f * 2208f / 1768 / .2f, fitted.width * 2208 / (fitted.height * 800), .01f)
     }
 
+    @Test fun controlsEditedInPortraitKeepTheirPlacesInThePanelBelowTheGame() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
+        val (w, h) = 1080 to 2400
+        val stock = gamepad()
+        val shown = OnScreenLayout.editorElements(context, stock, w, h)
+        val moved = shown.map { if (it.id == "legacy:a") it.copy(x = .05f) else if (it.id == "legacy:ls") it.copy(x = .6f) else it }
+        val edited = OnScreenLayout.withFrame(context, stock, OnScreenLayout.editorFrame(stock, moved), w.toFloat() / h)
+        val shownA = shown.first { it.id == "legacy:a" }
+        for (panelHeight in listOf(1100, 800)) {
+            val placed = OnScreenLayout.elements(context, edited, w, panelHeight, Rect(), dock = OnScreenLayout.Dock(true, false))
+            val a = placed.first { it.id == "legacy:a" }
+            val ls = placed.first { it.id == "legacy:ls" }
+            val b = placed.first { it.id == "legacy:b" }
+            assertTrue(a.x < .2f)
+            assertTrue(ls.x > .5f)
+            assertTrue(b.x > a.x)
+            assertNull(placed.firstOrNull { it.id == "builtin:keyboard" || it.control == InputControl.GUIDE || it.control == InputControl.QAM })
+            assertInside(placed, w, panelHeight)
+            assertEquals(shownA.width * w / (shownA.height * h), a.width * w / (a.height * panelHeight), .01f)
+            val untouched = OnScreenLayout.elements(context, stock, w, panelHeight, Rect(), dock = OnScreenLayout.Dock(true, false))
+            assertTrue(untouched.first { it.id == "legacy:a" }.x > .5f)
+            assertTrue(untouched.first { it.id == "legacy:ls" }.x < .5f)
+        }
+        val landscape = OnScreenLayout.elements(context, edited, 2400, 1080, Rect())
+        assertTrue(landscape.first { it.id == "legacy:a" }.x > .5f)
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val deck = OnScreenLayout.elements(context, edited, w, 1100, Rect(), dock = OnScreenLayout.Dock.deck(true, null), trackpads = true)
+        assertTrue(deck.none { it.id == "legacy:rs" })
+        assertTrue(deck.any { it.kind == InputElementKind.TRACKPAD && it.x + it.width / 2f > .5f })
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
+        val tiny = stock.copy(aspect = .45f, elements = stock.elements.map {
+            when (it.id) {
+                "legacy:a" -> it.copy(x = .05f, y = .05f, width = .1f, height = .045f)
+                "legacy:b" -> it.copy(x = .16f, y = .05f, width = .1f, height = .045f)
+                "legacy:ls" -> it.copy(x = .8f, y = .85f, width = .15f, height = .1f)
+                else -> it
+            }
+        }, rotated = emptyList())
+        val short = OnScreenLayout.elements(context, tiny, w, 385, Rect(), dock = OnScreenLayout.Dock(true, false))
+        val sa = short.first { it.id == "legacy:a" }
+        val sb = short.first { it.id == "legacy:b" }
+        assertTrue(sa.x + sa.width <= sb.x)
+        assertEquals(1f, sa.width * w / (sa.height * 385), .01f)
+    }
+
     @Test fun thePortraitAndBelowGameKitsKeepDirectionalArtClearOfTheSticksAndFaceButtons() {
         val directions = setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
         val face = setOf(InputControl.A, InputControl.B, InputControl.X, InputControl.Y)
