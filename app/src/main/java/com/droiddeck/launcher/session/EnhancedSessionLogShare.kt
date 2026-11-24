@@ -935,7 +935,7 @@ internal object EnhancedSessionLogShare {
 
     private fun category(entry: String): Category {
         val value = entry.lowercase(Locale.US)
-        if (value.startsWith("battlenet/") || value.startsWith("stores/") || value.startsWith("tools/") ||
+        if (value.startsWith("battlenet/") || value.startsWith("stores/") || value.startsWith("tools/") || value.startsWith("rpcs3/") ||
             value.contains("droiddeck-esync/") || GAME_LOG.matches(value.substringAfterLast('/')) ||
             listOf("proton", "wine", "dxvk", "vkd3d", "battle.net", "game-debug").any(value::contains)) return Category.GAMES
         if (listOf("wayland", "gamescope", "xwayland", "vulkan", "gpu", "mesa", "egl", "glx", "drm", "compositor", "frame-trace").any(value::contains)) return Category.GRAPHICS
@@ -950,6 +950,7 @@ internal object EnhancedSessionLogShare {
         "frame-trace.log", "process-trace.log", "game-lifecycle.log", "launches.log", "tools.tsv", "wanted.tsv", "prefixes.json",
         "battlenet.log", "spawned.log", "flatpak-install.log", "droiddeck-steamvr-install.log", "cef_log.txt", "cef_log.previous.txt",
         "console_log.txt", "webhelper_js.txt", "controller_support.txt", "systemperfmanager.txt",
+        "rpcs3", "RPCS3.log",
     )
     private val KNOWN_COMPONENT_PATTERNS = listOf(
         Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2,}-[a-z0-9-]{1,24}"),

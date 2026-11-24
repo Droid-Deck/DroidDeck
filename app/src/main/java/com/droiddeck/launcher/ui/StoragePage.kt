@@ -83,6 +83,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.files.InAppFilePicker
+import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.storage.Bucket
 import com.droiddeck.launcher.storage.CleanItem
@@ -179,6 +180,10 @@ private fun DefaultStorageGroup() {
     val customLabel = SessionPrefs.defaultStorageFolderLabel(ctx).ifBlank {
         customPath.takeIf { it.isNotBlank() }?.let { File(it).name }.orEmpty()
     }
+    fun warnIfFat32() {
+        val target = StoreInstallRoot.externalTarget(ctx) ?: return
+        if (GameStorage.isFat32(target.root.path)) Toast.makeText(ctx, R.string.main_storage_fat32, Toast.LENGTH_LONG).show()
+    }
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
         val path = InAppFilePicker.pickedPath(result.data) ?: return@rememberLauncherForActivityResult
@@ -192,6 +197,7 @@ private fun DefaultStorageGroup() {
         value = SessionPrefs.DEFAULT_STORAGE_EXTERNAL
         revision++
         open = false
+        warnIfFat32()
     }
     fun chooseFolder() {
         open = false
@@ -250,6 +256,7 @@ private fun DefaultStorageGroup() {
                                 SessionPrefs.clearDefaultStorageFolder(ctx)
                                 pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
                                 revision++
+                                warnIfFat32()
                             }
                         }
                         if (customPath.isNotBlank()) {
@@ -261,7 +268,12 @@ private fun DefaultStorageGroup() {
                                     if (free >= 0) stringResource(R.string.storage_default_folder_free, gb(free))
                                     else stringResource(R.string.storage_default_folder_missing)
                                 } ?: stringResource(R.string.storage_default_folder_missing),
-                            ) { if (customTarget != null) pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL) else chooseFolder() }
+                            ) {
+                                if (customTarget != null) {
+                                    pick(SessionPrefs.DEFAULT_STORAGE_EXTERNAL)
+                                    warnIfFat32()
+                                } else chooseFolder()
+                            }
                         }
                         MenuItem(
                             stringResource(R.string.storage_default_choose_folder), checked = false,
@@ -453,7 +465,7 @@ private fun BucketCard(
         modifier = modifier.paneItem("storage:${bucket.name}")
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clip(Shape14)
-            .background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
+            .background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.10f)) else Modifier)
             .glideBorder(hot, Shape14, pal.signal, pal.line)
             .then(if (onClick != null) Modifier.hoverable(src)
                 .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)

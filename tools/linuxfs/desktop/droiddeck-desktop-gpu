@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 import os
 import re
-import shutil
 
 HOME = os.environ.get("HOME", "/root")
 SYSTEM_DIR = "/usr/share/applications"
@@ -10,8 +9,6 @@ FLATPAK_DIR = os.path.join(HOME, ".local/share/flatpak/exports/share/application
 USER_DIR = os.path.join(HOME, ".local/share/applications")
 MARK = "X-DroidDeck-GPU=1"
 SKIP = re.compile(r"^(steam|droiddeck-game-|droiddeck-steam|steamdeck-)", re.I)
-CHROMIUM_ENV = "env -u WAYLAND_DISPLAY XDG_SESSION_TYPE=x11 ELECTRON_DISABLE_SANDBOX=1 "
-CHROMIUM_FLAGS = " --no-sandbox --ozone-platform=x11"
 
 
 def enabled():
@@ -25,33 +22,6 @@ def main_group(text):
         return None, None, None
     end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("[")), len(lines))
     return lines[:start + 1], lines[start + 1:end], lines[end:]
-
-
-def split_program(exec_line):
-    if exec_line.startswith('"'):
-        end = exec_line.find('"', 1)
-        if end < 0:
-            return None, None
-        return exec_line[:end + 1], exec_line[end + 1:]
-    program, _, rest = exec_line.partition(" ")
-    return program, (" " + rest) if rest else ""
-
-
-def chromium(exec_line):
-    program, _ = split_program(exec_line)
-    if not program:
-        return False
-    program = program.strip('"')
-    path = program if os.path.isabs(program) else shutil.which(program)
-    if not path:
-        return False
-    here = os.path.dirname(os.path.realpath(path))
-    return any(os.path.exists(os.path.join(d, "chrome-sandbox")) for d in (here, os.path.dirname(here)))
-
-
-def chromium_exec(exec_line):
-    program, rest = split_program(exec_line)
-    return CHROMIUM_ENV + program + CHROMIUM_FLAGS + rest
 
 
 def gpu_exec(exec_line):
@@ -75,24 +45,8 @@ def wrap(text, gpu_on=True):
     if not exec_line or exec_line.startswith("droiddeck-gpu "):
         return None
     cats = set(filter(None, keys.get("Categories", "").split(";")))
-    gpu = gpu_on and bool(cats & {"Game", "Emulator"})
-    browser = chromium(exec_line)
-    if not gpu and not browser:
+    if not (gpu_on and cats & {"Game", "Emulator"}):
         return None
-    if browser:
-        exec_line = chromium_exec(exec_line)
-    if not gpu:
-        def fix(lines):
-            return ["Exec=" + chromium_exec(l[5:].strip()) if l.startswith("Exec=") and chromium(l[5:].strip()) else l
-                    for l in lines]
-        out_group = fix(group)
-        while out_group and not out_group[-1].strip():
-            out_group.pop()
-        out_group.append(MARK)
-        out_rest = fix(rest)
-        if out_rest and out_rest[0].strip():
-            out_rest.insert(0, "")
-        return "\n".join(head + out_group + out_rest) + "\n"
     out_group = []
     actions = keys.get("Actions", "")
     for l in group:
@@ -111,8 +65,7 @@ def wrap(text, gpu_on=True):
     wrapped_rest = []
     for l in rest:
         if l.startswith("Exec=") and not l[5:].startswith("droiddeck-gpu "):
-            action = l[5:].strip()
-            l = "Exec=" + gpu_exec(chromium_exec(action) if chromium(action) else action)
+            l = "Exec=" + gpu_exec(l[5:].strip())
         wrapped_rest.append(l)
     if wrapped_rest and wrapped_rest[0].strip():
         wrapped_rest.insert(0, "")

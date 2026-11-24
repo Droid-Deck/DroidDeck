@@ -2,6 +2,7 @@ package com.droiddeck.launcher.gpu
 
 import androidx.annotation.StringRes
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import org.json.JSONObject
 import kotlin.math.abs
@@ -30,7 +31,7 @@ data class ScreenEffects(
 
     fun push(upscaler: Int) {
         WaylandCompositor.nativeSetCas(cas, casLevel)
-        WaylandCompositor.nativeSetHdr(hdr)
+        WaylandCompositor.nativeSetHdr(hdr && !SessionState.hdrDisplay)
         WaylandCompositor.nativeSetDeband(deband, debandStrength)
         WaylandCompositor.nativeSetScreenEffects(brightness.toFloat(), contrast.toFloat(), gamma, saturation.toFloat(), aaMode, toon, crt, ntsc)
         WaylandCompositor.nativeSetLookName(ScreenEffectLooks.match(this, upscaler)?.name)

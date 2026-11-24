@@ -10,6 +10,7 @@ class GameThreadHintsTest {
         assertTrue(GameThreadHints.supported("CQ8725S"))
         assertTrue(GameThreadHints.supported("SM8750"))
         assertTrue(GameThreadHints.supported("QTI SM8750"))
+        assertTrue(GameThreadHints.supported("QTI SM8750P"))
         assertFalse(GameThreadHints.supported("SM8650"))
         assertFalse(GameThreadHints.supported("SM8850"))
         assertFalse(GameThreadHints.supported(""))

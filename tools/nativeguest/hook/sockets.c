@@ -94,6 +94,13 @@ int listen(int sockfd, int backlog) {
     return ret;
 }
 
+static void copy_unix_path(const struct sockaddr_un *sun, socklen_t addrlen, char *out) {
+    size_t max = addrlen - offsetof(struct sockaddr_un, sun_path);
+    if (max > sizeof(sun->sun_path)) max = sizeof(sun->sun_path);
+    memcpy(out, sun->sun_path, max);
+    out[max] = '\0';
+}
+
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     static int (*orig_bind)(int, const struct sockaddr *, socklen_t) = NULL;
     if (!orig_bind) orig_bind = (int (*)(int, const struct sockaddr *, socklen_t))dlsym(RTLD_NEXT, "bind");
@@ -104,7 +111,9 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
             struct sockaddr_un mod_sun;
             memset(&mod_sun, 0, sizeof(mod_sun));
             mod_sun.sun_family = AF_UNIX;
-            rewrite_unix_socket_path(sun->sun_path, mod_sun.sun_path, sizeof(mod_sun.sun_path));
+            char guest[sizeof(sun->sun_path) + 1];
+            copy_unix_path(sun, addrlen, guest);
+            rewrite_unix_socket_path(guest, mod_sun.sun_path, sizeof(mod_sun.sun_path));
             return orig_bind ? orig_bind(sockfd, (struct sockaddr *)&mod_sun, sizeof(mod_sun)) : -1;
         }
     }
@@ -133,10 +142,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
             memset(&mod_sun, 0, sizeof(mod_sun));
             mod_sun.sun_family = AF_UNIX;
             char guest[sizeof(sun->sun_path) + 1];
-            size_t max = addrlen - offsetof(struct sockaddr_un, sun_path);
-            if (max > sizeof(sun->sun_path)) max = sizeof(sun->sun_path);
-            memcpy(guest, sun->sun_path, max);
-            guest[max] = '\0';
+            copy_unix_path(sun, addrlen, guest);
             char followed[PATH_MAX];
             const char *path = guest[0] == '/' ? follow_guest_link(guest, followed, sizeof(followed)) : guest;
             rewrite_unix_socket_path(path, mod_sun.sun_path, sizeof(mod_sun.sun_path));

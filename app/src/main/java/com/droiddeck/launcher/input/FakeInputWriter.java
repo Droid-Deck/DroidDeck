@@ -1,5 +1,9 @@
 package com.droiddeck.launcher.input;
 
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Process;
+import android.os.SystemClock;
 import android.util.Log;
 
 import java.io.File;
@@ -128,6 +132,16 @@ public class FakeInputWriter {
 
     private static final Object RING_LOCK = new Object();
     private static final RingSlot[] RING_SLOTS = new RingSlot[MAX_FAKE_INPUT_SLOTS];
+    private static final long AXIS_REPORT_INTERVAL_MS = 4;
+
+    private static final class Pacing {
+        static final Handler HANDLER;
+        static {
+            HandlerThread thread = new HandlerThread("pad-pacing", Process.THREAD_PRIORITY_DISPLAY);
+            thread.start();
+            HANDLER = new Handler(thread.getLooper());
+        }
+    }
 
     static {
         System.loadLibrary("sdnative");
@@ -156,6 +170,9 @@ public class FakeInputWriter {
     private boolean hasChanges = false;
     private boolean pendingFullResend = false;
     private boolean forceResend = false;
+    private final AxisPacing axisPacing = new AxisPacing(AXIS_REPORT_INTERVAL_MS);
+    private final PadState pacedPad = new PadState();
+    private final Runnable pacedWrite = this::writePacedPad;
 
     public FakeInputWriter(String fakeInputPath, int slot) {
         this.slot = slot;
@@ -711,10 +728,12 @@ public class FakeInputWriter {
     }
 
     public synchronized void close() {
+        cancelPacedWrite();
         isOpen = false;
     }
 
     public synchronized void reset() {
+        cancelPacedWrite();
         if (!isOpen && !open())
             return;
 
@@ -822,6 +841,53 @@ public class FakeInputWriter {
     }
 
     public synchronized void writePad(PadState state) {
+        long now = SystemClock.uptimeMillis();
+        long due = axisPacing.dueAt(now, !pendingFullResend && onlyAxesMove(state));
+        if (due > now) {
+            pacedPad.copyFrom(state);
+            if (axisPacing.hold(due))
+                Pacing.HANDLER.postAtTime(pacedWrite, due);
+            return;
+        }
+        cancelPacedWrite();
+        writePadNow(state);
+    }
+
+    private synchronized void writePacedPad() {
+        if (axisPacing.release(SystemClock.uptimeMillis()))
+            writePadNow(pacedPad);
+    }
+
+    private void cancelPacedWrite() {
+        if (axisPacing.cancel())
+            Pacing.HANDLER.removeCallbacks(pacedWrite);
+    }
+
+    private boolean onlyAxesMove(PadState state) {
+        for (int i = 0; i < 10; i++) {
+            if (prevButtonStates[i] != state.isDown(i))
+                return false;
+        }
+        return prevButtonStates[SNAPSHOT_IDX_MODE] == state.isDown(PadState.GUIDE)
+                && prevQam == state.isDown(PadState.QAM)
+                && prevHatX == state.hatX() && prevHatY == state.hatY()
+                && AxisPacing.keepsMoving(prevThumbLX, stickValue(state.leftX))
+                && AxisPacing.keepsMoving(prevThumbLY, stickValue(state.leftY))
+                && AxisPacing.keepsMoving(prevThumbRX, stickValue(state.rightX))
+                && AxisPacing.keepsMoving(prevThumbRY, stickValue(state.rightY))
+                && AxisPacing.keepsMoving(prevTriggerL, triggerValue(state.leftTrigger))
+                && AxisPacing.keepsMoving(prevTriggerR, triggerValue(state.rightTrigger));
+    }
+
+    private static int stickValue(float value) {
+        return (int) (value * 32767);
+    }
+
+    private static int triggerValue(float value) {
+        return (int) (value * 255);
+    }
+
+    private void writePadNow(PadState state) {
         if (!isOpen && !open())
             return;
 
@@ -845,10 +911,10 @@ public class FakeInputWriter {
             hasChanges = true;
         }
 
-        int lx = (int) (state.leftX * 32767);
-        int ly = (int) (state.leftY * 32767);
-        int rx = (int) (state.rightX * 32767);
-        int ry = (int) (state.rightY * 32767);
+        int lx = stickValue(state.leftX);
+        int ly = stickValue(state.leftY);
+        int rx = stickValue(state.rightX);
+        int ry = stickValue(state.rightY);
 
         if (forceResend || lx != prevThumbLX) {
             prevThumbLX = lx;
@@ -867,8 +933,8 @@ public class FakeInputWriter {
             writeEvent(EV_ABS, ABS_RY, ry);
         }
 
-        int tl = (int) (state.leftTrigger * 255);
-        int tr = (int) (state.rightTrigger * 255);
+        int tl = triggerValue(state.leftTrigger);
+        int tr = triggerValue(state.rightTrigger);
         if (forceResend || tl != prevTriggerL) {
             prevTriggerL = tl;
             writeEvent(EV_ABS, ABS_BRAKE, tl);
@@ -895,6 +961,8 @@ public class FakeInputWriter {
             if (!flushBuffer()) {
                 Log.e(TAG, "Gamepad write error: fake input mmap ring unavailable");
                 pendingFullResend = true;
+            } else {
+                axisPacing.wrote(SystemClock.uptimeMillis());
             }
         }
         forceResend = false;

@@ -1495,20 +1495,24 @@ private fun ChoiceLine(
             if (progress != null) ProgressBit(progress)
         }
         if (!removable) Spacer(Modifier.padding(end = 6.dp).size(44.dp))
-        else {
-            val delSrc = remember { MutableInteractionSource() }
-            val delHot = rememberHot(delSrc)
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.padding(end = 6.dp).size(44.dp).clip(ROW_SHAPE)
-                    .background(if (delHot) colors.error.copy(alpha = 0.14f) else Color.Transparent)
-                    .glideBorder(delHot, ROW_SHAPE, colors.error)
-                    .hoverable(delSrc).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = delSrc, indication = null, onClick = onDelete)
-                    .controllerConfirm(onClick = onDelete),
-            ) { Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.common_delete_named, name), tint = if (delHot) colors.error else colors.onSurfaceVariant, modifier = Modifier.size(19.dp)) }
-        }
+        else DeleteButton(name, onDelete = onDelete)
     }
     Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+}
+
+@Composable
+internal fun DeleteButton(name: String, modifier: Modifier = Modifier, enabled: Boolean = true, onDelete: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val delSrc = remember { MutableInteractionSource() }
+    val delHot = rememberHot(delSrc) && enabled
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier.padding(end = 6.dp).size(44.dp).clip(ROW_SHAPE)
+            .background(if (delHot) colors.error.copy(alpha = 0.14f) else Color.Transparent)
+            .glideBorder(delHot, ROW_SHAPE, colors.error)
+            .hoverable(delSrc).clickable(role = androidx.compose.ui.semantics.Role.Button, interactionSource = delSrc, indication = null, enabled = enabled, onClick = onDelete)
+            .controllerConfirm(enabled = enabled, onClick = onDelete),
+    ) { Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.common_delete_named, name), tint = if (delHot) colors.error else colors.onSurfaceVariant, modifier = Modifier.size(19.dp)) }
 }
 
 @Composable
@@ -1625,7 +1629,7 @@ private fun DeviceChip(s: GpuDriversState) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.onGloballyPositioned { at = it.boundsInRoot() }.heightIn(min = 44.dp).paneItem("gpu-device").clip(shape)
-            .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface)
+            .background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.14f)) else Modifier)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Button, onClick = open)
             .controllerConfirm(onClick = open)

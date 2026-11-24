@@ -26,7 +26,7 @@ static struct wl_event_source *g_render_idle, *g_fallback_timer;
 static int g_fallback_armed, g_dirty, g_hud_fresh, framegen;
 static void *g_hud_surface;
 static int64_t g_dirty_since_ns, g_last_vsync_ns, g_tick_vsync_ns, g_hud_last_ns, g_rendered_tick_ns;
-static int g_tick_held;
+static int g_tick_held, g_tick_spare, g_scene_queues;
 static int64_t g_hold_missed_ns;
 #define HOLD_RETRY_NS 1000000000LL
 static int64_t g_refresh_ns = 16666667;
@@ -254,6 +254,15 @@ int main(void) {
     clock_ns += 200000000LL;
     schedule_render();
     assert(idles_added == idles && g_fallback_armed == 1 && timers_armed == 1);
+    g_rendered_tick_ns = g_tick_vsync_ns;
+    g_tick_spare = 0; g_scene_queues = 1;
+    assert(!tick_takes_scene());
+    g_tick_spare = 1;
+    assert(tick_takes_scene());
+    g_scene_queues = 0;
+    assert(!tick_takes_scene());
+    g_rendered_tick_ns = g_tick_vsync_ns - 1;
+    assert(tick_takes_scene());
     puts("PASS");
     return 0;
 }
@@ -270,7 +279,7 @@ class RenderOnCommitTest(unittest.TestCase):
         render = extract_function(source, 'render_scene')
         self.assertIn('g_rendered_tick_ns = g_tick_vsync_ns;', render)
         self.assertIn('g_tick_held = 0;', render)
-        functions = ('scene_held_for_limit', 'commit_renders_on', 'render_on_commit', 'schedule_render', 'scene_waits_for_game', 'on_commit_idle',
+        functions = ('scene_held_for_limit', 'commit_renders_on', 'tick_takes_scene', 'render_on_commit', 'schedule_render', 'scene_waits_for_game', 'on_commit_idle',
                      'bfi_blocked', 'bfi_update', 'bfi_tick', 'on_vsync')
         harness = PREAMBLE + '\n'.join(extract_function(source, name) for name in functions) + CHECKS
         with tempfile.TemporaryDirectory(prefix='droiddeck-render-on-commit-') as folder:

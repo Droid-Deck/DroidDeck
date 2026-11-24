@@ -15,6 +15,7 @@ private fun Launcher(tab: String, games: List<com.droiddeck.launcher.frontend.Li
     PreviewHost { FrontEndScreen(sampleState(games = games, navigate = tab, ready = ready), sampleActions) }
 
 @DroidDeckPreviews @Composable private fun SteamTabPreview() = Launcher("steam")
+@DroidDeckPreviews @Composable private fun SteamEmptyPreview() = Launcher("steam", games = emptyList())
 @DroidDeckPreviews @Composable private fun LibraryPreview() = Launcher("games")
 @DroidDeckPreviews @Composable private fun LibraryEmptyPreview() = Launcher("games", games = emptyList())
 @DroidDeckPreviews @Composable private fun StoresPreview() = Launcher("stores")

@@ -230,6 +230,20 @@ object AgentGuest {
         call(context, JSONObject().put("kind", "cdp").put("expression", expression).put("timeout", timeoutMs / 1000.0),
             timeoutMs + 2_000, trusted = true)
 
+    fun setGamescopeConvar(context: Context, name: String, value: Int): Boolean {
+        val request = JSONObject()
+            .put("kind", "exec")
+            .put("argv", org.json.JSONArray(listOf("gamescopectl", name, value.toString())))
+            .put("timeout", 5.0)
+        val result = runCatching { call(context, request, 8_000, trusted = true) }
+        val answer = result.getOrNull()
+        val applied = answer?.optBoolean("ok") == true
+            && answer.optInt("exitCode", -1) == 0
+            && !answer.optBoolean("timedOut")
+        if (!applied) Log.w(TAG, "gamescope did not take $name $value: ${result.exceptionOrNull() ?: answer}")
+        return applied
+    }
+
     fun call(context: Context, request: JSONObject, timeoutMs: Long, trusted: Boolean = false): JSONObject {
         if (!trusted && request.optString("kind") in setOf("exec", "cdp")) AgentAccess.requireCommands(context)
         if (!SessionState.running) throw AgentException("NO_ACTIVE_SESSION", "There is no running session")
