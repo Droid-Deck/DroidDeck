@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -61,6 +62,8 @@ class DiversionCapabilitiesTest(unittest.TestCase):
         cc, prefix = runner()
         if cc is None:
             self.skipTest('no aarch64 compiler and runner')
+        if not shutil.which('aarch64-linux-gnu-gcc') and not (shutil.which('clang') and shutil.which('ld.lld')):
+            self.skipTest('no aarch64 cross compiler for the hook build')
         with tempfile.TemporaryDirectory(dir='/tmp') as d:
             root = Path(d)
             hook, source, probe, target = (root / name for name in ('hook.so', 'probe.c', 'probe', 'file'))
