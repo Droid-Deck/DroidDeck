@@ -61,6 +61,7 @@ object SteamClientPrefetch {
             else Onboarding.fail(Onboarding.Step.STEAM, problem ?: failedLabel)
             val steamReady = !pending(app)
             Onboarding.facts.update { it.copy(steam = steamReady) }
+            Onboarding.settle()
         }, "steam-client-prefetch").also { it.start() }
     }
 
@@ -70,11 +71,9 @@ object SteamClientPrefetch {
         LinuxRuntime.writeAccounts(context)
         SessionFiles.stage(context, root)
         val install = installPending(context)
-        if (install) {
-            val problem = script(context, emptyList(), label, 0, 35)
-            if (problem != null) return problem
-        }
-        return script(context, listOf("--cache"), label, if (install) 35 else 0, 100)
+        val cacheProblem = script(context, listOf("--cache"), label, 0, if (install) 90 else 100)
+        if (cacheProblem == CANCELLED || !install) return cacheProblem
+        return script(context, emptyList(), label, 90, 100)
     }
 
     private fun script(context: Context, args: List<String>, label: (Int) -> String, from: Int, to: Int): String? {

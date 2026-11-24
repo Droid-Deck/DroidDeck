@@ -11,7 +11,15 @@ import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
 
 class LoadingState(context: Context, private val steam: Boolean = true) {
-    var visible by mutableStateOf(true)
+    private val prefs = context.getSharedPreferences("loading", Context.MODE_PRIVATE)
+    private val firstRun = steam && !prefs.getBoolean(FIRST_DONE, false)
+    private var shown by mutableStateOf(true)
+    var visible: Boolean
+        get() = shown
+        set(value) {
+            shown = value
+            if (!value && steam) prefs.edit().putBoolean(FIRST_DONE, true).apply()
+        }
     var step by mutableStateOf(context.getString(com.droiddeck.launcher.R.string.loadstate_starting))
         private set
     var topic by mutableStateOf(Topic.SESSION)
@@ -33,7 +41,7 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
     fun tick() {
         val seconds = (SystemClock.elapsedRealtime() - startedAt) / 1000
         elapsed = res.getString(com.droiddeck.launcher.R.string.loadstate_elapsed, seconds / 60, seconds % 60)
-        hint = hints[((seconds / 8) % hints.size).toInt()]
+        hint = if (firstRun) res.getString(com.droiddeck.launcher.R.string.loading_first_run) else hints[((seconds / 8) % hints.size).toInt()]
     }
 
     fun say(line: String, topic: Topic, readable: Boolean) {
@@ -59,6 +67,8 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
 
     private class Line(val line: String, val percent: Int, val topic: Topic, val readable: Boolean)
 
+    private var scriptStep: Line? = null
+
     private fun read(context: Context, log: File?): Line? {
         if (log == null || !log.isFile) return null
         val text = try {
@@ -81,6 +91,7 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
         var clientDownloadAt = -1
         var clientDownload: String? = null
         var clientPercent = -1
+        var unknownAt = -1
         var offset = 0
         for (line in text.split('\n')) {
             val at = offset
@@ -95,16 +106,34 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
                 }
             } else {
                 val m = UPDATE_PROGRESS.find(line)
+                val p = if (m == null && steam) UPDATE_PERCENT.find(line) else null
                 if (m != null) {
                     downloadAt = at
-                    val done = m.groupValues[1].toLong()
-                    val total = maxOf(1L, m.groupValues[2].toLong())
+                    val done = m.groupValues[1].replace(",", "").toLong()
+                    val total = maxOf(1L, m.groupValues[2].replace(",", "").toLong())
                     downloadPercent = (done * 100 / total).toInt()
+                } else if (p != null) {
+                    val percent = p.groupValues[1].toIntOrNull() ?: continue
+                    if (percent < 0) {
+                        downloadAt = -1
+                        unknownAt = at
+                    } else if (percent > 0 && applyingAt <= stepAt) {
+                        downloadAt = at
+                        downloadPercent = percent.coerceAtMost(100)
+                    }
                 } else if (steam && UPDATE_APPLYING.matches(line)) {
                     applyingAt = at
                 }
             }
         }
+        val stepLine = when {
+            clientDownloadAt == stepAt && clientDownload != null -> Line(
+                context.getString(com.droiddeck.launcher.R.string.loadstate_steam_client, clientDownload), clientPercent,
+                Topic.STEAM, readable = true,
+            )
+            stepText != null -> Line(stepText, -1, topicOf(stepText, steam), readableScriptStep(stepText))
+            else -> null
+        }?.also { scriptStep = it }
         return when {
             applyingAt > stepAt && applyingAt > downloadAt -> Line(
                 context.getString(com.droiddeck.launcher.R.string.loadstate_steam_update_applying), -1,
@@ -114,11 +143,10 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
                 context.getString(com.droiddeck.launcher.R.string.loadstate_steam_update, downloadPercent), downloadPercent,
                 Topic.STEAM, readable = true,
             )
-            clientDownloadAt == stepAt && clientDownload != null -> Line(
-                context.getString(com.droiddeck.launcher.R.string.loadstate_steam_client, clientDownload), clientPercent,
-                Topic.STEAM, readable = true,
+            stepLine != null -> stepLine
+            unknownAt >= 0 -> scriptStep ?: Line(
+                context.getString(com.droiddeck.launcher.R.string.loadstate_starting), -1, Topic.SESSION, readable = false,
             )
-            stepText != null -> Line(stepText, -1, topicOf(stepText, steam), readableScriptStep(stepText))
             else -> null
         }
     }
@@ -126,6 +154,7 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
     enum class Topic { RUNTIME, SESSION, DESKTOP, STEAM, STEAM_STARTING, OTHER }
 
     companion object {
+        private const val FIRST_DONE = "first_done"
         internal fun topicOf(scriptStep: String, steam: Boolean): Topic {
             val t = scriptStep.lowercase()
             return when {
@@ -157,7 +186,8 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
         }
 
         private const val TAIL_BYTES = 48L * 1024
-        private val UPDATE_PROGRESS = Regex("""Downloading update \((\d+) of (\d+) KB\)""")
+        private val UPDATE_PROGRESS = Regex("""Downloading update \(([\d,]+) of ([\d,]+) KB\)""")
+        private val UPDATE_PERCENT = Regex("""^\[[^\]]+\] Set percent complete: (-?\d+)\s*$""")
         private val UPDATE_APPLYING = Regex("""^\s*(?:\[[^\]]+\]\s*)*(?:Extracting package|Installing update)\.\.\.\s*$""")
         private val INSTALL_COUNT = Regex("""downloading Steam: (\S+) \((\d+)/(\d+)\)""")
         private val INSTALL_MEGABYTES = Regex("""^, (\d+) of (\d+) MB""")

@@ -850,8 +850,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             SessionState.bottomMenu = false
             SessionState.secondScreenProvisional = false
             SessionState.secondScreenAutomatic = false
-            SessionState.gameOnBottom = false
-            gameOnBottom = false
+            SessionState.gameOnBottom = SessionPrefs.dualScreenSessionMode(this) == com.droiddeck.launcher.input.DualScreen.MODE_SWAPPED
+            gameOnBottom = SessionState.gameOnBottom
         }
         if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
             SessionState.program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
@@ -1545,6 +1545,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             secondScreenDisplays = secondScreenDisplays,
             selectedSecondScreenDisplay = selectedSecondScreenDisplay,
             onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
+            onHudOnlyDuringGame = { on ->
+                SessionPrefs.setHudOnlyDuringGame(this@SessionActivity, on)
+                hud.refresh()
+            },
             onGpuClockPin = { on ->
                 SessionPrefs.setGpuClockPin(this@SessionActivity, on)
                 gpuClockPin = on
@@ -3548,6 +3552,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val normalized = com.droiddeck.launcher.input.GuestKeys.normalizeKeyboardEscape(event)
+        if (normalized === event) return dispatchSessionKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            Log.i(TAG, "hardware Esc normalized from Back device=${event.deviceId} scan=${event.scanCode}")
+        }
+        return dispatchSessionKeyEvent(normalized)
+    }
+
+    private fun dispatchSessionKeyEvent(event: KeyEvent): Boolean {
         if (com.droiddeck.launcher.ui.AgentPet.handleBack(this, event)) return true
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> {
@@ -4405,6 +4418,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionState.secondScreenAutoOpened = false
         val menuOnBottom = drawerDocked
         val menuOnTop = drawerOpenState && !drawerDocked
+        if (mode == com.droiddeck.launcher.input.DualScreen.MODE_SWAPPED) {
+            putGameOnBottom(true)
+        } else if (gameOnBottom && mode != com.droiddeck.launcher.input.DualScreen.MODE_OFF) {
+            putGameOnBottom(false)
+        }
         if (mode == com.droiddeck.launcher.input.DualScreen.MODE_OFF) {
             if (gameOnBottom) putGameOnBottom(false)
             if (secondScreenMode != SecondScreenMode.NONE || menuOnBottom) closeSecondScreen(reset = true)

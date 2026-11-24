@@ -26,8 +26,34 @@ object Onboarding {
     @Volatile private var appContext: Context? = null
     private var hold: (() -> Unit)? = null
 
+    /** The setup screens belong to the first run; later runtime, Proton and Steam client updates keep the usual Play button. */
+    val firstRun = MutableStateFlow(true)
+
     fun attach(context: Context) {
         appContext = context.applicationContext
+        val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        var done = prefs.getBoolean(KEY_FIRST_RUN_DONE, false)
+        if (!done && runCatching { installedAndReady(context) }.getOrDefault(false)) {
+            done = true
+            prefs.edit().putBoolean(KEY_FIRST_RUN_DONE, true).apply()
+        }
+        firstRun.value = !done
+    }
+
+    /** Everything first run installs is in place, with the same Proton rule as [recheck]. */
+    private fun installedAndReady(context: Context): Boolean {
+        val own = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }
+        return LinuxRuntime.isInstalled(context) && !SteamClientPrefetch.pending(context) &&
+            (ProtonExtras.declined(context) || ProtonExtras.installedAll(context, own).isNotEmpty())
+    }
+
+    private const val PREFS = "onboarding"
+    private const val KEY_FIRST_RUN_DONE = "first_run_done"
+
+    private fun markFirstRunDone() {
+        val context = appContext ?: return
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_FIRST_RUN_DONE, true).apply()
+        firstRun.value = false
     }
 
     /** Keeps the process in the foreground, with one notification, while a step downloads and the runtime installer is not already doing so. */
@@ -52,6 +78,15 @@ object Onboarding {
             proton = ProtonExtras.declined(context) || ProtonExtras.installedAll(context, own).isNotEmpty(),
             steam = runtime && !SteamClientPrefetch.pending(context),
         )
+        settle()
+    }
+
+    /** A new attempt starts from zero once everything is ready, whichever screen is showing. */
+    @Synchronized fun settle() {
+        if (!pending(rows(active.value, failed.value, facts.value))) {
+            resetProgress()
+            markFirstRunDone()
+        }
     }
 
     fun report(step: Step, label: String, percent: Int) {
@@ -85,9 +120,29 @@ object Onboarding {
 
     fun pending(rows: List<Row>): Boolean = rows.any { it.state != State.DONE }
 
-    /** The aggregate fraction of the whole first-run work, weighting each step by what it downloads. */
-    fun overall(rows: List<Row>): Int {
-        val weights = mapOf(Step.RUNTIME to 60, Step.PROTON to 15, Step.STEAM to 25)
+    /** Whether first-run downloads are under way, as the home screen decides it. */
+    fun settling(): Boolean = firstRun.value && active.value.isNotEmpty() && pending(rows(active.value, failed.value, facts.value))
+
+    @Volatile private var highWater = 0
+
+    @Synchronized internal fun resetProgress() { highWater = 0 }
+
+    /**
+     * The aggregate fraction of the whole first-run work, weighting each step by what it downloads: about 290 MB, 630 MB and 1,050 MB.
+     * Steps download first and install later, restarting their own percent, so the figure only moves forward until everything is done.
+     */
+    @Synchronized fun overall(rows: List<Row>): Int {
+        val measured = measure(rows)
+        if (!pending(rows)) {
+            highWater = 0
+            return measured
+        }
+        highWater = maxOf(highWater, measured)
+        return highWater
+    }
+
+    internal fun measure(rows: List<Row>): Int {
+        val weights = mapOf(Step.RUNTIME to 20, Step.PROTON to 30, Step.STEAM to 50)
         val total = weights.values.sum()
         val got = rows.sumOf { row ->
             val w = weights.getValue(row.step)

@@ -38,6 +38,8 @@ class WirelessAdbPairingService : Service() {
     private var pairingHost: String? = null
     private var pairingPort: Int? = null
     @Volatile private var working = false
+    @Volatile private var limitEnabled = false
+    @Volatile private var session = 0
     private val timeout = Runnable { finish(Stage.Failed(getString(R.string.adbpair_timed_out))) }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -50,12 +52,15 @@ class WirelessAdbPairingService : Service() {
                 onCode(code)
             }
             ACTION_CANCEL -> finish(Stage.Idle)
-            else -> begin()
+            else -> begin(intent?.getBooleanExtra(EXTRA_ENABLE_LIMIT, false) == true)
         }
         return START_NOT_STICKY
     }
 
-    private fun begin() {
+    private fun begin(enableLimit: Boolean) {
+        if (working) return
+        session++
+        limitEnabled = enableLimit
         pairingHost = null
         pairingPort = null
         working = false
@@ -68,12 +73,13 @@ class WirelessAdbPairingService : Service() {
 
     private fun startDiscovery() {
         stopDiscovery()
+        val owner = session
         val manager = getSystemService(Context.NSD_SERVICE) as NsdManager
         val listener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(serviceType: String) = Unit
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
                 if (serviceInfo.serviceType?.contains(PAIRING_TYPE) != true) return
-                runCatching { manager.resolveService(serviceInfo, resolveListener()) }
+                runCatching { manager.resolveService(serviceInfo, resolveListener(owner)) }
             }
             override fun onServiceLost(serviceInfo: NsdServiceInfo) = Unit
             override fun onDiscoveryStopped(serviceType: String) = Unit
@@ -87,17 +93,19 @@ class WirelessAdbPairingService : Service() {
             .onFailure { finish(Stage.Failed(getString(R.string.adbpair_discovery_failed, it.localizedMessage.toString()))) }
     }
 
-    private fun resolveListener() = object : NsdManager.ResolveListener {
+    private fun resolveListener(owner: Int): NsdManager.ResolveListener {
+        return object : NsdManager.ResolveListener {
         override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) = Unit
         override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
             val address = serviceInfo.host ?: return
             if (!WirelessAdbFix.isLocalAddress(address)) return
             main.post {
-                if (working || current.value == Stage.Done) return@post
+                if (owner != session || working || current.value == Stage.Done) return@post
                 pairingHost = address.hostAddress
                 pairingPort = serviceInfo.port
                 if (current.value !is Stage.CodeNeeded) show(Stage.CodeNeeded())
             }
+        }
         }
     }
 
@@ -114,29 +122,34 @@ class WirelessAdbPairingService : Service() {
             return
         }
         working = true
+        val owner = session
+        val enable = limitEnabled
         show(Stage.Working(getString(R.string.adbpair_pairing)))
         Thread({
             val paired = runCatching { kotlinx.coroutines.runBlocking { WirelessAdbFix.pair(this@WirelessAdbPairingService, WirelessAdbFix.LOOPBACK, port, code) } }
             if (paired.isFailure) {
                 main.post {
                     working = false
+                    if (owner != session) return@post
                     pairingPort = null
                     show(Stage.CodeNeeded(getString(R.string.adbpair_code_rejected)))
                 }
                 return@Thread
             }
             main.post {
+                if (owner != session) return@post
                 stopDiscovery()
                 show(Stage.Working(getString(R.string.adbpair_connecting)))
             }
             val result = runCatching {
                 val connectPort = WirelessAdbFix.localConnectPort(this)
                     ?: error(getString(R.string.adbpair_port_not_found))
-                main.post { show(Stage.Working(getString(R.string.adbpair_applying))) }
-                WirelessAdbFix.setChildProcessLimit(this, WirelessAdbFix.LOOPBACK, connectPort, false)
+                main.post { if (owner == session) show(Stage.Working(getString(R.string.adbpair_applying))) }
+                WirelessAdbFix.setChildProcessLimit(this, WirelessAdbFix.LOOPBACK, connectPort, enable)
             }
             main.post {
                 working = false
+                if (owner != session) return@post
                 finish(result.exceptionOrNull()?.let { Stage.Failed(it.localizedMessage ?: getString(R.string.adbpair_command_failed)) } ?: Stage.Done)
             }
         }, "wireless-adb-pairing").start()
@@ -148,6 +161,7 @@ class WirelessAdbPairingService : Service() {
     }
 
     private fun finish(stage: Stage) {
+        session++
         main.removeCallbacks(timeout)
         stopDiscovery()
         publish(stage)
@@ -248,6 +262,7 @@ class WirelessAdbPairingService : Service() {
         private const val ACTION_CODE = "com.droiddeck.launcher.action.WIRELESS_ADB_CODE"
         private const val ACTION_CANCEL = "com.droiddeck.launcher.action.WIRELESS_ADB_CANCEL"
         private const val KEY_CODE = "code"
+        private const val EXTRA_ENABLE_LIMIT = "enable_limit"
         private const val TIMEOUT_MS = 5 * 60_000L
 
         private val current = MutableStateFlow<Stage>(Stage.Idle)
@@ -255,10 +270,10 @@ class WirelessAdbPairingService : Service() {
 
         private fun publish(stage: Stage) { current.value = stage }
 
-        fun start(context: Context) {
+        fun start(context: Context, enableLimit: Boolean = false) {
             context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
             publish(Stage.Waiting)
-            val intent = Intent(context, WirelessAdbPairingService::class.java)
+            val intent = Intent(context, WirelessAdbPairingService::class.java).putExtra(EXTRA_ENABLE_LIMIT, enableLimit)
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
         }
 
@@ -271,6 +286,12 @@ class WirelessAdbPairingService : Service() {
         }
 
         fun notificationsEnabled(context: Context): Boolean =
-            context.getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() != false
+            context.getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() != false && !channelBlocked(context)
+
+        /** The code is typed into a notification on this channel; a channel the user switched off leaves pairing with nothing to type into. */
+        fun channelBlocked(context: Context): Boolean =
+            context.getSystemService(NotificationManager::class.java)?.getNotificationChannel(CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE
+
+        fun channelId(): String = CHANNEL_ID
     }
 }

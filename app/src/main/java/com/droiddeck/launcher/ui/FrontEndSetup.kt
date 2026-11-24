@@ -542,7 +542,7 @@ internal fun SetupPanel(
                                     )
                                     ChoiceRow(
                                         host, "dual-screen-sessions", stringResource(R.string.setup_dual_screen_sessions), stringResource(R.string.setup_dual_screen_sessions_hint),
-                                        dualModes, s.dualScreenSessions, onPick = a.onDualScreenSessions,
+                                        dualModes.take(2) + (com.droiddeck.launcher.input.DualScreen.MODE_SWAPPED to stringResource(R.string.setup_dual_screen_swapped)) + dualModes.drop(2), s.dualScreenSessions, onPick = a.onDualScreenSessions,
                                     )
                                     if (s.dualScreenSessions != com.droiddeck.launcher.input.DualScreen.MODE_OFF) {
                                         ToggleRow(host, "dual-screen-controls", stringResource(R.string.setup_dual_screen_controls),
@@ -1282,7 +1282,8 @@ internal fun OnboardingCard(limitBlocks: Boolean = false, onSetUpLimit: () -> Un
     val failed by com.droiddeck.launcher.session.Onboarding.failed.collectAsState()
     val facts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
     val rows = com.droiddeck.launcher.session.Onboarding.rows(active, failed, facts)
-    val settling = com.droiddeck.launcher.session.Onboarding.pending(rows)
+    val firstRun by com.droiddeck.launcher.session.Onboarding.firstRun.collectAsState()
+    val settling = firstRun && com.droiddeck.launcher.session.Onboarding.pending(rows)
     if (!settling) return
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
