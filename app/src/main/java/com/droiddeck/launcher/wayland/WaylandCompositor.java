@@ -195,6 +195,27 @@ public final class WaylandCompositor {
         if (l != null) l.onTextInput(enabled, program, x, y, w, h);
     }
 
+    public interface TextInputFallbackListener {
+        boolean onTextInputFallback(String text, int token);
+    }
+
+    private static volatile TextInputFallbackListener textInputFallbackListener;
+
+    public static void setTextInputFallbackListener(TextInputFallbackListener l) { textInputFallbackListener = l; }
+
+    public static boolean isTextInputFallbackListener(TextInputFallbackListener l) { return textInputFallbackListener == l; }
+
+    public static void clearTextInputFallbackListener(TextInputFallbackListener l) {
+        if (textInputFallbackListener == l) textInputFallbackListener = null;
+    }
+
+    @SuppressWarnings("unused")
+    static boolean onTextInputFallback(byte[] utf8, int token) {
+        TextInputFallbackListener l = textInputFallbackListener;
+        if (l == null || utf8 == null) return false;
+        return l.onTextInputFallback(new String(utf8, java.nio.charset.StandardCharsets.UTF_8), token);
+    }
+
     private static byte[] utf8(String s) {
         return s == null ? new byte[0] : s.getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
@@ -207,10 +228,13 @@ public final class WaylandCompositor {
 
     public static void textInputDelete(int before, int after) { nativeTextInputDelete(before, after); }
 
+    public static void completeTextInputFallback(int token) { nativeCompleteTextInputFallback(token); }
+
     private static native void nativeSetClipboardText(byte[] utf8);
     private static native void nativeTextInputCommit(byte[] utf8);
     private static native void nativeTextInputPreedit(byte[] utf8, int cursorBegin, int cursorEnd);
     private static native void nativeTextInputDelete(int before, int after);
+    private static native void nativeCompleteTextInputFallback(int token);
 
     public static native void nativeStart(String xdgRuntimeDir);
 
@@ -240,6 +264,9 @@ public final class WaylandCompositor {
     public static final int CURSOR_BUF_INTS = 6 + 256 * 256;
 
     public static native void nativeSendKey(int evdev, int state);
+
+    // Ordered delivery: key events share the host queue with text commits so keys cannot overtake pending text.
+    public static native void nativeSendKeyOrdered(int evdev, int state);
 
     public static native boolean nativeFocusTakesTouch();
 

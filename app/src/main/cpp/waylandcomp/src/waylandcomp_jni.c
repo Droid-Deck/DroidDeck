@@ -66,6 +66,7 @@ static jmethodID g_on_game_frame;
 static jmethodID g_on_game_program;
 static jmethodID g_on_pointer_lock;
 static jmethodID g_on_clipboard;
+static jmethodID g_on_text_input_fallback;
 static jmethodID g_on_text_input;
 static jmethodID g_on_overlay_planes;
 static jmethodID g_on_refresh_target;
@@ -89,6 +90,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
             if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); g_on_game_program = NULL; }
             g_on_pointer_lock = (*env)->GetStaticMethodID(env, g_compositor_cls, "onPointerLock", "(ZII)V");
             g_on_clipboard = (*env)->GetStaticMethodID(env, g_compositor_cls, "onClipboardText", "([B)V");
+            g_on_text_input_fallback = (*env)->GetStaticMethodID(env, g_compositor_cls, "onTextInputFallback",
+                                                                "([BI)Z");
             g_on_text_input = (*env)->GetStaticMethodID(env, g_compositor_cls, "onTextInput",
                                                         "(ZLjava/lang/String;IIII)V");
             g_on_overlay_planes = (*env)->GetStaticMethodID(env, g_compositor_cls, "onOverlayPlanes", "(I)V");
@@ -191,6 +194,20 @@ void droiddeck_on_clipboard_text(const char *utf8, int len) {
     (*env)->CallStaticVoidMethod(env, g_compositor_cls, g_on_clipboard, arr);
     if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
     (*env)->DeleteLocalRef(env, arr);
+}
+
+int droiddeck_on_text_input_fallback(const char *utf8, int len, int token) {
+    JNIEnv *env;
+    if (len <= 0 || token <= 0 || !utf8 || !g_compositor_cls || !g_on_text_input_fallback || !(env = thread_env()))
+        return 0;
+    jbyteArray arr = (*env)->NewByteArray(env, len);
+    if (!arr) { (*env)->ExceptionClear(env); return 0; }
+    (*env)->SetByteArrayRegion(env, arr, 0, len, (const jbyte *)utf8);
+    jboolean accepted = (*env)->CallStaticBooleanMethod(env, g_compositor_cls, g_on_text_input_fallback, arr,
+                                                        (jint)token);
+    if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); accepted = JNI_FALSE; }
+    (*env)->DeleteLocalRef(env, arr);
+    return accepted == JNI_TRUE ? 1 : 0;
 }
 
 void droiddeck_on_text_input(int enabled, const char *program, int x, int y, int w, int h) {
@@ -364,6 +381,12 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendKey(
         JNIEnv *env, jclass clazz, jint evdev, jint state) {
     droiddeck_wayland_send_key(evdev, state);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSendKeyOrdered(
+        JNIEnv *env, jclass clazz, jint evdev, jint state) {
+    droiddeck_host_key(evdev, state);
 }
 
 JNIEXPORT jboolean JNICALL
@@ -800,6 +823,12 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeTextInputPreedit(JNI
 JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeTextInputDelete(JNIEnv *env, jclass clazz, jint before, jint after) {
     droiddeck_host_text_delete(before, after);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCompleteTextInputFallback(
+        JNIEnv *env, jclass clazz, jint token) {
+    droiddeck_host_text_input_fallback_complete(token);
 }
 
 extern void adrenotools_set_turbo(bool turbo);

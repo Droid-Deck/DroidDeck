@@ -76,6 +76,7 @@ import com.droiddeck.launcher.input.InputSpace
 import com.droiddeck.launcher.input.KeyboardHost
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.SessionClipboard
+import com.droiddeck.launcher.input.SessionTextInput
 import com.droiddeck.launcher.input.OnScreenControls
 import com.droiddeck.launcher.input.OnScreenLayout
 import com.droiddeck.launcher.input.InputRouter
@@ -334,6 +335,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private val sessionClipboard by lazy {
         SessionClipboard(this) {
+            window.decorView.hasWindowFocus() || secondScreenPresentation?.window?.decorView?.hasWindowFocus() == true
+        }
+    }
+    private val sessionTextInput by lazy {
+        SessionTextInput(this) {
             window.decorView.hasWindowFocus() || secondScreenPresentation?.window?.decorView?.hasWindowFocus() == true
         }
     }
@@ -952,7 +958,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
             root.addView(controls)
         }
-        keyboard = KeyboardHost(this).also { host ->
+        keyboard = KeyboardHost(this, sendKeyEvent = ::dispatchImeKeyEvent, sendText = WaylandCompositor::textInputCommit).also { host ->
             host.onImeChanged = ::onPrimaryImeChanged
             root.addView(host)
         }
@@ -3547,7 +3553,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    internal fun dispatchImeKeyEvent(event: KeyEvent): Boolean = dispatchKeyEvent(event, orderedImeKey = true)
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean = dispatchKeyEvent(event, orderedImeKey = false)
+
+    private fun dispatchKeyEvent(event: KeyEvent, orderedImeKey: Boolean): Boolean {
         if (com.droiddeck.launcher.ui.AgentPet.handleBack(this, event)) return true
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> {
@@ -3624,7 +3634,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         if (pipUi) return true
         val pad = com.droiddeck.launcher.input.JoyCon.normalize(event)
-        if (pad !== event) return dispatchKeyEvent(pad)
+        if (pad !== event) return dispatchKeyEvent(pad, orderedImeKey)
         val fromController = PadBridge.isControllerKeyEvent(event)
         if (fromController && (menuOwnsController || pcKeyboardOpen || achievementsOpen || inputSettingsOpen || gestureSettingsOpen || SessionState.suspended)) {
             padBridge?.setInputEnabled(false)
@@ -3707,7 +3717,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             val down = event.action == KeyEvent.ACTION_DOWN
             if (down && event.repeatCount > 0) return true
             val owner = if (event.deviceId <= 0) 16 else 8
-            if (com.droiddeck.launcher.input.GuestKeys.send(event) { code, pressed -> sendGuestKey(code, pressed, owner) }) return true
+            if (com.droiddeck.launcher.input.GuestKeys.send(event) { code, pressed -> sendGuestKey(code, pressed, owner, orderedImeKey) }) return true
         }
         return super.dispatchKeyEvent(event)
     }
@@ -5782,11 +5792,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         releaseHeldKeys()
     }
 
-    private fun sendGuestKey(key: Int, down: Boolean, owner: Int = 1) {
+    private fun sendGuestKey(key: Int, down: Boolean, owner: Int = 1, orderedImeKey: Boolean = false) {
         if (down && pipUi) return
         val code = if (key == KEY_RIGHTCTRL && SessionState.mode == SessionService.MODE_DESKTOP) KEY_LEFTCTRL else key
         if (owner == 1) { if (down) guestKeysDown.add(code) else guestKeysDown.remove(code) }
-        heldKeys.set(owner, code, down)
+        val orderedSender = if (orderedImeKey) orderedImeKeySender else null
+        heldKeys.set(owner, code, down, orderedSender)
+    }
+
+    private val orderedImeKeySender: (Int, Boolean) -> Unit = { code, down ->
+        WaylandCompositor.nativeSendKeyOrdered(code, if (down) 1 else 0)
     }
 
     private fun capturePausedFrame(manual: Boolean = false, onDone: () -> Unit = {}) {
@@ -5917,6 +5932,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             heldButtons.clear()
             hidePrimaryKeyboard()
             sessionClipboard.stop()
+            sessionTextInput.stop()
             padMotion?.stop()
             cursorVisible = false
             closeSecondScreen(reset = false)
@@ -5932,7 +5948,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         } else if (!isFinishing && !isDestroyed) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             updateOnScreenControls()
-            if (resumed) { sessionClipboard.start(); updatePadMotion() }
+            if (resumed) { sessionClipboard.start(); sessionTextInput.start(); updatePadMotion() }
             if (started) {
                 settleDualScreenControls()
                 refreshSecondScreenDisplays()
@@ -6003,6 +6019,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         com.droiddeck.launcher.input.DualScreen.unwatchTaken(bottomScreenListener)
         contentResolver.unregisterContentObserver(refreshSettingObserver)
         if (!screenIsOff()) closeSecondScreen(reset = false)
+        sessionTextInput.stop()
         startedScreens = (startedScreens - 1).coerceAtLeast(0)
         updateGlassesScreen()
         updateBottomGame()
@@ -6079,7 +6096,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onCancel = { padBridge?.cancelHomeGuide() },
         )
         updatePointerCapture()
-        if (!pipUi) sessionClipboard.start()
+        if (!pipUi) { sessionClipboard.start(); sessionTextInput.start() }
         updatePadMotion()
         ControllerPrefs.prefs(this).registerOnSharedPreferenceChangeListener(shortcutPrefListener)
         SessionPrefs.sessionPrefs(this).registerOnSharedPreferenceChangeListener(screenEffectsProfilePrefListener)
@@ -6788,6 +6805,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         gamescopeConvarRequests.shutdownNow()
         backQamInput.cancel()
         steamVrRecovery.close()
+        sessionTextInput.stop()
         uiHandler.removeCallbacks(steamTouchRetry)
         uiHandler.removeCallbacks(cursorResync)
         uiHandler.removeCallbacks(usbMouseFallback)

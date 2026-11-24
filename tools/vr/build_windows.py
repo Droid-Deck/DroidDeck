@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
-IMAGE = 'droiddeck-local-cross:24.04-v3'
+IMAGE = 'droiddeck-local-cross:24.04-v5'
 MANIFEST = 'vr-build.json'
 SOURCE_TREES = ('tools/vr/src', 'tools/vr/tests', 'tools/vr/third_party',
                 'tools/vr/driver_droiddeck', 'tools/vr/layer')
@@ -131,14 +131,22 @@ def build(folder, include, root=ROOT, image=IMAGE):
         snapshot = Path(temp).resolve()
         if not snapshot.is_relative_to(workspace):
             raise ValueError('Temporary VR workspace escapes the checkout')
-        inspect = subprocess.run([docker, 'image', 'inspect', '--format', '{{.Id}}', image],
+        inspect = subprocess.run([docker, 'image', 'inspect', '--format', '{{.Id}} {{.Os}}/{{.Architecture}}', image],
                                  capture_output=True, text=True)
-        if inspect.returncode:
+        parts = inspect.stdout.strip().split() if inspect.returncode == 0 else []
+        if len(parts) == 2 and parts[1] == 'linux/amd64' and parts[0]:
+            image_id = parts[0]
+        else:
             if image != IMAGE:
-                raise ValueError('VR compiler image is not available locally: ' + image)
-            subprocess.run([docker, 'build', '--tag', image, '--file', '-', str(snapshot)],
+                raise ValueError(f'VR compiler image is not available locally for linux/amd64: {image} (got {inspect.stdout.strip() or "missing"})')
+            subprocess.run([docker, 'build', '--platform', 'linux/amd64', '--tag', image, '--file', '-', str(snapshot)],
                            input=input_files['tools/local-cross.Dockerfile'], check=True)
-        image_id = subprocess.check_output([docker, 'image', 'inspect', '--format', '{{.Id}}', image]).decode().strip()
+            inspect = subprocess.run([docker, 'image', 'inspect', '--format', '{{.Id}} {{.Os}}/{{.Architecture}}', image],
+                                     capture_output=True, text=True, check=True)
+            parts = inspect.stdout.strip().split()
+            if len(parts) != 2 or parts[1] != 'linux/amd64' or not parts[0]:
+                raise ValueError(f'VR compiler image {image} expected id and linux/amd64, got {inspect.stdout.strip()!r}')
+            image_id = parts[0]
         for name, data in input_files.items():
             target = snapshot / name
             target.parent.mkdir(parents=True, exist_ok=True)

@@ -217,6 +217,19 @@ object BottomDesktop {
 
     fun sendText(text: String) {
         val target = service ?: return
+        if (text.isNotEmpty() && text.all { it == '\r' || it == '\n' || it == '\b' || it == '\u007f' || it == '\t' }) {
+            for (c in text) {
+                val evdev = when (c) {
+                    '\r', '\n' -> 28
+                    '\b' -> 14
+                    '\u007f' -> 111
+                    else -> 15
+                }
+                sendKey(evdev, true)
+                sendKey(evdev, false)
+            }
+            return
+        }
         send(target, Message.obtain(null, Comp.MSG_TEXT).apply { data = Bundle().apply { putString(Comp.KEY_TEXT, text) } })
     }
 
