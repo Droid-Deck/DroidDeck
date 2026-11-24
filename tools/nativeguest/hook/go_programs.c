@@ -300,6 +300,7 @@ static int prepare_go_program(int fd, const char *path, const struct stat *st) {
     int64_t site_off[GO_QUIET_MAX + 1];
     if (go_find_calls(fd, ph, n, k_go_syscall6, GO_CMN_X0_4095, site_off, 1) != 1) return 0; // not a Go of 1.19 or newer (or its function is not there once)
     int quiet = go_find_calls(fd, ph, n, k_go_raw_no_error, GO_STR_X0_SP40, site_off + 1, GO_QUIET_MAX);
+    if (quiet < 0) return -1;
     int sites = 1 + (quiet <= GO_QUIET_MAX ? quiet : 0);
 
     // The loadable segments, by address

@@ -212,15 +212,14 @@ static int read_elf_phdrs(int fd, uint16_t *machine, struct ddnatv_phdr *ph, int
 static int elf_is_go(int fd, const struct ddnatv_phdr *ph, int n) {
     for (int i = 0; i < n; i++) {
         if (ph[i].type != 4 /* PT_NOTE */ || ph[i].filesz < 16) continue;
-        unsigned char notes[1024];
-        size_t len = ph[i].filesz < sizeof(notes) ? (size_t)ph[i].filesz : sizeof(notes);
-        if (pread(fd, notes, len, (off_t)ph[i].offset) != (ssize_t)len) continue;
-        for (size_t at = 0; at + 16 <= len;) {
-            uint32_t namesz = rd32(notes + at), descsz = rd32(notes + at + 4);
-            if (namesz == 4 && memcmp(notes + at + 12, "Go\0\0", 4) == 0) return 1;
-            uint64_t next = (uint64_t)at + 12 + (((uint64_t)namesz + 3) & ~3ull) + (((uint64_t)descsz + 3) & ~3ull);
-            if (next <= at || next > len) break;
-            at = (size_t)next;
+        for (uint64_t at = 0; at + 16 <= ph[i].filesz;) {
+            unsigned char note[16];
+            if (pread(fd, note, sizeof(note), (off_t)(ph[i].offset + at)) != (ssize_t)sizeof(note)) break;
+            uint32_t namesz = rd32(note), descsz = rd32(note + 4);
+            if (namesz == 4 && memcmp(note + 12, "Go\0\0", 4) == 0) return 1;
+            uint64_t next = at + 12 + (((uint64_t)namesz + 3) & ~3ull) + (((uint64_t)descsz + 3) & ~3ull);
+            if (next <= at || next > ph[i].filesz) break;
+            at = next;
         }
     }
     return 0;
