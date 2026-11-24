@@ -926,19 +926,17 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     // recreate() leaves this activity's window drawing nothing and ignoring input on some devices (#2668).
     private fun restartLauncher() {
-        val restart = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        LauncherHandoff.put(Bundle().also(::saveLauncherState))
+        switchPoll?.let { ui.removeCallbacks(it) }
+        switchPoll = null
+        switchingTo = null
+        queuedLaunch.clear()
+        cancelCompatLaunch()
+        startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(LauncherIcon.activity(this))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
             .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "setup:launcher")
-            .putExtra(EXTRA_RESTARTED, true)
-        pendingSwitch?.let { restart.putExtra(KEY_PENDING_SWITCH, it) }
-        switchingTo?.let {
-            restart.putExtra(KEY_SWITCHING_TO, it).putExtra(KEY_SWITCH_DEADLINE, switchDeadline)
-            switchPoll?.let { poll -> ui.removeCallbacks(poll) }
-            switchPoll = null
-            switchingTo = null
-        }
-        startActivity(restart)
+            .putExtra(EXTRA_RESTARTED, true))
         finishAndRemoveTask()
     }
 
@@ -1268,13 +1266,15 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         super.onCreate(savedInstanceState)
         drivers.restartBlocked = ::runtimeChangesBlocked
         drivers.loadTpUbwcMode()
-        pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
+        val handoff = if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_RESTARTED, false)) LauncherHandoff.take() else null
+        val saved = savedInstanceState ?: handoff
+        pendingSessionLogExport = saved?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
         queuedLaunch.restore(
-            savedInstanceState?.let { androidx.core.os.BundleCompat.getParcelable(it, STATE_PENDING_GATE_LAUNCH, Intent::class.java) },
-            savedInstanceState?.getLong(STATE_PENDING_GATE_LAUNCH_AT, 0L) ?: 0L, System.currentTimeMillis(),
+            saved?.let { androidx.core.os.BundleCompat.getParcelable(it, STATE_PENDING_GATE_LAUNCH, Intent::class.java) },
+            saved?.getLong(STATE_PENDING_GATE_LAUNCH_AT, 0L) ?: 0L, System.currentTimeMillis(),
         )
-        homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
-        gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
+        homeChoiceOpen = saved?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
+        gameSpaceOffered = saved?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
         val shortcutsFilter = android.content.IntentFilter(SteamIntegration.SHORTCUTS_STATUS)
         if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(shortcutsInstallStatus, shortcutsFilter, RECEIVER_NOT_EXPORTED)
@@ -1915,14 +1915,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             !SessionPrefs.allFilesAsked(this)
         if (savedInstanceState == null) {
             if (!askAllFiles) ui.post { startSteamAtStartupIfEnabled(cold = true) }
-            intent.extras?.takeIf { it.getBoolean(EXTRA_RESTARTED) }?.let { carried ->
-                pendingSwitch = savedIntent(carried, KEY_PENDING_SWITCH)
-                savedIntent(carried, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, carried.getLong(KEY_SWITCH_DEADLINE)) }
-            }
-        } else {
-            restoreCompatLaunch(savedInstanceState)
-            pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
-            savedIntent(savedInstanceState, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, savedInstanceState.getLong(KEY_SWITCH_DEADLINE)) }
+        }
+        saved?.let { state ->
+            restoreCompatLaunch(state)
+            pendingSwitch = savedIntent(state, KEY_PENDING_SWITCH)
+            savedIntent(state, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, state.getLong(KEY_SWITCH_DEADLINE)) }
         }
 
         val wanted = ArrayList<String>()
@@ -2227,6 +2224,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        saveLauncherState(outState)
+    }
+
+    private fun saveLauncherState(outState: Bundle) {
         outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
         outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
         pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
