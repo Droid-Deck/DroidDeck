@@ -12,7 +12,7 @@ SESSION = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/d
 class SteamPresentationTest(unittest.TestCase):
     def launch(self, enabled=None, inherited=None):
         source = SESSION.read_text()
-        begin = source.index("    dd_steam_path=$PATH")
+        begin = source.index("    dd_steam_path=")
         end = source.index("\n    decky_loader=", begin)
         command = source.index('      PATH="$dd_steam_path"')
         command_end = source.index("\n      rc=$?", command)
@@ -41,7 +41,7 @@ class SteamPresentationTest(unittest.TestCase):
                                     env=env, capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode, 0, result.stderr)
             launch = json.loads(result.stdout.splitlines()[-1])
-            self.assertEqual(enabled == "1", launch["path"].startswith("/usr/local/libexec/droiddeck-steam:"))
+            self.assertEqual(launch["path"], "/usr/local/libexec/droiddeck-steam:" + env["PATH"])
             self.assertEqual(launch["helper"], str(Path(tmp) / "steamrtarm64/steamwebhelper"))
             return launch
 

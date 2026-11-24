@@ -148,7 +148,61 @@ object DualScreenPanel {
         }.onFailure { launching = false; displayId = -1 }
     }
 
+    /**
+     * The panel on a presentation window sits above every activity on its screen, so an app launched there stays hidden behind it.
+     * Swapping the panel for a task of its own puts the app above it, and closing the app shows the panel again.
+     * Launches requested while the swap is under way wait for it and run in the order they were asked for.
+     */
+    fun makeRoomForApp(context: Context, display: Int, launch: () -> Unit) {
+        pendingLaunches?.let { it.add(launch); return }
+        val shown = presentation
+        if (shown == null || displayId != display) { launch(); return }
+        pendingLaunches = mutableListOf(launch)
+        val generation = ++handoffGeneration
+        handoffWaited = 0
+        presentation = null
+        shown.dismiss()
+        launching = true
+        val intent = Intent(context, DualScreenActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            .putExtra(EXTRA_HANDOFF, generation)
+        val started = runCatching {
+            context.startActivity(intent, ActivityOptions.makeBasic().setLaunchDisplayId(display).toBundle())
+        }.isSuccess
+        if (!started) { launching = false; displayId = -1; releaseLaunches(); return }
+        handoffPoll.run()
+    }
+
+    private var pendingLaunches: MutableList<() -> Unit>? = null
+    private var handoffWaited = 0
+    private var handoffGeneration = 0
+    internal const val EXTRA_HANDOFF = "handoff"
+    private val handoffHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val handoffPoll = object : Runnable {
+        override fun run() {
+            if (pendingLaunches == null) return
+            if (activity != null || handoffWaited >= APP_WAIT_MS) releaseLaunches()
+            else { handoffWaited += APP_POLL_MS; handoffHandler.postDelayed(this, APP_POLL_MS.toLong()) }
+        }
+    }
+
+    private fun releaseLaunches() {
+        val waiting = pendingLaunches ?: return
+        pendingLaunches = null
+        handoffHandler.removeCallbacks(handoffPoll)
+        waiting.forEach { it() }
+    }
+
+    private fun dropLaunches() {
+        pendingLaunches = null
+        handoffHandler.removeCallbacks(handoffPoll)
+    }
+
+    private const val APP_POLL_MS = 100
+    private const val APP_WAIT_MS = 2000
+
     fun hide() {
+        dropLaunches()
         stopTyping()
         launching = false
         displayId = -1
@@ -169,6 +223,9 @@ object DualScreenPanel {
         if (activity !== host) activity?.finishAndRemoveTask()
         activity = host
         launching = false
+        val waiting = pendingLaunches
+        val generation = host.intent?.getIntExtra(EXTRA_HANDOFF, -1) ?: -1
+        handoffHandler.post { if (pendingLaunches === waiting && generation == handoffGeneration) releaseLaunches() }
         return true
     }
 

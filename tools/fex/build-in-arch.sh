@@ -1,6 +1,8 @@
 #!/usr/bin/bash
 set -euxo pipefail
-VERSION=${FEX_VERSION:-FEX-2610}
+VERSION=${FEX_VERSION:?FEX_VERSION must name a FEX release tag, e.g. FEX-2611.1}
+RELEASE=${VERSION#FEX-}
+RELEASE=${RELEASE%%.*}
 WORK=/work
 cd "$WORK"
 grep -q '^DisableSandbox' /etc/pacman.conf || sed -i 's/^\[options\]/[options]\nDisableSandbox/' /etc/pacman.conf
@@ -38,7 +40,7 @@ fi
 rm -rf fex-src out && git clone -q --depth 1 --branch "$VERSION" --recurse-submodules --shallow-submodules https://github.com/FEX-Emu/FEX.git fex-src
 for p in tools/fex/patches/*.patch; do
   upstream=$(sed -n 's/^Fixed-upstream: FEX-\([0-9]\{4\}\)$/\1/p' "$p")
-  if [ -n "$upstream" ] && [ "${VERSION#FEX-}" -ge "$upstream" ]; then
+  if [ -n "$upstream" ] && [ "$RELEASE" -ge "$upstream" ]; then
     echo "$(basename "$p"): already in FEX-$upstream, skipped for $VERSION"
     continue
   fi
@@ -56,7 +58,8 @@ cmake -S fex-src -B fex-build -G Ninja \
   -DTUNE_CPU=none -DTUNE_ARCH=armv8-a \
   -DBUILD_TESTING=OFF -DBUILD_FEXCONFIG=OFF -DENABLE_ASSERTIONS=OFF \
   $( [ "$THUNKS" = 1 ] && echo "-DBUILD_THUNKS=ON -DX86_DEV_ROOTFS=$X86ROOT" || echo "-DBUILD_THUNKS=OFF" ) \
-  -DENABLE_CCACHE=OFF -DENABLE_OFFLINE_TELEMETRY=OFF \
+  -DENABLE_CCACHE=OFF -DENABLE_OFFLINE_TELEMETRY=OFF -DFMT_MODULE=OFF \
+  -DCMAKE_CXX_MODULE_STD=OFF -DCMAKE_CXX_SCAN_FOR_MODULES=OFF \
   ${FEX_EXTRA_CXXFLAGS:+-DCMAKE_CXX_FLAGS="$FEX_EXTRA_CXXFLAGS"}
 ninja -C fex-build
 DESTDIR="$WORK/out" ninja -C fex-build install

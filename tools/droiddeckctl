@@ -412,10 +412,10 @@ def pacing(adb: str, serial: str, seconds: float) -> dict:
     try:
         time.sleep(seconds)
         dump = run_adb(adb, serial, *timestats, "-dump", timeout=60)
+        elapsed = time.monotonic() - started
     except ControlError as exc:
         raise ControlError(str(exc), "PACING_FAILED") from exc
     finally:
-        elapsed = time.monotonic() - started
         try:
             disabled = run_adb(adb, serial, *timestats, "-disable").returncode == 0
         except ControlError:
@@ -792,7 +792,7 @@ def uinput_commands(samples: list[dict], tool: str, viewport: dict) -> list[dict
                        {"id": 1, "command": "sync", "syncToken": UINPUT_SYNC}]
 
 
-def pen_uinput(adb: str, serial: str, samples: list[dict], tool: str) -> dict:
+def uinput_check(adb: str, serial: str) -> None:
     probe = run_adb(adb, serial, "shell",
                     "command -v uinput >/dev/null 2>&1 || echo no-uinput; [ -w /dev/uinput ] || echo no-dev-uinput")
     if probe.returncode != 0:
@@ -802,6 +802,10 @@ def pen_uinput(adb: str, serial: str, samples: list[dict], tool: str) -> dict:
         raise ControlError("This device's shell has no `uinput` command", "UINPUT_UNAVAILABLE")
     if "no-dev-uinput" in missing:
         raise ControlError("The ADB shell cannot write /dev/uinput on this device", "UINPUT_UNAVAILABLE")
+
+
+def pen_uinput(adb: str, serial: str, samples: list[dict], tool: str) -> dict:
+    uinput_check(adb, serial)
     viewport = input_viewport(run_adb(adb, serial, "shell", "dumpsys", "input").stdout.decode(errors="replace"))
     script = "".join(json.dumps(command) + "\n" for command in uinput_commands(samples, tool, viewport))
     started = time.monotonic()
@@ -815,6 +819,68 @@ def pen_uinput(adb: str, serial: str, samples: list[dict], tool: str) -> dict:
                            "UINPUT_FAILED")
     return {"ok": True, "command": "input", "type": "pen", "samples": len(samples), "ms": elapsed,
             "viewport": {key: viewport[key] for key in ("display", "rotation", "size")}}
+
+
+GAMEPAD_NAME = "DroidDeck test pad"
+GAMEPAD_SYNC = "droiddeckctl-gamepad-done"
+GAMEPAD_BUTTONS = {"a": "BTN_SOUTH", "b": "BTN_EAST", "x": "BTN_NORTH", "y": "BTN_WEST", "lb": "BTN_TL", "rb": "BTN_TR",
+                   "select": "BTN_SELECT", "start": "BTN_START", "guide": "BTN_MODE", "l3": "BTN_THUMBL", "r3": "BTN_THUMBR"}
+GAMEPAD_DPAD = {"up": ("ABS_HAT0Y", -1), "down": ("ABS_HAT0Y", 1), "left": ("ABS_HAT0X", -1), "right": ("ABS_HAT0X", 1)}
+GAMEPAD_MAX_PRESSES = 200
+GAMEPAD_DPAD_MIN_GAP_MS = 20
+
+
+def gamepad_commands(buttons: list[str], hold: int, gap: int) -> list[dict]:
+    def axis(code: str, low: int, high: int) -> dict:
+        return {"code": code, "info": {"value": 0, "minimum": low, "maximum": high, "fuzz": 0, "flat": 0, "resolution": 0}}
+
+    unknown = [name for name in buttons if name not in GAMEPAD_BUTTONS and name not in GAMEPAD_DPAD]
+    if unknown:
+        raise ControlError(f"Unknown gamepad button {unknown[0]!r}; use "
+                           f"{', '.join(list(GAMEPAD_BUTTONS) + list(GAMEPAD_DPAD))}", "INVALID_INPUT")
+    if not 1 <= len(buttons) <= GAMEPAD_MAX_PRESSES:
+        raise ControlError(f"Press between 1 and {GAMEPAD_MAX_PRESSES} buttons", "INVALID_INPUT")
+    if not 10 <= hold <= 5000 or not 0 <= gap <= 5000:
+        raise ControlError("--hold must be 10..5000 ms and --gap 0..5000 ms", "INVALID_INPUT")
+    commands: list[dict] = [
+        {"id": 1, "command": "register", "name": GAMEPAD_NAME, "bus": "usb", "vid": 0x045E, "pid": 0x028E,
+         "configuration": [
+             {"type": "UI_SET_EVBIT", "data": ["EV_KEY", "EV_ABS"]},
+             {"type": "UI_SET_KEYBIT", "data": sorted(GAMEPAD_BUTTONS.values())},
+             {"type": "UI_SET_ABSBIT", "data": ["ABS_X", "ABS_Y", "ABS_RX", "ABS_RY", "ABS_HAT0X", "ABS_HAT0Y"]},
+         ],
+         "abs_info": [axis("ABS_X", -32768, 32767), axis("ABS_Y", -32768, 32767), axis("ABS_RX", -32768, 32767),
+                      axis("ABS_RY", -32768, 32767), axis("ABS_HAT0X", -1, 1), axis("ABS_HAT0Y", -1, 1)]},
+        {"id": 1, "command": "delay", "duration": UINPUT_REGISTER_MS},
+    ]
+    for name in buttons:
+        code, down, up = (GAMEPAD_BUTTONS[name], 1, 0) if name in GAMEPAD_BUTTONS else \
+            (GAMEPAD_DPAD[name][0], GAMEPAD_DPAD[name][1], 0)
+        kind = "EV_KEY" if name in GAMEPAD_BUTTONS else "EV_ABS"
+        commands += [{"id": 1, "command": "inject", "events": [kind, code, down, "EV_SYN", "SYN_REPORT", 0]},
+                     {"id": 1, "command": "delay", "duration": hold},
+                     {"id": 1, "command": "inject", "events": [kind, code, up, "EV_SYN", "SYN_REPORT", 0]}]
+        pause = gap if name in GAMEPAD_BUTTONS else max(gap, GAMEPAD_DPAD_MIN_GAP_MS)
+        if pause > 0:
+            commands.append({"id": 1, "command": "delay", "duration": pause})
+    return commands + [{"id": 1, "command": "delay", "duration": UINPUT_TAIL_MS},
+                       {"id": 1, "command": "sync", "syncToken": GAMEPAD_SYNC}]
+
+
+def gamepad_uinput(adb: str, serial: str, buttons: list[str], hold: int, gap: int) -> dict:
+    commands = gamepad_commands(buttons, hold, gap)
+    uinput_check(adb, serial)
+    script = "".join(json.dumps(command) + "\n" for command in commands)
+    started = time.monotonic()
+    result = run_adb(adb, serial, "shell", "uinput", "-", stdin=script.encode(),
+                     timeout=(UINPUT_REGISTER_MS + len(buttons) * (hold + gap) + UINPUT_TAIL_MS) / 1000 + 30)
+    elapsed = round((time.monotonic() - started) * 1000)
+    if GAMEPAD_SYNC not in result.stdout.decode(errors="replace"):
+        detail = (result.stderr or result.stdout).decode(errors="replace").strip()[-400:]
+        raise ControlError(f"uinput stopped before the last button (exit {result.returncode})"
+                           + (f": {detail}" if detail else "") + "; `adb logcat -s UINPUT UinputDevice` tells why",
+                           "UINPUT_FAILED")
+    return {"ok": True, "command": "input", "type": "gamepad", "buttons": buttons, "ms": elapsed}
 
 
 def xr_ppm_to_png(data: bytes, linear: bool = False) -> bytes:
@@ -1081,6 +1147,8 @@ def execute(args: argparse.Namespace, adb: str, serial: str) -> dict:
     if command == "input":
         if args.input_type == "pen":
             return add_serial(pen_uinput(adb, serial, pen_samples(args), args.tool), serial)
+        if args.input_type == "gamepad":
+            return add_serial(gamepad_uinput(adb, serial, args.buttons, args.hold, args.gap), serial)
         return add_serial(checked(provider_call(adb, serial, "input", request=input_request(args), timeout=60),
                                   "INPUT_FAILED"), serial)
 
@@ -1359,6 +1427,13 @@ def build_parser() -> argparse.ArgumentParser:
     pad.add_argument("button")
     pad.add_argument("--action", choices=["tap", "down", "up"], default="tap")
     pad.add_argument("--hold", type=int, default=120)
+    gamepad = kinds.add_parser(
+        "gamepad", help="press buttons on a real uinput gamepad that Android sees as a physical controller "
+                        "(unlike pad, which only feeds the guest's virtual pad)")
+    gamepad.add_argument("buttons", nargs="+", metavar="BUTTON",
+                         help="a b x y lb rb select start guide l3 r3 up down left right, pressed in order")
+    gamepad.add_argument("--hold", type=int, default=120, help="ms each button stays down")
+    gamepad.add_argument("--gap", type=int, default=400, help="ms between buttons (a d-pad press always waits at least 20 ms)")
     stick = kinds.add_parser("stick", help="hold a stick at x, y (-1..1)")
     stick.add_argument("stick", choices=["left", "right"])
     stick.add_argument("x", type=float)

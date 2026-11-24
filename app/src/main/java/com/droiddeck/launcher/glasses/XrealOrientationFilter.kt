@@ -2,13 +2,18 @@ package com.droiddeck.launcher.glasses
 
 import kotlin.math.abs
 
-internal class XrealOrientationFilter(private val flipYz: Boolean = true) {
+internal class XrealOrientationFilter(private val model: XrealModel = XrealModel.ONE_S) {
     private val fusion = ImuFusion()
+    private val sensorToDisplay = if (model === XrealModel.ONE_PRO_PLUS)
+        Quaternion.fromAxisAngle(Vec3(1f, 0f, 0f), Math.toRadians(35.0).toFloat()) else null
 
     fun update(sample: XrealProtocol.Sample): FloatArray? = fusion.update(sample.timeNs,
         sample.accel.headAxes(), sample.gyro.headAxes())
 
-    private fun Vec3.headAxes() = if (flipYz) Vec3(x, -y, -z) else this
+    private fun Vec3.headAxes(): Vec3 {
+        val display = sensorToDisplay?.rotate(this) ?: this
+        return if (model.flipsYz) Vec3(display.x, -display.y, -display.z) else display
+    }
 }
 
 internal class ImuFusion {

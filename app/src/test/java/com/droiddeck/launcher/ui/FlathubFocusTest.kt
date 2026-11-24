@@ -67,7 +67,7 @@ class FlathubFocusTest {
                             onInstallPackage = {}, onRemovePackage = {}, onRuntime = {}, onFrameGenPick = {},
                             onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},
                             onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
-                            onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
+                            
                             onSetPhantomProcessLimit = { _, _ -> },
                         ))
                     }

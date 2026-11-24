@@ -24,7 +24,7 @@ if [ -n "${DD_DEBUG_DIR:-}" ]; then
   exec >>"$DD_DEBUG_DIR/desktop.log" 2>&1
   echo "== droiddeck-desktop $(date -u '+%Y-%m-%d %H:%M:%S UTC') ${DD_WIDTH:-1280}x${DD_HEIGHT:-720}"
 fi
-find "$XDG_RUNTIME_DIR" -mindepth 1 -maxdepth 1 ! -name 'wayland-0*' ! -name 'keymap.xkb' -exec rm -rf {} + 2>/dev/null
+find "$XDG_RUNTIME_DIR" -mindepth 1 -maxdepth 1 ! -name 'wayland-0*' ! -name 'keymap.xkb' ! -name 'droiddeck-display-buffers' -exec rm -rf {} + 2>/dev/null
 chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null
 mkdir -p /tmp/.X11-unix /tmp/.ICE-unix && chmod 1777 /tmp/.X11-unix /tmp/.ICE-unix 2>/dev/null
 export DD_DESKTOP=1
@@ -115,6 +115,9 @@ fi
 if [ "$(cat /usr/share/droiddeck/kwin-compositor 2>/dev/null)" = opengl ]; then
   unset LIBGL_ALWAYS_SOFTWARE QT_QUICK_BACKEND
   export KWIN_COMPOSE=O2 MESA_LOADER_DRIVER_OVERRIDE=zink GALLIUM_DRIVER=zink LIBGL_KOPPER_DRI2=true
+  # On the system PowerVR driver, Firefox's hardware WebRender on zink leaves stale, half-drawn
+  # frames; its software renderer draws correctly.
+  [ "${DD_STEAM_GL_PRESENT:-}" = 1 ] && export MOZ_ACCELERATED=0
   if [ -z "${KWIN_RENDER_NODES:-}" ]; then
     for node in /dev/dri/renderD0 /dev/dri/renderD307 /dev/dri/renderD*; do
       if [ -c "$node" ]; then export KWIN_RENDER_NODES="$node"; break; fi

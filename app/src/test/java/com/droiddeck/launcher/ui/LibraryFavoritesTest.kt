@@ -53,6 +53,6 @@ class LibraryFavoritesTest {
 
     @Test fun aHiddenFavoritesTabStaysHiddenWithHeartedGames() {
         val entries = listOf(steam(440, "Team Fortress 2"), owned("123", "Witcher"))
-        assertEquals(listOf("steam", "gog"), librarySources(entries, listOf("gog"), favorites = setOf("gog:123"), offTabs = setOf(LIBRARY_FAVORITES)))
+        assertEquals(listOf("steam", "gog"), librarySources(entries, listOf("gog"), favorites = setOf("gog:123"), offTabs = setOf(LIBRARY_FAVORITES, LIBRARY_HIDDEN)))
     }
 }

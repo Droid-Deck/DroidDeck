@@ -1536,6 +1536,18 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["engine_fixes"]("/game/FSD-Win64-Shipping.exe", []), ({}, [], []))
         self.assertEqual(MODULE["engine_fixes"]("/game/Other-WinGDK-Shipping.exe", []), ({}, [], []))
 
+    def test_dragons_dogma_2_turns_its_wine_detection_off_unless_the_user_sets_it(self):
+        game = "/game/Dragons Dogma 2/DD2.exe"
+        env, extra, notes = MODULE["engine_fixes"](game, [], "2054970")
+        self.assertEqual(extra, ["/WineDetectionEnabled:False"])
+        self.assertEqual(env, {})
+        self.assertTrue(notes)
+        self.assertEqual(MODULE["engine_fixes"](game, ["-dx12"], "2054970")[1], ["/WineDetectionEnabled:False"])
+        for own in ("/WineDetectionEnabled:False", "/WineDetectionEnabled:True", "/winedetectionenabled:false"):
+            self.assertEqual(MODULE["engine_fixes"](game, [own], "2054970"), ({}, [], []))
+        self.assertEqual(MODULE["engine_fixes"](game, [], "42"), ({}, [], []))
+        self.assertEqual(MODULE["engine_fixes"](game, []), ({}, [], []))
+
     def test_arkham_city_gets_full_x87_precision_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
             city = Path(tmp) / "Batman Arkham City GOTY/Binaries/Win32"
@@ -1853,6 +1865,18 @@ class GameEnvironmentTest(unittest.TestCase):
             config = {"version": 1, "shared": {}, "games": {"1771300": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
             self.assertEqual(MODULE["apply_config"]({}, config, "1771300", env), {"VKD3D_FEATURE_LEVEL": "12_1", "VKD3D_SHADER_MODEL": "6_9"})
             self.assertEqual(MODULE["engine_fixes"](str(exe), [], "42")[0], {})
+
+    def test_hades_ii_runs_at_feature_level_12_2_from_steam_and_xbox_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for exe in (Path(tmp) / "Hades II/Ship/Hades2.exe", Path(tmp) / "Xbox/Hades II/Hades2.exe"):
+                exe.parent.mkdir(parents=True)
+                exe.touch()
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [])
+                self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2"}, str(exe))
+                self.assertTrue(notes)
+                config = {"version": 1, "shared": {}, "games": {"42": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+                self.assertEqual(MODULE["apply_config"]({}, config, "42", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
+            self.assertEqual(MODULE["engine_fixes"]("/game/Hades/x64/Hades.exe", [])[0], {})
 
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
