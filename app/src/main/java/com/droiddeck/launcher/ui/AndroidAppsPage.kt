@@ -389,7 +389,9 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
             }
             val front = LocalFrontFocus.current
             val steer = rememberCoroutineScope()
-            val aim = remember { intArrayOf(-1) }
+            // The tile a move is heading to, by its id so that a list update cannot shift it, and the number of the latest move.
+            val aim = remember { arrayOfNulls<String>(1) }
+            val moves = remember { intArrayOf(0) }
             val move = remember { arrayOfNulls<Job>(1) }
             // Up and Down go to the tile straight above or below. The grid's own search works from where the tiles are drawn at that
             // moment, so while a scroll is still catching up with fast presses it skips a row or drifts a column, and above a short or
@@ -399,16 +401,23 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                 val k = event.nativeKeyEvent
                 val down = k.keyCode == KeyEvent.KEYCODE_DPAD_DOWN
                 if ((!down && k.keyCode != KeyEvent.KEYCODE_DPAD_UP) || front == null) return@onPreviewKeyEvent false
-                val from = aim[0].takeIf { it in entries.indices } ?: entries.indexOfFirst { tileId(it) == front.last }
+                val aimed = aim[0]?.let { id -> entries.indexOfFirst { tileId(it) == id } } ?: -1
+                if (aim[0] != null && aimed < 0) {
+                    // The tile a move was heading to has left the list: that move is dropped and the press aims from the focus.
+                    move[0]?.cancel()
+                    aim[0] = null
+                }
+                val from = aimed.takeIf { it >= 0 } ?: entries.indexOfFirst { tileId(it) == front.last }
                 val columns = (grid.layoutInfo.visibleItemsInfo.maxOfOrNull { it.column } ?: 0) + 1
                 if (from < 0) return@onPreviewKeyEvent false
                 // At the first or last row the press leaves the grid, unless a move has not landed yet: then it waits for it.
                 val edge = if (down) from / columns == entries.lastIndex / columns else from < columns
-                if (edge) return@onPreviewKeyEvent aim[0] >= 0
+                if (edge) return@onPreviewKeyEvent aim[0] != null
                 if (k.action == KeyEvent.ACTION_DOWN) {
                     val to = if (down) minOf(from + columns, entries.lastIndex) else from - columns
                     val id = tileId(entries[to])
-                    aim[0] = to
+                    aim[0] = id
+                    val mine = ++moves[0]
                     // A newer move replaces the one still on its way, so an older target cannot take focus after it lands.
                     move[0]?.cancel()
                     move[0] = steer.launch {
@@ -416,11 +425,12 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                             // Show the row before it takes focus. The grid composes rows ahead of the view without placing them, and a
                             // tile focused there neither scrolls in nor has a place for the next search to start from.
                             grid.reveal(to + leadItems)
-                            if (aim[0] != to) return@launch
+                            if (moves[0] != mine) return@launch
                             focusSoon { front.items.getValue(id) }
                         } finally {
                             // Also when a touch scroll cancels the reveal, so the edge rows do not keep waiting for a move that ended.
-                            if (aim[0] == to) aim[0] = -1
+                            // Only the latest move clears it: a cancelled one finishing late must not clear a newer move's target.
+                            if (moves[0] == mine) aim[0] = null
                         }
                     }
                 }
