@@ -54,12 +54,11 @@ static void resolve_symlinks(const char *path, char *out, size_t out_size, int d
             if (used >= sizeof(done) - 1) return;
             if (!follow_link(done, link_target, sizeof(link_target))) {
                 struct stat st;
-                if (rest[strspn(rest, "/")] && (syscall(SYS_newfstatat, AT_FDCWD, done, &st, 0) != 0 || !S_ISDIR(st.st_mode))) return;
+                if (*rest && (syscall(SYS_newfstatat, AT_FDCWD, done, &st, 0) != 0 || !S_ISDIR(st.st_mode))) return;
                 continue;
             }
             if (++links > 40) return;
             size_t m = ddnatv_append(next_path, sizeof(next_path), 0, link_target, strlen(link_target));
-            m = ddnatv_append(next_path, sizeof(next_path), m, "/", 1);
             m = ddnatv_append(next_path, sizeof(next_path), m, rest, strlen(rest));
             if (m >= sizeof(next_path) - 1) return;
             if (link_target[0] == '/') {
