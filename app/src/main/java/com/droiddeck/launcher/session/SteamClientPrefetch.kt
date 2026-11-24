@@ -61,6 +61,7 @@ object SteamClientPrefetch {
             else Onboarding.fail(Onboarding.Step.STEAM, problem ?: failedLabel)
             val steamReady = !pending(app)
             Onboarding.facts.update { it.copy(steam = steamReady) }
+            Onboarding.settle()
         }, "steam-client-prefetch").also { it.start() }
     }
 

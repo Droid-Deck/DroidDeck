@@ -2,8 +2,10 @@ import hashlib
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import tempfile
+import time
 import unittest
 import zipfile
 
@@ -12,6 +14,8 @@ SCRIPT = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/dr
 
 
 class SteamInstallTest(unittest.TestCase):
+    parallel = '1'
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -47,19 +51,29 @@ if host_fail and host_fail in url:
 action = []
 plan = os.environ.get('TEST_PLAN')
 if plan and os.path.exists(plan):
-    lines = open(plan).read().splitlines()
-    for n, line in enumerate(lines):
-        if line.split()[0] == name:
-            action = line.split()[1:]
-            del lines[n]
-            open(plan, 'w').write(''.join(l + '\\n' for l in lines))
-            break
+    import fcntl
+    with open(plan + '.lock', 'w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        lines = open(plan).read().splitlines()
+        for n, line in enumerate(lines):
+            if line.split()[0] == name:
+                action = line.split()[1:]
+                del lines[n]
+                open(plan, 'w').write(''.join(l + '\\n' for l in lines))
+                break
 if action[:1] == ['fail']:
     done(int(action[1]), '000')
 if action[:1] == ['http']:
     done(22, action[1])
+if action[:1] == ['killworker']:
+    import signal
+    os.kill(os.getppid(), signal.SIGKILL)
+    import time
+    time.sleep(6)
 if action[:1] == ['norange'] and offset:
     done(33)
+import time
+time.sleep(float(os.environ.get('TEST_SLEEP', '0')))
 data = open(os.path.join(os.environ['TEST_CDN'], name), 'rb').read()
 end = int(action[1]) if action[:1] == ['cut'] else len(data)
 with open(out, 'ab' if offset else 'wb') as target:
@@ -79,7 +93,8 @@ done(28 if end < len(data) else 0)
         self.env = dict(os.environ, HOME=str(self.home), XDG_DATA_HOME=str(self.data),
                         PATH=str(self.bin) + os.pathsep + os.environ['PATH'],
                         TEST_CDN=str(self.cdn), TEST_REQUESTS=str(self.requests),
-                        TEST_PLAN=str(self.plan), DD_STEAM_RETRY_DELAYS='0 0 0')
+                        TEST_PLAN=str(self.plan), DD_STEAM_RETRY_DELAYS='0 0 0',
+                        DD_STEAM_PARALLEL=self.parallel)
         for channel in ('steamdeck_publicbeta', 'steamdeck_stable'):
             archive = self.cdn / (channel + '.zip')
             with zipfile.ZipFile(archive, 'w') as package:
@@ -92,9 +107,13 @@ done(28 if end < len(data) else 0)
                 f'\t\t"file" "{archive.name}"\n\t\t"sha2" "{digest}"\n'
                 '\t}\n}\n')
 
-    def install(self, fail_host=None, *args, **extra):
+    def install(self, fail_host=None, *args, timeout=None, **extra):
         env = self.env if fail_host is None else dict(self.env, TEST_FAIL_HOST=fail_host)
-        return subprocess.run(['bash', str(SCRIPT), *args], env=dict(env, **extra), text=True, capture_output=True)
+        try:
+            return subprocess.run(['bash', str(SCRIPT), *args], env=dict(env, **extra), text=True, capture_output=True,
+                                  timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self.fail(f'the installer did not finish within {timeout} s')
 
     def channel(self, **extra):
         result = self.install(None, '--channel', **extra)
@@ -453,6 +472,166 @@ done(28 if end < len(data) else 0)
                          self.requested())
         self.assertFalse((self.home / '.dd-steam-repair').exists())
         self.assertFalse(self.download.exists())
+
+
+class SteamInstallParallelTest(SteamInstallTest):
+    """The same behaviour with several connections at once."""
+    parallel = '4'
+    test_progress_is_counted_in_megabytes_across_parts = None
+
+    def many_parts(self, count=10):
+        return self.publish(**{f'p{i}_all': 300_000 for i in range(count)})
+
+    def test_many_parts_arrive_and_unpack_together(self):
+        self.many_parts()
+        result = self.install()
+        self.assertEqual(0, result.returncode, result.stderr)
+        for i in range(10):
+            self.assertTrue((self.steam / f'parts/p{i}_all').is_file(), i)
+        self.assertEqual('123456\n', (self.steam / 'package/droiddeck-installed').read_text())
+        self.assertFalse(self.download.exists())
+
+    def test_every_part_is_requested_once_when_several_arrive_together(self):
+        files = self.many_parts()
+        self.assertEqual(0, self.install().returncode)
+        requested = self.requested()
+        for name in files.values():
+            self.assertEqual(1, requested.count(name), name)
+
+    def test_one_part_that_no_cdn_has_fails_the_install_and_leaves_no_ready_marker(self):
+        files = self.many_parts()
+        missing = files['p4_all']
+        self.plan_for(missing, 'http 404', 'http 404', 'http 404')
+        result = self.install()
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse((self.steam / 'package/droiddeck-installed').exists())
+        self.assertIn('failed on every CDN', result.stderr)
+
+    def test_a_retry_after_a_failure_finishes_what_is_left(self):
+        files = self.many_parts()
+        self.plan_for(files['p4_all'], 'http 404', 'http 404', 'http 404')
+        self.assertNotEqual(0, self.install().returncode)
+        self.assertEqual(0, self.install().returncode)
+        self.assertTrue((self.steam / 'parts/p4_all').is_file())
+        self.assertEqual('123456\n', (self.steam / 'package/droiddeck-installed').read_text())
+
+    def test_progress_is_reported_while_several_parts_arrive(self):
+        self.many_parts()
+        result = self.install(TEST_SLEEP='1.2', **{})
+        self.assertEqual(0, result.returncode, result.stderr)
+        lines = [line for line in result.stdout.splitlines() if 'downloading Steam:' in line and ' of ' in line]
+        self.assertGreaterEqual(len(lines), 2, result.stdout)
+        self.assertIn(' MB', lines[-1])
+
+    def test_packages_are_unpacked_one_at_a_time(self):
+        source = SCRIPT.read_text()
+        region = source[source.index('run_parallel() {'):source.index('fetch_manifest() {')]
+        self.assertNotIn('unzip -qo', region)
+        self.assertIn('unzip_alone', region)
+        self.assertIn('"$flock_command" 9', source)
+
+    def unzip_alone_script(self):
+        source = SCRIPT.read_text()
+        start = source.index('unzip_alone() {')
+        function = source[start:source.index('\n}\n', start) + 3]
+        return 'state=$1\nsteam_root=$2\nflock_command=flock\n' + function + '\nunzip_alone "$3"\n'
+
+    def unzip_alone_archive(self, name='one.zip', entry='steamrtarm64/steam'):
+        archive = self.root / name
+        with zipfile.ZipFile(archive, 'w') as package:
+            package.writestr(entry, 'client')
+        self.steam.mkdir(parents=True, exist_ok=True)
+        (self.root / 'state').mkdir(exist_ok=True)
+        return archive
+
+    def run_unzip_alone(self, archive, timeout, env=None):
+        arguments = ['bash', '-c', self.unzip_alone_script(), 'bash', str(self.root / 'state'), str(self.steam), str(archive)]
+        try:
+            return subprocess.run(arguments, text=True, capture_output=True, timeout=timeout, env=env)
+        except subprocess.TimeoutExpired:
+            return None
+
+    def hold_the_lock(self):
+        """Starts a process that holds the unzip lock and returns once it says it has it."""
+        ready = self.root / 'holder-ready'
+        holder = subprocess.Popen(
+            ['flock', str(self.root / 'state/unzip.lock'), 'sh', '-c', f'touch {ready}; sleep 60'], start_new_session=True)
+        self.addCleanup(lambda: os.killpg(holder.pid, signal.SIGKILL) if holder.poll() is None else None)
+        deadline = time.monotonic() + 10
+        while not ready.exists():
+            self.assertLess(time.monotonic(), deadline, 'the holder never took the lock')
+            time.sleep(0.05)
+        return holder
+
+    @unittest.skipUnless(shutil.which('flock'), 'needs flock')
+    def test_a_package_waits_for_a_worker_that_is_unpacking(self):
+        archive = self.unzip_alone_archive()
+        self.hold_the_lock()
+        self.assertIsNone(self.run_unzip_alone(archive, timeout=4), 'unzip_alone did not wait for the holder')
+        self.assertFalse((self.steam / 'steamrtarm64/steam').exists())
+
+    @unittest.skipUnless(shutil.which('flock'), 'needs flock')
+    def test_a_worker_killed_while_unpacking_hands_the_lock_on(self):
+        archive = self.unzip_alone_archive()
+        holder = self.hold_the_lock()
+        os.killpg(holder.pid, signal.SIGKILL)
+        holder.wait()
+        result = self.run_unzip_alone(archive, timeout=20)
+        self.assertIsNotNone(result, 'the lock of a killed worker was never handed on')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertTrue((self.steam / 'steamrtarm64/steam').is_file())
+
+    @unittest.skipUnless(shutil.which('flock'), 'needs flock')
+    def test_several_workers_never_unpack_at_the_same_moment(self):
+        log = self.root / 'unzip.log'
+        fake = self.bin / 'unzip'
+        fake.write_text('''#!/usr/bin/env python3
+import os, sys, time
+log = os.environ['TEST_UNZIP_LOG']
+with open(log, 'a') as out:
+    out.write(f'start {os.getpid()}\\n')
+time.sleep(0.3)
+with open(log, 'a') as out:
+    out.write(f'end {os.getpid()}\\n')
+''')
+        fake.chmod(0o755)
+        archive = self.unzip_alone_archive()
+        env = dict(self.env, TEST_UNZIP_LOG=str(log))
+        arguments = ['bash', '-c', self.unzip_alone_script(), 'bash', str(self.root / 'state'), str(self.steam), str(archive)]
+        workers = [subprocess.Popen(arguments, env=env) for _ in range(8)]
+        for worker in workers:
+            self.assertEqual(0, worker.wait(timeout=60))
+        lines = log.read_text().split()
+        events = lines[0::2]
+        self.assertEqual(['start', 'end'] * 8, events, 'two workers unpacked at the same time')
+
+    def test_without_flock_the_downloads_go_one_at_a_time(self):
+        self.two_parts()
+        result = self.install(DD_STEAM_FLOCK='flock-that-is-not-installed')
+        self.assertEqual(0, result.returncode, result.stderr)
+        # Only the sequential path counts parts as (1/2) and (2/2).
+        self.assertIn('downloading Steam: a_all (1/2), 0 of 2 MB\n', result.stdout)
+        self.assertIn('downloading Steam: client_linuxarm64_linuxarm64 (2/2), 1 of 2 MB\n', result.stdout)
+
+    def test_the_parallel_workers_use_no_process_substitution(self):
+        source = SCRIPT.read_text()
+        region = source[source.index('fetch_one() {'):source.index('fetch_manifest() {')]
+        self.assertNotIn('<(', region)
+        reporter = source[source.index('run_parallel() {'):source.index('fetch_manifest() {')]
+        self.assertNotIn('kill -0', reporter)
+
+    def test_a_worker_killed_from_outside_fails_the_install_instead_of_hanging_it(self):
+        files = self.many_parts()
+        self.plan_for(files['p3_all'], 'killworker')
+        result = self.install(timeout=40, DD_STEAM_STALL='3')
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse((self.steam / 'package/droiddeck-installed').exists())
+
+    def test_the_cache_pass_with_several_connections_keeps_every_package(self):
+        self.cache_manifest()
+        result = self.install(None, '--cache')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('123456\n', (self.steam / 'package/droiddeck-cached').read_text())
 
 
 if __name__ == '__main__':

@@ -1282,7 +1282,8 @@ internal fun OnboardingCard(limitBlocks: Boolean = false, onSetUpLimit: () -> Un
     val failed by com.droiddeck.launcher.session.Onboarding.failed.collectAsState()
     val facts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
     val rows = com.droiddeck.launcher.session.Onboarding.rows(active, failed, facts)
-    val settling = com.droiddeck.launcher.session.Onboarding.pending(rows)
+    val firstRun by com.droiddeck.launcher.session.Onboarding.firstRun.collectAsState()
+    val settling = firstRun && com.droiddeck.launcher.session.Onboarding.pending(rows)
     if (!settling) return
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current

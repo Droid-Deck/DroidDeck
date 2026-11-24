@@ -314,16 +314,14 @@ class FrontEndActions(
     val onBackActionsInverted: (Boolean) -> Unit = {},
     val onRefreshPhantomStatus: () -> Unit = {},
     val onOpenDeveloperOptions: (Int?) -> Unit = {},
-    val onWirelessAdbPair: (String, Int, String, (String?) -> Unit) -> Unit,
-    val onFindWirelessAdbPort: (String, (Int?) -> Unit) -> Unit = { _, done -> done(null) },
-    val onWirelessAdbApply: (String, Int, Boolean, (String?) -> Unit) -> Unit,
     val onSetPhantomProcessLimit: (Boolean, (String?) -> Unit) -> Unit,
     val onCopyPhantomCommand: (Boolean) -> Unit = {},
     val onDismissPhantomGate: () -> Unit = {},
-    val onStartWirelessAdbPairing: () -> Unit = {},
+    val onStartWirelessAdbPairing: (Boolean) -> Unit = {},
     val onStartPairingGuide: (Int?, Boolean) -> Boolean = { _, _ -> false },
     val onShowPhantomGate: () -> Unit = {},
-    val onOpenNotificationSettings: () -> Unit = {},
+    val onQueuePlaySteam: () -> Unit = {},
+    val onEnsureNotifications: ((Boolean) -> Unit) -> Unit = { it(true) },
     val controller: ControllerActions? = null,
     val updates: UpdatesActions = UpdatesActions(),
 )
@@ -509,17 +507,16 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
     LaunchedEffect(com.droiddeck.launcher.stores.StoresState.openGameRequest) {
         if (com.droiddeck.launcher.stores.StoresState.openGameRequest != null) selected = "stores"
     }
-    var showWirelessAdbFix by rememberSaveable { mutableStateOf(false) }
     var showDeveloperDisplayChoice by rememberSaveable { mutableStateOf(false) }
     var developerChoiceGuided by rememberSaveable { mutableStateOf(false) }
     var developerChoiceToggle by rememberSaveable { mutableStateOf(false) }
-    var wirelessAdbDesiredEnabled by rememberSaveable { mutableStateOf(false) }
+    var guidedLimitEnabled by rememberSaveable { mutableStateOf(false) }
     var appToChooseDisplay by remember { mutableStateOf<HomeApp.LaunchableApp?>(null) }
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val ctx = LocalContext.current
     val phantomGateVisible = s.showPhantomGate && PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
-    val processSettingsPageVisible = phantomGateVisible || showWirelessAdbFix || showDeveloperDisplayChoice
+    val processSettingsPageVisible = phantomGateVisible || showDeveloperDisplayChoice
     val requestDeveloperOptions = {
         developerChoiceGuided = false
         developerChoiceToggle = false
@@ -527,7 +524,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
         else showDeveloperDisplayChoice = true
     }
     val openDeveloperOptionsOn: (Int?) -> Unit = { displayId ->
-        if (developerChoiceGuided) a.onStartWirelessAdbPairing()
+        if (developerChoiceGuided) a.onStartWirelessAdbPairing(guidedLimitEnabled)
         val guided = developerChoiceGuided || developerChoiceToggle
         if (!guided || !a.onStartPairingGuide(displayId, developerChoiceToggle)) a.onOpenDeveloperOptions(displayId)
         developerChoiceGuided = false
@@ -543,30 +540,34 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             else showDeveloperDisplayChoice = true
         }
     }
-    val startGuidedPairing = {
-        if (!com.droiddeck.launcher.core.WirelessAdbPairingService.notificationsEnabled(ctx)) {
-            wirelessAdbDesiredEnabled = false
-            showWirelessAdbFix = true
-        } else {
-            developerChoiceGuided = true
-            if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
-            else showDeveloperDisplayChoice = true
+    val startGuidedPairing: (Boolean) -> Unit = { enabled ->
+        a.onEnsureNotifications { granted ->
+            if (granted) {
+                guidedLimitEnabled = enabled
+                developerChoiceGuided = true
+                if (s.secondScreenDisplays.isEmpty()) openDeveloperOptionsOn(null)
+                else showDeveloperDisplayChoice = true
+            }
         }
+    }
+    val childProcessRequest = androidx.compose.runtime.rememberUpdatedState {
+        if (PhantomProcessLimit.hasDeveloperToggle()) requestChildProcessToggle() else a.onShowPhantomGate()
+    }
+    DisposableEffect(Unit) {
+        val handler: () -> Unit = { childProcessRequest.value() }
+        ChildProcessSetup.request = handler
+        onDispose { if (ChildProcessSetup.request === handler) ChildProcessSetup.request = null }
     }
     var applyingSavedPairing by remember { mutableStateOf(false) }
     val fixPhantomLimit = {
-        if (!s.adbPaired || !com.droiddeck.launcher.core.GlobalSettings.wirelessDebuggingOn(ctx)) startGuidedPairing()
+        if (!s.adbPaired || !com.droiddeck.launcher.core.GlobalSettings.wirelessDebuggingOn(ctx)) startGuidedPairing(false)
         else if (!applyingSavedPairing) {
             applyingSavedPairing = true
             a.onSetPhantomProcessLimit(false) { error ->
                 applyingSavedPairing = false
-                if (error != null) startGuidedPairing()
+                if (error != null) startGuidedPairing(false)
             }
         }
-    }
-    val requestWirelessAdbFix: (Boolean) -> Unit = { enabled ->
-        wirelessAdbDesiredEnabled = enabled
-        showWirelessAdbFix = true
     }
     LaunchedEffect(s.showPhantomGate, s.phantomProcessStatus) {
         if (phantomGateVisible) {
@@ -807,8 +808,8 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                         else appToChooseDisplay = app
                     },
                     onOpenDeveloperOptions = requestChildProcessToggle,
-                    onRequestWirelessAdb = requestWirelessAdbFix,
-                    onPairWirelessDebugging = startGuidedPairing,
+                    onPairWirelessDebugging = { startGuidedPairing(false) },
+                    onRequestWirelessAdb = startGuidedPairing,
                 )
         }
 
@@ -839,7 +840,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                 onDismiss = { appToChooseDisplay = null },
             )
         }
-        if (phantomGateVisible && !showWirelessAdbFix) {
+        if (phantomGateVisible) {
             Box(Modifier.fillMaxSize().background(colors.background)) {
                 PhantomProcessGatePage(
                     status = s.phantomProcessStatus,
@@ -847,21 +848,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
                     onOpenDeveloperOptions = requestChildProcessToggle,
                     applyingSavedPairing = applyingSavedPairing,
                     onFixWithWirelessDebugging = fixPhantomLimit,
-                    onEnterAddressManually = { requestWirelessAdbFix(false) },
                     onCopyCommand = { a.onCopyPhantomCommand(false) },
-                    onOpenNotificationSettings = a.onOpenNotificationSettings,
-                )
-            }
-        }
-        if (showWirelessAdbFix) {
-            Box(Modifier.fillMaxSize().background(colors.background)) {
-                WirelessAdbFixPage(
-                    onBack = { showWirelessAdbFix = false },
-                    desiredEnabled = wirelessAdbDesiredEnabled,
-                    onOpenDeveloperOptions = requestDeveloperOptions,
-                    onPair = a.onWirelessAdbPair,
-                    onFindConnectPort = a.onFindWirelessAdbPort,
-                    onApply = a.onWirelessAdbApply,
                 )
             }
         }
@@ -905,6 +892,10 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             }
         }
     }
+}
+
+internal object ChildProcessSetup {
+    @Volatile var request: (() -> Unit)? = null
 }
 
 internal object MainTabSteps {

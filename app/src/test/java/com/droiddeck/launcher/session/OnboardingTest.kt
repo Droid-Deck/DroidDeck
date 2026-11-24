@@ -7,10 +7,13 @@ import com.droiddeck.launcher.session.Onboarding.Step
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 class OnboardingTest {
     private val none = Facts(runtime = false, proton = false, steam = false)
+
+    @Before fun fresh() = Onboarding.resetProgress()
 
     @Test fun everythingReadyShowsNothing() {
         val rows = Onboarding.rows(emptyMap(), emptyMap(), Facts())
@@ -31,7 +34,33 @@ class OnboardingTest {
 
     @Test fun overallWeighsDownloadsBySize() {
         val rows = Onboarding.rows(mapOf(Step.RUNTIME to Progress("x", 50)), emptyMap(), Facts(runtime = false))
-        assertEquals(30 + 15 + 25, Onboarding.overall(rows))
+        assertEquals(10 + 30 + 50, Onboarding.overall(rows))
+    }
+
+    @Test fun overallNeverGoesBackwardsWhileStepsHandOver() {
+        val prefetched = Onboarding.rows(mapOf(Step.PROTON to Progress("x", 100)), emptyMap(), Facts(runtime = true, proton = false, steam = false))
+        val before = Onboarding.overall(prefetched)
+        val handover = Onboarding.rows(mapOf(Step.STEAM to Progress("y", 4)), emptyMap(), Facts(runtime = true, proton = false, steam = false))
+        assertTrue(Onboarding.overall(handover) >= before)
+        val installing = Onboarding.rows(mapOf(Step.PROTON to Progress("z", 0), Step.STEAM to Progress("y", 4)), emptyMap(), Facts(runtime = true, proton = false, steam = false))
+        assertTrue(Onboarding.overall(installing) >= before)
+    }
+
+    @Test fun overallStartsOverOnceEverythingIsReady() {
+        Onboarding.overall(Onboarding.rows(mapOf(Step.RUNTIME to Progress("x", 90)), emptyMap(), Facts(runtime = false)))
+        assertEquals(100, Onboarding.overall(Onboarding.rows(emptyMap(), emptyMap(), Facts())))
+        val again = Onboarding.rows(mapOf(Step.RUNTIME to Progress("x", 10)), emptyMap(), Facts(runtime = false))
+        assertEquals(2 + 30 + 50, Onboarding.overall(again))
+    }
+
+    @Test fun settlingWithEverythingReadyStartsTheNextAttemptFromZero() {
+        Onboarding.overall(Onboarding.rows(mapOf(Step.RUNTIME to Progress("x", 90)), emptyMap(), Facts(runtime = false)))
+        Onboarding.active.value = emptyMap()
+        Onboarding.failed.value = emptyMap()
+        Onboarding.facts.value = Facts()
+        Onboarding.settle()
+        val again = Onboarding.rows(mapOf(Step.RUNTIME to Progress("x", 10)), emptyMap(), Facts(runtime = false))
+        assertEquals(2 + 30 + 50, Onboarding.overall(again))
     }
 
     @Test fun reportingClearsAPriorFailure() {
