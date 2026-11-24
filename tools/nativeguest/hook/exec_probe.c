@@ -966,10 +966,11 @@ static void parse_shebang(char *hdr, char **interp, char **interp_arg) {
     *interp_arg = arg;
 }
 
-// Interpreters outside the rootfs (Android's /system/bin/sh) run with Android's environment.
-static int is_host_interpreter(const char *interp) {
-    return strncmp(interp, "/system", 7) == 0 ||
-           (g_ddnatv_root[0] != '\0' && strncmp(interp, g_ddnatv_root, g_ddnatv_root_len) != 0);
+// Interpreters outside the rootfs and its binds (Android's /system/bin/sh) run with Android's environment.
+static int is_host_interpreter(const char *interp, const char *rewritten) {
+    return strncmp(rewritten, "/system", 7) == 0 ||
+           (g_ddnatv_root[0] != '\0' && strncmp(rewritten, g_ddnatv_root, g_ddnatv_root_len) != 0 &&
+            !is_mapped_guest_path(interp));
 }
 
 // argv for running `script` with its interpreter: interp [arg] script args... (the script's own

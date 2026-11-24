@@ -10,6 +10,8 @@ from tools.tests.test_usr2_preload import runner
 HOOK_BUILD = Path(__file__).resolve().parents[1] / "nativeguest/build.sh"
 GUEST_LDSO = "/usr/lib/ld-linux-aarch64.so.1"
 GUEST_TOOL = "/usr/local/bin/tool"
+BOUND_DIR = "/opt/runtime"
+HOST_SHELL = "/data/local/tmp/droiddeck-hook-probe-sh"
 
 RECORDER = r"""
 #define _GNU_SOURCE
@@ -102,13 +104,24 @@ class NativeHookLdsoSpawnTest(unittest.TestCase):
             shutil.copy(source, host)
             host.chmod(0o755)
         (cls.root / "usr/lib/aarch64-linux-gnu").mkdir(parents=True, exist_ok=True)
+        cls.runtime = tmp / "runtime"
+        cls.runtime.mkdir()
+        shutil.copy(cls.probe, cls.runtime / "bash")
+        (cls.runtime / "bash").chmod(0o755)
+        for name, interpreter in (("bound.sh", f"{BOUND_DIR}/bash"), ("host.sh", HOST_SHELL)):
+            script = cls.root / "opt" / name
+            script.parent.mkdir(exist_ok=True)
+            script.write_text(f"#!{interpreter}\n")
+            script.chmod(0o755)
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def call(self, how, *argv):
+    def call(self, how, *argv, binds=None):
         hook_env = {"DDNATV_ROOT": str(self.root), "LD_PRELOAD": f"{self.hook}:{self.recorder}"}
+        if binds:
+            hook_env["DDNATV_BINDS"] = binds
         env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "DDNATV_EXEC", "LD_LIBRARY_PATH")}
         if self.prefix:
             cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
@@ -157,6 +170,19 @@ class NativeHookLdsoSpawnTest(unittest.TestCase):
             with self.subTest(how=how):
                 self.call(how, GUEST_LDSO, "--list", GUEST_TOOL)
                 self.assertEqual([], self.library_paths)
+
+    def test_a_script_interpreter_from_a_bind_runs_as_a_guest_program(self):
+        for how in ("exec", "spawn"):
+            with self.subTest(how=how):
+                call = self.call(how, "/opt/bound.sh", "x", binds=f"{self.runtime}:{BOUND_DIR}")
+                self.assertEqual(str(self.root / GUEST_LDSO.lstrip("/")), call[0])
+                self.assertEqual([str(self.runtime / "bash"), str(self.root / "opt/bound.sh"), "x"], call[-3:])
+
+    def test_a_script_interpreter_outside_the_rootfs_and_its_binds_stays_on_the_host(self):
+        for how in ("exec", "spawn"):
+            with self.subTest(how=how):
+                call = self.call(how, "/opt/host.sh", "x", binds=f"{self.runtime}:{BOUND_DIR}")
+                self.assertEqual([HOST_SHELL, HOST_SHELL, str(self.root / "opt/host.sh"), "x"], call)
 
 
 if __name__ == "__main__":
