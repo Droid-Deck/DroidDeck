@@ -1449,8 +1449,9 @@ State: **main = `90c7574`** (PR #14 merge), main build run 35895701784. No tag, 
 - A runtime script must be named `bannerlator-*` or CI never packages it.
 - `gh release create --target` needs the full sha.
 - A proot bind is invisible to a program's "Computer" list; put what users need under home.
-- The compositor decides its driver and its HDR gate once per app process - anything that changes
-  them applies after the app is fully closed, and the UI must say so.
+- The compositor decides its driver once per app process - anything that changes it applies after
+  the app is fully closed, and the UI must say so. Its HDR gate follows what the device can present,
+  so the HDR setting itself switches during a session.
 - Bannerlator's File Manager ports mechanically (`port_fm.py` anchors) once the container hooks
   are cut; do not hand-edit 2,500 lines.
 - Deleting a release asset on GitHub can drop a sibling asset - re-list and restore.

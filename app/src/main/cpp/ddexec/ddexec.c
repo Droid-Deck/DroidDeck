@@ -21,6 +21,7 @@
 #define SYS_munmap 215
 #define SYS_mmap 222
 #define SYS_mprotect 226
+#define SYS_getpid 172
 
 #define AT_FDCWD_ (-100)
 #define O_RDONLY_ 0
@@ -50,6 +51,21 @@ static size_t slen(const char *s) {
     size_t n = 0;
     while (s[n]) n++;
     return n;
+}
+
+static int seq(const char *a, const char *b) {
+    while (*a && *a == *b) a++, b++;
+    return *a == *b;
+}
+
+static const char *env_get(char **envp, const char *name) {
+    size_t n = slen(name);
+    for (; *envp; envp++) {
+        size_t i = 0;
+        while (i < n && (*envp)[i] == name[i]) i++;
+        if (i == n && (*envp)[n] == '=') return *envp + n + 1;
+    }
+    return 0;
 }
 
 static void out(const char *s) { sys6(SYS_write, 2, (long)s, (long)slen(s), 0, 0, 0); }
@@ -112,19 +128,43 @@ static int prot_of(uint32_t flags) {
 
 static void map_failed(const char *path, long r) { die("cannot map a segment", path, r); }
 
-static void load(const char *path, struct image *im, uintptr_t page) {
+static void read_interp(int fd, const Elf64_Phdr *ph, int phnum, char *interp, size_t size, const char *path) {
+    interp[0] = 0;
+    for (int i = 0; i < phnum; i++) {
+        if (ph[i].p_type != PT_INTERP) continue;
+        if (ph[i].p_filesz == 0 || ph[i].p_filesz >= size) die("bad PT_INTERP", path, 0);
+        if (xpread(fd, interp, ph[i].p_filesz, (long)ph[i].p_offset) != (long)ph[i].p_filesz)
+            die("truncated PT_INTERP", path, 0);
+        interp[ph[i].p_filesz] = 0;
+    }
+}
+
+static int read_headers(const char *path, Elf64_Ehdr *eh, Elf64_Phdr *ph) {
     int fd = (int)sys6(SYS_openat, AT_FDCWD_, (long)path, O_RDONLY_ | O_CLOEXEC_, 0, 0, 0);
     if (fd < 0) die("cannot open", path, fd);
-    Elf64_Ehdr eh;
-    if (xpread(fd, &eh, sizeof(eh), 0) != (long)sizeof(eh)) die("not an ELF file", path, 0);
-    if (eh.e_ident[EI_MAG0] != ELFMAG0 || eh.e_ident[EI_MAG1] != ELFMAG1 || eh.e_ident[EI_MAG2] != ELFMAG2 ||
-        eh.e_ident[EI_MAG3] != ELFMAG3 || eh.e_ident[EI_CLASS] != ELFCLASS64 || eh.e_machine != EM_AARCH64 ||
-        (eh.e_type != ET_EXEC && eh.e_type != ET_DYN) || eh.e_phentsize != sizeof(Elf64_Phdr) ||
-        eh.e_phnum == 0 || eh.e_phnum > MAX_PHDRS)
+    if (xpread(fd, eh, sizeof(*eh), 0) != (long)sizeof(*eh)) die("not an ELF file", path, 0);
+    if (eh->e_ident[EI_MAG0] != ELFMAG0 || eh->e_ident[EI_MAG1] != ELFMAG1 || eh->e_ident[EI_MAG2] != ELFMAG2 ||
+        eh->e_ident[EI_MAG3] != ELFMAG3 || eh->e_ident[EI_CLASS] != ELFCLASS64 || eh->e_machine != EM_AARCH64 ||
+        (eh->e_type != ET_EXEC && eh->e_type != ET_DYN) || eh->e_phentsize != sizeof(Elf64_Phdr) ||
+        eh->e_phnum == 0 || eh->e_phnum > MAX_PHDRS)
         die("not a 64-bit ARM ELF program", path, 0);
+    long size = (long)eh->e_phnum * (long)sizeof(Elf64_Phdr);
+    if (xpread(fd, ph, (size_t)size, (long)eh->e_phoff) != size) die("truncated program headers", path, 0);
+    return fd;
+}
+
+static void interp_of(const char *path, char *interp, size_t size) {
+    Elf64_Ehdr eh;
     Elf64_Phdr ph[MAX_PHDRS];
-    long size = (long)eh.e_phnum * (long)sizeof(Elf64_Phdr);
-    if (xpread(fd, ph, (size_t)size, (long)eh.e_phoff) != size) die("truncated program headers", path, 0);
+    int fd = read_headers(path, &eh, ph);
+    read_interp(fd, ph, eh.e_phnum, interp, size, path);
+    sys6(SYS_close, fd, 0, 0, 0, 0, 0);
+}
+
+static void load(const char *path, struct image *im, uintptr_t page) {
+    Elf64_Ehdr eh;
+    Elf64_Phdr ph[MAX_PHDRS];
+    int fd = read_headers(path, &eh, ph);
 
     uintptr_t lo = UINTPTR_MAX, hi = 0;
     for (int i = 0; i < eh.e_phnum; i++) {
@@ -173,16 +213,9 @@ static void load(const char *path, struct image *im, uintptr_t page) {
     im->phnum = eh.e_phnum;
     im->phent = eh.e_phentsize;
     im->phdr = 0;
-    im->interp[0] = 0;
-    for (int i = 0; i < eh.e_phnum; i++) {
+    read_interp(fd, ph, eh.e_phnum, im->interp, sizeof(im->interp), path);
+    for (int i = 0; i < eh.e_phnum; i++)
         if (ph[i].p_type == PT_PHDR) im->phdr = bias + ph[i].p_vaddr;
-        if (ph[i].p_type == PT_INTERP) {
-            if (ph[i].p_filesz == 0 || ph[i].p_filesz >= sizeof(im->interp)) die("bad PT_INTERP", path, 0);
-            if (xpread(fd, im->interp, ph[i].p_filesz, (long)ph[i].p_offset) != (long)ph[i].p_filesz)
-                die("truncated PT_INTERP", path, 0);
-            im->interp[ph[i].p_filesz] = 0;
-        }
-    }
     if (!im->phdr) {
         for (int i = 0; i < eh.e_phnum; i++) {
             Elf64_Phdr *p = &ph[i];
@@ -202,6 +235,36 @@ static unsigned long auxv_get(const uintptr_t *auxv, unsigned long type, unsigne
     return fallback;
 }
 
+static int is_self_exe(const char *execfn) {
+    if (!execfn) return 0;
+    if (seq(execfn, "/proc/self/exe") || seq(execfn, "/proc/thread-self/exe")) return 1;
+    const char *p = "/proc/";
+    while (*p && *p == *execfn) p++, execfn++;
+    if (*p) return 0;
+    char num[24];
+    int i = (int)sizeof(num) - 1;
+    num[i] = 0;
+    unsigned long pid = (unsigned long)sys6(SYS_getpid, 0, 0, 0, 0, 0, 0);
+    do {
+        num[--i] = (char)('0' + pid % 10);
+        pid /= 10;
+    } while (pid && i > 0);
+    const char *d = num + i;
+    while (*d && *d == *execfn) d++, execfn++;
+    return !*d && seq(execfn, "/exe");
+}
+
+static const char *guest_interp(char **envp, const char *interp, char *buf, size_t size) {
+    const char *root = env_get(envp, "DDNATV_ROOT");
+    if (!root || interp[0] != '/') return interp;
+    size_t a = slen(root), b = slen(interp);
+    if (a + b + 1 > size) return interp;
+    for (size_t i = 0; i < a; i++) buf[i] = root[i];
+    for (size_t i = 0; i <= b; i++) buf[a + i] = interp[i];
+    if (sys6(SYS_faccessat, AT_FDCWD_, (long)buf, 0, 0, 0, 0) != 0) return interp;
+    return buf;
+}
+
 __attribute__((used, noreturn)) void ddexec_main(uintptr_t *sp) {
     long argc = (long)sp[0];
     char **argv = (char **)(sp + 1);
@@ -211,25 +274,66 @@ __attribute__((used, noreturn)) void ddexec_main(uintptr_t *sp) {
     uintptr_t *auxv = (uintptr_t *)(envp + nenv + 1);
     long naux = 0;
     while (auxv[naux * 2] != AT_NULL) naux++;
-    if (argc < 3) die("usage: libddexec.so <file> <argv0> [args...]", 0, 0);
+    int reexec = is_self_exe((const char *)auxv_get(auxv, AT_EXECFN, 0));
+    const char *path;
+    char **args = argv + 2;
+    long nargs = argc - 2;
+    char interp_buf[4096];
+    char hook_buf[4096];
+    if (reexec) {
+        path = env_get(envp, "DDNATV_REAL_EXE");
+        if (!path || !path[0]) die("re-executed without DDNATV_REAL_EXE", 0, 0);
+        args = argv;
+        nargs = argc;
+        const char *lib_path = env_get(envp, "DDNATV_LIBRARY_PATH");
+        char prog_interp[256];
+        interp_of(path, prog_interp, sizeof(prog_interp));
+        if (prog_interp[0] && lib_path && lib_path[0]) {
+            const char *ld_so = guest_interp(envp, prog_interp, interp_buf, sizeof(interp_buf));
+            const char *hook = guest_interp(envp, "/usr/lib/libddnatv-hook.so", hook_buf, sizeof(hook_buf));
+            if (hook != (const char *)hook_buf) hook = guest_interp(envp, "/lib/libddnatv-hook.so", hook_buf, sizeof(hook_buf));
+            long n = argc > 1 ? argc - 1 : 0;
+            char **v = (char **)__builtin_alloca((size_t)(n + 9) * sizeof(char *));
+            long k = 0;
+            v[k++] = (char *)ld_so;
+            if (hook == (const char *)hook_buf) {
+                v[k++] = (char *)"--preload";
+                v[k++] = (char *)hook;
+            }
+            v[k++] = (char *)"--library-path";
+            v[k++] = (char *)lib_path;
+            v[k++] = (char *)"--argv0";
+            v[k++] = argc > 0 ? argv[0] : (char *)path;
+            v[k++] = (char *)path;
+            for (long i = 0; i < n; i++) v[k++] = argv[1 + i];
+            v[k] = 0;
+            args = v;
+            nargs = k;
+            path = ld_so;
+        }
+    } else if (argc < 3) {
+        die("usage: libddexec.so <file> <argv0> [args...]", 0, 0);
+    } else {
+        path = argv[1];
+    }
 
     uintptr_t page = auxv_get(auxv, AT_PAGESZ, 4096);
-    const char *path = argv[1];
     struct image prog, interp;
     load(path, &prog, page);
     int has_interp = prog.interp[0] != 0;
-    if (has_interp) load(prog.interp, &interp, page);
+    if (has_interp) load(reexec ? guest_interp(envp, prog.interp, interp_buf, sizeof(interp_buf)) : prog.interp, &interp, page);
 
     // The new stack: argc, argv, envp and auxv as the kernel lays them out, below the current one.
     // The strings stay where the kernel put them.
     static const unsigned long replaced[] = {AT_PHDR, AT_PHENT, AT_PHNUM, AT_BASE, AT_ENTRY, AT_EXECFN};
     long nreplaced = (long)(sizeof(replaced) / sizeof(replaced[0]));
-    long new_argc = argc - 2;
+    long new_argc = nargs;
     long words = 1 + (new_argc + 1) + (nenv + 1) + (naux + nreplaced + 1) * 2;
-    uintptr_t *nsp = (uintptr_t *)(((uintptr_t)sp - STACK_GAP - (uintptr_t)words * sizeof(uintptr_t)) & ~(uintptr_t)15);
+    uintptr_t top = (uintptr_t)args < (uintptr_t)sp ? (uintptr_t)args : (uintptr_t)sp;
+    uintptr_t *nsp = (uintptr_t *)((top - STACK_GAP - (uintptr_t)words * sizeof(uintptr_t)) & ~(uintptr_t)15);
     uintptr_t *w = nsp;
     *w++ = (uintptr_t)new_argc;
-    for (long i = 0; i < new_argc; i++) *w++ = (uintptr_t)argv[i + 2];
+    for (long i = 0; i < new_argc; i++) *w++ = (uintptr_t)args[i];
     *w++ = 0;
     for (long i = 0; i < nenv; i++) *w++ = (uintptr_t)envp[i];
     *w++ = 0;

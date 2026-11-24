@@ -58,6 +58,7 @@ import coil.size.Precision
 import kotlin.math.max
 
 internal val LocalPillButtons = compositionLocalOf { false }
+internal val LocalGradientOutline = compositionLocalOf { false }
 
 internal class GlassBackdrop {
     var painter: Painter? = null

@@ -163,6 +163,8 @@ internal fun Modifier.bumpers(onPrevious: () -> Unit, onNext: () -> Unit): Modif
     }
 }
 
+internal val LocalRevealChecked = androidx.compose.runtime.compositionLocalOf { true }
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun TabStrip(
@@ -347,7 +349,7 @@ fun AnchoredMenu(
                                 }
                             }
                             .verticalScroll(scroll),
-                    ) { content(firstItemFocus) }
+                    ) { androidx.compose.runtime.CompositionLocalProvider(LocalRevealChecked provides true) { content(firstItemFocus) } }
                     if (scroll.canScrollForward) Icon(
                         Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = colors.onSurfaceVariant,
                         modifier = Modifier.align(Alignment.BottomCenter).size(20.dp),
@@ -377,7 +379,7 @@ fun MenuItem(
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val shift by animateFloatAsState(if (hot) 2f else 0f, Motion.sp(0.5f), label = "miShift")
     val reveal = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
-    if (checked) LaunchedEffect(Unit) { reveal.bringIntoView() }
+    if (checked && LocalRevealChecked.current) LaunchedEffect(Unit) { reveal.bringIntoView() }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.fillMaxWidth()

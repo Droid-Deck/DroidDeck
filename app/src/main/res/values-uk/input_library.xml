@@ -103,7 +103,6 @@
     <string name="input_shortcut_back_modes">Назад · двічі в Steam, один раз у робочому столі</string>
     <string name="input_shortcut_hold_hint">У режимі Steam. Утримання «Назад» також відкриває швидкий доступ.</string>
     <string name="input_restore_shortcut">Відновити типове</string>
-    <string name="input_second_mode_hint">Ваш вибір панелі запам\'ятовується. Робочий стіл відкриває другий робочий простір; він не перемикає сеанс або його профіль введення.</string>
     <string name="input_virtual_controller">Віртуальний контролер</string>
     <string name="input_virtual_controller_hint">Тип контролера, який бачать Steam або гра.</string>
     <string name="input_touchscreen">Сенсорний екран</string>

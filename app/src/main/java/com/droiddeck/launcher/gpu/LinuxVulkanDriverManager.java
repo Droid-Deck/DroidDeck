@@ -89,6 +89,11 @@ public class LinuxVulkanDriverManager {
         return m != null ? m.optString("minGlibc", "") : "";
     }
 
+    public boolean rendersToDisplayBuffers(String id) {
+        JSONObject m = id == null || id.isEmpty() ? null : readMeta(id);
+        return m != null && m.optBoolean("displayBuffers", false);
+    }
+
     public void removeDriver(String id) {
         if (id == null || id.isEmpty() || id.contains("/") || id.contains("..")) return;
         Log.d(TAG, "removing imported Linux Vulkan driver " + id);
@@ -182,6 +187,7 @@ public class LinuxVulkanDriverManager {
             meta.put("driverVersion", version);
             meta.put("libc", "glibc");
             meta.put("minGlibc", minGlibc);
+            meta.put("displayBuffers", zipMeta != null && zipMeta.optBoolean("displayBuffers", false));
             meta.put("sourceLibraryName", soName);
             meta.put("libraryName", stored);
             meta.put("importedAt", System.currentTimeMillis());
