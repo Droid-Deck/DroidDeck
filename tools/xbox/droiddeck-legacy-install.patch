@@ -154,7 +154,7 @@ new file mode 100755
 index 0000000..d43c5fc
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1375 @@
+@@ -0,0 +1,1400 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -1187,7 +1187,15 @@ index 0000000..d43c5fc
 +
 +fn declares_application(folder: &Path) -> bool {
 +    let text = manifest_text(folder);
-+    text.contains("<application ") || text.contains("<executable ")
++    opens_element(&text, "<application") || opens_element(&text, "<executable")
++}
++
++/// Whether [text] opens [tag] as its own element, so `<Application Id=` and an attribute on the next
++/// line count and `<Applications>` does not.
++fn opens_element(text: &str, tag: &str) -> bool {
++    text.match_indices(tag).any(|(at, _)| {
++        text[at + tag.len()..].chars().next().is_some_and(|next| next.is_whitespace() || next == '>' || next == '/')
++    })
 +}
 +
 +/// Files a package container carries about itself. A bundle leaves its own copies at
@@ -1391,6 +1399,29 @@ index 0000000..d43c5fc
 +        std::fs::remove_dir_all(&root).ok();
 +    }
 +
++    #[test]
++    fn hoist_recognises_an_application_whose_attributes_start_on_the_next_line() {
++        let root = scratch("pretty-printed");
++        let app = root.join("Game.x64");
++        std::fs::create_dir_all(&app).unwrap();
++        std::fs::write(app.join(LEGACY_MANIFEST), "<Package>
+<Applications>
+<Application
+  Id=\"App\"
+  Executable=\"Game.exe\"/>
+</Applications></Package>").unwrap();
++        std::fs::write(app.join("Game.exe"), b"MZ").unwrap();
++        let resource = root.join("Game.language-de");
++        std::fs::create_dir_all(&resource).unwrap();
++        std::fs::write(resource.join(LEGACY_MANIFEST), "<Package><Resources/></Package>").unwrap();
++
++        hoist(&root).unwrap();
++
++        assert!(root.join("Game.exe").is_file());
++        assert!(opens_element("<application	id=\"a\"", "<application") && !opens_element("<applications>", "<application"));
++        std::fs::remove_dir_all(&root).ok();
++    }
+
 +    #[test]
 +    fn hoist_prefers_the_x64_package_when_several_declare_an_application() {
 +        let root = scratch("two-applications");
