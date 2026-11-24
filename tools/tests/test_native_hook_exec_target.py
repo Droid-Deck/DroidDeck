@@ -102,6 +102,12 @@ class NativeHookExecTargetTest(unittest.TestCase):
     def test_a_plain_path_is_unchanged(self):
         self.assertEqual(self.real, self.exe("/opt/real/prog"))
 
+    def test_a_missing_directory_is_not_skipped_by_dot_dot(self):
+        self.assertNotEqual(self.real, self.exe("/opt/missing/../real/prog"))
+
+    def test_a_file_is_not_used_as_a_directory(self):
+        self.assertNotEqual(self.real, self.exe("/opt/real/prog/../prog"))
+
     def test_a_proot_hard_link_keeps_its_own_name(self):
         self.assertEqual(str(self.root / "opt/real/hard"), self.exe("/opt/real/hard"))
 
