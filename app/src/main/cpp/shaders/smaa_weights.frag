@@ -116,6 +116,8 @@ void main() {
         : abs(max(ne.r, ne.g) - max(se.r, se.g));
     float crossingContrast = abs(crossingA - crossingB);
     float crossingPattern = smoothstep(threshold, threshold * 2.5, crossingContrast);
+    float balancedCrossing = smoothstep(
+        threshold, threshold * 2.5, min(crossingA, crossingB));
     float areaWeight = 0.38 * crossingPattern * clamp(span / 4.0, 0.0, 1.0);
     float diagonalContrast = max(
         max(max(abs(nw.r - se.r), abs(nw.g - se.g)),
@@ -132,8 +134,9 @@ void main() {
         (span > 0.0 && span <= 1.0 && crossingContrast <= threshold && diagonalStrength > threshold)
             ? 1.0 : 0.0;
     float diagonalFallback = 0.16 * diagonalPattern * edgeConfidence
-        * cornerFactor * max(diagonalContinuity * crossingPattern,
-                             shortDiagonalFallback);
+        * cornerFactor * max(
+            diagonalContinuity * max(crossingPattern, balancedCrossing),
+            shortDiagonalFallback);
 
     float weight = clamp(max(baseWeight, diagonalFallback), 0.0, 0.42);
     outColor = vec4(weight, normal.x * 0.5 + 0.5, normal.y * 0.5 + 0.5, 1.0);
