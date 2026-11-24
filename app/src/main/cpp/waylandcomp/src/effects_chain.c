@@ -587,7 +587,8 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
 
     if ((spatial || nfx) && objects_ensure() == 0 && scene_ensure(scene, scene_w, scene_h) == 0 &&
         target_ensure(&g_t[0], cw, ch, FX_TARGET_USAGE, "chain") == 0 && (chain_passes < 2 || target_ensure(&g_t[1], cw, ch, FX_TARGET_USAGE, "chain") == 0) &&
-        (!(spatial == 4 || spatial == 5) || target_ensure(&g_mid, cw, ch, FX_SCRATCH_USAGE, "EASU") == 0)) {
+        (!(spatial == 4 || spatial == 5) || s->sharp_pct == 0 ||
+         target_ensure(&g_mid, cw, ch, FX_SCRATCH_USAGE, "EASU") == 0)) {
         if (s->aa_mode == 2 &&
             (target_ensure_format(&g_smaa_edges, cw, ch, FX_SCRATCH_USAGE,
                                   "SMAA edges", FX_FORMAT, g_smaa_rp) != 0 ||
@@ -634,11 +635,14 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
                 SET_NDC(e);
                 easu_con(&e, (float)scene_w, (float)scene_h, (float)cw, (float)ch);
                 e.outW = (float)cw; e.outH = (float)ch;
-                pass(cmd, g_pipe[P_EASU], &g_mid, g_scene.ds, &e, sizeof(e));
-                SET_NDC(r);
-                rcas_con(&r, sharp01);
-                r.outW = (float)cw; r.outH = (float)ch;
-                pass(cmd, g_pipe[P_RCAS], dst, g_mid.ds, &r, sizeof(r));
+                struct fx_target *easu_dst = sharp01 == 0.0f ? dst : &g_mid;
+                pass(cmd, g_pipe[P_EASU], easu_dst, g_scene.ds, &e, sizeof(e));
+                if (sharp01 != 0.0f) {
+                    SET_NDC(r);
+                    rcas_con(&r, sharp01);
+                    r.outW = (float)cw; r.outH = (float)ch;
+                    pass(cmd, g_pipe[P_RCAS], dst, g_mid.ds, &r, sizeof(r));
+                }
             }
             cur = dst; cur_ds = dst->ds;
         } else if (resize) {
