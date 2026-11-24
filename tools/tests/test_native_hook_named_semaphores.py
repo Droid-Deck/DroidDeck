@@ -11,6 +11,7 @@ HOOK_BUILD = Path(__file__).resolve().parents[1] / "nativeguest/build.sh"
 PROBE = r"""
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <semaphore.h>
 #include <stdio.h>
 #include <sys/wait.h>
@@ -23,9 +24,10 @@ int main(int argc, char **argv) {
   sem_t *sem = sem_open(name, O_CREAT | O_EXCL, 0600, 1);
   show("create", sem != SEM_FAILED);
   show("exclusive", sem_open(name, O_CREAT | O_EXCL, 0600, 1) == SEM_FAILED && errno == EEXIST);
-  sem_t *again = sem_open(name, O_CREAT, 0600, 5);
+  sem_t *again = sem_open(name, O_CREAT, 0600, (unsigned int)SEM_VALUE_MAX + 1);
   int value = -1;
-  show("existing", again != SEM_FAILED && sem_getvalue(again, &value) == 0 && value == 1);
+  show("existing", again == sem && sem_getvalue(again, &value) == 0 && value == 1);
+  show("too-large", sem_open("/ddsem-absent", O_CREAT, 0600, (unsigned int)SEM_VALUE_MAX + 1) == SEM_FAILED && errno == EINVAL);
   show("wait", sem_wait(sem) == 0 && sem_trywait(again) == -1 && errno == EAGAIN);
   pid_t child = fork();
   if (child == 0) {
@@ -35,7 +37,7 @@ int main(int argc, char **argv) {
   int status = 0;
   waitpid(child, &status, 0);
   show("shared", WIFEXITED(status) && WEXITSTATUS(status) == 0 && sem_trywait(sem) == 0);
-  show("close", sem_close(again) == 0 && sem_close(sem) == 0);
+  show("close", sem_close(again) == 0 && sem_post(sem) == 0 && sem_close(sem) == 0 && sem_close(sem) == -1 && errno == EINVAL);
   show("unlink", sem_unlink(name) == 0);
   show("gone", sem_open(name, 0) == SEM_FAILED && errno == ENOENT);
   return 0;
@@ -48,7 +50,7 @@ KEEP = r"""
 int main(int argc, char **argv) { return sem_open(argv[1], O_CREAT | O_EXCL, 0640, 3) == SEM_FAILED; }
 """
 
-CALLS = ("create", "exclusive", "existing", "wait", "shared", "close", "unlink", "gone")
+CALLS = ("create", "exclusive", "existing", "too-large", "wait", "shared", "close", "unlink", "gone")
 
 
 class NativeHookNamedSemaphoresTest(unittest.TestCase):

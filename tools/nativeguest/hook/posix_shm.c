@@ -30,35 +30,74 @@ int shm_unlink(const char *name) {
     return unlink(path);
 }
 
+struct posix_sem {
+    dev_t dev;
+    ino_t ino;
+    sem_t *addr;
+    unsigned int refs;
+    struct posix_sem *next;
+};
+static struct posix_sem *g_posix_sems;
+static pthread_mutex_t g_posix_sems_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void close_keeping_errno(int fd) {
+    int saved = errno;
+    close(fd);
+    errno = saved;
+}
+
 static sem_t *posix_sem_map(int fd) {
-    void *sem = fd < 0 ? MAP_FAILED : mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (fd >= 0) {
-        int saved = errno;
-        close(fd);
-        errno = saved;
+    struct stat st;
+    if (fstat(fd, &st) < 0) return SEM_FAILED;
+    sem_t *sem = SEM_FAILED;
+    pthread_mutex_lock(&g_posix_sems_lock);
+    struct posix_sem *e = g_posix_sems;
+    while (e && (e->dev != st.st_dev || e->ino != st.st_ino)) e = e->next;
+    if (e) {
+        e->refs++;
+        sem = e->addr;
+    } else {
+        void *addr = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        e = addr == MAP_FAILED ? NULL : malloc(sizeof(*e));
+        if (e) {
+            *e = (struct posix_sem){st.st_dev, st.st_ino, addr, 1, g_posix_sems};
+            g_posix_sems = e;
+            sem = addr;
+        } else if (addr != MAP_FAILED) {
+            munmap(addr, sizeof(sem_t));
+            errno = ENOMEM;
+        }
     }
-    return sem == MAP_FAILED ? SEM_FAILED : sem;
+    pthread_mutex_unlock(&g_posix_sems_lock);
+    return sem;
+}
+
+static sem_t *posix_sem_open_fd(int fd) {
+    if (fd < 0) return SEM_FAILED;
+    sem_t *sem = posix_sem_map(fd);
+    close_keeping_errno(fd);
+    return sem;
 }
 
 sem_t *sem_open(const char *name, int oflag, ...) {
     char path[PATH_MAX];
     if (posix_shm_path(name, "sem.", path, sizeof(path)) < 0) return SEM_FAILED;
-    if (!(oflag & O_CREAT)) return posix_sem_map(open(path, O_RDWR | O_NOFOLLOW | O_CLOEXEC));
+    if (!(oflag & O_CREAT)) return posix_sem_open_fd(open(path, O_RDWR | O_NOFOLLOW | O_CLOEXEC));
     va_list args;
     va_start(args, oflag);
     mode_t mode = va_arg(args, mode_t);
     unsigned int value = va_arg(args, unsigned int);
     va_end(args);
-    if (value > SEM_VALUE_MAX) { errno = EINVAL; return SEM_FAILED; }
-    sem_t initial;
-    memset(&initial, 0, sizeof(initial));
-    sem_init(&initial, 1, value);
     static unsigned int serial;
     for (;;) {
         if (!(oflag & O_EXCL)) {
             int fd = open(path, O_RDWR | O_NOFOLLOW | O_CLOEXEC);
-            if (fd >= 0 || errno != ENOENT) return posix_sem_map(fd);
+            if (fd >= 0 || errno != ENOENT) return posix_sem_open_fd(fd);
         }
+        if (value > SEM_VALUE_MAX) { errno = EINVAL; return SEM_FAILED; }
+        sem_t initial;
+        memset(&initial, 0, sizeof(initial));
+        sem_init(&initial, 1, value);
         char temp[PATH_MAX];
         int fd;
         do {
@@ -66,12 +105,12 @@ sem_t *sem_open(const char *name, int oflag, ...) {
             fd = open(temp, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode);
         } while (fd < 0 && errno == EEXIST);
         if (fd < 0) return SEM_FAILED;
-        ssize_t written = write(fd, &initial, sizeof(initial));
-        if (written >= 0 && written != (ssize_t)sizeof(initial)) errno = EIO;
-        if (written == (ssize_t)sizeof(initial) && renameat2(AT_FDCWD, temp, AT_FDCWD, path, RENAME_NOREPLACE) == 0)
-            return posix_sem_map(fd);
+        errno = EIO;
+        sem_t *sem = write(fd, &initial, sizeof(initial)) == (ssize_t)sizeof(initial) ? posix_sem_map(fd) : SEM_FAILED;
+        close_keeping_errno(fd);
+        if (sem != SEM_FAILED && renameat2(AT_FDCWD, temp, AT_FDCWD, path, RENAME_NOREPLACE) == 0) return sem;
         int saved = errno;
-        close(fd);
+        if (sem != SEM_FAILED) sem_close(sem);
         unlink(temp);
         errno = saved;
         if (errno != EEXIST || (oflag & O_EXCL)) return SEM_FAILED;
@@ -79,7 +118,18 @@ sem_t *sem_open(const char *name, int oflag, ...) {
 }
 
 int sem_close(sem_t *sem) {
-    return munmap(sem, sizeof(sem_t));
+    pthread_mutex_lock(&g_posix_sems_lock);
+    struct posix_sem **link = &g_posix_sems;
+    while (*link && (*link)->addr != sem) link = &(*link)->next;
+    struct posix_sem *e = *link;
+    if (e && --e->refs == 0) {
+        *link = e->next;
+        munmap(e->addr, sizeof(sem_t));
+        free(e);
+    }
+    pthread_mutex_unlock(&g_posix_sems_lock);
+    if (!e) { errno = EINVAL; return -1; }
+    return 0;
 }
 
 int sem_unlink(const char *name) {
