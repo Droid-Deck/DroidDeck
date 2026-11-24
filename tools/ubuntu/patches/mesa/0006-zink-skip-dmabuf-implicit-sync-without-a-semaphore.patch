@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: The412Banner <205237651+The412Banner@users.noreply.github.com>
+Date: Tue, 24 Nov 2026 21:15:00 +0000
+Subject: [PATCH] zink: skip dma-buf implicit sync when no exportable semaphore
+ can be created
+
+zink_screen_export_dmabuf_semaphore() exports the dma-buf's sync file and
+imports it into a semaphore from zink_create_exportable_semaphore(). That
+returns VK_NULL_HANDLE when the driver's vkCreateSemaphore() fails for a
+SYNC_FD-exportable semaphore, and the null handle went straight into
+vkImportSemaphoreFdKHR() with VK_SEMAPHORE_IMPORT_TEMPORARY_BIT. The
+common runtime then reads the semaphore's type through a null pointer.
+
+On PanVK for Arm's kbase driver (Mali-G57 MC2, MT6789) Xwayland's glamor
+crashed this way, at address 0x40 in vk_common_ImportSemaphoreFdKHR(), the
+first time it used a client's dma-buf, and gamescope aborted with it. Treat
+the failure like a failed sync file export: close the sync file and return
+VK_NULL_HANDLE, which the caller already skips. Still present in Mesa main.
+---
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -2458,6 +2458,15 @@
+    }
+ 
+    sem = zink_create_exportable_semaphore(screen);
++   if (unlikely(!sem)) {
++      static bool warned;
++      if (!warned) {
++         warned = true;
++         mesa_loge("MESA: Unable to create an exportable semaphore; skipping implicit sync for dma-bufs");
++      }
++      close(export.fd);
++      return VK_NULL_HANDLE;
++   }
+ 
+    const VkImportSemaphoreFdInfoKHR sdi = {
+       .sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
