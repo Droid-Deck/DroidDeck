@@ -712,81 +712,82 @@ int execle(const char *path, const char *arg0, ...) {
     return ret;
 }
 
-int execvp(const char *file, char *const argv[]) {
+static int exec_or_script(const char *path, char *const argv[], char *const envp[]) {
+    execve(path, argv, envp);
+    if (errno != ENOEXEC) return -1;
+    int argc = 0;
+    while (argv && argv[argc]) argc++;
+    char **script = (char **)malloc(sizeof(char *) * (size_t)(argc + 3));
+    if (!script) {
+        errno = ENOMEM;
+        return -1;
+    }
+    script[0] = (char *)"/bin/sh";
+    script[1] = (char *)path;
+    int n = 2;
+    for (int i = 1; i < argc; i++) script[n++] = argv[i];
+    script[n] = NULL;
+    execve(script[0], script, envp);
+    int saved_errno = errno;
+    free(script);
+    errno = saved_errno;
+    return -1;
+}
+
+static int exec_search_dir(const char *dir, size_t len, const char *file, char *const argv[], char *const envp[], int *denied) {
+    char candidate[PATH_MAX];
+    int n = len ? snprintf(candidate, sizeof(candidate), "%.*s/%s", (int)len, dir, file)
+                : snprintf(candidate, sizeof(candidate), "%s", file);
+    if (n < 0 || n >= (int)sizeof(candidate)) {
+        errno = ENAMETOOLONG;
+        return 0;
+    }
+    exec_or_script(candidate, argv, envp);
+    switch (errno) {
+    case EACCES:
+        *denied = 1;
+        return 0;
+    case ENOENT: case ENOTDIR: case ESTALE: case ENODEV: case ETIMEDOUT: case ENAMETOOLONG:
+        return 0;
+    default:
+        return 1;
+    }
+}
+
+static int exec_search(const char *file, char *const argv[], char *const envp[], const char *path_env) {
     if (!file || !*file) {
         errno = ENOENT;
         return -1;
     }
-    if (strchr(file, '/')) {
-        return execve(file, argv, environ);
-    }
-    const char *path_env = getenv("PATH");
+    if (strchr(file, '/')) return exec_or_script(file, argv, envp);
     if (!path_env) path_env = "/usr/bin:/bin";
-    char path_copy[4096];
-    strncpy(path_copy, path_env, sizeof(path_copy) - 1);
-    path_copy[sizeof(path_copy) - 1] = '\0';
-    char *saveptr = NULL;
-    char *token = strtok_r(path_copy, ":", &saveptr);
-    while (token) {
-        char candidate[PATH_MAX];
-        snprintf(candidate, sizeof(candidate), "%s/%s", token, file);
-        if (access(candidate, F_OK) == 0) {
-            return execve(candidate, argv, environ);
-        }
-        token = strtok_r(NULL, ":", &saveptr);
+    int denied = 0;
+    for (const char *p = path_env;; ) {
+        const char *end = strchrnul(p, ':');
+        if (exec_search_dir(p, (size_t)(end - p), file, argv, envp, &denied)) return -1;
+        if (!*end) break;
+        p = end + 1;
     }
-    const char *standard_paths[] = {"/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin", NULL};
-    for (int i = 0; standard_paths[i] != NULL; i++) {
-        char candidate[PATH_MAX];
-        snprintf(candidate, sizeof(candidate), "%s/%s", standard_paths[i], file);
-        if (access(candidate, F_OK) == 0) {
-            return execve(candidate, argv, environ);
-        }
-    }
-    return execve(file, argv, environ);
+    static const char *const standard_paths[] = {"/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin"};
+    for (size_t i = 0; i < sizeof(standard_paths) / sizeof(standard_paths[0]); i++)
+        if (exec_search_dir(standard_paths[i], strlen(standard_paths[i]), file, argv, envp, &denied)) return -1;
+    errno = denied ? EACCES : ENOENT;
+    return -1;
+}
+
+int execvp(const char *file, char *const argv[]) {
+    return exec_search(file, argv, environ, getenv("PATH"));
 }
 
 int execvpe(const char *file, char *const argv[], char *const envp[]) {
-    if (!file || !*file) {
-        errno = ENOENT;
-        return -1;
-    }
-    if (strchr(file, '/')) {
-        return execve(file, argv, envp);
-    }
     const char *path_env = NULL;
-    if (envp) {
-        for (char *const *ep = envp; *ep; ep++) {
-            if (strncmp(*ep, "PATH=", 5) == 0) {
-                path_env = *ep + 5;
-                break;
-            }
+    for (char *const *ep = envp; ep && *ep; ep++) {
+        if (strncmp(*ep, "PATH=", 5) == 0) {
+            path_env = *ep + 5;
+            break;
         }
     }
-    if (!path_env) path_env = getenv("PATH");
-    if (!path_env) path_env = "/usr/bin:/bin";
-    char path_copy[4096];
-    strncpy(path_copy, path_env, sizeof(path_copy) - 1);
-    path_copy[sizeof(path_copy) - 1] = '\0';
-    char *saveptr = NULL;
-    char *token = strtok_r(path_copy, ":", &saveptr);
-    while (token) {
-        char candidate[PATH_MAX];
-        snprintf(candidate, sizeof(candidate), "%s/%s", token, file);
-        if (access(candidate, F_OK) == 0) {
-            return execve(candidate, argv, envp);
-        }
-        token = strtok_r(NULL, ":", &saveptr);
-    }
-    const char *standard_paths[] = {"/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin", NULL};
-    for (int i = 0; standard_paths[i] != NULL; i++) {
-        char candidate[PATH_MAX];
-        snprintf(candidate, sizeof(candidate), "%s/%s", standard_paths[i], file);
-        if (access(candidate, F_OK) == 0) {
-            return execve(candidate, argv, envp);
-        }
-    }
-    return execve(file, argv, envp);
+    return exec_search(file, argv, envp, path_env ? path_env : getenv("PATH"));
 }
 
 typedef int (*orig_posix_spawn_f_type)(pid_t *, const char *, const posix_spawn_file_actions_t *,
