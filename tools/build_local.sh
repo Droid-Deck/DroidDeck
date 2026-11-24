@@ -24,6 +24,7 @@ java_dir="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents
 [[ -x "$java_dir/bin/java" ]] || java_dir="${HOME}/.local/share/mise/installs/java/temurin-17"
 [[ "$java_dir" == */homebrew/* ]] && echo "using homebrew java path: $java_dir"
 [[ "$java_dir" == */mise/* ]] && echo "using mise java path: $java_dir"
+requested_image=${DROIDDECK_BUILD_IMAGE:-}
 . "${repo_root}/tools/docker_platform.sh"
 image_name=${DROIDDECK_BUILD_IMAGE}
 build_variant=${DROIDDECK_BUILD_VARIANT:-release}
@@ -117,101 +118,6 @@ save_step() {
 
 python3 "${repo_root}/tools/docker_preflight.py" "${image_name}"
 image_id=$(docker image inspect --format '{{.Id}}' "${image_name}")
-rm -rf -- "${linuxfs_dir}"
-mkdir -p "${linuxfs_dir}"
-
-git_common=$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir)
-docker run --rm --platform "${docker_platform}" \
-    --user "$(id -u):$(id -g)" \
-    -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src "${image_name}" bash -lc '
-        set -euo pipefail
-        d=app/src/main/assets/linuxfs
-        mkdir -p "$d"
-        put() { mkdir -p "$(dirname "$2")" && cat "$1" > "$2"; }
-        aarch64-linux-gnu-g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare \
-            -pthread -std=c++17 -static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL \
-            -o "$d/libfakeinput.so" app/src/main/cpp/fakeinput_steam.cpp -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libfakeinput.so"
-        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-            -o "$d/libddsession.so" tools/linuxfs/preload/*.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libddsession.so"
-        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-            -o "$d/libddfastpath.so" tools/proot/fastpath/fastpath.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libddfastpath.so"
-        bash tools/nativeguest/build.sh "$d/libddnatv-hook.so"
-        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
-          -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$d/libddaudit.so" tools/proot/fastpath/audit.c
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libddaudit.so"
-        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
-            -o "$d/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/libssbs.so"
-        mkdir -p "$d/usr/local/lib/droiddeck-xclipse"
-        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
-            -o "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so" tools/linuxfs/xclipse-layer/xclipse_layer.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
-        install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$d/usr/local/lib/droiddeck-xclipse/"
-        mkdir -p "$d/usr/local/bin"
-        external/MaliBridge/scripts/build-client-linux.sh "$d" aarch64-linux-gnu-gcc
-        aarch64-linux-gnu-gcc -O2 -Wall -o "$d/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-glprobe"
-        aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
-        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
-        for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
-            put "$script" "$d/usr/local/bin/$(basename "$script")"
-        done
-        for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
-            [ -f "$f" ] && put "$f" "$d/${f#tools/linuxfs/overlay/}"
-        done
-        put tools/linuxfs/desktop/droiddeck-desktop "$d/usr/local/bin/droiddeck-desktop"
-        put tools/linuxfs/desktop/droiddeck-gpu "$d/usr/local/bin/droiddeck-gpu"
-        put tools/linuxfs/desktop/droiddeck-desktop-gpu "$d/usr/local/bin/droiddeck-desktop-gpu"
-        put tools/linuxfs/desktop/kwin_wayland_wrapper "$d/usr/local/bin/kwin_wayland_wrapper"
-        put tools/linuxfs/desktop/firefox-droiddeck.js \
-            "$d/usr/lib/firefox/defaults/pref/droiddeck.js"
-
-        READELF=aarch64-linux-gnu-readelf bash tools/linuxfs/check-preloads.sh "$d"
-    '
-
-x86_key=$(inputs_hash bullseye tools/linuxfs/build-x86-preloads.sh tools/linuxfs/preload tools/linuxfs/fex \
-    app/src/main/cpp/fakeinput_steam.cpp)
-x86_stage="${staging_dir}/x86-preloads"
-if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
-    x86_platform=linux/amd64
-    x86_packages="gcc g++ gcc-multilib g++-multilib binutils"
-    x86_cross=0
-    if [[ "${docker_platform}" == linux/arm64 ]]; then
-        x86_platform=linux/arm64
-        x86_packages="gcc-x86-64-linux-gnu g++-x86-64-linux-gnu gcc-i686-linux-gnu g++-i686-linux-gnu libc6-dev-amd64-cross libc6-dev-i386-cross binutils-x86-64-linux-gnu binutils-i686-linux-gnu"
-        x86_cross=1
-    fi
-    docker run --rm --platform "${x86_platform}" -e X86_CROSS="${x86_cross}" -e X86_PACKAGES="${x86_packages}" \
-        -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
-            set -euo pipefail
-            printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
-            apt-get -o Acquire::Check-Valid-Until=false update -qq
-            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends $X86_PACKAGES >/dev/null
-            tools/linuxfs/build-x86-preloads.sh app/src/main/assets/linuxfs
-            chown -R '"$(id -u):$(id -g)"' app/src/main/assets/linuxfs
-        '
-    mkdir -p "${x86_stage}"
-    cp -R "${linuxfs_dir}/x86_64" "${linuxfs_dir}/i386" "${x86_stage}/"
-    save_step x86-preloads "${x86_key}" "${x86_stage}"
-fi
-
-vr_out="${linuxfs_dir}/usr/local/lib/droiddeck-vr"
-vr_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/vr app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c)
-if ! restore_step vr "${vr_key}" "${vr_out}"; then
-    DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/vr/build.sh" "${vr_out}"
-    save_step vr "${vr_key}" "${vr_out}"
-fi
-
-gpuload_out="${linuxfs_dir}/usr/local/lib/droiddeck-gpuload"
-gpuload_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/gpuload)
-if ! restore_step gpuload "${gpuload_key}" "${gpuload_out}"; then
-    DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/gpuload/build.sh" "${gpuload_out}"
-    save_step gpuload "${gpuload_key}" "${gpuload_out}"
-fi
-
 github_repo=${DROIDDECK_GITHUB_REPOSITORY:-}
 if [[ -z "${github_repo}" ]]; then
     origin_url=$(git -C "${repo_root}" remote get-url origin)
@@ -228,46 +134,289 @@ if [[ -z "${github_repo}" ]]; then
     github_repo=${github_repo%.git}
 fi
 
-cached() {
-    local sha=$1 name=$2 out
-    shift 2
-    out="${cache_dir}/${sha}-${name}"
-    if [[ -f "${out}" ]] && printf '%s  %s\n' "${sha}" "${out}" | shasum -a 256 -c - >/dev/null 2>&1; then
-        echo "${out}"
-        return 0
+ci_components=0
+ci_run=
+ci_cache="${cache_dir}/ci-components"
+reuse_ci_components() {
+    [[ "${DROIDDECK_CI_COMPONENTS:-1}" == 1 ]] && command -v gh >/dev/null 2>&1 || return 1
+    # CI prepares with the pinned NDK, its own build image and PulseAudio source, and the system Vulkan headers.
+    . "${repo_root}/tools/ci/toolchains.env"
+    [[ "${ndk_version}" == "${CI_ANDROID_NDK_VERSION}" && -z "${DROIDDECK_PA13_SOURCE_DIR:-}" && -z "${VK_INCLUDE:-}" \
+        && -z "${requested_image}" ]] || return 1
+    local base candidates run artifact archive part
+    base=$(git -C "${repo_root}" merge-base HEAD origin/main 2>/dev/null || true)
+    # Only runs of this repository's own main: a fork's pull request can also name its branch main.
+    candidates=$(gh api "repos/${github_repo}/actions/artifacts?name=prepared-components&per_page=100" \
+        -q "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"main\")
+              | select(.workflow_run.head_repository_id == .workflow_run.repository_id)]
+            | sort_by(.workflow_run.head_sha != \"${base}\") | .[:3][] | \"\(.workflow_run.id):\(.id)\"" 2>/dev/null) || return 1
+    mkdir -p "${ci_cache}"
+    # CI keeps these artifacts for 14 days.
+    find "${ci_cache}" -mindepth 1 -maxdepth 1 -mtime +14 -exec rm -rf {} +
+    for candidate in ${candidates}; do
+        run=${candidate%%:*}
+        artifact=${candidate#*:}
+        archive="${ci_cache}/${artifact}.tar.gz"
+        if [[ ! -f "${archive}" ]]; then
+            part=$(mktemp -d "${ci_cache}/${run}.part.XXXXXX")
+            if gh run download "${run}" -R "${github_repo}" -n prepared-components -D "${part}" >/dev/null 2>&1; then
+                mv "${part}/prepared-components.tar.gz" "${archive}"
+            fi
+            rm -rf "${part}"
+            [[ -f "${archive}" ]] || continue
+        fi
+        if python3 "${repo_root}/tools/components/reuse.py" "${archive}"; then
+            ci_run=${run}
+            return 0
+        fi
+    done
+    return 1
+}
+fetch_ci_xbox() {
+    local stored="${ci_cache}/${ci_run}-xbox" part
+    if [[ ! -d "${stored}" ]]; then
+        part=$(mktemp -d "${ci_cache}/${ci_run}-xbox.part.XXXXXX")
+        gh run download "${ci_run}" -R "${github_repo}" -n xbox-arm64 -D "${part}" >/dev/null 2>&1 || { rm -rf "${part}"; return 1; }
+        # rename(2) refuses a non-empty destination, so a copy another build published first wins.
+        python3 -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' "${part}" "${stored}" 2>/dev/null || rm -rf "${part}"
     fi
-    rm -f "${out}.part"
-    out="${out}.part" "$@" >&2
-    printf '%s  %s\n' "${sha}" "${out}.part" | shasum -a 256 -c - >&2
-    mv "${out}.part" "${out}"
-    echo "${out}"
+    rm -rf "${xbox_out}" && mkdir -p "${xbox_out}" && cp -R "${stored}/." "${xbox_out}/"
 }
 
-if [[ -f "${repo_root}/tools/gamescope/release.env" ]]; then
-    . "${repo_root}/tools/gamescope/release.env"
-    gamescope_archive=$(cached "${GAMESCOPE_SHA256}" gamescope.tzst \
-        bash -c 'gh release download "$0" -R "$1" -p gamescope.tzst -O "$out"' "${GAMESCOPE_TAG}" "${GAMESCOPE_REPO:-${github_repo}}")
-    zstd -dc "${gamescope_archive}" | tar -xf - -C "${linuxfs_dir}"
-    test -f "${linuxfs_dir}/usr/local/bin/gamescope"
-fi
+git_common=$(git -C "${repo_root}" rev-parse --path-format=absolute --git-common-dir)
+proot_out="${repo_root}/app/src/main/jniLibs/arm64-v8a"
+if reuse_ci_components; then
+    ci_components=1
+    echo "components: every recipe identity matches main CI run ${ci_run}; reusing its prepared components (DROIDDECK_CI_COMPONENTS=0 builds them here)"
+else
+    rm -rf -- "${linuxfs_dir}"
+    mkdir -p "${linuxfs_dir}"
 
-. "${repo_root}/tools/linuxfs/uruntime.env"
-uruntime_binary=$(cached "${URUNTIME_SHA256}" "${URUNTIME_ASSET}" \
-    bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
-mkdir -p "${linuxfs_dir}/usr/local/lib/droiddeck" "${linuxfs_dir}/usr/local/share/licenses/uruntime"
-install -m644 "${uruntime_binary}" "${linuxfs_dir}/usr/local/lib/droiddeck/uruntime"
-install -m644 "${repo_root}/tools/linuxfs/licenses/uruntime-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/uruntime/LICENSE"
+    docker run --rm --platform "${docker_platform}" \
+        --user "$(id -u):$(id -g)" \
+        -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src "${image_name}" bash -lc '
+            set -euo pipefail
+            d=app/src/main/assets/linuxfs
+            mkdir -p "$d"
+            put() { mkdir -p "$(dirname "$2")" && cat "$1" > "$2"; }
+            aarch64-linux-gnu-g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare \
+                -pthread -std=c++17 -static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL \
+                -o "$d/libfakeinput.so" app/src/main/cpp/fakeinput_steam.cpp -ldl
+            aarch64-linux-gnu-strip --strip-unneeded "$d/libfakeinput.so"
+            aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
+                -o "$d/libddsession.so" tools/linuxfs/preload/*.c -ldl
+            aarch64-linux-gnu-strip --strip-unneeded "$d/libddsession.so"
+            aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
+                -o "$d/libddfastpath.so" tools/proot/fastpath/fastpath.c -ldl
+            aarch64-linux-gnu-strip --strip-unneeded "$d/libddfastpath.so"
+            bash tools/nativeguest/build.sh "$d/libddnatv-hook.so"
+            aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -nostdlib -ffreestanding -fno-stack-protector \
+              -fno-tree-loop-distribute-patterns -Wl,-z,defs -o "$d/libddaudit.so" tools/proot/fastpath/audit.c
+            aarch64-linux-gnu-strip --strip-unneeded "$d/libddaudit.so"
+            aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
+                -o "$d/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
+            aarch64-linux-gnu-strip --strip-unneeded "$d/libssbs.so"
+            mkdir -p "$d/usr/local/lib/droiddeck-xclipse"
+            aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+                -o "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so" tools/linuxfs/xclipse-layer/xclipse_layer.c -ldl
+            aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
+            install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$d/usr/local/lib/droiddeck-xclipse/"
+            mkdir -p "$d/usr/local/bin"
+            external/MaliBridge/scripts/build-client-linux.sh "$d" aarch64-linux-gnu-gcc
+            aarch64-linux-gnu-gcc -O2 -Wall -o "$d/usr/local/bin/droiddeck-glprobe" tools/venus/glprobe.c -ldl
+            aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-glprobe"
+            aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
+            aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
+            for script in tools/linuxfs/overlay/usr/local/bin/droiddeck-* tools/linuxfs/overlay/usr/local/bin/steam-compatibility; do
+                put "$script" "$d/usr/local/bin/$(basename "$script")"
+            done
+            for f in tools/linuxfs/overlay/usr/bin/* tools/linuxfs/overlay/usr/bin/steamos-polkit-helpers/*; do
+                [ -f "$f" ] && put "$f" "$d/${f#tools/linuxfs/overlay/}"
+            done
+            put tools/linuxfs/desktop/droiddeck-desktop "$d/usr/local/bin/droiddeck-desktop"
+            put tools/linuxfs/desktop/droiddeck-gpu "$d/usr/local/bin/droiddeck-gpu"
+            put tools/linuxfs/desktop/droiddeck-desktop-gpu "$d/usr/local/bin/droiddeck-desktop-gpu"
+            put tools/linuxfs/desktop/kwin_wayland_wrapper "$d/usr/local/bin/kwin_wayland_wrapper"
+            put tools/linuxfs/desktop/firefox-droiddeck.js \
+                "$d/usr/lib/firefox/defaults/pref/droiddeck.js"
+
+            READELF=aarch64-linux-gnu-readelf bash tools/linuxfs/check-preloads.sh "$d"
+        '
+
+    x86_key=$(inputs_hash bullseye tools/linuxfs/build-x86-preloads.sh tools/linuxfs/preload tools/linuxfs/fex \
+        app/src/main/cpp/fakeinput_steam.cpp)
+    x86_stage="${staging_dir}/x86-preloads"
+    if restore_step x86-preloads "${x86_key}" "${linuxfs_dir}"; then :; else
+        x86_platform=linux/amd64
+        x86_packages="gcc g++ gcc-multilib g++-multilib binutils"
+        x86_cross=0
+        if [[ "${docker_platform}" == linux/arm64 ]]; then
+            x86_platform=linux/arm64
+            x86_packages="gcc-x86-64-linux-gnu g++-x86-64-linux-gnu gcc-i686-linux-gnu g++-i686-linux-gnu libc6-dev-amd64-cross libc6-dev-i386-cross binutils-x86-64-linux-gnu binutils-i686-linux-gnu"
+            x86_cross=1
+        fi
+        docker run --rm --platform "${x86_platform}" -e X86_CROSS="${x86_cross}" -e X86_PACKAGES="${x86_packages}" \
+            -v "${repo_root}:/src" -v "${git_common}:${git_common}" -w /src public.ecr.aws/docker/library/debian:bullseye bash -c '
+                set -euo pipefail
+                printf "deb http://archive.debian.org/debian bullseye main\ndeb http://archive.debian.org/debian-security bullseye-security main\n" > /etc/apt/sources.list
+                apt-get -o Acquire::Check-Valid-Until=false update -qq
+                DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends $X86_PACKAGES >/dev/null
+                tools/linuxfs/build-x86-preloads.sh app/src/main/assets/linuxfs
+                chown -R '"$(id -u):$(id -g)"' app/src/main/assets/linuxfs
+            '
+        mkdir -p "${x86_stage}"
+        cp -R "${linuxfs_dir}/x86_64" "${linuxfs_dir}/i386" "${x86_stage}/"
+        save_step x86-preloads "${x86_key}" "${x86_stage}"
+    fi
+
+    vr_out="${linuxfs_dir}/usr/local/lib/droiddeck-vr"
+    vr_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/vr app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c)
+    if ! restore_step vr "${vr_key}" "${vr_out}"; then
+        DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/vr/build.sh" "${vr_out}"
+        save_step vr "${vr_key}" "${vr_out}"
+    fi
+
+    gpuload_out="${linuxfs_dir}/usr/local/lib/droiddeck-gpuload"
+    gpuload_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/gpuload)
+    if ! restore_step gpuload "${gpuload_key}" "${gpuload_out}"; then
+        DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/gpuload/build.sh" "${gpuload_out}"
+        save_step gpuload "${gpuload_key}" "${gpuload_out}"
+    fi
+
+    cached() {
+        local sha=$1 name=$2 out
+        shift 2
+        out="${cache_dir}/${sha}-${name}"
+        if [[ -f "${out}" ]] && printf '%s  %s\n' "${sha}" "${out}" | shasum -a 256 -c - >/dev/null 2>&1; then
+            echo "${out}"
+            return 0
+        fi
+        rm -f "${out}.part"
+        out="${out}.part" "$@" >&2
+        printf '%s  %s\n' "${sha}" "${out}.part" | shasum -a 256 -c - >&2
+        mv "${out}.part" "${out}"
+        echo "${out}"
+    }
+
+    if [[ -f "${repo_root}/tools/gamescope/release.env" ]]; then
+        . "${repo_root}/tools/gamescope/release.env"
+        gamescope_archive=$(cached "${GAMESCOPE_SHA256}" gamescope.tzst \
+            bash -c 'gh release download "$0" -R "$1" -p gamescope.tzst -O "$out"' "${GAMESCOPE_TAG}" "${GAMESCOPE_REPO:-${github_repo}}")
+        zstd -dc "${gamescope_archive}" | tar -xf - -C "${linuxfs_dir}"
+        test -f "${linuxfs_dir}/usr/local/bin/gamescope"
+    fi
+
+    . "${repo_root}/tools/linuxfs/uruntime.env"
+    uruntime_binary=$(cached "${URUNTIME_SHA256}" "${URUNTIME_ASSET}" \
+        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "https://github.com/VHSgunzo/uruntime/releases/download/${URUNTIME_VERSION}/${URUNTIME_ASSET}")
+    mkdir -p "${linuxfs_dir}/usr/local/lib/droiddeck" "${linuxfs_dir}/usr/local/share/licenses/uruntime"
+    install -m644 "${uruntime_binary}" "${linuxfs_dir}/usr/local/lib/droiddeck/uruntime"
+    install -m644 "${repo_root}/tools/linuxfs/licenses/uruntime-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/uruntime/LICENSE"
+
+    sync_assets="${repo_root}/app/src/main/assets/droiddeck-esync"
+    if [[ -f "${repo_root}/tools/droiddeck-esync/release.env" ]]; then
+        . "${repo_root}/tools/droiddeck-esync/release.env"
+        sync_archive=$(cached "${SYNC_BUNDLE_SHA256}" "${SYNC_BUNDLE_ASSET}" \
+            bash -c 'gh release download "$0" -R "$2" -p "$1" -O "$out"' "${SYNC_BUNDLE_TAG}" "${SYNC_BUNDLE_ASSET}" "${SYNC_BUNDLE_REPO}")
+        rm -rf "${sync_assets}"
+        mkdir -p "${sync_assets}"
+        zstd -dc "${sync_archive}" | tar -xf - -C "${sync_assets}"
+        test -f "${sync_assets}/index.json"
+        test -f "${sync_assets}/index.json.sig"
+    elif [[ -d "${sync_assets}" ]]; then
+        echo "No tools/droiddeck-esync/release.env: the APK bundles the droiddeck-esync packs already in ${sync_assets}." >&2
+    fi
+
+    msi_pkgs="${staging_dir}/msi-pkgs"
+    msi_dir="${linuxfs_dir}/usr/local/lib/droiddeck-msitools"
+    mkdir -p "${msi_pkgs}" "${msi_dir}"
+    while read -r package_sha256 package_url; do
+        [[ -n "${package_url}" ]] || continue
+        package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
+            bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
+        tar -xJf "${package_archive}" -C "${msi_pkgs}"
+    done < <(grep -v '^#' "${repo_root}/tools/msitools/packages.txt")
+    for tool in msiinfo cabextract; do install -m644 "${msi_pkgs}/usr/bin/${tool}" "${msi_dir}/${tool}"; done
+    for tool in 7z 7z.so; do install -m644 "${msi_pkgs}/usr/lib/7zip/${tool}" "${msi_dir}/${tool}"; done
+    for library in libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
+        cp -L "${msi_pkgs}/usr/lib/${library}" "${msi_dir}/${library}"
+    done
+    mkdir -p "${linuxfs_dir}/usr/local/share/licenses/droiddeck-msitools"
+    for license in NOTICE GPL-2 GPL-3 LGPL-2.1 7zip-License 7zip-unRarLicense; do
+        install -m644 "${repo_root}/tools/msitools/licenses/${license}" \
+            "${linuxfs_dir}/usr/local/share/licenses/droiddeck-msitools/${license}"
+    done
+
+    mango_dir="${linuxfs_dir}/usr/local/lib/mangoapp"
+    mango_pkgs="${staging_dir}/mango-pkgs"
+    mkdir -p "${mango_dir}" "${mango_pkgs}"
+    while read -r package_sha256 package_url; do
+        [[ -n "${package_url}" ]] || continue
+        package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
+            bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
+        zstd -dc "${package_archive}" | tar -xf - -C "${mango_pkgs}"
+    done < <(grep -v '^#' "${repo_root}/tools/mangoapp/packages.txt")
+    install -m644 "${mango_pkgs}/usr/bin/mangoapp" "${mango_dir}/mangoapp"
+    for library in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1; do
+        cp -L "${mango_pkgs}/usr/lib/${library}" "${mango_dir}/${library}"
+    done
+    docker run --rm --platform "${docker_platform}" --user "$(id -u):$(id -g)" -v "${repo_root}:/src" -w /src "${image_name}" \
+        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
+        -o app/src/main/assets/linuxfs/usr/local/lib/mangoapp/libtracefs.so.1 tools/mangoapp/libtracefs-shim.c
+    mkdir -p "${linuxfs_dir}/usr/local/bin"
+    install -m644 "${repo_root}/tools/mangoapp/mangoapp" "${linuxfs_dir}/usr/local/bin/mangoapp"
+
+    pw_pkgs="${staging_dir}/pw-pkgs"
+    mkdir -p "${pw_pkgs}"
+    while read -r package_sha256 package_url; do
+        [[ -n "${package_url}" ]] || continue
+        package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
+            bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
+        zstd -dc "${package_archive}" | tar -xf - -C "${pw_pkgs}"
+    done < <(grep -v '^#' "${repo_root}/tools/pipewire/packages.txt")
+    "${repo_root}/tools/pipewire/assemble.sh" "${pw_pkgs}" "${linuxfs_dir}/usr/local/lib/droiddeck-pipewire.tzst"
+
+    pa_source=${DROIDDECK_PA13_SOURCE_DIR:-"${staging_dir}/pulseaudio-13.0"}
+    if [[ -z "${DROIDDECK_PA13_SOURCE_DIR:-}" ]]; then
+        pa_tarball="${cache_dir}/pulseaudio-13.0.tar.gz"
+        if [[ ! -s "${pa_tarball}" ]] || ! tar -tzf "${pa_tarball}" >/dev/null 2>&1; then
+            curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "${pa_tarball}.part" \
+                https://github.com/pulseaudio/pulseaudio/archive/refs/tags/v13.0.tar.gz
+            mv "${pa_tarball}.part" "${pa_tarball}"
+        fi
+        mkdir -p "${pa_source}"
+        tar -xzf "${pa_tarball}" -C "${pa_source}" --strip-components=1
+    fi
+    if [[ ! -f "${pa_source}/src/pulse/version.h.in" ]]; then
+        echo "PulseAudio 13.0 source not found at ${pa_source}; set DROIDDECK_PA13_SOURCE_DIR." >&2
+        exit 1
+    fi
+
+    sink_output="${staging_dir}/sink-out"
+    "${repo_root}/tools/directaudio/fetch.sh" "${repo_root}" "${sink_output}"
+    "${repo_root}/tools/aaudio-sink/build.sh" "${pa_source}" "${sink_output}"
+    proot_sources=$(cd "${repo_root}/tools/proot" && find . -type f ! -name '*.pyc' | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256 | cut -d' ' -f1)
+    proot_inputs=$(printf '%s\n' "${proot_sources}" "${ndk_version}" | shasum -a 256 | cut -d' ' -f1)
+    if [[ -f "${proot_out}/libproot.so" && -f "${proot_out}/libproot-loader.so" \
+            && "$(cat "${proot_out}/.proot-inputs" 2>/dev/null)" = "${proot_inputs}" ]] \
+            && (cd "${proot_out}" && shasum -a 256 -c .proot-outputs >/dev/null 2>&1); then
+        echo "proot: sources unchanged, keeping ${proot_out}/libproot.so"
+    else
+        proot_stage="${staging_dir}/proot"
+        if ! restore_step proot "${proot_inputs}" "${proot_stage}"; then
+            "${repo_root}/tools/proot/build.sh" "${proot_stage}"
+            save_step proot "${proot_inputs}" "${proot_stage}"
+        fi
+        install -m755 "${proot_stage}/libproot.so" "${proot_stage}/libproot-loader.so" "${proot_out}/"
+        echo "${proot_inputs}" > "${proot_out}/.proot-inputs"
+        (cd "${proot_out}" && shasum -a 256 libproot.so libproot-loader.so > .proot-outputs)
+    fi
+fi
 
 sync_assets="${repo_root}/app/src/main/assets/droiddeck-esync"
 if [[ -f "${repo_root}/tools/droiddeck-esync/release.env" ]]; then
+    # Packs revoked after a bundle was published are dropped from local and CI-prepared bundles alike.
     . "${repo_root}/tools/droiddeck-esync/release.env"
-    sync_archive=$(cached "${SYNC_BUNDLE_SHA256}" "${SYNC_BUNDLE_ASSET}" \
-        bash -c 'gh release download "$0" -R "$2" -p "$1" -O "$out"' "${SYNC_BUNDLE_TAG}" "${SYNC_BUNDLE_ASSET}" "${SYNC_BUNDLE_REPO}")
-    rm -rf "${sync_assets}"
-    mkdir -p "${sync_assets}"
-    zstd -dc "${sync_archive}" | tar -xf - -C "${sync_assets}"
-    test -f "${sync_assets}/index.json"
-    test -f "${sync_assets}/index.json.sig"
     sync_index=$(mktemp)
     gh release download "${SYNC_BUNDLE_TAG}" -R "${SYNC_BUNDLE_REPO}" -p index.json -O "${sync_index}" --clobber
     revoked=$(python3 -c 'import json, sys; print(" ".join(p["id"] for p in json.load(open(sys.argv[1]))["packs"] if p.get("revoked") is True))' "${sync_index}")
@@ -278,94 +427,6 @@ if [[ -f "${repo_root}/tools/droiddeck-esync/release.env" ]]; then
         fi
     done
     rm -f "${sync_index}"
-elif [[ -d "${sync_assets}" ]]; then
-    echo "No tools/droiddeck-esync/release.env: the APK bundles the droiddeck-esync packs already in ${sync_assets}." >&2
-fi
-
-msi_pkgs="${staging_dir}/msi-pkgs"
-msi_dir="${linuxfs_dir}/usr/local/lib/droiddeck-msitools"
-mkdir -p "${msi_pkgs}" "${msi_dir}"
-while read -r package_sha256 package_url; do
-    [[ -n "${package_url}" ]] || continue
-    package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
-        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
-    tar -xJf "${package_archive}" -C "${msi_pkgs}"
-done < <(grep -v '^#' "${repo_root}/tools/msitools/packages.txt")
-for tool in msiinfo cabextract; do install -m644 "${msi_pkgs}/usr/bin/${tool}" "${msi_dir}/${tool}"; done
-for tool in 7z 7z.so; do install -m644 "${msi_pkgs}/usr/lib/7zip/${tool}" "${msi_dir}/${tool}"; done
-for library in libmsi-1.0.so.0 libgsf-1.so.114 libgcab-1.0.so.0; do
-    cp -L "${msi_pkgs}/usr/lib/${library}" "${msi_dir}/${library}"
-done
-mkdir -p "${linuxfs_dir}/usr/local/share/licenses/droiddeck-msitools"
-for license in NOTICE GPL-2 GPL-3 LGPL-2.1 7zip-License 7zip-unRarLicense; do
-    install -m644 "${repo_root}/tools/msitools/licenses/${license}" \
-        "${linuxfs_dir}/usr/local/share/licenses/droiddeck-msitools/${license}"
-done
-
-mango_dir="${linuxfs_dir}/usr/local/lib/mangoapp"
-mango_pkgs="${staging_dir}/mango-pkgs"
-mkdir -p "${mango_dir}" "${mango_pkgs}"
-while read -r package_sha256 package_url; do
-    [[ -n "${package_url}" ]] || continue
-    package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
-        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
-    zstd -dc "${package_archive}" | tar -xf - -C "${mango_pkgs}"
-done < <(grep -v '^#' "${repo_root}/tools/mangoapp/packages.txt")
-install -m644 "${mango_pkgs}/usr/bin/mangoapp" "${mango_dir}/mangoapp"
-for library in libfmt.so.10 libspdlog.so.1.13 libglfw.so.3 libtraceevent.so.1; do
-    cp -L "${mango_pkgs}/usr/lib/${library}" "${mango_dir}/${library}"
-done
-docker run --rm --platform "${docker_platform}" --user "$(id -u):$(id -g)" -v "${repo_root}:/src" -w /src "${image_name}" \
-    aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wl,-soname,libtracefs.so.1 \
-    -o app/src/main/assets/linuxfs/usr/local/lib/mangoapp/libtracefs.so.1 tools/mangoapp/libtracefs-shim.c
-mkdir -p "${linuxfs_dir}/usr/local/bin"
-install -m644 "${repo_root}/tools/mangoapp/mangoapp" "${linuxfs_dir}/usr/local/bin/mangoapp"
-
-pw_pkgs="${staging_dir}/pw-pkgs"
-mkdir -p "${pw_pkgs}"
-while read -r package_sha256 package_url; do
-    [[ -n "${package_url}" ]] || continue
-    package_archive=$(cached "${package_sha256}" "$(basename "${package_url}")" \
-        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "${package_url}")
-    zstd -dc "${package_archive}" | tar -xf - -C "${pw_pkgs}"
-done < <(grep -v '^#' "${repo_root}/tools/pipewire/packages.txt")
-"${repo_root}/tools/pipewire/assemble.sh" "${pw_pkgs}" "${linuxfs_dir}/usr/local/lib/droiddeck-pipewire.tzst"
-
-pa_source=${DROIDDECK_PA13_SOURCE_DIR:-"${staging_dir}/pulseaudio-13.0"}
-if [[ -z "${DROIDDECK_PA13_SOURCE_DIR:-}" ]]; then
-    pa_tarball="${cache_dir}/pulseaudio-13.0.tar.gz"
-    if [[ ! -s "${pa_tarball}" ]] || ! tar -tzf "${pa_tarball}" >/dev/null 2>&1; then
-        curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "${pa_tarball}.part" \
-            https://github.com/pulseaudio/pulseaudio/archive/refs/tags/v13.0.tar.gz
-        mv "${pa_tarball}.part" "${pa_tarball}"
-    fi
-    mkdir -p "${pa_source}"
-    tar -xzf "${pa_tarball}" -C "${pa_source}" --strip-components=1
-fi
-if [[ ! -f "${pa_source}/src/pulse/version.h.in" ]]; then
-    echo "PulseAudio 13.0 source not found at ${pa_source}; set DROIDDECK_PA13_SOURCE_DIR." >&2
-    exit 1
-fi
-
-sink_output="${staging_dir}/sink-out"
-"${repo_root}/tools/directaudio/fetch.sh" "${repo_root}" "${sink_output}"
-"${repo_root}/tools/aaudio-sink/build.sh" "${pa_source}" "${sink_output}"
-proot_out="${repo_root}/app/src/main/jniLibs/arm64-v8a"
-proot_sources=$(cd "${repo_root}/tools/proot" && find . -type f ! -name '*.pyc' | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256 | cut -d' ' -f1)
-proot_inputs=$(printf '%s\n' "${proot_sources}" "${ndk_version}" | shasum -a 256 | cut -d' ' -f1)
-if [[ -f "${proot_out}/libproot.so" && -f "${proot_out}/libproot-loader.so" \
-        && "$(cat "${proot_out}/.proot-inputs" 2>/dev/null)" = "${proot_inputs}" ]] \
-        && (cd "${proot_out}" && shasum -a 256 -c .proot-outputs >/dev/null 2>&1); then
-    echo "proot: sources unchanged, keeping ${proot_out}/libproot.so"
-else
-    proot_stage="${staging_dir}/proot"
-    if ! restore_step proot "${proot_inputs}" "${proot_stage}"; then
-        "${repo_root}/tools/proot/build.sh" "${proot_stage}"
-        save_step proot "${proot_inputs}" "${proot_stage}"
-    fi
-    install -m755 "${proot_stage}/libproot.so" "${proot_stage}/libproot-loader.so" "${proot_out}/"
-    echo "${proot_inputs}" > "${proot_out}/.proot-inputs"
-    (cd "${proot_out}" && shasum -a 256 libproot.so libproot-loader.so > .proot-outputs)
 fi
 
 syncthing_src="${repo_root}/tools/syncthing/syncthing-android/syncthing/src/github.com/syncthing/syncthing"
@@ -389,21 +450,23 @@ else
     echo "${syncthing_inputs}" > "${proot_out}/.syncthing-inputs"
 fi
 
-bundle_dir="${staging_dir}/pulseaudio-bundle"
-mkdir -p "${bundle_dir}"
-zstd -dc "${bundle_asset}" | tar -xf - -C "${bundle_dir}"
-if [[ -e "${bundle_dir}/modules/arm64/module-aaudio-sink.so" \
-        || -e "${bundle_dir}/modules/arm64/module-directaudio-native-sink.so" ]]; then
-    echo "The committed audio bundle already contains a built ARM64 sink." >&2
-    exit 1
+if [[ "${ci_components}" != 1 ]]; then
+    bundle_dir="${staging_dir}/pulseaudio-bundle"
+    mkdir -p "${bundle_dir}"
+    zstd -dc "${bundle_asset}" | tar -xf - -C "${bundle_dir}"
+    if [[ -e "${bundle_dir}/modules/arm64/module-aaudio-sink.so" \
+            || -e "${bundle_dir}/modules/arm64/module-directaudio-native-sink.so" ]]; then
+        echo "The committed audio bundle already contains a built ARM64 sink." >&2
+        exit 1
+    fi
+    install -m755 "${sink_output}/module-aaudio-sink.so" \
+        "${bundle_dir}/modules/arm64/module-aaudio-sink.so"
+    install -m755 "${sink_output}/module-directaudio-native-sink.so" \
+        "${bundle_dir}/modules/arm64/module-directaudio-native-sink.so"
+    tar -cf - -C "${bundle_dir}" . | zstd -19 -T0 -c > "${staging_dir}/pulseaudio.tzst"
+    mkdir -p "${repo_root}/app/build/prepared-assets"
+    mv "${staging_dir}/pulseaudio.tzst" "${repo_root}/app/build/prepared-assets/pulseaudio.tzst"
 fi
-install -m755 "${sink_output}/module-aaudio-sink.so" \
-    "${bundle_dir}/modules/arm64/module-aaudio-sink.so"
-install -m755 "${sink_output}/module-directaudio-native-sink.so" \
-    "${bundle_dir}/modules/arm64/module-directaudio-native-sink.so"
-tar -cf - -C "${bundle_dir}" . | zstd -19 -T0 -c > "${staging_dir}/pulseaudio.tzst"
-mkdir -p "${repo_root}/app/build/prepared-assets"
-mv "${staging_dir}/pulseaudio.tzst" "${repo_root}/app/build/prepared-assets/pulseaudio.tzst"
 
 gradle_rust_arg=""
 if [[ "${DROIDDECK_SKIP_RUST:-0}" == 1 ]]; then
@@ -424,19 +487,23 @@ else
 fi
 
 cd "${repo_root}"
-python3 tools/quest/build-driver.py "${NDK}"
+[[ "${ci_components}" == 1 ]] || python3 tools/quest/build-driver.py "${NDK}"
 xbox_out="${linuxfs_dir}/usr/local/lib/droiddeck-xbox"
 xbox_key=$(inputs_hash "native-arm64-ubuntu24.04" tools/xbox)
-if ! restore_step xbox "${xbox_key}" "${xbox_out}"; then
+if [[ "${ci_components}" == 1 ]] && fetch_ci_xbox; then
+    echo "xbox: reused main CI run ${ci_run}"
+elif ! restore_step xbox "${xbox_key}" "${xbox_out}"; then
     bash tools/xbox/build-local.sh
     save_step xbox "${xbox_key}" "${xbox_out}"
 fi
 
-comet_out="${linuxfs_dir}/usr/local/lib/droiddeck-comet"
-comet_key=$(inputs_hash "${image_id}" tools/comet)
-if ! restore_step comet "${comet_key}" "${comet_out}"; then
-    DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/comet/build-local.sh
-    save_step comet "${comet_key}" "${comet_out}"
+if [[ "${ci_components}" != 1 ]]; then
+    comet_out="${linuxfs_dir}/usr/local/lib/droiddeck-comet"
+    comet_key=$(inputs_hash "${image_id}" tools/comet)
+    if ! restore_step comet "${comet_key}" "${comet_out}"; then
+        DROIDDECK_BUILD_IMAGE="${image_name}" bash tools/comet/build-local.sh
+        save_step comet "${comet_key}" "${comet_out}"
+    fi
 fi
 if [[ "${DROIDDECK_SKIP_RUST:-0}" != 1 ]]; then
     upc_out="${linuxfs_dir}/usr/local/lib/droiddeck-ubisoft"
