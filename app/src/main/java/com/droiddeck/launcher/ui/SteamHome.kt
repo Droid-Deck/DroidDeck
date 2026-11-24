@@ -163,10 +163,9 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             val onboardingFacts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
             val onboardingRows = com.droiddeck.launcher.session.Onboarding.rows(onboardingActive, onboardingFailed, onboardingFacts)
             val settling = onboardingActive.isNotEmpty() && com.droiddeck.launcher.session.Onboarding.pending(onboardingRows)
-            val overall = com.droiddeck.launcher.session.Onboarding.overall(onboardingRows)
             val limitBlocks = com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
             val mark: @Composable () -> Unit = {
-                Wordmark(if (narrow) 30.dp else 40.dp, progress = if (settling) overall / 100f else null)
+                Wordmark(if (narrow) 30.dp else 40.dp)
             }
             val runtimeStatus: @Composable () -> Unit = {
                 if (!settling && (s.busy || (s.available != null && s.available != s.installed))) RuntimeChip(s)
@@ -193,8 +192,16 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             val onboardingFacts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
             val onboardingRows = com.droiddeck.launcher.session.Onboarding.rows(onboardingActive, onboardingFailed, onboardingFacts)
             val settling = onboardingActive.isNotEmpty() && com.droiddeck.launcher.session.Onboarding.pending(onboardingRows)
-            val overall = com.droiddeck.launcher.session.Onboarding.overall(onboardingRows)
+            val measured = com.droiddeck.launcher.session.Onboarding.overall(onboardingRows)
+            var overall by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+            overall = if (settling) maxOf(overall, measured) else 0
             val limitBlocks = com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
+            LaunchedEffect(settling, limitBlocks) {
+                while (settling && limitBlocks) {
+                    kotlinx.coroutines.delay(2_000)
+                    a.onRefreshPhantomStatus()
+                }
+            }
             if (settling) PrimaryButton(
                 stringResource(if (limitBlocks) R.string.onboarding_button_finish else R.string.onboarding_button_getting_ready, overall),
                 enabled = limitBlocks, main = true, large = true, progress = overall / 100f,
