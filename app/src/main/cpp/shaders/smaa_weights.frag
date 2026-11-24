@@ -109,22 +109,20 @@ void main() {
     float endpointPattern = clamp(abs(negativeRun - positiveRun) / max(span, 1.0), 0.0, 1.0);
     float endpointArea = endpointPattern / (1.0 + span * 0.055);
     float crossingA = verticalLine
-        ? max(nw.b, nw.a) - max(ne.b, ne.a)
-        : max(nw.r, nw.g) - max(sw.r, sw.g);
+        ? abs(max(nw.b, nw.a) - max(ne.b, ne.a))
+        : abs(max(nw.r, nw.g) - max(sw.r, sw.g));
     float crossingB = verticalLine
-        ? max(sw.b, sw.a) - max(se.b, se.a)
-        : max(ne.r, ne.g) - max(se.r, se.g);
-    float crossingContrast = abs(abs(crossingA) - abs(crossingB));
+        ? abs(max(sw.b, sw.a) - max(se.b, se.a))
+        : abs(max(ne.r, ne.g) - max(se.r, se.g));
+    float crossingContrast = abs(crossingA - crossingB);
     float crossingPattern = smoothstep(threshold, threshold * 2.5, crossingContrast);
     vec4 edgeMin = min(min(nw, ne), min(sw, se));
     vec4 edgeMax = max(max(nw, ne), max(sw, se));
     float edgeVariation = max(
         max(edgeMax.r - edgeMin.r, edgeMax.g - edgeMin.g),
         max(edgeMax.b - edgeMin.b, edgeMax.a - edgeMin.a));
-    float balancedCrossing =
-        (crossingA * crossingB < 0.0 && edgeVariation > 0.01)
-        ? smoothstep(threshold, threshold * 2.5,
-                     min(abs(crossingA), abs(crossingB)))
+    float balancedCrossing = edgeVariation > 0.01
+        ? smoothstep(threshold, threshold * 2.5, min(crossingA, crossingB))
         : 0.0;
     float areaWeight = 0.38 * crossingPattern * clamp(span / 4.0, 0.0, 1.0);
     float diagonalContrast = max(
@@ -141,14 +139,10 @@ void main() {
     float shortDiagonalFallback =
         (span > 0.0 && span <= 1.0 && crossingContrast <= threshold && diagonalStrength > threshold)
             ? 1.0 : 0.0;
-    bool saturatedCrossing =
-        (verticalLine ? dL : dU) > threshold * 2.5 &&
-        (verticalLine ? dR : dD) > threshold * 2.5 &&
-        negativeRun >= 6.0 && positiveRun >= 6.0;
     float diagonalFallback = 0.16 * diagonalPattern * edgeConfidence
-        * cornerFactor * (saturatedCrossing ? 0.0 : max(
+        * cornerFactor * max(
             diagonalContinuity * max(crossingPattern, balancedCrossing),
-            shortDiagonalFallback));
+            shortDiagonalFallback);
 
     float weight = clamp(max(baseWeight, diagonalFallback), 0.0, 0.42);
     outColor = vec4(weight, normal.x * 0.5 + 0.5, normal.y * 0.5 + 0.5, 1.0);
