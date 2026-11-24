@@ -26,12 +26,20 @@ __attribute__((visibility("hidden"))) int dd_program_lookup(const char *file, ch
   if (strchr(file, '/')) return snprintf(out, size, "%s", file) < (int)size;
   const char *paths = getenv("PATH");
   if (!paths) paths = "/bin:/usr/bin";
+  char candidate[PATH_MAX];
+  int found = 0;
   for (const char *p = paths;; ) {
     const char *end = strchrnul(p, ':');
-    int n = end > p ? snprintf(out, size, "%.*s/%s", (int)(end - p), p, file) : snprintf(out, size, "%s", file);
+    int n = end > p ? snprintf(candidate, sizeof candidate, "%.*s/%s", (int)(end - p), p, file)
+                    : snprintf(candidate, sizeof candidate, "%s", file);
     struct stat st;
-    if (n > 0 && n < (int)size && stat(out, &st) == 0 && S_ISREG(st.st_mode)) return 1;
-    if (!*end) return 0;
+    if (n > 0 && n < (int)sizeof candidate && n < (int)size && stat(candidate, &st) == 0 && S_ISREG(st.st_mode)) {
+      int runs = access(candidate, X_OK) == 0;
+      if (runs || !found) memcpy(out, candidate, (size_t)n + 1);
+      found = 1;
+      if (runs) return 1;
+    }
+    if (!*end) return found;
     p = end + 1;
   }
 }
