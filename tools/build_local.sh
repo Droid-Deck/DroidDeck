@@ -63,6 +63,11 @@ fi
 
 ndk_version=${DROIDDECK_NDK_VERSION:-}
 if [[ -z "${ndk_version}" ]]; then
+    . "${repo_root}/tools/ci/toolchains.env"
+    [[ -d "${sdk_dir}/ndk/${CI_ANDROID_NDK_VERSION}" ]] && ndk_version=${CI_ANDROID_NDK_VERSION}
+fi
+if [[ -z "${ndk_version}" ]]; then
+    echo "NDK ${CI_ANDROID_NDK_VERSION} (tools/ci/toolchains.env) is not installed; using the newest NDK instead, so native caches will not match CI." >&2
     ndk_path=$(find "${sdk_dir}/ndk" -mindepth 2 -maxdepth 2 -name source.properties -print | xargs -n1 dirname | sort -V | tail -1)
     ndk_version=${ndk_path##*/}
 fi
