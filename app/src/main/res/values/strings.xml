@@ -1841,6 +1841,7 @@
     <string name="main_pick_game_storage">Choose the game storage folder</string>
     <string name="main_pick_decky_zip">Choose a Decky plugin ZIP</string>
     <string name="main_storage_not_usable">Not usable: %1$s</string>
+    <string name="main_storage_fat32">FAT32 cannot hold files over 4 GB, so some games will fail to install. Reformat as exFAT.</string>
     <string name="main_running_program">Program</string>
     <string name="main_removing_runtime">Removing Linux runtime</string>
     <string name="main_settings_main_screen">Could not open Settings on the bottom screen; opened it on the main screen.</string>
