@@ -1045,15 +1045,23 @@ class ExtractTest(FexTestCase):
             status, said = self.quiet(FEX["extract"], "image.AppImage")
         return status, said, commands
 
-    def test_without_proot_the_shipped_runtime_is_skipped_and_7zip_unpacks(self):
+    def test_without_proot_the_shipped_runtime_reads_the_open_image(self):
         self.write(self.image, elf(183) + b"payload", 0o755)
-        ran = self.tmp / "uruntime-ran"
-        tool = self.uruntime("touch %s\nexit 1\n" % ran)
+        tool = self.uruntime('cmp "$TARGET_APPIMAGE" "%s" || exit 9\nmkdir -p AppDir && touch AppDir/AppRun\n' % self.image)
         with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(self.tmp / "rootfs")}):
             status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
         self.assertEqual((status, said), (0, ""))
-        self.assertFalse(ran.exists())
-        self.assertEqual([["/usr/bin/7z", "x", "-tSquashFS", "-y", "-osquashfs-root", str(self.image)]], commands)
+        self.assertEqual([], commands)
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+
+    def test_without_proot_runtime_failure_falls_back_to_7zip(self):
+        self.write(self.image, elf(183) + b"payload", 0o755)
+        tool = self.uruntime("exit 1\n")
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(self.tmp / "rootfs")}):
+            status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertEqual("/usr/bin/7z", commands[-1][0])
         self.assertTrue(Path("squashfs-root/AppRun").is_file())
 
     def test_with_proot_the_shipped_runtime_is_still_tried_first(self):
