@@ -141,6 +141,7 @@ private fun FixGroup(
                 hasToggle -> {
                     Body(stringResource(R.string.gate_toggle_steps))
                     PrimaryButton(stringResource(R.string.gate_open_dev), compact = compact, onClick = onOpenDeveloperOptions)
+                    SecondaryButton(stringResource(R.string.gate_use_wireless_instead), compact = compact, enabled = environment.onWifi, onClick = onFixWithWirelessDebugging)
                 }
                 else -> {
                     Body(stringResource(R.string.gate_no_toggle))
@@ -232,9 +233,7 @@ private fun OtherWays(
             modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (hasToggle) {
-                SecondaryButton(stringResource(R.string.gate_use_wireless_instead), compact = true, onClick = onFixWithWirelessDebugging)
-            } else {
+            if (!hasToggle) {
                 Body(stringResource(R.string.gate_some_roms))
                 SecondaryButton(stringResource(R.string.gate_open_dev), compact = true, onClick = onOpenDeveloperOptions)
             }

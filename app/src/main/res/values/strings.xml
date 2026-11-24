@@ -1443,7 +1443,7 @@
     <string name="gate_status">Status</string>
     <string name="gate_polling">Checking every 2 seconds. This page closes when it\'s off.</string>
     <string name="gate_other_ways">Other ways</string>
-    <string name="gate_other_toggle">Wireless debugging, computer ADB</string>
+    <string name="gate_other_toggle">Computer ADB</string>
     <string name="gate_other_no_toggle">Computer ADB, Developer options</string>
     <string name="gate_use_wireless_instead">Use Wireless debugging instead</string>
     <string name="gate_some_roms">Some ROMs add the switch anyway. Look for “child process” in Developer options.</string>

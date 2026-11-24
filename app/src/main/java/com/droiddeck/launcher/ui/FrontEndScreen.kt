@@ -548,6 +548,14 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             }
         }
     }
+    val childProcessRequest = androidx.compose.runtime.rememberUpdatedState {
+        if (PhantomProcessLimit.hasDeveloperToggle()) requestChildProcessToggle() else a.onShowPhantomGate()
+    }
+    DisposableEffect(Unit) {
+        val handler: () -> Unit = { childProcessRequest.value() }
+        ChildProcessSetup.request = handler
+        onDispose { if (ChildProcessSetup.request === handler) ChildProcessSetup.request = null }
+    }
     var applyingSavedPairing by remember { mutableStateOf(false) }
     val fixPhantomLimit = {
         if (!s.adbPaired || !com.droiddeck.launcher.core.GlobalSettings.wirelessDebuggingOn(ctx)) startGuidedPairing(false)
@@ -882,6 +890,10 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             }
         }
     }
+}
+
+internal object ChildProcessSetup {
+    @Volatile var request: (() -> Unit)? = null
 }
 
 internal object MainTabSteps {

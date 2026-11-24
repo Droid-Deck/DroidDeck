@@ -203,7 +203,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             if (settling) PrimaryButton(
                 stringResource(if (limitBlocks) R.string.onboarding_button_finish else R.string.onboarding_button_getting_ready, overall),
                 enabled = limitBlocks, main = true, large = true, progress = overall / 100f,
-                modifier = Modifier.testTag("play-steam"), onClick = a.onShowPhantomGate,
+                modifier = Modifier.testTag("play-steam"), onClick = { ChildProcessSetup.request?.invoke() ?: a.onShowPhantomGate() },
             ) else PrimaryButton(stringResource(R.string.games_play_steam), enabled = !s.busy, main = true, large = true, icon = Icons.Filled.PlayArrow, modifier = Modifier.testTag("play-steam"), onClick = click)
         },
         rows = { tab -> a.modeSheet(mode, tab, extras) },
