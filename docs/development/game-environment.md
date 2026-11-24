@@ -221,6 +221,12 @@ more, so its fix removes both variables, also from its launch options, and sets
 `vk_x11_strict_image_count=true`, the option Mesa's driconf gives the game. A
 per-game value in the environment editor still wins.
 
+Dragon Quest Monsters 4 does not draw slime bodies at its default monster mesh
+detail, leaving only their tips. Before each launch, DroidDeck sets
+`r.SkeletalMeshLODBias=-4` and `r.SkeletalMeshLODRadiusScale=0.25` under
+`[SystemSettings]` in the game's `Engine.ini`. It does this every time because the
+game ignores `-ini:` overrides and deletes a writable `Engine.ini` after reading it.
+
 ## Defaults and available suggestions
 
 The initial configuration enables Mesa shader caching with

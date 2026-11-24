@@ -11,4 +11,10 @@ class DeviceSupportTest {
         // A PowerVR HAL without usable DRM access also reaches this unavailable case.
         assertFalse(DeviceSupport.graphicsAvailable(adreno = false, powerVrReady = false))
     }
+
+    @Test fun bridgeServesEveryNonAdrenoWithoutASystemDriverRoute() {
+        assertTrue(DeviceSupport.bridgeUsable(adreno = false, systemDriverReady = false))
+        assertFalse(DeviceSupport.bridgeUsable(adreno = true, systemDriverReady = false))
+        assertFalse(DeviceSupport.bridgeUsable(adreno = false, systemDriverReady = true))
+    }
 }
