@@ -126,6 +126,8 @@ internal object SheetTab {
     const val LIBRARY = "library"
     const val STEAM = "steam"
     const val FILES = "files"
+    const val DECKY = "decky"
+    const val BOOT_MOVIES = "boot-movies"
 }
 
 internal fun sheetTop(paneH: Float, buttonH: Float, minAbove: Float, ride: Float): Float =

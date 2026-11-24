@@ -48,6 +48,15 @@ class CloudPlanTest {
         assertEquals(listOf("s"), CloudPlan.up(mapOf("s" to Local("c")), mapOf("s" to Remote("c", 9000)), base).same)
     }
 
+    @Test fun aSaveDeletedInTheCloudGoesUpOnlyOnceItChangesLocally() {
+        val base = mapOf("s" to Entry("a", "a", 1000), "t" to Entry("x", "x", 1000))
+        val gone = setOf("s")
+        val idle = CloudPlan.up(mapOf("s" to Local("a"), "t" to Local("y"), "n" to Local("new")), mapOf("t" to Remote("x", 1000)), base, gone)
+        assertEquals(setOf("t", "n"), idle.transfer.toSet())
+        assertEquals(listOf("s"), CloudPlan.up(mapOf("s" to Local("b")), emptyMap(), base, gone).transfer)
+        assertEquals(listOf("s"), CloudPlan.up(mapOf("s" to Local("a")), emptyMap(), base).transfer)
+    }
+
     @Test fun timesAloneDecideWhenTheServiceGivesNoHash() {
         val base = mapOf("s" to Entry("a", null, 1000))
         assertEquals(listOf("s"), CloudPlan.down(mapOf("s" to Local("a")), mapOf("s" to Remote(null, 60_000)), base).transfer)

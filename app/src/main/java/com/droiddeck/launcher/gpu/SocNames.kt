@@ -7,7 +7,8 @@ object SocNames {
         "SM8150" to "Snapdragon 855", "SM8250" to "Snapdragon 865", "SM8250-AC" to "Snapdragon 870",
         "SM8350" to "Snapdragon 888", "SM8450" to "Snapdragon 8 Gen 1", "SM8475" to "Snapdragon 8+ Gen 1",
         "SM8550" to "Snapdragon 8 Gen 2", "QCS8550" to "Snapdragon 8 Gen 2", "SM8650" to "Snapdragon 8 Gen 3",
-        "SM8750" to "Snapdragon 8 Elite", "SM8850" to "Snapdragon 8 Elite Gen 5",
+        "SM8750" to "Snapdragon 8 Elite", "SM8750P" to "Snapdragon 8 Elite",
+        "SM8850" to "Snapdragon 8 Elite Gen 5",
         "SM8975" to "Snapdragon 8 Elite Extreme Gen 6",
         "SM7325" to "Snapdragon 778G", "SM7450" to "Snapdragon 7 Gen 1", "SM7550" to "Snapdragon 7 Gen 3",
         "SM6375" to "Snapdragon 695",
@@ -23,7 +24,8 @@ object SocNames {
         val sdk = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL.takeIf { it != Build.UNKNOWN }.orEmpty() else ""
         return listOf(prop("ro.soc.model"), prop("ro.vendor.qti.soc_model"), sdk, prop("ro.fota.platform"))
             .map { it.trim() }
-            .firstOrNull { it.isNotEmpty() && !Regex("(?i)^msm_\\d").containsMatchIn(it) }.orEmpty()
+            .firstOrNull { it.isNotEmpty() && !it.equals(Build.UNKNOWN, ignoreCase = true) && !Regex("(?i)^msm_\\d").containsMatchIn(it) }
+            .orEmpty()
     }
 
     internal fun normalizedModel(model: String): String = model.trim().uppercase().removePrefix("QTI ").trim()

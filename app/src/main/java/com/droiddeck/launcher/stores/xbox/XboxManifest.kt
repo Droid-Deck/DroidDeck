@@ -21,8 +21,9 @@ internal object XboxManifest {
         val files = folder.listFiles().orEmpty()
         val config = files.filter { it.name.equals(GAME_CONFIG, true) && it.isFile }
         val legacy = files.filter { it.name.equals(APPX_MANIFEST, true) && it.isFile }
-        require(config.size + legacy.size == 1) { "Missing or ambiguous game manifest." }
-        val manifest = (config + legacy).single()
+        val manifests = config.ifEmpty { legacy }
+        require(manifests.size == 1) { "Missing or ambiguous game manifest." }
+        val manifest = manifests.single()
         val rootTag = if (config.isEmpty()) "Package" else "Game"
         require(manifest.length() <= 1_048_576)
         val parser = android.util.Xml.newPullParser().apply { setFeature(XmlPullParser.FEATURE_PROCESS_DOCDECL, false) }

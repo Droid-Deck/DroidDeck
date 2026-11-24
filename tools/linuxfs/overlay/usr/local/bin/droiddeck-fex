@@ -51,7 +51,7 @@ PROVIDED = frozenset((
     "libssl.so.3", "libcrypto.so.3",
     "libfreetype.so.6", "libpng16.so.16", "libbrotlidec.so.1", "libbrotlicommon.so.1", "libbz2.so.1.0", "libz.so.1",
     "libwayland-client.so.0", "libwayland-egl.so.1", "libwayland-server.so.0", "libffi.so.8",
-    "libgbm.so.1", "libdrm.so.2", "libexpat.so.1",
+    "libgbm.so.1", "libdrm.so.2", "libexpat.so.1", "libOpenGL.so.0",
 ))
 PROVIDED_NEEDS = {
     "libwayland-client.so.0": ("libffi.so.8",),
@@ -670,6 +670,8 @@ def guest_environment(fex, env):
     result.setdefault("FEX_SILENTLOG", "0")
     result.setdefault("FEX_OUTPUTLOG", "stderr")
     result.pop("GLIBC_TUNABLES", None)
+    if "aarch64" in result.get("GCONV_PATH", ""):
+        result["GCONV_PATH"] = ""
     result.setdefault("GC_DISABLE_INCREMENTAL", "1")
     if fex["portable"]:
         result["FEX_PORTABLE"] = "1"
@@ -849,8 +851,12 @@ def extract(image):
     clear_extracted()
     x86 = elf_arch(image) in X86.values()
     if os.access(URUNTIME, os.X_OK):
-        run = subprocess.run([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                             env=dict(os.environ, TARGET_APPIMAGE=image))
+        with open(image, "rb") as source:
+            native = bool(os.environ.get("DDNATV_ROOT"))
+            target = "/proc/self/fd/%d" % source.fileno() if native else image
+            run = subprocess.run([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                 env=dict(os.environ, TARGET_APPIMAGE=target),
+                                 pass_fds=(source.fileno(),) if native else ())
         errors = run.stderr.decode("utf-8", "replace")
         sys.stderr.write(errors)
         status = run.returncode
@@ -880,7 +886,17 @@ def extract(image):
                 want_fex()
             return 0
         say("unsquashfs could not extract it (status %d)" % status)
-    elif fex is None:
+    seven = shutil.which("7z")
+    if seven:
+        clear_extracted()
+        status = subprocess.call([seven, "x", "-tSquashFS", "-y", "-osquashfs-root", image], stdout=subprocess.DEVNULL)
+        if status == 0 and extracted():
+            if x86:
+                want_fex()
+            return 0
+        say("7-Zip could not extract it (status %d)" % status)
+        clear_extracted()
+    elif fex is None and not unsquashfs:
         say("this AppImage could not be unpacked here: no AppImage runtime for ARM64, no FEX yet and no unsquashfs")
     return 1
 

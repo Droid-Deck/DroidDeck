@@ -28,7 +28,9 @@ object DeviceSupport {
             com.droiddeck.launcher.gpu.GpuInfo.detect().family.name.startsWith("MALI"))
     }
 
-    fun bridgeUsable(): Boolean = !adreno() && !SystemVulkanDriver.isAvailable() && File("/dev/mali0").exists()
+    fun bridgeUsable(): Boolean = bridgeUsable(adreno(), SystemVulkanDriver.isAvailable())
+
+    internal fun bridgeUsable(adreno: Boolean, systemDriverReady: Boolean): Boolean = !adreno && !systemDriverReady
 
     fun openDriverActive(context: Context): Boolean {
         if (adreno()) return false

@@ -1070,6 +1070,7 @@ class SessionService : Service() {
         guest.addAll(GpuStatsComponent.guestEnv(LinuxRuntime.rootDir(this)))
         guest.add("GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216")
         if (SessionState.mode == MODE_STEAM) guest.add("DD_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
+        SessionPaths.current()?.let { SessionArtifacts.markRpcs3Log(it, LinuxRuntime.rootDir(this)) }
         SessionState.steamClientArch = if (steamHere) SessionPrefs.steamClientArch(this) else null
         SessionState.steamClientArch?.let { arch ->
             guest.add("DD_STEAM_CLIENT_ARCH=$arch")
@@ -2705,6 +2706,7 @@ class SessionService : Service() {
             gameId: String? = null,
             displayId: Int = Display.DEFAULT_DISPLAY,
         ) {
+            SteamClientPrefetch.cancel()
             SessionState.activityDisplayId = displayId
             val intent = Intent(context, SessionService::class.java).putExtra(EXTRA_MODE, mode)
                 .putExtra(EXTRA_DISPLAY_ID, displayId)

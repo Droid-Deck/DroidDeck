@@ -23,7 +23,12 @@ object ProtonExtras {
     const val CHECK_EVERY_MS = 60L * 60 * 1000
     @Volatile
     var installInProgress = false
+    @Volatile var prefetching = false
         private set
+    @Volatile private var checkedArchive: Triple<String, Long, Long>? = null
+    @Volatile private var checkedDigest: String? = null
+
+    private fun fingerprint(archive: File) = Triple(archive.path, archive.length(), archive.lastModified())
     @Volatile
     private var replacing = false
 
@@ -217,24 +222,12 @@ object ProtonExtras {
 
     @Synchronized
     fun install(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
-        if (installInProgress) return context.getString(R.string.pextra_busy)
+        if (installInProgress || prefetching) return context.getString(R.string.pextra_busy)
         installInProgress = true
         return try { installNow(context, tool, onProgress) } finally { installInProgress = false }
     }
 
-    private fun installNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
-        if (SessionState.running) return context.getString(R.string.pextra_stop_session)
-        if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
-
-        val asset = releases(tool)?.let { pickAsset(tool, it) } ?: return context.getString(R.string.pextra_no_release, tool.name)
-        val downloads = File(context.filesDir, "proton-downloads").apply { mkdirs() }
-        val archive = File(downloads, "${tool.id}-${asset.name}")
-        if (asset.size > 0 && archive.length() > asset.size) archive.delete()
-        val missing = (asset.size - archive.length()).coerceAtLeast(0L)
-        if (StatFs(LinuxRuntime.rootDir(context).path).availableBytes < NEED_BYTES + missing) {
-            return context.getString(R.string.pextra_no_space, tool.name)
-        }
-
+    private fun fetchArchive(context: Context, tool: Tool, asset: Asset, archive: File, onProgress: (String, Int) -> Unit): String? {
         val downloading = context.getString(R.string.pextra_downloading, tool.name, asset.tag)
         onProgress(downloading, 0)
         var downloaded = false
@@ -252,6 +245,46 @@ object ProtonExtras {
             }
         }
         if (!downloaded) return context.getString(R.string.pextra_download_failed)
+        return null
+    }
+
+    /** Downloads the newest build of [tool] ahead of the runtime it installs into; [install] verifies and unpacks it later. */
+    @Synchronized
+    fun prefetch(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
+        if (installInProgress) return context.getString(R.string.pextra_busy)
+        prefetching = true
+        try { return prefetchNow(context, tool, onProgress) } finally { prefetching = false }
+    }
+
+    private fun prefetchNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
+        val asset = releases(tool)?.let { pickAsset(tool, it) } ?: return context.getString(R.string.pextra_no_release, tool.name)
+        val downloads = File(context.filesDir, "proton-downloads").apply { mkdirs() }
+        val archive = File(downloads, "${tool.id}-${asset.name}")
+        if (asset.size > 0 && archive.length() > asset.size) archive.delete()
+        val missing = (asset.size - archive.length()).coerceAtLeast(0L)
+        if (StatFs(context.filesDir.path).availableBytes < NEED_BYTES + missing) return context.getString(R.string.pextra_no_space, tool.name)
+        val problem = fetchArchive(context, tool, asset, archive, onProgress)
+        checkedArchive = if (problem == null && asset.sha256 != null && asset.size > 0 && archive.length() == asset.size) fingerprint(archive) else null
+        checkedDigest = if (checkedArchive != null) asset.sha256 else null
+        return problem
+    }
+
+    private fun installNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
+        if (SessionState.running) return context.getString(R.string.pextra_stop_session)
+        if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
+
+        val asset = releases(tool)?.let { pickAsset(tool, it) } ?: return context.getString(R.string.pextra_no_release, tool.name)
+        val downloads = File(context.filesDir, "proton-downloads").apply { mkdirs() }
+        val archive = File(downloads, "${tool.id}-${asset.name}")
+        if (asset.size > 0 && archive.length() > asset.size) archive.delete()
+        val missing = (asset.size - archive.length()).coerceAtLeast(0L)
+        if (StatFs(LinuxRuntime.rootDir(context).path).availableBytes < NEED_BYTES + missing) {
+            return context.getString(R.string.pextra_no_space, tool.name)
+        }
+
+        val checked = asset.sha256 != null && asset.size > 0 && checkedArchive == fingerprint(archive) &&
+            checkedDigest.equals(asset.sha256, ignoreCase = true)
+        if (!checked) fetchArchive(context, tool, asset, archive, onProgress)?.let { return it }
         if (asset.size > 0 && archive.length() != asset.size) {
             if (archive.length() > asset.size) {
                 archive.delete()
@@ -262,6 +295,7 @@ object ProtonExtras {
 
         onProgress(context.getString(R.string.pextra_verifying), -1)
         val verified = when {
+            checked -> true
             asset.sha256 != null -> asset.sha256.equals(Hashes.sha256(archive), ignoreCase = true)
             asset.sha512 != null -> {
                 val expected = Downloader.downloadDirect(asset.sha512)?.let { Regex("(?i)\\b[0-9a-f]{128}\\b").find(it)?.value }

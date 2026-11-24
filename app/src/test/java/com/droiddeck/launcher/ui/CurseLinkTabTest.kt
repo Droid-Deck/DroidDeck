@@ -19,7 +19,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -29,6 +31,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.io.File
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.util.Collections
 
 @RunWith(RobolectricTestRunner::class)
@@ -129,6 +134,88 @@ class CurseLinkTabTest {
     }
 
     @Test
+    fun anInstallHandsCurseForgesSettledListToTheNextReadWithoutARescan() {
+        val target = wow()
+        val link = CurseLink(app)
+        try {
+            link.installed(context, target, 0)
+            assertTrue(link.change(context, target) { CurseForgeApp.install(context, it.inspector, it.guid, "298842") })
+            assertEquals(listOf("298842"), link.installed(context, target, 1).map { it.id })
+            assertEquals(1, methods.count { it == "scanGameInstance" })
+            link.installed(context, target, 2)
+            assertEquals(2, methods.count { it == "scanGameInstance" })
+        } finally {
+            runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
+    fun aFailedInstallLeavesTheNextReadToRescan() {
+        val target = wow()
+        val link = CurseLink(app)
+        try {
+            link.installed(context, target, 0)
+            assertFalse(link.change(context, target) { null })
+            link.installed(context, target, 1)
+            assertEquals(2, methods.count { it == "scanGameInstance" })
+        } finally {
+            runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
+    fun aRefreshAfterAnInstallStillRescans() {
+        val target = wow()
+        val link = CurseLink(app)
+        try {
+            link.installed(context, target, 0)
+            assertTrue(link.change(context, target) { CurseForgeApp.install(context, it.inspector, it.guid, "298842") })
+            link.refresh()
+            link.installed(context, target, 1)
+            assertEquals(2, methods.count { it == "scanGameInstance" })
+        } finally {
+            runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
+    fun aFailedChangeDropsAnEarlierSettledList() {
+        val target = wow()
+        val link = CurseLink(app)
+        try {
+            link.installed(context, target, 0)
+            assertTrue(link.change(context, target) { CurseForgeApp.install(context, it.inspector, it.guid, "298842") })
+            assertFalse(link.change(context, target) { null })
+            link.installed(context, target, 1)
+            assertEquals(2, methods.count { it == "scanGameInstance" })
+        } finally {
+            runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
+    fun anOlderChangeFinishingLastDoesNotReplaceTheNewerList() {
+        val target = wow()
+        tocFolder(target.addOns, "Older", "1")
+        tocFolder(target.addOns, "Newer", "2")
+        val older = CurseForgeApp.Project("1", "11", listOf("Older"), false)
+        val newer = CurseForgeApp.Project("2", "22", listOf("Newer"), false)
+        val link = CurseLink(app)
+        try {
+            link.installed(context, target, 0)
+            assertTrue(link.change(context, target) {
+                assertTrue(link.change(context, target) { listOf(older, newer) })
+                listOf(older)
+            })
+            assertEquals(setOf("1", "2"), CurseLink.lastReported(target).keys)
+            assertEquals(listOf("1", "2"), link.installed(context, target, 1).map { it.id })
+            assertEquals(1, methods.count { it == "scanGameInstance" })
+        } finally {
+            runBlocking { link.close(context).join() }
+        }
+    }
+
+    @Test
     fun aFailedScanKeepsTheLastReportInsteadOfClearingIt() {
         val target = wow()
         val link = CurseLink(app)
@@ -140,6 +227,47 @@ class CurseLinkTabTest {
         } finally {
             runBlocking { link.close(context).join() }
         }
+    }
+
+    private fun tocFolder(addOns: File, name: String, curseId: String) =
+        File(addOns, name).apply { mkdirs(); File(this, "$name.toc").writeText("## X-Curse-Project-ID: $curseId\n") }
+
+    @Test
+    fun anAddonTheManagerDoesNotListIsFoundByItsTocProjectId() {
+        val target = WowAddons.Target("_retail_", temp.newFolder("AddOns"))
+        tocFolder(target.addOns, "Questie", "334372")
+        tocFolder(target.addOns, "Other", "1")
+        assertEquals(listOf("Questie"), curseFolders(target, "334372", emptyList()))
+        assertEquals(listOf("Listed"), curseFolders(target, "334372", listOf("Listed")))
+    }
+
+    @Test
+    fun uninstallingByTocProjectIdDeletesOnlyTheMatchedFolders() {
+        val target = WowAddons.Target("_retail_", temp.newFolder("AddOns"))
+        tocFolder(target.addOns, "Questie", "334372")
+        tocFolder(target.addOns, "Other", "1")
+        deleteAddons(context, target, curseFolders(target, "334372", emptyList()), null)
+        assertEquals(listOf("Other"), WowAddons.installed(target))
+    }
+
+    @Test
+    fun uninstallingALinkedAddonLeavesTheLinkTargetAlone() {
+        val target = WowAddons.Target("_retail_", temp.newFolder("AddOns"))
+        val outside = tocFolder(temp.newFolder("outside"), "Questie", "334372")
+        File(outside, "keep.lua").writeText("keep")
+        Files.createSymbolicLink(File(target.addOns, "Questie").toPath(), outside.toPath())
+        deleteAddons(context, target, curseFolders(target, "334372", emptyList()), null)
+        assertFalse(Files.exists(File(target.addOns, "Questie").toPath(), LinkOption.NOFOLLOW_LINKS))
+        assertEquals("keep", File(outside, "keep.lua").readText())
+        assertTrue(File(outside, "Questie.toc").isFile)
+    }
+
+    @Test
+    fun uninstallingWithNothingToDeleteFails() {
+        val target = WowAddons.Target("_retail_", temp.newFolder("AddOns"))
+        tocFolder(target.addOns, "Other", "1")
+        assertThrows(IOException::class.java) { deleteAddons(context, target, curseFolders(target, "334372", emptyList()), null) }
+        assertEquals(listOf("Other"), WowAddons.installed(target))
     }
 
     @Test
@@ -170,7 +298,7 @@ class CurseLinkTabTest {
         onInstallPackage = {}, onRemovePackage = {}, onRuntime = {}, onFrameGenPick = {},
         onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},
         onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
-        onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
+        
         onSetPhantomProcessLimit = { _, _ -> },
     )
 

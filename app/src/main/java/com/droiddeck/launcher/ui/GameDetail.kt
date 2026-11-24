@@ -1157,7 +1157,7 @@ internal fun AddonRow(item: WowAddons.Installed, wowiUpdate: WowAddonCatalog.Add
                 val message = withContext(Dispatchers.IO) {
                     if (curse != null) {
                         val (project, link) = curse
-                        val done = runCatching { link.call(context, target) { CurseForgeApp.update(context, it.inspector, it.guid, project.id) } }.getOrDefault(false)
+                        val done = runCatching { link.change(context, target) { CurseForgeApp.update(context, it.inspector, it.guid, project.id) } }.getOrDefault(false)
                         WowAddons.changed()
                         if (done) context.getString(R.string.user_apps_updated, name) else context.getString(R.string.stores_dl_failed_reason, name)
                     } else update?.let { installAddon(context, it, target) { pct -> scope.launch { progress = pct } }.first }
