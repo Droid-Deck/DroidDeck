@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
@@ -228,8 +229,14 @@ private fun AgentPageContent(
     }
     val topBar: @Composable () -> Unit = { AgentTopBar(panel, togglePanel, inputModifier, menu) }
     val inlineControls: (@Composable () -> Unit)? = if (inline) ({
-        ModelChip(panel, togglePanel, inputModifier, compact = true)
-        ContextRing("agent-usage", onClick = { togglePanel(AgentPanel.USAGE) })
+        // The open menu needs the row's width for its own buttons.
+        androidx.compose.animation.AnimatedVisibility(!menuOpen, enter = expandHorizontally(expandFrom = Alignment.Start) + fadeIn(),
+            exit = shrinkHorizontally(shrinkTowards = Alignment.Start) + fadeOut()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ModelChip(panel, togglePanel, inputModifier, compact = true)
+                ContextRing("agent-usage", onClick = { togglePanel(AgentPanel.USAGE) })
+            }
+        }
         menu()
     }) else null
     // A host with a title bar shows the top bar there.
@@ -245,8 +252,11 @@ private fun AgentPageContent(
     LaunchedEffect(AgentHost.approvals.size, panel) {
         if (AgentHost.approvals.isNotEmpty() && (panel == AgentPanel.HISTORY || panel == AgentPanel.PROCESSES || panel == AgentPanel.TOOLS)) panel = AgentPanel.NONE
     }
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize()) {
+    // On a short page the picker would take it all and leave no conversation, so it scrolls within a share of the page.
+    val panelMax = maxHeight * 0.5f
     Column(
-        modifier.fillMaxSize().imePadding().onPreviewKeyEvent { e ->
+        Modifier.fillMaxSize().imePadding().onPreviewKeyEvent { e ->
             val k = e.nativeKeyEvent
             if (k.keyCode != KeyEvent.KEYCODE_BUTTON_Y || composer.focused) return@onPreviewKeyEvent false
             if (k.action == KeyEvent.ACTION_UP) composer.open()
@@ -269,8 +279,8 @@ private fun AgentPageContent(
             else -> {
                 if (menuSlot == null && !inline) Box(Modifier.padding(bottom = 6.dp)) { topBar() }
                 when (panel) {
-                    AgentPanel.MODEL -> Box(Modifier.padding(bottom = 8.dp)) { AgentModelPicker() }
-                    AgentPanel.USAGE -> Box(Modifier.padding(bottom = 8.dp)) { AgentUsage() }
+                    AgentPanel.MODEL -> Box(Modifier.heightIn(max = panelMax).verticalScroll(rememberScrollState()).padding(bottom = 8.dp)) { AgentModelPicker() }
+                    AgentPanel.USAGE -> Box(Modifier.heightIn(max = panelMax).verticalScroll(rememberScrollState()).padding(bottom = 8.dp)) { AgentUsage() }
                     else -> Unit
                 }
                 val list = rememberLazyListState()
@@ -322,10 +332,11 @@ private fun AgentPageContent(
                     }
                 }
                 androidx.compose.animation.AnimatedVisibility(!hidden, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
-                    AgentComposer(composer, draft, visible && started, inlineControls, onPanel = { panel = it }, onSent = toLatest)
+                    AgentComposer(composer, draft, visible && started, inlineControls, onPanel = { panel = it }, onSent = toLatest, hideAttach = inline && menuOpen)
                 }
             }
         }
+    }
     }
 }
 
@@ -397,10 +408,12 @@ private fun AgentMenu(open: Boolean, onOpen: (Boolean) -> Unit, onPanel: (AgentP
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val working = AgentHost.state == AgentHost.State.WORKING
+    // Closed, the outline sits flush against the lone button.
+    val shape = if (open) Shape16 else Shape12
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.clip(Shape16).background(colors.surface.copy(alpha = if (open) 0.97f else 0.88f))
-            .border(1.dp, pal.line, Shape16).padding(end = 2.dp),
+        modifier = Modifier.clip(shape).background(colors.surface.copy(alpha = if (open) 0.97f else 0.88f))
+            .border(1.dp, pal.line, shape).then(if (open) Modifier.padding(top = 3.dp, bottom = 3.dp, end = 4.dp) else Modifier),
     ) {
         androidx.compose.animation.AnimatedVisibility(open, enter = expandHorizontally(expandFrom = Alignment.End) + fadeIn(),
             exit = shrinkHorizontally(shrinkTowards = Alignment.End) + fadeOut()) {
@@ -423,7 +436,7 @@ private fun AgentMenu(open: Boolean, onOpen: (Boolean) -> Unit, onPanel: (AgentP
                 }
             }
         }
-        HeaderAction(Icons.Outlined.MoreHoriz, stringResource(R.string.agent_more), selected = open, size = 36.dp, tag = "agent-menu") { onOpen(!open) }
+        HeaderAction(Icons.Outlined.MoreHoriz, stringResource(R.string.agent_more), selected = open, size = 36.dp, tag = "agent-menu", startPadding = if (open) null else 0.dp) { onOpen(!open) }
     }
 }
 
@@ -437,12 +450,13 @@ private fun AgentPanelBar(title: String, onClose: () -> Unit) {
 
 @Composable
 internal fun HeaderAction(
-    icon: ImageVector, label: String, enabled: Boolean = true, selected: Boolean = false, tag: String? = null, size: Dp = 44.dp, onClick: () -> Unit,
+    icon: ImageVector, label: String, enabled: Boolean = true, selected: Boolean = false, tag: String? = null, size: Dp = 44.dp,
+    startPadding: Dp? = null, onClick: () -> Unit,
 ) {
     val pal = LocalPalette.current
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.padding(start = if (size < 44.dp) 4.dp else 8.dp).size(size).clip(Shape12)
+        modifier = Modifier.padding(start = startPadding ?: if (size < 44.dp) 4.dp else 8.dp).size(size).clip(Shape12)
             .background(if (selected) pal.primary.copy(alpha = 0.2f) else pal.surfaceVariant)
             .clickable(enabled = enabled, onClick = onClick)
             .then(if (tag != null) Modifier.testTag(tag) else Modifier),
@@ -715,7 +729,7 @@ internal fun liveUsed(limit: AgentHost.Limit) = if (limit.resetsAt > 0 && limit.
 @Composable
 private fun AgentComposer(
     composer: ComposerState, draftState: MutableState<String>, visible: Boolean, controls: (@Composable () -> Unit)?,
-    onPanel: (AgentPanel) -> Unit, onSent: () -> Unit,
+    onPanel: (AgentPanel) -> Unit, onSent: () -> Unit, hideAttach: Boolean = false,
 ) {
     val context = LocalContext.current
     var draft by draftState
@@ -747,13 +761,13 @@ private fun AgentComposer(
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 8.dp).fillMaxWidth().horizontalScroll(rememberScrollState()),
         ) { AgentActivity(labOpen) { labOpen = !labOpen } }
-        AgentEditor(composer, draftState, visible, controls, send)
+        AgentEditor(composer, draftState, visible, controls, send, hideAttach)
     }
 }
 
 /** The text with attach, stop and send beside it, and [controls] while the text is not being typed in. */
 @Composable
-private fun AgentEditor(composer: ComposerState, draftState: MutableState<String>, visible: Boolean, controls: (@Composable () -> Unit)?, send: () -> Unit) {
+private fun AgentEditor(composer: ComposerState, draftState: MutableState<String>, visible: Boolean, controls: (@Composable () -> Unit)?, send: () -> Unit, hideAttach: Boolean = false) {
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -852,14 +866,14 @@ private fun AgentEditor(composer: ComposerState, draftState: MutableState<String
         if (stacked) Column {
             text(Modifier.fillMaxWidth())
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                if (attach) AttachButton()
-                if (AgentAttachments.gameFrame != null) GameFrameButton()
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).height(42.dp)) { if (controls != null && !focused) controls() }
+                AnimatedVisibility(attach && !hideAttach, enter = expandHorizontally() + fadeIn(), exit = shrinkHorizontally() + fadeOut()) { AttachButton() }
+                AnimatedVisibility(AgentAttachments.gameFrame != null && !hideAttach, enter = expandHorizontally() + fadeIn(), exit = shrinkHorizontally() + fadeOut()) { GameFrameButton() }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).height(42.dp).horizontalScroll(rememberScrollState(), reverseScrolling = true)) { if (controls != null && !focused) controls() }
                 actions()
             }
         } else Row(verticalAlignment = Alignment.Bottom) {
-            if (attach) AttachButton()
-            if (AgentAttachments.gameFrame != null) GameFrameButton()
+            AnimatedVisibility(attach && !hideAttach, enter = expandHorizontally() + fadeIn(), exit = shrinkHorizontally() + fadeOut()) { AttachButton() }
+            AnimatedVisibility(AgentAttachments.gameFrame != null && !hideAttach, enter = expandHorizontally() + fadeIn(), exit = shrinkHorizontally() + fadeOut()) { GameFrameButton() }
             text(Modifier.weight(1f))
             if (controls != null && !focused) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(42.dp)) { controls() }
             actions()

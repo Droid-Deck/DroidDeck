@@ -36,7 +36,7 @@
     <string name="wall_settings_match" translatable="false">Match screen</string>
     <string name="wall_settings_speed" translatable="false">Scroll speed</string>
     <string-array name="loading_hints">
-        <item>First run downloads Steam. This may take a few minutes.</item>
+        <item>DroidDeck downloads Steam in the background while you set up, so your first launch is quicker.</item>
         <item>Your controller shows up to Steam as a Steam Deck controller. Switch it to a Steam Controller, DualShock 4, DualSense or Xbox 360 pad in the session settings; it applies next session.</item>
         <item>Hold Back on your controller to open Steam\'s Quick Access menu. Hold Back for Steam shortcuts must be on in the session settings.</item>
         <item>Background behavior decides what happens when you leave the app: Native readies Steam for sleep, Auto pauses it, Manual waits for Resume, Never keeps it running.</item>
@@ -704,6 +704,9 @@
     <string name="drawer_prev_page">Previous page</string>
     <string name="drawer_next_page">Next page</string>
     <string name="drawer_manage_pages">Arrange pages</string>
+    <string name="drawer_page_more">More</string>
+    <string name="drawer_more_back">Back to %1$s</string>
+    <string name="drawer_more_empty">Nothing is kept here. Arrange pages and move one below the More row.</string>
     <string name="drawer_pages_reset">Reset</string>
     <string name="drawer_pages_done">Done</string>
     <string name="drawer_hud">Performance HUD</string>
@@ -864,6 +867,7 @@
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
+    <string name="drawer_resize">Resize the menu</string>
     <string name="drawer_second_screen_shows">Shows</string>
     <string name="drawer_android_apps">Android apps</string>
     <string name="drawer_launch_app">Launch an app</string>
@@ -2217,6 +2221,23 @@
     <string name="fm_favorite_removed">Removed \"%1$s\" from Favorites</string>
     <string name="fm_empty_directory">Empty directory</string>
     <string name="fm_up_one_level">Up one level</string>
+    <string name="fm_edit_open">Open</string>
+    <string name="fm_edit_save">Save</string>
+    <string name="fm_edit_read_only">Read only</string>
+    <string name="fm_edit_binary">Binary</string>
+    <string name="fm_edit_modified">Modified</string>
+    <string name="fm_edit_position">Ln %1$d, Col %2$d</string>
+    <string name="fm_edit_find">Find</string>
+    <string name="fm_edit_find_previous">Find previous</string>
+    <string name="fm_edit_find_next">Find next</string>
+    <string name="fm_edit_replace">Replace</string>
+    <string name="fm_edit_replace_all">All</string>
+    <string name="fm_edit_discard_title">Discard changes?</string>
+    <string name="fm_edit_discard_text">Changes to \"%1$s\" will be lost.</string>
+    <string name="fm_edit_discard">Discard</string>
+    <string name="fm_edit_save_failed">Couldn\'t save \"%1$s\"</string>
+    <string name="fm_edit_open_failed">Couldn\'t open \"%1$s\"</string>
+    <string name="fm_edit_too_large">Too large to open (%1$s)</string>
     <string name="fm_choose_folder">Choose a folder</string>
     <string name="fm_choose_file">Choose a file</string>
     <string name="ctrl_tint_steam_blue">Steam blue</string>
@@ -4132,6 +4153,8 @@
     <string name="integration_wifi_denied">Location denied · allow it in App info</string>
     <string name="integration_brightness_hint">Steam’s slider sets screen brightness</string>
     <string name="integration_home_hint">Home opens the Steam menu in a session</string>
+    <string name="integration_bluetooth">Bluetooth controllers</string>
+    <string name="integration_bluetooth_hint">Lets DroidDeck connect to Steam Controllers and other Bluetooth pads</string>
     <string name="integration_shortcuts_hint">Alt+Tab, Win key and Home button stay in the session</string>
     <string name="integration_shortcuts_maybe_restricted">Greyed out in Android? App info → ⋮ → Allow restricted settings</string>
     <string name="integration_shortcuts_install_failed">System keys didn\'t install</string>
@@ -4405,4 +4428,19 @@
     <string name="tabs_reset_title">Reset tabs</string>
     <string name="tabs_reset_hint">Steam, Desktop, Library, Downloads, Settings and Updates on the bar, the rest under More.</string>
     <string name="tabs_reset_body">Your tab order and what sits under More or is hidden go back to the defaults.</string>
+    <string name="onboarding_title">Getting DroidDeck ready</string>
+    <string name="onboarding_summary">%1$d%% · you can keep using the app</string>
+    <string name="onboarding_step_runtime">Linux runtime</string>
+    <string name="onboarding_step_proton">DroidDeck Proton</string>
+    <string name="onboarding_step_steam">Steam client</string>
+    <string name="onboarding_waiting">Waiting</string>
+    <string name="onboarding_done">Ready</string>
+    <string name="onboarding_failed">Will retry</string>
+    <string name="onboarding_steam_downloading">Downloading the Steam client</string>
+    <string name="onboarding_steam_downloading_mb">Downloading the Steam client (%1$d MB)</string>
+    <string name="onboarding_steam_failed">The Steam client download will retry</string>
+    <string name="onboarding_limit_reason">Android can close Steam’s helper processes. Turn that off now, while the downloads run, and Play is ready the moment they finish.</string>
+    <string name="onboarding_limit_action">Do it for me</string>
+    <string name="onboarding_limit_while_waiting">Set up while you wait</string>
+    <string name="onboarding_chip">Getting ready · %1$d%% · %2$s</string>
 </resources>

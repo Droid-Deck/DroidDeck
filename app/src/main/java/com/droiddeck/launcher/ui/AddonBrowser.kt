@@ -110,6 +110,9 @@ internal class CurseLink(val app: UserApps.App) {
     private val guids = HashMap<String, String>()
     private val scanLock = Object()
     private val scans = HashMap<String, Pair<Any, List<CurseForgeApp.Project>>>()
+    private val settleLock = Object()
+    private val settled = HashMap<String, Pair<Int, List<CurseForgeApp.Project>>>()
+    private val turns = HashMap<String, Int>()
     var generation by mutableIntStateOf(0)
         private set
 
@@ -120,7 +123,7 @@ internal class CurseLink(val app: UserApps.App) {
     fun installed(context: Context, target: WowAddons.Target, key: Any): List<CurseForgeApp.Project> = CurseForgeApp.onDisk(
         synchronized(scanLock) {
             scans[target.addOns.path]?.takeIf { it.first == key }?.second
-                ?: call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid, rescan = true) }.also {
+                ?: (settledFor(target) ?: call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid, rescan = true) }).also {
                     scans[target.addOns.path] = key to it
                     report(target, it)
                 }
@@ -130,6 +133,26 @@ internal class CurseLink(val app: UserApps.App) {
 
     fun marks(context: Context, target: WowAddons.Target, key: Any): Map<String, String?> =
         runCatching { installed(context, target, key).associate { it.id to curseMark(it) } }.getOrElse { lastReported(target) }
+
+    private fun settledFor(target: WowAddons.Target): List<CurseForgeApp.Project>? = synchronized(settleLock) {
+        settled.remove(target.addOns.path)?.takeIf { it.first == generation }?.second
+    }
+
+    fun change(context: Context, target: WowAddons.Target, launch: Boolean = true, block: (Linked) -> List<CurseForgeApp.Project>?): Boolean {
+        val path = target.addOns.path
+        val turn = synchronized(settleLock) {
+            settled.remove(path)
+            ((turns[path] ?: 0) + 1).also { turns[path] = it }
+        }
+        val projects = call(context, target, launch, block) ?: return false
+        synchronized(settleLock) {
+            if (turns[path] == turn) {
+                settled[path] = generation to projects
+                report(target, projects)
+            }
+        }
+        return true
+    }
 
     fun <T> call(context: Context, target: WowAddons.Target, launch: Boolean = true, block: (Linked) -> T): T {
         val linked = synchronized(lock) { link(context, target, launch) }
@@ -174,11 +197,9 @@ internal class CurseLink(val app: UserApps.App) {
         return Linked(url, guid)
     }
 
-    fun uninstall(context: Context, target: WowAddons.Target, folder: String): Boolean = call(context, target, launch = false) { linked ->
+    fun uninstall(context: Context, target: WowAddons.Target, folder: String): Boolean = change(context, target, launch = false) { linked ->
         val projects = CurseForgeApp.onDisk(CurseForgeApp.projects(context, linked.inspector, linked.guid), target.addOns)
-        val project = CurseForgeApp.owner(projects, folder) ?: return@call false
-        if (!CurseForgeApp.uninstall(context, linked.inspector, linked.guid, project)) throw CurseState()
-        true
+        CurseForgeApp.owner(projects, folder)?.let { CurseForgeApp.uninstall(context, linked.inspector, linked.guid, it) ?: throw CurseState() }
     }
 
     internal val stopped: Job get() = work
@@ -322,7 +343,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
             scope.launch {
                 val done = withContext(Dispatchers.IO) {
                     runCatching {
-                        via.call(context, into) {
+                        via.change(context, into) {
                             if (updating) CurseForgeApp.update(context, it.inspector, it.guid, addon.id)
                             else CurseForgeApp.install(context, it.inspector, it.guid, addon.id)
                         }

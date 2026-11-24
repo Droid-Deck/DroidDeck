@@ -1,0 +1,106 @@
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Passthrough.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Passthrough.cpp
+index 4c3be85..e287cd2 100644
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Passthrough.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Passthrough.cpp
+@@ -209,6 +209,13 @@ uint64_t SyscallPassthrough7(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1,
+ }
+ #endif
+ 
++template<int syscall_num>
++requires (syscall_num != -1)
++uint64_t SyscallPathPassthrough0(FEXCore::Core::CpuStateFrame* Frame) {
++  uint64_t Result = ::syscall(syscall_num);
++  SYSCALL_ERRNO();
++}
++
+ template<int syscall_num>
+ requires (syscall_num != -1)
+ uint64_t SyscallPathPassthrough1(FEXCore::Core::CpuStateFrame* Frame, uint64_t arg1) {
+@@ -278,29 +285,29 @@ static void RegisterCommon(FEX::HLE::SyscallHandler* Handler) {
+   REGISTER_SYSCALL_IMPL(chdir, SyscallPathPassthrough1<SYSCALL_DEF(chdir)>);
+   REGISTER_SYSCALL_IMPL(fchdir, SyscallPassthrough1<SYSCALL_DEF(fchdir)>);
+   REGISTER_SYSCALL_IMPL(fchmod, SyscallPassthrough2<SYSCALL_DEF(fchmod)>);
+-  REGISTER_SYSCALL_IMPL(fchown, SyscallPassthrough3<SYSCALL_DEF(fchown)>);
++  REGISTER_SYSCALL_IMPL(fchown, SyscallPathPassthrough3<SYSCALL_DEF(fchown)>);
+   REGISTER_SYSCALL_IMPL(umask, SyscallPassthrough1<SYSCALL_DEF(umask)>);
+-  REGISTER_SYSCALL_IMPL(getuid, SyscallPassthrough0<SYSCALL_DEF(getuid)>);
++  REGISTER_SYSCALL_IMPL(getuid, SyscallPathPassthrough0<SYSCALL_DEF(getuid)>);
+   REGISTER_SYSCALL_IMPL(syslog, SyscallPassthrough3<SYSCALL_DEF(syslog)>);
+-  REGISTER_SYSCALL_IMPL(getgid, SyscallPassthrough0<SYSCALL_DEF(getgid)>);
+-  REGISTER_SYSCALL_IMPL(setuid, SyscallPassthrough1<SYSCALL_DEF(setuid)>);
+-  REGISTER_SYSCALL_IMPL(setgid, SyscallPassthrough1<SYSCALL_DEF(setgid)>);
+-  REGISTER_SYSCALL_IMPL(geteuid, SyscallPassthrough0<SYSCALL_DEF(geteuid)>);
+-  REGISTER_SYSCALL_IMPL(getegid, SyscallPassthrough0<SYSCALL_DEF(getegid)>);
++  REGISTER_SYSCALL_IMPL(getgid, SyscallPathPassthrough0<SYSCALL_DEF(getgid)>);
++  REGISTER_SYSCALL_IMPL(setuid, SyscallPathPassthrough1<SYSCALL_DEF(setuid)>);
++  REGISTER_SYSCALL_IMPL(setgid, SyscallPathPassthrough1<SYSCALL_DEF(setgid)>);
++  REGISTER_SYSCALL_IMPL(geteuid, SyscallPathPassthrough0<SYSCALL_DEF(geteuid)>);
++  REGISTER_SYSCALL_IMPL(getegid, SyscallPathPassthrough0<SYSCALL_DEF(getegid)>);
+   REGISTER_SYSCALL_IMPL(setpgid, SyscallPassthrough2<SYSCALL_DEF(setpgid)>);
+   REGISTER_SYSCALL_IMPL(getppid, SyscallPassthrough0<SYSCALL_DEF(getppid)>);
+   REGISTER_SYSCALL_IMPL(setsid, SyscallPassthrough0<SYSCALL_DEF(setsid)>);
+-  REGISTER_SYSCALL_IMPL(setreuid, SyscallPassthrough2<SYSCALL_DEF(setreuid)>);
+-  REGISTER_SYSCALL_IMPL(setregid, SyscallPassthrough2<SYSCALL_DEF(setregid)>);
+-  REGISTER_SYSCALL_IMPL(getgroups, SyscallPassthrough2<SYSCALL_DEF(getgroups)>);
+-  REGISTER_SYSCALL_IMPL(setgroups, SyscallPassthrough2<SYSCALL_DEF(setgroups)>);
+-  REGISTER_SYSCALL_IMPL(setresuid, SyscallPassthrough3<SYSCALL_DEF(setresuid)>);
+-  REGISTER_SYSCALL_IMPL(getresuid, SyscallPassthrough3<SYSCALL_DEF(getresuid)>);
+-  REGISTER_SYSCALL_IMPL(setresgid, SyscallPassthrough3<SYSCALL_DEF(setresgid)>);
+-  REGISTER_SYSCALL_IMPL(getresgid, SyscallPassthrough3<SYSCALL_DEF(getresgid)>);
++  REGISTER_SYSCALL_IMPL(setreuid, SyscallPathPassthrough2<SYSCALL_DEF(setreuid)>);
++  REGISTER_SYSCALL_IMPL(setregid, SyscallPathPassthrough2<SYSCALL_DEF(setregid)>);
++  REGISTER_SYSCALL_IMPL(getgroups, SyscallPathPassthrough2<SYSCALL_DEF(getgroups)>);
++  REGISTER_SYSCALL_IMPL(setgroups, SyscallPathPassthrough2<SYSCALL_DEF(setgroups)>);
++  REGISTER_SYSCALL_IMPL(setresuid, SyscallPathPassthrough3<SYSCALL_DEF(setresuid)>);
++  REGISTER_SYSCALL_IMPL(getresuid, SyscallPathPassthrough3<SYSCALL_DEF(getresuid)>);
++  REGISTER_SYSCALL_IMPL(setresgid, SyscallPathPassthrough3<SYSCALL_DEF(setresgid)>);
++  REGISTER_SYSCALL_IMPL(getresgid, SyscallPathPassthrough3<SYSCALL_DEF(getresgid)>);
+   REGISTER_SYSCALL_IMPL(getpgid, SyscallPassthrough1<SYSCALL_DEF(getpgid)>);
+-  REGISTER_SYSCALL_IMPL(setfsuid, SyscallPassthrough1<SYSCALL_DEF(setfsuid)>);
+-  REGISTER_SYSCALL_IMPL(setfsgid, SyscallPassthrough1<SYSCALL_DEF(setfsgid)>);
++  REGISTER_SYSCALL_IMPL(setfsuid, SyscallPathPassthrough1<SYSCALL_DEF(setfsuid)>);
++  REGISTER_SYSCALL_IMPL(setfsgid, SyscallPathPassthrough1<SYSCALL_DEF(setfsgid)>);
+   REGISTER_SYSCALL_IMPL(getsid, SyscallPassthrough1<SYSCALL_DEF(getsid)>);
+   REGISTER_SYSCALL_IMPL(capget, SyscallPassthrough2<SYSCALL_DEF(capget)>);
+   REGISTER_SYSCALL_IMPL(capset, SyscallPassthrough2<SYSCALL_DEF(capset)>);
+@@ -537,23 +544,23 @@ namespace x64 {
+ namespace x32 {
+   void RegisterPassthrough(FEX::HLE::SyscallHandler* Handler) {
+     RegisterCommon(Handler);
+-    REGISTER_SYSCALL_IMPL_X32(getuid32, SyscallPassthrough0<SYSCALL_DEF(getuid)>);
+-    REGISTER_SYSCALL_IMPL_X32(getgid32, SyscallPassthrough0<SYSCALL_DEF(getgid)>);
+-    REGISTER_SYSCALL_IMPL_X32(geteuid32, SyscallPassthrough0<SYSCALL_DEF(geteuid)>);
+-    REGISTER_SYSCALL_IMPL_X32(getegid32, SyscallPassthrough0<SYSCALL_DEF(getegid)>);
+-    REGISTER_SYSCALL_IMPL_X32(setreuid32, SyscallPassthrough2<SYSCALL_DEF(setreuid)>);
+-    REGISTER_SYSCALL_IMPL_X32(setregid32, SyscallPassthrough2<SYSCALL_DEF(setregid)>);
+-    REGISTER_SYSCALL_IMPL_X32(getgroups32, SyscallPassthrough2<SYSCALL_DEF(getgroups)>);
+-    REGISTER_SYSCALL_IMPL_X32(setgroups32, SyscallPassthrough2<SYSCALL_DEF(setgroups)>);
+-    REGISTER_SYSCALL_IMPL_X32(fchown32, SyscallPassthrough3<SYSCALL_DEF(fchown)>);
+-    REGISTER_SYSCALL_IMPL_X32(setresuid32, SyscallPassthrough3<SYSCALL_DEF(setresuid)>);
+-    REGISTER_SYSCALL_IMPL_X32(getresuid32, SyscallPassthrough3<SYSCALL_DEF(getresuid)>);
+-    REGISTER_SYSCALL_IMPL_X32(setresgid32, SyscallPassthrough3<SYSCALL_DEF(setresgid)>);
+-    REGISTER_SYSCALL_IMPL_X32(getresgid32, SyscallPassthrough3<SYSCALL_DEF(getresgid)>);
+-    REGISTER_SYSCALL_IMPL_X32(setuid32, SyscallPassthrough1<SYSCALL_DEF(setuid)>);
+-    REGISTER_SYSCALL_IMPL_X32(setgid32, SyscallPassthrough1<SYSCALL_DEF(setgid)>);
+-    REGISTER_SYSCALL_IMPL_X32(setfsuid32, SyscallPassthrough1<SYSCALL_DEF(setfsuid)>);
+-    REGISTER_SYSCALL_IMPL_X32(setfsgid32, SyscallPassthrough1<SYSCALL_DEF(setfsgid)>);
++    REGISTER_SYSCALL_IMPL_X32(getuid32, SyscallPathPassthrough0<SYSCALL_DEF(getuid)>);
++    REGISTER_SYSCALL_IMPL_X32(getgid32, SyscallPathPassthrough0<SYSCALL_DEF(getgid)>);
++    REGISTER_SYSCALL_IMPL_X32(geteuid32, SyscallPathPassthrough0<SYSCALL_DEF(geteuid)>);
++    REGISTER_SYSCALL_IMPL_X32(getegid32, SyscallPathPassthrough0<SYSCALL_DEF(getegid)>);
++    REGISTER_SYSCALL_IMPL_X32(setreuid32, SyscallPathPassthrough2<SYSCALL_DEF(setreuid)>);
++    REGISTER_SYSCALL_IMPL_X32(setregid32, SyscallPathPassthrough2<SYSCALL_DEF(setregid)>);
++    REGISTER_SYSCALL_IMPL_X32(getgroups32, SyscallPathPassthrough2<SYSCALL_DEF(getgroups)>);
++    REGISTER_SYSCALL_IMPL_X32(setgroups32, SyscallPathPassthrough2<SYSCALL_DEF(setgroups)>);
++    REGISTER_SYSCALL_IMPL_X32(fchown32, SyscallPathPassthrough3<SYSCALL_DEF(fchown)>);
++    REGISTER_SYSCALL_IMPL_X32(setresuid32, SyscallPathPassthrough3<SYSCALL_DEF(setresuid)>);
++    REGISTER_SYSCALL_IMPL_X32(getresuid32, SyscallPathPassthrough3<SYSCALL_DEF(getresuid)>);
++    REGISTER_SYSCALL_IMPL_X32(setresgid32, SyscallPathPassthrough3<SYSCALL_DEF(setresgid)>);
++    REGISTER_SYSCALL_IMPL_X32(getresgid32, SyscallPathPassthrough3<SYSCALL_DEF(getresgid)>);
++    REGISTER_SYSCALL_IMPL_X32(setuid32, SyscallPathPassthrough1<SYSCALL_DEF(setuid)>);
++    REGISTER_SYSCALL_IMPL_X32(setgid32, SyscallPathPassthrough1<SYSCALL_DEF(setgid)>);
++    REGISTER_SYSCALL_IMPL_X32(setfsuid32, SyscallPathPassthrough1<SYSCALL_DEF(setfsuid)>);
++    REGISTER_SYSCALL_IMPL_X32(setfsgid32, SyscallPathPassthrough1<SYSCALL_DEF(setfsgid)>);
+     REGISTER_SYSCALL_IMPL_X32(sendfile64, SyscallPassthrough4<SYSCALL_DEF(sendfile)>);
+     REGISTER_SYSCALL_IMPL_X32(clock_gettime64, SyscallPassthrough2<SYSCALL_DEF(clock_gettime)>);
+     REGISTER_SYSCALL_IMPL_X32(clock_settime64, SyscallPassthrough2<SYSCALL_DEF(clock_settime)>);

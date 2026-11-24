@@ -16,6 +16,8 @@ initialize_native_resolution = MODULE['initialize_native_resolution']
 NATIVE_RESOLUTION = MODULE['NATIVE_RESOLUTION']
 seed_no_screensaver_in_game = MODULE['seed_no_screensaver_in_game']
 initialize_screensaver = MODULE['initialize_screensaver']
+seed_bouncing_logo = MODULE['seed_bouncing_logo']
+initialize_screensaver_choice = MODULE['initialize_screensaver_choice']
 
 
 class SteamUiScaleTest(unittest.TestCase):
@@ -181,6 +183,16 @@ class SteamScreensaverTest(unittest.TestCase):
         self.assertEqual('steam-bouncinglogo', screensaver.get('CurrentScreensaver'))
         self.assertEqual('0', screensaver.get('WhileInGame'))
         self.assertIn('\t\t\t"WhileInGame"\t\t"0"\n\t\t}\n', updated)
+
+    def test_fresh_client_gets_the_bouncing_logo(self):
+        self.assertTrue(initialize_screensaver_choice(self.root))
+        screensaver = parse(self.config.read_text()).get('InstallConfigStore').get('Customization').get('Screensaver')
+        self.assertEqual('steam-bouncinglogo', screensaver.get('CurrentScreensaver'))
+        self.assertTrue(self.config.with_name('droiddeck-screensaver-choice-initialized').exists())
+
+    def test_a_screensaver_already_picked_is_kept(self):
+        text = '"InstallConfigStore" { "Customization" { "Screensaver" { "CurrentScreensaver" "other" } } }'
+        self.assertEqual((text, False), seed_bouncing_logo(text))
 
     def test_users_choice_is_kept(self):
         text = '"InstallConfigStore" { "Customization" { "Screensaver" { "WhileInGame" "1" } } }'
