@@ -113,6 +113,16 @@ class HomeTaskTest {
         assertEquals(link.data, route.frontEnd.data)
     }
 
+    @Test fun aForwardedContentLinkPassesItsReadGrantOn() {
+        val file = Uri.parse("content://com.example.files/game.ddgame")
+        val forward = HomeRoute.forward(context, Intent(Intent.ACTION_VIEW, file, context, FrontEndActivity::class.java))
+        assertEquals(file, forward.clipData?.getItemAt(0)?.uri)
+        assertTrue(forward.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+        val link = HomeRoute.forward(context, Intent(Intent.ACTION_VIEW, Uri.parse("droiddeck://game/42")))
+        assertNull(link.clipData)
+        assertEquals(0, link.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+
     @Test fun theAppIconOnlyBringsTheHomeFrontEndForward() {
         val icon = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(ComponentName(context, "com.droiddeck.launcher.MainActivity"))
@@ -144,6 +154,29 @@ class HomeTaskTest {
         assertTrue(activity.isFinishing)
         assertTrue(HomeRoute.isHomeIntent(shadowOf(activity).nextStartedActivity))
         controller.destroy()
+    }
+
+    @Test fun aFrontEndStartedForAResultIsForwardedUnlessItIsTheShortcutPicker() {
+        makeHome()
+        val forResult = Robolectric.buildActivity(FrontEndActivity::class.java, Intent(context, FrontEndActivity::class.java)).get()
+        shadowOf(forResult).setCallingActivity(ComponentName("com.example.other", "com.example.other.Main"))
+        assertTrue(handOff(forResult))
+        assertTrue(HomeRoute.isHomeIntent(shadowOf(forResult).nextStartedActivity))
+        val picker = Robolectric.buildActivity(FrontEndActivity::class.java, Intent(Intent.ACTION_CREATE_SHORTCUT)).get()
+        shadowOf(picker).setCallingActivity(ComponentName("com.example.other", "com.example.other.Main"))
+        assertFalse(handOff(picker))
+        assertFalse(picker.isFinishing)
+    }
+
+    @Test fun aRestoredPlainFrontEndOnlyBringsTheHomeFrontEndForward() {
+        makeHome()
+        val link = Intent(Intent.ACTION_VIEW, Uri.parse("droiddeck://game/42"), context, FrontEndActivity::class.java)
+        val activity = Robolectric.buildActivity(FrontEndActivity::class.java, link).get()
+        assertTrue(handOff(activity, Bundle()))
+        assertTrue(activity.isFinishing)
+        val started = shadowOf(activity).nextStartedActivity
+        assertTrue(HomeRoute.isHomeIntent(started))
+        assertNull(HomeRoute.resolve(context, started).frontEnd.data)
     }
 
     @Test fun aPlainFrontEndStaysPutWhenDroidDeckIsNotHome() {
@@ -208,9 +241,9 @@ class HomeTaskTest {
         context.packageManager.setComponentEnabledSetting(homeEntry, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
     }
 
-    private fun handOff(activity: FrontEndActivity): Boolean =
+    private fun handOff(activity: FrontEndActivity, saved: Bundle? = null): Boolean =
         FrontEndActivity::class.java.getDeclaredMethod("handOff", Bundle::class.java)
-            .apply { isAccessible = true }.invoke(activity, null) as Boolean
+            .apply { isAccessible = true }.invoke(activity, saved) as Boolean
 
     @Suppress("UNCHECKED_CAST")
     private fun navState(activity: FrontEndActivity) =

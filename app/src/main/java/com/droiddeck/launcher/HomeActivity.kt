@@ -1,5 +1,6 @@
 package com.droiddeck.launcher
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -83,6 +84,13 @@ internal object HomeRoute {
             .setPackage(context.packageName)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             .putExtra(EXTRA_FORWARDED, Intent(request))
+            .also { outer ->
+                // Android grants a content link only from the outer intents data or clip, and the forwarding activitys own
+                // grant ends when it finishes: pass the read grant on so the Home front end can still open the file.
+                val uri = request.data?.takeIf { it.scheme == android.content.ContentResolver.SCHEME_CONTENT } ?: return@also
+                outer.clipData = ClipData.newRawUri("DroidDeck", uri)
+                outer.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
 
     private fun forwarded(intent: Intent): Intent? {
         val request = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(EXTRA_FORWARDED, Intent::class.java)

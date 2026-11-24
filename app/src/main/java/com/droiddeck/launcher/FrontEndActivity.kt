@@ -1259,7 +1259,11 @@ open class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.Age
      * the Home task holds the one front end, so a launch that would open a second one hands its intent there.
      */
     protected open fun handOff(savedInstanceState: Bundle?): Boolean {
-        if (savedInstanceState != null || !forwardToHome(intent)) return false
+        // A plain front end restored while DroidDeck is Home (one left from before it became Home) would be a second one as
+        // well: it only brings the Home front end forward, without replaying the request it was first opened with.
+        val request = if (savedInstanceState == null) intent
+            else if (HomeRoute.forwards(intent)) Intent(this, FrontEndActivity::class.java) else return false
+        if (!forwardToHome(request)) return false
         // A plain finish() leaves the emptied task behind as a card on the recents screen.
         if (isTaskRoot) finishAndRemoveTask() else finish()
         @Suppress("DEPRECATION") overridePendingTransition(0, 0)
@@ -1267,7 +1271,9 @@ open class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.Age
     }
 
     private fun forwardToHome(request: Intent): Boolean {
-        if (inHomeTask || callingActivity != null || !HomeRoute.forwards(request) || !HomeRoute.isHomeApp(this)) return false
+        // Only the shortcut picker answers its caller, and forwards() keeps it here; any other launch for a result is handed
+        // on too, so no second front end (and no second save guard) runs beside the Home one.
+        if (inHomeTask || !HomeRoute.forwards(request) || !HomeRoute.isHomeApp(this)) return false
         return try {
             startActivityPlain(HomeRoute.forward(this, request))
             true
