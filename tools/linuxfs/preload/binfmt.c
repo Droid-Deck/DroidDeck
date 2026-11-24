@@ -32,17 +32,26 @@ static int handing_off(void) {
   return flag("DD_DESKTOP") || flag("DD_BINFMT");
 }
 
+static int appimage(int fd, const unsigned char *head, ssize_t n) {
+  Elf64_Ehdr eh;
+  if (n < (ssize_t)sizeof eh || head[EI_CLASS] != ELFCLASS64 || memcmp(head + EI_ABIVERSION, "AI\x02", 3)) return 0;
+  memcpy(&eh, head, sizeof eh);
+  char magic[6];
+  off_t at = (off_t)eh.e_shoff + (off_t)eh.e_shentsize * eh.e_shnum;
+  return pread(fd, magic, sizeof magic, at) == (ssize_t)sizeof magic && (!memcmp(magic, "hsqs", 4) || !memcmp(magic, "DWARFS", 6));
+}
+
 static int foreign(const char *path, int error) {
   if (!path || !strcmp(path, BINFMT_HANDLER)) return 0;
   int fd = open(path, O_RDONLY | O_CLOEXEC);
   if (fd < 0) return 0;
   struct stat st;
-  unsigned char head[20];
+  unsigned char head[sizeof(Elf64_Ehdr)];
   ssize_t n = fstat(fd, &st) == 0 && S_ISREG(st.st_mode) ? read(fd, head, sizeof head) : -1;
   int kind = 0;
   if (n >= 20 && !memcmp(head, ELFMAG, SELFMAG)) {
     unsigned machine = head[EI_DATA] == ELFDATA2MSB ? (unsigned)head[18] << 8 | head[19] : head[18] | (unsigned)head[19] << 8;
-    kind = machine == EM_X86_64 || machine == EM_386 || !memcmp(head + EI_ABIVERSION, "AI\x02", 3) || error == EACCES ? 1 : 0;
+    kind = machine == EM_X86_64 || machine == EM_386 || appimage(fd, head, n) || error == EACCES ? 1 : 0;
   } else if (n >= 2 && head[0] == 'M' && head[1] == 'Z') {
     kind = 2;
   } else if (n >= 2 && head[0] == '#' && head[1] == '!' && error == EACCES) {
