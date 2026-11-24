@@ -10,10 +10,6 @@ base=$(git merge-base "${base_ref}" HEAD)
 changed=()
 while IFS= read -r path; do changed+=("${path}"); done \
     < <({ git diff --name-only "${base}"; git ls-files --others --exclude-standard; } | sort -u)
-if [[ ${#changed[@]} -eq 0 ]]; then
-    echo "Nothing differs from ${base_ref}."
-    exit 0
-fi
 failed=()
 run() {
     local name=$1
@@ -23,6 +19,11 @@ run() {
 }
 
 run "human authorship" python3 tools/release/check_authorship.py "${base}..HEAD"
+if [[ ${#changed[@]} -eq 0 ]]; then
+    [[ ${#failed[@]} -eq 0 ]] || exit 1
+    echo "No files differ from ${base_ref}."
+    exit 0
+fi
 
 behind=$(git rev-list --count "HEAD..${base_ref}")
 if [[ "${behind}" != 0 ]]; then
@@ -40,7 +41,7 @@ tests=() python_tests=()
 for path in "${changed[@]}"; do
     case "${path}" in
         app/src/main/*|app/build.gradle|gradle.properties|gradle/*) app=1 ;;
-        app/src/test/*Test.kt) app=1; tests+=("$(basename "${path}" .kt)") ;;
+        app/src/test/*Test.kt) app=1; [[ ! -f "${path}" ]] || tests+=("$(basename "${path}" .kt)") ;;
     esac
     case "${path}" in
         */SettingsIndex.kt) settings=1 ;;
@@ -50,7 +51,7 @@ for path in "${changed[@]}"; do
             < <(find app/src/test -name "$(basename "${path}" .kt)*Test.kt")
     fi
     if [[ "${path}" == tools/tests/test_*.py ]]; then
-        python_tests+=("${path}")
+        [[ ! -f "${path}" ]] || python_tests+=("${path}")
     elif [[ "${path}" == tools/* && "${path}" != tools/tests/* ]]; then
         while IFS= read -r test; do python_tests+=("${test}"); done \
             < <(grep -lF "${path#tools/}" tools/tests/test_*.py 2>/dev/null || true)
