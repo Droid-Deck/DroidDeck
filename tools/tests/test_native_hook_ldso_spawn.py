@@ -11,6 +11,7 @@ HOOK_BUILD = Path(__file__).resolve().parents[1] / "nativeguest/build.sh"
 GUEST_LDSO = "/usr/lib/ld-linux-aarch64.so.1"
 GUEST_TOOL = "/usr/local/bin/tool"
 BOUND_DIR = "/opt/runtime"
+ANDROID_DIR = "/opt/android"
 HOST_SHELL = "/data/local/tmp/droiddeck-hook-probe-sh"
 
 RECORDER = r"""
@@ -108,7 +109,12 @@ class NativeHookLdsoSpawnTest(unittest.TestCase):
         cls.runtime.mkdir()
         shutil.copy(cls.probe, cls.runtime / "bash")
         (cls.runtime / "bash").chmod(0o755)
-        for name, interpreter in (("bound.sh", f"{BOUND_DIR}/bash"), ("host.sh", HOST_SHELL)):
+        cls.android = tmp / "android"
+        cls.android.mkdir()
+        subprocess.run([cls.cc, "-O1", "-Wl,--dynamic-linker=/system/bin/linker64", "-o", str(cls.android / "sh"),
+                        str(tmp / "probe.c")], check=True)
+        for name, interpreter in (("bound.sh", f"{BOUND_DIR}/bash"), ("host.sh", HOST_SHELL),
+                                  ("android.sh", f"{ANDROID_DIR}/sh")):
             script = cls.root / "opt" / name
             script.parent.mkdir(exist_ok=True)
             script.write_text(f"#!{interpreter}\n")
@@ -183,6 +189,13 @@ class NativeHookLdsoSpawnTest(unittest.TestCase):
             with self.subTest(how=how):
                 call = self.call(how, "/opt/host.sh", "x", binds=f"{self.runtime}:{BOUND_DIR}")
                 self.assertEqual([HOST_SHELL, HOST_SHELL, str(self.root / "opt/host.sh"), "x"], call)
+
+    def test_an_android_interpreter_reached_through_a_bind_stays_on_the_host(self):
+        sh = str(self.android / "sh")
+        for how in ("exec", "spawn"):
+            with self.subTest(how=how):
+                call = self.call(how, "/opt/android.sh", "x", binds=f"{self.android}:{ANDROID_DIR}")
+                self.assertEqual([sh, sh, str(self.root / "opt/android.sh"), "x"], call)
 
 
 if __name__ == "__main__":
