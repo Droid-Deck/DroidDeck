@@ -154,7 +154,7 @@ new file mode 100755
 index 0000000..d43c5fc
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1374 @@
+@@ -0,0 +1,1375 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -1422,7 +1422,8 @@ index 0000000..d43c5fc
 +        std::fs::remove_dir_all(&root).ok();
 +    }
 +
-++    #[test]
++
++    #[test]
 +    fn hoist_still_refuses_to_overwrite_a_game_file_on_a_fresh_install() {
 +        let root = scratch("fresh-collision");
 +        std::fs::write(root.join("Game.exe"), b"other").unwrap();
