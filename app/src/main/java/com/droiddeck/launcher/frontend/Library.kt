@@ -222,16 +222,7 @@ object Library {
 
     internal fun concealedSteamApps(root: File): Set<Long> {
         val config = AddedGames.accountConfig(root) ?: return emptySet()
-        val hidden = runCatching {
-            val entries = org.json.JSONArray(File(config, "cloudstorage/cloud-storage-namespace-1.json").readText())
-            val entry = (0 until entries.length()).map { entries.getJSONArray(it) }
-                .firstOrNull { it.optString(0) == "user-collections.hidden" }?.optJSONObject(1)
-            if (entry == null || entry.optBoolean("is_deleted")) emptySet() else {
-                val collection = org.json.JSONObject(entry.optString("value"))
-                fun ids(key: String) = collection.optJSONArray(key)?.let { a -> (0 until a.length()).map { a.optLong(it) } }.orEmpty()
-                ids("added").toSet() - ids("removed").toSet()
-            }
-        }.getOrDefault(emptySet())
+        val hidden = SteamHidden.read(root)
         val private = runCatching {
             PRIVATE_APPS.find(File(config, "localconfig.vdf").readText())?.groupValues?.get(1)
                 ?.split(',')?.mapNotNull { it.trim().toLongOrNull() }?.toSet()
@@ -302,6 +293,7 @@ object Library {
                 g.steamAppId ?: g.appId.toInt(), g.name, art.portrait ?: art.header, ADDED, g.gameId,
                 hero = art.hero ?: art.header, lastPlayed = maxOf(lastPlayed, recordedPlay(context, g.gameId)), gameFiles = g.folder,
                 protonPrefix = if (g.source == com.droiddeck.launcher.stores.Store.BATTLENET.id) File(com.droiddeck.launcher.runtime.BattleNet.prefix(context), "pfx").takeIf { it.isDirectory }
+                    else if (g.source == com.droiddeck.launcher.stores.Store.UBISOFT.id) File(com.droiddeck.launcher.stores.ubisoft.UbisoftConnect.prefix(context), "pfx").takeIf { it.isDirectory }
                     else protonPrefix(context, g.steamAppId?.toLong() ?: g.appId, libraries = roots),
                 icon = art.icon?.takeIf { it.extension.lowercase() != "ico" },
                 source = g.source, storeId = g.storeId,

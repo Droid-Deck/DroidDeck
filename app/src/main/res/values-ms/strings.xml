@@ -22,7 +22,6 @@
         <item>Tambah pustaka Steam daripada kad SD, pemacu USB atau SSD, dan DroidDeck menyatukan permainan dalam Pustaka anda.</item>
         <item>Kedai membolehkan anda log masuk ke Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io dan Game Jolt, kemudian memasang dan mengemas kini permainan mereka daripada DroidDeck.</item>
         <item>Komponen seperti FEX, DXVK dan VKD3D-Proton mengemas kini sendiri, dan Proton Experimental ARM64 ialah lalai, atau Proton 11.0 ARM64 sebaik sahaja binaan itu dipasang.</item>
-        <item>Mampatkan Steam semasa permainan berjalan membebaskan RAM pada peranti yang kekurangan memori.</item>
         <item>Leret masuk dari tepi kanan untuk membuka menu sesi: mod pad sentuh, Papan kekunci PC, Mod kependaman rendah, profil permainan dan banyak lagi.</item>
         <item>Permainan berjalan perlahan? Hadkan kadar bingkai dalam Akses pantas, kemudian cuba versi Proton atau pratetap FEX lain dalam komponen permainan.</item>
         <item>Bunyi permainan berderak atau tiada? Cuba togol DirectAudio untuk permainan dalam tetapan Steam di bawah Audio.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Program ini dibina untuk PC %1$s dan berjalan melalui FEX, yang belum disediakan lagi. Buka Steam sekali semasa anda log masuk: DroidDeck akan memuat turun FEX dan Steam Linux Runtime yang diperlukan, kemudian ini akan dibuka.</string>
     <string name="session_proot_missing">proot DroidDeck tidak dapat dimuat turun. Semak sambungan dan cuba lagi. Sesi tidak dimulakan kerana proot sandaran terlalu perlahan untuk bermain.</string>
     <string name="session_powervr_missing">Persekitaran grafik PowerVR tidak dapat dimuat turun. Semak sambungan dan cuba lagi.</string>
+    <string name="session_graphics_runtime_failed">Persekitaran grafik tidak dapat disediakan, jadi sesi tidak dimulakan.</string>
+    <string name="session_game_environment_failed">Persekitaran permainan tidak dapat disediakan, jadi sesi tidak dimulakan.</string>
     <string name="session_directaudio_missing">DirectAudio tidak dapat dimuat turun, jadi audio permainan menggunakan laluan yang lebih perlahan untuk sesi ini.</string>
     <string name="session_end_program">Program ini</string>
     <string name="session_end_present_fault">Sesi gagal melukis pada skrin: %1$s. Skrin ini menunjukkan sebabnya, bukannya skrin hitam; butiran ada dalam log sesi.</string>
@@ -280,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Output HDR10</string>
     <string name="mode_hdr_unavailable">Tidak tersedia: %1$s.</string>
-    <string name="mode_hdr_restart">Mulakan semula apl untuk menggunakannya.</string>
     <string name="mode_drivers">Pemacu</string>
     <string name="mode_gpu_drivers">Pemacu GPU</string>
     <string name="mode_gpu_drivers_hint">Dikongsi oleh Steam dan Desktop. Ditetapkan pada halaman Komponen.</string>
@@ -332,7 +332,6 @@
     <string name="mode_startup">Permulaan</string>
     <string name="mode_startup_session">Buka semasa pelancaran</string>
     <string name="mode_startup_session_hint">Memulakan sesi ini apabila DroidDeck dilancarkan.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Menyemak keluaran…</string>
     <string name="mode_decky_ready">Sedia untuk memasang %1$s.</string>
     <string name="mode_decky_none">Tiada binaan serasi ditemui. Cuba lagi kemudian.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Terkini · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Pasang yang terbaharu</string>
-    <string name="decky_channel">Saluran Kemas Kini</string>
-    <string name="decky_channel_hint">Keluaran Decky Loader yang hendak dipasang. Pengemas kini Decky sendiri menggunakan saluran yang sama.</string>
     <string name="decky_channel_stable">Stabil</string>
     <string name="decky_channel_prerelease">Prakeluaran</string>
     <string name="decky_channel_testing">Pengujian</string>
     <string name="decky_channel_failed">Tidak dapat menyimpan saluran kemas kini Decky</string>
-    <string name="mode_decky_on">Bermula bersama Steam. Semasa dihidupkan, apl lain pada peranti ini mungkin boleh mengawal Steam.</string>
-    <string name="mode_decky_off">Mati. Port debug jauh Steam kekal tertutup.</string>
     <string name="mode_decky_remove_title">Nyahpasang Decky Loader?</string>
     <string name="mode_decky_remove_text">Mengalih keluar loader. Plugin dan tetapan anda dikekalkan.</string>
     <string name="mode_client">Klien</string>
@@ -622,20 +617,8 @@
     <string name="perf_gsrealtime">gamescope: baris gilir GPU masa nyata</string>
     <string name="perf_gsrealtime_hint">Mengutamakan kerja GPU compositor. Boleh melicinkan rentak bingkai dengan sedikit kos kepada permainan.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memori</string>
     <string name="perf_cap_off">Mati</string>
-    <string name="perf_cap_auto">Lalai pemacu</string>
-    <string name="perf_zram_client">Mampatkan Steam semasa permainan berjalan</string>
-    <string name="perf_zram_idle">Mampatkan memori permainan terbiar</string>
-    <string name="perf_zram_idle_hint">Mampatkan memori permainan terbiar apabila RAM rendah. Matikan jika permainan membeku beberapa saat lebih kurang setiap setengah minit. Berkuat kuasa apabila sesi dimulakan seterusnya.</string>
-    <string name="perf_zram_client_hint">20 s selepas permainan bermula, klien Steam dimampatkan ke dalam zRAM untuk memberi permainan lebih banyak memori, dan dibaca semula apabila permainan ditutup. Matikan ini jika sesi tertutup sejurus selepas permainan bermula. Had RAM di atas masih memampatkan Steam apabila sesi melebihinya.</string>
-    <string name="perf_ram_cap">Had RAM</string>
-    <string name="perf_ram_cap_hint">Berkuat kuasa semasa klien Steam berjalan, dalam mod Steam atau dari desktop. Apabila sesi menggunakan lebih daripada ini, Steam dan kemudian proses lain sesi yang disokong dimampatkan ke dalam zRAM. Had lembut: tiada apa yang ditutup, tetapi permainan mungkin tersekat-sekat semasa halaman dibaca semula.</string>
-    <string name="perf_ram_cap_unavailable">Memerlukan swap zRAM, yang tiada pada peranti ini.</string>
-    <string name="perf_vram_cap">Had VRAM</string>
-    <string name="perf_vram_cap_hint">Melaporkan bajet memori video ini kepada permainan Direct3D 9 hingga 12 untuk mengurangkan penggunaan memori. Permainan boleh melebihinya; ini tidak menambah paging GPU atau menjamin perlindungan daripada ranap akibat kehabisan memori. Berkuat kuasa pada sesi seterusnya.</string>
     <string name="perf_gpuclock">Kekalkan GPU pada kelajuan tertinggi</string>
-    <string name="perf_gpuclock_hint">Adreno sahaja. Kurang tersekat-sekat, lebih penggunaan bateri dan haba.</string>
     <string name="perf_fixes">Pembetulan sesi</string>
     <string name="perf_sysmem">Turnip: rendering sysmem</string>
     <string name="perf_sysmem_hint">Terpakai pada klien Steam dan permainan. Diperlukan pada Adreno 710/720/722.</string>
@@ -813,7 +796,6 @@
     <string name="drawer_pc_keyboard">Papan kekunci PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Skrin kedua</string>
-    <string name="drawer_second_screen_mode">Mod</string>
     <string name="drawer_second_screen_shows">Memaparkan</string>
     <string name="drawer_android_apps">Apl Android</string>
     <string name="drawer_launch_app">Lancarkan apl</string>
@@ -962,13 +944,15 @@
     <string name="setup_launcher_orientation_auto">Ikut putaran peranti</string>
     <string name="setup_orientation_portrait">Potret</string>
     <string name="setup_session_orientation">Orientasi sesi</string>
-    <string name="setup_session_orientation_hint">Berkuat kuasa pada Steam, permainan, desktop dan editor pengawal. Pratetap resolusi berputar bersama sesi; lebar dan tinggi tersuai kekal seperti yang dimasukkan.</string>
+    <string name="setup_session_orientation_hint">Berkuat kuasa pada Steam, permainan, desktop dan editor pengawal. Pratetap resolusi berputar bersama sesi; apabila satu orientasi mengikuti yang lain, lebar dan tinggi tersuai ditukar supaya sepadan.</string>
     <string name="setup_orientation_auto">Lanskap automatik</string>
     <string name="setup_orientation_landscape">Lanskap</string>
     <string name="setup_orientation_reverse">Lanskap songsang</string>
     <string name="setup_fullscreen">Skrin penuh</string>
     <string name="setup_fullscreen_on">Menyembunyikan bar status dan navigasi Android</string>
     <string name="setup_fullscreen_off">Memaparkan bar status dan navigasi Android</string>
+    <string name="setup_page_swipe">Leret antara halaman</string>
+    <string name="setup_page_swipe_hint">Leret merentasi halaman untuk menukar tab.</string>
     <string name="setup_dual_screen_launcher">Pelancar dwi skrin</string>
     <string name="setup_dual_screen_launcher_hint">Automatik meletakkan bahagian pelancar (Steam, Pustaka, Kedai dan selebihnya) pada skrin kedua terbina dalam peranti genggam. Hidup menggunakan sebarang paparan kedua. Mati mengekalkan pelancar pada satu skrin.</string>
     <string name="setup_dual_screen_sessions">Sesi dwi skrin</string>
@@ -1566,6 +1550,8 @@
     <string name="pip_unavailable">Android tidak dapat membuka gambar dalam gambar.</string>
     <string name="game_more">Lagi</string>
     <string name="game_edit_art">Sunting seni</string>
+    <string name="game_unhide">Alih keluar daripada tersembunyi</string>
+    <string name="game_hide_failed">Tidak dapat menyegerak dengan Steam. Tutup Steam dan cuba lagi.</string>
     <string name="stores_in_steam_label">Dalam Steam</string>
     <string name="game_shortcut">Pintasan</string>
     <string name="game_shortcut_add">Tambah ke skrin utama</string>
@@ -2284,6 +2270,17 @@
     <string name="pextra_checksum_mismatch">Checksum tidak sepadan; muat turun telah dipadam</string>
     <string name="pextra_session_started">Sesi dimulakan semasa muat turun; hentikan dahulu sebelum memasang alat keserasian</string>
     <string name="pextra_installing">Memasang %1$s</string>
+    <string name="xproton_title">Binaan eksperimen</string>
+    <string name="xproton_install_file">Pasang daripada fail</string>
+    <string name="xproton_archive_unsafe">Arkib mengandungi pautan atau laluan tidak selamat</string>
+    <string name="xproton_archive_invalid">Arkib tidak disokong atau tidak sah</string>
+    <string name="xproton_no_space">Ruang kosong tidak mencukupi untuk binaan Proton ini</string>
+    <string name="xproton_unpacking">Membuka pakej Proton (beberapa minit)</string>
+    <string name="xproton_untar_failed">Gagal membuka pakej (tar %1$d)</string>
+    <string name="xproton_no_tree">Arkib tidak mengandungi binaan Proton</string>
+    <string name="xproton_place_failed">Tidak dapat meletakkan binaan Proton</string>
+    <string name="xproton_remove_failed">Tidak dapat mengalih keluar %1$s sepenuhnya</string>
+    <string name="xproton_installed">Proton eksperimen telah dipasang. Pilihnya di Steam → Sifat → Keserasian.</string>
     <string name="pextra_install_failed">Pemasangan %1$s gagal (keluar %2$d)</string>
     <string name="pextra_could_not_install">Tidak dapat memasang %1$s</string>
     <string name="esync_fetching">Mengambil pek droiddeck-esync</string>
@@ -2435,10 +2432,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Paparan sesi</string>
-    <string name="display_resolution">Resolusi</string>
+    <string name="display_zero_copy">Paparan tanpa salinan</string>
+    <string name="display_resolution_landscape">Resolusi landskap</string>
+    <string name="display_resolution_portrait">Resolusi potret</string>
+    <string name="display_follow_landscape">Ikut landskap (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Ikut potret (%1$d×%2$d)</string>
     <string name="display_game_fit">Suaian permainan 16:9</string>
     <string name="display_game_fit_hint">Cara permainan 16:9 disuaikan ke paparan ini. Sesi seterusnya.</string>
     <string name="display_game_fit_unavailable">Pilih Sepadan skrin atau saiz tersuai lebih nipis daripada 16:9.</string>
+    <string name="display_avoid_notch">Elak takuk</string>
+    <string name="display_avoid_notch_hint">Memastikan gambar tidak berada di potongan kamera. Digunakan apabila anda kembali ke sesi.</string>
     <string name="display_preserve">Kekalkan nisbah</string>
     <string name="display_stretch">Regang ke paparan</string>
     <string name="display_image_scaling">Penskalaan imej</string>
@@ -3312,10 +3315,19 @@
     <string name="storage_shared_prefix">Awalan Steam dikongsi</string>
     <string name="storage_shared_prefix_detail">Steam menjalankan pembantu Windowsnya sendiri di sini</string>
     <string name="storage_reset_shared_confirm">Memadamnya (%1$s). Steam mencipta yang baharu apabila memerlukannya lagi.</string>
+    <string name="storage_remove_launcher_confirm">Memadam prefiks Wine dan cache shader apl kedai ini (%1$s), bersama log masuk dan simpanan yang hanya ada di situ. Permainan yang berjalan di dalamnya mendapat prefiks baharu, dan anda mungkin perlu menyediakan apl itu semula. Simpanan awan kekal dalam akaun anda.</string>
+    <string name="storage_system_clearable">%1$s boleh dikosongkan</string>
+    <string name="storage_item_system_caches">Cache Linux dan Steam</string>
+    <string name="storage_item_system_caches_detail">Fail sementara lama, pakej yang dimuat turun dan cache web Steam</string>
+    <string name="storage_cache_temp">Fail sementara lama</string>
+    <string name="storage_cache_packages">Pakej yang dimuat turun</string>
+    <string name="storage_cache_steam_web">Cache web Steam</string>
+    <string name="storage_cache_steam_corrupt">Muat turun Steam yang rosak</string>
+    <string name="storage_cache_detail">Dibuat semula apabila perlu</string>
+    <string name="storage_clear">Kosongkan</string>
     <string name="storage_launcher_prefix">Aplikasi kedai dan permainan yang berjalan dengannya</string>
     <string name="storage_launcher_used_by">Digunakan oleh %1$s</string>
     <string name="storage_shortcut_app">Permainan bukan Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Tidak sepadan dengan mana-mana permainan, jadi ia disimpan</string>
     <string name="storage_remove_selected">Alih keluar yang dipilih · %1$s</string>
     <string name="storage_uninstall_selected">Nyahpasang yang dipilih · %1$s</string>
     <string name="storage_bulk_prefixes">Prefix Wine</string>
@@ -3970,6 +3982,7 @@
     <string name="addons_sort_downloads">Paling banyak dimuat turun</string>
     <string name="addons_category_all">Semua kategori</string>
     <string name="addons_none_found">Tiada addon ditemui</string>
+    <string name="addons_curse_busy">Tutup CurseForge dahulu</string>
     <string name="addons_unreachable">Tidak dapat mencapai %1$s</string>
     <string name="addons_no_file">Tiada fail untuk versi permainan ini</string>
     <string name="input_reset_positions">Tetapkan semula kedudukan</string>
@@ -4059,4 +4072,18 @@
     <string name="display_scaling_integer">Integer</string>
     <string name="display_scaling_fit">Muat</string>
     <string name="drawer_antialiasing">Anti-aliasing</string>
+    <string name="theme_custom">Tersuai</string>
+    <string name="theme_custom_detail">Pilih setiap warna antara muka secara berasingan.</string>
+    <string name="theme_custom_background">Latar belakang</string>
+    <string name="theme_custom_surface">Panel</string>
+    <string name="theme_custom_surface_variant">Panel timbul</string>
+    <string name="theme_custom_line">Pemisah</string>
+    <string name="theme_custom_line2">Sempadan</string>
+    <string name="theme_custom_on_background">Teks utama</string>
+    <string name="theme_custom_on_surface_variant">Teks sekunder</string>
+    <string name="theme_custom_primary">Butang dan aksen utama</string>
+    <string name="theme_custom_on_primary">Teks butang</string>
+    <string name="theme_custom_signal">Sorotan</string>
+    <string name="theme_custom_good">Berjaya</string>
+    <string name="theme_custom_error">Ralat</string>
 </resources>

@@ -27,7 +27,6 @@ internal class SessionSuspendController(
     private val nowNanos: () -> Long = System::nanoTime,
     private val pagedOut: (processes: Int, unacknowledged: Int, residentKb: Long, swapKb: Long, swapBeforeKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _, _ -> },
-    private val readBackAllowed: () -> Boolean = { true },
     private val pagedIn: (processes: Int, swapKb: Long, swapBeforeKb: Long, availableKb: Long, millis: Long) -> Unit =
         { _, _, _, _, _ -> },
 ) {
@@ -278,12 +277,21 @@ internal class SessionSuspendController(
 
     private fun pageOut(records: MutableMap<Pair<Int, Long>, ProcessRecord>, root: Int, helpers: List<Int>) {
         val control = zramControl?.takeIf { it.isFile } ?: return
+        val hold = holdFile(control)
         try {
-            addSnapshot(records, root, helpers)
-            control.writeText("1")
+            hold.writeText(PAGE_OUT_REQUEST)
+            sleep(PAGE_OUT_POLL_MS)
+            pageOut(control, records, root, helpers)
         } catch (_: IOException) {
-            return
+        } finally {
+            hold.delete()
         }
+    }
+
+    private fun holdFile(control: File) = File(control.parentFile, "${control.name}.hold")
+
+    private fun pageOut(control: File, records: MutableMap<Pair<Int, Long>, ProcessRecord>, root: Int, helpers: List<Int>) {
+        addSnapshot(records, root, helpers)
         val targets = records.values.filter { record ->
             try {
                 File(procRoot, "${record.pid}/maps").useLines { lines -> lines.any { it.endsWith("/libddsession.so") } }
@@ -301,14 +309,20 @@ internal class SessionSuspendController(
         val waiting = targets.toMutableList()
         while (!closing && !cancelled && nowMillis() - start < PAGE_OUT_TIMEOUT_MS) {
             val started = nowMillis() - start >= PAGE_OUT_START_MS
-            waiting.removeAll { val ack = acks.getValue(it); ack.length() > 0 || (started && !ack.exists()) || isGone(it) }
+            waiting.removeAll { val ack = acks.getValue(it); pagedOut(ack) || (started && !ack.exists()) || isGone(it) }
             if (waiting.isEmpty()) break
             sleep(PAGE_OUT_POLL_MS)
         }
-        val unacknowledged = targets.count { acks.getValue(it).length() == 0L && !isGone(it) }
+        val unacknowledged = targets.count { !pagedOut(acks.getValue(it)) && !isGone(it) }
         acks.values.forEach { it.delete() }
         val after = memoryKb(targets)
         pagedOut(targets.size, unacknowledged, after.first, after.second, before.second, nowMillis() - start)
+    }
+
+    private fun pagedOut(ack: File): Boolean = try {
+        ack.readText().trim() == PAGE_OUT_ACK
+    } catch (_: IOException) {
+        false
     }
 
     private fun readBack() {
@@ -318,13 +332,15 @@ internal class SessionSuspendController(
         if (targets.isEmpty() || closing) return
         val before = memoryKb(targets).second
         val (total, available) = meminfoKb()
-        if (!readBackAllowed() || !canTake(before, total, available)) {
+        if (!canTake(before, total, available)) {
             pagedIn(0, before, before, available, 0)
             return
         }
+        val hold = holdFile(control)
         try {
-            control.writeText("0")
+            hold.writeText(READ_BACK_REQUEST)
         } catch (_: IOException) {
+            hold.delete()
             return
         }
         val start = nowMillis()
@@ -341,6 +357,8 @@ internal class SessionSuspendController(
             }
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
+        } finally {
+            hold.delete()
         }
         pagedIn(targets.size, swap, before, available, nowMillis() - start)
     }
@@ -456,6 +474,9 @@ internal class SessionSuspendController(
         const val SIGSTOP = 19
         const val SIGCONT = 18
         const val SIGURG = 23
+        const val PAGE_OUT_ACK = "1"
+        const val PAGE_OUT_REQUEST = "1"
+        const val READ_BACK_REQUEST = "0"
         const val PAGE_OUT_POLL_MS = 100L
         const val PAGE_OUT_START_MS = 2_000L
         const val PAGE_OUT_TIMEOUT_MS = 12_000L

@@ -1,0 +1,23 @@
+Fixed-upstream: FEX-2612
+diff --git a/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp b/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
+index c2b1d8e287..fcdf261484 100644
+--- a/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
++++ b/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
+@@ -285,6 +285,8 @@ DEF_OP(CondJump) {
+ DEF_OP(Syscall) {
+   SpillStaticRegs(TMP1);
+ 
++  ResetStack();
++
+   // Jump to the syscall dispatch handler. We won't return after this.
+   ldr(TMP1, STATE, offsetof(FEXCore::Core::CpuStateFrame, Pointers.ThreadDispatchSyscallHandler));
+   br(TMP1);
+@@ -376,6 +378,8 @@ DEF_OP(ThreadRemoveCodeEntry) {
+ 
+   SpillStaticRegs(TMP1);
+ 
++  ResetStack();
++
+   // Store the new RIP to go to.
+   str(GetReg(Op->NewRIP).X(), STATE, offsetof(FEXCore::Core::CpuStateFrame, State.rip));
+ 

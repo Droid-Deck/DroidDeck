@@ -22,7 +22,6 @@
         <item>Добавяйте библиотеки на Steam от SD карта, USB устройство или SSD, а DroidDeck държи игрите заедно в Библиотека.</item>
         <item>Магазини ви позволява да влезете в Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io и Game Jolt, а после да инсталирате и обновявате техните игри от DroidDeck.</item>
         <item>Компоненти като FEX, DXVK и VKD3D-Proton се обновяват сами, а Proton Experimental ARM64 е по подразбиране, или Proton 11.0 ARM64, щом тази версия е инсталирана.</item>
-        <item>Компресиране на Steam, докато върви игра освобождава RAM на устройства с малко памет.</item>
         <item>Плъзнете навътре от десния ръб, за да отворите менюто на сесията: режим на тъчпад, Клавиатура за компютър, Режим на ниска латентност, профил на играта и други.</item>
         <item>Играта е бавна? Ограничете кадрите в Quick Access, после опитайте друга версия на Proton или друга предварителна настройка на FEX в компонентите на играта.</item>
         <item>Пращене или липсващ звук в играта? Опитайте превключвателя DirectAudio за игри в настройките на Steam, под Звук.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Тази програма е компилирана за %1$s компютри и се стартира през FEX, който още не е настроен. Отворете Steam веднъж, докато сте влезли: DroidDeck ще изтегли FEX и необходимата Steam Linux Runtime, след което тя ще се отвори.</string>
     <string name="session_proot_missing">proot на DroidDeck не можа да бъде изтеглен. Проверете връзката и опитайте пак. Сесията не беше стартирана, защото резервният proot е твърде бавен за игра.</string>
     <string name="session_powervr_missing">Графичната среда за PowerVR не можа да бъде изтеглена. Проверете връзката и опитайте отново.</string>
+    <string name="session_graphics_runtime_failed">Графичната среда не можа да бъде подготвена, затова сесията не беше стартирана.</string>
+    <string name="session_game_environment_failed">Средата на играта не можа да бъде настроена, затова сесията не беше стартирана.</string>
     <string name="session_directaudio_missing">DirectAudio не можа да бъде изтеглен, затова звукът на игрите използва по-бавния път в тази сесия.</string>
     <string name="session_end_program">Тази програма</string>
     <string name="session_end_present_fault">Сесията не успя да изобрази съдържание на екрана: %1$s. Вместо черен екран тук е показана причината; подробностите са в дневниците на сесията.</string>
@@ -280,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10 изход</string>
     <string name="mode_hdr_unavailable">Не е налично: %1$s.</string>
-    <string name="mode_hdr_restart">Рестартирайте приложението, за да се приложи.</string>
     <string name="mode_drivers">Драйвери</string>
     <string name="mode_gpu_drivers">GPU драйвери</string>
     <string name="mode_gpu_drivers_hint">Общи за Steam и работния плот. Задават се в страницата Компоненти.</string>
@@ -332,7 +332,6 @@
     <string name="mode_startup">Стартиране</string>
     <string name="mode_startup_session">Отваряне при стартиране</string>
     <string name="mode_startup_session_hint">Стартира тази сесия, когато DroidDeck се стартира.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Проверка за издания…</string>
     <string name="mode_decky_ready">Готово за инсталиране на %1$s.</string>
     <string name="mode_decky_none">Не е намерена съвместима версия. Опитайте по-късно.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Актуално · %1$s</string>
     <string name="mode_decky_loader">Зареждач</string>
     <string name="mode_decky_install_latest">Инсталиране на последната версия</string>
-    <string name="decky_channel">Канал за актуализации</string>
-    <string name="decky_channel_hint">Кои издания на Decky Loader да се инсталират. Собственият актуализатор на Decky използва същия канал.</string>
     <string name="decky_channel_stable">Стабилен</string>
     <string name="decky_channel_prerelease">Предварителен</string>
     <string name="decky_channel_testing">Тестов</string>
     <string name="decky_channel_failed">Каналът за актуализации на Decky не можа да бъде запазен</string>
-    <string name="mode_decky_on">Стартира заедно със Steam. Докато е включено, други приложения на това устройство може да могат да контролират Steam.</string>
-    <string name="mode_decky_off">Изключено. Портът за отдалечено дебъгване на Steam остава затворен.</string>
     <string name="mode_decky_remove_title">Деинсталиране на Decky Loader?</string>
     <string name="mode_decky_remove_text">Премахва зареждащия модул. Плъгините и настройките ви се запазват.</string>
     <string name="mode_client">Клиент</string>
@@ -624,20 +619,8 @@
     <string name="perf_gsrealtime">gamescope: GPU опашка в реално време</string>
     <string name="perf_gsrealtime_hint">Дава приоритет на GPU работата на компоситора. Може да изглади темпото на кадрите с известна цена за игрите.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Памет</string>
     <string name="perf_cap_off">Изкл.</string>
-    <string name="perf_cap_auto">По подразбиране за драйвера</string>
-    <string name="perf_zram_client">Компресиране на Steam, докато върви игра</string>
-    <string name="perf_zram_idle">Компресиране на неактивната памет на играта</string>
-    <string name="perf_zram_idle_hint">Компресира неактивната памет на играта при малко RAM. Изключете го, ако игрите замръзват за няколко секунди приблизително на всеки половин минута. Прилага се при следващото стартиране на сесията.</string>
-    <string name="perf_zram_client_hint">20 s след стартиране на игра клиентът на Steam се компресира в zRAM, за да остави повече памет на играта, и се прочита обратно, когато играта се затвори. Изключете, ако сесията се затваря малко след стартиране на игри. Ограничение на RAM по-горе пак компресира Steam, когато сесията го надхвърли.</string>
-    <string name="perf_ram_cap">Ограничение на RAM</string>
-    <string name="perf_ram_cap_hint">Прилага се, докато клиентът на Steam работи, в режим Steam или от работния плот. Когато сесията използва повече от това, Steam и след това другите поддържани процеси на сесията се компресират в zRAM. Меко ограничение: нищо не се затваря, но игрите може да засичат, докато страниците се връщат.</string>
-    <string name="perf_ram_cap_unavailable">Изисква zRAM swap, който това устройство няма.</string>
-    <string name="perf_vram_cap">Ограничение на VRAM</string>
-    <string name="perf_vram_cap_hint">Съобщава този бюджет за видео памет на игри с Direct3D 9 до 12, за да намали използването на памет. Игрите може да го надвишат; това не добавя странициране на GPU и не гарантира защита от сривове при недостиг на памет. Прилага се от следващата сесия.</string>
     <string name="perf_gpuclock">Задръжте GPU на максималната му честота</string>
-    <string name="perf_gpuclock_hint">Само за Adreno. По-малко засечки, по-голямо използване на батерията и повече топлина.</string>
     <string name="perf_fixes">Корекции на сесията</string>
     <string name="perf_sysmem">Turnip: рендиране sysmem</string>
     <string name="perf_sysmem_hint">Прилага се за клиента на Steam и игрите. Изисква се при Adreno 710/720/722.</string>
@@ -815,7 +798,6 @@
     <string name="drawer_pc_keyboard">Клавиатура за компютър</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Втори екран</string>
-    <string name="drawer_second_screen_mode">Режим</string>
     <string name="drawer_second_screen_shows">Показва</string>
     <string name="drawer_android_apps">Приложения за Android</string>
     <string name="drawer_launch_app">Стартиране на приложение</string>
@@ -965,13 +947,15 @@
     <string name="setup_launcher_orientation_auto">Следва завъртането на устройството</string>
     <string name="setup_orientation_portrait">Вертикална</string>
     <string name="setup_session_orientation">Ориентация на сесията</string>
-    <string name="setup_session_orientation_hint">Прилага се за Steam, игрите, работния плот и редактора на контролера. Предварително зададените резолюции се завъртат със сесията; персонализираните ширина и височина остават както са въведени.</string>
+    <string name="setup_session_orientation_hint">Прилага се за Steam, игрите, работния плот и редактора на контролера. Предварително зададените резолюции се завъртат със сесията; когато едната ориентация следва другата, персонализираните ширина и височина се разменят, за да съвпадат.</string>
     <string name="setup_orientation_auto">Автоматичен хоризонтален</string>
     <string name="setup_orientation_landscape">Хоризонтална</string>
     <string name="setup_orientation_reverse">Обърната хоризонтална</string>
     <string name="setup_fullscreen">Цял екран</string>
     <string name="setup_fullscreen_on">Скрива лентите за състояние и навигация на Android</string>
     <string name="setup_fullscreen_off">Показва лентите за състояние и навигация на Android</string>
+    <string name="setup_page_swipe">Плъзгане между страниците</string>
+    <string name="setup_page_swipe_hint">Плъзнете по страница, за да смените раздела.</string>
     <string name="setup_dual_screen_launcher">Лаунчер с два екрана</string>
     <string name="setup_dual_screen_launcher_hint">Автоматично: секциите на лаунчера (Steam, Библиотека, Магазини и останалите) се показват на втория екран при преносими устройства с вграден такъв. Включено: използва се всеки втори дисплей. Изключено: лаунчерът остава на един екран.</string>
     <string name="setup_dual_screen_sessions">Сесии с два екрана</string>
@@ -1573,6 +1557,8 @@
     <string name="pip_unavailable">Android не можа да отвори картина в картината.</string>
     <string name="game_more">Още</string>
     <string name="game_edit_art">Редактиране на изображенията</string>
+    <string name="game_unhide">Премахване от скритите</string>
+    <string name="game_hide_failed">Синхронизирането със Steam не успя. Затворете Steam и опитайте отново.</string>
     <string name="stores_in_steam_label">В Steam</string>
     <string name="game_shortcut">Пряк път</string>
     <string name="game_shortcut_add">Добавяне към началния екран</string>
@@ -2309,6 +2295,17 @@
     <string name="pextra_checksum_mismatch">Несъответствие в контролната сума; изтеглянето беше изтрито</string>
     <string name="pextra_session_started">По време на изтеглянето започна сесия - спри я, преди да инсталираш инструменти за съвместимост</string>
     <string name="pextra_installing">Инсталиране на %1$s</string>
+    <string name="xproton_title">Експериментални версии</string>
+    <string name="xproton_install_file">Инсталиране от файл</string>
+    <string name="xproton_archive_unsafe">Архивът съдържа опасна връзка или път</string>
+    <string name="xproton_archive_invalid">Неподдържан или невалиден архив</string>
+    <string name="xproton_no_space">Няма достатъчно свободно място за тази версия на Proton</string>
+    <string name="xproton_unpacking">Разопаковане на Proton (няколко минути)</string>
+    <string name="xproton_untar_failed">Разопаковането не успя (tar %1$d)</string>
+    <string name="xproton_no_tree">Архивът не съдържа версия на Proton</string>
+    <string name="xproton_place_failed">Версията на Proton не можа да бъде поставена</string>
+    <string name="xproton_remove_failed">%1$s не можа да бъде премахнат напълно</string>
+    <string name="xproton_installed">Експерименталният Proton е инсталиран. Изберете го в Steam → Свойства → Съвместимост.</string>
     <string name="pextra_install_failed">Инсталирането на %1$s се провали (код %2$d)</string>
     <string name="pextra_could_not_install">%1$s не можа да бъде инсталиран</string>
     <string name="esync_fetching">Извличане на пакета droiddeck-esync</string>
@@ -2460,10 +2457,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Екран на сесията</string>
-    <string name="display_resolution">Разделителна способност</string>
+    <string name="display_zero_copy">Представяне без копиране</string>
+    <string name="display_resolution_landscape">Резолюция в пейзажен режим</string>
+    <string name="display_resolution_portrait">Резолюция в портретен режим</string>
+    <string name="display_follow_landscape">Като пейзажния (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Като портретния (%1$d×%2$d)</string>
     <string name="display_game_fit">Напасване на игра 16:9</string>
     <string name="display_game_fit_hint">Как игрите с 16:9 се напасват на този екран. При следващата сесия.</string>
     <string name="display_game_fit_unavailable">Избери „Напасване на екрана“ или собствен размер, по-тесен от 16:9.</string>
+    <string name="display_avoid_notch">Избягване на прореза</string>
+    <string name="display_avoid_notch_hint">Държи картината извън прореза за камерата. Важи при връщане към сесията.</string>
     <string name="display_preserve">Запазване на пропорциите</string>
     <string name="display_stretch">Разтягане до екрана</string>
     <string name="display_image_scaling">Мащабиране на изображението</string>
@@ -3341,10 +3344,19 @@
     <string name="storage_shared_prefix">Споделен Steam префикс</string>
     <string name="storage_shared_prefix_detail">Steam изпълнява тук свои помощни програми за Windows</string>
     <string name="storage_reset_shared_confirm">Изтрива го (%1$s). Steam създава нов следващия път, когато му потрябва.</string>
+    <string name="storage_remove_launcher_confirm">Изтрива Wine префикса и кеша на шейдърите на това приложение на магазин (%1$s), заедно с влизането и записите, пазени само там. Игрите, които работят в него, получават нов префикс и може да се наложи да настроите приложението отново. Записите в облака остават в профила ви.</string>
+    <string name="storage_system_clearable">Може да се изчистят %1$s</string>
+    <string name="storage_item_system_caches">Кешове на Linux и Steam</string>
+    <string name="storage_item_system_caches_detail">Стари временни файлове, изтеглени пакети и уеб кешът на Steam</string>
+    <string name="storage_cache_temp">Стари временни файлове</string>
+    <string name="storage_cache_packages">Изтеглени пакети</string>
+    <string name="storage_cache_steam_web">Уеб кеш на Steam</string>
+    <string name="storage_cache_steam_corrupt">Повредени изтегляния на Steam</string>
+    <string name="storage_cache_detail">Създават се отново при нужда</string>
+    <string name="storage_clear">Изчисти</string>
     <string name="storage_launcher_prefix">Приложение магазин и игрите, които работят с него</string>
     <string name="storage_launcher_used_by">Използва се от %1$s</string>
     <string name="storage_shortcut_app">Игра извън Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Не е свързан с игра, затова се запазва</string>
     <string name="storage_remove_selected">Премахни избраните · %1$s</string>
     <string name="storage_uninstall_selected">Деинсталирай избраните · %1$s</string>
     <string name="storage_bulk_prefixes">Префикси на Wine</string>
@@ -4000,6 +4012,7 @@
     <string name="addons_sort_downloads">Най-изтегляни</string>
     <string name="addons_category_all">Всички категории</string>
     <string name="addons_none_found">Няма намерени добавки</string>
+    <string name="addons_curse_busy">Първо затворете CurseForge</string>
     <string name="addons_unreachable">Няма връзка с %1$s</string>
     <string name="addons_no_file">Няма файл за тази версия на играта</string>
     <string name="input_reset_positions">Нулиране на позициите</string>
@@ -4089,4 +4102,18 @@
     <string name="display_scaling_integer">Цяло число</string>
     <string name="display_scaling_fit">Побиране</string>
     <string name="drawer_antialiasing">Заглаждане на ръбовете</string>
+    <string name="theme_custom">Персонализирана</string>
+    <string name="theme_custom_detail">Изберете поотделно всеки цвят на интерфейса.</string>
+    <string name="theme_custom_background">Фон</string>
+    <string name="theme_custom_surface">Панели</string>
+    <string name="theme_custom_surface_variant">Повдигнати панели</string>
+    <string name="theme_custom_line">Разделители</string>
+    <string name="theme_custom_line2">Рамки</string>
+    <string name="theme_custom_on_background">Основен текст</string>
+    <string name="theme_custom_on_surface_variant">Вторичен текст</string>
+    <string name="theme_custom_primary">Бутони и основен акцент</string>
+    <string name="theme_custom_on_primary">Текст на бутоните</string>
+    <string name="theme_custom_signal">Акценти</string>
+    <string name="theme_custom_good">Успех</string>
+    <string name="theme_custom_error">Грешка</string>
 </resources>

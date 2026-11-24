@@ -122,6 +122,12 @@ public final class Downloader {
         return null;
     }
 
+    public static Boolean gone(String url) {
+        Fetch fetch = fetch(url);
+        if (fetch.body != null) return Boolean.FALSE;
+        return fetch.fatal ? Boolean.TRUE : null;
+    }
+
     public static String downloadDirect(String url) {
         LAST_FAILURE.remove();
         return fetch(url).body;

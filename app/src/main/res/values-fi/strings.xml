@@ -22,7 +22,6 @@
         <item>Lisää Steam-kirjastoja SD-kortilta, USB-asemalta tai SSD-levyltä, ja DroidDeck pitää pelit yhdessä Kirjastossasi.</item>
         <item>Kaupat-osiossa voit kirjautua sisään palveluihin Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io ja Game Jolt sekä asentaa ja päivittää niiden pelejä DroidDeckistä.</item>
         <item>Komponentit, kuten FEX, DXVK ja VKD3D-Proton, päivittyvät itsestään, ja oletuksena on Proton Experimental ARM64 tai Proton 11.0 ARM64, kun kyseinen versio on asennettu.</item>
-        <item>Pakkaa Steam pelin ollessa käynnissä vapauttaa RAM-muistia laitteilla, joilla muisti on vähissä.</item>
         <item>Pyyhkäise oikeasta reunasta sisäänpäin avataksesi istuntovalikon: kosketuslevytila, PC-näppäimistö, matalan viiveen tila, pelin profiili ja muuta.</item>
         <item>Peli pyörii hitaasti? Rajoita kuvanopeutta Pikavalikossa ja kokeile sitten toista Proton-versiota tai FEX-esiasetusta pelin komponenteissa.</item>
         <item>Rätisevä tai puuttuva pelin ääni? Kokeile Steamin asetuksissa kohdassa Ääni asetusta DirectAudio peleille.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Tämä ohjelma on tehty %1$s-tietokoneille ja käynnistyy FEXin kautta, jota ei ole vielä määritetty. Avaa Steam kerran kirjautuneena: DroidDeck lataa sen myötä FEXin ja tarvittavan Steam Linux Runtimen, jonka jälkeen tämä avautuu.</string>
     <string name="session_proot_missing">DroidDeckin proota ei voitu ladata. Tarkista yhteys ja yritä uudelleen. Istuntoa ei käynnistetty, koska varaproot on liian hidas pelaamiseen.</string>
     <string name="session_powervr_missing">PowerVR-grafiikkaympäristöä ei voitu ladata. Tarkista yhteys ja yritä uudelleen.</string>
+    <string name="session_graphics_runtime_failed">Grafiikkaympäristöä ei voitu valmistella, joten istuntoa ei käynnistetty.</string>
+    <string name="session_game_environment_failed">Peliympäristöä ei voitu määrittää, joten istuntoa ei käynnistetty.</string>
     <string name="session_directaudio_missing">DirectAudiota ei voitu ladata, joten pelin ääni käyttää tässä istunnossa hitaampaa reittiä.</string>
     <string name="session_end_program">Tämä ohjelma</string>
     <string name="session_end_present_fault">Istunto ei pystynyt piirtämään näytölle: %1$s. Mustan ruudun sijaan tämä näyttö kertoo syyn. Tarkemmat tiedot ovat istuntolokeissa.</string>
@@ -280,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10-lähtö</string>
     <string name="mode_hdr_unavailable">Ei käytettävissä: %1$s.</string>
-    <string name="mode_hdr_restart">Käynnistä sovellus uudelleen, jotta muutos tulee voimaan.</string>
     <string name="mode_drivers">Ajurit</string>
     <string name="mode_gpu_drivers">GPU-ajurit</string>
     <string name="mode_gpu_drivers_hint">Jaettu Steamin ja Työpöydän kesken. Asetetaan Komponentit-sivulla.</string>
@@ -332,7 +332,6 @@
     <string name="mode_startup">Käynnistys</string>
     <string name="mode_startup_session">Avaa käynnistyksessä</string>
     <string name="mode_startup_session_hint">Käynnistää tämän istunnon, kun DroidDeck avataan.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Tarkistetaan julkaisuja…</string>
     <string name="mode_decky_ready">Valmiina asentamaan %1$s.</string>
     <string name="mode_decky_none">Yhteensopivaa versiota ei löytynyt. Yritä myöhemmin uudelleen.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Ajan tasalla · %1$s</string>
     <string name="mode_decky_loader">Lataaja</string>
     <string name="mode_decky_install_latest">Asenna uusin</string>
-    <string name="decky_channel">Päivityskanava</string>
-    <string name="decky_channel_hint">Mitkä Decky Loader -julkaisut asennetaan. Deckyn oma päivitysohjelma käyttää samaa kanavaa.</string>
     <string name="decky_channel_stable">Vakaa</string>
     <string name="decky_channel_prerelease">Esijulkaisu</string>
     <string name="decky_channel_testing">Testaus</string>
     <string name="decky_channel_failed">Deckyn päivityskanavaa ei voitu tallentaa</string>
-    <string name="mode_decky_on">Käynnistyy Steamin kanssa. Päällä ollessaan muut tämän laitteen sovellukset voivat pystyä ohjaamaan Steamia.</string>
-    <string name="mode_decky_off">Pois. Steamin etävianmääritysportti pysyy suljettuna.</string>
     <string name="mode_decky_remove_title">Poistetaanko Decky Loader?</string>
     <string name="mode_decky_remove_text">Poistaa loaderin. Laajennuksesi ja asetuksesi säilyvät.</string>
     <string name="mode_client">Asiakasohjelma</string>
@@ -624,20 +619,8 @@
     <string name="perf_gsrealtime">gamescope: reaaliaikainen GPU-jono</string>
     <string name="perf_gsrealtime_hint">Priorisoi kompositorin GPU-työtä. Voi tasoittaa kuvanopeuden tahditusta pelien kustannuksella.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Muisti</string>
     <string name="perf_cap_off">Pois</string>
-    <string name="perf_cap_auto">Ajurin oletus</string>
-    <string name="perf_zram_client">Pakkaa Steam pelin ollessa käynnissä</string>
-    <string name="perf_zram_idle">Pakkaa pelin käyttämätöntä muistia</string>
-    <string name="perf_zram_idle_hint">Siirtää pelin käyttämätöntä muistia zRAMiin, kun RAM-muisti vähenee. Poista tämä käytöstä, jos pelit jäätyvät muutamaksi sekunniksi noin puolen minuutin välein. Tulee voimaan, kun istunto käynnistyy seuraavan kerran.</string>
-    <string name="perf_zram_client_hint">20 s pelin käynnistymisen jälkeen Steam-asiakasohjelma pakataan zRAMiin, jotta pelille jää enemmän muistia, ja luetaan takaisin, kun peli sulkeutuu. Poista tämä käytöstä, jos istunto sulkeutuu pian pelien käynnistymisen jälkeen. Yllä oleva RAM-raja pakkaa silti Steamin, kun istunto ylittää sen.</string>
-    <string name="perf_ram_cap">RAM-raja</string>
-    <string name="perf_ram_cap_hint">Koskee aikaa, jolloin Steam-asiakasohjelma on käynnissä, Steam-tilassa tai työpöydältä. Kun istunto käyttää tätä enemmän, Steam ja sen jälkeen istunnon muut tuetut prosessit pakataan zRAMiin. Pehmeä raja: mitään ei suljeta, mutta pelit voivat nykiä, kun sivuja luetaan takaisin.</string>
-    <string name="perf_ram_cap_unavailable">Vaatii zRAM-swapin, jota tässä laitteessa ei ole.</string>
-    <string name="perf_vram_cap">VRAM-raja</string>
-    <string name="perf_vram_cap_hint">Ilmoittaa tämän videomuistibudjetin Direct3D 9–12 -peleille muistin käytön vähentämiseksi. Pelit voivat ylittää sen; tämä ei lisää GPU-sivutusta eikä takaa suojaa muistin loppumisesta johtuvilta kaatumisilta. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="perf_gpuclock">Pidä GPU huippukellotaajuudessaan</string>
-    <string name="perf_gpuclock_hint">Vain Adreno. Vähemmän nykäyksiä, enemmän akun kulutusta ja lämpöä.</string>
     <string name="perf_fixes">Istunnon korjaukset</string>
     <string name="perf_sysmem">Turnip: sysmem-renderöinti</string>
     <string name="perf_sysmem_hint">Koskee Steam-asiakasohjelmaa ja pelejä. Pakollinen Adreno 710/720/722:lla.</string>
@@ -815,7 +798,6 @@
     <string name="drawer_pc_keyboard">PC-näppäimistö</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Toinen näyttö</string>
-    <string name="drawer_second_screen_mode">Tila</string>
     <string name="drawer_second_screen_shows">Näyttää</string>
     <string name="drawer_android_apps">Android-sovellukset</string>
     <string name="drawer_launch_app">Käynnistä sovellus</string>
@@ -965,13 +947,15 @@
     <string name="setup_launcher_orientation_auto">Seuraa laitteen kiertoa</string>
     <string name="setup_orientation_portrait">Pystysuunta</string>
     <string name="setup_session_orientation">Istunnon suunta</string>
-    <string name="setup_session_orientation_hint">Koskee Steamia, pelejä, työpöytää ja ohjainmuokkainta. Resoluution esiasetukset kääntyvät istunnon mukana; mukautettu leveys ja korkeus pysyvät syötetyn mukaisina.</string>
+    <string name="setup_session_orientation_hint">Koskee Steamia, pelejä, työpöytää ja ohjainmuokkainta. Resoluution esiasetukset kääntyvät istunnon mukana; kun toinen suunta seuraa toista, mukautettu leveys ja korkeus vaihtavat paikkaa vastaamaan toisiaan.</string>
     <string name="setup_orientation_auto">Automaattinen vaakasuunta</string>
     <string name="setup_orientation_landscape">Vaakasuunta</string>
     <string name="setup_orientation_reverse">Käänteinen vaakasuunta</string>
     <string name="setup_fullscreen">Koko näyttö</string>
     <string name="setup_fullscreen_on">Piilottaa Androidin tila- ja navigointipalkit</string>
     <string name="setup_fullscreen_off">Näyttää Androidin tila- ja navigointipalkit</string>
+    <string name="setup_page_swipe">Pyyhkäise sivujen välillä</string>
+    <string name="setup_page_swipe_hint">Vaihda välilehteä pyyhkäisemällä sivun poikki.</string>
     <string name="setup_dual_screen_launcher">Kahden näytön käynnistin</string>
     <string name="setup_dual_screen_launcher_hint">Automaattinen siirtää käynnistimen osiot (Steam, Kirjasto, Kaupat ja muut) käsikonsolin sisäänrakennetulle toiselle näytölle. Päällä käyttää mitä tahansa toista näyttöä. Pois päältä pitää käynnistimen yhdellä näytöllä.</string>
     <string name="setup_dual_screen_sessions">Kahden näytön istunnot</string>
@@ -1573,6 +1557,8 @@
     <string name="pip_unavailable">Android ei pystynyt avaamaan kuva kuvassa -tilaa.</string>
     <string name="game_more">Lisää</string>
     <string name="game_edit_art">Muokkaa kuvitusta</string>
+    <string name="game_unhide">Poista piilotetuista</string>
+    <string name="game_hide_failed">Synkronointi Steamin kanssa epäonnistui. Sulje Steam ja yritä uudelleen.</string>
     <string name="stores_in_steam_label">Steamissa</string>
     <string name="game_shortcut">Pikakuvake</string>
     <string name="game_shortcut_add">Lisää aloitusnäytölle</string>
@@ -2309,6 +2295,17 @@
     <string name="pextra_checksum_mismatch">Tarkistussumma ei täsmää; lataus poistettiin</string>
     <string name="pextra_session_started">Istunto käynnistyi latauksen aikana; pysäytä se ennen yhteensopivuustyökalujen asentamista</string>
     <string name="pextra_installing">Asennetaan %1$s</string>
+    <string name="xproton_title">Kokeelliset versiot</string>
+    <string name="xproton_install_file">Asenna tiedostosta</string>
+    <string name="xproton_archive_unsafe">Arkisto sisältää vaarallisen linkin tai polun</string>
+    <string name="xproton_archive_invalid">Arkistoa ei tueta tai se on virheellinen</string>
+    <string name="xproton_no_space">Tälle Proton-versiolle ei ole tarpeeksi vapaata tilaa</string>
+    <string name="xproton_unpacking">Puretaan Protonia (muutama minuutti)</string>
+    <string name="xproton_untar_failed">Purku epäonnistui (tar %1$d)</string>
+    <string name="xproton_no_tree">Arkisto ei sisällä Proton-versiota</string>
+    <string name="xproton_place_failed">Proton-versiota ei voitu sijoittaa</string>
+    <string name="xproton_remove_failed">Kohdetta %1$s ei voitu poistaa kokonaan</string>
+    <string name="xproton_installed">Kokeellinen Proton asennettu. Valitse se kohdassa Steam → Ominaisuudet → Yhteensopivuus.</string>
     <string name="pextra_install_failed">%1$s-asennus epäonnistui (poistumiskoodi %2$d)</string>
     <string name="pextra_could_not_install">Kohdetta %1$s ei voitu asentaa</string>
     <string name="esync_fetching">Haetaan droiddeck-esync-pakettia</string>
@@ -2460,10 +2457,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Istunnon näyttö</string>
-    <string name="display_resolution">Tarkkuus</string>
+    <string name="display_zero_copy">Kopioimaton esitys</string>
+    <string name="display_resolution_landscape">Vaakatilan resoluutio</string>
+    <string name="display_resolution_portrait">Pystytilan resoluutio</string>
+    <string name="display_follow_landscape">Seuraa vaakaa (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Seuraa pystyä (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9-pelin sovitus</string>
     <string name="display_game_fit_hint">Miten 16:9-pelit sovitetaan tähän näyttöön. Seuraava istunto.</string>
     <string name="display_game_fit_unavailable">Valitse Sovita näyttöön tai mukautettu koko, joka on 16:9:ää kapeampi.</string>
+    <string name="display_avoid_notch">Vältä lovea</string>
+    <string name="display_avoid_notch_hint">Pitää kuvan poissa kameran lovesta. Tulee voimaan, kun palaat istuntoon.</string>
     <string name="display_preserve">Säilytä kuvasuhde</string>
     <string name="display_stretch">Venytä näyttöön</string>
     <string name="display_image_scaling">Kuvan skaalaus</string>
@@ -3341,10 +3344,19 @@
     <string name="storage_shared_prefix">Steamin jaettu etuliite</string>
     <string name="storage_shared_prefix_detail">Steam suorittaa täällä omia Windows-apuohjelmiaan</string>
     <string name="storage_reset_shared_confirm">Poistaa sen (%1$s). Steam luo uuden, kun tarvitsee sitä seuraavan kerran.</string>
+    <string name="storage_remove_launcher_confirm">Poistaa tämän kauppasovelluksen Wine-etuliitteen ja varjostinvälimuistin (%1$s) sekä kirjautumisen ja vain siellä olevat tallennukset. Siinä toimivat pelit saavat uuden etuliitteen, ja sovellus pitää ehkä ottaa uudelleen käyttöön. Pilvitallennukset säilyvät tililläsi.</string>
+    <string name="storage_system_clearable">%1$s voidaan tyhjentää</string>
+    <string name="storage_item_system_caches">Linuxin ja Steamin välimuistit</string>
+    <string name="storage_item_system_caches_detail">Vanhat väliaikaistiedostot, ladatut paketit ja Steamin verkkovälimuisti</string>
+    <string name="storage_cache_temp">Vanhat väliaikaistiedostot</string>
+    <string name="storage_cache_packages">Ladatut paketit</string>
+    <string name="storage_cache_steam_web">Steamin verkkovälimuisti</string>
+    <string name="storage_cache_steam_corrupt">Vioittuneet Steam-lataukset</string>
+    <string name="storage_cache_detail">Luodaan tarvittaessa uudelleen</string>
+    <string name="storage_clear">Tyhjennä</string>
     <string name="storage_launcher_prefix">Kauppasovellus ja pelit, jotka toimivat sen kanssa</string>
     <string name="storage_launcher_used_by">Käyttää: %1$s</string>
     <string name="storage_shortcut_app">Muu kuin Steam-peli %1$s</string>
-    <string name="storage_unknown_prefix_detail">Ei vastaa mitään peliä, joten se säilytetään</string>
     <string name="storage_remove_selected">Poista valitut · %1$s</string>
     <string name="storage_uninstall_selected">Poista valittujen asennus · %1$s</string>
     <string name="storage_bulk_prefixes">Wine-prefixit</string>
@@ -4000,6 +4012,7 @@
     <string name="addons_sort_downloads">Ladatuimmat</string>
     <string name="addons_category_all">Kaikki luokat</string>
     <string name="addons_none_found">Lisäosia ei löytynyt</string>
+    <string name="addons_curse_busy">Sulje CurseForge ensin</string>
     <string name="addons_unreachable">Yhteyttä palveluun %1$s ei saatu</string>
     <string name="addons_no_file">Tälle peliversiolle ei ole tiedostoa</string>
     <string name="input_reset_positions">Palauta sijainnit</string>
@@ -4089,4 +4102,18 @@
     <string name="display_scaling_integer">Kokonaisluku</string>
     <string name="display_scaling_fit">Sovita</string>
     <string name="drawer_antialiasing">Reunanpehmennys</string>
+    <string name="theme_custom">Mukautettu</string>
+    <string name="theme_custom_detail">Valitse käyttöliittymän jokainen väri erikseen.</string>
+    <string name="theme_custom_background">Tausta</string>
+    <string name="theme_custom_surface">Paneelit</string>
+    <string name="theme_custom_surface_variant">Korotetut paneelit</string>
+    <string name="theme_custom_line">Erottimet</string>
+    <string name="theme_custom_line2">Reunat</string>
+    <string name="theme_custom_on_background">Pääteksti</string>
+    <string name="theme_custom_on_surface_variant">Toissijainen teksti</string>
+    <string name="theme_custom_primary">Painikkeet ja pääkorostus</string>
+    <string name="theme_custom_on_primary">Painikkeiden teksti</string>
+    <string name="theme_custom_signal">Korostukset</string>
+    <string name="theme_custom_good">Onnistuminen</string>
+    <string name="theme_custom_error">Virhe</string>
 </resources>

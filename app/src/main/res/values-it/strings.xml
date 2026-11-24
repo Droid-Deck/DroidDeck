@@ -22,7 +22,6 @@
         <item>Aggiungi librerie Steam da una scheda SD, un\'unità USB o un SSD, e DroidDeck tiene i giochi insieme nella tua Libreria.</item>
         <item>Negozi ti permette di accedere a Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io e Game Jolt, poi di installare e aggiornare i loro giochi da DroidDeck.</item>
         <item>I componenti come FEX, DXVK e VKD3D-Proton si aggiornano da soli, e Proton Experimental ARM64 è il predefinito, oppure Proton 11.0 ARM64 una volta installata quella build.</item>
-        <item>Comprimi Steam durante il gioco libera RAM sui dispositivi che ne hanno poca.</item>
         <item>Scorri verso l\'interno dal bordo destro per aprire il menu della sessione: modalità touchpad, Tastiera PC, Modalità bassa latenza, Profilo del gioco e altro.</item>
         <item>Il gioco è lento? Limita il frame rate in Accesso rapido, poi prova un\'altra versione di Proton o un altro preset FEX nei componenti del gioco.</item>
         <item>Audio del gioco che gracchia o manca? Prova l\'opzione DirectAudio per i giochi nelle impostazioni di Steam, sotto Audio.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Questo programma è compilato per PC %1$s e viene eseguito tramite FEX, che non è ancora configurato. Apri Steam una volta dopo aver eseguito l\'accesso: DroidDeck gli farà scaricare FEX e lo Steam Linux Runtime necessario, poi il programma si aprirà.</string>
     <string name="session_proot_missing">Impossibile scaricare il proot di DroidDeck. Controlla la connessione e riprova. La sessione non è stata avviata perché il proot di riserva è troppo lento per giocare.</string>
     <string name="session_powervr_missing">Non è stato possibile scaricare l\'ambiente grafico PowerVR. Controlla la connessione e riprova.</string>
+    <string name="session_graphics_runtime_failed">Non è stato possibile preparare l\'ambiente grafico, quindi la sessione non è stata avviata.</string>
+    <string name="session_game_environment_failed">Non è stato possibile configurare l\'ambiente di gioco, quindi la sessione non è stata avviata.</string>
     <string name="session_directaudio_missing">Impossibile scaricare DirectAudio, quindi l\'audio dei giochi usa il percorso più lento in questa sessione.</string>
     <string name="session_end_program">Questo programma</string>
     <string name="session_end_present_fault">La sessione non è riuscita a disegnare sullo schermo: %1$s. Questa schermata mostra il motivo al posto di una schermata nera; i log della sessione contengono i dettagli.</string>
@@ -280,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Uscita HDR10</string>
     <string name="mode_hdr_unavailable">Non disponibile: %1$s.</string>
-    <string name="mode_hdr_restart">Riavvia l\'app per applicare.</string>
     <string name="mode_drivers">Driver</string>
     <string name="mode_gpu_drivers">Driver GPU</string>
     <string name="mode_gpu_drivers_hint">Condivisi da Steam e Desktop. Si impostano nella pagina Componenti.</string>
@@ -332,7 +332,6 @@
     <string name="mode_startup">Avvio</string>
     <string name="mode_startup_session">Apri all\'avvio</string>
     <string name="mode_startup_session_hint">Avvia questa sessione all\'avvio di DroidDeck.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Ricerca di release…</string>
     <string name="mode_decky_ready">Pronto per installare %1$s.</string>
     <string name="mode_decky_none">Nessuna build compatibile trovata. Riprova più tardi.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Ultima versione · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Installa l\'ultima versione</string>
-    <string name="decky_channel">Canale di aggiornamento</string>
-    <string name="decky_channel_hint">Quali release di Decky Loader installare. Anche l\'aggiornamento integrato di Decky usa lo stesso canale.</string>
     <string name="decky_channel_stable">Stabile</string>
     <string name="decky_channel_prerelease">Pre-release</string>
     <string name="decky_channel_testing">Test</string>
     <string name="decky_channel_failed">Impossibile salvare il canale di aggiornamento di Decky</string>
-    <string name="mode_decky_on">Si avvia con Steam. Quando è attivo, altre app su questo dispositivo potrebbero controllare Steam.</string>
-    <string name="mode_decky_off">Disattivato. La porta di debug remoto di Steam resta chiusa.</string>
     <string name="mode_decky_remove_title">Disinstallare Decky Loader?</string>
     <string name="mode_decky_remove_text">Rimuove il loader. I tuoi plugin e le impostazioni vengono mantenuti.</string>
     <string name="mode_client">Client</string>
@@ -626,20 +621,8 @@
     <string name="perf_gsrealtime">gamescope: coda GPU in tempo reale</string>
     <string name="perf_gsrealtime_hint">Dà priorità al lavoro GPU del compositor. Può rendere più regolare il frame pacing, a scapito dei giochi.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memoria</string>
     <string name="perf_cap_off">Disattivo</string>
-    <string name="perf_cap_auto">Predefinito del driver</string>
-    <string name="perf_zram_client">Comprimi Steam durante il gioco</string>
-    <string name="perf_zram_idle">Comprimi la memoria inattiva del gioco</string>
-    <string name="perf_zram_idle_hint">Comprime la memoria inattiva del gioco quando la RAM scarseggia. Disattivalo se i giochi si bloccano per qualche secondo circa ogni mezzo minuto. Si applica al prossimo avvio della sessione.</string>
-    <string name="perf_zram_client_hint">20 s dopo l\'avvio di un gioco, il client Steam viene compresso in zRAM per lasciare più memoria al gioco e viene riletto quando il gioco si chiude. Disattivalo se la sessione si chiude poco dopo l\'avvio dei giochi. Un limite di RAM impostato sopra comprime comunque Steam quando la sessione lo supera.</string>
-    <string name="perf_ram_cap">Limite RAM</string>
-    <string name="perf_ram_cap_hint">Si applica mentre il client Steam è in esecuzione, in modalità Steam o dal desktop. Quando la sessione usa più di questo valore, Steam e poi gli altri processi supportati della sessione vengono compressi in zRAM. È un limite morbido: non viene chiuso nulla, ma i giochi possono scattare mentre le pagine vengono recuperate.</string>
-    <string name="perf_ram_cap_unavailable">Richiede lo swap zRAM, che questo dispositivo non ha.</string>
-    <string name="perf_vram_cap">Limite VRAM</string>
-    <string name="perf_vram_cap_hint">La memoria video che DXVK comunica ai giochi Direct3D, così usano meno texture. Le impostazioni DXVK del gioco hanno comunque la priorità. Si applica dalla prossima sessione.</string>
     <string name="perf_gpuclock">Mantieni la GPU alla frequenza massima</string>
-    <string name="perf_gpuclock_hint">Solo Adreno. Meno scatti, più consumo di batteria e più calore.</string>
     <string name="perf_fixes">Correzioni della sessione</string>
     <string name="perf_sysmem">Turnip: rendering sysmem</string>
     <string name="perf_sysmem_hint">Si applica al client Steam e ai giochi. Necessario su Adreno 710/720/722.</string>
@@ -817,7 +800,6 @@
     <string name="drawer_pc_keyboard">Tastiera PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Secondo schermo</string>
-    <string name="drawer_second_screen_mode">Modalità</string>
     <string name="drawer_second_screen_shows">Mostra</string>
     <string name="drawer_android_apps">App Android</string>
     <string name="drawer_launch_app">Avvia un\'app</string>
@@ -960,13 +942,15 @@
     <string name="setup_launcher_orientation_auto">Segui la rotazione del dispositivo</string>
     <string name="setup_orientation_portrait">Verticale</string>
     <string name="setup_session_orientation">Orientamento della sessione</string>
-    <string name="setup_session_orientation_hint">Si applica a Steam, ai giochi, al desktop e all\'editor del controller. I preset di risoluzione ruotano con la sessione; larghezza e altezza personalizzate restano come inserite.</string>
+    <string name="setup_session_orientation_hint">Si applica a Steam, ai giochi, al desktop e all\'editor del controller. I preset di risoluzione ruotano con la sessione; quando un\'orientamento segue l\'altro, larghezza e altezza personalizzate vengono invertite per corrispondere.</string>
     <string name="setup_orientation_auto">Orizzontale automatico</string>
     <string name="setup_orientation_landscape">Orizzontale</string>
     <string name="setup_orientation_reverse">Orizzontale invertito</string>
     <string name="setup_fullscreen">Schermo intero</string>
     <string name="setup_fullscreen_on">Nasconde la barra di stato e la barra di navigazione di Android</string>
     <string name="setup_fullscreen_off">Mostra la barra di stato e la barra di navigazione di Android</string>
+    <string name="setup_page_swipe">Scorri tra le pagine</string>
+    <string name="setup_page_swipe_hint">Scorri su una pagina per cambiare scheda.</string>
     <string name="setup_dual_screen_launcher">Launcher a doppio schermo</string>
     <string name="setup_dual_screen_launcher_hint">Automatico colloca le sezioni del launcher (Steam, Libreria, Store e le altre) sullo schermo secondario integrato delle console portatili che ne hanno uno. Con Attivo si usa qualsiasi display secondario. Con Disattivo il launcher resta su un solo schermo.</string>
     <string name="setup_dual_screen_sessions">Sessioni a doppio schermo</string>
@@ -1572,6 +1556,8 @@
     <string name="pip_unavailable">Android non è riuscito ad aprire il picture in picture.</string>
     <string name="game_more">Altro</string>
     <string name="game_edit_art">Modifica grafica</string>
+    <string name="game_unhide">Rimuovi dai nascosti</string>
+    <string name="game_hide_failed">Impossibile sincronizzare con Steam. Chiudi Steam e riprova.</string>
     <string name="stores_in_steam_label">In Steam</string>
     <string name="game_shortcut">Scorciatoia</string>
     <string name="game_shortcut_add">Aggiungi alla schermata Home</string>
@@ -2326,6 +2312,17 @@
     <string name="pextra_checksum_mismatch">Checksum non corrispondente; il download è stato eliminato</string>
     <string name="pextra_session_started">È stata avviata una sessione durante il download; interrompila prima di installare strumenti di compatibilità</string>
     <string name="pextra_installing">Installazione di %1$s</string>
+    <string name="xproton_title">Build sperimentali</string>
+    <string name="xproton_install_file">Installa da file</string>
+    <string name="xproton_archive_unsafe">L\'archivio contiene un collegamento o percorso non sicuro</string>
+    <string name="xproton_archive_invalid">Archivio non supportato o non valido</string>
+    <string name="xproton_no_space">Spazio libero insufficiente per questa build di Proton</string>
+    <string name="xproton_unpacking">Estrazione di Proton (qualche minuto)</string>
+    <string name="xproton_untar_failed">Estrazione non riuscita (tar %1$d)</string>
+    <string name="xproton_no_tree">L\'archivio non contiene alcuna build di Proton</string>
+    <string name="xproton_place_failed">Impossibile posizionare la build di Proton</string>
+    <string name="xproton_remove_failed">Impossibile rimuovere completamente %1$s</string>
+    <string name="xproton_installed">Proton sperimentale installato. Selezionalo in Steam → Proprietà → Compatibilità.</string>
     <string name="pextra_install_failed">Installazione di %1$s non riuscita (uscita %2$d)</string>
     <string name="pextra_could_not_install">Impossibile installare %1$s</string>
     <string name="esync_fetching">Recupero del pacchetto droiddeck-esync</string>
@@ -2477,10 +2474,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Schermo della sessione</string>
-    <string name="display_resolution">Risoluzione</string>
+    <string name="display_zero_copy">Presentazione senza copia</string>
+    <string name="display_resolution_landscape">Risoluzione orizzontale</string>
+    <string name="display_resolution_portrait">Risoluzione verticale</string>
+    <string name="display_follow_landscape">Come orizzontale (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Come verticale (%1$d×%2$d)</string>
     <string name="display_game_fit">Adattamento giochi 16:9</string>
     <string name="display_game_fit_hint">Come i giochi 16:9 si adattano a questo schermo. Dalla prossima sessione.</string>
     <string name="display_game_fit_unavailable">Scegli Adatta allo schermo o una dimensione personalizzata più stretta di 16:9.</string>
+    <string name="display_avoid_notch">Evita il notch</string>
+    <string name="display_avoid_notch_hint">Tiene l\'immagine fuori dal ritaglio della fotocamera. Si applica al ritorno alla sessione.</string>
     <string name="display_preserve">Mantieni proporzioni</string>
     <string name="display_stretch">Estendi allo schermo</string>
     <string name="display_image_scaling">Ridimensionamento immagine</string>
@@ -3377,10 +3380,19 @@
     <string name="storage_shared_prefix">Prefisso condiviso di Steam</string>
     <string name="storage_shared_prefix_detail">Steam esegue qui i propri strumenti Windows</string>
     <string name="storage_reset_shared_confirm">Lo elimina (%1$s). Steam ne crea uno nuovo la prossima volta che serve.</string>
+    <string name="storage_remove_launcher_confirm">Elimina il prefisso Wine e la cache degli shader di questa app dello store (%1$s), con il suo accesso e i salvataggi presenti solo lì. I giochi che vi girano ricevono un nuovo prefisso e potrebbe essere necessario configurare di nuovo l\'app. I salvataggi cloud restano nel tuo account.</string>
+    <string name="storage_system_clearable">Si possono liberare %1$s</string>
+    <string name="storage_item_system_caches">Cache di Linux e Steam</string>
+    <string name="storage_item_system_caches_detail">Vecchi file temporanei, pacchetti scaricati e cache web di Steam</string>
+    <string name="storage_cache_temp">Vecchi file temporanei</string>
+    <string name="storage_cache_packages">Pacchetti scaricati</string>
+    <string name="storage_cache_steam_web">Cache web di Steam</string>
+    <string name="storage_cache_steam_corrupt">Download di Steam danneggiati</string>
+    <string name="storage_cache_detail">Ricreati quando servono</string>
+    <string name="storage_clear">Svuota</string>
     <string name="storage_launcher_prefix">Un\'app di uno store e i giochi che girano con essa</string>
     <string name="storage_launcher_used_by">Usato da %1$s</string>
     <string name="storage_shortcut_app">Gioco non Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Non associato a nessun gioco, quindi viene conservato</string>
     <string name="storage_remove_selected">Rimuovi selezionati · %1$s</string>
     <string name="storage_uninstall_selected">Disinstalla selezionati · %1$s</string>
     <string name="storage_bulk_prefixes">Prefissi Wine</string>
@@ -4039,6 +4051,7 @@
     <string name="addons_sort_downloads">Più scaricati</string>
     <string name="addons_category_all">Tutte le categorie</string>
     <string name="addons_none_found">Nessun addon trovato</string>
+    <string name="addons_curse_busy">Chiudi prima CurseForge</string>
     <string name="addons_unreachable">Impossibile raggiungere %1$s</string>
     <string name="addons_no_file">Nessun file per questa versione del gioco</string>
     <string name="input_reset_positions">Ripristina posizioni</string>
@@ -4128,4 +4141,18 @@
     <string name="display_scaling_integer">Intero</string>
     <string name="display_scaling_fit">Adatta</string>
     <string name="drawer_antialiasing">Antialiasing</string>
+    <string name="theme_custom">Personalizzato</string>
+    <string name="theme_custom_detail">Scegli separatamente ogni colore dell’interfaccia.</string>
+    <string name="theme_custom_background">Sfondo</string>
+    <string name="theme_custom_surface">Pannelli</string>
+    <string name="theme_custom_surface_variant">Pannelli rialzati</string>
+    <string name="theme_custom_line">Separatori</string>
+    <string name="theme_custom_line2">Bordi</string>
+    <string name="theme_custom_on_background">Testo principale</string>
+    <string name="theme_custom_on_surface_variant">Testo secondario</string>
+    <string name="theme_custom_primary">Pulsanti e colore principale</string>
+    <string name="theme_custom_on_primary">Testo dei pulsanti</string>
+    <string name="theme_custom_signal">Evidenziazioni</string>
+    <string name="theme_custom_good">Successo</string>
+    <string name="theme_custom_error">Errore</string>
 </resources>

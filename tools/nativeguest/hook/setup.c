@@ -84,6 +84,19 @@ static void init_ddnatv_hook(void) {
             setenv("TZDIR", tzdir_buf, 0);
         }
 
+        const char *curr_locpath = getenv("LOCPATH");
+        if (!curr_locpath || curr_locpath[0] == '\0') {
+            char locpath_buf[PATH_MAX];
+            snprintf(locpath_buf, sizeof(locpath_buf), "%s/usr/lib/locale", g_ddnatv_root);
+            setenv("LOCPATH", locpath_buf, 1);
+        }
+
+        if (!getenv("GCONV_PATH")) {
+            char gconv_buf[PATH_MAX];
+            snprintf(gconv_buf, sizeof(gconv_buf), "%s/usr/lib/aarch64-linux-gnu/gconv", g_ddnatv_root);
+            setenv("GCONV_PATH", gconv_buf, 0);
+        }
+
         const char *curr_cert = getenv("SSL_CERT_FILE");
         if (!curr_cert || curr_cert[0] == '\0' || strcmp(curr_cert, "/etc/ssl/certs/ca-certificates.crt") == 0) {
             char cert_buf[PATH_MAX];
@@ -350,8 +363,11 @@ static ssize_t handle_proc_exe_at(int dirfd, const char *pathname, char *buf, si
 static const char *rewrite_path(const char *path, char *buffer, size_t bufsize) {
     if (!path) return NULL;
     // Relative paths must NEVER be rewritten to rootfs root
-    if (path[0] != '/') return path;
     init_ddnatv_hook();
+    if (path[0] != '/') {
+        const char *walked = map_at(AT_FDCWD, path, buffer, bufsize);
+        return walked ? walked : path;
+    }
     return rewrite_path_in_root(path, buffer, bufsize);
 }
 
@@ -361,7 +377,7 @@ static const char *rewrite_path(const char *path, char *buffer, size_t bufsize) 
 // followed in the guest's view first. The rootfs's own links were made relative already.
 static const char *rewrite_path_follow(const char *path, char *buffer, size_t bufsize) {
     if (!path) return NULL;
-    if (path[0] != '/') return path;
+    if (path[0] != '/') return rewrite_path(path, buffer, bufsize);
     init_ddnatv_hook();
     int moved = 0;
     for (int i = 0; i < g_nbinds; i++) {

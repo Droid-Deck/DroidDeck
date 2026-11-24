@@ -51,6 +51,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +60,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
@@ -236,12 +238,10 @@ internal fun SetupPanel(
             ),
         ) {
             PageHeader(stringResource(R.string.setup_title)) {
-                Box(Modifier.weight(1f)) { SheetChips(tabs, tab, chipFocus, onPick = pick) }
-                if (!searching) SearchIcon(stringResource(R.string.settings_search)) { searching = true }
-            }
-            if (searching) {
-                androidx.activity.compose.BackHandler { searching = false; query = "" }
-                SettingsSearchField(query, { query = it }) { searching = false; query = "" }
+                SettingsPillSearch(
+                    Modifier.weight(1f), searching, query, { query = it },
+                    onOpen = { searching = true }, onClose = { searching = false; query = "" },
+                ) { SheetChips(tabs, tab, chipFocus, onPick = pick) }
             }
             val listing = searching && query.isNotBlank()
             val fixed = tab == CONTROLLER_TAB && !listing
@@ -249,6 +249,7 @@ internal fun SetupPanel(
                 if (listing) SettingsSearchResults(query) { section -> pick(section.ordinal) }
                 else when (tab) {
                     OVERVIEW_TAB -> {
+                        OnboardingCard(limitBlocks, a.onShowPhantomGate)
                         // Setup's "Safe mode" row, under the GPU row while the bridge is on and can be used here.
                         val bridgeModeRow = !s.adreno && s.vkBridge && com.droiddeck.launcher.core.DeviceSupport.bridgeUsable()
                         val gpuCheck: @Composable (Boolean) -> Unit = { divider ->
@@ -439,6 +440,7 @@ internal fun SetupPanel(
                                 }
                                 if (s.theme == Themes.INNER_GAMER) RgbSpeedRow()
                                 if (s.theme == Themes.GRADIENT) GradientColorRows()
+                                if (s.theme == Themes.CUSTOM) CustomColorRows()
                                 if (s.theme == Themes.TRUE_BLACK) HighlightColorRow()
                                 ChoiceRow(
                                     host, "app-scale", stringResource(R.string.setup_app_scale), stringResource(R.string.setup_app_scale_hint),
@@ -516,6 +518,18 @@ internal fun SetupPanel(
                                     if (s.launcherFullscreen) stringResource(R.string.setup_fullscreen_on) else stringResource(R.string.setup_fullscreen_off),
                                     s.launcherFullscreen,
                                 ) { a.onLauncherFullscreen(it) }
+                                ToggleRow(
+                                    host, "page-swipe", stringResource(R.string.setup_page_swipe),
+                                    stringResource(R.string.setup_page_swipe_hint), PageSwipe.on,
+                                ) { on ->
+                                    PageSwipe.on = on
+                                    com.droiddeck.launcher.core.AppUiPrefs.setPageSwipe(ctx, on)
+                                }
+                                ToggleRow(
+                                    host, "controller-haptics", stringResource(R.string.setup_controller_haptics),
+                                    stringResource(R.string.setup_controller_haptics_hint),
+                                    s.controllerHaptics,
+                                ) { a.onControllerHaptics(it) }
                                 if (s.dualScreenDevice) {
                                     val dualModes = listOf(
                                         com.droiddeck.launcher.input.DualScreen.MODE_AUTO to stringResource(R.string.setup_dual_screen_auto),
@@ -596,6 +610,14 @@ internal fun SetupPanel(
                             ToggleRow(host, "developer-tools", stringResource(R.string.dev_tools_title), stringResource(R.string.dev_tools_hint), DeveloperTools.on) {
                                 DeveloperTools.set(devContext, it)
                             }
+                            if (DeveloperTools.on) ActionRow(
+                                stringResource(R.string.dev_ui_zoo), stringResource(R.string.dev_ui_zoo_hint), stringResource(R.string.dev_ui_zoo_open),
+                                onClick = { DevPreview.zoo = true }, modifier = Modifier.testTag("dev-ui-zoo"),
+                            )
+                            if (DeveloperTools.on) ToggleRow(
+                                host, "preview-shortcuts", stringResource(R.string.dev_preview_shortcuts), stringResource(R.string.dev_preview_shortcuts_hint),
+                                DevPreview.shortcuts,
+                            ) { DevPreview.setShortcuts(devContext, it) }
                         }
                         SettingsGroup(stringResource(R.string.dev_group_logs)) {
                             ToggleRow(host, "logs", stringResource(R.string.setup_logs), stringResource(R.string.setup_logs_hint), s.logsEnabled) { a.onLogs() }
@@ -1146,7 +1168,7 @@ private fun SettingCard(label: String, value: String, id: String, modifier: Modi
         verticalArrangement = Arrangement.spacedBy(3.dp),
         modifier = modifier.paneItem(id)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .then(if (LocalGlass.current != null) Modifier.glass(Shape14, if (hot) 0.04f else 0f) else Modifier.clip(Shape14).background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface))
+            .then(if (LocalGlass.current != null) Modifier.glass(Shape14, if (hot) 0.04f else 0f) else Modifier.clip(Shape14).background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.10f)) else Modifier))
             .glideBorder(hot, Shape14, pal.signal, if (LocalGlass.current != null) Color.Transparent else pal.line2)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)
@@ -1212,5 +1234,106 @@ private fun GradientColorRows() {
         onDismiss = { picking = 0 },
     ) { argb ->
         if (picking == 1) Themes.setGradient(ctx, argb, secondary) else Themes.setGradient(ctx, primary, argb)
+    }
+}
+
+@Composable
+private fun CustomColorRows() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val colors = Themes.customColors
+    var picking by remember { mutableStateOf<String?>(null) }
+
+    val rows = listOf(
+        Triple("background", stringResource(R.string.theme_custom_background), colors.background),
+        Triple("surface", stringResource(R.string.theme_custom_surface), colors.surface),
+        Triple("surfaceVariant", stringResource(R.string.theme_custom_surface_variant), colors.surfaceVariant),
+        Triple("line", stringResource(R.string.theme_custom_line), colors.line),
+        Triple("line2", stringResource(R.string.theme_custom_line2), colors.line2),
+        Triple("onBackground", stringResource(R.string.theme_custom_on_background), colors.onBackground),
+        Triple("onSurfaceVariant", stringResource(R.string.theme_custom_on_surface_variant), colors.onSurfaceVariant),
+        Triple("primary", stringResource(R.string.theme_custom_primary), colors.primary),
+        Triple("onPrimary", stringResource(R.string.theme_custom_on_primary), colors.onPrimary),
+        Triple("signal", stringResource(R.string.theme_custom_signal), colors.signal),
+        Triple("good", stringResource(R.string.theme_custom_good), colors.good),
+        Triple("error", stringResource(R.string.theme_custom_error), colors.error),
+    )
+
+    rows.forEach { (key, label, argb) ->
+        SettingsRow(label, null) {
+            ColorCube(Color(argb), label) { picking = key }
+        }
+    }
+
+    val selected = rows.firstOrNull { it.first == picking }
+    if (selected != null) {
+        ColorPickerDialog(
+            selected.second,
+            selected.third,
+            onDismiss = { picking = null },
+        ) { argb ->
+            Themes.setCustomColor(ctx, selected.first, argb)
+        }
+    }
+}
+
+@Composable
+internal fun OnboardingCard(limitBlocks: Boolean = false, onSetUpLimit: () -> Unit = {}) {
+    val active by com.droiddeck.launcher.session.Onboarding.active.collectAsState()
+    val failed by com.droiddeck.launcher.session.Onboarding.failed.collectAsState()
+    val facts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
+    val rows = com.droiddeck.launcher.session.Onboarding.rows(active, failed, facts)
+    val settling = com.droiddeck.launcher.session.Onboarding.pending(rows)
+    if (!settling) return
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val overall = com.droiddeck.launcher.session.Onboarding.overall(rows)
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp).clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Text(stringResource(R.string.onboarding_title), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+            Text(stringResource(R.string.onboarding_summary, overall), fontSize = 13.sp, color = colors.onSurfaceVariant)
+            LinearProgressIndicator(progress = { overall / 100f }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(4.dp))
+        }
+        rows.forEach { row ->
+            Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+            Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(when (row.step) {
+                            com.droiddeck.launcher.session.Onboarding.Step.RUNTIME -> R.string.onboarding_step_runtime
+                            com.droiddeck.launcher.session.Onboarding.Step.PROTON -> R.string.onboarding_step_proton
+                            com.droiddeck.launcher.session.Onboarding.Step.STEAM -> R.string.onboarding_step_steam
+                        }),
+                        fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
+                    )
+                    val detail = when (row.state) {
+                        com.droiddeck.launcher.session.Onboarding.State.ACTIVE -> row.label.orEmpty()
+                        com.droiddeck.launcher.session.Onboarding.State.FAILED -> stringResource(R.string.onboarding_failed)
+                        com.droiddeck.launcher.session.Onboarding.State.WAITING -> stringResource(R.string.onboarding_waiting)
+                        com.droiddeck.launcher.session.Onboarding.State.DONE -> stringResource(R.string.onboarding_done)
+                    }
+                    Text(detail, fontSize = 13.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (row.state == com.droiddeck.launcher.session.Onboarding.State.ACTIVE) {
+                        if (row.percent >= 0) LinearProgressIndicator(progress = { row.percent / 100f }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(3.dp))
+                        else LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(3.dp))
+                    }
+                }
+            }
+        }
+        if (limitBlocks) {
+            Box(Modifier.fillMaxWidth().height(1.dp).background(pal.line))
+            Row(
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.setup_limit), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                    Text(stringResource(R.string.onboarding_limit_reason), fontSize = 13.sp, color = colors.onSurfaceVariant)
+                }
+                PrimaryButton(stringResource(R.string.onboarding_limit_action), compact = true, onClick = onSetUpLimit)
+            }
+        }
     }
 }

@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.stores.ea
 
 import com.droiddeck.launcher.stores.CatalogItem
+import com.droiddeck.launcher.stores.CloudSaves
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreGameSidecar
 import com.droiddeck.launcher.stores.StoreLaunch
@@ -412,5 +413,191 @@ class EaTest {
         EaAuth.signOut(app)
         assertTrue(!EaAuth.storeRefreshed(app, "late", 3600, "r3"))
         assertNull(EaAuth.load(app))
+    }
+
+    private fun tokenServer(status: String, error: String = "invalid_grant"): java.net.ServerSocket {
+        val server = java.net.ServerSocket(0)
+        Thread {
+            runCatching {
+                server.accept().use { socket ->
+                    val input = socket.getInputStream()
+                    val head = StringBuilder()
+                    while (!head.endsWith("\r\n\r\n")) head.append(input.read().takeIf { it >= 0 }?.toChar() ?: break)
+                    val length = Regex("(?i)content-length: *(\\d+)").find(head)?.groupValues?.get(1)?.toInt() ?: 0
+                    repeat(length) { input.read() }
+                    val body = """{"error":"$error"}""".toByteArray()
+                    socket.getOutputStream().apply {
+                        write("HTTP/1.1 $status\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                        write(body)
+                        flush()
+                    }
+                }
+            }
+        }.apply { isDaemon = true; start() }
+        return server
+    }
+
+    @Test fun aRejectedRefreshAsksForSignInWhileAnUnreachableOneKeepsTheSessionForARetry() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        val real = EaAuth.tokenUrl
+        try {
+            com.droiddeck.launcher.stores.StoreAccounts.write(app, Store.EA,
+                JSONObject().put("access_token", "old").put("refresh_token", "r").put("expires_at", 1L).put("user_id", "1"))
+            EaAuth.tokenUrl = "http://127.0.0.1:1/"
+            assertNull(EaAuth.accessToken(app))
+            assertTrue(CloudSaves.status(app, Store.EA, "x").signedIn)
+            tokenServer("503 Service Unavailable", "temporarily_unavailable").use { server ->
+                EaAuth.tokenUrl = "http://127.0.0.1:${server.localPort}/"
+                assertNull(EaAuth.accessToken(app))
+            }
+            assertTrue(CloudSaves.status(app, Store.EA, "x").signedIn)
+            tokenServer("400 Bad Request", "invalid_client").use { server ->
+                EaAuth.tokenUrl = "http://127.0.0.1:${server.localPort}/"
+                assertNull(EaAuth.accessToken(app))
+            }
+            assertTrue(CloudSaves.status(app, Store.EA, "x").signedIn)
+            tokenServer("400 Bad Request").use { server ->
+                EaAuth.tokenUrl = "http://127.0.0.1:${server.localPort}/"
+                assertNull(EaAuth.accessToken(app))
+            }
+            assertFalse(CloudSaves.status(app, Store.EA, "x").signedIn)
+            assertTrue(EaAuth.storeRefreshed(app, "new", 3600, "r2"))
+            assertTrue(CloudSaves.status(app, Store.EA, "x").signedIn)
+        } finally {
+            EaAuth.tokenUrl = real
+            EaAuth.signOut(app)
+        }
+    }
+
+    private val heat = """<saveFileCriteria>
+<include order="0">%Documents%/Need for Speed Heat/SaveGame/savegame/</include>
+<include order="1">%Documents%/Need for Speed Heat/SaveGame/wraps/</include>
+<include order="2">%Documents%/Need for Speed Heat/settings/PROFILEOPTIONS</include>
+</saveFileCriteria>"""
+
+    @Test fun rulesFindTheFolderTheyShareAndPickOnlyTheirFiles() {
+        val rules = EaSaveRules.parse(heat)!!
+        assertEquals("%Documents%/Need for Speed Heat/", rules.base())
+        assertEquals("%DOCUMENTS%/Need for Speed Heat/", EaSaveRules.template(rules.base()!!))
+        assertTrue(rules.matches("%Documents%/Need for Speed Heat/SaveGame/savegame/1"))
+        assertTrue(rules.matches("%documents%\\need for speed heat\\settings\\PROFILEOPTIONS"))
+        assertFalse(rules.matches("%Documents%/Need for Speed Heat/settings/PROFILEOPTIONS.bak"))
+        assertFalse(rules.matches("%Documents%/Need for Speed Heat/Logs/crash.txt"))
+    }
+
+    @Test fun globsStayInsideTheirFolderAndExcludesWin() {
+        val bf = EaSaveRules.parse("""<saveFileCriteria><include order="0">%Documents%/Battlefield 6/settings/*.xml</include>
+            <include order="2">%Documents%/Battlefield 6/settings/*.sav</include></saveFileCriteria>""")!!
+        assertEquals("%Documents%/Battlefield 6/settings/", bf.base())
+        assertTrue(bf.matches("%Documents%/Battlefield 6/settings/a.sav"))
+        assertFalse(bf.matches("%Documents%/Battlefield 6/settings/sub/a.sav"))
+        val le = EaSaveRules.parse("""<saveFileCriteria>
+   <exclude order="0">%Documents%/BioWare/Mass Effect Legendary Edition/Config/</exclude>
+   <include order="1">%Documents%/BioWare/Mass Effect Legendary Edition/</include></saveFileCriteria>""")!!
+        assertTrue(le.matches("%Documents%/BioWare/Mass Effect Legendary Edition/Save/ME1/x.pcsav"))
+        assertFalse(le.matches("%Documents%/BioWare/Mass Effect Legendary Edition/Config/GamerSettings.ini"))
+        assertNull(EaSaveRules.parse("<saveFileCriteria></saveFileCriteria>"))
+        assertNull(EaSaveRules.parse("""<saveFileCriteria><include order="0">C:/Games/x/</include></saveFileCriteria>""")!!.base())
+    }
+
+    @Test fun rulesApplyInTheirOrderAndTheFirstMatchDecides() {
+        val rules = EaSaveRules.parse("""<saveFileCriteria>
+<exclude order="1">%Documents%/Game/Config/</exclude>
+<include order="0">%Documents%/Game/Config/keys.ini</include>
+<include order="2">%Documents%/Game/</include></saveFileCriteria>""")!!
+        assertTrue(rules.matches("%Documents%/Game/Config/keys.ini"))
+        assertFalse(rules.matches("%Documents%/Game/Config/video.ini"))
+        assertTrue(rules.matches("%Documents%/Game/Save/1.sav"))
+    }
+
+    @Test fun aBarePatternMatchesFileNamesInsideTheSaveFolder() {
+        val dig = EaSaveRules.parse("""<saveFileCriteria>
+<exclude order="0">%Documents%/My Games/SteamWorld Dig/controls.cfg</exclude>
+<exclude order="2">%Documents%/My Games/SteamWorld Dig/settings.xml</exclude>
+<include order="3">*.xml</include>
+<include order="4">%Documents%/My Games/SteamWorld Dig/profile.dat</include></saveFileCriteria>""")!!
+        assertEquals("%Documents%/My Games/SteamWorld Dig/", dig.base())
+        assertTrue(dig.matches("%Documents%/My Games/SteamWorld Dig/profile1.xml"))
+        assertFalse(dig.matches("%Documents%/My Games/SteamWorld Dig/settings.xml"))
+        assertFalse(dig.matches("%Documents%/Other Game/profile1.xml"))
+        val witness = EaSaveRules.parse("""<saveFileCriteria><include order="0">%AppData%/The Witness/*</include><include order="1">*.png</include></saveFileCriteria>""")!!
+        assertEquals("%AppData%/The Witness/", witness.base())
+        assertTrue(witness.matches("%AppData%/The Witness/shot.png"))
+    }
+
+    @Test fun localLowAndInstallFoldersResolveToTheirTemplates() {
+        val fe = EaSaveRules.parse("""<saveFileCriteria><exclude order="0">%LocalLowAppData%/Zoink Games/Fe/SystemSettings.sav</exclude>
+<include order="1">%LocalLowAppData%/Zoink Games/Fe/Save1.sav</include></saveFileCriteria>""")!!
+        assertEquals("%APPLICATION_DATA_LOCAL_LOW%/Zoink Games/Fe/", EaSaveRules.template(fe.base()!!))
+        val castle = EaSaveRules.parse("""<saveFileCriteria><include order="0">%InstallDir%/x86/Lost_Castle_Data/lc_game_data</include>
+<include order="1">%InstallDir%/x64/Lost_Castle_Data/lc_game_data</include></saveFileCriteria>""")!!
+        assertEquals("%INSTALL%/", EaSaveRules.template(castle.base()!!))
+        assertTrue(castle.matches("%InstallDir%/x64/Lost_Castle_Data/lc_game_data"))
+        assertFalse(castle.matches("%InstallDir%/x64/Lost_Castle_Data/other"))
+    }
+
+    @Test fun aManifestWithSingleQuotedAttributesKeepsEveryField() {
+        val m = EaCloud.parse("""<manifest xmlns='http://origin.com/cloudsaves/manifest' lineage='{1}'>
+ <file size='12' href='content/12-ab' md5='q+w=='><localName created='2022-10-17T23:51:04ZZ' lastModified='2022-10-18T00:00:00ZZ'>%Documents%/A &amp; B/1</localName></file>
+ <snapshot>s1</snapshot></manifest>""")
+        val f = m.files.single()
+        assertEquals(12L, f.size); assertEquals("content/12-ab", f.href); assertEquals("q+w==", f.md5)
+        assertEquals("2022-10-17T23:51:04ZZ", f.created); assertEquals("2022-10-18T00:00:00ZZ", f.modified)
+        assertEquals("%Documents%/A & B/1", f.localName)
+        assertEquals("{1}", m.lineage); assertEquals(listOf("s1"), m.snapshots)
+        assertTrue(runCatching { EaCloud.parse("<manifest><file size='1'>") }.isFailure)
+    }
+
+    @Test fun aManifestKeepsItsFilesSnapshotsAndEaTimestampsThroughAWrite() {
+        val xml = """<manifest xmlns="http://origin.com/cloudsaves/manifest" lineage="{00000000-0000-0000-0000-000000000000}">
+ <file size="115352" href="content/115352-c7996be80a6e38d1f8ef28866b114f8b" md5="x5lr6ApuONH47yiGaxFPiw==">
+  <localName created="2022-10-17T23:51:04ZZ" lastModified="2022-10-17T23:51:04ZZ">%Documents%/Need for Speed Heat/SaveGame/savegame/1</localName>
+ </file>
+ <snapshot>80cmnqT/rIKQRmciINSVhQ==</snapshot>
+</manifest>"""
+        val m = EaCloud.parse(xml)
+        assertEquals(1, m.files.size)
+        assertEquals("c7996be80a6e38d1f8ef28866b114f8b", EaCloud.hex(m.files[0].md5))
+        assertEquals(1666050664000L, EaCloud.parseTime(m.files[0].modified))
+        assertEquals("2022-10-17T23:51:04ZZ", EaCloud.stamp(1666050664123L))
+        val again = EaCloud.parse(EaCloud.write(m))
+        assertEquals(m.files.single().localName, again.files.single().localName)
+        assertEquals(m.files.single().href, again.files.single().href)
+        assertEquals(m.files.single().created, again.files.single().created)
+        assertEquals(m.files.single().modified, again.files.single().modified)
+        assertEquals(m.files.single().size, again.files.single().size)
+        assertEquals(m.files.single().md5, again.files.single().md5)
+        assertEquals(listOf("80cmnqT/rIKQRmciINSVhQ=="), again.snapshots)
+        assertEquals(m.lineage, again.lineage)
+    }
+
+    @Test fun commentedRulesAreIgnoredAndNamesKeepTheirSpaces() {
+        val rules = EaSaveRules.parse("""<saveFileCriteria>
+<!-- <exclude order="0">%Documents%/Game/Config/</exclude> -->
+<include order="1"> %Documents%/Game/ </include></saveFileCriteria>""")!!
+        assertEquals(listOf("%Documents%/Game/"), rules.includes)
+        assertTrue(rules.excludes.isEmpty())
+        assertTrue(rules.matches("%Documents%/Game/Config/a.ini"))
+        assertEquals("%Documents%/Game/slot.sav ", EaSaveRules.normalize("%Documents%\\Game\\slot.sav "))
+    }
+
+    @Test fun aTruncatedManifestIsRefused() {
+        val cut = runCatching { EaCloud.parse("""<manifest lineage="{1}"><file size="1" href="content/1-a" md5="x5lr6ApuONH47yiGaxFPiw==">""") }
+        assertTrue(cut.isFailure)
+        val open = runCatching { EaCloud.parse("""<manifest lineage="{1}"><file size="1" href="content/1-a" md5="x5lr6ApuONH47yiGaxFPiw=="><localName>%Documents%/a</localName></manifest>""") }
+        assertTrue(open.isFailure)
+    }
+
+    @Test fun snapshotEntitiesAreDecodedOnceAndWrittenBackTheSame() {
+        val m = EaCloud.parse("""<manifest lineage="{1}"><snapshot>abc&#x2B;def</snapshot></manifest>""")
+        assertEquals(listOf("abc+def"), m.snapshots)
+        assertEquals(listOf("abc+def"), EaCloud.parse(EaCloud.write(m)).snapshots)
+    }
+
+    @Test fun cloudKeysFollowTheMultiplayerId() {
+        assertEquals(listOf("195133_195133"), EaCloud.keys("195133", "195133"))
+        assertEquals(listOf("52209", "52209_52209"), EaCloud.keys("52209", ""))
+        assertEquals("https://x/y?a=1&b=2", EaCloud.manifestUrl("<sync><manifest>https://x/y?a=1&amp;b=2</manifest></sync>"))
+        assertTrue(CloudSaves.supports(Store.EA))
     }
 }

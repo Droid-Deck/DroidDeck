@@ -22,7 +22,6 @@
         <item>SDカード、USBドライブ、SSDからSteamライブラリを追加でき、DroidDeckはゲームをライブラリにまとめて表示します。</item>
         <item>ストアでは、Epic Games、GOG、Xbox、EA、Battle.net、Ubisoft Connect、Amazon Games、itch.io、Game Joltにサインインして、DroidDeckからそれらのゲームをインストール・更新できます。</item>
         <item>FEX、DXVK、VKD3D-Protonなどのコンポーネントは自動で更新されます。既定はProton Experimental ARM64で、Proton 11.0 ARM64がインストールされている場合はそちらになります。</item>
-        <item>ゲーム実行中はSteamを圧縮すると、メモリが少ない端末でRAMを確保できます。</item>
         <item>画面の右端から内側にスワイプするとセッションメニューが開きます。タッチパッドモード、PCキーボード、低遅延モード、ゲームプロファイルなどがあります。</item>
         <item>ゲームが重い場合は、クイックアクセスでフレームレートを制限し、ゲームのコンポーネントで別のProtonバージョンやFEXプリセットを試してください。</item>
         <item>ゲームの音が割れる、または出ない場合は、Steam設定のオーディオにある「ゲームでDirectAudioを使用」を試してください。</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">このプログラムは%1$s PC向けにビルドされており、FEX経由で実行されますが、FEXはまだセットアップされていません。ログインした状態で一度Steamを開いてください。DroidDeckがFEXと必要なSteam Linux Runtimeをダウンロードした後、このプログラムが開きます。</string>
     <string name="session_proot_missing">DroidDeckのprootをダウンロードできませんでした。接続を確認して、もう一度お試しください。代替のprootではプレイするには遅すぎるため、セッションは開始されませんでした。</string>
     <string name="session_powervr_missing">PowerVRのグラフィックス環境をダウンロードできませんでした。接続を確認して、もう一度お試しください。</string>
+    <string name="session_graphics_runtime_failed">グラフィックス環境を準備できなかったため、セッションを開始しませんでした。</string>
+    <string name="session_game_environment_failed">ゲーム環境を設定できなかったため、セッションを開始しませんでした。</string>
     <string name="session_directaudio_missing">DirectAudioをダウンロードできなかったため、このセッションではゲーム音声に低速な経路を使用します。</string>
     <string name="session_end_program">このプログラム</string>
     <string name="session_end_present_fault">セッションが画面に描画できませんでした: %1$s。黒い画面の代わりに、この画面で理由を表示しています。詳細はセッションログにあります。</string>
@@ -280,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">HDR10出力</string>
     <string name="mode_hdr_unavailable">利用不可：%1$s。</string>
-    <string name="mode_hdr_restart">アプリの再起動後に有効になります。</string>
     <string name="mode_drivers">ドライバー</string>
     <string name="mode_gpu_drivers">GPUドライバー</string>
     <string name="mode_gpu_drivers_hint">Steamとデスクトップで共有されます。「コンポーネント」ページで設定してください。</string>
@@ -332,7 +332,6 @@
     <string name="mode_startup">起動</string>
     <string name="mode_startup_session">起動時に開く</string>
     <string name="mode_startup_session_hint">DroidDeck の起動時にこのセッションを開始します。</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">リリースを確認中…</string>
     <string name="mode_decky_ready">%1$sをインストールする準備ができました。</string>
     <string name="mode_decky_none">互換性のあるバージョンが見つかりません。後でもう一度お試しください。</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">最新です · %1$s</string>
     <string name="mode_decky_loader">ローダー</string>
     <string name="mode_decky_install_latest">最新バージョンをインストール</string>
-    <string name="decky_channel">アップデートチャンネル</string>
-    <string name="decky_channel_hint">インストールするDecky Loaderのリリースです。Decky自身のアップデーターも同じチャンネルを使用します。</string>
     <string name="decky_channel_stable">安定版</string>
     <string name="decky_channel_prerelease">プレリリース版</string>
     <string name="decky_channel_testing">テスト版</string>
     <string name="decky_channel_failed">Deckyのアップデートチャンネルを保存できませんでした</string>
-    <string name="mode_decky_on">Steamと共に起動します。有効にすると、このデバイス上の他のアプリがSteamを制御できる場合があります。</string>
-    <string name="mode_decky_off">オフ。Steamのリモートデバッグポートは閉じたままになります。</string>
     <string name="mode_decky_remove_title">Decky Loaderをアンインストールしますか？</string>
     <string name="mode_decky_remove_text">ローダーを削除します。プラグインと設定は保持されます。</string>
     <string name="mode_client">クライアント</string>
@@ -622,20 +617,8 @@
     <string name="perf_gsrealtime">gamescope：リアルタイムGPUキュー</string>
     <string name="perf_gsrealtime_hint">コンポジタのGPU作業の優先度を上げます。フレームタイムの安定性が向上する場合がありますが、ゲームのパフォーマンスの一部を消費します。</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">メモリ</string>
     <string name="perf_cap_off">オフ</string>
-    <string name="perf_cap_auto">ドライバーのデフォルト</string>
-    <string name="perf_zram_client">ゲーム実行中はSteamを圧縮</string>
-    <string name="perf_zram_idle">ゲームのアイドルメモリを圧縮</string>
-    <string name="perf_zram_idle_hint">RAMが少ないときにゲームのアイドルメモリを圧縮します。ゲームが30秒ごとに数秒止まる場合はオフにしてください。次回のセッション開始時に適用されます。</string>
-    <string name="perf_zram_client_hint">ゲーム開始の20秒後、SteamクライアントをzRAMに圧縮してゲームに使えるメモリを増やし、ゲーム終了時に読み戻します。ゲーム開始直後にセッションが終了する場合はオフにしてください。上のRAM上限を設定している場合は、セッションが上限を超えるとSteamは引き続き圧縮されます。</string>
-    <string name="perf_ram_cap">RAM上限</string>
-    <string name="perf_ram_cap_hint">Steamモードでもデスクトップからでも、Steamクライアントの実行中に適用されます。セッションの使用量がこの値を超えると、Steam、次にセッション内の対応する他のプロセスがzRAMに圧縮されます。ソフトな上限のため何も終了されませんが、ページの読み戻し中にゲームがカクつくことがあります。</string>
-    <string name="perf_ram_cap_unavailable">zRAMスワップが必要ですが、このデバイスにはありません。</string>
-    <string name="perf_vram_cap">VRAM上限</string>
-    <string name="perf_vram_cap_hint">Direct3D 9～12のゲームにこのビデオメモリ予算を通知し、メモリ使用量の削減を促します。ゲームは予算を超える場合があります。GPUのページングを追加するものではなく、メモリ不足によるクラッシュの防止は保証されません。次のセッションから有効になります。</string>
     <string name="perf_gpuclock">GPUを最高クロックに保つ</string>
-    <string name="perf_gpuclock_hint">Adrenoのみ。スタッターは減りますが、消費電力と発熱が増えます。</string>
     <string name="perf_fixes">セッション修正</string>
     <string name="perf_sysmem">Turnip：sysmemレンダリング</string>
     <string name="perf_sysmem_hint">Steamクライアントとゲームに適用。Adreno 710/720/722では必須です。</string>
@@ -813,7 +796,6 @@
     <string name="drawer_pc_keyboard">PCキーボード</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">セカンドスクリーン</string>
-    <string name="drawer_second_screen_mode">モード</string>
     <string name="drawer_second_screen_shows">表示</string>
     <string name="drawer_android_apps">Androidアプリ</string>
     <string name="drawer_launch_app">アプリを起動</string>
@@ -962,13 +944,15 @@
     <string name="setup_launcher_orientation_auto">デバイスの回転に合わせる</string>
     <string name="setup_orientation_portrait">縦向き</string>
     <string name="setup_session_orientation">セッションの向き</string>
-    <string name="setup_session_orientation_hint">Steam、ゲーム、デスクトップ、コントローラーエディターに適用されます。解像度プリセットはセッションに合わせて回転し、カスタムの幅と高さは入力したとおりになります。</string>
+    <string name="setup_session_orientation_hint">Steam、ゲーム、デスクトップ、コントローラーエディターに適用されます。解像度プリセットはセッションに合わせて回転し、一方の向きがもう一方に従う場合、カスタムの幅と高さは向きに合わせて入れ替わります。</string>
     <string name="setup_orientation_auto">横向き（自動回転）</string>
     <string name="setup_orientation_landscape">横向き</string>
     <string name="setup_orientation_reverse">横向き（反転）</string>
     <string name="setup_fullscreen">全画面</string>
     <string name="setup_fullscreen_on">Androidのステータスバーとナビゲーションバーを非表示</string>
     <string name="setup_fullscreen_off">Androidのステータスバーとナビゲーションバーを表示</string>
+    <string name="setup_page_swipe">スワイプでページを切り替え</string>
+    <string name="setup_page_swipe_hint">ページを横切るようにスワイプすると、タブを切り替えます。</string>
     <string name="setup_dual_screen_launcher">デュアルスクリーンランチャー</string>
     <string name="setup_dual_screen_launcher_hint">自動では、内蔵セカンドスクリーンを搭載した携帯ゲーム機で、ランチャーの各セクション（Steam、ライブラリ、ストアなど）を2画面目に表示します。オンでは任意のセカンドディスプレイを使用します。オフではランチャーを1画面に留めます。</string>
     <string name="setup_dual_screen_sessions">デュアルスクリーンセッション</string>
@@ -1566,6 +1550,8 @@
     <string name="pip_unavailable">Androidがピクチャーインピクチャーを開けませんでした。</string>
     <string name="game_more">その他</string>
     <string name="game_edit_art">アートを編集</string>
+    <string name="game_unhide">非表示を解除</string>
+    <string name="game_hide_failed">Steamと同期できませんでした。Steamを終了してもう一度お試しください。</string>
     <string name="stores_in_steam_label">Steamに追加済み</string>
     <string name="game_shortcut">ショートカット</string>
     <string name="game_shortcut_add">ホーム画面に追加</string>
@@ -2284,6 +2270,17 @@
     <string name="pextra_checksum_mismatch">チェックサムが一致しないため、ダウンロードを削除しました</string>
     <string name="pextra_session_started">ダウンロード中にセッションが開始されました。停止してから互換性ツールをインストールしてください</string>
     <string name="pextra_installing">%1$sをインストール中</string>
+    <string name="xproton_title">試験版ビルド</string>
+    <string name="xproton_install_file">ファイルからインストール</string>
+    <string name="xproton_archive_unsafe">アーカイブに安全でないリンクまたはパスが含まれています</string>
+    <string name="xproton_archive_invalid">未対応または無効なアーカイブ</string>
+    <string name="xproton_no_space">このProtonビルド用の空き容量が足りません</string>
+    <string name="xproton_unpacking">Protonを展開中（数分かかります）</string>
+    <string name="xproton_untar_failed">展開に失敗しました（tar %1$d）</string>
+    <string name="xproton_no_tree">アーカイブにProtonビルドが含まれていません</string>
+    <string name="xproton_place_failed">Protonビルドを配置できませんでした</string>
+    <string name="xproton_remove_failed">%1$sを完全に削除できませんでした</string>
+    <string name="xproton_installed">試験版Protonをインストールしました。Steam → プロパティ → 互換性 で選択してください。</string>
     <string name="pextra_install_failed">%1$sのインストールに失敗しました（終了コード %2$d）</string>
     <string name="pextra_could_not_install">%1$sをインストールできませんでした</string>
     <string name="esync_fetching">droiddeck-esyncパックを取得中</string>
@@ -2435,10 +2432,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s。%2$s\n\n%3$s</string>
     <string name="display_session">セッションの表示</string>
-    <string name="display_resolution">解像度</string>
+    <string name="display_zero_copy">ゼロコピー表示</string>
+    <string name="display_resolution_landscape">横向きの解像度</string>
+    <string name="display_resolution_portrait">縦向きの解像度</string>
+    <string name="display_follow_landscape">横向きに合わせる (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">縦向きに合わせる (%1$d×%2$d)</string>
     <string name="display_game_fit">16:9ゲームの表示</string>
     <string name="display_game_fit_hint">16:9のゲームをこのディスプレイにどう合わせるか。次回のセッションから。</string>
     <string name="display_game_fit_unavailable">「画面に合わせる」か、16:9より縦長のカスタムサイズを選んでください。</string>
+    <string name="display_avoid_notch">ノッチを避ける</string>
+    <string name="display_avoid_notch_hint">映像をカメラの切り欠きから離します。セッションに戻ると反映されます。</string>
     <string name="display_preserve">縦横比を保持</string>
     <string name="display_stretch">画面いっぱいに引き伸ばす</string>
     <string name="display_image_scaling">画像のスケーリング</string>
@@ -3312,10 +3315,19 @@
     <string name="storage_shared_prefix">Steam の共有プレフィックス</string>
     <string name="storage_shared_prefix_detail">Steam が独自の Windows ヘルパーをここで実行します</string>
     <string name="storage_reset_shared_confirm">削除します（%1$s）。次に必要になったとき Steam が新しく作成します。</string>
+    <string name="storage_remove_launcher_confirm">このストアアプリの Wine プレフィックスとシェーダーキャッシュ（%1$s）を、サインイン情報やそこにしかないセーブデータごと削除します。中で動くゲームは新しいプレフィックスで始まり、アプリの再セットアップが必要になる場合があります。クラウドのセーブデータはアカウントに残ります。</string>
+    <string name="storage_system_clearable">%1$s を消去できます</string>
+    <string name="storage_item_system_caches">Linux と Steam のキャッシュ</string>
+    <string name="storage_item_system_caches_detail">古い一時ファイル、ダウンロード済みパッケージ、Steam のウェブキャッシュ</string>
+    <string name="storage_cache_temp">古い一時ファイル</string>
+    <string name="storage_cache_packages">ダウンロード済みパッケージ</string>
+    <string name="storage_cache_steam_web">Steam のウェブキャッシュ</string>
+    <string name="storage_cache_steam_corrupt">破損した Steam ダウンロード</string>
+    <string name="storage_cache_detail">必要なときに再作成されます</string>
+    <string name="storage_clear">消去</string>
     <string name="storage_launcher_prefix">ストアアプリとそれで動くゲーム</string>
     <string name="storage_launcher_used_by">%1$s が使用</string>
     <string name="storage_shortcut_app">Steam 以外のゲーム %1$s</string>
-    <string name="storage_unknown_prefix_detail">どのゲームにも一致しないため保持されます</string>
     <string name="storage_remove_selected">選択項目を削除 · %1$s</string>
     <string name="storage_uninstall_selected">選択項目をアンインストール · %1$s</string>
     <string name="storage_bulk_prefixes">Wineプレフィックス</string>
@@ -3970,6 +3982,7 @@
     <string name="addons_sort_downloads">ダウンロード数順</string>
     <string name="addons_category_all">すべてのカテゴリ</string>
     <string name="addons_none_found">アドオンが見つかりません</string>
+    <string name="addons_curse_busy">先に CurseForge を閉じてください</string>
     <string name="addons_unreachable">%1$s に接続できませんでした</string>
     <string name="addons_no_file">このゲームバージョン用のファイルがありません</string>
     <string name="input_reset_positions">位置をリセット</string>
@@ -4059,4 +4072,18 @@
     <string name="display_scaling_integer">整数</string>
     <string name="display_scaling_fit">画面に合わせる</string>
     <string name="drawer_antialiasing">アンチエイリアス</string>
+    <string name="theme_custom">カスタム</string>
+    <string name="theme_custom_detail">インターフェースの各色を個別に選択します。</string>
+    <string name="theme_custom_background">背景</string>
+    <string name="theme_custom_surface">パネル</string>
+    <string name="theme_custom_surface_variant">浮き上がったパネル</string>
+    <string name="theme_custom_line">区切り線</string>
+    <string name="theme_custom_line2">境界線</string>
+    <string name="theme_custom_on_background">メインテキスト</string>
+    <string name="theme_custom_on_surface_variant">サブテキスト</string>
+    <string name="theme_custom_primary">ボタンとメインアクセント</string>
+    <string name="theme_custom_on_primary">ボタンのテキスト</string>
+    <string name="theme_custom_signal">強調表示</string>
+    <string name="theme_custom_good">成功</string>
+    <string name="theme_custom_error">エラー</string>
 </resources>

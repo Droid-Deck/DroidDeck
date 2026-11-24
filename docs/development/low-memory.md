@@ -1,42 +1,127 @@
-# Low-memory reclaim and userspace compression
+# Automatic memory management
 
-The Steam session monitor uses the existing `libddsession.so` page-out request to reclaim
-private anonymous launcher memory. The default remains a request 20 seconds after game focus,
-with five minutes between requests. With client compression enabled, low system headroom can
-also trigger a request while a game is loading, before its first focused window.
+The Steam session keeps enough memory free on its own. There are no memory settings: the
+session monitor in `droiddeck-session` measures how much memory is available and how fast it is
+being taken, and compresses just enough idle memory into zRAM to stay ahead of it.
 
-Every five seconds the monitor reads `MemAvailable`, swap headroom and memory PSI. Low
-headroom means less than one fifth of total RAM (bounded to 512–1536 MiB), or at least 1%
-`some avg10` memory stall with less than one third of RAM available. Pressure requests target
-only the launcher processes already recognized by the monitor, never the game. They require
-at least 128 MiB launcher RSS and enough free swap to cover its anonymous RSS while leaving
-one fifth of swap (at least 256 MiB) free. File-backed resident pages do not consume this
-budget: the page-out helper targets private anonymous mappings. If `RssAnon` is absent from a
-process's status, its full RSS is used instead. The regular automatic client request uses the
-same swap guard. An explicit session RAM cap retains its existing behavior.
+## What the monitor measures
 
-Pressure requests are at least 30 seconds apart. Reclaiming less than 16 MiB doubles the
-retry delay, up to five minutes. After game exit, speculative launcher readback is deferred
-until the session is under any explicit RAM cap, pressure has subsided, and available RAM
-can cover twice the launcher's swap while leaving the headroom reserve. Normal demand paging
-continues while readback is deferred; Steam does not have to wait for the monitor to recover.
-The same readback runs while the game is still running once the client has been in front of it
-for five seconds (a game stuck on a black screen and left through Steam, or a long stay in the
-Steam menu), under the same memory checks and only without an explicit RAM cap. Missing or
-unreadable focus data never counts as the client in front. Demand paging
-alone left the Steam library and menus blank for about half a minute in that case. The
-client is compressed again 20 seconds after the game is back in front.
-Missing memory counters disable automatic pressure reclaim and speculative readback. Missing
-PSI alone still permits the `MemAvailable` fallback. No root settings, swap sizes, compression
-algorithms, Android process priorities or game-specific settings are changed.
+Each pass reads four things:
 
-A bounded live test of the pressure helper on the FIT during Caravan SandWitch loading
-requested page-out at 20:52:37 UTC, 18 seconds before the installed timed reclaimer. Aggregate
-launcher RSS fell from 608 to 283 MiB across that request; this is summed process RSS, not a
-measurement of net physical RAM saved. The game reached its main menu at 60 FPS. The test ran
-the candidate monitor functions alongside the old APK's monitor, not a newly built APK;
-the old monitor's later request is visible separately at 20:52:55 in the session log. This
-does not establish gameplay performance or resolve Stellar Blade's larger memory failure.
+- `MemAvailable` from `/proc/meminfo`.
+- The fall rate: how much `MemAvailable` dropped since the last pass, plus what the monitor
+  itself freed in between, per second. A peak decays by a quarter per pass, so one burst keeps
+  the monitor alert for a few seconds without holding it there.
+- Memory stall: the change in the `some` total of `/proc/pressure/memory`, as a percentage of
+  the time between passes. A missing PSI file reads as no stall.
+- zRAM room and saving: free space on the zRAM swap devices in `/proc/swaps` after a reserve
+  of one eighth of zRAM (at least 128 MiB), and the measured saving per compressed byte from
+  `/sys/block/zram0/mm_stat` (bounded to 1.2:1–6:1, 2.5:1 before 64 MiB has been stored).
+  Disk swap is not counted as room: paging to storage is what causes long stalls.
+
+The monitor sleeps five seconds between passes while more than two fifths of RAM is available
+and memory is steady, and one second otherwise.
+
+## Levels
+
+| Level | Value | Meaning |
+| --- | --- | --- |
+| Floor | one eighth of RAM, bounded to 640–1280 MiB | Below this the system is close to killing the session. `lmkd` ended a session on a 7.5 GiB device with 490 MiB available. |
+| Target | floor + ten seconds of the fall rate | Where the monitor wants available memory to stay. |
+| Burst | two seconds of the fall rate, when that is at least 64 MiB and less than two fifths of RAM is available | Memory that will be taken before the next passes can react. |
+
+The amount to free is the distance to the target or the burst, whichever is larger. The hard
+part of it is what available memory is short of the floor, and nothing when it is above. With
+a memory stall of at least 1% the hard part is two seconds of the fall rate when that is
+larger, whatever the size of the fall and however much memory is available.
+
+## What gets compressed, in order
+
+1. The Steam client and hidden launchers, while a game is running and the client is not known
+   to be in front (unreadable focus data counts as not in front), or at any time when there is
+   a hard need. Without a hard need the client is left alone for 30 seconds after
+   it was read back.
+2. Processes of the session that loaded `libddsession.so` (the game, Wine and its services),
+   largest first, only for the hard part that the client did not cover. One pass moves at
+   most 256 MiB.
+
+Both use the preload's cold-only request (`2 <kB>`): each process pages out only memory it has
+not touched recently and stops at the budget, so memory in use stays in RAM and is not read
+straight back. The budget is the amount to free divided by the measured saving, limited to the
+zRAM room. With less than half the floor available the request ignores heat (`3 <kB>`), moves
+up to 1 GiB, and runs at most once every ten seconds.
+
+Two things keep memory from going in and out of zRAM. The preload remembers each 1 MiB chunk
+it paged out: when a quarter or more of those pages are resident again at the next visit, the
+chunk is hot and is passed over for the next 64 visits, then 128, then 255. And the monitor
+reads `pswpin` from `/proc/vmstat`: what was read back from swap, fading over half a minute,
+is taken off what one pass may move (1 GiB in all, at most 256 MiB of it from the session). A device
+whose working set does not fit therefore stops being trimmed and is left to the kernel, until
+the forced level is reached.
+
+A pass that gives back less than a quarter of what the floor is short by is followed by a wait:
+five seconds, doubling after each such pass up to a minute. The wait ends early when available
+memory drops another eighth of the floor or reaches the forced level, and is forgotten after a
+pass that gives back enough or once nothing is needed.
+
+Requests go to one process at a time. The monitor waits for that process's acknowledgement
+(the kB it paged out) before the next, reads `MemAvailable` again, and stops once the budget is
+met or available memory is back at the level the pass was started for. A process that has not
+started within half a second, or has not finished when the pass (client and session together)
+has waited five seconds in total or six seconds have gone by since it began, is skipped for a
+minute, and a late answer from it is discarded. A process is known by its number and start time, so a new process that got the
+number of a skipped one is asked. Processes with less
+than 8 MiB of anonymous memory are skipped. While the app pages the session out for suspend, or
+reads it back on resume, it holds the monitor off with `/tmp/.dd-zram.hold` and writes its own
+request (`1` to page out, `0` to read back) into that file. A signalled process reads the hold
+file first and the control file only when the hold file is missing or empty, so a trim request
+the monitor wrote at the same moment cannot replace the app's. The suspend page-out answers `1`
+in `/tmp/.dd-zram.ack.<pid>` and a trim answers its kB in `/tmp/.dd-zram.trim.<pid>`, so the
+monitor never removes or reads an answer the app is waiting for, and the app never takes a
+trim's answer for its own. A trim budget smaller than a chunk covers the stretch of the chunk
+that holds that many resident pages, and the next request continues from where it ended. With less than 64 MiB of zRAM room nothing is requested and the
+session log says so once a minute.
+
+With no shortage nothing is compressed. A game that fits in memory is never touched, and Steam
+is no longer compressed on a timer.
+
+## Reading the client back
+
+Once the client has been compressed, it is read back in one request when the game has exited,
+or the client has been in front of the game for five seconds, and at least 30 seconds have
+passed since the last request, and available memory covers the client's swap plus the target
+and the floor. Missing or unreadable focus data never counts as the client in front. Demand
+paging alone left the Steam library and menus blank for about half a minute in that case.
+Suspending the session while it is asleep, hidden or the screen is off still pages everything
+out, and resuming reads it back when available memory is at least twice what those processes
+have in swap at that moment and, after it, 1 GiB or a tenth of RAM, whichever is larger, stays
+available.
+
+## Threads
+
+When a worker can be started, page-out runs outside the game's threads. The preload's signal
+handler starts a `zr-worker` thread for the request, which does the `madvise` calls and exits once no request
+is left, so a process that is not paging out has no thread the preload added. Programs that
+check they are single-threaded before they fork or call `unshare(CLONE_NEWUSER)`, such as
+Chromium's zygote, keep working. The worker is a bare `clone` with the flags of a normal
+thread, on a stack the preload maps itself, and makes only raw system calls, so starting it
+from the signal handler is safe and seccomp filters that only allow thread clones accept it. A
+process that has a single thread, or whose signalled thread added a seccomp filter after the
+process started, as browser sandboxes do, gets no worker. When there is no worker, the process trims inline in steps of at most 32 MiB per request and
+looks at no more than 512 MiB of its address space each time. The page-out for a suspend and the read-back
+after it are not limited there: they run once, while the process is being stopped or
+started, and cover all of it. The monitor is a
+shell loop in the session, outside every game process.
+
+The session log gets a line once at least 16 MiB has moved since the last one, at most every
+five seconds:
+`memory: available N MB, falling N MB/s, compressed N MB of the client and N MB of the session`.
+
+No root settings, swap sizes, compression algorithms, Android process priorities or
+game-specific settings are changed.
+
+## Measurements behind the levels
+
 
 Continuing an existing Caravan save reproduced a whole-session low-memory kill with the
 pressure helper running. Android recorded `ApplicationExitInfo` reason `LOW_MEMORY`, and
@@ -48,39 +133,6 @@ pressure helper found the launcher already largely reclaimed: its first request 
 reduced aggregate launcher RSS only from 263 to 255 MiB and backed off. Thus launcher reclaim
 does not resolve this load failure, and this run did not exhaust swap. The unevictable/shmem
 growth needs allocation attribution before treating it as a driver or GPU-memory diagnosis.
-
-## Pressure reclaim: compressing idle game memory
-
-The monitor also compresses the game session itself when observed pressure approaches the
-system kill boundary. There is no RAM-size gate. The trigger is absolute real headroom, not a
-percentage: Android's `lmkd` killed a session on a 7.5 GiB device with
-490 MiB still available, so a 95% used threshold (about 400 MiB left on 8 GB) is already past the
-kill. A world load added 1 GiB of GPU memory in about ten seconds, and compressing 1.4 GiB took
-2.6 seconds, so the request has to leave room for both.
-
-Performance > Compress idle game memory turns this off (`DD_ZRAM_IDLE=0`); launcher compression
-and the RAM cap are unaffected.
-
-The session request runs when real headroom falls below a quarter of RAM (bounded to
-768–2560 MiB), or below one and a half times that with at least 1% `some` or `full avg10`
-memory stall. Real headroom subtracts positive growth in KGSL allocation, `Unevictable`, and
-`Shmem` from `MemAvailable`; a rapid fall also qualifies below twice the headroom or two fifths of RAM, whichever is larger (a 15 GB Thor Max was killed with 5.3 GB still available while memory fell about 400 MB per tick). The monitor
-may first request page-out of idle Steam and hidden launchers, subject to the Performance
-setting and client reclaim limits. When both qualify, both requests are sent before waiting
-for either to complete, so a slow launcher acknowledgement does not delay the game request. Until the client
-request finishes, its anonymous RSS remains reserved from the session's swap budget. Completion
-and backoff are measured against the processes that received each request, even if a later scan
-finds different processes. The session request targets processes that loaded
-`libddsession.so`: the game, Wine and its services, and excludes Steam and hidden launchers.
-Requests are at least 30 seconds apart and need the same
-swap reserve as launcher requests. When the session has read back more than half of what the
-previous request compressed, that memory is in use: the request is skipped and the wait doubles,
-up to five minutes. A completed request must also raise `MemAvailable` by at least one
-sixteenth of the tier headroom, with a 16 MiB minimum; otherwise the same wait doubles because
-the pass did not provide meaningful system headroom. A request whose memory stayed compressed or
-whose available memory recovers resets the wait to 30 seconds. Below half the headroom the wait
-is ignored and only the 30-second spacing applies, so critical pressure can still trigger a
-request. The state resets when the game exits.
 
 Measured on a Retroid Pocket Duo (7.5 GiB, kernel 6.6, 6 GiB lzo-rle zram plus a 4 GiB swap file)
 entering the world in World of Warcraft: Forever, one run each:
@@ -98,20 +150,6 @@ allocation, not swap capacity. Little Nightmares at the same settings compressed
 0.25 GiB resident in 2.6 seconds (1.1 GiB stored in about 0.5 GiB of zram) and read back 70 MiB in
 the following minute at its menu and 440 MiB while loading the next area; frame rate stayed at
 44–46 FPS with one or two short frame-time spikes. These are single runs, not averages.
-
-On the PR build without any manual step, the monitor compressed WoW before character select and
-again during the load; the game entered the world and stayed there at 33 FPS. Once in the world,
-available memory settled near 1 GiB, under the headroom, and the first version of the policy
-compressed 200–400 MiB every 30 seconds while the game read back about 15 MiB/s. The
-read-back check therefore compares against the last request instead of all compressed memory.
-
-A second run on that build showed the trigger arriving too late: character select sat at
-1.5–1.6 GiB available, just above the original one-fifth headroom, so nothing was compressed
-there. During the load, available memory crossed the headroom 9 seconds after Enter World, but the
-launcher check ran first and waited 12 seconds for acknowledgements; the game request started at
-21 seconds, moved about 200 MiB, and `lmkd` ended the session at 30 seconds. The quarter-of-RAM
-level starts reclaim earlier. Sending both requests before waiting removes the launcher
-acknowledgement delay; it does not guarantee that reclaim can keep up with every loading peak.
 
 Without root an app cannot write its memory cgroup's `memory.reclaim` (owned by `system`),
 `process_madvise` on another process returns `EPERM`, `PAGEMAP_SCAN` is absent before Linux 6.7,

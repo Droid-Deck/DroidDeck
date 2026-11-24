@@ -1,7 +1,8 @@
 # Xbox / PC Game Pass on Thor
 
-This integrates PC Microsoft Store MSIXVC packages,
-not Xbox console emulation or UWP/APPX packages.
+This integrates PC Microsoft Store packages, both streamed MSIXVC packages and the legacy
+EAppx containers older desktop titles still ship as. It is not Xbox console emulation and
+does not run UWP titles in a packaged-app host.
 
 ## Testing on Thor
 
@@ -69,13 +70,95 @@ not Xbox console emulation or UWP/APPX packages.
    cleanup must preserve installed game files reached through view symlinks.
 10. Sign out from Xbox. Installed files should remain, account library data should
    clear, and Play/download licensing should require sign-in again.
+11. Install a legacy title that ships an EAppx bundle, such as Forza Horizon 4
+   (`9PNQKHFLD2WQ`). The download shows as a percentage rather than a streamed
+   install, Stop kills it rather than pausing, and a finished install registers
+   the executable named by `AppxManifest.xml`. Expect tens of gigabytes: check
+   free space first, since the preflight needs the download plus two copies of
+   the largest container.
 
 Do not uninstall DroidDeck or clear application data to troubleshoot this build.
 The signed APK is installed in place to retain existing Steam and store data.
 
+## Legacy EAppx packages
+
+A title that predates MSIXVC ships as an EAppx bundle: an archive of Appx packages, encrypted,
+with an `AppxManifest.xml` per package instead of `MicrosoftGame.config`. `streaming` rejects the
+format, so the installer reads the format the catalogue recorded and runs `xodus-cli
+legacy-install` instead. `MSIXVC`, `EAPPX` and `EAPPXBUNDLE` are the only formats listed for a
+`Windows.Desktop` package; the format is carried into the install record so a later update or
+resume dispatches the same way.
+
+The verb resolves, licenses, downloads, extracts, then hoists the manifest to the game root:
+
+- **Resolution.** The Xbox content service is asked first. Some legacy bundles it answers with no
+  files at all; Windows Update (`fe3cr.delivery.mp.microsoft.com`, SOAP `GetCookie`,
+  `SyncUpdates`, `GetExtendedUpdateInfo2`) is asked next through the title's `WuCategoryId` and
+  returns the full bundle with a time-signed CDN URL. That endpoint is a public Windows Update
+  service and needs no Xbox credential, but it presents a certificate chained to Microsoft's ECC
+  Product Root CA 2018, which Android's CA bundle does not carry, so `wu-root.pem` is pinned for
+  those requests only. A WU result is reduced to its `.eappx`/`.eappxbundle` files: the plain
+  `.appx` framework packages delivered beside it (VCLibs) and the differential `.cab` metadata are
+  not containers this path can unpack.
+- **Licensing.** The existing `license` verb runs before the first byte is fetched and must return
+  content keys; no keys means no install.
+- **Space.** Free space is checked up front against the download plus two copies of the largest
+  container, because a bundle is expanded in place. Each container is removed as soon as it is
+  unpacked, so the peak is the archive plus its contents rather than both plus the earlier
+  archives. A container a stopped attempt finished is counted as reclaimable, since the retry
+  truncates it before writing.
+- **Pause and resume.** A legacy download has no control channel: Stop kills the downloader, and
+  the next attempt starts an unfinished container again from byte zero, while a container that
+  completed is kept and reused. Nothing is checkpointed inside a container.
+- **Frameworks.** An installed package gets its `PackageDependency` frameworks from the package
+  graph; an unpacked folder has none, so the loader fails with `0xc0000135` on
+  `VCRUNTIME140_APP.dll` and friends. The verb fetches each declared framework from its Windows
+  Update category and copies its libraries beside the title, which is where the loader looks. A
+  category lists one package per architecture under identifier-only names, so each is unpacked
+  until one declares `ProcessorArchitecture="x64"`; taking the first one puts 32-bit DLLs into a
+  64-bit folder and every load fails with `0xc000007b`. Only the libraries that copy put there
+  are withdrawn when a framework is replaced, so a title's own DLL of the same name survives.
+- **Updates.** Installing over a folder that already holds a manifest lifts the new package over
+  the old files; on a first install an existing target is an error rather than a merge.
+- **Failure detail.** A release build hides logcat from adb, so a failed install writes the
+  backend's stderr tail to `files/xbox-install.log` beside the app and repeats the last lines in
+  the failure message.
+
 ## Evidence and limits
 
 Verified during development:
+
+- The catalogue lists a legacy title beside the MSIXVC ones, and its detail page
+  offers Install with the recorded format.
+- Resolution of a real legacy PC bundle on Thor without any Xbox token: Forza
+  Horizon 4 (`9PNQKHFLD2WQ`) through Windows Update as
+  `Microsoft.SunriseBaseGame_2023.1122.1704.2_neutral_~_8wekyb3d8bbwe.eappxbundle`,
+  85,219,173,025 bytes, with a signed CDN URL. The Xbox content service returns
+  no files for that product, which is why the WU route exists.
+- `AppxManifest.xml` identity and executable extraction, and its rejection rules,
+  are unit-tested against a manifest of that shape.
+- An install of that bundle completed on Thor. The 85,219,173,025-byte container
+  produced 79.3 GB at the game root with `AppxManifest.xml` and the package DLLs
+  directly beneath it, which the launcher reports as installed.
+- Unpacking that bundle ran at about 40 MB/s on one thread and about 200 MB/s
+  across four, measured as growth of the destination folder. The container is
+  deleted once its members are on disk, so the peak footprint is one package at
+  a time rather than the archive plus everything under it. The install bubble
+  advances through this stage: each file's declared length is counted as it is
+  written, and a bundle member is one file, so the folder's growth covers it.
+- A launch of this title through Xodus/ARM64 Proton reaches the loader with every declared
+  framework in place, then fails inside Wine: its manifest names `EntryPoint="Forza.App"`, a UWP
+  application that expects the app model to activate a view, which Wine has no host for. The
+  Play action reads that entry point from `AppxManifest.xml` and refuses the launch with a
+  message, and a launch that does reach the runtime reports `uwp-entry-point` rather than dying
+  silently. A package naming `Windows.FullTrustApplication` starts as an ordinary Win32
+  executable instead.
+- Activation itself is not the missing piece. A DLL registered under
+  `HKLM\Software\Microsoft\WindowsRuntime\ActivatableClassId\Windows.ApplicationModel.Core.CoreApplication`
+  is loaded by `combase.dll`, and its `DllGetActivationFactory` is called for that class. Such a
+  title still stops earlier: `GetCurrentPackageFullName` and `GetCurrentPackageFamilyName` are
+  Wine stubs, so a package has no identity, and an activation factory alone cannot supply the
+  `IFrameworkViewSource`/`CoreWindow` host the view asks for.
 
 - Native AArch64 CLI execution on Thor's existing Linux runtime.
 - Abstract-socket credential transport with a synthetic account on Thor; this

@@ -27,25 +27,52 @@ object AgentSetup {
     val detail = mutableStateMapOf<Step, String>()
     var runtimeInstalled by mutableStateOf(true)
         private set
-    /** The harness has a key from its [AgentHarness.keyPage] saved; signed in without one means its free models. */
-    var keySaved by mutableStateOf(false)
+    /** Ids of the harness's [AgentHarness.providers] with a key saved; signed in without one means its free models. */
+    var keys by mutableStateOf(emptySet<String>())
         private set
+    /** The provider and custom server picked in the key field, kept while a save is checked. */
+    var provider by mutableStateOf<String?>(null)
+    var server by mutableStateOf("")
 
     /** Saves a pasted key for a harness that signs in with one, then checks the sign-in again. */
-    fun saveKey(context: Context, key: String) = signInLocally(context) { harness, root -> harness.saveKey(root, key) }
+    fun saveKey(context: Context, provider: AgentHarness.Provider, key: String, endpoint: String? = null) = signInLocally(context) { harness, root ->
+        harness.saveKey(root, provider, key, endpoint) { url, token -> fetch(context.applicationContext, url, token) }
+    }
+
+    fun removeKey(context: Context, provider: AgentHarness.Provider) = signInLocally(context) { harness, root -> harness.removeKey(root, provider) }
+
+    /** A GET from the userland, which reaches the LAN servers the app's own cleartext policy does not. */
+    private fun fetch(app: Context, url: String, token: String?): String {
+        // The key goes in on stdin, so it is never in a command line.
+        val process = AgentHost.guest(app, listOf("curl", "-fsSL", "--max-time", "20", "-H", "@-", url), connectAdb = false).start()
+        process.outputStream.bufferedWriter().use { if (token != null) it.write("Authorization: Bearer $token\n") }
+        val output = process.inputStream.bufferedReader().readText()
+        check(process.waitFor(30, TimeUnit.SECONDS) && process.exitValue() == 0) { output.trim().lines().lastOrNull()?.takeIf { it.isNotEmpty() } ?: "Cannot reach $url" }
+        return output
+    }
 
     fun useFree(context: Context) = signInLocally(context) { harness, root -> harness.useFree(root) }
+
+    private val signInLock = Any()
 
     private fun signInLocally(context: Context, write: (AgentHarness, File) -> Unit) {
         val app = context.applicationContext
         val harness = AgentHost.harness
         set(Step.SIGN_IN, Status.WORKING)
         Thread({
-            val result = runCatching { write(harness, LinuxRuntime.rootDir(app)) }
+            // Each write reads the files the one before it left, including across a save's model request.
+            val result = synchronized(signInLock) { runCatching { write(harness, LinuxRuntime.rootDir(app)) } }
             main.post {
-                status[Step.SIGN_IN] = Status.UNKNOWN
-                result.exceptionOrNull()?.let { detail[Step.SIGN_IN] = it.message ?: "failed" }
-                check(app)
+                // A failure stays on the row with the key field open, since the next check would clear it.
+                val error = result.exceptionOrNull()
+                if (error != null) {
+                    status[Step.SIGN_IN] = Status.FAILED
+                    detail[Step.SIGN_IN] = error.message ?: "failed"
+                } else {
+                    status[Step.SIGN_IN] = Status.UNKNOWN
+                    detail.remove(Step.SIGN_IN)
+                    check(app)
+                }
             }
         }, "agent-sign-in").start()
     }
@@ -75,7 +102,7 @@ object AgentSetup {
         if (!runtimeInstalled) return
         AgentHost.refresh(app)
         val harness = AgentHost.harness
-        keySaved = harness.hasKey(LinuxRuntime.rootDir(app))
+        keys = harness.keys(LinuxRuntime.rootDir(app))
         val probes = mutableListOf<Pair<Step, List<String>>>()
         for (step in Step.entries) if (status[step] != Status.WORKING) {
             when (step) {
@@ -102,15 +129,23 @@ object AgentSetup {
     fun runsAsRoot(step: Step) = step == Step.INSTALL
 
     /** Runs [step]'s action. [CONNECTION] is the app's own pairing flow, so the caller opens it. */
-    fun run(context: Context, step: Step) {
+    fun run(context: Context, step: Step) = run(context, step, null)
+
+    /** Opens the page where a provider's key is made, as the sign-in of a harness that takes pasted keys. */
+    fun openKeyPage(context: Context, page: String) = run(context, Step.SIGN_IN, listOf("/root/.local/bin/android-open", page))
+
+    private fun run(context: Context, step: Step, override: List<String>?) {
         val app = context.applicationContext
         val harness = AgentHost.harness
-        val command = when (step) {
+        val command = override ?: when (step) {
             Step.CONNECTION -> return
             Step.INSTALL -> {
                 listOf("sh", "-c", "set -e; export DEBIAN_FRONTEND=noninteractive; " +
-                    "dpkg --configure -a; apt-get update || echo 'Some package sources could not be refreshed; continuing'; apt-get -f install -y; " +
-                    "apt-get install -y --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
+                    "apt() { apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 \"\$@\"; }; " +
+                    "dpkg --configure -a || echo 'Some packages are not configured yet; repairing dependencies'; " +
+                    "for i in 1 2 3; do apt update -q && break; echo 'Some package sources could not be refreshed; retrying'; sleep 3; done; " +
+                    "apt -f install -y --fix-missing; " +
+                    "apt install -y --fix-missing --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
             }
             Step.SIGN_IN -> harness.signIn
             Step.GITHUB -> listOf("dd-gh-login")

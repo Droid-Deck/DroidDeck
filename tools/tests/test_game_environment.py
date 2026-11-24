@@ -824,7 +824,6 @@ class GameEnvironmentTest(unittest.TestCase):
                 "offline_without_anticheat": lambda command, env: command,
                 "game_logs": lambda command, env, app_id: env,
                 "directaudio_settings": lambda env: env,
-                "vram_cap": lambda env: env,
                 "render_path_defaults": lambda *args: None,
                 "bridge_feature_level": lambda env: None,
                 "force_ssbs": lambda command, env: env,
@@ -1231,6 +1230,22 @@ class GameEnvironmentTest(unittest.TestCase):
         env = gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": ""})
         self.assertEqual(MODULE["apply_config"](env, config, "42")["TU_DEBUG"], "sysmem")
         self.assertNotIn("TU_DEBUG", MODULE["apply_config"](env, config, "43"))
+        def applied(config, app_id="42", env=None):
+            return MODULE["apply_config"](env or {"TU_DEBUG": "sysmem"}, config, app_id)
+        prefixed = "DROIDDECK_GAME_TU_DEBUG"
+        config = {"version": 1, "games": {"42": {prefixed: "gmem"}, "43": {prefixed: ""}}}
+        self.assertEqual(applied(config)["TU_DEBUG"], "gmem")
+        self.assertNotIn("TU_DEBUG", applied(config, "43"))
+        self.assertNotIn(prefixed, applied(config))
+        shared = {"version": 1, "shared": {prefixed: "gmem"}, "games": {"42": {"TU_DEBUG": "nolrz"}, "43": {"TU_DEBUG": None}}}
+        self.assertEqual(applied(shared)["TU_DEBUG"], "nolrz")
+        self.assertNotIn("TU_DEBUG", applied(shared, "43"))
+        self.assertEqual(applied(shared, "44")["TU_DEBUG"], "gmem")
+        self.assertNotIn(prefixed, applied(shared, "44"))
+        both = {"version": 1, "games": {"42": {"TU_DEBUG": "sysmem", prefixed: ""}, "43": {"TU_DEBUG": None, prefixed: "gmem"}}}
+        self.assertEqual(applied(both)["TU_DEBUG"], "sysmem")
+        self.assertNotIn("TU_DEBUG", applied(both, "43", {"TU_DEBUG": "nolrz"}))
+        self.assertNotIn(prefixed, applied(both))
 
     def test_games_run_with_gl_error_checks_unless_the_user_turns_them_off(self):
         gpu = MODULE["game_gpu"]
@@ -1287,22 +1302,6 @@ class GameEnvironmentTest(unittest.TestCase):
             link = Path(tmp) / "app-link"
             link.symlink_to(other, target_is_directory=True)
             self.assertTrue(chromium(str(link)))
-
-    def test_the_vram_cap_comes_before_the_games_own_dxvk_settings(self):
-        cap = MODULE["vram_cap"]
-        self.assertEqual(cap({"DD_VRAM_MB": "4096"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4096; dxgi.maxSharedMemory = 4096")
-        self.assertEqual(cap({"DD_VRAM_MB": "8192"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 8192; dxgi.maxSharedMemory = 8192")
-        self.assertEqual(cap({"DD_VRAM_MB": "4095"})["DXVK_CONFIG"], "dxgi.maxDeviceMemory = 4095; dxgi.maxSharedMemory = 4095; d3d9.maxAvailableMemory = 4095")
-        self.assertEqual(cap({"DD_VRAM_MB": "2048", "DXVK_CONFIG": "dxvk.maxFrameRate = 60;"})["DXVK_CONFIG"],
-                         "dxgi.maxDeviceMemory = 2048; dxgi.maxSharedMemory = 2048; d3d9.maxAvailableMemory = 2048; dxvk.maxFrameRate = 60")
-        for off in ({}, {"DD_VRAM_MB": "0"}, {"DD_VRAM_MB": "lots"}, {"DD_VRAM_MB": "²"}, {"DD_VRAM_MB": "-1"}):
-            self.assertNotIn("DXVK_CONFIG", cap(off))
-            self.assertNotIn("DROIDDECK_VRAM_CAP", cap(off))
-            self.assertNotIn("DROIDDECK_VRAM_CAP_MB", cap(off))
-
-    def test_the_vram_cap_also_turns_on_the_vulkan_layer_that_holds_the_game_to_it(self):
-        env = MODULE["vram_cap"]({"DD_VRAM_MB": "3072", "DXVK_CONFIG": "dxgi.maxDeviceMemory = 16384"})
-        self.assertEqual((env["DROIDDECK_VRAM_CAP"], env["DROIDDECK_VRAM_CAP_MB"]), ("1", "3072"))
 
     def test_a_games_wine_sync_choice_also_reaches_its_setup_runs(self):
         env = {"DD_SYNC": "1", "DD_SYNC_FALLBACK": "1", "DD_FSYNC_FIRST": "0", "OTHER": "kept"}
@@ -1537,6 +1536,18 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(MODULE["engine_fixes"]("/game/FSD-Win64-Shipping.exe", []), ({}, [], []))
         self.assertEqual(MODULE["engine_fixes"]("/game/Other-WinGDK-Shipping.exe", []), ({}, [], []))
 
+    def test_dragons_dogma_2_turns_its_wine_detection_off_unless_the_user_sets_it(self):
+        game = "/game/Dragons Dogma 2/DD2.exe"
+        env, extra, notes = MODULE["engine_fixes"](game, [], "2054970")
+        self.assertEqual(extra, ["/WineDetectionEnabled:False"])
+        self.assertEqual(env, {})
+        self.assertTrue(notes)
+        self.assertEqual(MODULE["engine_fixes"](game, ["-dx12"], "2054970")[1], ["/WineDetectionEnabled:False"])
+        for own in ("/WineDetectionEnabled:False", "/WineDetectionEnabled:True", "/winedetectionenabled:false"):
+            self.assertEqual(MODULE["engine_fixes"](game, [own], "2054970"), ({}, [], []))
+        self.assertEqual(MODULE["engine_fixes"](game, [], "42"), ({}, [], []))
+        self.assertEqual(MODULE["engine_fixes"](game, []), ({}, [], []))
+
     def test_arkham_city_gets_full_x87_precision_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
             city = Path(tmp) / "Batman Arkham City GOTY/Binaries/Win32"
@@ -1615,6 +1626,14 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual((env, extra), ({"PROTONFIXES_DISABLE": "1"}, []))
             self.assertTrue(notes)
         self.assertEqual(MODULE["engine_fixes"]("/game/Game/DarkSoulsII.exe", []), ({}, [], []))
+
+    def test_black_ops_ii_starts_with_steam_exec_handling(self):
+        for exe in ("/game/Call of Duty Black Ops II/t6zm.exe", "/game/Call of Duty Black Ops II/t6mp.exe", "/game/Call of Duty Black Ops II/t6sp.exe"):
+            env, extra, notes = MODULE["engine_fixes"](exe, [])
+            self.assertEqual((env, extra), ({"WINESTEAMNOEXEC": "0"}, []))
+            self.assertTrue(notes)
+        self.assertEqual(MODULE["engine_fixes"]("/game/Game/Other.exe", [], "202990")[0], {"WINESTEAMNOEXEC": "0"})
+        self.assertEqual(MODULE["engine_fixes"]("/game/Game/Other.exe", []), ({}, [], []))
 
     def test_little_nightmares_keeps_its_render_thread(self):
         env, extra, notes = MODULE["engine_fixes"]("/game/Little Nightmares/Atlas/Binaries/Win64/LittleNightmares.exe", [])
@@ -1834,6 +1853,18 @@ class GameEnvironmentTest(unittest.TestCase):
                 self.assertTrue(notes)
                 config = {"version": 1, "shared": {}, "games": {"42": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
                 self.assertEqual(MODULE["apply_config"]({}, config, "42", env), {"VKD3D_FEATURE_LEVEL": "12_1"})
+
+    def test_kcd2_runs_at_feature_level_12_2_by_app_id_unless_the_game_overrides_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "Bin/Win64MasterMasterSteamPGO/KingdomCome.exe"
+            exe.parent.mkdir(parents=True)
+            exe.touch()
+            env, extra, notes = MODULE["engine_fixes"](str(exe), [], "1771300")
+            self.assertEqual(env, {"VKD3D_FEATURE_LEVEL": "12_2", "VKD3D_SHADER_MODEL": "6_9"})
+            self.assertTrue(notes)
+            config = {"version": 1, "shared": {}, "games": {"1771300": {"VKD3D_FEATURE_LEVEL": "12_1"}}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "1771300", env), {"VKD3D_FEATURE_LEVEL": "12_1", "VKD3D_SHADER_MODEL": "6_9"})
+            self.assertEqual(MODULE["engine_fixes"](str(exe), [], "42")[0], {})
 
     def test_unity_players_keep_tso_over_the_preset(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2243,6 +2274,87 @@ class ProtonDefaultTest(unittest.TestCase):
         self.assertEqual(changes, {"0": "GE-Proton11-7", "10": "GE-Proton11-7", "11": "GE-Proton11-7", "14": "GE-Proton11-7"})
         self.assertEqual(auto, {"10": "GE-Proton11-7", "11": "GE-Proton11-7", "14": "GE-Proton11-7"})
 
+    def test_games_on_a_removed_custom_proton_go_back_to_the_default(self):
+        changes, auto = COMPAT["plan_mapping"](
+            {"0": self.TOOL, "311210": "bo3fix-proton", "42": "GE-Proton11-7"}, ["311210", "42"], self.NAMES, self.TOOL, {},
+            removed={"bo3fix-proton"})
+        self.assertEqual(changes, {"311210": self.TOOL})
+        self.assertEqual(auto, {"311210": self.TOOL})
+
+    def test_removed_tools_are_custom_builds_missing_from_the_catalog(self):
+        state = {"tools": [
+            {"name": self.TOOL, "valve": True},
+            {"name": "bo3fix-proton", "valve": False},
+            {"name": "GE-Proton11-7", "valve": False},
+        ]}
+        self.assertEqual(COMPAT["removed_tools"](state, self.CATALOG), {"bo3fix-proton"})
+        self.assertEqual(COMPAT["removed_tools"]({}, self.CATALOG), set())
+
+    def test_a_failed_extra_adoption_is_not_classified_as_removed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tools = Path(tmp) / "compatibilitytools.d"
+            tools.mkdir()
+            state = {"tools": [{"name": "GE-Proton11-7", "dir": "GE-Proton11-7", "valve": False}]}
+            (tools / "GE-Proton11-7").mkdir()
+            catalog = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+            self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), set())
+            (tools / "GE-Proton11-7").rmdir()
+            self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), {"GE-Proton11-7"})
+
+    def test_a_build_being_replaced_is_not_classified_as_removed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tools = Path(tmp) / "compatibilitytools.d"
+            state = {"tools": [{"name": "GE-Proton11-7", "dir": "GE-Proton11-7", "valve": False}]}
+            catalog = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+            aside = tools / COMPAT["REPLACING"] / "GE-Proton11-7"
+            aside.mkdir(parents=True)
+            self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), set())
+            aside.rmdir()
+            self.assertEqual(COMPAT["removed_tools"](state, catalog, str(tools)), {"GE-Proton11-7"})
+
+    def test_a_request_for_a_removed_tool_is_dropped_and_others_are_kept(self):
+        state = {"tools": self.CATALOG, "games_applied": {}}
+        requests = {"10": {"valve": False, "dir": "GE-Proton11-7"}, "11": {"valve": False, "dir": "Never-Installed"},
+                    "12": {"valve": True, "dir": "GE-Proton11-7"}}
+        catalog = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+        settled, moved = COMPAT["settle_game_requests"](requests, state, {}, catalog, removed={"GE-Proton11-7"})
+        self.assertTrue(moved)
+        self.assertEqual(settled, {"11": requests["11"], "12": requests["12"]})
+        self.assertEqual(COMPAT["settle_game_requests"](requests, state, {}, catalog), (requests, False))
+        malformed = {"10": {"valve": False, "dir": []}}
+        self.assertEqual(COMPAT["settle_game_requests"](malformed, state, {}, catalog, removed={"GE-Proton11-7"}), (malformed, False))
+
+    def test_a_game_on_a_removed_tool_follows_the_default_across_registrations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text(config_text([("0", self.TOOL), ("10", "GE-Proton11-7"), ("11", "GE-Proton11-7")]))
+            request = {"valve": False, "dir": "GE-Proton11-7"}
+            available = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+            (Path(tmp) / "games.json").write_text(json.dumps({"version": 1, "games": {"10": request}}))
+            (Path(tmp) / "state.json").write_text(json.dumps({
+                "default": self.TOOL,
+                "tools": self.CATALOG,
+            }))
+            for default in (self.TOOL, self.TOOL, COMPAT["TOOL_11"]):
+                COMPAT["register_default"](
+                    str(config), ["10", "11"], default=default, catalog=available,
+                    directory=tmp,
+                )
+            self.assertEqual(mapping_of(config.read_text()),
+                             {"0": COMPAT["TOOL_11"], "10": COMPAT["TOOL_11"], "11": COMPAT["TOOL_11"]})
+            self.assertEqual(json.loads((Path(tmp) / "games.json").read_text())["games"], {})
+
+    def test_a_steam_pick_survives_the_removal_of_another_tool(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text(config_text([("0", self.TOOL), ("10", COMPAT["TOOL_11"])]))
+            available = [tool for tool in self.CATALOG if tool["name"] != "GE-Proton11-7"]
+            (Path(tmp) / "games.json").write_text(json.dumps(
+                {"version": 1, "games": {"10": {"valve": False, "dir": "GE-Proton11-7"}}}))
+            (Path(tmp) / "state.json").write_text(json.dumps({"default": self.TOOL, "tools": self.CATALOG, "auto": {}}))
+            COMPAT["register_default"](str(config), ["10"], default=self.TOOL, catalog=available, directory=tmp)
+            self.assertEqual(mapping_of(config.read_text()), {"0": self.TOOL, "10": COMPAT["TOOL_11"]})
+
     def test_windows_only_titles_still_follow_the_default(self):
         changes, auto = COMPAT["plan_mapping"](
             {"0": self.TOOL}, ["42"], self.NAMES, self.TOOL, {})
@@ -2584,6 +2696,41 @@ class ProtonDefaultTest(unittest.TestCase):
                 "0": COMPAT["TOOL_11"],
                 "10": "GE-Proton9-1",
                 "11": COMPAT["TOOL_11"],
+            })
+
+    def test_per_game_proton_that_was_removed_goes_back_to_the_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.vdf"
+            config.write_text(config_text([
+                ("0", self.TOOL),
+                ("10", "Experimental-DroidDeck-Proton-11-12.8-pr34-build"),
+                ("12", "GE-Proton9-1"),
+            ]))
+            (Path(tmp) / "games.json").write_text(json.dumps({
+                "version": 1,
+                "games": {
+                    "10": {"valve": False, "dir": "Experimental-DroidDeck-Proton-11-12.8-pr34-build"},
+                    "12": {"valve": False, "dir": "GE-Proton9-1"},
+                },
+            }))
+            (Path(tmp) / "state.json").write_text(json.dumps({
+                "default": self.TOOL,
+                "tools": self.CATALOG + [{
+                    "name": "Experimental-DroidDeck-Proton-11-12.8-pr34-build",
+                    "display": "Experimental-DroidDeck-Proton-11-12.8-pr34-build",
+                    "dir": "Experimental-DroidDeck-Proton-11-12.8-pr34-build", "valve": False,
+                }],
+            }))
+
+            COMPAT["register_default"](
+                str(config), ["10", "12"], default=self.TOOL,
+                catalog=self.CATALOG, directory=tmp,
+            )
+
+            self.assertEqual(mapping_of(config.read_text()), {
+                "0": self.TOOL,
+                "10": self.TOOL,
+                "12": "GE-Proton9-1",
             })
 
     def test_the_last_side_to_change_wins(self):

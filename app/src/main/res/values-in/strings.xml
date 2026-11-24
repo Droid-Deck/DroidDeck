@@ -22,7 +22,6 @@
         <item>Tambahkan pustaka Steam dari kartu SD, drive USB, atau SSD, dan DroidDeck menyatukan semua gim di Pustaka kamu.</item>
         <item>Toko memungkinkanmu masuk ke Epic Games, GOG, Xbox, EA, Battle.net, Ubisoft Connect, Amazon Games, itch.io, dan Game Jolt, lalu memasang dan memperbarui gim mereka dari DroidDeck.</item>
         <item>Komponen seperti FEX, DXVK, dan VKD3D-Proton memperbarui diri sendiri, dan Proton Experimental ARM64 menjadi default, atau Proton 11.0 ARM64 setelah build tersebut terpasang.</item>
-        <item>Kompres Steam saat gim berjalan membebaskan RAM pada perangkat yang kekurangan memori.</item>
         <item>Geser masuk dari tepi kanan untuk membuka menu sesi: mode touchpad, Keyboard PC, Mode latensi rendah, Profil gim, dan lainnya.</item>
         <item>Gim berjalan lambat? Batasi frame rate di Akses cepat, lalu coba versi Proton lain atau preset FEX lain di komponen gim.</item>
         <item>Audio gim pecah atau tidak ada? Coba opsi DirectAudio untuk gim di pengaturan Steam pada bagian Audio.</item>
@@ -203,6 +202,8 @@
     <string name="app_fex_not_ready">Program ini dibuat untuk PC %1$s dan berjalan melalui FEX, yang belum disiapkan. Buka Steam sekali saat masuk: DroidDeck akan mengunduh FEX dan Steam Linux Runtime yang diperlukan, lalu ini akan terbuka.</string>
     <string name="session_proot_missing">proot DroidDeck tidak dapat diunduh. Periksa koneksi lalu coba lagi. Sesi tidak dimulai karena proot cadangan terlalu lambat untuk bermain.</string>
     <string name="session_powervr_missing">Lingkungan grafis PowerVR tidak dapat diunduh. Periksa koneksi dan coba lagi.</string>
+    <string name="session_graphics_runtime_failed">Lingkungan grafis tidak dapat disiapkan, jadi sesi tidak dimulai.</string>
+    <string name="session_game_environment_failed">Lingkungan game tidak dapat disiapkan, jadi sesi tidak dimulai.</string>
     <string name="session_directaudio_missing">DirectAudio tidak dapat diunduh, jadi audio gim menggunakan jalur yang lebih lambat di sesi ini.</string>
     <string name="session_end_program">Program ini</string>
     <string name="session_end_present_fault">Sesi gagal menampilkan gambar ke layar: %1$s. Layar ini menunjukkan alasannya, bukan layar hitam; rinciannya ada di log sesi.</string>
@@ -280,7 +281,6 @@
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">Output HDR10</string>
     <string name="mode_hdr_unavailable">Tidak tersedia: %1$s.</string>
-    <string name="mode_hdr_restart">Mulai ulang aplikasi untuk menerapkannya.</string>
     <string name="mode_drivers">Driver</string>
     <string name="mode_gpu_drivers">Driver GPU</string>
     <string name="mode_gpu_drivers_hint">Digunakan bersama oleh Steam dan Desktop. Diatur di halaman Komponen.</string>
@@ -332,7 +332,6 @@
     <string name="mode_startup">Mulai</string>
     <string name="mode_startup_session">Buka saat peluncuran</string>
     <string name="mode_startup_session_hint">Memulai sesi ini saat DroidDeck diluncurkan.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Memeriksa rilis…</string>
     <string name="mode_decky_ready">Siap menginstal %1$s.</string>
     <string name="mode_decky_none">Tidak ditemukan build yang kompatibel. Coba lagi nanti.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Terbaru · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Instal versi terbaru</string>
-    <string name="decky_channel">Saluran Pembaruan</string>
-    <string name="decky_channel_hint">Rilis Decky Loader mana yang akan diinstal. Pembaru bawaan Decky menggunakan saluran yang sama.</string>
     <string name="decky_channel_stable">Stabil</string>
     <string name="decky_channel_prerelease">Prarilis</string>
     <string name="decky_channel_testing">Pengujian</string>
     <string name="decky_channel_failed">Tidak dapat menyimpan saluran pembaruan Decky</string>
-    <string name="mode_decky_on">Dimulai bersama Steam. Saat aktif, aplikasi lain di perangkat ini mungkin dapat mengendalikan Steam.</string>
-    <string name="mode_decky_off">Nonaktif. Port debugging jarak jauh Steam tetap tertutup.</string>
     <string name="mode_decky_remove_title">Hapus instalasi Decky Loader?</string>
     <string name="mode_decky_remove_text">Menghapus loader. Plugin dan setelan Anda tetap disimpan.</string>
     <string name="mode_client">Klien</string>
@@ -622,20 +617,8 @@
     <string name="perf_gsrealtime">gamescope: antrean GPU realtime</string>
     <string name="perf_gsrealtime_hint">Memprioritaskan kerja GPU compositor. Dapat menghaluskan pacing frame dengan sedikit mengorbankan gim.</string>
     <string name="perf_gpu">GPU</string>
-    <string name="perf_memory">Memori</string>
     <string name="perf_cap_off">Nonaktif</string>
-    <string name="perf_cap_auto">Default driver</string>
-    <string name="perf_zram_client">Kompres Steam saat gim berjalan</string>
-    <string name="perf_zram_idle">Kompres memori game yang tidak aktif</string>
-    <string name="perf_zram_idle_hint">Mengompres memori game yang tidak aktif saat RAM rendah. Matikan jika game membeku beberapa detik kira-kira setiap setengah menit. Berlaku saat sesi dimulai berikutnya.</string>
-    <string name="perf_zram_client_hint">20 detik setelah gim dimulai, klien Steam dikompres ke zRAM agar gim mendapat lebih banyak memori, lalu dibaca kembali saat gim ditutup. Nonaktifkan jika sesi tertutup sesaat setelah gim dimulai. Batas RAM di atas tetap mengompres Steam saat sesi melampauinya.</string>
-    <string name="perf_ram_cap">Batas RAM</string>
-    <string name="perf_ram_cap_hint">Berlaku saat klien Steam berjalan, di mode Steam atau dari desktop. Saat sesi menggunakan lebih dari ini, Steam lalu proses lain yang didukung dalam sesi dikompres ke zRAM. Batas lunak: tidak ada yang ditutup, tetapi gim dapat tersendat saat halaman dimuat kembali.</string>
-    <string name="perf_ram_cap_unavailable">Memerlukan swap zRAM, yang tidak dimiliki perangkat ini.</string>
-    <string name="perf_vram_cap">Batas VRAM</string>
-    <string name="perf_vram_cap_hint">Melaporkan anggaran memori video ini ke game Direct3D 9 hingga 12 untuk mengurangi penggunaan memori. Game dapat melampauinya; ini tidak menambahkan paging GPU atau menjamin perlindungan dari crash akibat kehabisan memori. Berlaku pada sesi berikutnya.</string>
     <string name="perf_gpuclock">Pertahankan GPU pada clock tertingginya</string>
-    <string name="perf_gpuclock_hint">Hanya Adreno. Lebih sedikit tersendat, lebih banyak penggunaan baterai dan panas.</string>
     <string name="perf_fixes">Perbaikan sesi</string>
     <string name="perf_sysmem">Turnip: rendering sysmem</string>
     <string name="perf_sysmem_hint">Berlaku untuk klien Steam dan gim. Diperlukan pada Adreno 710/720/722.</string>
@@ -813,7 +796,6 @@
     <string name="drawer_pc_keyboard">Keyboard PC</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Layar kedua</string>
-    <string name="drawer_second_screen_mode">Mode</string>
     <string name="drawer_second_screen_shows">Menampilkan</string>
     <string name="drawer_android_apps">Aplikasi Android</string>
     <string name="drawer_launch_app">Luncurkan aplikasi</string>
@@ -962,13 +944,15 @@
     <string name="setup_launcher_orientation_auto">Ikuti rotasi perangkat</string>
     <string name="setup_orientation_portrait">Potret</string>
     <string name="setup_session_orientation">Orientasi sesi</string>
-    <string name="setup_session_orientation_hint">Berlaku untuk Steam, gim, desktop, dan editor pengontrol. Preset resolusi ikut berputar dengan sesi; lebar dan tinggi kustom tetap seperti yang dimasukkan.</string>
+    <string name="setup_session_orientation_hint">Berlaku untuk Steam, gim, desktop, dan editor pengontrol. Preset resolusi ikut berputar dengan sesi; saat satu orientasi mengikuti yang lain, lebar dan tinggi kustom ditukar agar sesuai.</string>
     <string name="setup_orientation_auto">Lanskap otomatis</string>
     <string name="setup_orientation_landscape">Lanskap</string>
     <string name="setup_orientation_reverse">Lanskap terbalik</string>
     <string name="setup_fullscreen">Layar penuh</string>
     <string name="setup_fullscreen_on">Menyembunyikan bilah status dan navigasi Android</string>
     <string name="setup_fullscreen_off">Menampilkan bilah status dan navigasi Android</string>
+    <string name="setup_page_swipe">Geser antarhalaman</string>
+    <string name="setup_page_swipe_hint">Geser melintasi halaman untuk berganti tab.</string>
     <string name="setup_dual_screen_launcher">Peluncur layar ganda</string>
     <string name="setup_dual_screen_launcher_hint">Otomatis menempatkan bagian peluncur (Steam, Pustaka, Toko, dan bagian lainnya) pada layar kedua bawaan perangkat genggam. Aktif memakai layar kedua mana pun. Nonaktif membuat peluncur tetap di satu layar saja.</string>
     <string name="setup_dual_screen_sessions">Sesi layar ganda</string>
@@ -1566,6 +1550,8 @@
     <string name="pip_unavailable">Android tidak dapat membuka gambar dalam gambar.</string>
     <string name="game_more">Lainnya</string>
     <string name="game_edit_art">Edit gambar</string>
+    <string name="game_unhide">Hapus dari tersembunyi</string>
+    <string name="game_hide_failed">Gagal menyinkronkan dengan Steam. Tutup Steam lalu coba lagi.</string>
     <string name="stores_in_steam_label">Di Steam</string>
     <string name="game_shortcut">Pintasan</string>
     <string name="game_shortcut_add">Tambahkan ke layar utama</string>
@@ -2284,6 +2270,17 @@
     <string name="pextra_checksum_mismatch">Checksum tidak cocok; unduhan telah dihapus</string>
     <string name="pextra_session_started">Sesi dimulai saat pengunduhan berlangsung; hentikan sesi tersebut sebelum menginstal alat kompatibilitas</string>
     <string name="pextra_installing">Menginstal %1$s</string>
+    <string name="xproton_title">Build eksperimental</string>
+    <string name="xproton_install_file">Instal dari file</string>
+    <string name="xproton_archive_unsafe">Arsip berisi tautan atau jalur yang tidak aman</string>
+    <string name="xproton_archive_invalid">Arsip tidak didukung atau tidak valid</string>
+    <string name="xproton_no_space">Ruang kosong tidak cukup untuk build Proton ini</string>
+    <string name="xproton_unpacking">Membuka paket Proton (beberapa menit)</string>
+    <string name="xproton_untar_failed">Gagal membuka paket (tar %1$d)</string>
+    <string name="xproton_no_tree">Arsip tidak berisi build Proton</string>
+    <string name="xproton_place_failed">Tidak dapat menempatkan build Proton</string>
+    <string name="xproton_remove_failed">Tidak dapat menghapus %1$s sepenuhnya</string>
+    <string name="xproton_installed">Proton eksperimental terinstal. Pilih di Steam → Properti → Kompatibilitas.</string>
     <string name="pextra_install_failed">Instalasi %1$s gagal (keluar %2$d)</string>
     <string name="pextra_could_not_install">Tidak dapat menginstal %1$s</string>
     <string name="esync_fetching">Mengambil paket droiddeck-esync</string>
@@ -2435,10 +2432,16 @@
     <string name="driver_tag_bundle">ANDROID + LINUX</string>
     <string name="phantom_warning">%1$s. %2$s\n\n%3$s</string>
     <string name="display_session">Tampilan sesi</string>
-    <string name="display_resolution">Resolusi</string>
+    <string name="display_zero_copy">Presentasi tanpa salin</string>
+    <string name="display_resolution_landscape">Resolusi lanskap</string>
+    <string name="display_resolution_portrait">Resolusi potret</string>
+    <string name="display_follow_landscape">Ikuti lanskap (%1$d×%2$d)</string>
+    <string name="display_follow_portrait">Ikuti potret (%1$d×%2$d)</string>
     <string name="display_game_fit">Penyesuaian gim 16:9</string>
     <string name="display_game_fit_hint">Cara gim 16:9 disesuaikan dengan tampilan ini. Berlaku pada sesi berikutnya.</string>
     <string name="display_game_fit_unavailable">Pilih Sesuaikan layar atau ukuran khusus yang lebih sempit dari 16:9.</string>
+    <string name="display_avoid_notch">Hindari poni</string>
+    <string name="display_avoid_notch_hint">Menjauhkan gambar dari lubang kamera. Berlaku saat Anda kembali ke sesi.</string>
     <string name="display_preserve">Pertahankan proporsi</string>
     <string name="display_stretch">Bentangkan ke tampilan</string>
     <string name="display_image_scaling">Penskalaan gambar</string>
@@ -3312,10 +3315,19 @@
     <string name="storage_shared_prefix">Prefix Steam bersama</string>
     <string name="storage_shared_prefix_detail">Steam menjalankan helper Windows-nya sendiri di sini</string>
     <string name="storage_reset_shared_confirm">Menghapusnya (%1$s). Steam membuat yang baru saat membutuhkannya lagi.</string>
+    <string name="storage_remove_launcher_confirm">Menghapus prefiks Wine dan cache shader aplikasi toko ini (%1$s), beserta info masuk dan simpanan yang hanya ada di sana. Game yang berjalan di dalamnya mendapat prefiks baru, dan Anda mungkin perlu menyiapkan aplikasinya lagi. Simpanan cloud tetap ada di akun Anda.</string>
+    <string name="storage_system_clearable">%1$s dapat dibersihkan</string>
+    <string name="storage_item_system_caches">Cache Linux dan Steam</string>
+    <string name="storage_item_system_caches_detail">File sementara lama, paket yang diunduh, dan cache web Steam</string>
+    <string name="storage_cache_temp">File sementara lama</string>
+    <string name="storage_cache_packages">Paket yang diunduh</string>
+    <string name="storage_cache_steam_web">Cache web Steam</string>
+    <string name="storage_cache_steam_corrupt">Unduhan Steam yang rusak</string>
+    <string name="storage_cache_detail">Dibuat lagi saat diperlukan</string>
+    <string name="storage_clear">Bersihkan</string>
     <string name="storage_launcher_prefix">Aplikasi toko dan gim yang berjalan dengannya</string>
     <string name="storage_launcher_used_by">Dipakai oleh %1$s</string>
     <string name="storage_shortcut_app">Gim non-Steam %1$s</string>
-    <string name="storage_unknown_prefix_detail">Tidak cocok dengan gim mana pun, jadi tetap disimpan</string>
     <string name="storage_remove_selected">Hapus yang dipilih · %1$s</string>
     <string name="storage_uninstall_selected">Hapus instalasi yang dipilih · %1$s</string>
     <string name="storage_bulk_prefixes">Prefix Wine</string>
@@ -3970,6 +3982,7 @@
     <string name="addons_sort_downloads">Paling banyak diunduh</string>
     <string name="addons_category_all">Semua kategori</string>
     <string name="addons_none_found">Tidak ada addon ditemukan</string>
+    <string name="addons_curse_busy">Tutup CurseForge terlebih dahulu</string>
     <string name="addons_unreachable">Tidak dapat menjangkau %1$s</string>
     <string name="addons_no_file">Tidak ada file untuk versi game ini</string>
     <string name="input_reset_positions">Atur ulang posisi</string>
@@ -4059,4 +4072,18 @@
     <string name="display_scaling_integer">Bilangan bulat</string>
     <string name="display_scaling_fit">Sesuaikan</string>
     <string name="drawer_antialiasing">Anti-aliasing</string>
+    <string name="theme_custom">Kustom</string>
+    <string name="theme_custom_detail">Pilih setiap warna antarmuka secara terpisah.</string>
+    <string name="theme_custom_background">Latar belakang</string>
+    <string name="theme_custom_surface">Panel</string>
+    <string name="theme_custom_surface_variant">Panel terangkat</string>
+    <string name="theme_custom_line">Pemisah</string>
+    <string name="theme_custom_line2">Batas</string>
+    <string name="theme_custom_on_background">Teks utama</string>
+    <string name="theme_custom_on_surface_variant">Teks sekunder</string>
+    <string name="theme_custom_primary">Tombol dan aksen utama</string>
+    <string name="theme_custom_on_primary">Teks tombol</string>
+    <string name="theme_custom_signal">Sorotan</string>
+    <string name="theme_custom_good">Berhasil</string>
+    <string name="theme_custom_error">Kesalahan</string>
 </resources>

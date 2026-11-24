@@ -1,0 +1,15 @@
+diff --git a/Data/ThunksDB.json b/Data/ThunksDB.json
+index d52ff04..886379a 100644
+--- a/Data/ThunksDB.json
++++ b/Data/ThunksDB.json
+@@ -6,7 +6,9 @@
+         "@PREFIX_LIB@/libGL.so",
+         "@PREFIX_LIB@/libGL.so.1",
+         "@PREFIX_LIB@/libGL.so.1.2.0",
+-        "@PREFIX_LIB@/libGL.so.1.7.0"
++        "@PREFIX_LIB@/libGL.so.1.7.0",
++        "@PREFIX_LIB@/libOpenGL.so.0",
++        "@PREFIX_LIB@/libOpenGL.so.0.0.0"
+       ]
+     },
+     "Vulkan": {

@@ -50,7 +50,7 @@ class InputLayoutToolsTest {
         assertEquals(InputLibraries.DECK, independent.layout(InputProfile.GAME, InputRole.SECONDARY)!!.origin)
         val stock = InputStockLayouts.layouts().first { it.id == InputLibraries.DECK }.elements
         val dragged = mine.copy(elements = mine.elements.map { it.copy(x = 0f, y = 0f) })
-        assertEquals(stock, InputLibraries.defaultPositions(context, copied, dragged))
+        assertEquals(stock to InputStockLayouts.layouts().first { it.id == InputLibraries.DECK }.aspect, InputLibraries.defaultPositions(context, copied, dragged))
         assertEquals(mine.elements, dragged.elements.withPositionsOf(stock))
         assertEquals(copied, InputLibraries.decode(InputLibraries.encode(copied)))
     }
@@ -58,7 +58,7 @@ class InputLayoutToolsTest {
     @Test fun builtInGamepadDefaultsComeFromTheGamepadGenerator() {
         val library = InputLibraries.read(context)
         val gamepad = library.layouts.first { it.id == InputLibraries.OVERLAY }
-        val defaults = InputLibraries.defaultPositions(context, library, gamepad)!!
+        val defaults = InputLibraries.defaultPositions(context, library, gamepad)!!.first
         assertEquals(gamepad.elements.map { it.id }.toSet(), defaults.map { it.id }.toSet())
         assertNull(InputLibraries.defaultPositions(context, library, SavedInputLayout("new", "New")))
     }
@@ -132,6 +132,7 @@ class InputLayoutToolsTest {
     }
 
     @Test fun aScaledGamepadStaysGeneratedAndRegeneratesOnRotation() {
+        com.droiddeck.launcher.session.SessionPrefs.setSteamController(context, com.droiddeck.launcher.session.SessionPrefs.CONTROLLER_NONE)
         val (display, metrics) = InputLibraries.primaryDisplay(context)
         val long = maxOf(metrics.widthPixels, metrics.heightPixels)
         val short = minOf(metrics.widthPixels, metrics.heightPixels)
