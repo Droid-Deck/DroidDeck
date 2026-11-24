@@ -46,6 +46,28 @@ class DesktopSteamosPanelTest(unittest.TestCase):
                 self.assertEqual(panel, (config / (RC + '.before-steamos-2')).read_text())
                 self.assertEqual('steamos-2', (config / STAMP).read_text().strip())
 
+    def test_an_earlier_backup_is_never_overwritten(self):
+        with tempfile.TemporaryDirectory() as home:
+            config = Path(home) / '.config'
+            config.mkdir()
+            (config / (RC + '.before-steamos-2')).write_text('original backup')
+            (config / RC).write_text('icon=start-here-kubuntu\n')
+            run(block('dd_panel_rc=', '\nfi\n'), Path(home))
+            self.assertEqual('original backup', (config / (RC + '.before-steamos-2')).read_text())
+            self.assertFalse((config / RC).exists())
+            self.assertEqual(1, len([entry for entry in config.iterdir() if entry.name.startswith(RC + '.before-steamos-2.')]))
+            self.assertEqual('steamos-2', (config / STAMP).read_text().strip())
+
+    def test_the_stamp_is_not_written_when_the_panel_could_not_be_moved(self):
+        with tempfile.TemporaryDirectory() as home:
+            config = Path(home) / '.config'
+            config.mkdir()
+            (config / RC).write_text('icon=start-here-kubuntu\n')
+            script = block('dd_panel_rc=', '\nfi\n').replace('mv "$dd_panel_rc"', 'false "$dd_panel_rc"')
+            run(script, Path(home))
+            self.assertTrue((config / RC).exists())
+            self.assertFalse((config / STAMP).exists())
+
     def test_a_panel_laid_out_by_this_version_is_left_alone(self):
         with tempfile.TemporaryDirectory() as home:
             config = self.reset(Path(home), 'icon=my-logo\n', 'steamos-2\n')

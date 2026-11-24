@@ -115,8 +115,11 @@ fi
 dd_panel_rc="${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"
 dd_panel_stamp="${XDG_CONFIG_HOME:-$HOME/.config}/droiddeck-panel-layout"
 if [ "$(cat "$dd_panel_stamp" 2>/dev/null)" != steamos-2 ]; then
-  [ -f "$dd_panel_rc" ] && mv -f "$dd_panel_rc" "$dd_panel_rc.before-steamos-2"
-  mkdir -p "$(dirname "$dd_panel_stamp")" && echo steamos-2 > "$dd_panel_stamp"
+  dd_panel_backup="$dd_panel_rc.before-steamos-2"
+  [ -e "$dd_panel_backup" ] && dd_panel_backup="$dd_panel_backup.$$"
+  if [ ! -f "$dd_panel_rc" ] || mv "$dd_panel_rc" "$dd_panel_backup"; then
+    mkdir -p "$(dirname "$dd_panel_stamp")" && echo steamos-2 > "$dd_panel_stamp"
+  fi
 fi
 # startplasma applies this file over the session environment, and keeps what an earlier session wrote.
 kwriteconfig6 --file plasma-localerc --group Formats --key LANG "${LANG:-C.UTF-8}"
