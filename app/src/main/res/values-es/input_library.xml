@@ -103,7 +103,6 @@
     <string name="input_shortcut_back_modes">Atrás · dos veces en Steam, una en escritorio</string>
     <string name="input_shortcut_hold_hint">En modo Steam. Mantener Atrás también abre el acceso rápido.</string>
     <string name="input_restore_shortcut">Restaurar valores predeterminados</string>
-    <string name="input_second_mode_hint">Tu elección de panel se recuerda. Escritorio abre un segundo espacio de trabajo; no cambia la sesión ni su perfil de entrada.</string>
     <string name="input_virtual_controller">Mando virtual</string>
     <string name="input_virtual_controller_hint">El tipo de mando que ven Steam o el juego.</string>
     <string name="input_touchscreen">Pantalla táctil</string>

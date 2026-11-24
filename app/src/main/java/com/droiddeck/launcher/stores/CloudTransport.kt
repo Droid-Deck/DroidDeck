@@ -27,6 +27,10 @@ class CloudFile(val name: String, var modifiedMs: Long, var md5: String? = null,
 class CloudPut(val modifiedMs: Long, val md5: String?)
 
 interface CloudTransport {
+    /** False when [CloudFile.md5] is a version the service assigns rather than a digest of the content. */
+    val contentDigests: Boolean get() = true
+    fun committed(name: String): CloudFile? = null
+    fun wants(name: String): Boolean = true
     fun list(): List<CloudFile>
     fun details(file: CloudFile) {}
     fun get(file: CloudFile): Pair<ByteArray, Long>
@@ -181,6 +185,8 @@ internal fun isoDate(s: String?): Long {
 }
 
 class NoCloudSaves : Exception("no cloud saves")
+
+class CloudChanged(val sent: Map<String, Long>, val unsent: List<String>) : Exception("cloud saves changed since they were read")
 
 internal fun splitGogName(name: String): Pair<String?, String> {
     val slash = name.indexOf('/')

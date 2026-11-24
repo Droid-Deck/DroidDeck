@@ -16,7 +16,7 @@ object SteamIntegration {
     const val EXTRA_FEATURE = "integration_feature"
     const val SHORTCUTS_STATUS = "com.droiddeck.launcher.SHORTCUTS_INSTALL_STATUS"
     private const val SHORTCUTS_ASSET = "shortcuts.apk"
-    enum class Feature { WIFI, BRIGHTNESS, HOME, SHORTCUTS }
+    enum class Feature { WIFI, BRIGHTNESS, HOME, SHORTCUTS, BLUETOOTH }
 
     data class State(
         val wifi: Boolean = false,
@@ -28,6 +28,7 @@ object SteamIntegration {
         val shortcuts: Boolean = false,
         val shortcutsRestricted: Boolean = false,
         val shortcutsTried: Boolean = false,
+        val bluetooth: Boolean = false,
         val suggested: Boolean = true,
     )
 
@@ -37,10 +38,17 @@ object SteamIntegration {
         locationOn = WifiDiscovery.locationEnabled(context),
         brightness = Settings.System.canWrite(context),
         home = HomeApp.isDefault(context),
-        shortcuts = shortcutsEnabled(context),
+        shortcuts = shortcutsEnabled(context) && shortcutsCurrent(context),
         shortcutsRestricted = restrictedSettings(context),
+        bluetooth = bluetoothAllowed(context),
         suggested = !SessionPrefs.sessionPrefs(context).getBoolean("steam_integration_seen", false),
     )
+
+    fun bluetoothAllowed(context: Context): Boolean =
+        android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S ||
+            context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+
+    fun appInfo(context: Context) = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))
 
     private fun restrictedSettings(context: Context): Boolean {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) return false
@@ -60,6 +68,10 @@ object SteamIntegration {
         }.getOrNull().orEmpty()
         return enabled.split(':').any { ComponentName.unflattenFromString(it.trim()) == shortcutsComponent }
     }
+
+    @Suppress("DEPRECATION")
+    fun shortcutsCurrent(context: Context): Boolean =
+        runCatching { context.packageManager.getPackageInfo(Relay.PACKAGE, 0).versionCode }.getOrDefault(0) >= Relay.VERSION
 
     fun shortcutsListed(context: Context): Boolean =
         context.getSystemService(android.view.accessibility.AccessibilityManager::class.java)

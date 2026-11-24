@@ -19,7 +19,30 @@
 typedef int (*spawn_fn)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
                         char *const[], char *const[]);
 __attribute__((visibility("hidden")))
-char *const *bl_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
+char *const *dd_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
+
+__attribute__((visibility("hidden"))) int dd_program_lookup(const char *file, char *out, size_t size) {
+  if (!file || !*file) return 0;
+  if (strchr(file, '/')) return snprintf(out, size, "%s", file) < (int)size;
+  const char *paths = getenv("PATH");
+  if (!paths) paths = "/bin:/usr/bin";
+  char candidate[PATH_MAX];
+  int found = 0;
+  for (const char *p = paths;; ) {
+    const char *end = strchrnul(p, ':');
+    int n = end > p ? snprintf(candidate, sizeof candidate, "%.*s/%s", (int)(end - p), p, file)
+                    : snprintf(candidate, sizeof candidate, "%s", file);
+    struct stat st;
+    if (n > 0 && n < (int)sizeof candidate && n < (int)size && stat(candidate, &st) == 0 && S_ISREG(st.st_mode)) {
+      int runs = access(candidate, X_OK) == 0;
+      if (runs || !found) memcpy(out, candidate, (size_t)n + 1);
+      found = 1;
+      if (runs) return 1;
+    }
+    if (!*end) return found;
+    p = end + 1;
+  }
+}
 
 #if defined(__aarch64__) || defined(BINFMT_TEST)
 
@@ -29,7 +52,16 @@ static int flag(const char *name) {
 }
 
 static int handing_off(void) {
-  return flag("BL_DESKTOP") || flag("BL_BINFMT");
+  return flag("DD_DESKTOP") || flag("DD_BINFMT");
+}
+
+static int appimage(int fd, const unsigned char *head, ssize_t n) {
+  Elf64_Ehdr eh;
+  if (n < (ssize_t)sizeof eh || head[EI_CLASS] != ELFCLASS64 || memcmp(head + EI_ABIVERSION, "AI\x02", 3)) return 0;
+  memcpy(&eh, head, sizeof eh);
+  char magic[6];
+  off_t at = (off_t)eh.e_shoff + (off_t)eh.e_shentsize * eh.e_shnum;
+  return pread(fd, magic, sizeof magic, at) == (ssize_t)sizeof magic && (!memcmp(magic, "hsqs", 4) || !memcmp(magic, "DWARFS", 6));
 }
 
 static int foreign(const char *path, int error) {
@@ -37,12 +69,12 @@ static int foreign(const char *path, int error) {
   int fd = open(path, O_RDONLY | O_CLOEXEC);
   if (fd < 0) return 0;
   struct stat st;
-  unsigned char head[20];
+  unsigned char head[sizeof(Elf64_Ehdr)];
   ssize_t n = fstat(fd, &st) == 0 && S_ISREG(st.st_mode) ? read(fd, head, sizeof head) : -1;
   int kind = 0;
   if (n >= 20 && !memcmp(head, ELFMAG, SELFMAG)) {
     unsigned machine = head[EI_DATA] == ELFDATA2MSB ? (unsigned)head[18] << 8 | head[19] : head[18] | (unsigned)head[19] << 8;
-    kind = machine == EM_X86_64 || machine == EM_386 || error == EACCES ? 1 : 0;
+    kind = machine == EM_X86_64 || machine == EM_386 || appimage(fd, head, n) || error == EACCES ? 1 : 0;
   } else if (n >= 2 && head[0] == 'M' && head[1] == 'Z') {
     kind = 2;
   } else if (n >= 2 && head[0] == '#' && head[1] == '!' && error == EACCES) {
@@ -56,21 +88,6 @@ static int foreign(const char *path, int error) {
 
 static int wanted(const char *path, int error) {
   return (error == ENOEXEC || error == ENOENT || error == EACCES) && handing_off() && foreign(path, error);
-}
-
-static int lookup(const char *file, char *out, size_t size) {
-  if (!file || !*file) return 0;
-  if (strchr(file, '/')) return snprintf(out, size, "%s", file) < (int)size;
-  const char *paths = getenv("PATH");
-  if (!paths) paths = "/bin:/usr/bin";
-  for (const char *p = paths;; ) {
-    const char *end = strchrnul(p, ':');
-    int n = end > p ? snprintf(out, size, "%.*s/%s", (int)(end - p), p, file) : snprintf(out, size, "%s", file);
-    struct stat st;
-    if (n > 0 && n < (int)size && stat(out, &st) == 0 && S_ISREG(st.st_mode)) return 1;
-    if (!*end) return 0;
-    p = end + 1;
-  }
 }
 
 static int count(char *const argv[]) {
@@ -105,36 +122,36 @@ static int spawn_handler(pid_t *pid, const char *path, const posix_spawn_file_ac
   return real(pid, BINFMT_HANDLER, fa, attr, args, envp);
 }
 
-__attribute__((visibility("hidden"))) void bl_binfmt_before(const char *path, char *const argv[], char *const envp[]) {
+__attribute__((visibility("hidden"))) void dd_binfmt_before(const char *path, char *const argv[], char *const envp[]) {
   if (handing_off() && foreign(path, ENOEXEC)) hand_off(path, argv, envp);
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error) {
+__attribute__((visibility("hidden"))) int dd_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error) {
   if (wanted(path, error)) hand_off(path, argv, envp);
   errno = error;
   return -1;
 }
 
-__attribute__((visibility("hidden"))) void bl_binfmt_before_search(const char *file, char *const argv[], char *const envp[]) {
+__attribute__((visibility("hidden"))) void dd_binfmt_before_search(const char *file, char *const argv[], char *const envp[]) {
   char path[PATH_MAX];
-  if (handing_off() && lookup(file, path, sizeof path)) bl_binfmt_before(path, argv, envp);
+  if (handing_off() && dd_program_lookup(file, path, sizeof path)) dd_binfmt_before(path, argv, envp);
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error) {
+__attribute__((visibility("hidden"))) int dd_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error) {
   char path[PATH_MAX];
-  if (handing_off() && lookup(file, path, sizeof path)) return bl_binfmt_retry(path, argv, envp, error);
+  if (handing_off() && dd_program_lookup(file, path, sizeof path)) return dd_binfmt_retry(path, argv, envp, error);
   errno = error;
   return -1;
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_runnable(const char *path, int mode) {
+__attribute__((visibility("hidden"))) int dd_binfmt_runnable(const char *path, int mode) {
   if (mode != X_OK || !handing_off()) return 0;
   int runs = foreign(path, EACCES) != 0;
   errno = EACCES;
   return runs;
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
+__attribute__((visibility("hidden"))) int dd_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
                                                           const posix_spawnattr_t *attr, char *const argv[], char *const envp[],
                                                           spawn_fn real) {
   if (handing_off() && foreign(path, ENOEXEC)) return spawn_handler(pid, path, fa, attr, argv, envp, real);
@@ -144,55 +161,55 @@ __attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char
 
 int execvpe(const char *file, char *const argv[], char *const envp[]) {
   char resolved[PATH_MAX];
-  const char *path = lookup(file, resolved, sizeof resolved) ? resolved : file;
-  char *const *adjusted = bl_webhelper_argv(path, argv, envp);
+  const char *path = dd_program_lookup(file, resolved, sizeof resolved) ? resolved : file;
+  char *const *adjusted = dd_webhelper_argv(path, argv, envp);
   static int (*real)(const char *, char *const[], char *const[]);
   if (!real) real = (int (*)(const char *, char *const[], char *const[]))dlsym(RTLD_NEXT, "execvpe");
-  bl_binfmt_before_search(file, (char *const *)adjusted, envp);
+  dd_binfmt_before_search(file, (char *const *)adjusted, envp);
   real(file, (char *const *)adjusted, envp);
-  return bl_binfmt_after_search(file, (char *const *)adjusted, envp, errno);
+  return dd_binfmt_after_search(file, (char *const *)adjusted, envp, errno);
 }
 
 int posix_spawnp(pid_t *pid, const char *file, const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *attr,
                  char *const argv[], char *const envp[]) {
   char path[PATH_MAX];
-  int found = lookup(file, path, sizeof path);
-  char *const *adjusted = bl_webhelper_argv(found ? path : file, argv, envp);
+  int found = dd_program_lookup(file, path, sizeof path);
+  char *const *adjusted = dd_webhelper_argv(found ? path : file, argv, envp);
   static spawn_fn real, spawn;
   if (!real) real = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawnp");
   if (!spawn) spawn = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawn");
   if (!handing_off() || !found) return real(pid, file, fa, attr, (char *const *)adjusted, envp);
-  return bl_binfmt_spawn(pid, path, fa, attr, (char *const *)adjusted, envp, spawn);
+  return dd_binfmt_spawn(pid, path, fa, attr, (char *const *)adjusted, envp, spawn);
 }
 
 #else
 
-__attribute__((visibility("hidden"))) int bl_binfmt_runnable(const char *path, int mode) {
+__attribute__((visibility("hidden"))) int dd_binfmt_runnable(const char *path, int mode) {
   (void)path, (void)mode;
   return 0;
 }
 
-__attribute__((visibility("hidden"))) void bl_binfmt_before(const char *path, char *const argv[], char *const envp[]) {
+__attribute__((visibility("hidden"))) void dd_binfmt_before(const char *path, char *const argv[], char *const envp[]) {
   (void)path, (void)argv, (void)envp;
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error) {
+__attribute__((visibility("hidden"))) int dd_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error) {
   (void)path, (void)argv, (void)envp;
   errno = error;
   return -1;
 }
 
-__attribute__((visibility("hidden"))) void bl_binfmt_before_search(const char *file, char *const argv[], char *const envp[]) {
+__attribute__((visibility("hidden"))) void dd_binfmt_before_search(const char *file, char *const argv[], char *const envp[]) {
   (void)file, (void)argv, (void)envp;
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error) {
+__attribute__((visibility("hidden"))) int dd_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error) {
   (void)file, (void)argv, (void)envp;
   errno = error;
   return -1;
 }
 
-__attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
+__attribute__((visibility("hidden"))) int dd_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
                                                           const posix_spawnattr_t *attr, char *const argv[], char *const envp[],
                                                           spawn_fn real) {
   return real(pid, path, fa, attr, argv, envp);

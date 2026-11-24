@@ -64,7 +64,7 @@ class StoreRestorationTest {
         }
         compose.mainClock.advanceTimeBy(100)
         compose.onNodeWithText(ctx.getString(R.string.stores_xbox_content_title)).assertExists()
-        compose.onNodeWithText("Missing or ambiguous MicrosoftGame.config.").assertExists()
+        compose.onNodeWithText("Missing or ambiguous game manifest.").assertExists()
         compose.onNodeWithText(ctx.getString(android.R.string.ok)).performClick()
         compose.runOnIdle { assertNull(XboxContent.plan) }
     }
@@ -145,7 +145,7 @@ class StoreRestorationTest {
         onInstallPackage = {}, onRemovePackage = {}, onRuntime = {}, onFrameGenPick = {},
         onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},
         onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
-        onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
+        
         onSetPhantomProcessLimit = { _, _ -> },
     )
 }

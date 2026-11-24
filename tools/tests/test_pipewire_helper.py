@@ -8,6 +8,7 @@ from pathlib import Path
 SOURCE = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/droiddeck-pipewire'
 
 
+@unittest.skipIf(os.name == "nt", "the helper needs a POSIX shell, flock and Unix sockets")
 class PipeWireHelperTest(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

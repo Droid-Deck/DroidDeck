@@ -6,7 +6,7 @@ stable_channel=steamdeck_stable
 steam_root=${XDG_DATA_HOME:-$HOME/.local/share}/Steam
 channel_state=$steam_root/package/droiddeck-channel
 pinned=1
-wanted=${BL_STEAM_CHANNEL:-$(cat "$HOME/.config/droiddeck/steam-channel" 2>/dev/null || true)}
+wanted=${DD_STEAM_CHANNEL:-$(cat "$HOME/.config/droiddeck/steam-channel" 2>/dev/null || true)}
 case $wanted in
   stable|"$stable_channel") steam_channel=$stable_channel ;;
   beta|"$beta_channel") steam_channel=$beta_channel ;;
@@ -24,7 +24,7 @@ manifest=steam_client_${steam_channel}_linuxarm64
 stamp=$steam_root/package/droiddeck-installed
 legacy_stamp=$steam_root/package/bannerlator-installed
 unconfirmed=$steam_root/package/droiddeck-unconfirmed
-repair_request=$HOME/.bl-steam-repair
+repair_request=$HOME/.dd-steam-repair
 parts=$steam_root/package/droiddeck-download
 if [ -f "$legacy_stamp" ] && [ ! -f "$stamp" ]; then
   mv -f "$legacy_stamp" "$stamp" || true
@@ -65,12 +65,14 @@ if [ -n "$repair" ]; then
     [ "$(sha1sum "$part" | cut -d' ' -f1)" = "$sum" ] || rm -f "$part"
   done
 fi
+cache_only=
+[ "${1:-}" = --cache ] && cache_only=1
 sync=
 if [ "${1:-}" = --sync ]; then
   case "${2:-}" in publicbeta|steamdeck_publicbeta) sync=$2 ;; *) sync=$steam_channel ;; esac
   manifest=steam_client_${sync}_linuxarm64
 fi
-[ -z "$sync" ] && [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ] && exit 0
+[ -z "$sync" ] && [ -z "$cache_only" ] && [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ] && exit 0
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -85,7 +87,7 @@ size_of() {
   echo $((n))
 }
 limits=(--connect-timeout 30 --speed-limit 4096 --speed-time 60)
-read -r -a delays <<< "${BL_STEAM_RETRY_DELAYS:-5 10 20 30 30}"
+read -r -a delays <<< "${DD_STEAM_RETRY_DELAYS:-5 10 20 30 30}"
 
 step() { echo "== STEP $(date -u +%H:%M:%S) $*"; }
 progress() {
@@ -130,6 +132,138 @@ fetch() {
   done
 }
 
+# The same decisions as fetch for the parallel workers, with curl in the foreground and a plain sleep between tries:
+# the shell here cannot open /dev/fd for process substitution from a background job.
+fetch_one() {
+  local url=$1 dest=$2 size=$3 sum=$4 part=$5 failures=0 bad=0 finished=0 before rc http wait
+  while :; do
+    if [ -f "$dest" ] && { [ "$finished" = 1 ] || { [ "$size" -gt 0 ] && [ "$(size_of "$dest")" -ge "$size" ]; }; }; then
+      echo "$sum  $dest" | sha256sum -c --quiet 2>/dev/null && return 0
+      rm -f "$dest"
+      finished=0 bad=$((bad + 1))
+      [ "$bad" -lt 3 ] || { echo "droiddeck-steam-install: $part does not match its checksum" >&2; return 1; }
+    fi
+    before=$(size_of "$dest")
+    http=$(curl -fsSL "${limits[@]}" -w '%{http_code}' -C - -o "$dest" "$url") && rc=0 || rc=$?
+    if [ "$rc" = 0 ]; then finished=1; continue; fi
+    case "$rc:${http:-}" in
+      22:416 | 33:*) rm -f "$dest" ;;
+      22:4??)
+        echo "droiddeck-steam-install: $part: HTTP $http from ${url%/*}" >&2
+        return 1
+        ;;
+    esac
+    if [ "$(size_of "$dest")" -gt "$before" ]; then failures=0; else failures=$((failures + 1)); fi
+    if [ "$failures" -gt "${#delays[@]}" ]; then
+      echo "droiddeck-steam-install: could not download $part (curl exit $rc); what arrived is kept for the next try" >&2
+      return 1
+    fi
+    wait=${delays[$((failures > 0 ? failures - 1 : 0))]}
+    step "downloading Steam: $part - interrupted (curl exit $rc), trying again in ${wait} s"
+    sleep "$wait"
+  done
+}
+
+parallel=${DD_STEAM_PARALLEL:-4}
+case $parallel in ''|*[!0-9]*|0) parallel=1 ;; esac
+flock_command=${DD_STEAM_FLOCK:-flock}
+command -v "$flock_command" > /dev/null 2>&1 || parallel=1
+
+# unzip creates parent directories without guarding against another unzip doing the same, so two packages unpacked into
+# one tree at once fail now and then. Unpacking is quick next to downloading, so the workers take turns on a flock: the
+# kernel hands it on when its holder ends, however it ends, so there is no stale lock to recover.
+unzip_alone() {
+  local rc
+  ( "$flock_command" 9 && unzip -qo "$1" -d "$steam_root" ) 9> "$state/unzip.lock" && rc=0 || rc=$?
+  return $rc
+}
+
+# Fetches every line of a list ("block file sum size") into $dir with up to $parallel connections. With a third
+# argument each package is also unpacked into the client as it lands. One connection tops out near half of what a
+# Wi-Fi link carries, so the packages arrive about twice as fast. Workers take the next unclaimed line themselves
+# (mkdir is atomic) and only plain background jobs and wait on a pid are used, so nothing depends on job control.
+run_parallel() {
+  local list=$1 dir=$2 unpack=${3:-} state index=0 block file sum size
+  local -a blocks=() files=() sums=() sizes=() pids=()
+  state=$work/parallel
+  rm -rf "$state"
+  mkdir -p "$state"
+  while read -r block file sum size; do
+    index=$((index + 1))
+    blocks[index]=$block files[index]=$file sums[index]=$sum sizes[index]=$size
+    if [ -n "$unpack" ] && [ -f "$dir/$file.unpacked" ]; then
+      : > "$state/$index.done"
+      : > "$state/claim.$index"
+    fi
+  done < "$list"
+  local count=$index total_bytes=0
+  for index in $(seq 1 "$count"); do total_bytes=$((total_bytes + sizes[index])); done
+  local slot
+  for slot in $(seq 1 "$parallel"); do
+    (
+      trap ': > "$state/exit.$slot"' EXIT
+      while [ ! -e "$state/failed" ]; do
+        index=0
+        for n in $(seq 1 "$count"); do
+          if mkdir "$state/claim.$n" 2>/dev/null; then index=$n; break; fi
+        done
+        [ "$index" -gt 0 ] || exit 0
+        file=${files[index]}
+        fetched=""
+        for host in "${cdn_order[@]}"; do
+          if fetch_one "$host/$file" "$dir/$file" "${sizes[index]}" "${sums[index]}" "${blocks[index]}"; then
+            fetched=$host
+            break
+          fi
+        done
+        if [ -z "$fetched" ]; then
+          echo "droiddeck-steam-install: $file failed on every CDN" >&2
+          : > "$state/failed"
+          exit 1
+        fi
+        if [ -n "$unpack" ]; then
+          unzip_alone "$dir/$file" || { : > "$state/failed"; exit 1; }
+          : > "$dir/$file.unpacked"
+          rm -f "$dir/$file"
+        fi
+        : > "$state/$index.done"
+      done
+    ) &
+    pids+=($!)
+  done
+  local shown="" got n alive mark current last="" since=$SECONDS stall=${DD_STEAM_STALL:-90}
+  while :; do
+    alive=0
+    for slot in $(seq 1 "$parallel"); do [ -e "$state/exit.$slot" ] || alive=1; done
+    got=0 n=0 current=""
+    for index in $(seq 1 "$count"); do
+      if [ -e "$state/$index.done" ]; then
+        got=$((got + sizes[index])) n=$((n + 1))
+      elif [ -e "$state/claim.$index" ]; then
+        current=$index
+        [ -f "$dir/${files[index]}" ] && got=$((got + $(size_of "$dir/${files[index]}")))
+      fi
+    done
+    mark=$((got / 1000000))
+    if [ -n "$current" ] && [ "$mark" != "$shown" ]; then
+      shown=$mark
+      step "downloading Steam: ${blocks[current]} ($((n + 1))/$count), $mark of $((total_bytes / 1000000)) MB"
+    fi
+    [ "$n" -lt "$count" ] || alive=0
+    if [ "$got" != "$last" ]; then last=$got since=$SECONDS; fi
+    # A worker killed from outside never writes its exit marker. Stop reporting once nothing has moved for a while
+    # and wait on the workers: wait returns the killed one's status, so the install fails instead of hanging.
+    [ $((SECONDS - since)) -lt "$stall" ] || alive=0
+    [ "$alive" = 1 ] || break
+    sleep 1
+  done
+  local failed=""
+  for slot in "${pids[@]}"; do wait "$slot" || failed=1; done
+  [ ! -e "$state/failed" ] || failed=1
+  rm -rf "$state"
+  [ -z "$failed" ]
+}
+
 fetch_manifest() {
   cdn=""
   for candidate in $cdn_list; do
@@ -167,6 +301,50 @@ if ! fetch_manifest; then
   fallback=1
   fetch_manifest || exit 1
 fi
+if [ -n "$cache_only" ]; then
+  cache=$steam_root/package
+  cached=$cache/droiddeck-cached
+  [ "$(cat "$cached" 2>/dev/null)" = "$version" ] && exit 0
+  awk -F'"' '
+    /^\t"/ && NF >= 3 && $4 == "" { block = $2 }
+    $2 == "file" { file[block] = $4 }
+    $2 == "sha2" { sha[block] = $4 }
+    $2 == "size" { size[block] = $4 }
+    $2 == "zipvz" { vz[block] = $4 }
+    $2 == "sha2vz" { vzsha[block] = $4 }
+    END {
+      for (b in file) {
+        f = file[b]; h = sha[b]; n = size[b] + 0
+        if (b in vz) { f = vz[b]; h = vzsha[b]; k = split(f, bits, "_"); n = bits[k] + 0 }
+        print b, f, h, n
+      }
+    }
+  ' "$work/manifest" | sort > "$work/cache"
+  mkdir -p "$cache"
+  total=$(grep -c . "$work/cache" 2>/dev/null || echo 0)
+  total_bytes=$(awk '{ n += $4 } END { print n + 0 }' "$work/cache")
+  done_bytes=0
+  i=0
+  if [ "$parallel" -gt 1 ]; then
+    run_parallel "$work/cache" "$cache" || exit 1
+  else
+  while read -r block file sum size; do
+    i=$((i + 1))
+    progress "$cache/$file" "$block"
+    fetched=""
+    for host in "${cdn_order[@]}"; do
+      if fetch "$host/$file" "$cache/$file" "$size" "$sum" "$block"; then
+        fetched=$host
+        break
+      fi
+    done
+    [ -n "$fetched" ] || { echo "droiddeck-steam-install: $file failed on every CDN" >&2; exit 1; }
+    done_bytes=$((done_bytes + size))
+  done < "$work/cache"
+  fi
+  echo "$version" > "$cached"
+  exit 0
+fi
 if [ -n "$sync" ]; then
   installed=$(awk -F'"' '$2 == "version" { print $4; exit }' "$steam_root/package/$manifest.manifest" 2>/dev/null || true)
   if [ -x "$steam_root/steamrtarm64/steam" ] && [ "$installed" = "$version" ]; then
@@ -186,6 +364,9 @@ for left in "$parts"/*; do
   grep -qF " $name " "$work/parts" || rm -rf "$left"
 done
 done_bytes=0
+if [ "$parallel" -gt 1 ]; then
+  run_parallel "$work/parts" "$parts" unpack || exit 1
+else
 while read -r block file sum size; do
   i=$((${i:-0} + 1))
   if [ -f "$parts/$file.unpacked" ]; then
@@ -206,6 +387,7 @@ while read -r block file sum size; do
   rm -f "$parts/$file"
   done_bytes=$((done_bytes + size))
 done < "$work/parts"
+fi
 find "$steam_root" -depth -name '*\\*' | while read -r odd; do
   fixed=${odd//\\//}
   mkdir -p "$(dirname "$fixed")"

@@ -11,6 +11,7 @@ int vkp_effects_sync(void);
 int vkp_effects_active(void);
 
 int vkp_effects_upscaling(void);
+int vkp_effects_sharpening(void);
 int vkp_effects_postprocessing(void);
 
 VkFilter vkp_effects_blit_filter(void);
@@ -30,7 +31,7 @@ void vkp_effects_set_cas(int enabled, int pct);
 void vkp_effects_set_hdr(int enabled);
 void vkp_effects_set_deband(int enabled, int pct);
 void vkp_effects_set_screen(float brightness, float contrast, float gamma, float saturation,
-                            int fxaa, int toon, int crt, int ntsc);
+                            int aa_mode, int toon, int crt, int ntsc);
 void vkp_effects_set_look(const char *name);
 
 #endif

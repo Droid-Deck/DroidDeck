@@ -100,7 +100,7 @@ fun BottomDownloadsPage() {
                     formatSpeed(e.speedBps),
                 ).filter { it.isNotEmpty() }.joinToString(" · ")
             }
-            BottomDownloadRow(e.name, e.store.label, detail, e.stageFraction.takeIf { it >= 0f })
+            BottomDownloadRow(e.name, e.store.label, detail, steadyProgress(e))
         }
     }
 }

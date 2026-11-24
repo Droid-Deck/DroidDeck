@@ -43,11 +43,11 @@ class SteamrtShimTest(unittest.TestCase):
         self.assertEqual(0, self.sh(self.shim / 'bin/steam-runtime-check-requirements').returncode)
         self.assertEqual('info\n', self.sh(self.shim / 'bin/steam-runtime-system-info').stdout)
         self.assertEqual('runtime files', (self.shim / 'files/marker').read_text())
-        launched = self.sh(self.shim / 'bin/steam-runtime-launch-client', '--env=BL_SHIM_TEST=yes',
-                           f'--directory={self.root}', '--', 'sh', '-c', 'echo "$BL_SHIM_TEST $(basename "$PWD")"')
+        launched = self.sh(self.shim / 'bin/steam-runtime-launch-client', '--env=DD_SHIM_TEST=yes',
+                           f'--directory={self.root}', '--', 'sh', '-c', 'echo "$DD_SHIM_TEST $(basename "$PWD")"')
         self.assertEqual(f'yes {self.root.name}\n', launched.stdout)
-        launched = self.sh(self.shim / 'bin/steam-runtime-launch-client', '--env', 'BL_SHIM_TEST=split',
-                           '--directory', self.root, '--', 'sh', '-c', 'echo "$BL_SHIM_TEST $(basename "$PWD")"')
+        launched = self.sh(self.shim / 'bin/steam-runtime-launch-client', '--env', 'DD_SHIM_TEST=split',
+                           '--directory', self.root, '--', 'sh', '-c', 'echo "$DD_SHIM_TEST $(basename "$PWD")"')
         self.assertEqual(f'split {self.root.name}\n', launched.stdout)
         missing = self.sh(self.shim / 'bin/steam-runtime-launch-client', '--directory', self.root / 'missing',
                           '--', 'true')
@@ -85,7 +85,7 @@ class SteamrtShimTest(unittest.TestCase):
 
     def test_both_clients_are_told_they_already_run_inside_the_container(self):
         guard = SESSION.index('export STEAM_STEAMRT_RECURSION_GUARD=1')
-        self.assertLess(guard, SESSION.index('"${steam_client[@]}" "${_bl_ui[@]}"'))
+        self.assertLess(guard, SESSION.index('"${steam_client[@]}" "${_dd_ui[@]}"'))
         self.assertIn('-u STEAM_STEAMRT_RECURSION_GUARD', SESSION[:guard])
         self.assertIn('export STEAM_STEAMRT_RECURSION_GUARD=1', X64)
         self.assertIn('droiddeck-steamrt-shim "$STEAM_X64/steamrt64" "$X64_HOME/steamrt-shim" || rm -rf "$X64_HOME/steamrt-shim"', X64)

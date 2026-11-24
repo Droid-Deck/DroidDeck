@@ -104,7 +104,7 @@ class StoragePreloadTest(unittest.TestCase):
 
     def run_program(self, *steps, program=None):
         env = dict(os.environ, LD_PRELOAD="%s:%s" % (self.storage, self.fake), FAKE_LOG=str(self.log))
-        env.pop("BL_STORAGE_DIAGNOSTICS", None)
+        env.pop("DD_STORAGE_DIAGNOSTICS", None)
         args = [str(program or self.steam)]
         for call, path, length in steps:
             args += [call, str(path), str(length)]

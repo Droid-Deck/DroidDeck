@@ -8,9 +8,9 @@ SOURCE = Path(__file__).resolve().parents[1] / "linuxfs/preload/oomadj.c"
 
 PROGRAM = r"""
 #include <stdio.h>
-const char *bl_oom_adj_redirect(const char *path, int writing);
+const char *dd_oom_adj_redirect(const char *path, int writing);
 int main(int argc, char **argv) {
-  for (int i = 1; i + 1 < argc; i += 2) printf("%s\n", bl_oom_adj_redirect(argv[i + 1], argv[i][0] == 'w'));
+  for (int i = 1; i + 1 < argc; i += 2) printf("%s\n", dd_oom_adj_redirect(argv[i + 1], argv[i][0] == 'w'));
   return 0;
 }
 """

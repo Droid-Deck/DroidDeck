@@ -11,7 +11,15 @@ import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
 
 class LoadingState(context: Context, private val steam: Boolean = true) {
-    var visible by mutableStateOf(true)
+    private val prefs = context.getSharedPreferences("loading", Context.MODE_PRIVATE)
+    private val firstRun = steam && !prefs.getBoolean(FIRST_DONE, false)
+    private var shown by mutableStateOf(true)
+    var visible: Boolean
+        get() = shown
+        set(value) {
+            shown = value
+            if (!value && steam) prefs.edit().putBoolean(FIRST_DONE, true).apply()
+        }
     var step by mutableStateOf(context.getString(com.droiddeck.launcher.R.string.loadstate_starting))
         private set
     var topic by mutableStateOf(Topic.SESSION)
@@ -33,7 +41,7 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
     fun tick() {
         val seconds = (SystemClock.elapsedRealtime() - startedAt) / 1000
         elapsed = res.getString(com.droiddeck.launcher.R.string.loadstate_elapsed, seconds / 60, seconds % 60)
-        hint = hints[((seconds / 8) % hints.size).toInt()]
+        hint = if (firstRun) res.getString(com.droiddeck.launcher.R.string.loading_first_run) else hints[((seconds / 8) % hints.size).toInt()]
     }
 
     fun say(line: String, topic: Topic, readable: Boolean) {
@@ -126,6 +134,7 @@ class LoadingState(context: Context, private val steam: Boolean = true) {
     enum class Topic { RUNTIME, SESSION, DESKTOP, STEAM, STEAM_STARTING, OTHER }
 
     companion object {
+        private const val FIRST_DONE = "first_done"
         internal fun topicOf(scriptStep: String, steam: Boolean): Topic {
             val t = scriptStep.lowercase()
             return when {

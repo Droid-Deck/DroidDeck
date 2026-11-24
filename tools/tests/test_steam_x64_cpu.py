@@ -29,11 +29,11 @@ class SteamX64CpuTest(unittest.TestCase):
             start = text.find('x64_arm_webhelper_cpu_supported() {')
             helper = text[start:text.index('x64_exec() {')] if start >= 0 else ''
             selection = text.split('x64_exec() {', 1)[1].split('  mkdir -p "$STEAM_X64/logs"', 1)[0]
-            shell = helper + '\nx64_env() { :; }\nx64_webhelper_gpu() { return 1; }\nselect_helper() {' + selection + '\nprintf "%s|%s\\n" "${BL_X64_ARM_WEBHELPER:-x86}" "${BL_WEBHELPER_ARGS:-}";\n}\nselect_helper\n'
+            shell = helper + '\nx64_env() { :; }\nx64_webhelper_gpu() { return 1; }\nselect_helper() {' + selection + '\nprintf "%s|%s\\n" "${DD_X64_ARM_WEBHELPER:-x86}" "${DD_WEBHELPER_ARGS:-}";\n}\nselect_helper\n'
             shell = shell.replace('/proc/cpuinfo', str(cpuinfo)).replace('/usr/local/bin/droiddeck-x64-arm-webhelper', str(shim))
-            env = dict(os.environ, STEAM_X64=str(x64), ARM_STEAM=str(arm), X64_CHANNEL='publicbeta', BL_X64_X86_WEBHELPER='1' if forced else '0')
-            env.pop('BL_X64_ARM_WEBHELPER', None)
-            env.pop('BL_WEBHELPER_ARGS', None)
+            env = dict(os.environ, STEAM_X64=str(x64), ARM_STEAM=str(arm), X64_CHANNEL='publicbeta', DD_X64_X86_WEBHELPER='1' if forced else '0')
+            env.pop('DD_X64_ARM_WEBHELPER', None)
+            env.pop('DD_WEBHELPER_ARGS', None)
             result = subprocess.run(['bash', '-eu', '-c', shell], env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             return result.stdout.strip(), str(shim)

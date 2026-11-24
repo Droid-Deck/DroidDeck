@@ -72,6 +72,7 @@ PFN_vkGetInstanceProcAddr vk_loader_gipa(void) { return NULL; }
 void vkp_effects_bind_device(VkDevice d, VkPhysicalDevice p, const VkPhysicalDeviceMemoryProperties *m) {}
 int vkp_effects_active(void) { return 0; }
 int vkp_effects_upscaling(void) { return 0; }
+int vkp_effects_sharpening(void) { return 0; }
 int vkp_effects_postprocessing(void) { return 0; }
 VkFilter vkp_effects_blit_filter(void) { return VK_FILTER_NEAREST; }
 void vkp_effects_set_formats(VkFormat a, VkFormat b) {}
@@ -109,7 +110,7 @@ struct damage_list { int n; };
 struct surface {
     struct vkp_image *shm_img;
     struct wl_resource *resource;
-    int buf_w, buf_h, buf_alpha, has_content;
+    int buf_w, buf_h, buf_alpha, has_content, black_fill;
     /* Read by take_shm's game-frame detection; with no damage it stays off here. */
     int src_set; float src[4];
     struct damage_list damage_buf, damage_local;

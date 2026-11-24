@@ -77,6 +77,7 @@ import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.testTag
 
 
 @Composable
@@ -223,6 +224,9 @@ fun LoadingOverlay(
             modifier = Modifier.align(Alignment.BottomCenter).padding(start = 120.dp, end = 120.dp, bottom = 28.dp),
         )
         if (!ended && onCancel != null) CancelHint(onCancel, Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 16.dp))
+        if (!ended && onShareLogs != null) androidx.compose.material3.TextButton(
+            onClick = onShareLogs, modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, bottom = 12.dp).testTag("loading-report"),
+        ) { Text(stringResource(R.string.report_problem), fontSize = 13.sp, color = colors.onSurfaceVariant) }
         if (flood != null) FloodGather(flood, ball, onFlooded)
     }
 }
@@ -242,7 +246,7 @@ private fun EndedActions(onRetry: (() -> Unit)?, onRepair: (() -> Unit)?, onShar
             if (onRepair != null) SecondaryButton(stringResource(R.string.store_try_again), modifier = claim(), onClick = onRetry)
             else PrimaryButton(stringResource(R.string.store_try_again), modifier = claim(), onClick = onRetry)
         }
-        if (onShareLogs != null) SecondaryButton(stringResource(R.string.drawer_share_logs), modifier = claim(),
+        if (onShareLogs != null) SecondaryButton(stringResource(R.string.report_problem), modifier = claim(),
             progress = com.droiddeck.launcher.session.SessionLogShare.progress, onClick = onShareLogs)
         if (onClose != null) SecondaryButton(stringResource(R.string.mode_back), modifier = claim(), onClick = onClose)
     }

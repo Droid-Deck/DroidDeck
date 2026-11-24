@@ -26,6 +26,8 @@ class KeyboardHost(
     var imeShowing = false
         private set
     var onImeChanged: ((Boolean) -> Unit)? = null
+    val hideMeansDismissal: Boolean
+        get() = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || (shown && imeShowing)
 
     init {
         isFocusable = false

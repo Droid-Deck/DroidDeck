@@ -41,6 +41,7 @@ import com.droiddeck.launcher.core.PhantomProcessLimit
 import com.droiddeck.launcher.core.PhantomProcessStatus
 import com.droiddeck.launcher.core.WirelessAdbPairingService
 import com.droiddeck.launcher.core.WirelessAdbPairingService.Stage
+import com.droiddeck.launcher.session.QuestExperimental
 
 @Composable
 fun PhantomProcessGatePage(
@@ -49,9 +50,7 @@ fun PhantomProcessGatePage(
     onDismiss: () -> Unit,
     onOpenDeveloperOptions: () -> Unit,
     onFixWithWirelessDebugging: () -> Unit,
-    onEnterAddressManually: () -> Unit,
     onCopyCommand: () -> Unit,
-    onOpenNotificationSettings: () -> Unit,
 ) {
     BackHandler(onBack = onDismiss)
     val context = LocalContext.current
@@ -63,6 +62,7 @@ fun PhantomProcessGatePage(
         }
     }
     val hasToggle = PhantomProcessLimit.hasDeveloperToggle()
+    val sideQuest = QuestExperimental.isSupported()
 
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val compact = maxWidth < 620.dp && maxHeight < 500.dp
@@ -78,12 +78,13 @@ fun PhantomProcessGatePage(
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val wide = maxWidth >= 620.dp
                 val fix: @Composable ColumnScope.() -> Unit = {
-                    FixGroup(hasToggle, stage, environment, compact, applyingSavedPairing, onOpenDeveloperOptions, onFixWithWirelessDebugging,
-                        onOpenNotificationSettings, onCancel = { WirelessAdbPairingService.cancel(context) })
+                    if (sideQuest) SideQuestGroup(compact, onCopyCommand)
+                    else FixGroup(hasToggle, stage, environment, compact, applyingSavedPairing, onOpenDeveloperOptions, onFixWithWirelessDebugging,
+                        onCancel = { WirelessAdbPairingService.cancel(context) })
                 }
                 val side: @Composable ColumnScope.() -> Unit = {
                     StatusGroup(status, compact)
-                    OtherWays(hasToggle, compact, onOpenDeveloperOptions, onFixWithWirelessDebugging, onEnterAddressManually, onCopyCommand)
+                    if (!sideQuest) OtherWays(hasToggle, compact, onOpenDeveloperOptions, onFixWithWirelessDebugging, onCopyCommand)
                 }
                 if (wide) {
                     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.widthIn(max = 900.dp).fillMaxWidth()) {
@@ -101,15 +102,16 @@ fun PhantomProcessGatePage(
     }
 }
 
-private data class GateEnvironment(val onWifi: Boolean, val notifications: Boolean) {
+private data class GateEnvironment(val onWifi: Boolean) {
     companion object {
         fun read(context: Context): GateEnvironment {
             val connectivity = context.getSystemService(ConnectivityManager::class.java)
             val wifi = runCatching {
-                connectivity?.getNetworkCapabilities(connectivity.activeNetwork)
-                    ?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                connectivity?.allNetworks?.any { network ->
+                    connectivity.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                } == true
             }.getOrDefault(true)
-            return GateEnvironment(wifi, WirelessAdbPairingService.notificationsEnabled(context))
+            return GateEnvironment(wifi)
         }
     }
 }
@@ -123,7 +125,6 @@ private fun FixGroup(
     applyingSavedPairing: Boolean,
     onOpenDeveloperOptions: () -> Unit,
     onFixWithWirelessDebugging: () -> Unit,
-    onOpenNotificationSettings: () -> Unit,
     onCancel: () -> Unit,
 ) {
     val pairing = stage is Stage.Waiting || stage is Stage.CodeNeeded || stage is Stage.Working
@@ -141,6 +142,7 @@ private fun FixGroup(
                 hasToggle -> {
                     Body(stringResource(R.string.gate_toggle_steps))
                     PrimaryButton(stringResource(R.string.gate_open_dev), compact = compact, onClick = onOpenDeveloperOptions)
+                    SecondaryButton(stringResource(R.string.gate_use_wireless_instead), compact = compact, enabled = environment.onWifi, onClick = onFixWithWirelessDebugging)
                 }
                 else -> {
                     Body(stringResource(R.string.gate_no_toggle))
@@ -148,7 +150,7 @@ private fun FixGroup(
                     PrimaryButton(
                         if (stage is Stage.Failed) stringResource(R.string.store_try_again) else stringResource(R.string.gate_fix_for_me),
                         compact = compact,
-                        enabled = environment.onWifi && environment.notifications,
+                        enabled = environment.onWifi,
                         onClick = onFixWithWirelessDebugging,
                     )
                 }
@@ -156,10 +158,6 @@ private fun FixGroup(
             if (!hasToggle && !pairing) {
                 if (!environment.onWifi) {
                     Body(stringResource(R.string.gate_needs_wifi), warn = true)
-                }
-                if (!environment.notifications) {
-                    Body(stringResource(R.string.gate_needs_notifications), warn = true)
-                    SecondaryButton(stringResource(R.string.gate_allow_notifications), compact = compact, onClick = onOpenNotificationSettings)
                 }
             }
         }
@@ -221,7 +219,6 @@ private fun OtherWays(
     compact: Boolean,
     onOpenDeveloperOptions: () -> Unit,
     onFixWithWirelessDebugging: () -> Unit,
-    onEnterAddressManually: () -> Unit,
     onCopyCommand: () -> Unit,
 ) {
     var open by rememberSaveable { mutableStateOf(false) }
@@ -237,23 +234,38 @@ private fun OtherWays(
             modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            if (hasToggle) {
-                SecondaryButton(stringResource(R.string.gate_use_wireless_instead), compact = true, onClick = onFixWithWirelessDebugging)
-            } else {
+            if (!hasToggle) {
                 Body(stringResource(R.string.gate_some_roms))
                 SecondaryButton(stringResource(R.string.gate_open_dev), compact = true, onClick = onOpenDeveloperOptions)
             }
-            Body(stringResource(R.string.gate_manual_hint))
-            SecondaryButton(stringResource(R.string.gate_enter_manually), compact = true, onClick = onEnterAddressManually)
             Body(stringResource(R.string.gate_from_computer))
-            Text(
-                PhantomProcessLimit.adbCommand(),
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            AdbCommand()
             SecondaryButton(stringResource(R.string.gate_copy_command), compact = true, onClick = onCopyCommand)
         }
     }
+}
+
+@Composable
+private fun SideQuestGroup(compact: Boolean, onCopyCommand: () -> Unit) {
+    SettingsGroup(stringResource(R.string.gate_sidequest), compact = compact) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(if (compact) 10.dp else 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Body(stringResource(R.string.gate_sidequest_steps))
+            AdbCommand()
+            PrimaryButton(stringResource(R.string.gate_copy_command), compact = compact, onClick = onCopyCommand)
+        }
+    }
+}
+
+@Composable
+private fun AdbCommand() {
+    Text(
+        PhantomProcessLimit.adbCommand(),
+        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

@@ -37,9 +37,6 @@ USER_PREFERENCES = "UserPreferencesMask"
 WINE_USER_PREFERENCES = bytes((0x10, 0x00, 0x00, 0x80, 0x12, 0x00, 0x00, 0x00))
 CLIENT_AREA_ANIMATION = (4, 0x02)
 WALLPAPER_MAX = (1280, 720)
-FEX_REQUEST = "battlenet-fex.request"
-FEX_RESULT = "battlenet-fex.result"
-FEX_WAIT = 120
 START_GRACE = 90
 POLL = 2
 STOP_WAIT = 5
@@ -82,8 +79,7 @@ AGENT_START = 90
 AGENT_HELPER = "agent.js"
 AGENT_RUNTIME = "agent-runtime"
 AGENT_LOG = "agent.log"
-AGENT_LOG_LIMIT = 4 << 20
-HEADLESS = ["--backend", "headless", "-w", "640", "-h", "480"]
+HEADLESS = "/usr/local/bin/droiddeck-headless"
 PRODUCT = re.compile(r"[a-z0-9_]{1,32}")
 LOCALE = re.compile(r"[a-z]{2}[A-Z]{2}")
 COUNTRY = re.compile(r"[A-Z]{3}")
@@ -321,6 +317,15 @@ def install_path(root, library):
     return letter.upper() + ":\\" + path[len(target):].strip("/").replace("/", "\\")
 
 
+def keeps_open(root):
+    try:
+        with open(os.path.join(drive_c(root), *CONFIG), encoding="utf-8-sig") as f:
+            client = json.load(f).get("Client")
+    except (OSError, ValueError, AttributeError):
+        return False
+    return isinstance(client, dict) and LAUNCH_BEHAVIOR[0] in client and client[LAUNCH_BEHAVIOR[0]] != LAUNCH_BEHAVIOR[1]
+
+
 def write_config(root, library=None):
     path = os.path.join(drive_c(root), *CONFIG)
     key, value = LAUNCH_BEHAVIOR
@@ -338,7 +343,7 @@ def write_config(root, library=None):
         return None
     client = config["Client"]
     changes = []
-    if client.get(key) != value:
+    if key not in client:
         client[key] = value
         changes.append("launch")
     if client.get("HardwareAcceleration") != "false":
@@ -467,7 +472,7 @@ def still_pages(root):
 
 
 def desktop_size():
-    width, height = os.environ.get("BL_WIDTH", ""), os.environ.get("BL_HEIGHT", "")
+    width, height = os.environ.get("DD_WIDTH", ""), os.environ.get("DD_HEIGHT", "")
     if width.isdigit() and height.isdigit() and 0 < int(width) <= 7680 and 0 < int(height) <= 4320:
         return int(width), int(height)
     return 1280, 720
@@ -770,32 +775,6 @@ def write_menu(path=MENU):
         say("menu entry not written: %s" % error)
 
 
-def ask_fex(launch_dir, wait=FEX_WAIT):
-    if not launch_dir or not os.path.isdir(launch_dir):
-        say("not inside a DroidDeck session; FEX stays as Components has it")
-        return None
-    result = os.path.join(launch_dir, FEX_RESULT)
-    request = os.path.join(launch_dir, FEX_REQUEST)
-    try:
-        os.unlink(result)
-    except OSError:
-        pass
-    with open(request + ".tmp", "w", encoding="utf-8") as f:
-        f.write("appid=%s\n" % APP_ID)
-    os.replace(request + ".tmp", request)
-    deadline = time.monotonic() + wait
-    while time.monotonic() < deadline:
-        try:
-            with open(result, encoding="utf-8") as f:
-                answer = f.read().strip()
-        except OSError:
-            time.sleep(0.5)
-            continue
-        os.unlink(result)
-        return answer
-    return None
-
-
 def wine_processes(pfx, proc="/proc"):
     want = os.path.realpath(pfx).rstrip("/")
     found = []
@@ -875,6 +854,9 @@ class Tidy:
             self.game_since = self.game_since if self.game_since is not None else now
             if own and not self.closed_for_game and now - self.game_since >= self.settle:
                 self.closed_for_game, self.agent_seen, self.agent_lost = True, False, None
+                if keeps_open(steam_root()):
+                    say("Battle.net is set to stay open as a game launches: left open")
+                    return False
                 if any(is_client(argv) for _, argv in own) and any(shares_sign_in(argv) for argv in games):
                     say("Battle.net stayed open beside a game signing in with its token: left open")
                     return False
@@ -900,18 +882,18 @@ class Tidy:
 
 
 def desktop_gpu():
-    if os.environ.get("BL_DESKTOP") != "1" or os.environ.get("BL_DESKTOP_GPU_CHILD"):
+    if os.environ.get("DD_DESKTOP") != "1" or os.environ.get("DD_DESKTOP_GPU_CHILD"):
         return None
-    if os.environ.get("BL_DESKTOP_GPU", "on").strip().lower() in ("off", "0", "no", "false"):
+    if os.environ.get("DD_DESKTOP_GPU", "on").strip().lower() in ("off", "0", "no", "false"):
         return None
     gpu = os.path.join(BIN, "droiddeck-gpu")
     return gpu if os.access(gpu, os.X_OK) else None
 
 
 def proton_options():
-    if os.environ.get("BL_DESKTOP") == "1" and not os.environ.get("BL_DESKTOP_GPU_CHILD"):
+    if os.environ.get("DD_DESKTOP") == "1" and not os.environ.get("DD_DESKTOP_GPU_CHILD"):
         return ["--window"]
-    width, height = os.environ.get("BL_WIDTH", ""), os.environ.get("BL_HEIGHT", "")
+    width, height = os.environ.get("DD_WIDTH", ""), os.environ.get("DD_HEIGHT", "")
     options = ["--desktop", "%sx%s" % (width, height)] if width.isdigit() and height.isdigit() else []
     game = os.environ.get("SteamGameId", "")
     return options + (["--game-id", game] if game.isdigit() and game != "0" else [])
@@ -942,7 +924,7 @@ def queued_requests(launch_dir):
 
 
 def serve_requests(pfx, processes=None, launch_dir=None):
-    launch_dir = launch_dir or os.environ.get("BL_LAUNCH_DIR")
+    launch_dir = launch_dir or os.environ.get("DD_LAUNCH_DIR")
     names = queued_requests(launch_dir) if launch_dir else []
     if not names or not agent_up(wine_processes(pfx) if processes is None else processes):
         return False
@@ -1136,8 +1118,6 @@ def stop_leftovers(pfx):
 def open_client(root, reinstall=False):
     pfx = os.path.join(prefix(root), "pfx")
     write_menu()
-    answer = ask_fex(os.environ.get("BL_LAUNCH_DIR"))
-    say("FEX: %s" % (answer or "no answer from the app; Components' choice stays"))
     if running(pfx):
         say("Battle.net is already running in its prefix; waiting for it to close")
         wait_while_open(pfx, grace=0)
@@ -1226,8 +1206,6 @@ def launch(root, code):
     try:
         own = None
         if lock is not None and not running(pfx):
-            answer = ask_fex(os.environ.get("BL_LAUNCH_DIR"))
-            say("FEX: %s" % (answer or "no answer from the app; Components' choice stays"))
             verb = None if stop_leftovers(pfx) else "run"
             configure(root, LIBRARY)
             own = start(launcher(root), verb)
@@ -1437,33 +1415,23 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
             windows = install_path(root, folder)
         emit("STATE", "starting")
         base = os.path.join(CACHE, "agent-%s" % uid)
+        os.makedirs(CACHE, exist_ok=True)
         for suffix in (".json", ".game", ".form", ".error"):
             try:
                 os.unlink(base + suffix)
             except OSError:
                 pass
-        runtime = os.path.join(CACHE, AGENT_RUNTIME)
-        os.makedirs(runtime, mode=0o700, exist_ok=True)
         env = agent_env()
-        for name in ("DISPLAY", "WAYLAND_DISPLAY"):
-            env.pop(name, None)
-        env["XDG_RUNTIME_DIR"] = runtime
-        cmd = ["gamescope"] + HEADLESS + ["--", os.path.abspath(sys.argv[0]), "agent-serve", action, uid, product or "-",
-                                          windows or "-", locale, country, region, "Z:" + base.replace("/", "\\")]
+        cmd = [HEADLESS, os.path.join(CACHE, AGENT_RUNTIME), "--log", os.path.join(CACHE, AGENT_LOG), "--",
+               os.path.abspath(sys.argv[0]), "agent-serve", action, uid, product or "-",
+               windows or "-", locale, country, region, "Z:" + base.replace("/", "\\")]
         say("%s %s through the Agent: %s" % (action, uid, " ".join(cmd)))
-        output = os.path.join(CACHE, AGENT_LOG)
-        try:
-            if os.path.getsize(output) > AGENT_LOG_LIMIT:
-                os.replace(output, output + ".1")
-        except OSError:
-            pass
         before = {pid for pid, _ in wine_processes(pfx)}
-        with open(output, "ab") as log:
-            try:
-                child = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log, stderr=log, env=env)
-            except OSError as error:
-                emit("ERROR", "stopped gamescope: %s" % error)
-                return 1
+        try:
+            child = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+        except OSError as error:
+            emit("ERROR", "stopped gamescope: %s" % error)
+            return 1
         seen = None
         mark = None
         moved = time.monotonic()
@@ -1560,7 +1528,7 @@ def main(argv):
     if gpu:
         say("the desktop starts Battle.net on the GPU")
         os.execv(gpu, [gpu, os.path.abspath(sys.argv[0])] + list(sys.argv[1:]))
-    os.environ["BL_BATTLENET"] = "1"
+    os.environ["DD_BATTLENET"] = "1"
     if launching:
         say("launch %s" % argv[1])
         return launch(root, argv[1])

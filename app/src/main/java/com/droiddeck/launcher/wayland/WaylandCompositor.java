@@ -94,6 +94,73 @@ public final class WaylandCompositor {
         if (l != null) l.onPointerLock(locked, x, y);
     }
 
+    public interface OverlayPlanesListener {
+        void onOverlayPlanes(int planes);
+    }
+
+    private static volatile OverlayPlanesListener overlayPlanesListener;
+    private static volatile int overlayPlanes = -1;
+
+    public static synchronized void setOverlayPlanesListener(OverlayPlanesListener l) {
+        overlayPlanesListener = l;
+        if (l != null) l.onOverlayPlanes(overlayPlanes);
+    }
+
+    public static synchronized void clearOverlayPlanesListener(OverlayPlanesListener l) {
+        if (overlayPlanesListener == l) overlayPlanesListener = null;
+    }
+
+    @SuppressWarnings("unused")
+    static synchronized void onOverlayPlanes(int planes) {
+        overlayPlanes = planes;
+        OverlayPlanesListener l = overlayPlanesListener;
+        if (l != null) l.onOverlayPlanes(planes);
+    }
+
+    public interface RefreshTargetListener {
+        void onRefreshTarget(int refresh, int frameRate);
+    }
+
+    private static volatile RefreshTargetListener refreshTargetListener;
+    private static volatile long refreshTarget;
+
+    public static void setRefreshTargetListener(RefreshTargetListener l) {
+        refreshTargetListener = l;
+        long target = refreshTarget;
+        if (l != null) l.onRefreshTarget((int) (target >> 32), (int) target);
+    }
+
+    public static void clearRefreshTargetListener(RefreshTargetListener l) {
+        if (refreshTargetListener == l) refreshTargetListener = null;
+    }
+
+    public interface ContentRateListener {
+        void onContentRate(int fps);
+    }
+
+    private static volatile ContentRateListener contentRateListener;
+
+    public static void setContentRateListener(ContentRateListener l) {
+        contentRateListener = l;
+    }
+
+    public static void clearContentRateListener(ContentRateListener l) {
+        if (contentRateListener == l) contentRateListener = null;
+    }
+
+    @SuppressWarnings("unused")
+    static void onContentRate(int fps) {
+        ContentRateListener l = contentRateListener;
+        if (l != null) l.onContentRate(fps);
+    }
+
+    @SuppressWarnings("unused")
+    static void onRefreshTarget(int refresh, int frameRate) {
+        refreshTarget = ((long) refresh << 32) | (frameRate & 0xffffffffL);
+        RefreshTargetListener l = refreshTargetListener;
+        if (l != null) l.onRefreshTarget(refresh, frameRate);
+    }
+
     public interface ClipboardListener {
         void onGuestClipboardText(String text);
     }
@@ -180,6 +247,8 @@ public final class WaylandCompositor {
 
     public static native void nativeVsync(long frameTimeNanos);
 
+    public static native void nativeFrameTimeline(long presentNanos, long deadlineNanos, long periodNanos);
+
     public static native void nativeSetClockControl(String path);
 
     public static native int nativeCompositorTid();
@@ -210,7 +279,11 @@ public final class WaylandCompositor {
 
     public static native void nativeSetOutputRefreshRate(float hz);
 
+    public static native void nativeSetPanelRates(int[] rates);
+
     public static native void nativeSetZeroCopy(boolean on);
+
+    public static native void nativeSetDisplayBufferDriver(boolean on);
 
     public static native int nativeZeroCopyFrames();
 
@@ -247,7 +320,7 @@ public final class WaylandCompositor {
     public static native void nativeResetFirstFrame();
 
 
-    public static final int HDR_MODE_OFF = 0, HDR_MODE_ON = 1, HDR_MODE_FORCE = 2;
+    public static final int HDR_MODE_OFF = 0, HDR_MODE_ON = 1, HDR_MODE_FORCE = 2, HDR_MODE_TONEMAP = 3;
 
     public static native void nativeSetHdrRequest(int mode, String source, boolean dxvkHdr, boolean zeroCopyForced);
 
@@ -304,7 +377,7 @@ public final class WaylandCompositor {
     public static native void nativeSetDeband(boolean enabled, int strength);
 
     public static native void nativeSetScreenEffects(float brightness, float contrast, float gamma, float saturation,
-                                                     boolean fxaa, boolean toon, boolean crt, boolean ntsc);
+                                                     int aaMode, boolean toon, boolean crt, boolean ntsc);
 
     public static native void nativeSetLookName(String name);
 
@@ -320,6 +393,10 @@ public final class WaylandCompositor {
     public static native void nativeSetCardboardPoseFile(String path);
 
     public static native void nativeSetFpsLimit(int fps);
+
+    public static native void nativeSetBlackFrameInsertion(boolean on);
+
+    public static native void nativeSetPictureHold(boolean on);
 
     public static native void nativeSetRenderOnCommit(boolean on);
 
