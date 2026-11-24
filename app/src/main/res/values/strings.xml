@@ -35,7 +35,7 @@
     <string name="wall_settings_fps" translatable="false">Frame rate (fps)</string>
     <string name="wall_settings_match" translatable="false">Match screen</string>
     <string name="wall_settings_speed" translatable="false">Scroll speed</string>
-    <string name="loading_first_run">First launch sets Steam up and can take a few minutes. After this it starts much faster.</string>
+    <string name="loading_first_run">First launch also downloads Proton Experimental (about 400 MB) and sets Steam up. After this it starts much faster.</string>
     <string-array name="loading_hints">
         <item>DroidDeck downloads Steam in the background while you set up, so your first launch is quicker.</item>
         <item>Your controller shows up to Steam as a Steam Deck controller. Switch it to a Steam Controller, DualShock 4, DualSense or Xbox 360 pad in the session settings; it applies next session.</item>
