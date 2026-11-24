@@ -923,12 +923,24 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         LauncherIcon.set(this, style)
         launcherIcon = LauncherIcon.current(this)
         if (launcherIcon == before) return false
+        restartLauncher()
+        return true
+    }
+
+    // recreate() leaves this activity's window drawing nothing and ignoring input on some devices (#2668).
+    private fun restartLauncher() {
+        LauncherHandoff.put(Bundle().also(::saveLauncherState))
+        switchPoll?.let { ui.removeCallbacks(it) }
+        switchPoll = null
+        switchingTo = null
+        queuedLaunch.clear()
+        cancelCompatLaunch()
         startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             .setComponent(LauncherIcon.activity(this))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
-            .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "setup:launcher"))
+            .putExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV, "setup:launcher")
+            .putExtra(EXTRA_RESTARTED, true))
         finishAndRemoveTask()
-        return true
     }
 
     private fun readGameIntent(request: Intent) {
@@ -1257,13 +1269,15 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         super.onCreate(savedInstanceState)
         drivers.restartBlocked = ::runtimeChangesBlocked
         drivers.loadTpUbwcMode()
-        pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
+        val handoff = if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_RESTARTED, false)) LauncherHandoff.take() else null
+        val saved = savedInstanceState ?: handoff
+        pendingSessionLogExport = saved?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
         queuedLaunch.restore(
-            savedInstanceState?.let { androidx.core.os.BundleCompat.getParcelable(it, STATE_PENDING_GATE_LAUNCH, Intent::class.java) },
-            savedInstanceState?.getLong(STATE_PENDING_GATE_LAUNCH_AT, 0L) ?: 0L, System.currentTimeMillis(),
+            saved?.let { androidx.core.os.BundleCompat.getParcelable(it, STATE_PENDING_GATE_LAUNCH, Intent::class.java) },
+            saved?.getLong(STATE_PENDING_GATE_LAUNCH_AT, 0L) ?: 0L, System.currentTimeMillis(),
         )
-        homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
-        gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
+        homeChoiceOpen = saved?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
+        gameSpaceOffered = saved?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
         val shortcutsFilter = android.content.IntentFilter(SteamIntegration.SHORTCUTS_STATUS)
         if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(shortcutsInstallStatus, shortcutsFilter, RECEIVER_NOT_EXPORTED)
@@ -1688,7 +1702,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         onLanguage = { tag ->
                             if (tag != com.droiddeck.launcher.core.AppLanguage.chosen(this)) {
                                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, tag)
-                                recreate()
+                                restartLauncher()
                             }
                         },
                         onAppScale = { percent ->
@@ -1904,10 +1918,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             !SessionPrefs.allFilesAsked(this)
         if (savedInstanceState == null) {
             if (!askAllFiles) ui.post { startSteamAtStartupIfEnabled(cold = true) }
-        } else {
-            restoreCompatLaunch(savedInstanceState)
-            pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
-            savedIntent(savedInstanceState, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, savedInstanceState.getLong(KEY_SWITCH_DEADLINE)) }
+        }
+        saved?.let { state ->
+            restoreCompatLaunch(state)
+            pendingSwitch = savedIntent(state, KEY_PENDING_SWITCH)
+            savedIntent(state, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, state.getLong(KEY_SWITCH_DEADLINE)) }
         }
 
         val wanted = ArrayList<String>()
@@ -1960,8 +1975,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private var soundtrackLaunch = false
 
+    // A restarted launcher starts before the old one stops, so each clears the hooks only if they are still its own.
+    private val libraryHook: () -> Unit = { refreshAddedGames(); refresh() }
+    private val battleNetHook: (List<String>) -> Unit = { args -> openBattleNet(args) }
+
     private fun startSteamAtStartupIfEnabled(cold: Boolean = false) {
-        if (soundtrackLaunch) return
+        if (soundtrackLaunch || intent.getBooleanExtra(EXTRA_RESTARTED, false)) return
         if (intent.action != Intent.ACTION_MAIN && !(cold && intent.action == null)) return
         if (isFinishing || isDestroyed) return
         when (SessionPrefs.startupSession(this)) {
@@ -2136,8 +2155,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         homePage = com.droiddeck.launcher.core.AppUiPrefs.homePage(this)
         refreshWifiDiscovery()
         com.droiddeck.launcher.stores.StoresState.refresh(this)
-        com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }
-        com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = { args -> openBattleNet(args) }
+        com.droiddeck.launcher.stores.StoresState.libraryListener = libraryHook
+        com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = battleNetHook
         com.droiddeck.launcher.ui.Motion.refresh(this)
         com.droiddeck.launcher.ui.QuitFlood.take()?.let { c ->
             returning = ReturningFlood(c, com.droiddeck.launcher.ui.LaunchOrigin.takeReturn())
@@ -2208,6 +2227,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        saveLauncherState(outState)
+    }
+
+    private fun saveLauncherState(outState: Bundle) {
         outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
         outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
         pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
@@ -2264,8 +2287,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         getSystemService(android.content.pm.LauncherApps::class.java).unregisterCallback(packageCallback)
         HomeWidgets.stopListening(this)
         ui.removeCallbacks(mediaRefresh)
-        com.droiddeck.launcher.stores.StoresState.libraryListener = null
-        com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = null
+        if (com.droiddeck.launcher.stores.StoresState.libraryListener === libraryHook) com.droiddeck.launcher.stores.StoresState.libraryListener = null
+        if (com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener === battleNetHook) com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = null
         displayManager.unregisterDisplayListener(secondScreenDisplayListener)
         com.droiddeck.launcher.input.DualScreen.unwatchTaken(bottomScreenListener)
         getSystemService(android.hardware.input.InputManager::class.java)?.unregisterInputDeviceListener(secondScreenTouchListener)
@@ -3484,7 +3507,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 com.droiddeck.launcher.ui.Motion.refresh(this)
                 com.droiddeck.launcher.ui.DeveloperTools.load(this)
                 com.droiddeck.launcher.ui.NavTabs.load(this)
-                if (!switchLauncherIcon(LauncherIcon.DARK)) recreate()
+                if (!switchLauncherIcon(LauncherIcon.DARK)) restartLauncher()
             }
         }, "reset-settings").start()
     }
@@ -3558,6 +3581,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     companion object {
         private const val REQUEST_NOTIFICATIONS = 7103
+        private const val EXTRA_RESTARTED = "com.droiddeck.launcher.extra.RESTARTED"
         private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
         private const val STATE_PENDING_GATE_LAUNCH = "pending_gate_launch"
         private const val STATE_PENDING_GATE_LAUNCH_AT = "pending_gate_launch_at"
