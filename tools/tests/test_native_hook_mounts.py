@@ -182,6 +182,10 @@ class NativeHookMountTest(unittest.TestCase):
         arg = f"cd:{GAME}/"
         self.assertEqual(self.run_probe(arg, binds=f"/proc/self/root{self.library}:/mnt/library")[arg], [GAME])
 
+    def test_a_proc_mount_that_names_no_process_reports_its_guest_path(self):
+        arg = "cd:/mnt/sys/kernel/"
+        self.assertEqual(self.run_probe(arg, binds="/proc/self/root/proc/sys:/mnt/sys")[arg], ["/mnt/sys/kernel"])
+
     def test_drive_link_stored_as_rootfs_path_reaches_the_mount(self):
         path = f"/pfx/native/dosdevices/z:{GAME}/game.txt"
         self.assertEqual(self.run_probe(path)[path], ["1", "library"])
