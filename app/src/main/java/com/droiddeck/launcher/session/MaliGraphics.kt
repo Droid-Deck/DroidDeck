@@ -34,18 +34,28 @@ object MaliGraphics {
         else -> MaliGraphicsMode.AUTO
     }
 
-    internal fun resolve(choice: MaliGraphicsMode, selectedDriver: Boolean, venus: Boolean): MaliGraphicsMode = when {
+    internal fun resolve(
+        choice: MaliGraphicsMode,
+        selectedDriver: Boolean,
+        venus: Boolean,
+        bridgeUsable: Boolean,
+    ): MaliGraphicsMode = when {
         choice != MaliGraphicsMode.AUTO -> choice
         selectedDriver -> MaliGraphicsMode.AUTO
         venus -> MaliGraphicsMode.VENUS
-        else -> MaliGraphicsMode.BRIDGE
+        bridgeUsable -> MaliGraphicsMode.BRIDGE
+        else -> MaliGraphicsMode.AUTO
     }
 
     fun resolve(context: Context, choice: MaliGraphicsMode = SessionPrefs.maliGraphicsMode(context)): MaliGraphicsMode {
         if (!DeviceSupport.mali()) return MaliGraphicsMode.AUTO
         val drivers = LinuxVulkanDriverManager(context)
-        return resolve(choice, drivers.isMaliCompatible(SessionPrefs.linuxDriver(context)),
-            VenusComponent.available(context) && VenusComponent.hostVulkanTooOld(context) == null)
+        return resolve(
+            choice,
+            selectedDriver = drivers.isMaliCompatible(SessionPrefs.linuxDriver(context)),
+            venus = VenusComponent.available(context) && VenusComponent.hostVulkanTooOld(context) == null,
+            bridgeUsable = DeviceSupport.bridgeUsable(),
+        )
     }
 
     fun problem(context: Context, route: MaliGraphicsMode): String? = when (route) {

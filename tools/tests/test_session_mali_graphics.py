@@ -53,13 +53,18 @@ exit "$GL_STATUS"
         exit_file.unlink(missing_ok=True)
         sock = str(self.root / ("absent.sock" if missing_socket else "server.sock"))
         env = dict(os.environ, PATH=str(self.bin), XDG_RUNTIME_DIR=str(self.root), DD_INSIDE="",
-                   DD_MALI_GRAPHICS_MODE=mode, DD_VKBRIDGE=str(int(path == "bridge")), DD_VENUS=str(int(path == "venus")),
+                   DD_MALI_GRAPHICS_MODE=mode,
                    DD_DEBUG_DIR=str(self.root), DD_STEAM_EXIT_FILE=str(exit_file),
                    DD_VKBRIDGE_FALLBACK_ICD=str(self.icd), VKBRIDGE_SOCKET=sock, VTEST_SOCKET_NAME=sock,
                    DD_VENUS_WAIT_MS="100", DD_VKBRIDGE_WAIT_MS="100", dd_stopping="1" if stopping else "",
                    SMOKE_STATUS=str(smoke_status), VULKAN_STATUS=str(vulkan_status), VULKAN_INFO=info,
                    GALLIUM_DRIVER="zink", LIBGL_ALWAYS_SOFTWARE="0", ZINK_DESCRIPTORS="lazy",
                    GL_STATUS=str(gl_status), GL_VARIANT=variant, GL_VERBOSE=str(int(verbose)))
+        for flag, component in (("DD_VKBRIDGE", "bridge"), ("DD_VENUS", "venus")):
+            if path == component:
+                env[flag] = "1"
+            else:
+                env.pop(flag, None)
         stubs = '''
 step() { :; }
 timeout() {
@@ -77,7 +82,7 @@ timeout() {
             env["CHILD"] = str(child)
             script = self.gamescope + '\ngamescope() { /bin/bash "$CHILD"; return 0; }\nrun_gamescope\nexit $?'
         else:
-            script += '\necho "CONTINUED bridge=$DD_VKBRIDGE gl=$GALLIUM_DRIVER"'
+            script += '\necho "CONTINUED bridge=${DD_VKBRIDGE:-0} gl=$GALLIUM_DRIVER"'
         return subprocess.run(["/bin/bash", "-uc", script], env=env, capture_output=True, text=True, timeout=5)
 
     def test_fixed_bridge_stops_where_auto_keeps_existing_fallback(self):
@@ -88,6 +93,12 @@ timeout() {
         result = self.run_graphics(mode="auto")
         self.assertEqual(0, result.returncode, result.stderr + result.stdout)
         self.assertIn("CONTINUED bridge=0", result.stdout)
+
+    def test_auto_without_component_flags_skips_bridge_startup(self):
+        result = self.run_graphics(mode="auto", path="runtime", missing_socket=True)
+        self.assertEqual(0, result.returncode, result.stderr + result.stdout)
+        self.assertIn("CONTINUED bridge=0 gl=zink", result.stdout)
+        self.assertNotIn("vkbridge:", result.stdout)
 
     def test_fixed_bridge_success_keeps_bridge(self):
         result = self.run_graphics(smoke_status=0)

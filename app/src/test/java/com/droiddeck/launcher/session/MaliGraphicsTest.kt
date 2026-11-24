@@ -10,16 +10,24 @@ class MaliGraphicsTest {
     }
 
     @Test fun fixedChoiceWinsOverSelectedDriverAndAvailability() {
-        for (choice in listOf(BRIDGE, VENUS)) for (selected in listOf(false, true)) for (venus in listOf(false, true)) {
-            assertEquals(choice, MaliGraphics.resolve(choice, selected, venus))
+        for (choice in listOf(BRIDGE, VENUS)) {
+            for (selected in listOf(false, true)) for (venus in listOf(false, true)) for (bridge in listOf(false, true)) {
+                assertEquals(choice, MaliGraphics.resolve(choice, selected, venus, bridge))
+            }
         }
     }
 
     @Test fun autoUsesExistingSelectedDriverBeforeFallbackComponents() {
-        assertEquals(AUTO, MaliGraphics.resolve(AUTO, true, true))
-        assertEquals(AUTO, MaliGraphics.resolve(AUTO, true, false))
-        assertEquals(VENUS, MaliGraphics.resolve(AUTO, false, true))
-        assertEquals(BRIDGE, MaliGraphics.resolve(AUTO, false, false))
+        for (venus in listOf(false, true)) for (bridge in listOf(false, true)) {
+            assertEquals(AUTO, MaliGraphics.resolve(AUTO, selectedDriver = true, venus = venus, bridgeUsable = bridge))
+        }
+    }
+
+    @Test fun autoUsesOnlyUsableFallbackComponents() {
+        assertEquals(VENUS, MaliGraphics.resolve(AUTO, selectedDriver = false, venus = true, bridgeUsable = true))
+        assertEquals(VENUS, MaliGraphics.resolve(AUTO, selectedDriver = false, venus = true, bridgeUsable = false))
+        assertEquals(BRIDGE, MaliGraphics.resolve(AUTO, selectedDriver = false, venus = false, bridgeUsable = true))
+        assertEquals(AUTO, MaliGraphics.resolve(AUTO, selectedDriver = false, venus = false, bridgeUsable = false))
     }
 
     @Test fun legacyEnabledChoiceRespectsAutomaticOwnership() {

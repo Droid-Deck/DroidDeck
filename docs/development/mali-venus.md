@@ -12,11 +12,13 @@ and installation never rewrite this preference.
 
 Auto uses a compatible selected Linux driver from the existing Drivers menu,
 whether imported alone or as part of a bundle. Without one, it uses Venus when
-available with host Vulkan 1.2 or newer, otherwise MaliBridge. This is resolved at
-launch without saving a fixed choice. Compatibility requires an installed ICD
-and the stored `libvulkan_panfrost.so`; unrelated imports do not suppress the
-component routes. Compatible standalone imports use the existing open-driver
-environment and device-node handling.
+available with host Vulkan 1.2 or newer, then MaliBridge if the host supports it.
+If Venus is unavailable and the host cannot run MaliBridge, Auto follows the
+normal Linux startup path without a bridge. This is resolved at launch without
+saving a fixed choice. Compatibility requires an installed ICD and the stored
+`libvulkan_panfrost.so`; unrelated imports do not suppress the component routes.
+Compatible standalone imports use the existing open-driver environment and
+device-node handling.
 
 Fixed MaliBridge and Venus override the selected Linux runtime. Missing components
 or an incompatible host produce a startup error. Existing Bridge self-test failures

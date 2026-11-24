@@ -4,11 +4,13 @@ import android.app.Application
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.SharedPreferences
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.gpu.DriverBundle
 import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 import com.droiddeck.launcher.gpu.ShadowGpuInfo
+import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.wayland.WaylandCompositor
 import org.junit.After
 import org.junit.Assert.*
@@ -29,8 +31,8 @@ import java.util.concurrent.TimeUnit
 @RunWith(RobolectricTestRunner::class)
 @Config(
     sdk = [33], application = Application::class,
-    instrumentedPackages = ["com.droiddeck.launcher.gpu.GpuInfo"],
-    shadows = [ShadowGpuInfo::class],
+    instrumentedPackages = ["com.droiddeck.launcher.core.DeviceSupport", "com.droiddeck.launcher.gpu.GpuInfo"],
+    shadows = [ShadowGpuInfo::class, BridgeHostShadow::class],
 )
 class MaliGraphicsPrefsTest {
     private val context get() = RuntimeEnvironment.getApplication()
@@ -38,7 +40,9 @@ class MaliGraphicsPrefsTest {
 
     @Before fun setUp() {
         ShadowGpuInfo.setGpu(GpuInfo.Family.MALI_LATEST, "Mali-G715")
+        BridgeHostShadow.usable = true
         prefs.edit().clear().commit()
+        SessionPrefs.setHostVulkanApi(context, "1.1.0")
     }
 
     @After fun tearDown() {
@@ -134,6 +138,35 @@ class MaliGraphicsPrefsTest {
         assertEquals(MaliGraphicsMode.BRIDGE, MaliGraphics.resolve(context))
         assertFalse(DeviceSupport.openDriverActive(context))
         assertEquals(MaliGraphicsMode.AUTO, SessionPrefs.maliGraphicsMode(context))
+    }
+
+    @Config(shadows = [CompositorShadow::class])
+    @Test fun autoKeepsRuntimeEnvironmentWhenBridgeIsUnsupported() {
+        BridgeHostShadow.usable = false
+        SessionPrefs.setMaliGraphicsMode(context, MaliGraphicsMode.AUTO)
+        val icd = File(LinuxRuntime.rootDir(context), "usr/share/vulkan/icd.d/runtime.json")
+        icd.parentFile!!.mkdirs()
+        icd.writeText("{}")
+        try {
+            val route = MaliGraphics.resolve(context)
+            assertEquals(MaliGraphicsMode.AUTO, route)
+            assertNull(MaliGraphics.problem(context, route))
+            assertFalse(DeviceSupport.vkBridge(context))
+            val guest = launchEnvironment()
+            assertEquals("auto", guest["DD_MALI_GRAPHICS_MODE"])
+            assertEquals(icd.path, guest["VK_ICD_FILENAMES"])
+            assertFalse(guest.containsKey("DD_VKBRIDGE"))
+            assertFalse(guest.containsKey("DD_VENUS"))
+            assertEquals("auto", prefs.getString("maliGraphicsMode", null))
+        } finally { icd.delete() }
+    }
+
+    @Test fun fixedBridgeStillReportsUnsupportedHost() {
+        BridgeHostShadow.usable = false
+        SessionPrefs.setMaliGraphicsMode(context, MaliGraphicsMode.BRIDGE)
+        val route = MaliGraphics.resolve(context)
+        assertEquals(MaliGraphicsMode.BRIDGE, route)
+        assertEquals(context.getString(R.string.mali_bridge_unsupported), MaliGraphics.problem(context, route))
     }
 
     @Test fun legacyBridgeFallbackWithCompatibleRuntimeMigratesOnlyOnce() = withRuntime("libvulkan_panfrost.so") {
@@ -260,5 +293,14 @@ class MaliGraphicsPrefsTest {
         }
         assertTrue(com.droiddeck.launcher.ui.SettingsIndex.search(context, "MaliBridge")
             .any { it.title == com.droiddeck.launcher.R.string.mali_path_choice })
+    }
+}
+
+@Implements(value = DeviceSupport::class, isInAndroidSdk = false)
+class BridgeHostShadow {
+    @Implementation fun bridgeUsable() = usable
+
+    companion object {
+        var usable = true
     }
 }
