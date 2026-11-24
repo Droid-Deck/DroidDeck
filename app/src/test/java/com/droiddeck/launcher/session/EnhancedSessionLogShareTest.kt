@@ -419,6 +419,23 @@ class EnhancedSessionLogShareTest {
         SessionLogShare.clear(app)
     }
 
+    @Test fun rpcs3LogIsSharedByNameWithTheGameLogs() {
+        val session = tmp.newFolder("2026-11-24-05-rpcs3")
+        session.resolve("session.log").writeText("session\n")
+        session.resolve("rpcs3").mkdirs()
+        session.resolve("rpcs3/RPCS3.log").writeText("PPU: compiling\n")
+
+        val zips = EnhancedSessionLogShare.create(app, session)
+        fun entries(suffix: String) = ZipFile(zips.single { it.name.endsWith("-$suffix.zip") }).use { archive ->
+            archive.entries().toList().map { it.name }
+        }
+
+        assertTrue(entries("games").contains("${session.name}/rpcs3/RPCS3.log"))
+        assertTrue(entries("session").contains("${session.name}/session.log"))
+        assertFalse(entries("games").contains("${session.name}/session.log"))
+        SessionLogShare.clear(app)
+    }
+
     @Test fun unreadableDiscoverySubtreeKeepsOtherLogsAndMarksTheManifestPartial() {
         assumeFilePermissionsEnforced()
         assumeFalse(System.getProperty("os.name").startsWith("Windows"))
