@@ -4,7 +4,6 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-import time
 import unittest
 import zipfile
 
@@ -103,9 +102,13 @@ done(28 if end < len(data) else 0)
                 f'\t\t"file" "{archive.name}"\n\t\t"sha2" "{digest}"\n'
                 '\t}\n}\n')
 
-    def install(self, fail_host=None, *args, **extra):
+    def install(self, fail_host=None, *args, timeout=None, **extra):
         env = self.env if fail_host is None else dict(self.env, TEST_FAIL_HOST=fail_host)
-        return subprocess.run(['bash', str(SCRIPT), *args], env=dict(env, **extra), text=True, capture_output=True)
+        try:
+            return subprocess.run(['bash', str(SCRIPT), *args], env=dict(env, **extra), text=True, capture_output=True,
+                                  timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self.fail(f'the installer did not finish within {timeout} s')
 
     def channel(self, **extra):
         result = self.install(None, '--channel', **extra)
@@ -524,9 +527,7 @@ class SteamInstallParallelTest(SteamInstallTest):
     def test_a_worker_killed_from_outside_fails_the_install_instead_of_hanging_it(self):
         files = self.many_parts()
         self.plan_for(files['p3_all'], 'killworker')
-        started = time.monotonic()
-        result = self.install(DD_STEAM_STALL='3')
-        self.assertLess(time.monotonic() - started, 40)
+        result = self.install(timeout=40, DD_STEAM_STALL='3')
         self.assertNotEqual(0, result.returncode)
         self.assertFalse((self.steam / 'package/droiddeck-installed').exists())
 

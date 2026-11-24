@@ -33,11 +33,18 @@ object Onboarding {
         appContext = context.applicationContext
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         var done = prefs.getBoolean(KEY_FIRST_RUN_DONE, false)
-        if (!done && runCatching { LinuxRuntime.isInstalled(context) && !SteamClientPrefetch.pending(context) }.getOrDefault(false)) {
+        if (!done && runCatching { installedAndReady(context) }.getOrDefault(false)) {
             done = true
             prefs.edit().putBoolean(KEY_FIRST_RUN_DONE, true).apply()
         }
         firstRun.value = !done
+    }
+
+    /** Everything first run installs is in place, with the same Proton rule as [recheck]. */
+    private fun installedAndReady(context: Context): Boolean {
+        val own = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }
+        return LinuxRuntime.isInstalled(context) && !SteamClientPrefetch.pending(context) &&
+            (ProtonExtras.declined(context) || ProtonExtras.installedAll(context, own).isNotEmpty())
     }
 
     private const val PREFS = "onboarding"

@@ -1254,8 +1254,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         drivers.restartBlocked = ::runtimeChangesBlocked
         drivers.loadTpUbwcMode()
         pendingSessionLogExport = savedInstanceState?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
-        pendingGateLaunch = savedInstanceState?.let { androidx.core.os.BundleCompat.getParcelable(it, STATE_PENDING_GATE_LAUNCH, Intent::class.java) }
-        pendingGateLaunchAt = android.os.SystemClock.elapsedRealtime()
+        pendingGateLaunchAt = savedInstanceState?.getLong(STATE_PENDING_GATE_LAUNCH_AT, 0L) ?: 0L
+        pendingGateLaunch = savedInstanceState?.takeIf { System.currentTimeMillis() - pendingGateLaunchAt in 0..GATE_LAUNCH_MS }
+            ?.let { androidx.core.os.BundleCompat.getParcelable(it, STATE_PENDING_GATE_LAUNCH, Intent::class.java) }
         homeChoiceOpen = savedInstanceState?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
         gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
@@ -1406,7 +1407,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         onPlay = { playSteam() },
                         onQueuePlaySteam = {
                             pendingGateLaunch = Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_STEAMVR, false)
-                            pendingGateLaunchAt = android.os.SystemClock.elapsedRealtime()
+                            pendingGateLaunchAt = System.currentTimeMillis()
                         },
                         onPlaySteamVr = { playSteamVr() },
                         onSteamUrl = { url ->
@@ -2205,7 +2206,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
         outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
         pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
-        pendingGateLaunch?.let { outState.putParcelable(STATE_PENDING_GATE_LAUNCH, it) }
+        pendingGateLaunch?.let {
+            outState.putParcelable(STATE_PENDING_GATE_LAUNCH, it)
+            outState.putLong(STATE_PENDING_GATE_LAUNCH_AT, pendingGateLaunchAt)
+        }
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
         saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
@@ -3334,7 +3338,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             pendingGateLaunch = intent
-            pendingGateLaunchAt = android.os.SystemClock.elapsedRealtime()
+            pendingGateLaunchAt = System.currentTimeMillis()
             showPhantomGate = true
             return false
         }
@@ -3386,6 +3390,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var pendingGateLaunchAt = 0L
     private var gateLaunchPosted = false
 
+    /** The conditions under which a Steam start waits instead of being refused: setup, a runtime or desktop install, or a storage cleanup. */
+    private fun steamStartBusy(): Boolean = busy || LinuxRuntimeInstaller.isBusy() || com.droiddeck.launcher.session.Onboarding.settling() ||
+        (SessionState.installing != null && !SessionState.running) || com.droiddeck.launcher.storage.StorageState.cleaning
+
     private fun refreshPhantomStatus() {
         phantomProcessStatus = PhantomProcessLimit.read(this)
         pendingGateLaunch?.takeIf { !PhantomProcessLimit.blocksSteam(phantomProcessStatus) && !gateLaunchPosted }?.let { launch ->
@@ -3394,11 +3402,15 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             ui.post {
                 gateLaunchPosted = false
                 if (pendingGateLaunch !== launch) return@post
-                if (android.os.SystemClock.elapsedRealtime() - pendingGateLaunchAt > GATE_LAUNCH_MS) {
+                val age = System.currentTimeMillis() - pendingGateLaunchAt
+                if (age !in 0..GATE_LAUNCH_MS) {
                     pendingGateLaunch = null
                     return@post
                 }
-                if (busy || LinuxRuntimeInstaller.isBusy() || com.droiddeck.launcher.session.Onboarding.settling()) return@post
+                if (steamStartBusy()) {
+                    ui.postDelayed({ if (pendingGateLaunch === launch) refreshPhantomStatus() }, GATE_LAUNCH_RETRY_MS)
+                    return@post
+                }
                 pendingGateLaunch = null
                 startSession(launch, steamSession = true)
             }
@@ -3536,7 +3548,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         private const val REQUEST_NOTIFICATIONS = 7103
         private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
         private const val STATE_PENDING_GATE_LAUNCH = "pending_gate_launch"
+        private const val STATE_PENDING_GATE_LAUNCH_AT = "pending_gate_launch_at"
         private const val GATE_LAUNCH_MS = 15 * 60_000L
+        private const val GATE_LAUNCH_RETRY_MS = 2_000L
         private const val KEY_PENDING_SESSION_LOG_EXPORT = "pending_session_log_export"
         private const val STATE_GAME_SPACE_OFFERED = "game_space_offered"
         private const val TAG = "MainActivity"
