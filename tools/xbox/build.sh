@@ -24,6 +24,7 @@ for binary in xodus-cli xodus-service; do
     install -m755 "$CARGO_TARGET_DIR/aarch64-unknown-linux-gnu/release/$binary" "$out/$binary"
 done
 python3 "$repo/tools/xbox/runtime.py" "$cache/runtime" "$out/windows"
+bash "$repo/tools/xbox/uwp-host/build.sh" "$out/compat/uwp-host.dll"
 install -m644 "$repo/tools/xbox/LICENSE.xodus" "$out/LICENSE.xodus"
 install -m644 "$repo/tools/xbox/LICENSE.nexus" "$out/LICENSE.nexus"
 install -m644 "$repo/tools/xbox/LICENSE.LGPL-2.1" "$out/LICENSE.LGPL-2.1"

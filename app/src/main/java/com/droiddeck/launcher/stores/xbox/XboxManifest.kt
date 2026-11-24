@@ -82,8 +82,7 @@ internal object XboxManifest {
 
     /**
      * A full trust package starts its executable directly. Anything else is activated
-     * through the Windows app model, which this runtime has no host for, so starting
-     * the executable would only crash.
+     * through the Windows app model host (uwp-host.dll, staged by droiddeck-xbox).
      */
     fun needsAppModel(folder: File): Boolean {
         val info = runCatching { read(folder) }.getOrNull() ?: return false

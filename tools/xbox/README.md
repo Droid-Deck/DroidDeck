@@ -138,8 +138,10 @@ Cloud saves and in-game identity use the reused XGameRuntime/service interfaces;
 those are game-dependent. Entitlements distinguish purchases from Game Pass
 access, and the backend performs a fresh license check for downloads and launch.
 The store lists PC packages it can install: streamed MSIXVC, and the legacy EAppx bundles older
-desktop titles still ship as. It does not emulate Xbox consoles or host UWP titles in a
-packaged-app host. Update / verify refreshes an installed package through the normal licensed
+desktop titles still ship as. It does not emulate Xbox consoles. A package whose manifest names
+a view entry point is started through the app-model host in `compat/uwp-host.dll` (built from
+`tools/xbox/uwp-host`); a package naming `Windows.FullTrustApplication` still starts as an
+ordinary Win32 executable. Update / verify refreshes an installed package through the normal licensed
 streaming path. Manage content resolves manifest-related licensed PC DLC into
 separate content roots and checks its parent identity after download. These
 flows still require game/account validation; runtime API presence does not

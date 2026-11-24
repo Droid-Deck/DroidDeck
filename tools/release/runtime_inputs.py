@@ -129,7 +129,7 @@ def required():
     paths += ['assets/linuxfs/usr/local/lib/droiddeck-xbox/' + name for name in
               ['xodus-cli', 'xodus-service', 'version', 'backend.lock.json', 'runtime.lock.json', 'LICENSE.xodus', 'LICENSE.nexus', 'LICENSE.LGPL-2.1', 'LICENSE.nghttp2',
                'windows/xgameruntime.dll', 'windows/winhttp.dll', 'windows/windows.web.dll', 'windows/twinapi.appcore.dll', 'windows/libnghttp2.dll',
-               'compat/PlayFabGameSave.dll', 'LICENSE.runtime-compat']]
+               'compat/PlayFabGameSave.dll', 'compat/uwp-host.dll', 'LICENSE.runtime-compat']]
     for driver in ['linux-wine11', 'linux-wine11-systhread']:
         paths += ['assets/directaudio/' + driver + '/' + name for name in
                   ['aarch64-unix/winedirectaudio.so', 'aarch64-windows/winedirectaudio.drv',

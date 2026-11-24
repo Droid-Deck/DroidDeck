@@ -1036,30 +1036,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             onHandled()
             return
         }
-        val files = game.gameFiles
-        if (game.source != com.droiddeck.launcher.stores.Store.XBOX.id || files == null) {
-            if (startGame(game, returnHome, onHandled, request)) onSettled()
-            else launchCoordinator.releaseHandling(request)
-            return
-        }
-        Thread({
-            val refused = com.droiddeck.launcher.stores.xbox.XboxManifest.needsAppModel(files)
-            ui.post {
-                when {
-                    !launchCoordinator.isCurrent(request) || isFinishing || isDestroyed -> {
-                        launchCoordinator.releaseHandling(request)
-                        onHandled()
-                    }
-                    refused -> {
-                        onHandled()
-                        android.widget.Toast.makeText(this, getString(R.string.game_needs_app_model, game.name), android.widget.Toast.LENGTH_LONG).show()
-                        onSettled()
-                    }
-                    startGame(game, returnHome, onHandled, request) -> onSettled()
-                    else -> launchCoordinator.releaseHandling(request)
-                }
-            }
-        }, "xbox-app-model").start()
+        if (startGame(game, returnHome, onHandled, request)) onSettled()
+        else launchCoordinator.releaseHandling(request)
     }
 
     private fun startGame(game: Library.SteamGame, returnHome: Boolean, onHandled: () -> Unit, ticket: LaunchTicket): Boolean {
