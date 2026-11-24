@@ -1,10 +1,16 @@
+import os
 import re
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
+
+from tools.tests.test_usr2_preload import runner
 
 REPO = Path(__file__).resolve().parents[2]
 PATCH = REPO / "tools/fex/patches/0016-identity-syscalls-through-libc.patch"
 HOOK = REPO / "tools/nativeguest/hook/privileged.c"
+HOOK_BUILD = REPO / "tools/nativeguest/build.sh"
 PASSTHROUGH = "Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Passthrough.cpp"
 REGISTER = re.compile(r"REGISTER_SYSCALL_IMPL(?:_X64|_X32)?\((\w+), (\w+?)(\d)<SYSCALL_DEF\((\w+)\)>\);")
 IDENTITY = {"getuid", "getgid", "geteuid", "getegid", "setuid", "setgid", "setreuid", "setregid", "getgroups",
@@ -43,6 +49,85 @@ class FexIdentitySyscallsTest(unittest.TestCase):
         for number in IDENTITY:
             with self.subTest(number=number):
                 self.assertIn(f"number == __NR_{number})", hook)
+
+
+PROBE = r"""
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
+int main(int argc, char **argv) {
+  unsigned int r = 7, e = 7, s = 7;
+  long rc = syscall(SYS_getresuid, &r, &e, &s);
+  printf("getresuid %ld %u %u %u\n", rc, r, e, s);
+  errno = 0;
+  rc = syscall(SYS_getresuid, NULL, &e, &s);
+  printf("getresuid-null %ld %d\n", rc, errno);
+  r = e = s = 7;
+  rc = syscall(SYS_getresgid, &r, &e, &s);
+  printf("getresgid %ld %u %u %u\n", rc, r, e, s);
+  errno = 0;
+  rc = syscall(SYS_getresgid, &r, NULL, &s);
+  printf("getresgid-null %ld %d\n", rc, errno);
+  gid_t groups[8];
+  rc = syscall(SYS_getgroups, 8, groups);
+  printf("getgroups %ld %u\n", rc, rc > 0 ? groups[0] : 99u);
+  int fd = open(argv[1], O_RDONLY);
+  printf("fchown %ld\n", syscall(SYS_fchown, fd, 4321, 4321));
+  printf("getuid %ld\n", syscall(SYS_getuid));
+  return 0;
+}
+"""
+
+
+class NativeHookIdentityTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.cc, cls.prefix = runner()
+        if cls.cc is None:
+            raise unittest.SkipTest("no aarch64 compiler and runner")
+        cls.tmp = tempfile.TemporaryDirectory()
+        tmp = Path(cls.tmp.name)
+        cls.hook = tmp / "hook.so"
+        subprocess.run(["bash", str(HOOK_BUILD), str(cls.hook), cls.cc], check=True, capture_output=True)
+        (tmp / "probe.c").write_text(PROBE)
+        subprocess.run([cls.cc, "-O1", "-o", str(tmp / "probe"), str(tmp / "probe.c")], check=True)
+        (tmp / "root").mkdir()
+        cls.file = tmp / "owned"
+        cls.file.write_text("")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def probe(self):
+        hook_env = {"DDNATV_ROOT": str(Path(self.tmp.name) / "root"), "LD_PRELOAD": str(self.hook)}
+        env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
+        if self.prefix:
+            cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
+        else:
+            cmd = []
+            env.update(hook_env)
+        out = subprocess.run(cmd + [str(Path(self.tmp.name) / "probe"), str(self.file)], env=env,
+                             capture_output=True, text=True, timeout=120)
+        self.assertEqual(0, out.returncode, out.stderr)
+        return {line.split(" ", 1)[0]: line.split(" ", 1)[1] for line in out.stdout.splitlines()}
+
+    def test_the_hook_answers_identity_syscalls_as_root(self):
+        result = self.probe()
+        self.assertEqual("0 0 0 0", result["getresuid"])
+        self.assertEqual("0 0 0 0", result["getresgid"])
+        self.assertEqual("1 0", result["getgroups"])
+        self.assertEqual("0", result["fchown"])
+        self.assertEqual("0", result["getuid"])
+
+    def test_a_missing_pointer_still_faults(self):
+        result = self.probe()
+        self.assertEqual("-1 14", result["getresuid-null"])
+        self.assertEqual("-1 14", result["getresgid-null"])
+        self.assertEqual(os.stat(self.file).st_uid, os.getuid())
 
 
 if __name__ == "__main__":
