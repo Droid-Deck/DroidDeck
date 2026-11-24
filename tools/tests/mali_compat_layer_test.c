@@ -182,6 +182,25 @@ static void test_spirv(const char *directory)
     assert(!spirv_strip_dual_source(truncated, 5, &out));
 }
 
+static void test_handle_map_null_key(void)
+{
+    struct handle_map map = {0};
+    int first, second;
+    map_put(&map, 0x1000, &first);
+    map_put(&map, 0x2000, &second);
+    for (int i = 0; i < 1000; i++)
+        assert(!map_remove(&map, 0));
+    map_put(&map, 0, &first);
+    assert(map.count == 2 && !map_get(&map, 0));
+    for (uint64_t key = 1; key <= 30; key++) {
+        map_put(&map, 0x100000 + key, &first);
+        assert(map_remove(&map, 0x100000 + key) == &first);
+    }
+    assert(map.count == 2 && map.capacity == 64);
+    assert(map_get(&map, 0x1000) == &first && map_get(&map, 0x2000) == &second);
+    map_free(&map);
+}
+
 static VkResult VKAPI_CALL mock_create_instance(const VkInstanceCreateInfo *info, const VkAllocationCallbacks *allocator,
                                                 VkInstance *instance)
 {
@@ -464,6 +483,7 @@ static void test_capable_device(void)
 int main(int argc, char **argv)
 {
     test_spirv(argc > 1 ? argv[1] : NULL);
+    test_handle_map_null_key();
 
     setenv("WINEPREFIX", "/nonexistent", 1);
     unsetenv("DROIDDECK_MALI_COMPAT");

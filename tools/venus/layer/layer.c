@@ -60,9 +60,11 @@ static uint64_t hash(uint64_t key)
     return key;
 }
 
+/* Key 0 marks an empty slot, so VK_NULL_HANDLE is never looked up, stored or removed. Destroying a
+ * null handle is valid Vulkan, and map_remove(0) would otherwise match an empty slot and drop count. */
 void *map_get(const struct handle_map *map, uint64_t key)
 {
-    if (!map->capacity)
+    if (!map->capacity || !key)
         return NULL;
     for (uint32_t i = hash(key) & (map->capacity - 1);; i = (i + 1) & (map->capacity - 1)) {
         if (map->keys[i] == key)
@@ -90,6 +92,8 @@ static void map_grow(struct handle_map *map)
 
 void map_put(struct handle_map *map, uint64_t key, void *value)
 {
+    if (!key)
+        return;
     if ((map->count + 1) * 4 > map->capacity * 3)
         map_grow(map);
     uint32_t i = hash(key) & (map->capacity - 1);
@@ -103,7 +107,7 @@ void map_put(struct handle_map *map, uint64_t key, void *value)
 
 void *map_remove(struct handle_map *map, uint64_t key)
 {
-    if (!map->capacity)
+    if (!map->capacity || !key)
         return NULL;
     uint32_t mask = map->capacity - 1;
     uint32_t i = hash(key) & mask;
