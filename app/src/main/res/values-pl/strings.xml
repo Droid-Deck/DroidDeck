@@ -4196,4 +4196,8 @@
     <string name="theme_custom_signal">Wyróżnienia</string>
     <string name="theme_custom_good">Sukces</string>
     <string name="theme_custom_error">Błąd</string>
+    <string name="theme_moss">Mech</string>
+    <string name="theme_moss_detail">Powierzchnie w leśnej zieleni z akcentami mchu.</string>
+    <string name="theme_dusk">Zmierzch</string>
+    <string name="theme_dusk_detail">Powierzchnie w fiolecie zmierzchu z fioletowymi akcentami.</string>
 </resources>

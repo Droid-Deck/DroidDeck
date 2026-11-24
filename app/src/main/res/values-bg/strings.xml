@@ -4116,4 +4116,8 @@
     <string name="theme_custom_signal">Акценти</string>
     <string name="theme_custom_good">Успех</string>
     <string name="theme_custom_error">Грешка</string>
+    <string name="theme_moss">Мъх</string>
+    <string name="theme_moss_detail">Повърхности в горско зелено с мъхови акценти.</string>
+    <string name="theme_dusk">Сумрак</string>
+    <string name="theme_dusk_detail">Повърхности в пурпурно на здрач с виолетови акценти.</string>
 </resources>

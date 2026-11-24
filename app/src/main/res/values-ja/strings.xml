@@ -4086,4 +4086,8 @@
     <string name="theme_custom_signal">強調表示</string>
     <string name="theme_custom_good">成功</string>
     <string name="theme_custom_error">エラー</string>
+    <string name="theme_moss">苔</string>
+    <string name="theme_moss_detail">森の緑のサーフェスに苔のアクセント。</string>
+    <string name="theme_dusk">黄昏</string>
+    <string name="theme_dusk_detail">黄昏紫のサーフェスにバイオレットのアクセント。</string>
 </resources>

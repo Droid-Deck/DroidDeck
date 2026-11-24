@@ -4155,4 +4155,8 @@
     <string name="display_scaling_integer">Inteiro</string>
     <string name="display_scaling_fit">Ajustar</string>
     <string name="drawer_antialiasing">Suavização de serrilhado</string>
+    <string name="theme_moss">Musgo</string>
+    <string name="theme_moss_detail">Superfícies verde-musgo com acentos de musgo.</string>
+    <string name="theme_dusk">Crepúsculo</string>
+    <string name="theme_dusk_detail">Superfícies púrpura crepuscular com acentos violeta.</string>
 </resources>

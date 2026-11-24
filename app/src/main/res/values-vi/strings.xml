@@ -4086,4 +4086,8 @@
     <string name="theme_custom_signal">Điểm nhấn</string>
     <string name="theme_custom_good">Thành công</string>
     <string name="theme_custom_error">Lỗi</string>
+    <string name="theme_moss">Rêu</string>
+    <string name="theme_moss_detail">Bề mặt xanh rừng với điểm nhấn rêu.</string>
+    <string name="theme_dusk">Hoàng hôn</string>
+    <string name="theme_dusk_detail">Bề mặt tím hoàng hôn với điểm nhấn tím.</string>
 </resources>

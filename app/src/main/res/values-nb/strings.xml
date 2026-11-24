@@ -4116,4 +4116,8 @@
     <string name="theme_custom_signal">Uthevinger</string>
     <string name="theme_custom_good">Suksess</string>
     <string name="theme_custom_error">Feil</string>
+    <string name="theme_moss">Mose</string>
+    <string name="theme_moss_detail">Flater i skoggrønn med mose-accenter.</string>
+    <string name="theme_dusk">Skumring</string>
+    <string name="theme_dusk_detail">Flater i skumringslilla med fiolette accenter.</string>
 </resources>

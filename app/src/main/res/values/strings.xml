@@ -4416,4 +4416,8 @@
     <string name="onboarding_limit_action">Do it for me</string>
     <string name="onboarding_limit_while_waiting">Set up while you wait</string>
     <string name="onboarding_chip">Getting ready · %1$d%% · %2$s</string>
+    <string name="theme_moss">Moss</string>
+    <string name="theme_moss_detail">Forest-green surfaces with moss accents.</string>
+    <string name="theme_dusk">Dusk</string>
+    <string name="theme_dusk_detail">Twilight-purple surfaces with violet accents.</string>
 </resources>

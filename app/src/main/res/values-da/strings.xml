@@ -4116,4 +4116,8 @@
     <string name="theme_custom_signal">Fremhævninger</string>
     <string name="theme_custom_good">Succes</string>
     <string name="theme_custom_error">Fejl</string>
+    <string name="theme_moss">Mos</string>
+    <string name="theme_moss_detail">Overflader i skovgrøn med mos-accenter.</string>
+    <string name="theme_dusk">Skumring</string>
+    <string name="theme_dusk_detail">Overflader i skumringslilla med violette accenter.</string>
 </resources>

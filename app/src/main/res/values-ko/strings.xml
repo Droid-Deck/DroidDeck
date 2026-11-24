@@ -4086,4 +4086,8 @@
     <string name="theme_custom_signal">강조 표시</string>
     <string name="theme_custom_good">성공</string>
     <string name="theme_custom_error">오류</string>
+    <string name="theme_moss">이끼</string>
+    <string name="theme_moss_detail">숲 초록 표면에 이끼 포인트.</string>
+    <string name="theme_dusk">황혼</string>
+    <string name="theme_dusk_detail">황혼빛 표면에 바이올렛 포인트.</string>
 </resources>
