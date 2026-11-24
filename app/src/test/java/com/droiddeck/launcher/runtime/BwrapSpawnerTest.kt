@@ -172,6 +172,20 @@ class BwrapSpawnerPlanTest {
         assertEquals(mapOf("DD_DESKTOP" to "1"), unavailable)
     }
 
+    @Test fun theRuntimeGlExtensionVulkanDirectoryListsOnlyTheSessionDriver() {
+        val lib = File(runtime, "usr/lib/aarch64-linux-gnu/libvulkan_freedreno.so")
+        lib.parentFile!!.mkdirs()
+        lib.writeText("")
+        val root = File(dir, "root").apply { mkdirs() }
+        val glIcd = "/usr/lib/aarch64-linux-gnu/GL/vulkan/icd.d"
+        val binds = BwrapSpawner.gpu(runtime.path, root, mutableMapOf("DD_DESKTOP" to "1"), true, glIcd = true)!!
+        val listed = File(binds.single { it.guest == glIcd }.host).listFiles()!!.map { it.name }
+        assertEquals(listOf("freedreno_icd.json"), listed)
+        assertTrue(File(binds.single { it.guest == glIcd }.host, "freedreno_icd.json").readText().contains("/run/droiddeck-gpu/libvulkan_freedreno.so"))
+        assertTrue(BwrapSpawner.gpu(runtime.path, root, mutableMapOf("DD_DESKTOP" to "1"), true)!!.none { it.guest == glIcd })
+        assertEquals(null, BwrapSpawner.gpu(runtime.path, root, mutableMapOf("VK_DRIVER_FILES" to "/custom/icd.json"), true, glIcd = true))
+    }
+
     @Test fun buildsTheTreeFlatpakAsksFor() {
         val context = RuntimeEnvironment.getApplication()
         val info = Base64.encodeToString("[Application]\nname=org.example.Game\n".toByteArray(), Base64.NO_WRAP)
