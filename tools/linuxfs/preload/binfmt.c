@@ -42,7 +42,7 @@ static int foreign(const char *path, int error) {
   int kind = 0;
   if (n >= 20 && !memcmp(head, ELFMAG, SELFMAG)) {
     unsigned machine = head[EI_DATA] == ELFDATA2MSB ? (unsigned)head[18] << 8 | head[19] : head[18] | (unsigned)head[19] << 8;
-    kind = machine == EM_X86_64 || machine == EM_386 || error == EACCES ? 1 : 0;
+    kind = machine == EM_X86_64 || machine == EM_386 || !memcmp(head + EI_ABIVERSION, "AI\x02", 3) || error == EACCES ? 1 : 0;
   } else if (n >= 2 && head[0] == 'M' && head[1] == 'Z') {
     kind = 2;
   } else if (n >= 2 && head[0] == '#' && head[1] == '!' && error == EACCES) {

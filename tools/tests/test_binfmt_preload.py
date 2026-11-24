@@ -138,6 +138,17 @@ class BinfmtPreloadTest(unittest.TestCase):
         program = self.file("arm64", bytes(arm64))
         self.assertEqual(self.run_program("execve", program), (3, "errno %d" % errno.ENOEXEC, None))
 
+    def test_an_arm64_appimage_goes_to_the_handler(self):
+        image = bytearray(64)
+        image[0:4], image[4], image[5], image[8:11], image[18] = b"\x7fELF", 2, 1, b"AI\x02", 183
+        program = self.file("App.AppImage", bytes(image))
+        for how in ("execve", "execvp"):
+            self.log.unlink(missing_ok=True)
+            target = program if how == "execve" else program.name
+            self.assertEqual(self.run_program(how, target, "--x"), (7, "", ["--exec", str(program), "--x"]))
+        self.log.unlink()
+        self.assertEqual(self.run_program("spawn", program, "y"), (0, "exit 7", ["--exec", str(program), "y"]))
+
     def test_a_script_runs_as_itself(self):
         script = self.file("script.sh", b"#!/bin/sh\nexit 5\n")
         self.assertEqual(self.run_program("execve", script), (5, "", None))
