@@ -695,6 +695,32 @@ jobs:
           if-no-files-found: ignore
           overwrite: true
 
+      - name: Resolve the Robolectric version
+        id: robolectric
+        run: |
+          echo "version=$(grep -o "org.robolectric:robolectric:[0-9.]*" app/build.gradle | cut -d: -f3)" >> "$GITHUB_OUTPUT"
+      # Robolectric downloads these from Maven Central on first use without retrying, and 429s fail whole test classes.
+      # The cache path sits beside the workspace because runner homes are at different depths from it, and
+      # actions/cache stores paths relative to the workspace. Runners that keep their own ~/.m2 skip the cache.
+      - name: Place Robolectric's Android jars beside the workspace
+        id: robolectric-jars
+        run: |
+          set -euo pipefail
+          jars="$GITHUB_WORKSPACE/../robolectric-jars"
+          m2="$HOME/.m2/repository/org/robolectric/android-all-instrumented"
+          if [ -d "$m2" ] && [ ! -L "$m2" ]; then
+            echo "cache=false" >> "$GITHUB_OUTPUT"
+          else
+            mkdir -p "$jars" "$(dirname "$m2")"
+            ln -sfn "$(cd "$jars" && pwd)" "$m2"
+            echo "cache=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Cache Robolectric's Android jars
+        if: steps.robolectric-jars.outputs.cache == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ../robolectric-jars
+          key: robolectric-android-all-v2-${{ steps.robolectric.outputs.version }}
       - name: Unit tests
         id: unit-tests
         env:
