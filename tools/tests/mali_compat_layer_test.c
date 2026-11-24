@@ -21,6 +21,8 @@ static VkPipelineColorBlendAttachmentState driver_attachments[4];
 static uint32_t driver_attachment_count;
 static VkColorBlendEquationEXT driver_equations[4];
 static uint32_t driver_equation_count;
+static VkCompareOp driver_depth_op, driver_pipeline_depth_op;
+static VkBool32 driver_depth_test;
 
 #define MAIN 1
 #define VOID 2
@@ -305,8 +307,25 @@ static VkResult VKAPI_CALL mock_create_graphics_pipelines(VkDevice device, VkPip
     const VkShaderModuleCreateInfo *module = infos[0].pStages[0].pNext;
     assert(module && module->sType == VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO);
     capture_code(module->pCode, module->codeSize);
+    if (infos[0].pDepthStencilState)
+        driver_pipeline_depth_op = infos[0].pDepthStencilState->depthCompareOp;
     pipelines[0] = (VkPipeline)0x2000;
     return VK_SUCCESS;
+}
+
+static VkResult VKAPI_CALL mock_begin_command_buffer(VkCommandBuffer cmd, const VkCommandBufferBeginInfo *info)
+{
+    return VK_SUCCESS;
+}
+
+static void VKAPI_CALL mock_set_depth_test(VkCommandBuffer cmd, VkBool32 enable)
+{
+    driver_depth_test = enable;
+}
+
+static void VKAPI_CALL mock_set_depth_op(VkCommandBuffer cmd, VkCompareOp op)
+{
+    driver_depth_op = op;
 }
 
 static void VKAPI_CALL mock_set_blend_equation(VkCommandBuffer cmd, uint32_t first, uint32_t count,
@@ -342,6 +361,9 @@ static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL mock_gdpa(VkDevice device, const
     MOCK("vkDestroyShaderModule", mock_destroy_shader_module);
     MOCK("vkCreateGraphicsPipelines", mock_create_graphics_pipelines);
     MOCK("vkCmdSetColorBlendEquationEXT", mock_set_blend_equation);
+    MOCK("vkBeginCommandBuffer", mock_begin_command_buffer);
+    MOCK("vkCmdSetDepthTestEnable", mock_set_depth_test);
+    MOCK("vkCmdSetDepthCompareOp", mock_set_depth_op);
     return NULL;
 }
 
@@ -480,6 +502,71 @@ static void test_capable_device(void)
     destroy_device(device);
 }
 
+static void create_depth_pipeline(VkDevice device, const VkPipelineDepthStencilStateCreateInfo *depth,
+                                  const VkDynamicState *dynamic, uint32_t dynamic_count)
+{
+    struct spirv plain;
+    fragment_shader(&plain, 0x00010000, false);
+    VkShaderModuleCreateInfo module = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, NULL, 0,
+                                       plain.n * sizeof(uint32_t), plain.w};
+    VkPipelineShaderStageCreateInfo stage = {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, &module, 0,
+                                             VK_SHADER_STAGE_FRAGMENT_BIT, VK_NULL_HANDLE, "main", NULL};
+    VkPipelineColorBlendStateCreateInfo blend = {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO, NULL, 0,
+                                                 VK_FALSE, VK_LOGIC_OP_COPY, 1, &plain_attachment, {0}};
+    VkPipelineDynamicStateCreateInfo states = {VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, NULL, 0,
+                                               dynamic_count, dynamic};
+    VkGraphicsPipelineCreateInfo info = {.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, .stageCount = 1,
+                                         .pStages = &stage, .pDepthStencilState = depth, .pColorBlendState = &blend,
+                                         .pDynamicState = dynamic_count ? &states : NULL};
+    VkPipeline pipeline;
+    driver_pipeline_depth_op = VK_COMPARE_OP_MAX_ENUM;
+    PFN_vkCreateGraphicsPipelines create =
+        (PFN_vkCreateGraphicsPipelines)layer_gdpa(device, "vkCreateGraphicsPipelines");
+    assert(create(device, VK_NULL_HANDLE, 1, &info, NULL, &pipeline) == VK_SUCCESS);
+}
+
+static void test_depth_compare_op(void)
+{
+    VkDevice device;
+    VkPhysicalDeviceFeatures enabled = {.dualSrcBlend = VK_TRUE};
+    assert(create_device((VkPhysicalDevice)&mock_lacking, NULL, &enabled, &device) == VK_SUCCESS);
+    PFN_vkBeginCommandBuffer begin = (PFN_vkBeginCommandBuffer)layer_gdpa(device, "vkBeginCommandBuffer");
+    PFN_vkCmdSetDepthTestEnable set_test =
+        (PFN_vkCmdSetDepthTestEnable)layer_gdpa(device, "vkCmdSetDepthTestEnable");
+    PFN_vkCmdSetDepthCompareOp set_op = (PFN_vkCmdSetDepthCompareOp)layer_gdpa(device, "vkCmdSetDepthCompareOp");
+    assert((PFN_vkVoidFunction)set_test != (PFN_vkVoidFunction)mock_set_depth_test);
+    assert((PFN_vkVoidFunction)set_op != (PFN_vkVoidFunction)mock_set_depth_op);
+
+    VkCommandBuffer cmd = (VkCommandBuffer)&mock_command_buffer;
+    VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    assert(begin(cmd, &begin_info) == VK_SUCCESS);
+    set_op(cmd, VK_COMPARE_OP_LESS);
+    assert(driver_depth_op == VK_COMPARE_OP_LESS);
+    set_test(cmd, VK_FALSE);
+    assert(!driver_depth_test && driver_depth_op == VK_COMPARE_OP_ALWAYS);
+    set_op(cmd, VK_COMPARE_OP_NEVER);
+    assert(driver_depth_op == VK_COMPARE_OP_ALWAYS);
+    set_test(cmd, VK_TRUE);
+    assert(driver_depth_test && driver_depth_op == VK_COMPARE_OP_NEVER);
+    set_test(cmd, VK_FALSE);
+    assert(begin(cmd, &begin_info) == VK_SUCCESS);
+    set_op(cmd, VK_COMPARE_OP_GREATER);
+    assert(driver_depth_op == VK_COMPARE_OP_GREATER);
+
+    VkPipelineDepthStencilStateCreateInfo depth = {.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+                                                   .depthCompareOp = VK_COMPARE_OP_NEVER};
+    create_depth_pipeline(device, &depth, NULL, 0);
+    assert(driver_pipeline_depth_op == VK_COMPARE_OP_ALWAYS && depth.depthCompareOp == VK_COMPARE_OP_NEVER);
+    const VkDynamicState dynamic[] = {VK_DYNAMIC_STATE_DEPTH_COMPARE_OP};
+    create_depth_pipeline(device, &depth, dynamic, 1);
+    assert(driver_pipeline_depth_op == VK_COMPARE_OP_NEVER);
+    depth.depthTestEnable = VK_TRUE;
+    depth.depthCompareOp = VK_COMPARE_OP_LESS;
+    create_depth_pipeline(device, &depth, NULL, 0);
+    assert(driver_pipeline_depth_op == VK_COMPARE_OP_LESS);
+    destroy_device(device);
+}
+
 int main(int argc, char **argv)
 {
     test_spirv(argc > 1 ? argv[1] : NULL);
@@ -502,6 +589,7 @@ int main(int argc, char **argv)
 
     test_lacking_device();
     test_capable_device();
+    test_depth_compare_op();
 
     ((PFN_vkDestroyInstance)layer_gipa(instance, "vkDestroyInstance"))(instance, NULL);
     free(driver_code);

@@ -606,7 +606,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
     dev->key = dispatch_key(*device);
     dev->handle = *device;
     dev->gdpa = gdpa;
-    dev->emulated = requested;
+    dev->emulated = requested | (gaps ? GAP_DEPTH_OP : 0);
     pthread_mutex_init(&dev->lock, NULL);
 #define LOAD(name) \
     dev->name = (PFN_vk##name)gdpa(*device, "vk" #name); \
@@ -642,6 +642,8 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
                   (requested & GAP_NULL_DESCRIPTOR) ? " nullDescriptor" : "",
                   (requested & GAP_DUAL_SRC_BLEND) ? " dualSrcBlend" : "", properties.deviceName);
     }
+    if (dev->emulated & GAP_DEPTH_OP)
+        layer_log("depthCompareOp becomes ALWAYS while the depth test is off");
     return VK_SUCCESS;
 }
 
@@ -669,6 +671,7 @@ static VKAPI_ATTR void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocat
         }
     }
     map_free(&dev->shader_modules);
+    map_free(&dev->depth_states);
     pthread_mutex_destroy(&dev->lock);
     free(dev);
 }
@@ -696,6 +699,10 @@ static const struct hook device_hooks[] = {
     HOOK(CmdSetScissorWithCount, GAP_MULTI_VIEWPORT),
     HOOK_ALIAS(CmdSetScissorWithCount, CmdSetScissorWithCountEXT, GAP_MULTI_VIEWPORT),
     HOOK(CmdSetColorBlendEquationEXT, GAP_DUAL_SRC_BLEND),
+    HOOK(CmdSetDepthTestEnable, GAP_DEPTH_OP),
+    HOOK_ALIAS(CmdSetDepthTestEnable, CmdSetDepthTestEnableEXT, GAP_DEPTH_OP),
+    HOOK(CmdSetDepthCompareOp, GAP_DEPTH_OP),
+    HOOK_ALIAS(CmdSetDepthCompareOp, CmdSetDepthCompareOpEXT, GAP_DEPTH_OP),
     HOOK(CreateImage, GAP_BC),
     HOOK(DestroyImage, GAP_BC),
     HOOK(CreateImageView, GAP_BC),
@@ -727,7 +734,7 @@ static const struct hook device_hooks[] = {
     HOOK_ALIAS(UnmapMemory2, UnmapMemory2KHR, GAP_BC),
     HOOK(AllocateCommandBuffers, GAP_BC),
     HOOK(FreeCommandBuffers, GAP_BC),
-    HOOK(BeginCommandBuffer, GAP_BC),
+    HOOK(BeginCommandBuffer, GAP_BC | GAP_DEPTH_OP),
     HOOK(ResetCommandBuffer, GAP_BC),
     HOOK(ResetCommandPool, GAP_BC),
     HOOK(DestroyCommandPool, GAP_BC),
