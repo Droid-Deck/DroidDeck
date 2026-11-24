@@ -1,6 +1,7 @@
 import importlib.util
 import gzip
 import io
+import json
 from pathlib import Path, PureWindowsPath
 import subprocess
 import tarfile
@@ -121,6 +122,40 @@ class RuntimeInputsTest(unittest.TestCase):
         with mock.patch('sys.stderr', new_callable=io.StringIO) as stderr:
             runtime.verify(self.root, stale_sources_ok=True)
         self.assertIn('tools/linuxfs/preload/test.c', stderr.getvalue())
+
+    def helper(self, content):
+        source = self.root / 'tools/linuxfs/overlay/usr/local/bin/droiddeck-test-helper'
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text(content)
+        staged = self.root / 'app/src/main/assets/linuxfs/usr/local/bin/droiddeck-test-helper'
+        staged.parent.mkdir(parents=True, exist_ok=True)
+        staged.write_text(content)
+        return source, staged
+
+    def test_an_edited_helper_script_needs_no_new_preparation(self):
+        self.helper('old helper')
+        runtime.record(self.root)
+        self.helper('new helper')
+        runtime.verify(self.root)
+
+    def test_a_staged_helper_that_lags_its_source_is_rejected(self):
+        source, _ = self.helper('old helper')
+        runtime.record(self.root)
+        source.write_text('new helper')
+        with self.assertRaisesRegex(ValueError, 'not a current copy'):
+            runtime.verify(self.root, stale_sources_ok=True)
+
+    def test_a_manifest_that_hashed_helper_scripts_still_verifies(self):
+        source, staged = self.helper('old helper')
+        runtime.record(self.root)
+        manifest = self.root / runtime.MANIFEST
+        data = json.loads(manifest.read_text())
+        data['sources']['tools/linuxfs/overlay/usr/local/bin/droiddeck-test-helper'] = 'old'
+        data['outputs']['assets/linuxfs/usr/local/bin/droiddeck-test-helper'] = {
+            'path': 'app/src/main/assets/linuxfs/usr/local/bin/droiddeck-test-helper', 'sha256': 'old'}
+        manifest.write_text(json.dumps(data))
+        self.helper('new helper')
+        runtime.verify(self.root)
 
     def test_dev_loop_still_rejects_changed_outputs(self):
         runtime.record(self.root)

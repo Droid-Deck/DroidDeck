@@ -112,9 +112,16 @@ object BwrapSpawner {
         return out
     }
 
+    internal fun withKernelPaths(sessionBinds: List<Bind>, canonical: (String) -> String): List<Bind> =
+        sessionBinds + sessionBinds.filter { it.host == it.guest }.mapNotNull { bind ->
+            runCatching { canonical(bind.host) }.getOrNull()
+                ?.takeIf { it != bind.guest && sessionBinds.none { other -> other.guest == it } }
+                ?.let { Bind(bind.host, it) }
+        }
+
     internal fun plan(context: Context, request: JSONObject, dir: File): Plan {
         val rootfs = LinuxRuntime.rootDir(context).path
-        val session = LinuxRuntime.lastBinds(context).map { Bind.parse(it) }
+        val session = withKernelPaths(LinuxRuntime.lastBinds(context).map { Bind.parse(it) }) { File(it).canonicalPath }
         val root = File(dir, "root").apply { mkdirs() }
         val binds = ArrayList<Bind>()
         var scratch = 0
@@ -537,6 +544,9 @@ object BwrapSpawner {
         return f
     }
 
+    internal fun prootEnvironment(plan: Plan, startsThroughEnvTool: Boolean): Map<String, String> =
+        if (startsThroughEnvTool) emptyMap() else plan.env - "LD_PRELOAD"
+
     private fun run(context: Context, plan: Plan, client: LocalSocket, out: DataOutputStream, id: Int) {
         val verbose = plan.env["DROIDDECK_PROOT_VERBOSE"]?.toIntOrNull()
         val native = if (NativeGuest.forSession(context)) nativeLaunch(context, plan) else null
@@ -558,7 +568,7 @@ object BwrapSpawner {
             ProcessBuilder(cmd).redirectErrorStream(true).directory(plan.root).also { b ->
                 b.environment().apply {
                     clear()
-                    if (!envTool) putAll(plan.env)
+                    putAll(prootEnvironment(plan, envTool))
                     put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
                     put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
                     if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")

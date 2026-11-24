@@ -526,6 +526,12 @@ static long nested_path_syscall(long number, unsigned long dirfd, unsigned long 
     return call_orig_syscall(number, dirfd, (unsigned long)path, arg3, arg4, 0, 0);
 }
 
+static long fake_root_ids(long number, unsigned int *real, unsigned int *effective, unsigned int *saved) {
+    long rc = call_orig_syscall(number, (unsigned long)real, (unsigned long)effective, (unsigned long)saved, 0, 0, 0);
+    if (rc == 0) *real = *effective = *saved = 0;
+    return rc;
+}
+
 long syscall(long number, ...) {
     va_list ap;
     va_start(ap, number);
@@ -877,48 +883,22 @@ long syscall(long number, ...) {
     if (number == __NR_getegid32) return 0;
 #endif
 #if defined(__NR_getresuid)
-    if (number == __NR_getresuid) {
-        uid_t *ruid = (uid_t *)arg1;
-        uid_t *euid = (uid_t *)arg2;
-        uid_t *suid = (uid_t *)arg3;
-        if (ruid) *ruid = 0;
-        if (euid) *euid = 0;
-        if (suid) *suid = 0;
-        return 0;
-    }
+    if (number == __NR_getresuid) return fake_root_ids(number, (unsigned int *)arg1, (unsigned int *)arg2, (unsigned int *)arg3);
 #endif
 #if defined(__NR_getresuid32)
-    if (number == __NR_getresuid32) {
-        uid_t *ruid = (uid_t *)arg1;
-        uid_t *euid = (uid_t *)arg2;
-        uid_t *suid = (uid_t *)arg3;
-        if (ruid) *ruid = 0;
-        if (euid) *euid = 0;
-        if (suid) *suid = 0;
-        return 0;
-    }
+    if (number == __NR_getresuid32) return fake_root_ids(number, (unsigned int *)arg1, (unsigned int *)arg2, (unsigned int *)arg3);
 #endif
 #if defined(__NR_getresgid)
-    if (number == __NR_getresgid) {
-        gid_t *rgid = (gid_t *)arg1;
-        gid_t *egid = (gid_t *)arg2;
-        gid_t *sgid = (gid_t *)arg3;
-        if (rgid) *rgid = 0;
-        if (egid) *egid = 0;
-        if (sgid) *sgid = 0;
-        return 0;
-    }
+    if (number == __NR_getresgid) return fake_root_ids(number, (unsigned int *)arg1, (unsigned int *)arg2, (unsigned int *)arg3);
 #endif
 #if defined(__NR_getresgid32)
-    if (number == __NR_getresgid32) {
-        gid_t *rgid = (gid_t *)arg1;
-        gid_t *egid = (gid_t *)arg2;
-        gid_t *sgid = (gid_t *)arg3;
-        if (rgid) *rgid = 0;
-        if (egid) *egid = 0;
-        if (sgid) *sgid = 0;
-        return 0;
-    }
+    if (number == __NR_getresgid32) return fake_root_ids(number, (unsigned int *)arg1, (unsigned int *)arg2, (unsigned int *)arg3);
+#endif
+#if defined(__NR_getgroups)
+    if (number == __NR_getgroups) return (long)getgroups((int)arg1, (gid_t *)arg2);
+#endif
+#if defined(__NR_fchown)
+    if (number == __NR_fchown) return (long)fchown((int)arg1, (uid_t)arg2, (gid_t)arg3);
 #endif
 
     return call_orig_syscall(number, arg1, arg2, arg3, arg4, arg5, arg6);

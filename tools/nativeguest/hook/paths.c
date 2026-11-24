@@ -82,7 +82,7 @@ static void ddnatv_load_binds(const char *spec) {
         char kernel_src[PATH_MAX];
         if (strcmp(src, dst) != 0) {
             ddnatv_kernel_path(src, strlen(src), kernel_src, sizeof(kernel_src));
-            src = kernel_src;
+            if (strncmp(kernel_src, "/proc/", 6) != 0 || kernel_src[6] < '0' || kernel_src[6] > '9') src = kernel_src;
         }
         b->src = strdup(src);
         b->dst = strdup(dst);
@@ -753,11 +753,6 @@ static size_t append_rootfs_lib_dirs_missing_from(char *out, size_t outsz, size_
         used = ddnatv_append(out, outsz, used, full, n);
     }
     return used;
-}
-
-// All of them.
-static size_t append_rootfs_lib_dirs(char *out, size_t outsz, size_t used, int separate) {
-    return append_rootfs_lib_dirs_missing_from(out, outsz, used, separate, NULL);
 }
 
 #ifndef DDNATV_HOST_TEST

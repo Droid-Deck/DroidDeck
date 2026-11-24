@@ -65,6 +65,7 @@ class ProtonMenuAutoTest {
         menu.protonProblem = null
         menu.protonStage = null
         menu.protonPercent = -1
+        menu.experimentalRefresh = { emptyList() }
         menu.installer = { tool, progress ->
             progress("Installing ${tool.name}", 50)
             install("${tool.prefix}-11-12")

@@ -75,6 +75,32 @@ class BwrapSpawnerTest {
         assertEquals("x11", x11["SDL_VIDEODRIVER"])
     }
 
+    @Test fun sourcesNamedByTheirKernelPathReachTheSessionsMounts() {
+        val files = "/data/user/0/com.droiddeck.launcher/files"
+        val kernel = "/data/data/com.droiddeck.launcher/files"
+        val binds = session + Bind(files, files)
+        val aliased = BwrapSpawner.withKernelPaths(binds) { it.replace("/data/user/0/", "/data/data/") }
+        val runtime = "/linuxfs/root/.local/share/flatpak/runtime/org.example.Platform/aarch64/1/abc/files"
+        assertEquals("$files$runtime", BwrapSpawner.hostPath(aliased, "$files/linuxfs", "$kernel$runtime"))
+        assertEquals("$files$runtime", BwrapSpawner.hostPath(aliased, "$files/linuxfs", "$files$runtime"))
+        assertEquals("$files/linuxfs/usr/bin/env", BwrapSpawner.hostPath(aliased, "$files/linuxfs", "/usr/bin/env"))
+    }
+
+    @Test fun kernelPathsLeaveOtherMountsAlone() {
+        assertEquals(session, BwrapSpawner.withKernelPaths(session) { it })
+        val renamed = listOf(Bind("/data/user/0/x", "/mnt/x"), Bind("/data/user/0/y", "/data/user/0/y"), Bind("/elsewhere", "/data/data/y"))
+        assertEquals(renamed, BwrapSpawner.withKernelPaths(renamed) { it.replace("/data/user/0/", "/data/data/") })
+        assertEquals(session, BwrapSpawner.withKernelPaths(session) { throw java.io.IOException(it) })
+    }
+
+    @Test fun prootGetsNoGuestPreloadOfItsOwn() {
+        val plan = BwrapSpawner.Plan(File("/sandbox"), emptyList(), "/", listOf("/app/bin/apply_extra"),
+            mapOf("LD_PRELOAD" to "/run/droiddeck-preload/libddsession.so", "FLATPAK_ID" to "org.example.Ext"))
+        assertEquals(mapOf("FLATPAK_ID" to "org.example.Ext"), BwrapSpawner.prootEnvironment(plan, false))
+        assertTrue(BwrapSpawner.prootEnvironment(plan, true).isEmpty())
+        assertEquals("/run/droiddeck-preload/libddsession.so", plan.env["LD_PRELOAD"])
+    }
+
     @Test fun normalizeResolvesDotsLexically() {
         assertEquals("/usr/lib/x", BwrapSpawner.normalize("/usr/lib/GL/../x"))
         assertEquals("/", BwrapSpawner.normalize("/../.."))
