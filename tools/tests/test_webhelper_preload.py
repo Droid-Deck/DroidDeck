@@ -15,8 +15,11 @@ int main(int argc, char **argv) {
   const char *mode = getenv("TEST_NODE_MODE_CHILD");
   static char node[64];
   snprintf(node, sizeof node, "ELECTRON_RUN_AS_NODE=%s", mode ? mode : "");
-  char *node_env[] = {node, NULL};
-  char *plain_env[] = {"PATH=/usr/bin", NULL};
+  const char *x = getenv("TEST_DISPLAY");
+  static char display[64];
+  snprintf(display, sizeof display, "DISPLAY=%s", x ? x : "");
+  char *node_env[] = {node, x ? display : NULL, NULL};
+  char *plain_env[] = {"PATH=/usr/bin", x ? display : NULL, NULL};
   char *const *envp = mode ? node_env : plain_env;
   char *const *out = dd_webhelper_argv(argv[1], argv + 1, (char *const *)envp);
   for (int i = 0; out[i]; i++) printf("%s\n", out[i]);
@@ -42,8 +45,10 @@ class WebhelperPreloadTest(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
-    def argv(self, *args, spec=None, node_child=False, parent_node=False):
-        env = {k: v for k, v in os.environ.items() if k != "DD_WEBHELPER_ARGS"}
+    def argv(self, *args, spec=None, node_child=False, parent_node=False, display=None):
+        env = {k: v for k, v in os.environ.items() if k not in ("DD_WEBHELPER_ARGS", "TEST_DISPLAY")}
+        if display is not None:
+            env["TEST_DISPLAY"] = display
         env.pop("ELECTRON_RUN_AS_NODE", None)
         if spec is not None:
             env["DD_WEBHELPER_ARGS"] = spec
@@ -103,6 +108,50 @@ class WebhelperPreloadTest(unittest.TestCase):
     def test_parent_node_mode_does_not_override_the_explicit_child_environment(self):
         chrome = self.chromium("chromium-parent-mode", "chrome")
         self.assertEqual(self.argv(chrome, parent_node=True), [chrome, "--no-sandbox"])
+
+    def test_a_link_to_an_electron_app_gets_the_sandbox_flag(self):
+        app = self.chromium("vesktop", "vesktop")
+        link = self.tmp / "bin-vesktop"
+        link.symlink_to(app)
+        self.assertEqual(self.argv(str(link), "%U"), [str(link), "--no-sandbox", "%U"])
+
+    def test_an_app_whose_sandbox_helper_is_one_folder_up_gets_the_flag(self):
+        root = self.tmp / "nested"
+        (root / "bin").mkdir(parents=True)
+        (root / "chrome-sandbox").touch()
+        (root / "bin/app").touch()
+        self.assertEqual(self.argv(str(root / "bin/app")), [str(root / "bin/app"), "--no-sandbox"])
+
+    def test_a_chromium_app_starting_a_program_from_its_own_folder_leaves_it_alone(self):
+        handler = self.chromium("chrome-app", "chrome_crashpad_handler")
+        browser = self.tmp / "chrome-app/chrome"
+        shutil.copy(self.program, browser)
+        out = subprocess.run([str(browser), handler, "--database=/tmp/x"], env={"TEST_DISPLAY": ":0"},
+                             capture_output=True, text=True, check=True).stdout.splitlines()
+        self.assertEqual([handler, "--database=/tmp/x"], out)
+
+    def test_a_chromium_app_starting_another_chromium_app_still_flags_it(self):
+        other = self.chromium("other-app", "chrome")
+        editor = self.tmp / "editor-app/code"
+        self.chromium("editor-app", "code")
+        shutil.copy(self.program, editor)
+        out = subprocess.run([str(editor), other], env={}, capture_output=True, text=True, check=True).stdout.splitlines()
+        self.assertEqual([other, "--no-sandbox"], out)
+
+    def test_with_an_x_display_chromium_apps_use_x11(self):
+        chrome = self.chromium("chromium-x11", "chrome")
+        self.assertEqual(self.argv(chrome, "--new-window", display=":0"),
+                         [chrome, "--no-sandbox", "--ozone-platform=x11", "--new-window"])
+        self.assertEqual(self.argv(chrome, "--no-sandbox", display=":0"),
+                         [chrome, "--ozone-platform=x11", "--no-sandbox"])
+
+    def test_an_explicit_platform_and_sandbox_choice_is_kept(self):
+        chrome = self.chromium("chromium-own-flags", "chrome")
+        own = [chrome, "--no-sandbox", "--ozone-platform=wayland"]
+        self.assertEqual(self.argv(*own, display=":0"), own)
+
+    def test_other_programs_with_an_x_display_are_left_alone(self):
+        self.assertEqual(self.argv("/usr/bin/steam", display=":0"), ["/usr/bin/steam"])
 
     def test_stock_turns_it_off(self):
         args = [WEBHELPER, "--enable-features=A"]

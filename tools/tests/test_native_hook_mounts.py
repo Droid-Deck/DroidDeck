@@ -12,14 +12,54 @@ PROBE = r"""
 #include <dirent.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 int main(int argc, char **argv) {
   char cwd[4096];
   for (int i = 1; i < argc; i++) {
     struct stat st;
+    if (strncmp(argv[i], "env:", 4) == 0) {
+      const char *value = getenv(argv[i] + 4);
+      printf("%s\t%s\n", argv[i], value ? value : "-");
+      continue;
+    }
+    if (strncmp(argv[i], "parent:", 7) == 0) {
+      char dir[4096];
+      snprintf(dir, sizeof(dir), "%s", argv[i] + 7);
+      char *rel = strchr(dir, '|'), *want = NULL;
+      if (rel) *rel++ = 0;
+      if (rel && (want = strchr(rel, '|'))) *want++ = 0;
+      int fd = open(dir, O_RDONLY | O_DIRECTORY);
+      struct stat expected;
+      int ok = fd >= 0 && fstatat(fd, rel ? rel : "..", &st, 0) == 0 && stat(want ? want : "/", &expected) == 0;
+      printf("%s\t%d\n", argv[i], ok && st.st_dev == expected.st_dev && st.st_ino == expected.st_ino);
+      if (fd >= 0) close(fd);
+      continue;
+    }
+    if (strncmp(argv[i], "fork:", 5) == 0) {
+      fflush(stdout);
+      pid_t pid = fork();
+      if (pid == 0) {
+        int p[2];
+        char path[64], data[8] = "-";
+        if (pipe(p) == 0 && write(p[1], "x", 1) == 1 && dup2(p[0], 63) == 63) {
+          snprintf(path, sizeof(path), "%s/63", argv[i] + 5);
+          int fd = open(path, O_RDONLY);
+          ssize_t n = fd >= 0 ? read(fd, data, sizeof(data) - 1) : -1;
+          if (n > 0) data[n] = 0;
+          if (fd >= 0) close(fd);
+        }
+        printf("%s\t%s\n", argv[i], data);
+        fflush(stdout);
+        _exit(0);
+      }
+      waitpid(pid, NULL, 0);
+      continue;
+    }
     if (strncmp(argv[i], "cd:", 3) == 0) {
       int ok = chdir(argv[i] + 3) == 0 && getcwd(cwd, sizeof(cwd)) != NULL;
       printf("%s\t%s\n", argv[i], ok ? cwd : "-");
@@ -76,6 +116,8 @@ class NativeHookMountTest(unittest.TestCase):
         cls.root = tmp / "root"
         cls.library = tmp / "storage/PC GAMES"
         (cls.root / "etc").mkdir(parents=True)
+        (cls.root / "deep/er/est").mkdir(parents=True)
+        (cls.root / "linked").symlink_to("deep/er/est")
         (cls.root / "etc/hostname").write_text("rootfs")
         (cls.root / "mnt/library/Some Game").mkdir(parents=True)
         (cls.root / "mnt/library/Some Game/game.txt").write_text("mount point")
@@ -117,10 +159,11 @@ class NativeHookMountTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_probe(self, *args):
-        binds = f"{self.library}:/mnt/library|{self.private}:/mnt/private|{self.eqlen_src}:{self.eqlen_dst}"
+    def run_probe(self, *args, binds=None):
+        if binds is None:
+            binds = f"{self.library}:/mnt/library|{self.private}:/mnt/private|{self.eqlen_src}:{self.eqlen_dst}"
         hook_env = {"DDNATV_ROOT": str(self.root), "DDNATV_BINDS": binds, "LD_PRELOAD": str(self.hook)}
-        env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
+        env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "LOCPATH", "GCONV_PATH")}
         if self.prefix:
             cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
         else:
@@ -130,6 +173,18 @@ class NativeHookMountTest(unittest.TestCase):
                              cwd=self.tmp.name)
         self.assertEqual(out.returncode, 0, out.stderr)
         return {line.split("\t")[0]: line.split("\t")[1:] for line in out.stdout.splitlines()}
+
+    def test_dev_fd_in_a_forked_child_names_the_child_descriptors(self):
+        out = self.run_probe("fork:/dev/fd", binds="/proc/self/fd:/dev/fd")
+        self.assertEqual(["x"], out["fork:/dev/fd"])
+
+    def test_a_mount_named_through_proc_self_root_reports_its_guest_path(self):
+        arg = f"cd:{GAME}/"
+        self.assertEqual(self.run_probe(arg, binds=f"/proc/self/root{self.library}:/mnt/library")[arg], [GAME])
+
+    def test_a_proc_mount_that_names_no_process_reports_its_guest_path(self):
+        arg = "cd:/mnt/sys/kernel/"
+        self.assertEqual(self.run_probe(arg, binds="/proc/self/root/proc/sys:/mnt/sys")[arg], ["/mnt/sys/kernel"])
 
     def test_drive_link_stored_as_rootfs_path_reaches_the_mount(self):
         path = f"/pfx/native/dosdevices/z:{GAME}/game.txt"
@@ -146,6 +201,42 @@ class NativeHookMountTest(unittest.TestCase):
     def test_guest_drive_link_is_unchanged(self):
         path = f"/pfx/guest/dosdevices/z:{GAME}/game.txt"
         self.assertEqual(self.run_probe(path)[path], ["1", "library"])
+
+    def test_glibc_locale_and_iconv_data_come_from_the_rootfs(self):
+        result = self.run_probe("env:LOCPATH", "env:GCONV_PATH")
+        self.assertEqual(result["env:LOCPATH"], [f"{self.root}/usr/lib/locale"])
+        self.assertEqual(result["env:GCONV_PATH"], [f"{self.root}/usr/lib/aarch64-linux-gnu/gconv"])
+
+    def test_parent_of_root_stays_at_root(self):
+        self.assertEqual(self.run_probe("parent:/")["parent:/"], ["1"])
+
+    def test_parent_of_root_without_mounts_stays_at_root(self):
+        self.assertEqual(self.run_probe("parent:/", binds="")["parent:/"], ["1"])
+
+    def test_parent_of_mount_ancestor_is_guest_root(self):
+        self.assertEqual(self.run_probe("parent:/mnt")["parent:/mnt"], ["1"])
+
+    def test_parent_walks_from_any_directory_stay_at_root(self):
+        cases = ["parent:/etc|../..", "parent:/mnt/library|../../..", "parent:/|../etc/.."]
+        self.assertEqual(self.run_probe(*cases), {case: ["1"] for case in cases})
+
+    def test_parent_walk_from_a_linked_mount_ancestor_follows_the_real_directory(self):
+        binds = f"{self.library}:/linked/library"
+        case = "parent:/linked|../..|/deep"
+        self.assertEqual(self.run_probe(case, binds=binds)[case], ["1"])
+
+    def test_absolute_paths_above_root_stay_at_root(self):
+        result = self.run_probe("cd:/..", "cd:/etc/../..", "/../etc/hostname")
+        self.assertEqual(result["cd:/.."], [str(self.root)])
+        self.assertEqual(result["cd:/etc/../.."], [str(self.root)])
+        self.assertEqual(result["/../etc/hostname"], ["1", "rootfs"])
+
+    def test_relative_parent_of_cwd_stays_in_guest(self):
+        result = self.run_probe("cd:/", "cd:..", "cd:./../..", "../etc/hostname", f"cd:{GAME}", "cd:../..")
+        self.assertEqual(result["cd:.."], [str(self.root)])
+        self.assertEqual(result["cd:./../.."], [str(self.root)])
+        self.assertEqual(result["cd:../.."], [str(self.root / "mnt")])
+        self.assertEqual(result["../etc/hostname"], ["1", "rootfs"])
 
     def test_rootfs_paths_outside_mounts_are_unchanged(self):
         paths = ["/pfx/native/dosdevices/z:/etc/hostname", f"{self.root}/etc/hostname", "/etc/hostname"]

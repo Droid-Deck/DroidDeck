@@ -275,12 +275,15 @@ class LinuxNetworkLinkComponent(
      * crash or power cut can keep the rename and lose the data, leaving a file of NUL bytes.
      */
     private fun replace(file: File, text: String) {
-        val staged = File(file.path + ".staged")
-        java.io.FileOutputStream(staged).use { out ->
-            out.write(text.toByteArray())
-            out.fd.sync()
+        synchronized(WRITES) {
+            if (runCatching { file.isFile && file.readText() == text }.getOrDefault(false)) return
+            val staged = File(file.path + ".staged")
+            java.io.FileOutputStream(staged).use { out ->
+                out.write(text.toByteArray())
+                out.fd.sync()
+            }
+            if (!staged.renameTo(file)) throw IOException("Could not replace $file")
         }
-        if (!staged.renameTo(file)) throw IOException("Could not replace $file")
     }
 
     private fun writeResolver(properties: LinkProperties?) {
@@ -333,6 +336,8 @@ class LinuxNetworkLinkComponent(
         seededMac { Settings.Secure.getString(appContext.contentResolver, Settings.Secure.ANDROID_ID) }
 
     companion object {
+        private val WRITES = Any()
+
         internal fun gateways(properties: LinkProperties?, capabilities: NetworkCapabilities?): List<InetAddress> =
             listOf(Inet4Address::class.java, Inet6Address::class.java).mapNotNull { family ->
                 properties?.routes.orEmpty()

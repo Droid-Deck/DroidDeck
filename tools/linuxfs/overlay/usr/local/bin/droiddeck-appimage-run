@@ -45,11 +45,20 @@ if [ "$qt" = wayland ] && [ -n "$wayland" ]; then
 elif [ "$qt" = xcb ] && [ -n "${DISPLAY:-}" ]; then
   export QT_QPA_PLATFORM=xcb
 fi
+arch=$(cat "$dir/arch" 2>/dev/null)
+if [ "$arch" = arm64 ]; then
+  find -H "$APPDIR" -maxdepth 6 ! -type d \( -name libGL.so.1 -o -name libGLX.so.0 -o -name libEGL.so.1 -o -name libGLESv2.so.2 \
+    -o -name libOpenGL.so.0 -o -name libGLdispatch.so.0 \) -print 2>/dev/null |
+    while IFS= read -r lib; do
+      kept=$dir/bundled-gl/${lib#"$APPDIR"/}
+      mkdir -p "${kept%/*}" && mv -f "$lib" "$kept" && echo "== appimage: the session's ${lib##*/} replaces the bundled one"
+    done
+fi
 fex=$(cat "$dir/fex" 2>/dev/null)
 case $fex in on|off) ;; *) fex=auto ;; esac
 run=("$APPDIR/AppRun")
 if [ -x /usr/local/bin/droiddeck-fex ]; then
-  case $fex:$(cat "$dir/arch" 2>/dev/null) in
+  case $fex:$arch in
     auto:x86_64|auto:i386) run=(/usr/local/bin/droiddeck-fex run --mode on -- "$APPDIR/AppRun") ;;
     auto:arm64) ;;
     *) run=(/usr/local/bin/droiddeck-fex run --mode "$fex" --for "$APPDIR" -- "$APPDIR/AppRun") ;;
