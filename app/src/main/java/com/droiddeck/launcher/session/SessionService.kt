@@ -2708,6 +2708,7 @@ class SessionService : Service() {
             gameId: String? = null,
             displayId: Int = Display.DEFAULT_DISPLAY,
         ) {
+            SteamClientPrefetch.cancel()
             SessionState.activityDisplayId = displayId
             if (SessionPrefs.shaderPrecompIdleOnly(context)) ShaderPrecompManager.stop()
             GameMode.apply(context)

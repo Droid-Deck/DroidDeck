@@ -33,6 +33,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -109,12 +111,20 @@ internal fun VeilRing() {
     }
 }
 
-private fun cornerOf(shape: Shape, size: Size, dir: LayoutDirection, density: Density): Float =
+private fun cornersOf(shape: Shape, size: Size, dir: LayoutDirection, density: Density): FloatArray =
     when (val o = shape.createOutline(size, dir, density)) {
-        is Outline.Rounded -> o.roundRect.topLeftCornerRadius.x
-        is Outline.Rectangle -> 0f
-        is Outline.Generic -> minOf(size.width, size.height) / 2f
+        is Outline.Rounded -> o.roundRect.run {
+            floatArrayOf(topLeftCornerRadius.x, topRightCornerRadius.x, bottomRightCornerRadius.x, bottomLeftCornerRadius.x)
+        }
+        is Outline.Rectangle -> FloatArray(4)
+        is Outline.Generic -> FloatArray(4) { minOf(size.width, size.height) / 2f }
     }
+
+private fun ringRect(l: Float, t: Float, w: Float, h: Float, radii: FloatArray, inset: Float): Path {
+    // Radii are not capped one by one: the path scales corners whose neighbours overlap, as the outline does.
+    fun r(i: Int) = CornerRadius((radii[i] - inset).coerceAtLeast(0f))
+    return Path().apply { addRoundRect(RoundRect(Rect(l, t, l + w, t + h), r(0), r(1), r(2), r(3))) }
+}
 
 @Composable
 internal fun Modifier.glideBorder(
@@ -190,7 +200,7 @@ private fun Modifier.focusGlideOverlay(glide: FocusGlide): Modifier {
     val density = LocalDensity.current
     val dir = LocalLayoutDirection.current
     val edges = remember { List(4) { Animatable(0f) } }
-    val corner = remember { Animatable(0f) }
+    val corners = remember { List(4) { Animatable(0f) } }
     val solid = remember { Animatable(0f) }
     val alpha = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -259,14 +269,14 @@ private fun Modifier.focusGlideOverlay(glide: FocusGlide): Modifier {
         fun droplet(s: GlideSource, b: Rect) {
             jobs.forEach { it?.cancel() }
             val size = s.coords?.size?.let { Size(it.width.toFloat(), it.height.toFloat()) } ?: b.size
-            val endCorner = cornerOf(s.shape, size, dir, density)
+            val endCorners = cornersOf(s.shape, size, dir, density)
             jobs[5] = scope.launch {
                 val r = with(density) { 6.dp.toPx() }
                 fun dot(c: Offset) = listOf(c.x - r, c.y - r, c.x + r, c.y + r)
                 val here = Offset((edges[0].value + edges[2].value) / 2f, (edges[1].value + edges[3].value) / 2f)
                 coroutineScope {
                     launch { solid.animateTo(1f, Motion.tw(80)) }
-                    launch { corner.animateTo(r, Motion.tw(90)) }
+                    corners.forEach { c -> launch { c.animateTo(r, Motion.tw(90)) } }
                     dot(here).forEachIndexed { i, v -> launch { edges[i].animateTo(v, Motion.tw(90)) } }
                 }
                 val distance = hypot(b.center.x - here.x, b.center.y - here.y) / density.density
@@ -281,7 +291,9 @@ private fun Modifier.focusGlideOverlay(glide: FocusGlide): Modifier {
                 flight.cancel()
                 val at = glide.boundsOf(s) ?: b
                 launch { solid.animateTo(0f, Motion.tw(150)) }
-                launch { corner.animateTo(endCorner, Motion.sp(0.8f, 600f)) }
+                // The droplet job is cancelled by the next move, so the shape settles on the corner job instead.
+                jobs[4]?.cancel()
+                jobs[4] = scope.launch { corners.forEachIndexed { i, c -> launch { c.animateTo(endCorners[i], Motion.sp(0.8f, 600f)) } } }
                 listOf(at.left, at.top, at.right, at.bottom).forEachIndexed { i, v ->
                     jobs[i] = launch { edges[i].animateTo(v, Motion.sp(0.7f, 750f)) }
                 }
@@ -289,9 +301,11 @@ private fun Modifier.focusGlideOverlay(glide: FocusGlide): Modifier {
         }
         fun cornerTo(s: GlideSource, b: Rect, snap: Boolean) {
             val size = s.coords?.size?.let { Size(it.width.toFloat(), it.height.toFloat()) } ?: b.size
-            val r = cornerOf(s.shape, size, dir, density)
+            val r = cornersOf(s.shape, size, dir, density)
             jobs[4]?.cancel()
-            jobs[4] = scope.launch { if (snap) corner.snapTo(r) else corner.animateTo(r, Motion.sp(0.8f, 500f)) }
+            jobs[4] = scope.launch {
+                corners.forEachIndexed { i, c -> launch { if (snap) c.snapTo(r[i]) else c.animateTo(r[i], Motion.sp(0.8f, 500f)) } }
+            }
         }
         snapshotFlow { Triple(glide.current, glide.moves, glide.hidden || RingVeil.count > 0) }.collectLatest { (src, _, hidden) ->
             if (Motion.scale == 0f) {
@@ -302,7 +316,7 @@ private fun Modifier.focusGlideOverlay(glide: FocusGlide): Modifier {
                 else {
                     listOf(b.left, b.top, b.right, b.bottom).forEachIndexed { i, v -> edges[i].snapTo(v) }
                     val size = src.coords?.size?.let { Size(it.width.toFloat(), it.height.toFloat()) } ?: b.size
-                    corner.snapTo(cornerOf(src.shape, size, dir, density))
+                    cornersOf(src.shape, size, dir, density).forEachIndexed { i, v -> corners[i].snapTo(v) }
                     alpha.snapTo(1f)
                 }
                 shown = src
@@ -343,10 +357,11 @@ private fun Modifier.focusGlideOverlay(glide: FocusGlide): Modifier {
                         val out = with(density) { 3.dp.toPx() }
                         val grown = listOf(b.left - out, b.top - out, b.right + out, b.bottom + out)
                         jobs.forEach { it?.cancel() }
+                        // Set before the join: a move of the target restarts this block there, after shown is already set.
+                        cornerTo(src, b, snap = true)
                         scope.launch { solid.snapTo(0f); edges.forEachIndexed { i, e -> e.snapTo(grown[i]) } }.join()
                         dirSpecs = List(4) { Edge(0.6f, 700f) }
                         delays = LongArray(4)
-                        cornerTo(src, b, snap = true)
                         scope.launch { alpha.animateTo(1f, Motion.tw(140)) }
                     } else {
                         val dx = b.center.x - (edges[0].value + edges[2].value) / 2f
@@ -394,21 +409,13 @@ private fun Modifier.focusGlideOverlay(glide: FocusGlide): Modifier {
                 val l = edges[0].value; val t = edges[1].value; val r = edges[2].value; val b = edges[3].value
                 val sw = (r - l - w).coerceAtLeast(0f)
                 val sh = (b - t - w).coerceAtLeast(0f)
-                val rad = (corner.value - w / 2f).coerceIn(0f, minOf(sw, sh) / 2f)
+                val radii = FloatArray(4) { corners[it].value }
                 val f = solid.value
-                if (f > 0.01f) drawRoundRect(
-                    color, topLeft = Offset(l, t), size = Size(r - l, b - t),
-                    cornerRadius = CornerRadius(corner.value), alpha = a * f,
-                )
+                if (f > 0.01f) drawPath(ringRect(l, t, r - l, b - t, radii, 0f), color, alpha = a * f)
                 if (f < 0.99f) {
-                    drawRoundRect(
-                        color, topLeft = Offset(l + w / 2f, t + w / 2f), size = Size(sw, sh),
-                        cornerRadius = CornerRadius(rad), alpha = a * (1f - f) * fillAlpha,
-                    )
-                    drawRoundRect(
-                        color, topLeft = Offset(l + w / 2f, t + w / 2f), size = Size(sw, sh),
-                        cornerRadius = CornerRadius(rad), style = Stroke(w), alpha = a,
-                    )
+                    val inner = ringRect(l + w / 2f, t + w / 2f, sw, sh, radii, w / 2f)
+                    drawPath(inner, color, alpha = a * (1f - f) * fillAlpha)
+                    drawPath(inner, color, style = Stroke(w), alpha = a)
                 }
             }
 }

@@ -164,6 +164,9 @@ jobs:
             !/docs/releases/media/
           sparse-checkout-cone-mode: false
           persist-credentials: false
+      - name: Clear scratch earlier runs left behind
+        if: runner.environment == 'self-hosted'
+        run: bash tools/ci/clear-runner-scratch.sh "$GITHUB_WORKSPACE"
       - name: Merge the pinned APK base
         if: github.event_name == 'pull_request'
         env:
@@ -366,6 +369,10 @@ jobs:
           sparse-checkout-cone-mode: false
           persist-credentials: false
           submodules: recursive
+
+      - name: Clear scratch earlier runs left behind
+        if: runner.environment == 'self-hosted'
+        run: bash tools/ci/clear-runner-scratch.sh "$GITHUB_WORKSPACE"
 
       - name: Check human authorship
         env:

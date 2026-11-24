@@ -332,7 +332,6 @@
     <string name="mode_startup">การเริ่มทำงาน</string>
     <string name="mode_startup_session">เปิดเมื่อเริ่มต้น</string>
     <string name="mode_startup_session_hint">เริ่มเซสชันนี้เมื่อเปิด DroidDeck</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">กำลังค้นหารุ่นที่เผยแพร่…</string>
     <string name="mode_decky_ready">พร้อมติดตั้ง %1$s</string>
     <string name="mode_decky_none">ไม่พบบิลด์ที่เข้ากันได้ ลองใหม่อีกครั้งในหลัง</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">เป็นรุ่นล่าสุดแล้ว · %1$s</string>
     <string name="mode_decky_loader">ตัวโหลด</string>
     <string name="mode_decky_install_latest">ติดตั้งรุ่นล่าสุด</string>
-    <string name="decky_channel">ช่องทางอัปเดต</string>
-    <string name="decky_channel_hint">รุ่นของ Decky Loader ที่จะติดตั้ง ตัวอัปเดตของ Decky เองก็ใช้ช่องทางเดียวกัน</string>
     <string name="decky_channel_stable">เสถียร</string>
     <string name="decky_channel_prerelease">ก่อนเปิดตัว</string>
     <string name="decky_channel_testing">ทดสอบ</string>
     <string name="decky_channel_failed">บันทึกช่องทางอัปเดตของ Decky ไม่ได้</string>
-    <string name="mode_decky_on">เริ่มพร้อมกับ Steam เมื่อเปิดใช้งาน แอปอื่นบนอุปกรณ์นี้อาจสามารถควบคุม Steam ได้</string>
-    <string name="mode_decky_off">ปิดอยู่ พอร์ตดีบักระยะไกลของ Steam ยังคงปิดอยู่</string>
     <string name="mode_decky_remove_title">ถอนการติดตั้ง Decky Loader?</string>
     <string name="mode_decky_remove_text">ลบตัวโหลดออก พลักอินและการตั้งค่าของคุณจะยังคงอยู่</string>
     <string name="mode_client">ไคลเอนต์</string>

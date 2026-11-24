@@ -332,7 +332,6 @@
     <string name="mode_startup">Εκκίνηση</string>
     <string name="mode_startup_session">Άνοιγμα κατά την εκκίνηση</string>
     <string name="mode_startup_session_hint">Ξεκινά αυτή τη συνεδρία όταν ανοίγει το DroidDeck.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Έλεγχος για εκδόσεις…</string>
     <string name="mode_decky_ready">Έτοιμο για εγκατάσταση %1$s.</string>
     <string name="mode_decky_none">Δεν βρέθηκε συμβατό build. Δοκιμάστε ξανά αργότερα.</string>
@@ -341,14 +340,10 @@
     <string name="mode_decky_current">Ενημερωμένο · %1$s</string>
     <string name="mode_decky_loader">Φορτωτής</string>
     <string name="mode_decky_install_latest">Εγκατάσταση τελευταίας έκδοσης</string>
-    <string name="decky_channel">Κανάλι ενημερώσεων</string>
-    <string name="decky_channel_hint">Ποιες εκδόσεις του Decky Loader θα εγκατασταθούν. Το πρόγραμμα ενημέρωσης του Decky χρησιμοποιεί το ίδιο κανάλι.</string>
     <string name="decky_channel_stable">Σταθερό</string>
     <string name="decky_channel_prerelease">Προέκδοση</string>
     <string name="decky_channel_testing">Δοκιμαστικό</string>
     <string name="decky_channel_failed">Δεν ήταν δυνατή η αποθήκευση του καναλιού ενημερώσεων του Decky</string>
-    <string name="mode_decky_on">Ξεκινά με το Steam. Όσο είναι ενεργό, άλλες εφαρμογές σε αυτή τη συσκευή μπορεί να είναι σε θέση να ελέγξουν το Steam.</string>
-    <string name="mode_decky_off">Ανενεργό. Η θύρα απομακρυσμένου εντοπισμού σφαλμάτων του Steam παραμένει κλειστή.</string>
     <string name="mode_decky_remove_title">Κατάργηση εγκατάστασης του Decky Loader;</string>
     <string name="mode_decky_remove_text">Καταργεί τον loader. Τα plugins και οι ρυθμίσεις σας διατηρούνται.</string>
     <string name="mode_client">Πελάτης</string>

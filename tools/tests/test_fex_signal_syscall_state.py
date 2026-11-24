@@ -24,7 +24,7 @@ class SignalReturnSyscallStateTest(unittest.TestCase):
         self.assertEqual(files, ["Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp"])
         self.assertEqual(len(found), 1)
 
-    def test_every_guest_frame_return_restores_the_interrupted_syscall_state(self):
+    def test_only_returns_to_jit_code_restore_the_saved_syscall_state(self):
         _, found = hunks()
         function, body = found[0]
         self.assertIn("SignalDelegator::RestoreThreadState", function)
@@ -34,10 +34,12 @@ class SignalReturnSyscallStateTest(unittest.TestCase):
         self.assertEqual(added, [RESTORE])
         self.assertEqual(removed, [])
         context = [line[1:].strip() for line in lines]
-        guest_frame = context.index("if (Context->UContextLocation) {")
-        self.assertEqual(context[guest_frame + 1], "auto Frame = Thread->CurrentFrame;")
-        self.assertEqual(context[guest_frame + 2], RESTORE)
-        self.assertLess(context.index(RESTORE), context.index("if (Context->Flags & ArchHelpers::Context::ContextFlags::CONTEXT_FLAG_INJIT) {"))
+        self.assertEqual(context[0], "auto Frame = Thread->CurrentFrame;")
+        in_jit = context.index("if (Context->Flags & ArchHelpers::Context::ContextFlags::CONTEXT_FLAG_INJIT) {")
+        restore = context.index(RESTORE)
+        self.assertLess(in_jit, restore)
+        self.assertEqual(context[restore + 1], "}")
+        self.assertLess(restore, context.index("RestoreFrame_x64(Thread, Context, Frame, ucontext);"))
 
     def test_thread_pause_returns_are_untouched(self):
         _, found = hunks()
