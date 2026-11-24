@@ -71,8 +71,9 @@ object SteamClientPrefetch {
         LinuxRuntime.writeAccounts(context)
         SessionFiles.stage(context, root)
         val install = installPending(context)
-        script(context, listOf("--cache"), label, 0, if (install) 90 else 100)?.let { return it }
-        return if (install) script(context, emptyList(), label, 90, 100) else null
+        val cacheProblem = script(context, listOf("--cache"), label, 0, if (install) 90 else 100)
+        if (cacheProblem == CANCELLED || !install) return cacheProblem
+        return script(context, emptyList(), label, 90, 100)
     }
 
     private fun script(context: Context, args: List<String>, label: (Int) -> String, from: Int, to: Int): String? {

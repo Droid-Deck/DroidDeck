@@ -399,6 +399,40 @@ done(28 if end < len(data) else 0)
         self.assertEqual(0, again.returncode, again.stderr)
         self.assertEqual(2, len(self.requested()))
 
+    def test_a_failed_apply_clears_the_cache_marker_and_the_old_record_so_it_is_retried(self):
+        self.real_cache_manifest()
+        package = self.steam / 'package'
+        package.mkdir(parents=True)
+        name = 'steam_client_steamdeck_publicbeta_linuxarm64'
+        (package / (name + '.installed')).write_text('old\n')
+        failing = self.root / 'failing-apply'
+        failing.write_text('import sys\nsys.exit(1)\n')
+        failing.chmod(0o755)
+        result = self.install(None, '--cache', DD_STEAM_PREAPPLY=str(failing))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse((package / (name + '.installed')).exists())
+        self.assertFalse((package / 'droiddeck-cached').exists())
+        self.assertEqual((self.cdn / 'a.zip.1111').read_bytes(), (package / 'a.zip.1111').read_bytes())
+
+    def test_cancelling_the_cache_pass_stops_the_apply_helper(self):
+        self.real_cache_manifest()
+        pidfile = self.root / 'apply.pid'
+        slow = self.root / 'slow-apply'
+        slow.write_text(f'import os, time\nopen({str(pidfile)!r}, "w").write(str(os.getpid()))\ntime.sleep(30)\n')
+        slow.chmod(0o755)
+        process = subprocess.Popen(['bash', str(SCRIPT), '--cache'], env=dict(self.env, DD_STEAM_PREAPPLY=str(slow)),
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for _ in range(100):
+            if pidfile.exists() and pidfile.read_text().strip():
+                break
+            time.sleep(0.1)
+        helper = int(pidfile.read_text())
+        process.terminate()
+        process.wait(timeout=10)
+        time.sleep(0.3)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(helper, 0)
+
     def test_a_cache_pass_that_cannot_apply_the_update_keeps_the_packages_for_steam(self):
         self.cache_manifest()
         result = self.install(None, '--cache', DD_STEAM_PREAPPLY=str(self.PREAPPLY))

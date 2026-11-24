@@ -26,6 +26,7 @@ object ProtonExtras {
     @Volatile var prefetching = false
         private set
     @Volatile private var checkedArchive: Triple<String, Long, Long>? = null
+    @Volatile private var checkedDigest: String? = null
 
     private fun fingerprint(archive: File) = Triple(archive.path, archive.length(), archive.lastModified())
     @Volatile
@@ -264,6 +265,7 @@ object ProtonExtras {
         if (StatFs(context.filesDir.path).availableBytes < NEED_BYTES + missing) return context.getString(R.string.pextra_no_space, tool.name)
         val problem = fetchArchive(context, tool, asset, archive, onProgress)
         checkedArchive = if (problem == null && asset.sha256 != null && asset.size > 0 && archive.length() == asset.size) fingerprint(archive) else null
+        checkedDigest = if (checkedArchive != null) asset.sha256 else null
         return problem
     }
 
@@ -280,7 +282,8 @@ object ProtonExtras {
             return context.getString(R.string.pextra_no_space, tool.name)
         }
 
-        val checked = asset.sha256 != null && asset.size > 0 && checkedArchive == fingerprint(archive)
+        val checked = asset.sha256 != null && asset.size > 0 && checkedArchive == fingerprint(archive) &&
+            checkedDigest.equals(asset.sha256, ignoreCase = true)
         if (!checked) fetchArchive(context, tool, asset, archive, onProgress)?.let { return it }
         if (asset.size > 0 && archive.length() != asset.size) {
             if (archive.length() > asset.size) {

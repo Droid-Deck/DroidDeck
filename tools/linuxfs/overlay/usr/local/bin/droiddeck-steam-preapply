@@ -32,7 +32,12 @@ def unvz(d):
     return out
 
 
+def inside(root, path):
+    return os.path.commonpath([root, path]) == root
+
+
 def main(package_dir, steam_root, manifest_path, name):
+    steam_root = os.path.realpath(steam_root)
     manifest = open(manifest_path, encoding="utf-8", errors="replace").read()
     rows = {}
     for block, attrs in blocks(manifest).items():
@@ -48,7 +53,11 @@ def main(package_dir, steam_root, manifest_path, name):
         with zipfile.ZipFile(io.BytesIO(zdata)) as z:
             for info in z.infolist():
                 rel = info.filename.replace("\\", "/")
+                if rel.startswith("/") or ".." in rel.split("/"):
+                    raise SystemExit(f"unsafe path in {block}: {rel}")
                 dest = os.path.join(steam_root, rel)
+                if not inside(steam_root, os.path.realpath(os.path.dirname(dest.rstrip("/")))):
+                    raise SystemExit(f"path leaves the Steam root in {block}: {rel}")
                 mode = (info.external_attr >> 16) & 0xFFFF
                 mtime = calendar.timegm(info.date_time + (0, 0, 0)) + MTIME_OFFSET
                 if rel.endswith("/"):

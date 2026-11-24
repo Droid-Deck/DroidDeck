@@ -124,5 +124,34 @@ class SteamPreapplyTest(unittest.TestCase):
         self.assertFalse((self.steam / 'package' / (NAME + '.installed')).exists())
 
 
+    def package_with(self, entries):
+        (self.packages / 'a.zip.1111').write_bytes(zip_bytes(entries))
+        self.write_manifest({'a_all': {'file': 'a.zip.1111', 'size': 1, 'sha2': '00'}})
+
+    def test_a_path_that_leaves_the_steam_root_is_refused(self):
+        stamp = (2025, 5, 17, 10, 30, 0)
+        for name in ('../outside', '/abs/outside', 'a/../../outside'):
+            with self.subTest(name=name):
+                self.package_with([(name, b'x', 0o100644, stamp)])
+                self.assertNotEqual(0, self.run_script().returncode)
+                self.assertFalse((self.steam / 'package' / (NAME + '.installed')).exists())
+                self.assertFalse((Path(self.temp.name) / 'outside').exists())
+
+    def test_a_file_cannot_be_written_through_a_symlink_that_leaves_the_steam_root(self):
+        stamp = (2025, 5, 17, 10, 30, 0)
+        target = Path(self.temp.name) / 'elsewhere'
+        target.mkdir()
+        self.package_with([('link', str(target).encode(), 0o120777, stamp), ('link/file', b'x', 0o100644, stamp)])
+        self.assertNotEqual(0, self.run_script().returncode)
+        self.assertFalse((target / 'file').exists())
+
+    def test_a_symlink_inside_the_steam_root_still_carries_files(self):
+        stamp = (2025, 5, 17, 10, 30, 0)
+        self.package_with([('real/', b'', 0o40755, stamp), ('alias', b'real', 0o120777, stamp),
+                           ('alias/file', b'x', 0o100644, stamp)])
+        self.assertEqual(0, self.run_script().returncode)
+        self.assertEqual(b'x', (self.steam / 'real/file').read_bytes())
+
+
 if __name__ == '__main__':
     unittest.main()
