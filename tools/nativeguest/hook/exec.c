@@ -9,17 +9,73 @@
 // Runs before every exec, mostly in a child a shell has just forked: the copies write only the
 // string (ddnatv_copy_cstr), not the whole PATH_MAX buffer, since each page written there is a
 // copy-on-write fault.
+static int follow_link(const char *path, char *target, size_t size) {
+    ssize_t len = readlink(path, target, size - 1);
+    if (len < 0) return 0;
+    target[len] = '\0';
+    // proot's link2symlink leaves hard links as ".l2s.*" files that programs must not see by name
+    const char *base = strrchr(target, '/');
+    return strncmp(base ? base + 1 : target, ".l2s.", 5) != 0;
+}
+
 static void resolve_symlinks(const char *path, char *out, size_t out_size, int depth) {
     if (!path || !out || out_size == 0) return;
     ddnatv_copy_cstr(out, out_size, path);
     if (depth > 8) return;
-
     char link_target[PATH_MAX];
-    ssize_t len = readlink(path, link_target, sizeof(link_target) - 1);
-    if (len < 0) return;
-    link_target[len] = '\0';
-
     char next_path[PATH_MAX];
+    if (g_ddnatv_root_len > 0 && strncmp(path, g_ddnatv_root, g_ddnatv_root_len) == 0 && path[g_ddnatv_root_len] == '/') {
+        char done[PATH_MAX];
+        char todo[PATH_MAX];
+        size_t used = ddnatv_append(done, sizeof(done), 0, g_ddnatv_root, g_ddnatv_root_len);
+        ddnatv_copy_cstr(todo, sizeof(todo), path + g_ddnatv_root_len);
+        int links = 0;
+        char *rest = todo;
+        while (*rest) {
+            while (*rest == '/') rest++;
+            if (!*rest) break;
+            char *end = strchr(rest, '/');
+            size_t n = end ? (size_t)(end - rest) : strlen(rest);
+            if (n == 1 && rest[0] == '.') {
+                rest += n;
+                continue;
+            }
+            if (n == 2 && rest[0] == '.' && rest[1] == '.') {
+                char *slash = strrchr(done + g_ddnatv_root_len, '/');
+                if (slash) used = (size_t)(slash - done);
+                done[used] = '\0';
+                rest += n;
+                continue;
+            }
+            size_t before = used;
+            used = ddnatv_append(done, sizeof(done), used, "/", 1);
+            used = ddnatv_append(done, sizeof(done), used, rest, n);
+            rest += n;
+            if (used >= sizeof(done) - 1) return;
+            if (!follow_link(done, link_target, sizeof(link_target))) {
+                struct stat st;
+                if (rest[strspn(rest, "/")] && (syscall(SYS_newfstatat, AT_FDCWD, done, &st, 0) != 0 || !S_ISDIR(st.st_mode))) return;
+                continue;
+            }
+            if (++links > 40) return;
+            size_t m = ddnatv_append(next_path, sizeof(next_path), 0, link_target, strlen(link_target));
+            m = ddnatv_append(next_path, sizeof(next_path), m, "/", 1);
+            m = ddnatv_append(next_path, sizeof(next_path), m, rest, strlen(rest));
+            if (m >= sizeof(next_path) - 1) return;
+            if (link_target[0] == '/') {
+                char rw_buf[PATH_MAX];
+                resolve_symlinks(rewrite_path(next_path, rw_buf, sizeof(rw_buf)), out, out_size, depth + 1);
+                return;
+            }
+            used = before;
+            done[used] = '\0';
+            ddnatv_copy_cstr(todo, sizeof(todo), next_path);
+            rest = todo;
+        }
+        if (used > g_ddnatv_root_len) ddnatv_copy_cstr(out, out_size, done);
+        return;
+    }
+    if (!follow_link(path, link_target, sizeof(link_target))) return;
     if (link_target[0] == '/') {
         char rw_buf[PATH_MAX];
         const char *rewritten = rewrite_path(link_target, rw_buf, sizeof(rw_buf));
@@ -32,15 +88,11 @@ static void resolve_symlinks(const char *path, char *out, size_t out_size, int d
             memcpy(next_path, path, dir_len);
             next_path[dir_len] = '\0';
             size_t n = ddnatv_append(next_path, sizeof(next_path), dir_len, "/", 1);
-            ddnatv_append(next_path, sizeof(next_path), n, link_target, (size_t)len);
+            ddnatv_append(next_path, sizeof(next_path), n, link_target, strlen(link_target));
         } else {
             ddnatv_copy_cstr(next_path, sizeof(next_path), link_target);
         }
     }
-    // proot's link2symlink leaves hard links as ".l2s.*" files that programs must not see by name
-    const char *next_base = strrchr(next_path, '/');
-    next_base = next_base ? next_base + 1 : next_path;
-    if (strncmp(next_base, ".l2s.", 5) == 0) return;
     resolve_symlinks(next_path, out, out_size, depth + 1);
 }
 
