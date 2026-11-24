@@ -38,6 +38,7 @@ class WirelessAdbPairingService : Service() {
     private var pairingHost: String? = null
     private var pairingPort: Int? = null
     @Volatile private var working = false
+    @Volatile private var limitEnabled = false
     private val timeout = Runnable { finish(Stage.Failed(getString(R.string.adbpair_timed_out))) }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -50,12 +51,13 @@ class WirelessAdbPairingService : Service() {
                 onCode(code)
             }
             ACTION_CANCEL -> finish(Stage.Idle)
-            else -> begin()
+            else -> begin(intent?.getBooleanExtra(EXTRA_ENABLE_LIMIT, false) == true)
         }
         return START_NOT_STICKY
     }
 
-    private fun begin() {
+    private fun begin(enableLimit: Boolean) {
+        limitEnabled = enableLimit
         pairingHost = null
         pairingPort = null
         working = false
@@ -133,7 +135,7 @@ class WirelessAdbPairingService : Service() {
                 val connectPort = WirelessAdbFix.localConnectPort(this)
                     ?: error(getString(R.string.adbpair_port_not_found))
                 main.post { show(Stage.Working(getString(R.string.adbpair_applying))) }
-                WirelessAdbFix.setChildProcessLimit(this, WirelessAdbFix.LOOPBACK, connectPort, false)
+                WirelessAdbFix.setChildProcessLimit(this, WirelessAdbFix.LOOPBACK, connectPort, limitEnabled)
             }
             main.post {
                 working = false
@@ -248,6 +250,7 @@ class WirelessAdbPairingService : Service() {
         private const val ACTION_CODE = "com.droiddeck.launcher.action.WIRELESS_ADB_CODE"
         private const val ACTION_CANCEL = "com.droiddeck.launcher.action.WIRELESS_ADB_CANCEL"
         private const val KEY_CODE = "code"
+        private const val EXTRA_ENABLE_LIMIT = "enable_limit"
         private const val TIMEOUT_MS = 5 * 60_000L
 
         private val current = MutableStateFlow<Stage>(Stage.Idle)
@@ -255,10 +258,10 @@ class WirelessAdbPairingService : Service() {
 
         private fun publish(stage: Stage) { current.value = stage }
 
-        fun start(context: Context) {
+        fun start(context: Context, enableLimit: Boolean = false) {
             context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
             publish(Stage.Waiting)
-            val intent = Intent(context, WirelessAdbPairingService::class.java)
+            val intent = Intent(context, WirelessAdbPairingService::class.java).putExtra(EXTRA_ENABLE_LIMIT, enableLimit)
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
         }
 

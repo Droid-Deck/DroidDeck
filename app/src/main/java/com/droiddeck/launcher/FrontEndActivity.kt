@@ -1773,31 +1773,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         },
                         onRefreshPhantomStatus = { refreshPhantomStatus() },
                         onOpenDeveloperOptions = { displayId -> openDeveloperOptions(displayId) },
-                        onWirelessAdbPair = { host, port, code, complete ->
-                            Thread({
-                                val result = runCatching {
-                                    kotlinx.coroutines.runBlocking { WirelessAdbFix.pair(this@FrontEndActivity, host, port, code) }
-                                }
-                                val error = result.exceptionOrNull()?.let { it.localizedMessage ?: getString(R.string.main_wadb_pair_failed) }
-                                ui.post { complete(error) }
-                            }, "wireless-adb-pair").start()
-                        },
-                        onFindWirelessAdbPort = { host, complete ->
-                            Thread({
-                                val port = WirelessAdbFix.findConnectPort(this@FrontEndActivity, host)
-                                ui.post { complete(port) }
-                            }, "wireless-adb-discovery").start()
-                        },
-                        onWirelessAdbApply = { host, port, enabled, complete ->
-                            Thread({
-                                val result = runCatching { WirelessAdbFix.setChildProcessLimit(this@FrontEndActivity, host, port, enabled) }
-                                val error = result.exceptionOrNull()?.let { it.localizedMessage ?: getString(R.string.main_wadb_command_failed) }
-                                ui.post {
-                                    if (error == null) refreshPhantomStatus()
-                                    complete(error)
-                                }
-                            }, "wireless-adb-fix").start()
-                        },
                         onSetPhantomProcessLimit = { enabled, complete ->
                             Thread({
                                 val result = runCatching { WirelessAdbFix.setUsingSavedPairing(this@FrontEndActivity, enabled) }
@@ -1819,13 +1794,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             refreshPhantomStatus()
                             showPhantomGate = true
                         },
-                        onStartWirelessAdbPairing = { WirelessAdbPairingService.start(this) },
+                        onStartWirelessAdbPairing = { enabled -> WirelessAdbPairingService.start(this, enabled) },
                         onStartPairingGuide = { displayId, toggleOnly -> PairingGuideActivity.start(this, displayId, toggleOnly) },
-                        onOpenNotificationSettings = {
-                            startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                        },
+                        onEnsureNotifications = { done -> ensureNotifications(done) },
                         updates = updates.actions(),
                         controller = ControllerActions(
                             onMapping = { showPerformance = false; showComponents = false; showMapping = true },
@@ -3364,6 +3335,39 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         return true
     }
 
+    private var notificationsDone: ((Boolean) -> Unit)? = null
+
+    private fun ensureNotifications(done: (Boolean) -> Unit) {
+        if (WirelessAdbPairingService.notificationsEnabled(this)) {
+            done(true)
+            return
+        }
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationsDone = done
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+            return
+        }
+        openNotificationSettings()
+        done(false)
+    }
+
+    private fun openNotificationSettings() {
+        android.widget.Toast.makeText(this, R.string.gate_notifications_toast, android.widget.Toast.LENGTH_LONG).show()
+        startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_NOTIFICATIONS) return
+        val done = notificationsDone ?: return
+        notificationsDone = null
+        val granted = WirelessAdbPairingService.notificationsEnabled(this)
+        if (!granted) openNotificationSettings()
+        done(granted)
+    }
+
     private fun refreshPhantomStatus() {
         phantomProcessStatus = PhantomProcessLimit.read(this)
         adbPaired = WirelessAdbFix.hasSavedPairing(this)
@@ -3496,6 +3500,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     companion object {
+        private const val REQUEST_NOTIFICATIONS = 7103
         private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
         private const val KEY_PENDING_SESSION_LOG_EXPORT = "pending_session_log_export"
         private const val STATE_GAME_SPACE_OFFERED = "game_space_offered"
