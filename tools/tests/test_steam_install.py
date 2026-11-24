@@ -2,8 +2,10 @@ import hashlib
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import tempfile
+import time
 import unittest
 import zipfile
 
@@ -526,49 +528,75 @@ class SteamInstallParallelTest(SteamInstallTest):
         region = source[source.index('run_parallel() {'):source.index('fetch_manifest() {')]
         self.assertNotIn('unzip -qo', region)
         self.assertIn('unzip_alone', region)
-        self.assertIn('mkdir "$lock"', source)
-        self.assertNotIn('without the lock', source)
+        self.assertIn('flock 9', source)
 
-    def unzip_alone(self, lock_owner, wait, files=None):
-        """Runs the unzip_alone function by itself against a lock somebody already holds."""
+    def unzip_alone_script(self):
         source = SCRIPT.read_text()
         start = source.index('unzip_alone() {')
         function = source[start:source.index('\n}\n', start) + 3]
-        archive = self.root / 'one.zip'
+        return 'state=$1\nsteam_root=$2\n' + function + '\nunzip_alone "$3"\n'
+
+    def unzip_alone_archive(self, name='one.zip', entry='steamrtarm64/steam'):
+        archive = self.root / name
         with zipfile.ZipFile(archive, 'w') as package:
-            package.writestr('steamrtarm64/steam', 'client')
+            package.writestr(entry, 'client')
         self.steam.mkdir(parents=True, exist_ok=True)
-        state = self.root / 'state'
-        (state / 'unzip.lock').mkdir(parents=True)
-        if lock_owner is not None:
-            (state / 'unzip.lock/owner').write_text(f'{lock_owner}\n')
-        script = f'state={state}\nsteam_root={self.steam}\n{function}\nunzip_alone {archive}\n'
+        (self.root / 'state').mkdir(exist_ok=True)
+        return archive
+
+    def run_unzip_alone(self, archive, timeout, env=None):
+        arguments = ['bash', '-c', self.unzip_alone_script(), 'bash', str(self.root / 'state'), str(self.steam), str(archive)]
         try:
-            result = subprocess.run(['bash', '-c', script], text=True, capture_output=True, timeout=wait)
+            return subprocess.run(arguments, text=True, capture_output=True, timeout=timeout, env=env)
         except subprocess.TimeoutExpired:
             return None
-        return result
 
-    def test_a_lock_left_by_a_dead_worker_is_taken_over(self):
-        gone = subprocess.Popen(['true'])
-        gone.wait()
-        result = self.unzip_alone(gone.pid, wait=30)
-        self.assertIsNotNone(result, 'the lock of a dead worker was never taken over')
+    def test_a_package_waits_for_a_worker_that_is_unpacking(self):
+        archive = self.unzip_alone_archive()
+        holder = subprocess.Popen(['flock', str(self.root / 'state/unzip.lock'), 'sleep', '60'])
+        self.addCleanup(holder.kill)
+        time.sleep(0.5)
+        self.assertIsNone(self.run_unzip_alone(archive, timeout=4), 'unzip_alone did not wait for the holder')
+        self.assertFalse((self.steam / 'steamrtarm64/steam').exists())
+
+    def test_a_worker_killed_while_unpacking_hands_the_lock_on(self):
+        archive = self.unzip_alone_archive()
+        holder = subprocess.Popen(['flock', str(self.root / 'state/unzip.lock'), 'sleep', '60'], start_new_session=True)
+        time.sleep(0.5)
+        os.killpg(holder.pid, signal.SIGKILL)
+        holder.wait()
+        result = self.run_unzip_alone(archive, timeout=20)
+        self.assertIsNotNone(result, 'the lock of a killed worker was never handed on')
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertTrue((self.steam / 'steamrtarm64/steam').is_file())
 
-    def test_a_lock_held_by_a_live_worker_is_waited_for_and_never_bypassed(self):
-        holder = subprocess.Popen(['sleep', '60'])
-        self.addCleanup(holder.kill)
-        result = self.unzip_alone(holder.pid, wait=9)
-        self.assertIsNone(result, 'unzip_alone gave up waiting for a live holder')
-        self.assertFalse((self.steam / 'steamrtarm64/steam').exists())
-        self.assertEqual(f'{holder.pid}\n', (self.root / 'state/unzip.lock/owner').read_text())
+    def test_several_workers_never_unpack_at_the_same_moment(self):
+        log = self.root / 'unzip.log'
+        fake = self.bin / 'unzip'
+        fake.write_text('''#!/usr/bin/env python3
+import os, sys, time
+log = os.environ['TEST_UNZIP_LOG']
+with open(log, 'a') as out:
+    out.write(f'start {os.getpid()}\\n')
+time.sleep(0.3)
+with open(log, 'a') as out:
+    out.write(f'end {os.getpid()}\\n')
+''')
+        fake.chmod(0o755)
+        archive = self.unzip_alone_archive()
+        env = dict(self.env, TEST_UNZIP_LOG=str(log))
+        arguments = ['bash', '-c', self.unzip_alone_script(), 'bash', str(self.root / 'state'), str(self.steam), str(archive)]
+        workers = [subprocess.Popen(arguments, env=env) for _ in range(8)]
+        for worker in workers:
+            self.assertEqual(0, worker.wait(timeout=60))
+        lines = log.read_text().split()
+        events = lines[0::2]
+        self.assertEqual(['start', 'end'] * 8, events, 'two workers unpacked at the same time')
 
-    def test_a_lock_that_never_got_an_owner_is_taken_over(self):
-        result = self.unzip_alone(None, wait=60)
-        self.assertIsNotNone(result, 'a lock without an owner was never taken over')
-        self.assertEqual(0, result.returncode, result.stderr)
+    def test_without_flock_the_downloads_go_one_at_a_time(self):
+        source = SCRIPT.read_text()
+        self.assertIn('command -v flock', source)
+        self.assertIn('|| parallel=1', source)
 
     def test_the_parallel_workers_use_no_process_substitution(self):
         source = SCRIPT.read_text()

@@ -166,34 +166,14 @@ fetch_one() {
 
 parallel=${DD_STEAM_PARALLEL:-4}
 case $parallel in ''|*[!0-9]*|0) parallel=1 ;; esac
+command -v flock > /dev/null 2>&1 || parallel=1
 
 # unzip creates parent directories without guarding against another unzip doing the same, so two packages unpacked into
-# one tree at once fail now and then. Unpacking is quick next to downloading, so the workers take turns. The lock records
-# who holds it: a holder that was killed is taken over, a live one is always waited for, and only its owner lets go.
+# one tree at once fail now and then. Unpacking is quick next to downloading, so the workers take turns on a flock: the
+# kernel hands it on when its holder ends, however it ends, so there is no stale lock to recover.
 unzip_alone() {
-  local lock=$state/unzip.lock ticks=0 blank=0 owner stale rc
-  until mkdir "$lock" 2>/dev/null; do
-    ticks=$((ticks + 1))
-    if [ $((ticks % 100)) = 0 ]; then
-      owner=$(cat "$lock/owner" 2>/dev/null || true)
-      if [ -z "$owner" ]; then blank=$((blank + 1)); else blank=0; fi
-      if { [ -n "$owner" ] && ! kill -0 "$owner" 2>/dev/null; } || [ "$blank" -ge 5 ]; then
-        stale=$lock.stale.$BASHPID
-        if mv "$lock" "$stale" 2>/dev/null; then
-          if [ "$(cat "$stale/owner" 2>/dev/null || true)" = "$owner" ]; then
-            rm -rf "$stale"
-          else
-            mv "$stale" "$lock" 2>/dev/null || rm -rf "$stale"
-          fi
-        fi
-        blank=0
-      fi
-    fi
-    sleep 0.05
-  done
-  echo "$BASHPID" > "$lock/owner"
-  unzip -qo "$1" -d "$steam_root" && rc=0 || rc=$?
-  if [ "$(cat "$lock/owner" 2>/dev/null || true)" = "$BASHPID" ]; then rm -rf "$lock"; fi
+  local rc
+  ( flock 9 && unzip -qo "$1" -d "$steam_root" ) 9> "$state/unzip.lock" && rc=0 || rc=$?
   return $rc
 }
 

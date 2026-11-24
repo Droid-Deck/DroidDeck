@@ -2237,8 +2237,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     override fun onDestroy() {
         // The queued launch was saved before this; a restored activity keeps its copy, and this one must not start it too.
-        queuedLaunch.clear()
-        gateLaunchRetry?.let(ui::removeCallbacks)
+        queuedLaunchRunner.destroy()
         triggerKeys.cancel()
         gameLaunchRequest.incrementAndGet()
         cancelCompatLaunch()
@@ -3389,8 +3388,16 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private val queuedLaunch = com.droiddeck.launcher.session.QueuedLaunch<Intent>(GATE_LAUNCH_MS)
-    private var gateLaunchPosted = false
-    private var gateLaunchRetry: Runnable? = null
+    private val queuedLaunchRunner = com.droiddeck.launcher.session.QueuedLaunchRunner(
+        queue = queuedLaunch,
+        now = System::currentTimeMillis,
+        blocked = { PhantomProcessLimit.blocksSteam(phantomProcessStatus) },
+        busy = ::steamStartBusy,
+        schedule = { delay, task -> if (delay <= 0L) ui.post(task) else ui.postDelayed(task, delay) },
+        unschedule = ui::removeCallbacks,
+        start = { launch -> startSession(launch, steamSession = true, queueIfBlocked = true) },
+        retryMs = GATE_LAUNCH_RETRY_MS,
+    )
 
     /** The conditions under which a Steam start waits instead of being refused: setup, a runtime or desktop install, or a storage cleanup. */
     private fun steamStartBusy(): Boolean = busy || LinuxRuntimeInstaller.isBusy() || com.droiddeck.launcher.session.Onboarding.settling() ||
@@ -3398,22 +3405,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun refreshPhantomStatus() {
         phantomProcessStatus = PhantomProcessLimit.read(this)
-        queuedLaunch.current(System.currentTimeMillis())?.takeIf { !PhantomProcessLimit.blocksSteam(phantomProcessStatus) && !gateLaunchPosted }?.let { launch ->
-            showPhantomGate = false
-            gateLaunchPosted = true
-            ui.post {
-                gateLaunchPosted = false
-                if (queuedLaunch.current(System.currentTimeMillis()) !== launch) return@post
-                if (steamStartBusy()) {
-                    val retry = Runnable { if (queuedLaunch.launch === launch) refreshPhantomStatus() }
-                    gateLaunchRetry = retry
-                    ui.postDelayed(retry, GATE_LAUNCH_RETRY_MS)
-                    return@post
-                }
-                queuedLaunch.clear()
-                startSession(launch, steamSession = true, queueIfBlocked = true)
-            }
-        }
+        if (queuedLaunch.launch != null && !PhantomProcessLimit.blocksSteam(phantomProcessStatus)) showPhantomGate = false
+        queuedLaunchRunner.poke()
         adbPaired = WirelessAdbFix.hasSavedPairing(this)
         phantomWarning = if (PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             getString(
