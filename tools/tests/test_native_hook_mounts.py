@@ -15,6 +15,7 @@ PROBE = r"""
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 int main(int argc, char **argv) {
@@ -37,6 +38,26 @@ int main(int argc, char **argv) {
       int ok = fd >= 0 && fstatat(fd, rel ? rel : "..", &st, 0) == 0 && stat(want ? want : "/", &expected) == 0;
       printf("%s\t%d\n", argv[i], ok && st.st_dev == expected.st_dev && st.st_ino == expected.st_ino);
       if (fd >= 0) close(fd);
+      continue;
+    }
+    if (strncmp(argv[i], "fork:", 5) == 0) {
+      fflush(stdout);
+      pid_t pid = fork();
+      if (pid == 0) {
+        int p[2];
+        char path[64], data[8] = "-";
+        if (pipe(p) == 0 && write(p[1], "x", 1) == 1 && dup2(p[0], 63) == 63) {
+          snprintf(path, sizeof(path), "%s/63", argv[i] + 5);
+          int fd = open(path, O_RDONLY);
+          ssize_t n = fd >= 0 ? read(fd, data, sizeof(data) - 1) : -1;
+          if (n > 0) data[n] = 0;
+          if (fd >= 0) close(fd);
+        }
+        printf("%s\t%s\n", argv[i], data);
+        fflush(stdout);
+        _exit(0);
+      }
+      waitpid(pid, NULL, 0);
       continue;
     }
     if (strncmp(argv[i], "cd:", 3) == 0) {
@@ -152,6 +173,10 @@ class NativeHookMountTest(unittest.TestCase):
                              cwd=self.tmp.name)
         self.assertEqual(out.returncode, 0, out.stderr)
         return {line.split("\t")[0]: line.split("\t")[1:] for line in out.stdout.splitlines()}
+
+    def test_dev_fd_in_a_forked_child_names_the_child_descriptors(self):
+        out = self.run_probe("fork:/dev/fd", binds="/proc/self/fd:/dev/fd")
+        self.assertEqual(["x"], out["fork:/dev/fd"])
 
     def test_drive_link_stored_as_rootfs_path_reaches_the_mount(self):
         path = f"/pfx/native/dosdevices/z:{GAME}/game.txt"

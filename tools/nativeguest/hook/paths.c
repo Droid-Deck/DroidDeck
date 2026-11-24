@@ -80,7 +80,7 @@ static void ddnatv_load_binds(const char *spec) {
         if (src[0] != '/' || dst[0] != '/' || strcmp(dst, "/") == 0) continue;
         struct ddnatv_bind *b = &g_binds[g_nbinds++];
         char kernel_src[PATH_MAX];
-        if (strcmp(src, dst) != 0) {
+        if (strcmp(src, dst) != 0 && strncmp(src, "/proc/", 6) != 0) {
             ddnatv_kernel_path(src, strlen(src), kernel_src, sizeof(kernel_src));
             src = kernel_src;
         }
