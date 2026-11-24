@@ -149,6 +149,9 @@ object SessionState {
     var outputSize: Pair<Int, Int> = Pair(1920, 1080)
 
     @Volatile
+    var followScales: Pair<Float?, Float?> = null to null
+
+    @Volatile
     var followScreen = false
     var followScale = 1f
 

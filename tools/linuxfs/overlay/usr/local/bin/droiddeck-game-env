@@ -242,6 +242,57 @@ def skip_red_launcher(command):
     return command
 
 
+DQM4_MESH_DETAIL = {"r.SkeletalMeshLODBias": "-4", "r.SkeletalMeshLODRadiusScale": "0.25"}
+
+
+def with_system_settings(text, settings):
+    lines = text.splitlines()
+    try:
+        section = lines.index("[SystemSettings]")
+    except ValueError:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append("[SystemSettings]")
+        section = len(lines) - 1
+    end = next((i for i in range(section + 1, len(lines)) if lines[i].startswith("[")), len(lines))
+    block = [line for line in lines[section + 1:end] if line.split("=", 1)[0].strip() not in settings]
+    while block and not block[-1].strip():
+        block.pop()
+    block += ["%s=%s" % item for item in settings.items()]
+    tail = lines[end:]
+    return "\n".join(lines[:section + 1] + block + ([""] if tail else []) + tail) + "\n"
+
+
+# The game ignores -ini: overrides and deletes a writable Engine.ini after reading it, so this runs at every launch.
+def dragon_quest_monsters_4_mesh_detail(exe, env):
+    project = Path(exe).stem.split("-", 1)[0]
+    if not project.lower().startswith("dragonquestmonsters4"):
+        return
+    prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
+    config = prefix / "drive_c/users/steamuser/AppData/Local" / project / "Saved/Config/Windows/Engine.ini"
+    try:
+        if not prefix.is_dir():
+            return
+        text = config.read_text(encoding="utf-8") if config.exists() else ""
+        updated = with_system_settings(text, DQM4_MESH_DETAIL)
+        if updated == text:
+            return
+        config.parent.mkdir(parents=True, exist_ok=True)
+        handle, staged = tempfile.mkstemp(prefix=".engine-", dir=config.parent)
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8") as target:
+                target.write(updated)
+            if config.exists():
+                os.chmod(staged, config.stat().st_mode & 0o7777)
+            os.replace(staged, config)
+        except BaseException:
+            os.unlink(staged)
+            raise
+        print("droiddeck-game-env: Dragon Quest Monsters 4: full-detail monster meshes", file=sys.stderr)
+    except (OSError, UnicodeDecodeError) as error:
+        print("droiddeck-game-env: Dragon Quest Monsters 4 mesh detail left as is (%s)" % error, file=sys.stderr)
+
+
 UBISOFT_LAUNCHER = "drive_c/Program Files (x86)/Ubisoft/Ubisoft Game Launcher"
 UBISOFT_SETTINGS = "drive_c/users/steamuser/AppData/Local/Ubisoft Game Launcher/settings.yaml"
 
@@ -1412,6 +1463,7 @@ def main():
             command = skip_red_launcher(command)
             if len(command) > 2:
                 death_stranding_allocator(app_id, command[2])
+                dragon_quest_monsters_4_mesh_detail(command[2], effective_env)
             ubisoft_overlay_off(env)
             project_zomboid_jvm(command)
             fixes, extra, notes = engine_fixes(command[2], command[3:], app_id) if len(command) > 2 else ({}, [], [])
