@@ -27,7 +27,7 @@
 
 # CI
 
-- Before pushing a PR, run `tools/pre_pr.sh`. It checks authorship and the merge onto `main`, then compiles, runs lint and runs the Kotlin and Python tests that cover the files the branch changed, as CI does. Leave the full suites to CI.
+- Before pushing a PR, run `tools/pre_pr.sh`. It checks authorship and the merge onto `main`, then compiles and runs lint as CI does. It picks tests by name: `<File>*Test` for changed Kotlin files, and `tools/tests` modules that mention a changed path. Add any other tests that cover your change, and leave the full suites to CI.
 - CI builds the PR merged onto `main`. Before pushing, merge or rebase onto `origin/main` and compile: most "works locally" Kotlin failures come from that merge.
 - Before a PR that touches strings or resources, run `./gradlew :app:lintVitalRelease`. The fast loop skips lint, and lint catches `ExtraTranslation` and missing-locale errors.
 - Commit messages and PR bodies must not carry `Co-Authored-By` or other bot trailers. `tools/release/check_authorship.py` fails the build on them.
