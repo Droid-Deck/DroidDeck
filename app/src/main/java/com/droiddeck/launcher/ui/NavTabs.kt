@@ -71,6 +71,12 @@ internal object NavTabs {
 
     fun isDefault(): Boolean = order == ALL && shelved == defaultShelved() && hidden == defaultHidden()
 
+    /** Follows DroidDeck becoming or leaving the Home app while it runs: only places nobody saved take the new default. */
+    fun refreshHomeApp(context: Context) {
+        val was = homeApp
+        readHomeApp(context)
+        if (homeApp != was) load(context)
+    }
 
     // Before layout 2, switches for game stores, soundtracks and the agent tab, and the home-screen requirement for Apps,
     // decided which tabs existed. A layout someone had already touched keeps showing what it showed then.

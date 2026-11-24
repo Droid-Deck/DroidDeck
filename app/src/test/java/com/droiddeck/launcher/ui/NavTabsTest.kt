@@ -61,6 +61,26 @@ class NavTabsTest {
         assertEquals(TabPlace.BAR, NavTabs.place(state(), "android-apps"))
     }
 
+    @Test fun becomingTheHomeAppWhileRunningMovesOnlyUnsavedPlaces() {
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "android-apps"))
+        makeHome()
+        NavTabs.refreshHomeApp(ctx)
+        assertEquals(TabPlace.BAR, NavTabs.place(state(), "android-apps"))
+        assertTrue(NavTabs.isDefault())
+        NavTabs.setHidden(ctx, "android-apps", true)
+        assertFalse(NavTabs.isDefault())
+        unmakeHome()
+        NavTabs.refreshHomeApp(ctx)
+        makeHome()
+        NavTabs.refreshHomeApp(ctx)
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "android-apps"))
+        assertFalse(NavTabs.isDefault())
+    }
+
+    private fun unmakeHome() {
+        org.robolectric.Shadows.shadowOf(ctx.getSystemService(android.app.role.RoleManager::class.java)).removeHeldRole(android.app.role.RoleManager.ROLE_HOME)
+    }
+
     private fun makeHome() {
         ctx.packageManager.setComponentEnabledSetting(
             android.content.ComponentName(ctx, com.droiddeck.launcher.HomeActivity::class.java),
