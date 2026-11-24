@@ -23,7 +23,7 @@
 
 typedef void *hstring_t;
 
-extern void uwp_local_state_dir(WCHAR *out, size_t cap);
+extern int uwp_local_state_dir(WCHAR *out, size_t cap);
 
 /* --------------------------------------------------------------- logging */
 
@@ -222,54 +222,83 @@ static const GUID gs_iid_iterable_kvp_str_buf = {0x3c9ffa92, 0x5123, 0x5ac4,
                                                  {0xb1, 0x11, 0x03, 0xc2, 0x15, 0xf0, 0xc5, 0x1c}};
 static const GUID gs_iid_iterator_kvp_str_buf = {0x790acb62, 0xc4b3, 0x57ea,
                                                  {0xa1, 0x52, 0x9e, 0x21, 0x93, 0x71, 0xc6, 0xdc}};
+static const GUID gs_iid_iterable_kvp_str_obj = {0xfe2f3d47, 0x5d47, 0x5499,
+                                                 {0x83, 0x74, 0x43, 0x0c, 0x7c, 0xda, 0x02, 0x04}};
 
 /* GameSaveErrorStatus values */
 #define GS_OK                      0
+#define GS_ABORT                   (-2138898432)
 #define GS_INVALID_CONTAINER_NAME  (-2138898431)
+#define GS_OUT_OF_LOCAL_STORAGE    (-2138898426)
 #define GS_BUFFER_TOO_SMALL        (-2138898425)
 #define GS_BLOB_NOT_FOUND          (-2138898424)
 #define GS_E_BOUNDS                ((HRESULT)0x8000000BL)
 
 /* --------------------------------------------------------------- filesystem helpers */
 
-static void gs_ensure_dir(const WCHAR *path)
+static int gs_ensure_dir(const WCHAR *path)
 {
     WCHAR buf[MAX_PATH * 2];
-    size_t i, len = wcslen(path);
-    if (len >= sizeof(buf) / sizeof(buf[0])) return;
+    size_t i, len;
+    DWORD attrs;
+    if (!path || !path[0]) return 0;
+    len = wcslen(path);
+    if (len >= sizeof(buf) / sizeof(buf[0])) return 0;
     memcpy(buf, path, (len + 1) * sizeof(WCHAR));
     for (i = 0; i < len; i++) {
         if ((buf[i] == L'\\' || buf[i] == L'/') && i > 2) {
             WCHAR saved = buf[i];
             buf[i] = 0;
-            CreateDirectoryW(buf, NULL);
+            if (!CreateDirectoryW(buf, NULL) && GetLastError() != ERROR_ALREADY_EXISTS)
+                return 0;
             buf[i] = saved;
         }
     }
-    CreateDirectoryW(buf, NULL);
+    if (!CreateDirectoryW(buf, NULL) && GetLastError() != ERROR_ALREADY_EXISTS)
+        return 0;
+    attrs = GetFileAttributesW(buf);
+    return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
 }
 
-static void gs_encode_name(const WCHAR *src, WCHAR *dst, size_t cap)
+static int gs_has_suffix(const WCHAR *str, const WCHAR *suffix)
+{
+    size_t slen, suflen;
+    if (!str || !suffix) return 0;
+    slen = wcslen(str);
+    suflen = wcslen(suffix);
+    return slen >= suflen && wcscmp(str + slen - suflen, suffix) == 0;
+}
+
+/* '~' is never emitted by gs_encode_name, so '~tmp', '~stage', and '~old'
+ * cannot collide with any real encoded blob or container name. */
+#define GS_TMP_SUFFIX   L"~tmp"
+#define GS_STAGE_SUFFIX L"~stage"
+#define GS_OLD_SUFFIX   L"~old"
+
+static int gs_encode_name(const WCHAR *src, WCHAR *dst, size_t cap)
 {
     static const WCHAR hex[] = L"0123456789ABCDEF";
     size_t o = 0;
     size_t i;
     if (!src || !cap) {
         if (cap) dst[0] = 0;
-        return;
+        return 0;
     }
-    for (i = 0; src[i] && o + 4 < cap; i++) {
+    for (i = 0; src[i]; i++) {
         WCHAR c = src[i];
         int safe = ((c >= L'A' && c <= L'Z') || (c >= L'a' && c <= L'z') ||
                     (c >= L'0' && c <= L'9') || c == L'_' || c == L'-' ||
                     (c == L'.' && i > 0));
         if (safe) {
+            if (o + 1 >= cap) { dst[0] = 0; return 0; }
             dst[o++] = c;
         } else if (c < 0x100) {
+            if (o + 3 >= cap) { dst[0] = 0; return 0; }
             dst[o++] = L'%';
             dst[o++] = hex[(c >> 4) & 0xf];
             dst[o++] = hex[c & 0xf];
-        } else if (o + 7 < cap) {
+        } else {
+            if (o + 6 >= cap) { dst[0] = 0; return 0; }
             dst[o++] = L'%';
             dst[o++] = L'u';
             dst[o++] = hex[(c >> 12) & 0xf];
@@ -279,6 +308,7 @@ static void gs_encode_name(const WCHAR *src, WCHAR *dst, size_t cap)
         }
     }
     dst[o] = 0;
+    return o > 0;
 }
 
 static int gs_hexval(WCHAR c)
@@ -331,7 +361,7 @@ static void gs_delete_tree(const WCHAR *dir)
     WCHAR pat[MAX_PATH * 2];
     WIN32_FIND_DATAW fd;
     HANDLE h;
-    snprintf((char *)pat, 1, ""); /* keep warnings quiet */
+    (void)pat;
     _snwprintf(pat, sizeof(pat) / sizeof(pat[0]), L"%ls\\*", dir);
     pat[sizeof(pat) / sizeof(pat[0]) - 1] = 0;
     h = FindFirstFileW(pat, &fd);
@@ -356,8 +386,8 @@ static int gs_write_file_atomic(const WCHAR *path, const BYTE *data, DWORD len)
     WCHAR tmp[MAX_PATH * 2];
     HANDLE f;
     DWORD written = 0;
-    _snwprintf(tmp, sizeof(tmp) / sizeof(tmp[0]), L"%ls.tmp", path);
-    tmp[sizeof(tmp) / sizeof(tmp[0]) - 1] = 0;
+    int n = _snwprintf(tmp, sizeof(tmp) / sizeof(tmp[0]), L"%ls%ls", path, GS_TMP_SUFFIX);
+    if (n < 0 || (size_t)n >= sizeof(tmp) / sizeof(tmp[0])) return 0;
     f = CreateFileW(tmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (f == INVALID_HANDLE_VALUE) return 0;
     if (len > 0) {
@@ -1530,7 +1560,7 @@ static gs_vecview *gs_scan_blobs(const WCHAR *dir, const WCHAR *prefix, UINT32 s
             WCHAR decoded[260];
             if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
             if (fd.cFileName[0] == L'.') continue;
-            if (wcsstr(fd.cFileName, L".tmp")) continue;
+            if (gs_has_suffix(fd.cFileName, GS_TMP_SUFFIX)) continue;
             gs_decode_name(fd.cFileName, decoded, sizeof(decoded) / sizeof(decoded[0]));
             if (!gs_starts_with(decoded, prefix)) continue;
             if (idx >= start && (max_n == 0 || vec->count < max_n)) {
@@ -1728,6 +1758,7 @@ static UINT64 gs_dir_total_size(const WCHAR *dir, INT64 *latest_ft)
         do {
             if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
             if (fd.cFileName[0] == L'.') continue;
+            if (gs_has_suffix(fd.cFileName, GS_TMP_SUFFIX)) continue;
             total += ((UINT64)fd.nFileSizeHigh << 32) | fd.nFileSizeLow;
             INT64 ft = ((INT64)fd.ftLastWriteTime.dwHighDateTime << 32) |
                        fd.ftLastWriteTime.dwLowDateTime;
@@ -1736,6 +1767,61 @@ static UINT64 gs_dir_total_size(const WCHAR *dir, INT64 *latest_ft)
         FindClose(h);
     }
     return total;
+}
+
+static void gs_recover_container(const WCHAR *dir)
+{
+    WCHAR stage[MAX_PATH * 2], old_dir[MAX_PATH * 2];
+    int ns = _snwprintf(stage, sizeof(stage) / sizeof(stage[0]), L"%ls%ls", dir, GS_STAGE_SUFFIX);
+    int no = _snwprintf(old_dir, sizeof(old_dir) / sizeof(old_dir[0]), L"%ls%ls", dir, GS_OLD_SUFFIX);
+    if (ns > 0 && (size_t)ns < sizeof(stage) / sizeof(stage[0]) &&
+        GetFileAttributesW(stage) != INVALID_FILE_ATTRIBUTES) {
+        gs_delete_tree(stage);
+    }
+    if (no > 0 && (size_t)no < sizeof(old_dir) / sizeof(old_dir[0]) &&
+        GetFileAttributesW(old_dir) != INVALID_FILE_ATTRIBUTES) {
+        if (GetFileAttributesW(dir) == INVALID_FILE_ATTRIBUTES)
+            MoveFileW(old_dir, dir);
+        else
+            gs_delete_tree(old_dir);
+    }
+}
+
+static void gs_recover_root(const WCHAR *root)
+{
+    WCHAR pat[MAX_PATH * 2];
+    WIN32_FIND_DATAW fd;
+    HANDLE h;
+    int n = _snwprintf(pat, sizeof(pat) / sizeof(pat[0]), L"%ls\\*", root);
+    if (n < 0 || (size_t)n >= sizeof(pat) / sizeof(pat[0])) return;
+    h = FindFirstFileW(pat, &fd);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        WCHAR sub[MAX_PATH * 2];
+        if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
+        if (!wcscmp(fd.cFileName, L".") || !wcscmp(fd.cFileName, L"..")) continue;
+        if (gs_has_suffix(fd.cFileName, GS_STAGE_SUFFIX)) {
+            int k = _snwprintf(sub, sizeof(sub) / sizeof(sub[0]), L"%ls\\%ls", root, fd.cFileName);
+            if (k > 0 && (size_t)k < sizeof(sub) / sizeof(sub[0]))
+                gs_delete_tree(sub);
+        } else if (gs_has_suffix(fd.cFileName, GS_OLD_SUFFIX)) {
+            size_t base_len = wcslen(fd.cFileName) - wcslen(GS_OLD_SUFFIX);
+            WCHAR base[MAX_PATH * 2];
+            if (base_len > 0 && base_len < MAX_PATH) {
+                int k1 = _snwprintf(sub, sizeof(sub) / sizeof(sub[0]), L"%ls\\%ls", root, fd.cFileName);
+                int k2 = _snwprintf(base, sizeof(base) / sizeof(base[0]), L"%ls\\%.*ls", root,
+                                    (int)base_len, fd.cFileName);
+                if (k1 > 0 && (size_t)k1 < sizeof(sub) / sizeof(sub[0]) &&
+                    k2 > 0 && (size_t)k2 < sizeof(base) / sizeof(base[0])) {
+                    if (GetFileAttributesW(base) == INVALID_FILE_ATTRIBUTES)
+                        MoveFileW(sub, base);
+                    else
+                        gs_delete_tree(sub);
+                }
+            }
+        }
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
 }
 
 static gs_vecview *gs_scan_containers(const WCHAR *root, const WCHAR *prefix, UINT32 start,
@@ -1749,6 +1835,7 @@ static gs_vecview *gs_scan_containers(const WCHAR *root, const WCHAR *prefix, UI
     UINT32 idx = 0;
 
     if (!vec) return NULL;
+    gs_recover_root(root);
     _snwprintf(pat, sizeof(pat) / sizeof(pat[0]), L"%ls\\*", root);
     pat[sizeof(pat) / sizeof(pat[0]) - 1] = 0;
     h = FindFirstFileW(pat, &fd);
@@ -1758,6 +1845,9 @@ static gs_vecview *gs_scan_containers(const WCHAR *root, const WCHAR *prefix, UI
             if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
             if (!wcscmp(fd.cFileName, L".") || !wcscmp(fd.cFileName, L"..")) continue;
             if (fd.cFileName[0] == L'.') continue;
+            if (gs_has_suffix(fd.cFileName, GS_STAGE_SUFFIX) ||
+                gs_has_suffix(fd.cFileName, GS_OLD_SUFFIX))
+                continue;
             gs_decode_name(fd.cFileName, decoded, sizeof(decoded) / sizeof(decoded[0]));
             if (!gs_starts_with(decoded, prefix)) continue;
             if (idx >= start && (max_n == 0 || vec->count < max_n)) {
@@ -1899,118 +1989,265 @@ static HRESULT __stdcall gs_cont_Provider(gs_container *self, void **out)
     return S_OK;
 }
 
-static void gs_blob_path(const WCHAR *dir, const WCHAR *blob_name, WCHAR *out, size_t cap)
+static int gs_blob_path(const WCHAR *dir, const WCHAR *blob_name, WCHAR *out, size_t cap)
 {
     WCHAR enc[260];
-    gs_encode_name(blob_name, enc, sizeof(enc) / sizeof(enc[0]));
-    _snwprintf(out, cap, L"%ls\\%ls", dir, enc);
-    out[cap - 1] = 0;
+    int n;
+    if (!dir || !blob_name || !out || !cap) return 0;
+    if (!gs_encode_name(blob_name, enc, sizeof(enc) / sizeof(enc[0]))) return 0;
+    n = _snwprintf(out, cap, L"%ls\\%ls", dir, enc);
+    if (n < 0 || (size_t)n >= cap) {
+        out[0] = 0;
+        return 0;
+    }
+    return 1;
+}
+
+static int gs_copy_existing_files(const WCHAR *src_dir, const WCHAR *dst_dir)
+{
+    WCHAR pat[MAX_PATH * 2];
+    WIN32_FIND_DATAW fd;
+    HANDLE h;
+    int n;
+    if (GetFileAttributesW(src_dir) == INVALID_FILE_ATTRIBUTES) return 1;
+    n = _snwprintf(pat, sizeof(pat) / sizeof(pat[0]), L"%ls\\*", src_dir);
+    if (n < 0 || (size_t)n >= sizeof(pat) / sizeof(pat[0])) return 0;
+    h = FindFirstFileW(pat, &fd);
+    if (h == INVALID_HANDLE_VALUE) return 1;
+    do {
+        WCHAR sfile[MAX_PATH * 2], dfile[MAX_PATH * 2];
+        int ns, nd;
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
+        if (gs_has_suffix(fd.cFileName, GS_TMP_SUFFIX)) continue;
+        ns = _snwprintf(sfile, sizeof(sfile) / sizeof(sfile[0]), L"%ls\\%ls", src_dir, fd.cFileName);
+        nd = _snwprintf(dfile, sizeof(dfile) / sizeof(dfile[0]), L"%ls\\%ls", dst_dir, fd.cFileName);
+        if (ns < 0 || (size_t)ns >= sizeof(sfile) / sizeof(sfile[0]) ||
+            nd < 0 || (size_t)nd >= sizeof(dfile) / sizeof(dfile[0]) ||
+            !CopyFileW(sfile, dfile, FALSE)) {
+            FindClose(h);
+            return 0;
+        }
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    return 1;
+}
+
+static INT32 gs_write_ibuffer_blob(const WCHAR *dir, const WCHAR *bname, void *ibuf, int *wrote)
+{
+    void *bba = NULL;
+    UINT32 blen = 0;
+    BYTE *ptr = NULL;
+    WCHAR bpath[MAX_PATH * 2];
+    INT32 status = GS_ABORT;
+
+    if (!bname || !bname[0] || !gs_blob_path(dir, bname, bpath, sizeof(bpath) / sizeof(bpath[0])))
+        return GS_INVALID_CONTAINER_NAME;
+    ((HRESULT(__stdcall *)(void *, UINT32 *))(*(void ***)ibuf)[7])(ibuf, &blen);
+    if (SUCCEEDED(gs_unk_qi(ibuf, &gs_iid_ibuffer_bytes, &bba)) && bba) {
+        if (SUCCEEDED(((HRESULT(__stdcall *)(void *, BYTE **))(*(void ***)bba)[3])(bba, &ptr))) {
+            if (gs_write_file_atomic(bpath, ptr ? ptr : (const BYTE *)"", blen)) {
+                (*wrote)++;
+                status = GS_OK;
+            } else {
+                status = GS_OUT_OF_LOCAL_STORAGE;
+            }
+        }
+        gs_unk_release(bba);
+    }
+    return status;
+}
+
+static HRESULT gs_submit_atomic(gs_container *self, void *blobs_to_write, void *props_to_write,
+                                void *blobs_to_delete, hstring_t display_name, void **out)
+{
+    int wrote = 0, deleted = 0;
+    INT32 status = GS_OK;
+    gs_result *res;
+    const WCHAR *dn = gs_hstr_raw(display_name);
+    WCHAR stage_dir[MAX_PATH * 2], old_dir[MAX_PATH * 2];
+    int ns, no, had_existing;
+
+    if (!out) return E_POINTER;
+    gs_recover_container(self->dir);
+
+    ns = _snwprintf(stage_dir, sizeof(stage_dir) / sizeof(stage_dir[0]), L"%ls%ls", self->dir, GS_STAGE_SUFFIX);
+    no = _snwprintf(old_dir, sizeof(old_dir) / sizeof(old_dir[0]), L"%ls%ls", self->dir, GS_OLD_SUFFIX);
+    if (ns < 0 || (size_t)ns >= sizeof(stage_dir) / sizeof(stage_dir[0]) ||
+        no < 0 || (size_t)no >= sizeof(old_dir) / sizeof(old_dir[0])) {
+        status = GS_INVALID_CONTAINER_NAME;
+        goto finish;
+    }
+
+    gs_delete_tree(stage_dir);
+    if (!gs_ensure_dir(stage_dir) || !gs_copy_existing_files(self->dir, stage_dir)) {
+        status = GS_OUT_OF_LOCAL_STORAGE;
+        goto cleanup;
+    }
+
+    if (dn && dn[0]) {
+        WCHAR dn_path[MAX_PATH * 2];
+        int ndn = _snwprintf(dn_path, sizeof(dn_path) / sizeof(dn_path[0]), L"%ls\\.displayname", stage_dir);
+        if (ndn < 0 || (size_t)ndn >= sizeof(dn_path) / sizeof(dn_path[0])) {
+            status = GS_INVALID_CONTAINER_NAME;
+            goto cleanup;
+        }
+        if (!gs_write_file_atomic(dn_path, (const BYTE *)dn, (DWORD)(wcslen(dn) * sizeof(WCHAR)))) {
+            status = GS_OUT_OF_LOCAL_STORAGE;
+            goto cleanup;
+        }
+    }
+
+    if (blobs_to_write && status == GS_OK) {
+        void *iterable = NULL;
+        if (SUCCEEDED(gs_unk_qi(blobs_to_write, &gs_iid_iterable_kvp_str_buf, &iterable)) && iterable) {
+            void *iter = NULL;
+            if (SUCCEEDED(((HRESULT(__stdcall *)(void *, void **))(*(void ***)iterable)[6])(iterable, &iter)) && iter) {
+                BYTE has = 0;
+                ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[7])(iter, &has);
+                while (has && status == GS_OK) {
+                    void *kvp = NULL;
+                    if (SUCCEEDED(((HRESULT(__stdcall *)(void *, void **))(*(void ***)iter)[6])(iter, &kvp)) && kvp) {
+                        hstring_t hkey = NULL;
+                        void *ibuf = NULL;
+                        ((HRESULT(__stdcall *)(void *, hstring_t *))(*(void ***)kvp)[6])(kvp, &hkey);
+                        ((HRESULT(__stdcall *)(void *, void **))(*(void ***)kvp)[7])(kvp, &ibuf);
+                        if (!hkey || !ibuf) {
+                            status = GS_ABORT;
+                        } else {
+                            status = gs_write_ibuffer_blob(stage_dir, gs_hstr_raw(hkey), ibuf, &wrote);
+                        }
+                        gs_hstr_free(hkey);
+                        gs_unk_release(ibuf);
+                        gs_unk_release(kvp);
+                    } else {
+                        status = GS_ABORT;
+                    }
+                    has = 0;
+                    ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[8])(iter, &has);
+                }
+                gs_unk_release(iter);
+            } else {
+                status = GS_ABORT;
+            }
+            gs_unk_release(iterable);
+        } else {
+            status = GS_ABORT;
+        }
+    }
+
+    if (props_to_write && status == GS_OK) {
+        void *iterable = NULL;
+        if (SUCCEEDED(gs_unk_qi(props_to_write, &gs_iid_iterable_kvp_str_obj, &iterable)) && iterable) {
+            void *iter = NULL;
+            if (SUCCEEDED(((HRESULT(__stdcall *)(void *, void **))(*(void ***)iterable)[6])(iterable, &iter)) && iter) {
+                BYTE has = 0;
+                ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[7])(iter, &has);
+                while (has && status == GS_OK) {
+                    void *kvp = NULL;
+                    if (SUCCEEDED(((HRESULT(__stdcall *)(void *, void **))(*(void ***)iter)[6])(iter, &kvp)) && kvp) {
+                        hstring_t hkey = NULL;
+                        void *val = NULL;
+                        ((HRESULT(__stdcall *)(void *, hstring_t *))(*(void ***)kvp)[6])(kvp, &hkey);
+                        ((HRESULT(__stdcall *)(void *, void **))(*(void ***)kvp)[7])(kvp, &val);
+                        if (!hkey || !val) {
+                            status = GS_ABORT;
+                        } else {
+                            void *ibuf = NULL;
+                            if (SUCCEEDED(gs_unk_qi(val, &gs_iid_ibuffer, &ibuf)) && ibuf) {
+                                status = gs_write_ibuffer_blob(stage_dir, gs_hstr_raw(hkey), ibuf, &wrote);
+                                gs_unk_release(ibuf);
+                            } else {
+                                status = GS_ABORT;
+                            }
+                        }
+                        gs_hstr_free(hkey);
+                        gs_unk_release(val);
+                        gs_unk_release(kvp);
+                    } else {
+                        status = GS_ABORT;
+                    }
+                    has = 0;
+                    ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[8])(iter, &has);
+                }
+                gs_unk_release(iter);
+            } else {
+                status = GS_ABORT;
+            }
+            gs_unk_release(iterable);
+        } else {
+            status = GS_ABORT;
+        }
+    }
+
+    if (blobs_to_delete && status == GS_OK) {
+        void *iterable = NULL;
+        if (SUCCEEDED(gs_unk_qi(blobs_to_delete, &gs_iid_iterable_string, &iterable)) && iterable) {
+            void *iter = NULL;
+            if (SUCCEEDED(((HRESULT(__stdcall *)(void *, void **))(*(void ***)iterable)[6])(iterable, &iter)) && iter) {
+                BYTE has = 0;
+                ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[7])(iter, &has);
+                while (has && status == GS_OK) {
+                    hstring_t hkey = NULL;
+                    if (SUCCEEDED(((HRESULT(__stdcall *)(void *, hstring_t *))(*(void ***)iter)[6])(iter, &hkey)) && hkey) {
+                        WCHAR bpath[MAX_PATH * 2];
+                        if (!gs_blob_path(stage_dir, gs_hstr_raw(hkey), bpath, sizeof(bpath) / sizeof(bpath[0]))) {
+                            status = GS_INVALID_CONTAINER_NAME;
+                        } else {
+                            if (DeleteFileW(bpath) || GetLastError() == ERROR_FILE_NOT_FOUND)
+                                deleted++;
+                            else
+                                status = GS_ABORT;
+                        }
+                        gs_hstr_free(hkey);
+                    }
+                    has = 0;
+                    ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[8])(iter, &has);
+                }
+                gs_unk_release(iter);
+            } else {
+                status = GS_ABORT;
+            }
+            gs_unk_release(iterable);
+        } else {
+            status = GS_ABORT;
+        }
+    }
+
+    if (status == GS_OK) {
+        had_existing = (GetFileAttributesW(self->dir) != INVALID_FILE_ATTRIBUTES);
+        if (had_existing) {
+            gs_delete_tree(old_dir);
+            if (!MoveFileW(self->dir, old_dir)) {
+                status = GS_ABORT;
+                goto cleanup;
+            }
+        }
+        if (!MoveFileW(stage_dir, self->dir)) {
+            if (had_existing) MoveFileW(old_dir, self->dir);
+            status = GS_ABORT;
+            goto cleanup;
+        }
+        if (had_existing) gs_delete_tree(old_dir);
+    }
+
+cleanup:
+    if (status != GS_OK) gs_delete_tree(stage_dir);
+
+finish:
+    gs_log("Container::SubmitUpdatesAsync(%ls) wrote=%d deleted=%d status=%d", self->name, wrote, deleted, status);
+    res = gs_res_new(&gs_iid_op_result, "Windows.Gaming.XboxLive.Storage.GameSaveOperationResult",
+                     status, NULL);
+    *out = gs_async_new_obj(&gs_iid_async_op_result,
+                            "Windows.Foundation.IAsyncOperation`1<GameSaveOperationResult>", res);
+    gs_res_Release(res);
+    return *out ? S_OK : E_OUTOFMEMORY;
 }
 
 static HRESULT __stdcall gs_cont_SubmitUpdatesAsync(gs_container *self, void *blobs_to_write,
                                                     void *blobs_to_delete, hstring_t display_name,
                                                     void **out)
 {
-    int wrote = 0, deleted = 0;
-    gs_result *res;
-    const WCHAR *dn = gs_hstr_raw(display_name);
-
-    if (!out) return E_POINTER;
-    gs_ensure_dir(self->dir);
-
-    if (dn && dn[0]) {
-        WCHAR dn_path[MAX_PATH * 2];
-        _snwprintf(dn_path, sizeof(dn_path) / sizeof(dn_path[0]), L"%ls\\.displayname", self->dir);
-        dn_path[sizeof(dn_path) / sizeof(dn_path[0]) - 1] = 0;
-        gs_write_file_atomic(dn_path, (const BYTE *)dn, (DWORD)(wcslen(dn) * sizeof(WCHAR)));
-    }
-
-    if (blobs_to_write) {
-        void *iterable = NULL;
-        if (SUCCEEDED(gs_unk_qi(blobs_to_write, &gs_iid_iterable_kvp_str_buf, &iterable)) &&
-            iterable) {
-            void *iter = NULL;
-            if (SUCCEEDED(((HRESULT(__stdcall *)(void *, void **))(*(void ***)iterable)[6])(
-                    iterable, &iter)) &&
-                iter) {
-                BYTE has = 0;
-                ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[7])(iter, &has);
-                while (has) {
-                    void *kvp = NULL;
-                    if (SUCCEEDED(
-                            ((HRESULT(__stdcall *)(void *, void **))(*(void ***)iter)[6])(iter, &kvp)) &&
-                        kvp) {
-                        hstring_t hkey = NULL;
-                        void *ibuf = NULL;
-                        ((HRESULT(__stdcall *)(void *, hstring_t *))(*(void ***)kvp)[6])(kvp, &hkey);
-                        ((HRESULT(__stdcall *)(void *, void **))(*(void ***)kvp)[7])(kvp, &ibuf);
-                        if (hkey && ibuf) {
-                            void *bba = NULL;
-                            UINT32 blen = 0;
-                            BYTE *ptr = NULL;
-                            ((HRESULT(__stdcall *)(void *, UINT32 *))(*(void ***)ibuf)[7])(ibuf, &blen);
-                            if (SUCCEEDED(gs_unk_qi(ibuf, &gs_iid_ibuffer_bytes, &bba)) && bba) {
-                                if (SUCCEEDED(((HRESULT(__stdcall *)(void *, BYTE **))(
-                                        *(void ***)bba)[3])(bba, &ptr))) {
-                                    WCHAR bpath[MAX_PATH * 2];
-                                    gs_blob_path(self->dir, gs_hstr_raw(hkey), bpath,
-                                                 sizeof(bpath) / sizeof(bpath[0]));
-                                    gs_write_file_atomic(bpath, ptr ? ptr : (const BYTE *)"", blen);
-                                    wrote++;
-                                }
-                                gs_unk_release(bba);
-                            }
-                        }
-                        gs_hstr_free(hkey);
-                        gs_unk_release(ibuf);
-                        gs_unk_release(kvp);
-                    }
-                    has = 0;
-                    ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[8])(iter, &has);
-                }
-                gs_unk_release(iter);
-            }
-            gs_unk_release(iterable);
-        }
-    }
-
-    if (blobs_to_delete) {
-        void *iterable = NULL;
-        if (SUCCEEDED(gs_unk_qi(blobs_to_delete, &gs_iid_iterable_string, &iterable)) && iterable) {
-            void *iter = NULL;
-            if (SUCCEEDED(((HRESULT(__stdcall *)(void *, void **))(*(void ***)iterable)[6])(
-                    iterable, &iter)) &&
-                iter) {
-                BYTE has = 0;
-                ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[7])(iter, &has);
-                while (has) {
-                    hstring_t hkey = NULL;
-                    if (SUCCEEDED(((HRESULT(__stdcall *)(void *, hstring_t *))(*(void ***)iter)[6])(
-                            iter, &hkey)) &&
-                        hkey) {
-                        WCHAR bpath[MAX_PATH * 2];
-                        gs_blob_path(self->dir, gs_hstr_raw(hkey), bpath,
-                                     sizeof(bpath) / sizeof(bpath[0]));
-                        DeleteFileW(bpath);
-                        deleted++;
-                        gs_hstr_free(hkey);
-                    }
-                    has = 0;
-                    ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[8])(iter, &has);
-                }
-                gs_unk_release(iter);
-            }
-            gs_unk_release(iterable);
-        }
-    }
-
-    gs_log("Container::SubmitUpdatesAsync(%ls) wrote=%d deleted=%d", self->name, wrote, deleted);
-    res = gs_res_new(&gs_iid_op_result, "Windows.Gaming.XboxLive.Storage.GameSaveOperationResult",
-                     GS_OK, NULL);
-    *out = gs_async_new_obj(&gs_iid_async_op_result,
-                            "Windows.Foundation.IAsyncOperation`1<GameSaveOperationResult>", res);
-    gs_res_Release(res);
-    return *out ? S_OK : E_OUTOFMEMORY;
+    return gs_submit_atomic(self, blobs_to_write, NULL, blobs_to_delete, display_name, out);
 }
 
 static HRESULT __stdcall gs_cont_ReadAsync(gs_container *self, void *blobs_to_read, void **out)
@@ -2043,9 +2280,13 @@ static HRESULT __stdcall gs_cont_ReadAsync(gs_container *self, void *blobs_to_re
                             WCHAR bpath[MAX_PATH * 2];
                             DWORD flen = 0;
                             BYTE *fdata;
-                            gs_blob_path(self->dir, gs_hstr_raw(hkey), bpath,
-                                         sizeof(bpath) / sizeof(bpath[0]));
-                            fdata = gs_read_file_all(bpath, &flen);
+                            if (!gs_blob_path(self->dir, gs_hstr_raw(hkey), bpath,
+                                              sizeof(bpath) / sizeof(bpath[0]))) {
+                                status = GS_BLOB_NOT_FOUND;
+                                fdata = NULL;
+                            } else {
+                                fdata = gs_read_file_all(bpath, &flen);
+                            }
                             if (!fdata) {
                                 status = GS_BLOB_NOT_FOUND;
                             } else {
@@ -2124,8 +2365,11 @@ static HRESULT __stdcall gs_cont_GetAsync(gs_container *self, void *blobs_to_rea
                         WCHAR bpath[MAX_PATH * 2];
                         DWORD flen = 0;
                         BYTE *fdata;
-                        gs_blob_path(self->dir, bname, bpath, sizeof(bpath) / sizeof(bpath[0]));
-                        fdata = gs_read_file_all(bpath, &flen);
+                        if (!gs_blob_path(self->dir, bname, bpath, sizeof(bpath) / sizeof(bpath[0]))) {
+                            fdata = NULL;
+                        } else {
+                            fdata = gs_read_file_all(bpath, &flen);
+                        }
                         if (fdata) {
                             gs_buffer *buf = gs_buf_create_owned(fdata, flen);
                             if (buf) {
@@ -2159,7 +2403,7 @@ static HRESULT __stdcall gs_cont_GetAsync(gs_container *self, void *blobs_to_rea
                 BYTE *fdata;
                 if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
                 if (fd.cFileName[0] == L'.') continue;
-                if (wcsstr(fd.cFileName, L".tmp")) continue;
+                if (gs_has_suffix(fd.cFileName, GS_TMP_SUFFIX)) continue;
                 gs_decode_name(fd.cFileName, decoded, sizeof(decoded) / sizeof(decoded[0]));
                 _snwprintf(bpath, sizeof(bpath) / sizeof(bpath[0]), L"%ls\\%ls", self->dir,
                            fd.cFileName);
@@ -2191,8 +2435,7 @@ static HRESULT __stdcall gs_cont_SubmitPropUpdatesAsync(gs_container *self, void
                                                         void *blobs_to_delete,
                                                         hstring_t display_name, void **out)
 {
-    (void)props_to_write;
-    return gs_cont_SubmitUpdatesAsync(self, NULL, blobs_to_delete, display_name, out);
+    return gs_submit_atomic(self, NULL, props_to_write, blobs_to_delete, display_name, out);
 }
 
 static HRESULT __stdcall gs_cont_CreateBlobInfoQuery(gs_container *self, hstring_t prefix,
@@ -2276,9 +2519,11 @@ static HRESULT __stdcall gs_prov_CreateContainer(gs_provider *self, hstring_t na
     if (!out) return E_POINTER;
     *out = NULL;
     if (!cname || !cname[0]) return E_INVALIDARG;
-    gs_encode_name(cname, enc, sizeof(enc) / sizeof(enc[0]));
-    _snwprintf(dir, sizeof(dir) / sizeof(dir[0]), L"%ls\\%ls", self->root, enc);
-    dir[sizeof(dir) / sizeof(dir[0]) - 1] = 0;
+    if (!gs_encode_name(cname, enc, sizeof(enc) / sizeof(enc[0]))) return E_INVALIDARG;
+    {
+        int n = _snwprintf(dir, sizeof(dir) / sizeof(dir[0]), L"%ls\\%ls", self->root, enc);
+        if (n < 0 || (size_t)n >= sizeof(dir) / sizeof(dir[0])) return E_INVALIDARG;
+    }
     c = (gs_container *)calloc(1, sizeof(gs_container));
     if (!c) return E_OUTOFMEMORY;
     c->vtbl = gs_cont_vtable;
@@ -2297,15 +2542,21 @@ static HRESULT __stdcall gs_prov_DeleteContainerAsync(gs_provider *self, hstring
     WCHAR enc[260], dir[MAX_PATH * 2];
     gs_result *res;
     if (!out) return E_POINTER;
+    INT32 status = GS_OK;
     if (cname && cname[0]) {
-        gs_encode_name(cname, enc, sizeof(enc) / sizeof(enc[0]));
-        _snwprintf(dir, sizeof(dir) / sizeof(dir[0]), L"%ls\\%ls", self->root, enc);
-        dir[sizeof(dir) / sizeof(dir[0]) - 1] = 0;
-        gs_delete_tree(dir);
-        gs_log("Provider::DeleteContainerAsync(%ls)", cname);
+        int n;
+        if (!gs_encode_name(cname, enc, sizeof(enc) / sizeof(enc[0])) ||
+            (n = _snwprintf(dir, sizeof(dir) / sizeof(dir[0]), L"%ls\\%ls", self->root, enc)) < 0 ||
+            (size_t)n >= sizeof(dir) / sizeof(dir[0])) {
+            status = GS_INVALID_CONTAINER_NAME;
+        } else {
+            gs_recover_container(dir);
+            gs_delete_tree(dir);
+            gs_log("Provider::DeleteContainerAsync(%ls)", cname);
+        }
     }
     res = gs_res_new(&gs_iid_op_result, "Windows.Gaming.XboxLive.Storage.GameSaveOperationResult",
-                     GS_OK, NULL);
+                     status, NULL);
     *out = gs_async_new_obj(&gs_iid_async_op_result,
                             "Windows.Foundation.IAsyncOperation`1<GameSaveOperationResult>", res);
     gs_res_Release(res);
@@ -2391,11 +2642,30 @@ static HRESULT gs_open_provider(void *user, hstring_t scid, int sync_on_demand, 
 
     if (!out) return E_POINTER;
     local_state[0] = 0;
-    uwp_local_state_dir(local_state, sizeof(local_state) / sizeof(local_state[0]));
-    gs_encode_name((sc && sc[0]) ? sc : L"default", enc_sc, sizeof(enc_sc) / sizeof(enc_sc[0]));
-    _snwprintf(root, sizeof(root) / sizeof(root[0]), L"%ls\\GameSave\\%ls", local_state, enc_sc);
-    root[sizeof(root) / sizeof(root[0]) - 1] = 0;
-    gs_ensure_dir(root);
+    if (!uwp_local_state_dir(local_state, sizeof(local_state) / sizeof(local_state[0])) ||
+        !gs_encode_name((sc && sc[0]) ? sc : L"default", enc_sc, sizeof(enc_sc) / sizeof(enc_sc[0]))) {
+        res = gs_res_new(&gs_iid_provider_get,
+                         "Windows.Gaming.XboxLive.Storage.GameSaveProviderGetResult",
+                         GS_OUT_OF_LOCAL_STORAGE, NULL);
+        *out = gs_async_new_obj(&gs_iid_async_provider_get,
+                                "Windows.Foundation.IAsyncOperation`1<GameSaveProviderGetResult>", res);
+        gs_res_Release(res);
+        return *out ? S_OK : E_OUTOFMEMORY;
+    }
+    {
+        int n = _snwprintf(root, sizeof(root) / sizeof(root[0]), L"%ls\\GameSave\\%ls",
+                           local_state, enc_sc);
+        if (n < 0 || (size_t)n >= sizeof(root) / sizeof(root[0]) || !gs_ensure_dir(root)) {
+            res = gs_res_new(&gs_iid_provider_get,
+                             "Windows.Gaming.XboxLive.Storage.GameSaveProviderGetResult",
+                             GS_OUT_OF_LOCAL_STORAGE, NULL);
+            *out = gs_async_new_obj(&gs_iid_async_provider_get,
+                                    "Windows.Foundation.IAsyncOperation`1<GameSaveProviderGetResult>", res);
+            gs_res_Release(res);
+            return *out ? S_OK : E_OUTOFMEMORY;
+        }
+    }
+    gs_recover_root(root);
 
     prov = (gs_provider *)calloc(1, sizeof(gs_provider));
     if (!prov) return E_OUTOFMEMORY;

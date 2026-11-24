@@ -44,6 +44,7 @@ typedef struct {
 /* AsyncStatus */
 #define AUTH_ASYNC_STARTED   0
 #define AUTH_ASYNC_COMPLETED 1
+#define AUTH_ASYNC_CANCELED  2
 #define AUTH_ASYNC_ERROR     3
 
 /* Windows.System.UserType */
@@ -310,14 +311,76 @@ static const GUID IID_IKvpStrStr      = {0x60310303,0x49c5,0x52e6,{0xab,0xc6,0xa
 static const GUID IID_IIterableKvpSS  = {0xe9bdaaf0,0xcbf6,0x5c72,{0xbe,0x90,0x29,0xcb,0xf3,0xa1,0x31,0x9b}};
 static const GUID IID_IIteratorKvpSS  = {0x05eb86f1,0x7140,0x5517,{0xb8,0x8d,0xcb,0xae,0xbe,0x57,0xe6,0xb1}};
 
+static const GUID IID_IAsyncAction_a      = {0x5a648006,0x843a,0x4da9,{0x86,0x5b,0x9d,0x26,0xe5,0xdf,0xad,0x7b}};
+static const GUID IID_IAgileObject_a      = {0x94ea2b94,0xe9cc,0x49e0,{0xc0,0xff,0xee,0x64,0xca,0x8f,0x5b,0x90}};
+static const GUID IID_IAsyncOpObj         = {0xabf53c57,0xee50,0x5342,{0xb5,0x2a,0x26,0xe3,0xb8,0xcc,0x02,0x4f}};
+static const GUID IID_IAsyncOpStreamRef   = {0x65178d50,0xe6a2,0x5d16,{0xb2,0x44,0x65,0xe9,0x72,0x5e,0x5a,0x0c}};
+static const GUID IID_IAsyncOpStream      = {0x430ecece,0x1418,0x5d19,{0x81,0xb2,0x5d,0xdb,0x38,0x16,0x03,0xcc}};
+static const GUID IID_IAsyncOpVecUser     = {0xe44ea1df,0xbb85,0x5a8c,{0xbd,0xdc,0xc8,0xe9,0x60,0xc3,0x55,0xc9}};
+static const GUID IID_IAsyncOpUser        = {0xa895d2f9,0x2399,0x5104,{0xa5,0x32,0x5b,0xa4,0x4a,0xb4,0xb1,0x65}};
+static const GUID IID_IAsyncOpWtrResult   = {0x0a815852,0x7c44,0x5674,{0xb3,0xd2,0xfa,0x2e,0x4c,0x1e,0x46,0xc9}};
+static const GUID IID_IAsyncOpWebAccount  = {0xacd76b54,0x297f,0x5a18,{0x91,0x43,0x20,0xa3,0x09,0xe2,0xdf,0xd3}};
+static const GUID IID_IAsyncOpWebProvider = {0x88c66009,0x12f7,0x58e2,{0x8d,0xbe,0x6e,0xfc,0x62,0x0c,0x85,0xba}};
+
+typedef HRESULT(WINAPI *pfn_CoInitializeEx)(LPVOID, DWORD);
+typedef void(WINAPI *pfn_CoUninitialize)(void);
+typedef HRESULT(WINAPI *pfn_CoMarshalInterThreadInterfaceInStream)(REFIID, LPUNKNOWN, LPSTREAM *);
+typedef HRESULT(WINAPI *pfn_CoGetInterfaceAndReleaseStream)(LPSTREAM, REFIID, LPVOID *);
+
+static pfn_CoInitializeEx fn_CoInitializeEx;
+static pfn_CoUninitialize fn_CoUninitialize;
+static pfn_CoMarshalInterThreadInterfaceInStream fn_CoMarshalInterThreadInterfaceInStream;
+static pfn_CoGetInterfaceAndReleaseStream fn_CoGetInterfaceAndReleaseStream;
+static INIT_ONCE g_ole_once = INIT_ONCE_STATIC_INIT;
+
+static BOOL CALLBACK init_ole_cb(PINIT_ONCE once, PVOID param, PVOID *ctx)
+{
+    HMODULE ole = GetModuleHandleA("ole32.dll");
+    (void)once; (void)param; (void)ctx;
+    if (!ole) ole = LoadLibraryA("ole32.dll");
+    if (ole) {
+        fn_CoInitializeEx = (pfn_CoInitializeEx)(void *)GetProcAddress(ole, "CoInitializeEx");
+        fn_CoUninitialize = (pfn_CoUninitialize)(void *)GetProcAddress(ole, "CoUninitialize");
+        fn_CoMarshalInterThreadInterfaceInStream =
+            (pfn_CoMarshalInterThreadInterfaceInStream)(void *)GetProcAddress(
+                ole, "CoMarshalInterThreadInterfaceInStream");
+        fn_CoGetInterfaceAndReleaseStream =
+            (pfn_CoGetInterfaceAndReleaseStream)(void *)GetProcAddress(
+                ole, "CoGetInterfaceAndReleaseStream");
+    }
+    return TRUE;
+}
+
+static void auth_ole_init(void)
+{
+    InitOnceExecuteOnce(&g_ole_once, init_ole_cb, NULL, NULL);
+}
+
+static int handler_is_agile(void *handler)
+{
+    typedef HRESULT(__stdcall *qi_fn)(void *, const GUID *, void **);
+    void *agile = NULL;
+    qi_fn *slots;
+    if (!handler) return 1;
+    slots = *(qi_fn **)handler;
+    if (slots && slots[0] && SUCCEEDED(slots[0](handler, &IID_IAgileObject_a, &agile)) && agile) {
+        com_release(agile);
+        return 1;
+    }
+    return 0;
+}
+
 /* --------------------------------------------------------------- AsyncOp */
 
 typedef struct {
     auth_obj base;
     auth_obj info;
     CRITICAL_SECTION lock;
+    const GUID *op_iid;
     void *result;
     void *handler;
+    void *handler_stream;
+    DWORD handler_tid;
     HRESULT error;
     int status;
     int fired;
@@ -347,6 +410,7 @@ static ULONG __stdcall auth_async_Release(void *self)
     LONG left = InterlockedDecrement(&op->base.refs);
     if (left <= 0) {
         if (op->result) com_release(op->result);
+        if (op->handler_stream) com_release(op->handler_stream);
         if (op->handler) com_release(op->handler);
         DeleteCriticalSection(&op->lock);
         free(op);
@@ -358,10 +422,17 @@ static HRESULT __stdcall auth_async_QI(void *self, const GUID *id, void **out)
 {
     auth_async *op = auth_async_from(self);
     if (!out) return E_POINTER;
-    if (id && IsEqualIID(id, &IID_IAsyncInfo_a))
+    *out = NULL;
+    if (!id) return E_INVALIDARG;
+    if (IsEqualIID(id, &IID_IAsyncInfo_a)) {
         *out = &op->info;
-    else
+    } else if (IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
+               IsEqualIID(id, &IID_IAgileObject_a) ||
+               (op->op_iid && IsEqualIID(id, op->op_iid))) {
         *out = op;
+    } else {
+        return E_NOINTERFACE;
+    }
     auth_async_AddRef(op);
     return S_OK;
 }
@@ -391,42 +462,106 @@ static HRESULT __stdcall auth_async_get_ErrorCode(void *self, HRESULT *out)
     return S_OK;
 }
 
-static HRESULT __stdcall auth_async_Cancel(void *self) { (void)self; return S_OK; }
-static HRESULT __stdcall auth_async_Close(void *self)  { (void)self; return S_OK; }
-
-static void auth_async_invoke(auth_async *op, void *handler, int status)
+static void auth_async_invoke(auth_async *op, void *handler, void *stream, DWORD handler_tid,
+                              int status)
 {
     typedef HRESULT(__stdcall *invoke_fn)(void *, void *, int);
+    void *target = handler;
+    void *unmarshaled = NULL;
     invoke_fn *slots;
-    if (!handler) return;
+    if (!handler && !stream) return;
     auth_async_AddRef(op);
-    slots = *(invoke_fn **)handler;
-    if (slots && slots[3]) slots[3](handler, op, status);
-    com_release(handler);
+    if (stream) {
+        auth_ole_init();
+        if (GetCurrentThreadId() != handler_tid && fn_CoGetInterfaceAndReleaseStream) {
+            if (SUCCEEDED(fn_CoGetInterfaceAndReleaseStream((LPSTREAM)stream, &IID_IUnknown_a,
+                                                            &unmarshaled)) &&
+                unmarshaled) {
+                target = unmarshaled;
+            } else {
+                target = handler;
+            }
+            /* CoGetInterfaceAndReleaseStream always releases the stream. */
+            stream = NULL;
+        } else {
+            com_release(stream);
+            stream = NULL;
+        }
+    }
+    if (target) {
+        slots = *(invoke_fn **)target;
+        if (slots && slots[3]) slots[3](target, op, status);
+    }
+    if (unmarshaled) com_release(unmarshaled);
+    if (handler) com_release(handler);
     auth_async_Release(op);
 }
+
+static HRESULT __stdcall auth_async_Cancel(void *self)
+{
+    auth_async *op = auth_async_from(self);
+    void *to_fire = NULL;
+    void *to_stream = NULL;
+    DWORD tid = 0;
+    EnterCriticalSection(&op->lock);
+    if (op->status == AUTH_ASYNC_STARTED) {
+        op->status = AUTH_ASYNC_CANCELED;
+        op->error = E_ABORT;
+        if (op->handler && !op->fired) {
+            op->fired = 1;
+            to_fire = op->handler;
+            com_addref(to_fire);
+            to_stream = op->handler_stream;
+            op->handler_stream = NULL;
+            tid = op->handler_tid;
+        }
+    }
+    LeaveCriticalSection(&op->lock);
+    if (to_fire) auth_async_invoke(op, to_fire, to_stream, tid, AUTH_ASYNC_CANCELED);
+    return S_OK;
+}
+
+static HRESULT __stdcall auth_async_Close(void *self)  { (void)self; return S_OK; }
 
 static HRESULT __stdcall auth_async_put_Completed(void *self, void *handler)
 {
     auth_async *op = auth_async_from(self);
     void *to_fire = NULL;
+    void *stream = NULL;
     int status = AUTH_ASYNC_STARTED;
+    DWORD tid = GetCurrentThreadId();
     if (!handler) return E_INVALIDARG;
+    if (!handler_is_agile(handler)) {
+        auth_ole_init();
+        if (fn_CoMarshalInterThreadInterfaceInStream) {
+            LPSTREAM st = NULL;
+            if (SUCCEEDED(fn_CoMarshalInterThreadInterfaceInStream(&IID_IUnknown_a,
+                                                                   (LPUNKNOWN)handler, &st))) {
+                stream = st;
+            }
+        }
+    }
     EnterCriticalSection(&op->lock);
     if (op->handler) {
         LeaveCriticalSection(&op->lock);
+        if (stream) com_release(stream);
         return E_ILLEGAL_DELEGATE_ASSIGNMENT;
     }
     com_addref(handler);
     op->handler = handler;
+    op->handler_tid = tid;
     if (op->status != AUTH_ASYNC_STARTED && !op->fired) {
         op->fired = 1;
         status = op->status;
         to_fire = handler;
         com_addref(to_fire);
+    } else {
+        op->handler_stream = stream;
+        stream = NULL;
     }
     LeaveCriticalSection(&op->lock);
-    if (to_fire) auth_async_invoke(op, to_fire, status);
+    if (stream) com_release(stream);
+    if (to_fire) auth_async_invoke(op, to_fire, NULL, tid, status);
     return S_OK;
 }
 
@@ -485,7 +620,8 @@ static const void *auth_async_op_vtbl[] = {
     (const void *)auth_async_GetResults,
 };
 
-static auth_async *auth_async_create(int is_op, int started, HRESULT error, void *result)
+static auth_async *auth_async_create_iid(int is_op, const GUID *op_iid, int started, HRESULT error,
+                                         void *result)
 {
     auth_async *op = (auth_async *)calloc(1, sizeof(auth_async));
     if (!op) return NULL;
@@ -497,6 +633,7 @@ static auth_async *auth_async_create(int is_op, int started, HRESULT error, void
     op->info.refs = 1;
     op->info.permanent = 1;
     op->info.name = "Windows.Foundation.IAsyncInfo";
+    op->op_iid = is_op ? op_iid : &IID_IAsyncAction_a;
     op->is_operation = is_op;
     op->result = result; /* adopts caller's ref */
     op->error = error;
@@ -507,25 +644,42 @@ static auth_async *auth_async_create(int is_op, int started, HRESULT error, void
 static void auth_async_complete(auth_async *op, HRESULT hr, void *result)
 {
     void *to_fire = NULL;
+    void *to_stream = NULL;
+    DWORD tid = 0;
     int status = FAILED(hr) ? AUTH_ASYNC_ERROR : AUTH_ASYNC_COMPLETED;
+    int drop_result = 0;
     EnterCriticalSection(&op->lock);
-    op->result = result; /* adopts ref */
-    op->error = hr;
-    op->status = status;
-    if (op->handler && !op->fired) {
-        op->fired = 1;
-        to_fire = op->handler;
-        com_addref(to_fire);
+    if (op->status != AUTH_ASYNC_STARTED) {
+        drop_result = 1;
+    } else {
+        op->result = result; /* adopts ref */
+        op->error = hr;
+        op->status = status;
+        if (op->handler && !op->fired) {
+            op->fired = 1;
+            to_fire = op->handler;
+            com_addref(to_fire);
+            to_stream = op->handler_stream;
+            op->handler_stream = NULL;
+            tid = op->handler_tid;
+        }
     }
     LeaveCriticalSection(&op->lock);
-    if (to_fire) auth_async_invoke(op, to_fire, status);
+    if (drop_result) {
+        if (result) com_release(result);
+        return;
+    }
+    if (to_fire) auth_async_invoke(op, to_fire, to_stream, tid, status);
 }
 
-static HRESULT auth_async_done(HRESULT hr, void *result, void **out)
+static HRESULT auth_async_done_iid(const GUID *op_iid, HRESULT hr, void *result, void **out)
 {
     auth_async *op;
-    if (!out) return E_POINTER;
-    op = auth_async_create(1, 0, hr, result);
+    if (!out) {
+        if (result) com_release(result);
+        return E_POINTER;
+    }
+    op = auth_async_create_iid(1, op_iid, 0, hr, result);
     if (!op) {
         if (result) com_release(result);
         return E_OUTOFMEMORY;
@@ -763,38 +917,54 @@ static const void *str_map_iter_vtbl[] = {
     (const void *)str_map_iter_MoveNext, (const void *)str_map_iter_GetMany,
 };
 
+/* Returns 1 if an existing entry was replaced, 0 if inserted, or -1 on OOM. */
 static int str_map_set_utf8(str_map *m, const char *k, const char *v)
 {
     UINT32 i;
-    int replaced = 0;
-    if (!m || !k) return 0;
+    int res = 0;
+    if (!m || !k) return -1;
     if (!v) v = "";
     EnterCriticalSection(&m->lock);
     for (i = 0; i < m->count; i++) {
         if (strcmp(m->items[i].key, k) == 0) {
+            char *nv = strdup(v);
+            if (!nv) {
+                LeaveCriticalSection(&m->lock);
+                return -1;
+            }
             free(m->items[i].val);
-            m->items[i].val = strdup(v);
-            replaced = 1;
-            break;
+            m->items[i].val = nv;
+            LeaveCriticalSection(&m->lock);
+            return 1;
         }
     }
-    if (!replaced) {
+    {
+        char *nk = strdup(k);
+        char *nv = strdup(v);
+        if (!nk || !nv) {
+            free(nk);
+            free(nv);
+            LeaveCriticalSection(&m->lock);
+            return -1;
+        }
         if (m->count == m->cap) {
             UINT32 ncap = m->cap ? m->cap * 2 : 16;
             str_pair *ni = (str_pair *)realloc(m->items, ncap * sizeof(str_pair));
-            if (ni) {
-                m->items = ni;
-                m->cap = ncap;
+            if (!ni) {
+                free(nk);
+                free(nv);
+                LeaveCriticalSection(&m->lock);
+                return -1;
             }
+            m->items = ni;
+            m->cap = ncap;
         }
-        if (m->count < m->cap) {
-            m->items[m->count].key = strdup(k);
-            m->items[m->count].val = strdup(v);
-            m->count++;
-        }
+        m->items[m->count].key = nk;
+        m->items[m->count].val = nv;
+        m->count++;
     }
     LeaveCriticalSection(&m->lock);
-    return replaced;
+    return res;
 }
 
 static char *str_map_get_utf8(str_map *m, const char *k)
@@ -879,9 +1049,16 @@ static HRESULT __stdcall str_map_Insert(void *self, hstring_t key, hstring_t val
     str_map *m = str_map_from(self);
     char *k = hstr_to_utf8(key);
     char *v = hstr_to_utf8(val);
-    int rep = str_map_set_utf8(m, k ? k : "", v ? v : "");
+    int rep;
+    if (!k || !v) {
+        free(k);
+        free(v);
+        return E_OUTOFMEMORY;
+    }
+    rep = str_map_set_utf8(m, k, v);
     free(k);
     free(v);
+    if (rep < 0) return E_OUTOFMEMORY;
     if (replaced) *replaced = rep ? TRUE : FALSE;
     return S_OK;
 }
@@ -1216,11 +1393,13 @@ static vec_view *vec_view_new(const GUID *iid_vec, const GUID *iid_able, const G
     v->iid_iter = iid_iter;
     if (single_item) {
         v->items = (void **)malloc(sizeof(void *));
-        if (v->items) {
-            v->items[0] = single_item;
-            com_addref(single_item);
-            v->count = 1;
+        if (!v->items) {
+            free(v);
+            return NULL;
         }
+        v->items[0] = single_item;
+        com_addref(single_item);
+        v->count = 1;
     }
     return v;
 }
@@ -1278,31 +1457,66 @@ static HRESULT __stdcall prop_str_GetString(void *self, hstring_t *out)
     return S_OK;
 }
 
-static HRESULT __stdcall prop_str_NotImpl(void *self) { (void)self; return E_NOTIMPL; }
+#ifndef TYPE_E_TYPEMISMATCH
+#define TYPE_E_TYPEMISMATCH ((HRESULT)0x80028CA0L)
+#endif
+
+static HRESULT __stdcall prop_str_TypeMismatch1(void *self, void *out)
+{
+    (void)self; (void)out;
+    return TYPE_E_TYPEMISMATCH;
+}
+
+static HRESULT __stdcall prop_str_TypeMismatchArr(void *self, UINT32 *len, void **out)
+{
+    (void)self;
+    if (len) *len = 0;
+    if (out) *out = NULL;
+    return TYPE_E_TYPEMISMATCH;
+}
 
 static const void *prop_str_vtbl[] = {
     (const void *)prop_str_QI, (const void *)obj_AddRef, (const void *)prop_str_Release,
     (const void *)obj_GetIids, (const void *)obj_GetClassName, (const void *)obj_GetTrustLevel,
-    (const void *)prop_str_get_Type,          /* 6 */
-    (const void *)prop_str_get_IsNumericScalar,/* 7 */
-    (const void *)prop_str_NotImpl, /* 8  GetUInt8 */
-    (const void *)prop_str_NotImpl, /* 9  GetInt16 */
-    (const void *)prop_str_NotImpl, /* 10 GetUInt16 */
-    (const void *)prop_str_NotImpl, /* 11 GetInt32 */
-    (const void *)prop_str_NotImpl, /* 12 GetUInt32 */
-    (const void *)prop_str_NotImpl, /* 13 GetInt64 */
-    (const void *)prop_str_NotImpl, /* 14 GetUInt64 */
-    (const void *)prop_str_NotImpl, /* 15 GetSingle */
-    (const void *)prop_str_NotImpl, /* 16 GetDouble */
-    (const void *)prop_str_NotImpl, /* 17 GetChar16 */
-    (const void *)prop_str_NotImpl, /* 18 GetBoolean */
-    (const void *)prop_str_GetString,/* 19 GetString */
-    (const void *)prop_str_NotImpl, /* 20 GetGuid */
-    (const void *)prop_str_NotImpl, /* 21 GetDateTime */
-    (const void *)prop_str_NotImpl, /* 22 GetTimeSpan */
-    (const void *)prop_str_NotImpl, /* 23 GetPoint */
-    (const void *)prop_str_NotImpl, /* 24 GetSize */
-    (const void *)prop_str_NotImpl, /* 25 GetRect */
+    (const void *)prop_str_get_Type,          /* 6  get_Type */
+    (const void *)prop_str_get_IsNumericScalar,/* 7 get_IsNumericScalar */
+    (const void *)prop_str_TypeMismatch1,     /* 8  GetUInt8 */
+    (const void *)prop_str_TypeMismatch1,     /* 9  GetInt16 */
+    (const void *)prop_str_TypeMismatch1,     /* 10 GetUInt16 */
+    (const void *)prop_str_TypeMismatch1,     /* 11 GetInt32 */
+    (const void *)prop_str_TypeMismatch1,     /* 12 GetUInt32 */
+    (const void *)prop_str_TypeMismatch1,     /* 13 GetInt64 */
+    (const void *)prop_str_TypeMismatch1,     /* 14 GetUInt64 */
+    (const void *)prop_str_TypeMismatch1,     /* 15 GetSingle */
+    (const void *)prop_str_TypeMismatch1,     /* 16 GetDouble */
+    (const void *)prop_str_TypeMismatch1,     /* 17 GetChar16 */
+    (const void *)prop_str_TypeMismatch1,     /* 18 GetBoolean */
+    (const void *)prop_str_GetString,         /* 19 GetString */
+    (const void *)prop_str_TypeMismatch1,     /* 20 GetGuid */
+    (const void *)prop_str_TypeMismatch1,     /* 21 GetDateTime */
+    (const void *)prop_str_TypeMismatch1,     /* 22 GetTimeSpan */
+    (const void *)prop_str_TypeMismatch1,     /* 23 GetPoint */
+    (const void *)prop_str_TypeMismatch1,     /* 24 GetSize */
+    (const void *)prop_str_TypeMismatch1,     /* 25 GetRect */
+    (const void *)prop_str_TypeMismatchArr,   /* 26 GetUInt8Array */
+    (const void *)prop_str_TypeMismatchArr,   /* 27 GetInt16Array */
+    (const void *)prop_str_TypeMismatchArr,   /* 28 GetUInt16Array */
+    (const void *)prop_str_TypeMismatchArr,   /* 29 GetInt32Array */
+    (const void *)prop_str_TypeMismatchArr,   /* 30 GetUInt32Array */
+    (const void *)prop_str_TypeMismatchArr,   /* 31 GetInt64Array */
+    (const void *)prop_str_TypeMismatchArr,   /* 32 GetUInt64Array */
+    (const void *)prop_str_TypeMismatchArr,   /* 33 GetSingleArray */
+    (const void *)prop_str_TypeMismatchArr,   /* 34 GetDoubleArray */
+    (const void *)prop_str_TypeMismatchArr,   /* 35 GetChar16Array */
+    (const void *)prop_str_TypeMismatchArr,   /* 36 GetBooleanArray */
+    (const void *)prop_str_TypeMismatchArr,   /* 37 GetStringArray */
+    (const void *)prop_str_TypeMismatchArr,   /* 38 GetInspectableArray */
+    (const void *)prop_str_TypeMismatchArr,   /* 39 GetGuidArray */
+    (const void *)prop_str_TypeMismatchArr,   /* 40 GetDateTimeArray */
+    (const void *)prop_str_TypeMismatchArr,   /* 41 GetTimeSpanArray */
+    (const void *)prop_str_TypeMismatchArr,   /* 42 GetPointArray */
+    (const void *)prop_str_TypeMismatchArr,   /* 43 GetSizeArray */
+    (const void *)prop_str_TypeMismatchArr,   /* 44 GetRectArray */
 };
 
 static prop_str *prop_str_new(const char *val)
@@ -1313,6 +1527,10 @@ static prop_str *prop_str_new(const char *val)
     p->base.refs = 1;
     p->base.name = "Windows.Foundation.IPropertyValue";
     p->value = strdup(val ? val : "");
+    if (!p->value) {
+        free(p);
+        return NULL;
+    }
     return p;
 }
 
@@ -1996,7 +2214,11 @@ static int https_post_json_ex(const WCHAR *host, const WCHAR *path, const char *
     for (;;) {
         char chunk[4096];
         DWORD got = 0;
-        if (!fn_InternetReadFile(hReq, chunk, sizeof chunk, &got) || got == 0) break;
+        if (!fn_InternetReadFile(hReq, chunk, sizeof chunk, &got)) {
+            auth_log("InternetReadFile failed err=%lu", GetLastError());
+            goto done;
+        }
+        if (got == 0) break;
         if (total + got + 1 > cap) {
             size_t ncap = (total + got + 1) * 2;
             char *nb = (char *)realloc(buf, ncap);
@@ -2068,7 +2290,11 @@ static int https_post_json(const WCHAR *host, const WCHAR *path, const char *bod
     for (;;) {
         char chunk[4096];
         DWORD got = 0;
-        if (!fn_InternetReadFile(hReq, chunk, sizeof chunk, &got) || got == 0) break;
+        if (!fn_InternetReadFile(hReq, chunk, sizeof chunk, &got)) {
+            auth_log("InternetReadFile failed err=%lu", GetLastError());
+            goto done;
+        }
+        if (got == 0) break;
         if (total + got + 1 > cap) {
             size_t ncap = (total + got + 1) * 2;
             char *nb = (char *)realloc(buf, ncap);
@@ -2133,7 +2359,7 @@ static int fetch_xbl_user_token_locked(int force_refresh)
             g_xbl_device_token[0]) {
             auth_log("acquired Xbox Live DeviceToken (len=%u)", (unsigned)strlen(g_xbl_device_token));
         } else {
-            auth_log("device/authenticate HTTP %lu resp=%.120s", (unsigned long)status, resp ? resp : "");
+            auth_log("device/authenticate failed HTTP %lu", (unsigned long)status);
             g_xbl_device_token[0] = '\0';
         }
         free(resp);
@@ -2161,7 +2387,7 @@ static int fetch_xbl_user_token_locked(int force_refresh)
                 ok = 1;
                 goto done;
             } else {
-                auth_log("sisu/authorize HTTP %lu resp=%.120s", (unsigned long)status, resp ? resp : "");
+                auth_log("sisu/authorize failed HTTP %lu", (unsigned long)status);
             }
             free(resp);
             resp = NULL;
@@ -2240,11 +2466,47 @@ static int origin_only(const char *url, char *out, size_t cap)
     return 1;
 }
 
+static int parse_iso8601_utc(const char *str, time_t *out)
+{
+    int y = 0, mo = 0, d = 0, h = 0, mi = 0, s = 0;
+    SYSTEMTIME st;
+    FILETIME ft;
+    ULARGE_INTEGER ui;
+    if (!str || !out) return 0;
+    if (sscanf(str, "%4d-%2d-%2dT%2d:%2d:%2d", &y, &mo, &d, &h, &mi, &s) != 6) return 0;
+    if (y < 1970 || mo < 1 || mo > 12 || d < 1 || d > 31 || h < 0 || h > 23 || mi < 0 ||
+        mi > 59 || s < 0 || s > 60)
+        return 0;
+    memset(&st, 0, sizeof st);
+    st.wYear = (WORD)y;
+    st.wMonth = (WORD)mo;
+    st.wDay = (WORD)d;
+    st.wHour = (WORD)h;
+    st.wMinute = (WORD)mi;
+    st.wSecond = (WORD)(s == 60 ? 59 : s);
+    if (!SystemTimeToFileTime(&st, &ft)) return 0;
+    ui.LowPart = ft.dwLowDateTime;
+    ui.HighPart = ft.dwHighDateTime;
+    if (ui.QuadPart < 116444736000000000ULL) return 0;
+    *out = (time_t)((ui.QuadPart - 116444736000000000ULL) / 10000000ULL);
+    return 1;
+}
+
+static int rp_is_xboxlive_equiv(const char *rp)
+{
+    if (!rp || !rp[0]) return 1;
+    if (_stricmp(rp, "http://xboxlive.com") == 0 || _stricmp(rp, "https://xboxlive.com") == 0)
+        return 1;
+    return strstr(rp, ".xboxlive.com") != NULL || strstr(rp, "//xboxlive.com") != NULL;
+}
+
 static int acquire_xsts_entry(const char *rp_in, int force_refresh, xsts_entry *out)
 {
     int i, slot = -1, ok = 0;
-    time_t now = time(NULL);
+    time_t now;
     char rp[256];
+    char actual_rp[256];
+    char not_after[64] = "";
     char esc_rp[512];
     char *esc_ut = NULL;
     char *body = NULL;
@@ -2254,11 +2516,14 @@ static int acquire_xsts_entry(const char *rp_in, int force_refresh, xsts_entry *
 
     auth_init_once();
     snprintf(rp, sizeof rp, "%s", (rp_in && rp_in[0]) ? rp_in : "http://xboxlive.com");
+    snprintf(actual_rp, sizeof actual_rp, "%s", rp);
 
     EnterCriticalSection(&g_auth_lock);
+    now = time(NULL);
     if (!force_refresh) {
         for (i = 0; i < g_xsts_count; i++) {
-            if (_stricmp(g_xsts_cache[i].rp, rp) == 0 && now + 120 < g_xsts_cache[i].expires) {
+            if (_stricmp(g_xsts_cache[i].rp, rp) == 0 && g_xsts_cache[i].expires > 0 &&
+                now + 120 < g_xsts_cache[i].expires) {
                 *out = g_xsts_cache[i];
                 LeaveCriticalSection(&g_auth_lock);
                 return 1;
@@ -2310,8 +2575,8 @@ static int acquire_xsts_entry(const char *rp_in, int force_refresh, xsts_entry *
 
         if (status != 200) {
             char origin[256];
-            auth_log("xsts/authorize HTTP %lu for rp=%s dt=%d tt=%d resp=%.120s",
-                     (unsigned long)status, rp, has_dt, has_tt, resp ? resp : "");
+            auth_log("xsts/authorize failed HTTP %lu for rp=%s dt=%d tt=%d",
+                     (unsigned long)status, rp, has_dt, has_tt);
             free(resp);
             resp = NULL;
             if (has_tt && _stricmp(rp, "http://xboxlive.com") == 0) {
@@ -2333,22 +2598,25 @@ static int acquire_xsts_entry(const char *rp_in, int force_refresh, xsts_entry *
                          esc_rp, esc_ut);
                 if (!https_post_json_ex(L"xsts.auth.xboxlive.com", L"/xsts/authorize", body, 1, 0, &status, &resp) ||
                     status != 200) {
-                    auth_log("xsts/authorize origin retry HTTP %lu for origin=%s", (unsigned long)status, origin);
+                    auth_log("xsts/authorize origin retry failed HTTP %lu for origin=%s", (unsigned long)status, origin);
                     free(resp);
                     resp = NULL;
+                } else {
+                    snprintf(actual_rp, sizeof actual_rp, "%s", origin);
                 }
             }
-            if (!resp && _stricmp(rp, "http://xboxlive.com") != 0) {
+            if (!resp && _stricmp(rp, "http://xboxlive.com") != 0 && rp_is_xboxlive_equiv(rp)) {
                 snprintf(body, 32768,
                          "{\"RelyingParty\":\"http://xboxlive.com\",\"TokenType\":\"JWT\","
                          "\"Properties\":{\"UserTokens\":[\"%s\"],\"SandboxId\":\"RETAIL\"}}",
                          esc_ut);
                 if (!https_post_json_ex(L"xsts.auth.xboxlive.com", L"/xsts/authorize", body, 1, 0, &status, &resp) ||
                     status != 200) {
-                    auth_log("xsts/authorize fallback HTTP %lu", (unsigned long)status);
+                    auth_log("xsts/authorize fallback failed HTTP %lu", (unsigned long)status);
                     free(esc_dt); free(esc_tt);
                     goto unlock;
                 }
+                snprintf(actual_rp, sizeof actual_rp, "http://xboxlive.com");
             }
             if (!resp) { free(esc_dt); free(esc_tt); goto unlock; }
         }
@@ -2356,7 +2624,7 @@ static int acquire_xsts_entry(const char *rp_in, int force_refresh, xsts_entry *
         free(esc_tt);
     }
 
-    snprintf(entry->rp, sizeof entry->rp, "%s", rp);
+    snprintf(entry->rp, sizeof entry->rp, "%s", actual_rp);
     if (!json_extract_str(resp, "Token", entry->token, sizeof entry->token) || !entry->token[0]) {
         auth_log("xsts/authorize response missing Token");
         goto unlock;
@@ -2364,10 +2632,15 @@ static int acquire_xsts_entry(const char *rp_in, int force_refresh, xsts_entry *
     json_extract_str(resp, "uhs", entry->uhs, sizeof entry->uhs);
     json_extract_str(resp, "xid", entry->xuid, sizeof entry->xuid);
     json_extract_str(resp, "gtg", entry->gamertag, sizeof entry->gamertag);
-    if (!json_extract_str(resp, "agg", entry->age_group, sizeof entry->age_group) || !entry->age_group[0])
-        snprintf(entry->age_group, sizeof entry->age_group, "Adult");
+    json_extract_str(resp, "agg", entry->age_group, sizeof entry->age_group);
     json_extract_str(resp, "prv", entry->privileges, sizeof entry->privileges);
-    entry->expires = now + 36000;
+    now = time(NULL);
+    entry->expires = 0;
+    if (json_extract_str(resp, "NotAfter", not_after, sizeof not_after) && not_after[0]) {
+        time_t parsed_exp = 0;
+        if (parse_iso8601_utc(not_after, &parsed_exp) && parsed_exp > now)
+            entry->expires = parsed_exp;
+    }
 
     if (entry->xuid[0]) snprintf(g_cached_xuid, sizeof g_cached_xuid, "%s", entry->xuid);
     if (entry->gamertag[0]) snprintf(g_cached_gamertag, sizeof g_cached_gamertag, "%s", entry->gamertag);
@@ -2379,24 +2652,26 @@ static int acquire_xsts_entry(const char *rp_in, int force_refresh, xsts_entry *
     if (!entry->gamertag[0] && g_cached_gamertag[0])
         snprintf(entry->gamertag, sizeof entry->gamertag, "%s", g_cached_gamertag);
 
-    for (i = 0; i < g_xsts_count; i++) {
-        if (_stricmp(g_xsts_cache[i].rp, rp) == 0) { slot = i; break; }
+    if (entry->expires > now + 120) {
+        for (i = 0; i < g_xsts_count; i++) {
+            if (_stricmp(g_xsts_cache[i].rp, entry->rp) == 0) { slot = i; break; }
+        }
+        if (slot < 0) {
+            if (g_xsts_count < 16) slot = g_xsts_count++;
+            else slot = 0;
+        }
+        g_xsts_cache[slot] = *entry;
     }
-    if (slot < 0) {
-        if (g_xsts_count < 16) slot = g_xsts_count++;
-        else slot = 0;
-    }
-    g_xsts_cache[slot] = *entry;
     *out = *entry;
     ok = 1;
 
 unlock:
     LeaveCriticalSection(&g_auth_lock);
     if (ok) {
-        auth_log("acquired XSTS token rp=%s xuid=%s gamertag=%s age=%s",
-                 rp, entry->xuid, entry->gamertag, entry->age_group);
-        auth_log("XSTS claims rp=%s uhs=%s prv=%s token_len=%u",
-                 rp, entry->uhs, entry->privileges, (unsigned)strlen(entry->token));
+        auth_log("acquired XSTS token rp=%s has_xuid=%d has_gt=%d has_age=%d has_uhs=%d has_prv=%d token_len=%u",
+                 entry->rp, entry->xuid[0] != 0, entry->gamertag[0] != 0,
+                 entry->age_group[0] != 0, entry->uhs[0] != 0, entry->privileges[0] != 0,
+                 (unsigned)strlen(entry->token));
     }
     free(resp);
     free(body);
@@ -2490,7 +2765,7 @@ static HRESULT __stdcall user_get_NonRoamableId(void *self, hstring_t *out)
     (void)self;
     if (!out) return E_POINTER;
     get_user_id_str(id, sizeof id);
-    auth_tracef("User::get_NonRoamableId -> %s", id);
+    auth_tracef("User::get_NonRoamableId (present=%d)", id[0] != 0);
     *out = hstr_from_utf8(id);
     return S_OK;
 }
@@ -2520,33 +2795,33 @@ static HRESULT __stdcall user_GetPropertyAsync(void *self, hstring_t prop_name, 
                  _stricmp(name, "FirstName") == 0)) {
         get_gamertag_str(val, sizeof val);
     }
-    auth_tracef("User::GetPropertyAsync(%s) -> %s", name ? name : "", val);
+    auth_tracef("User::GetPropertyAsync(%s) (present=%d)", name ? name : "", val[0] != 0);
     free(name);
-    return auth_async_done(S_OK, prop_str_new(val), out);
+    {
+        prop_str *pv = prop_str_new(val);
+        if (!pv) return E_OUTOFMEMORY;
+        return auth_async_done_iid(&IID_IAsyncOpObj, S_OK, pv, out);
+    }
 }
 
 static HRESULT __stdcall user_GetPropertiesAsync(void *self, void *values, void **out)
 {
-    str_map *m = str_map_new();
-    char gt[128];
     (void)self; (void)values;
-    get_gamertag_str(gt, sizeof gt);
-    str_map_set_utf8(m, "DisplayName", gt);
-    str_map_set_utf8(m, "AccountName", gt);
-    str_map_set_utf8(m, "FirstName", gt);
-    return auth_async_done(S_OK, m, out);
+    if (out) *out = NULL;
+    return E_NOTIMPL;
 }
 
 static HRESULT __stdcall user_GetPictureAsync(void *self, int size, void **out)
 {
     (void)self; (void)size;
-    return auth_async_done(S_OK, NULL, out);
+    return auth_async_done_iid(&IID_IAsyncOpStreamRef, S_OK, NULL, out);
 }
 
 static HRESULT __stdcall user2_CheckUserAgeConsentGroupAsync(void *self, int group, void **out)
 {
     (void)self; (void)group;
-    return auth_async_done(S_OK, NULL, out);
+    if (out) *out = NULL;
+    return E_NOTIMPL;
 }
 
 static const void *user_vtbl[] = {
@@ -2612,23 +2887,96 @@ static const void *ucea_vtbl[] = {
 };
 
 /* UserWatcher */
+#define UW_MAX_HANDLERS 16
+
+typedef struct {
+    INT64 token;
+    void *handler;
+} uw_sub;
+
 typedef struct {
     auth_obj base;
+    CRITICAL_SECTION lock;
     int status;
+    UINT32 generation;
     INT64 next_token;
-    void *on_added;
-    void *on_enum_done;
-    void *on_stopped;
+    uw_sub added[UW_MAX_HANDLERS];
+    uw_sub enum_done[UW_MAX_HANDLERS];
+    uw_sub stopped[UW_MAX_HANDLERS];
 } user_watcher;
+
+static void uw_subs_clear(uw_sub *subs)
+{
+    int i;
+    for (i = 0; i < UW_MAX_HANDLERS; i++) {
+        if (subs[i].handler) {
+            com_release(subs[i].handler);
+            subs[i].handler = NULL;
+            subs[i].token = 0;
+        }
+    }
+}
+
+static HRESULT uw_subs_add(user_watcher *w, uw_sub *subs, void *h, INT64 *tok)
+{
+    int i;
+    if (!h) return E_INVALIDARG;
+    EnterCriticalSection(&w->lock);
+    for (i = 0; i < UW_MAX_HANDLERS; i++) {
+        if (!subs[i].handler) {
+            INT64 id = ++w->next_token;
+            com_addref(h);
+            subs[i].token = id;
+            subs[i].handler = h;
+            LeaveCriticalSection(&w->lock);
+            if (tok) *tok = id;
+            return S_OK;
+        }
+    }
+    LeaveCriticalSection(&w->lock);
+    return E_OUTOFMEMORY;
+}
+
+static HRESULT uw_subs_rem(user_watcher *w, uw_sub *subs, INT64 tok)
+{
+    int i;
+    void *victim = NULL;
+    EnterCriticalSection(&w->lock);
+    for (i = 0; i < UW_MAX_HANDLERS; i++) {
+        if (subs[i].handler && subs[i].token == tok) {
+            victim = subs[i].handler;
+            subs[i].handler = NULL;
+            subs[i].token = 0;
+            break;
+        }
+    }
+    LeaveCriticalSection(&w->lock);
+    if (victim) com_release(victim);
+    return S_OK;
+}
+
+static int uw_subs_snapshot(user_watcher *w, uw_sub *subs, void **out_arr)
+{
+    int i, n = 0;
+    for (i = 0; i < UW_MAX_HANDLERS; i++) {
+        if (subs[i].handler) {
+            com_addref(subs[i].handler);
+            out_arr[n++] = subs[i].handler;
+        }
+    }
+    (void)w;
+    return n;
+}
 
 static ULONG __stdcall uw_Release(void *self)
 {
     user_watcher *w = (user_watcher *)self;
     LONG left = InterlockedDecrement(&w->base.refs);
     if (left <= 0) {
-        if (w->on_added) com_release(w->on_added);
-        if (w->on_enum_done) com_release(w->on_enum_done);
-        if (w->on_stopped) com_release(w->on_stopped);
+        uw_subs_clear(w->added);
+        uw_subs_clear(w->enum_done);
+        uw_subs_clear(w->stopped);
+        DeleteCriticalSection(&w->lock);
         free(w);
     }
     return (ULONG)left;
@@ -2649,8 +2997,11 @@ static HRESULT __stdcall uw_QI(void *self, const GUID *id, void **out)
 
 static HRESULT __stdcall uw_get_Status(void *self, int *out)
 {
+    user_watcher *w = (user_watcher *)self;
     if (!out) return E_POINTER;
-    *out = ((user_watcher *)self)->status;
+    EnterCriticalSection(&w->lock);
+    *out = w->status;
+    LeaveCriticalSection(&w->lock);
     return S_OK;
 }
 
@@ -2658,25 +3009,57 @@ static HRESULT __stdcall uw_Start(void *self)
 {
     typedef HRESULT(__stdcall *ev_fn)(void *, void *, void *);
     user_watcher *w = (user_watcher *)self;
+    void *snap[UW_MAX_HANDLERS];
+    int i, n;
+    UINT32 gen;
+
+    obj_AddRef(w);
+    EnterCriticalSection(&w->lock);
     w->status = WATCHER_STARTED;
-    if (w->on_added) {
+    gen = ++w->generation;
+    n = uw_subs_snapshot(w, w->added, snap);
+    LeaveCriticalSection(&w->lock);
+
+    if (n > 0) {
         user_changed_args *args = (user_changed_args *)calloc(1, sizeof(user_changed_args));
         if (args) {
-            ev_fn *slots = *(ev_fn **)w->on_added;
             args->base.vtbl = ucea_vtbl;
             args->base.refs = 1;
             args->base.name = "Windows.System.UserChangedEventArgs";
             args->user = &g_user_obj.base;
             com_addref(args->user);
-            if (slots && slots[3]) slots[3](w->on_added, w, args);
+            for (i = 0; i < n; i++) {
+                int still_active;
+                EnterCriticalSection(&w->lock);
+                still_active = (w->status == WATCHER_STARTED && w->generation == gen);
+                LeaveCriticalSection(&w->lock);
+                if (still_active) {
+                    ev_fn *slots = *(ev_fn **)snap[i];
+                    if (slots && slots[3]) slots[3](snap[i], w, args);
+                }
+                com_release(snap[i]);
+            }
             ucea_Release(args);
+        } else {
+            for (i = 0; i < n; i++) com_release(snap[i]);
         }
     }
-    w->status = WATCHER_ENUMDONE;
-    if (w->on_enum_done) {
-        ev_fn *slots = *(ev_fn **)w->on_enum_done;
-        if (slots && slots[3]) slots[3](w->on_enum_done, w, NULL);
+
+    EnterCriticalSection(&w->lock);
+    if (w->status == WATCHER_STARTED && w->generation == gen) {
+        w->status = WATCHER_ENUMDONE;
+        n = uw_subs_snapshot(w, w->enum_done, snap);
+    } else {
+        n = 0;
     }
+    LeaveCriticalSection(&w->lock);
+
+    for (i = 0; i < n; i++) {
+        ev_fn *slots = *(ev_fn **)snap[i];
+        if (slots && slots[3]) slots[3](snap[i], w, NULL);
+        com_release(snap[i]);
+    }
+    uw_Release(w);
     return S_OK;
 }
 
@@ -2684,37 +3067,40 @@ static HRESULT __stdcall uw_Stop(void *self)
 {
     typedef HRESULT(__stdcall *ev_fn)(void *, void *, void *);
     user_watcher *w = (user_watcher *)self;
+    void *snap[UW_MAX_HANDLERS];
+    int i, n;
+    obj_AddRef(w);
+    EnterCriticalSection(&w->lock);
     w->status = WATCHER_STOPPED;
-    if (w->on_stopped) {
-        ev_fn *slots = *(ev_fn **)w->on_stopped;
-        if (slots && slots[3]) slots[3](w->on_stopped, w, NULL);
+    w->generation++;
+    n = uw_subs_snapshot(w, w->stopped, snap);
+    LeaveCriticalSection(&w->lock);
+    for (i = 0; i < n; i++) {
+        ev_fn *slots = *(ev_fn **)snap[i];
+        if (slots && slots[3]) slots[3](snap[i], w, NULL);
+        com_release(snap[i]);
     }
+    uw_Release(w);
     return S_OK;
 }
 
 static HRESULT __stdcall uw_add_Added(void *self, void *h, INT64 *tok)
 {
-    user_watcher *w = (user_watcher *)self;
-    if (w->on_added) com_release(w->on_added);
-    w->on_added = h;
-    if (h) com_addref(h);
-    if (tok) *tok = ++w->next_token;
-    return S_OK;
+    return uw_subs_add((user_watcher *)self, ((user_watcher *)self)->added, h, tok);
 }
 
 static HRESULT __stdcall uw_rem_Added(void *self, INT64 tok)
 {
-    user_watcher *w = (user_watcher *)self;
-    (void)tok;
-    if (w->on_added) { com_release(w->on_added); w->on_added = NULL; }
-    return S_OK;
+    return uw_subs_rem((user_watcher *)self, ((user_watcher *)self)->added, tok);
 }
 
 static HRESULT __stdcall uw_add_noop(void *self, void *h, INT64 *tok)
 {
     user_watcher *w = (user_watcher *)self;
     (void)h;
+    EnterCriticalSection(&w->lock);
     if (tok) *tok = ++w->next_token;
+    LeaveCriticalSection(&w->lock);
     return S_OK;
 }
 
@@ -2722,38 +3108,22 @@ static HRESULT __stdcall uw_rem_noop(void *self, INT64 tok) { (void)self; (void)
 
 static HRESULT __stdcall uw_add_EnumDone(void *self, void *h, INT64 *tok)
 {
-    user_watcher *w = (user_watcher *)self;
-    if (w->on_enum_done) com_release(w->on_enum_done);
-    w->on_enum_done = h;
-    if (h) com_addref(h);
-    if (tok) *tok = ++w->next_token;
-    return S_OK;
+    return uw_subs_add((user_watcher *)self, ((user_watcher *)self)->enum_done, h, tok);
 }
 
 static HRESULT __stdcall uw_rem_EnumDone(void *self, INT64 tok)
 {
-    user_watcher *w = (user_watcher *)self;
-    (void)tok;
-    if (w->on_enum_done) { com_release(w->on_enum_done); w->on_enum_done = NULL; }
-    return S_OK;
+    return uw_subs_rem((user_watcher *)self, ((user_watcher *)self)->enum_done, tok);
 }
 
 static HRESULT __stdcall uw_add_Stopped(void *self, void *h, INT64 *tok)
 {
-    user_watcher *w = (user_watcher *)self;
-    if (w->on_stopped) com_release(w->on_stopped);
-    w->on_stopped = h;
-    if (h) com_addref(h);
-    if (tok) *tok = ++w->next_token;
-    return S_OK;
+    return uw_subs_add((user_watcher *)self, ((user_watcher *)self)->stopped, h, tok);
 }
 
 static HRESULT __stdcall uw_rem_Stopped(void *self, INT64 tok)
 {
-    user_watcher *w = (user_watcher *)self;
-    (void)tok;
-    if (w->on_stopped) { com_release(w->on_stopped); w->on_stopped = NULL; }
-    return S_OK;
+    return uw_subs_rem((user_watcher *)self, ((user_watcher *)self)->stopped, tok);
 }
 
 static const void *uw_vtbl[] = {
@@ -2778,6 +3148,8 @@ static const void *uw_vtbl[] = {
     (const void *)uw_rem_Stopped,      /* 22 */
 };
 
+static auth_obj *auth_class_factory_for_statics(const void *statics);
+
 /* IUserStatics & IUserStatics2 */
 static auth_obj g_user_statics;
 static auth_obj g_user_statics2;
@@ -2787,7 +3159,13 @@ static HRESULT __stdcall user_statics_QI(void *self, const GUID *id, void **out)
     (void)self;
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
-        IsEqualIID(id, &IID_IUserStatics)) {
+        IsEqualIID(id, &IID_IFactory_a)) {
+        auth_obj *fac = auth_class_factory_for_statics(&g_user_statics);
+        *out = fac ? fac : &g_user_statics;
+        obj_AddRef(*out);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &IID_IUserStatics)) {
         *out = &g_user_statics;
         obj_AddRef(&g_user_statics);
         return S_OK;
@@ -2809,6 +3187,7 @@ static HRESULT __stdcall user_CreateWatcher(void *self, void **out)
     auth_tracef("User::CreateWatcher");
     w = (user_watcher *)calloc(1, sizeof(user_watcher));
     if (!w) return E_OUTOFMEMORY;
+    InitializeCriticalSection(&w->lock);
     w->base.vtbl = uw_vtbl;
     w->base.refs = 1;
     w->base.name = "Windows.System.UserWatcher";
@@ -2826,12 +3205,16 @@ static DWORD WINAPI find_users_thread(LPVOID param)
 {
     find_users_ctx *ctx = (find_users_ctx *)param;
     vec_view *vec;
+    HRESULT com_hr = E_FAIL;
+    auth_ole_init();
+    if (fn_CoInitializeEx) com_hr = fn_CoInitializeEx(NULL, COINIT_MULTITHREADED);
     if (ctx->include_user) ensure_identity_warm();
     vec = vec_view_new(&IID_IVecViewUser, &IID_IIterableUser, &IID_IIteratorUser,
                        ctx->include_user ? &g_user_obj.base : NULL);
     auth_async_complete(ctx->op, vec ? S_OK : E_OUTOFMEMORY, vec);
     auth_async_Release(ctx->op);
     free(ctx);
+    if (SUCCEEDED(com_hr) && fn_CoUninitialize) fn_CoUninitialize();
     return 0;
 }
 
@@ -2841,7 +3224,7 @@ static HRESULT start_find_users(int include_user, void **out)
     find_users_ctx *ctx;
     HANDLE th;
     if (!out) return E_POINTER;
-    op = auth_async_create(1, 1, S_OK, NULL);
+    op = auth_async_create_iid(1, &IID_IAsyncOpVecUser, 1, S_OK, NULL);
     if (!op) return E_OUTOFMEMORY;
     ctx = (find_users_ctx *)calloc(1, sizeof(find_users_ctx));
     if (!ctx) { auth_async_Release(op); return E_OUTOFMEMORY; }
@@ -2881,11 +3264,20 @@ static HRESULT __stdcall user_FindAllAsyncByTypeAndStatus(void *self, int type, 
 
 static HRESULT __stdcall user_GetFromId(void *self, hstring_t id, void **out)
 {
-    (void)self; (void)id;
+    char expected[128];
+    char *req_id;
+    (void)self;
     if (!out) return E_POINTER;
+    *out = NULL;
     auth_tracef("User::GetFromId");
-    *out = &g_user_obj.base;
-    user_AddRef(&g_user_obj);
+    req_id = hstr_to_utf8(id);
+    if (!req_id) return E_OUTOFMEMORY;
+    get_user_id_str(expected, sizeof expected);
+    if (expected[0] && _stricmp(req_id, expected) == 0) {
+        *out = &g_user_obj.base;
+        user_AddRef(&g_user_obj);
+    }
+    free(req_id);
     return S_OK;
 }
 
@@ -2924,7 +3316,13 @@ static HRESULT __stdcall kup_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
-        IsEqualIID(id, &IID_IKnownUserProps)) {
+        IsEqualIID(id, &IID_IFactory_a)) {
+        auth_obj *fac = auth_class_factory_for_statics(&g_known_user_props);
+        *out = fac ? fac : self;
+        obj_AddRef(*out);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &IID_IKnownUserProps)) {
         *out = self;
         obj_AddRef(self);
         return S_OK;
@@ -3021,7 +3419,7 @@ static HRESULT __stdcall up_PickSingleUserAsync(void *self, void **out)
     (void)self;
     ensure_identity_warm();
     user_AddRef(&g_user_obj);
-    return auth_async_done(S_OK, &g_user_obj.base, out);
+    return auth_async_done_iid(&IID_IAsyncOpUser, S_OK, &g_user_obj.base, out);
 }
 
 static const void *up_vtbl[] = {
@@ -3036,7 +3434,13 @@ static HRESULT __stdcall up_statics_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
-        IsEqualIID(id, &IID_IUserPickerStat)) {
+        IsEqualIID(id, &IID_IFactory_a)) {
+        auth_obj *fac = auth_class_factory_for_statics(&g_user_picker_statics);
+        *out = fac ? fac : self;
+        obj_AddRef(*out);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &IID_IUserPickerStat)) {
         *out = self;
         obj_AddRef(self);
         return S_OK;
@@ -3297,14 +3701,22 @@ static HRESULT __stdcall wa2_get_Properties(void *self, void **out)
 static HRESULT __stdcall wa2_GetPictureAsync(void *self, int sz, void **out)
 {
     (void)self; (void)sz;
-    return auth_async_done(S_OK, NULL, out);
+    return auth_async_done_iid(&IID_IAsyncOpStream, S_OK, NULL, out);
 }
 static HRESULT __stdcall wa2_SignOutAsync(void *self, void **out)
 {
     auth_async *op;
     (void)self;
     if (!out) return E_POINTER;
-    op = auth_async_create(0, 0, S_OK, NULL);
+    auth_init_once();
+    EnterCriticalSection(&g_auth_lock);
+    g_xsts_count = 0;
+    memset(g_xsts_cache, 0, sizeof g_xsts_cache);
+    g_xbl_user_token[0] = '\0';
+    g_xbl_title_token[0] = '\0';
+    g_xbl_user_expiry = 0;
+    LeaveCriticalSection(&g_auth_lock);
+    op = auth_async_create_iid(0, &IID_IAsyncAction_a, 0, S_OK, NULL);
     if (!op) return E_OUTOFMEMORY;
     *out = op;
     return S_OK;
@@ -3339,8 +3751,15 @@ static web_account *wa_new(web_provider *provider, const char *xuid, const char 
     a->id = strdup(xuid && xuid[0] ? xuid : "0");
     a->username = strdup(gamertag && gamertag[0] ? gamertag : "Player");
     a->props = str_map_new();
-    if (xuid && xuid[0]) str_map_set_utf8(a->props, "XboxUserId", xuid);
-    if (gamertag && gamertag[0]) str_map_set_utf8(a->props, "Gamertag", gamertag);
+    if (!a->provider || !a->id || !a->username || !a->props) {
+        wa_Release(a);
+        return NULL;
+    }
+    if ((xuid && xuid[0] && str_map_set_utf8(a->props, "XboxUserId", xuid) < 0) ||
+        (gamertag && gamertag[0] && str_map_set_utf8(a->props, "Gamertag", gamertag) < 0)) {
+        wa_Release(a);
+        return NULL;
+    }
     return a;
 }
 
@@ -3498,6 +3917,11 @@ static HRESULT wtr_create_internal(void *provider, hstring_t scope, hstring_t cl
     r->prompt_type = prompt_type;
     r->props = str_map_new();
     r->app_props = str_map_new();
+    if (!r->scope || !r->client_id || !r->corr_id || !r->props || !r->app_props) {
+        wtr_Release(r);
+        *out = NULL;
+        return E_OUTOFMEMORY;
+    }
     *out = &r->base;
     return S_OK;
 }
@@ -3508,7 +3932,13 @@ static HRESULT __stdcall wtr_factory_QI(void *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
-        IsEqualIID(id, &IID_IWtrFactory)) {
+        IsEqualIID(id, &IID_IFactory_a)) {
+        auth_obj *fac = auth_class_factory_for_statics(&g_wtr_factory);
+        *out = fac ? fac : self;
+        obj_AddRef(*out);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &IID_IWtrFactory)) {
         *out = self; obj_AddRef(self); return S_OK;
     }
     *out = NULL;
@@ -3614,6 +4044,10 @@ static web_prov_err *wpe_new(UINT32 code, const char *msg)
     e->code = code;
     e->msg = strdup(msg ? msg : "Authentication failed");
     e->props = str_map_new();
+    if (!e->msg || !e->props) {
+        wpe_Release(e);
+        return NULL;
+    }
     return e;
 }
 
@@ -3749,7 +4183,7 @@ static HRESULT __stdcall wtres_InvalidateCacheAsync(void *self, void **out)
     EnterCriticalSection(&g_auth_lock);
     g_xsts_count = 0;
     LeaveCriticalSection(&g_auth_lock);
-    op = auth_async_create(0, 0, S_OK, NULL);
+    op = auth_async_create_iid(0, &IID_IAsyncAction_a, 0, S_OK, NULL);
     if (!op) return E_OUTOFMEMORY;
     *out = op;
     return S_OK;
@@ -3782,6 +4216,10 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
     web_token_result *res = (web_token_result *)calloc(1, sizeof(web_token_result));
     web_provider *prov = NULL;
     int is_msa_provider = 0;
+    HRESULT com_hr = E_FAIL;
+
+    auth_ole_init();
+    if (fn_CoInitializeEx) com_hr = fn_CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
     if (req && req->provider && ((auth_obj *)req->provider)->vtbl == wap_vtbl) {
         prov = wap_from(req->provider);
@@ -3790,8 +4228,8 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
     }
 
     normalize_relying_party(prop_target, prop_url, rp, sizeof rp);
-    auth_log("WebAuthenticationCoreManager token request rp=%s target=%s url=%s refresh=%d msa=%d",
-             rp, prop_target ? prop_target : "", prop_url ? prop_url : "", force_refresh, is_msa_provider);
+    auth_log("WebAuthenticationCoreManager token request rp=%s refresh=%d msa=%d",
+             rp, force_refresh, is_msa_provider);
 
     if (res) {
         res->base.vtbl = wtres_vtbl;
@@ -3809,52 +4247,99 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
             if (ok && msa_copy && msa_copy[0]) {
                 web_token_resp *resp = (web_token_resp *)calloc(1, sizeof(web_token_resp));
                 char xuid[64], gt[128];
-                get_user_id_str(xuid, sizeof xuid);
-                get_gamertag_str(gt, sizeof gt);
-                resp->base.vtbl = wtresp_vtbl;
-                resp->base.refs = 1;
-                resp->base.name = "Windows.Security.Authentication.Web.Core.WebTokenResponse";
-                resp->token = strdup(msa_copy);
-                resp->account = wa_new(prov, xuid, gt);
-                resp->props = str_map_new();
-                res->status = WTR_STATUS_SUCCESS;
-                res->data = vec_view_new(&IID_IVecViewWtrResp, &IID_IIterableWtrRsp,
-                                         &IID_IIteratorWtrRsp, resp);
-                wtresp_Release(resp);
+                if (!resp) {
+                    wtres_Release(res);
+                    res = NULL;
+                } else {
+                    get_user_id_str(xuid, sizeof xuid);
+                    get_gamertag_str(gt, sizeof gt);
+                    resp->base.vtbl = wtresp_vtbl;
+                    resp->base.refs = 1;
+                    resp->base.name = "Windows.Security.Authentication.Web.Core.WebTokenResponse";
+                    resp->token = strdup(msa_copy);
+                    resp->account = wa_new(prov, xuid, gt);
+                    resp->props = str_map_new();
+                    if (!resp->token || !resp->account || !resp->props) {
+                        wtresp_Release(resp);
+                        wtres_Release(res);
+                        res = NULL;
+                    } else {
+                        res->status = WTR_STATUS_SUCCESS;
+                        res->data = vec_view_new(&IID_IVecViewWtrResp, &IID_IIterableWtrRsp,
+                                                 &IID_IIteratorWtrRsp, resp);
+                        wtresp_Release(resp);
+                        if (!res->data) {
+                            wtres_Release(res);
+                            res = NULL;
+                        }
+                    }
+                }
             } else {
                 res->status = WTR_STATUS_PROVIDER_ERROR;
                 res->err = wpe_new(0x80070525U, "MSA token unavailable");
                 res->data = vec_view_new(&IID_IVecViewWtrResp, &IID_IIterableWtrRsp,
                                          &IID_IIteratorWtrRsp, NULL);
+                if (!res->err || !res->data) {
+                    wtres_Release(res);
+                    res = NULL;
+                }
             }
             free(msa_copy);
         } else if (xsts && acquire_xsts_entry(rp, force_refresh, xsts)) {
             char *header_tok = (char *)malloc(8400);
             web_token_resp *resp = (web_token_resp *)calloc(1, sizeof(web_token_resp));
-            if (header_tok) snprintf(header_tok, 8400, "XBL3.0 x=%s;%s", xsts->uhs, xsts->token);
-            resp->base.vtbl = wtresp_vtbl;
-            resp->base.refs = 1;
-            resp->base.name = "Windows.Security.Authentication.Web.Core.WebTokenResponse";
-            resp->token = strdup(header_tok ? header_tok : "");
-            free(header_tok);
-            resp->account = wa_new(prov, xsts->xuid, xsts->gamertag);
-            resp->props = str_map_new();
-            str_map_set_utf8(resp->props, "XboxUserId", xsts->xuid);
-            str_map_set_utf8(resp->props, "Gamertag", xsts->gamertag);
-            str_map_set_utf8(resp->props, "AgeGroup", xsts->age_group);
-            str_map_set_utf8(resp->props, "Environment", "prod");
-            str_map_set_utf8(resp->props, "Sandbox", "RETAIL");
-            str_map_set_utf8(resp->props, "Privileges", xsts->privileges);
-            str_map_set_utf8(resp->props, "UserHash", xsts->uhs);
-            res->status = WTR_STATUS_SUCCESS;
-            res->data = vec_view_new(&IID_IVecViewWtrResp, &IID_IIterableWtrRsp,
-                                     &IID_IIteratorWtrRsp, resp);
-            wtresp_Release(resp);
+            if (!header_tok || !resp) {
+                free(header_tok);
+                free(resp);
+                wtres_Release(res);
+                res = NULL;
+            } else {
+                int prop_ok = 1;
+                snprintf(header_tok, 8400, "XBL3.0 x=%s;%s", xsts->uhs, xsts->token);
+                resp->base.vtbl = wtresp_vtbl;
+                resp->base.refs = 1;
+                resp->base.name = "Windows.Security.Authentication.Web.Core.WebTokenResponse";
+                resp->token = strdup(header_tok);
+                free(header_tok);
+                resp->account = wa_new(prov, xsts->xuid, xsts->gamertag);
+                resp->props = str_map_new();
+                if (!resp->token || !resp->account || !resp->props) {
+                    prop_ok = 0;
+                } else {
+                    if (str_map_set_utf8(resp->props, "XboxUserId", xsts->xuid) < 0 ||
+                        str_map_set_utf8(resp->props, "Gamertag", xsts->gamertag) < 0 ||
+                        (xsts->age_group[0] &&
+                         str_map_set_utf8(resp->props, "AgeGroup", xsts->age_group) < 0) ||
+                        str_map_set_utf8(resp->props, "Environment", "prod") < 0 ||
+                        str_map_set_utf8(resp->props, "Sandbox", "RETAIL") < 0 ||
+                        str_map_set_utf8(resp->props, "Privileges", xsts->privileges) < 0 ||
+                        str_map_set_utf8(resp->props, "UserHash", xsts->uhs) < 0)
+                        prop_ok = 0;
+                }
+                if (!prop_ok) {
+                    wtresp_Release(resp);
+                    wtres_Release(res);
+                    res = NULL;
+                } else {
+                    res->status = WTR_STATUS_SUCCESS;
+                    res->data = vec_view_new(&IID_IVecViewWtrResp, &IID_IIterableWtrRsp,
+                                             &IID_IIteratorWtrRsp, resp);
+                    wtresp_Release(resp);
+                    if (!res->data) {
+                        wtres_Release(res);
+                        res = NULL;
+                    }
+                }
+            }
         } else {
             res->status = WTR_STATUS_PROVIDER_ERROR;
             res->err = wpe_new(0x8015dc00U, "Xbox Live XSTS authentication failed");
             res->data = vec_view_new(&IID_IVecViewWtrResp, &IID_IIterableWtrRsp,
                                      &IID_IIteratorWtrRsp, NULL);
+            if (!res->err || !res->data) {
+                wtres_Release(res);
+                res = NULL;
+            }
         }
     }
 
@@ -3868,6 +4353,7 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
     auth_async_complete(ctx->op, res ? S_OK : E_OUTOFMEMORY, res);
     auth_async_Release(ctx->op);
     free(ctx);
+    if (SUCCEEDED(com_hr) && fn_CoUninitialize) fn_CoUninitialize();
     return 0;
 }
 
@@ -3877,7 +4363,7 @@ static HRESULT start_token_request(void *request, void **out)
     token_work_ctx *ctx;
     HANDLE th;
     if (!out) return E_POINTER;
-    op = auth_async_create(1, 1, S_OK, NULL);
+    op = auth_async_create_iid(1, &IID_IAsyncOpWtrResult, 1, S_OK, NULL);
     if (!op) return E_OUTOFMEMORY;
     ctx = (token_work_ctx *)calloc(1, sizeof(token_work_ctx));
     if (!ctx) { auth_async_Release(op); return E_OUTOFMEMORY; }
@@ -3907,9 +4393,13 @@ static HRESULT __stdcall wacm_QI(void *self, const GUID *id, void **out)
     (void)self;
     if (!out) return E_POINTER;
     if (!id || IsEqualIID(id, &IID_IUnknown_a) || IsEqualIID(id, &IID_IInspectable_a) ||
-        IsEqualIID(id, &IID_IWacmStatics)) {
-        *out = &g_wacm_statics; obj_AddRef(&g_wacm_statics); return S_OK;
+        IsEqualIID(id, &IID_IFactory_a)) {
+        auth_obj *fac = auth_class_factory_for_statics(&g_wacm_statics);
+        *out = fac ? fac : &g_wacm_statics;
+        obj_AddRef(*out);
+        return S_OK;
     }
+    if (IsEqualIID(id, &IID_IWacmStatics))  { *out = &g_wacm_statics;  obj_AddRef(&g_wacm_statics);  return S_OK; }
     if (IsEqualIID(id, &IID_IWacmStatics2)) { *out = &g_wacm_statics2; obj_AddRef(&g_wacm_statics2); return S_OK; }
     if (IsEqualIID(id, &IID_IWacmStatics3)) { *out = &g_wacm_statics3; obj_AddRef(&g_wacm_statics3); return S_OK; }
     if (IsEqualIID(id, &IID_IWacmStatics4)) { *out = &g_wacm_statics4; obj_AddRef(&g_wacm_statics4); return S_OK; }
@@ -3945,7 +4435,11 @@ static HRESULT __stdcall wacm_FindAccountAsync(void *self, void *prov, hstring_t
     ensure_identity_warm();
     get_user_id_str(xuid, sizeof xuid);
     get_gamertag_str(gt, sizeof gt);
-    return auth_async_done(S_OK, wa_new(p, xuid, gt), out);
+    {
+        web_account *acct = wa_new(p, xuid, gt);
+        if (!acct) return E_OUTOFMEMORY;
+        return auth_async_done_iid(&IID_IAsyncOpWebAccount, S_OK, acct, out);
+    }
 }
 static HRESULT __stdcall wacm_FindAccountProviderAsync(void *self, hstring_t pid, void **out)
 {
@@ -3954,7 +4448,8 @@ static HRESULT __stdcall wacm_FindAccountProviderAsync(void *self, hstring_t pid
     (void)self;
     auth_log("FindAccountProviderAsync(%s)", id ? id : "");
     free(id);
-    return auth_async_done(S_OK, p, out);
+    if (!p) return E_OUTOFMEMORY;
+    return auth_async_done_iid(&IID_IAsyncOpWebProvider, S_OK, p, out);
 }
 static HRESULT __stdcall wacm_FindAccountProviderWithAuthAsync(void *self, hstring_t pid, hstring_t auth, void **out)
 {
@@ -3965,7 +4460,8 @@ static HRESULT __stdcall wacm_FindAccountProviderWithAuthAsync(void *self, hstri
     auth_log("FindAccountProviderAsync(%s, %s)", id ? id : "", au ? au : "");
     free(id);
     free(au);
-    return auth_async_done(S_OK, p, out);
+    if (!p) return E_OUTOFMEMORY;
+    return auth_async_done_iid(&IID_IAsyncOpWebProvider, S_OK, p, out);
 }
 static HRESULT __stdcall wacm2_FindAccountProviderForUserAsync(void *self, hstring_t pid, hstring_t auth,
                                                                void *user, void **out)
@@ -3977,7 +4473,8 @@ static HRESULT __stdcall wacm2_FindAccountProviderForUserAsync(void *self, hstri
     auth_log("FindAccountProviderForUserAsync(%s, %s)", id ? id : "", au ? au : "");
     free(id);
     free(au);
-    return auth_async_done(S_OK, p, out);
+    if (!p) return E_OUTOFMEMORY;
+    return auth_async_done_iid(&IID_IAsyncOpWebProvider, S_OK, p, out);
 }
 static HRESULT __stdcall wacm3_CreateMonitor(void *self, void *accts, void **out)
 {
@@ -3988,12 +4485,14 @@ static HRESULT __stdcall wacm3_CreateMonitor(void *self, void *accts, void **out
 static HRESULT __stdcall wacm4_FindAllAccountsAsync(void *self, void *prov, void **out)
 {
     (void)self; (void)prov;
-    return auth_async_done(S_OK, NULL, out);
+    if (out) *out = NULL;
+    return E_NOTIMPL;
 }
 static HRESULT __stdcall wacm4_FindAllAccountsClientAsync(void *self, void *prov, hstring_t cid, void **out)
 {
     (void)self; (void)prov; (void)cid;
-    return auth_async_done(S_OK, NULL, out);
+    if (out) *out = NULL;
+    return E_NOTIMPL;
 }
 
 static const void *wacm_statics_vtbl[] = {
@@ -4043,6 +4542,15 @@ static auth_class g_auth_classes[] = {
     {L"Windows.Security.Authentication.Web.Core.WebAuthenticationCoreManager", &g_wacm_statics, 0, {0}},
     {L"Windows.Security.Authentication.Web.Core.WebTokenRequest", &g_wtr_factory, 0, {0}},
 };
+
+static auth_obj *auth_class_factory_for_statics(const void *statics)
+{
+    size_t i;
+    for (i = 0; i < sizeof(g_auth_classes) / sizeof(g_auth_classes[0]); i++) {
+        if (g_auth_classes[i].statics == statics) return &g_auth_classes[i].factory;
+    }
+    return NULL;
+}
 
 static HRESULT __stdcall auth_factory_QI(void *self, const GUID *id, void **out)
 {

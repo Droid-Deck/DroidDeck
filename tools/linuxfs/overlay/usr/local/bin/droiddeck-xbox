@@ -372,35 +372,49 @@ def wine(argv, source_env=None, package=None):
         if target.is_symlink():
             target.unlink()
         shutil.copyfile(RUNTIME / 'windows' / name, target)
-    package_root = None
-    if package is not None:
-        parsed = package_manifest_identity(package)
-        if parsed is not None:
-            package_root = stage_package_root(prefix, package, parsed[0])
-    classes = package_classes(package, install_path=package_root) if package is not None else {}
-    if env.get('DROIDDECK_XBOX_UWP_HOST') == '1':
-        try:
-            data = UWP_HOST.read_bytes()
-            replace_file(system, 'uwp-host.dll', data)
-        except OSError as error:
-            print('droiddeck-xbox: app-model host unavailable (%s)' % error, file=sys.stderr)
-        else:
-            trace(env, 'app-model host staged (%d bytes)' % len(data))
-            classes['uwp-host.dll'] = UWP_CLASSES
-    register_classes(command[0], prefix, env, classes)
-    if package is not None:
-        register_packages(command[0], prefix, env, package_identities(package, install_path=package_root))
-    run_install_actions(command[0], prefix, argv[0], env)
-    overrides = ';'.join(name[:-4] + '=n' for name in DLLS if name != 'libnghttp2.dll')
-    env['WINEDLLOVERRIDES'] = overrides + ';' + env.get('WINEDLLOVERRIDES', '')
     exe, drive = view_drive(prefix, argv[0])
-    if package is not None and package_root is not None and drive is None:
-        rel_exe = relative_to_package(argv[0], package)
-        if rel_exe is not None:
-            exe = package_root + '\\' + str(rel_exe).replace('/', '\\')
+    view_root = next((p for p in Path(argv[0]).parents if p.name.startswith('droiddeck-xbox-')), None)
+    # When launching from a decrypted EAppx view, point the staged WindowsApps root and manifest
+    # InProcessServer DllPaths at the decrypted view for the session lifetime (the view remains
+    # mounted until launch()'s finally releases the lease after wine() returns), then restore the
+    # WindowsApps symlink to the persistent package folder on exit.
+    active_package = view_root if (view_root is not None and (view_root / 'AppxManifest.xml').is_file()) else package
+    package_root = None
+    staged_full_name = None
     try:
+        if active_package is not None:
+            parsed = package_manifest_identity(active_package)
+            if parsed is not None:
+                staged_full_name = parsed[0]
+                package_root = stage_package_root(prefix, active_package, staged_full_name)
+        classes = package_classes(active_package, install_path=package_root) if active_package is not None else {}
+        if env.get('DROIDDECK_XBOX_UWP_HOST') == '1':
+            try:
+                data = UWP_HOST.read_bytes()
+                replace_file(system, 'uwp-host.dll', data)
+            except OSError as error:
+                print('droiddeck-xbox: app-model host unavailable (%s)' % error, file=sys.stderr)
+            else:
+                trace(env, 'app-model host staged (%d bytes)' % len(data))
+                classes['uwp-host.dll'] = UWP_CLASSES
+        register_classes(command[0], prefix, env, classes)
+        if active_package is not None:
+            register_packages(command[0], prefix, env, package_identities(active_package, install_path=package_root))
+        run_install_actions(command[0], prefix, argv[0], env)
+        overrides = ';'.join(name[:-4] + '=n' for name in DLLS if name != 'libnghttp2.dll')
+        env['WINEDLLOVERRIDES'] = overrides + ';' + env.get('WINEDLLOVERRIDES', '')
+        if package_root is not None:
+            env['DROIDDECK_XBOX_PACKAGE_ROOT'] = package_root
+        elif active_package is not None and Path(active_package).is_absolute():
+            env['DROIDDECK_XBOX_PACKAGE_ROOT'] = 'Z:' + str(Path(active_package)).replace('/', '\\')
+        if active_package is not None and package_root is not None and drive is None:
+            rel_exe = relative_to_package(argv[0], active_package)
+            if rel_exe is not None:
+                exe = package_root + '\\' + str(rel_exe).replace('/', '\\')
         return subprocess.call([*command[:2], exe, *command[3:]], env=env)
     finally:
+        if staged_full_name is not None and package is not None and active_package != package:
+            stage_package_root(prefix, package, staged_full_name)
         if drive is not None:
             try:
                 drive.unlink()
@@ -574,26 +588,41 @@ def stage_playfab_proxy(folder):
     return staged
 
 
-def uwp_view_app(folder):
-    """True when the package's manifest starts it through a view entry point rather than as an ordinary program.
+def parse_manifest_xml(text):
+    """Parse an AppxManifest.xml document (or fragment) into an ElementTree root, or None."""
+    try:
+        return ElementTree.fromstring(text)
+    except ElementTree.ParseError:
+        stripped = re.sub(r'^\s*<\?xml[^>]*\?>', '', text)
+        try:
+            return ElementTree.fromstring('<_>' + stripped + '</_>')
+        except ElementTree.ParseError:
+            return None
 
-    Read as text and scanned for the entry point instead of parsed: the manifest is untrusted input from the
-    package, and the only answer needed here is whether the entry is Windows.FullTrustApplication.
-    """
+
+def xml_local_tag(element):
+    tag = element.tag
+    return tag.rsplit('}', 1)[-1] if '}' in tag else tag
+
+
+def uwp_view_app(folder):
+    """True when the package's manifest starts an Application through a view EntryPoint rather than FullTrust."""
     try:
         text = (Path(folder) / 'AppxManifest.xml').read_text(encoding='utf-8', errors='replace')
     except OSError:
         return False
-    marker = 'EntryPoint="'
-    at = text.find(marker)
-    while at >= 0:
-        end = text.find('"', at + len(marker))
-        if end < 0:
-            return False
-        entry = text[at + len(marker):end].strip()
-        if entry and entry.split(',')[0].strip() != 'Windows.FullTrustApplication':
-            return True
-        at = text.find(marker, end)
+    root = parse_manifest_xml(text)
+    if root is None:
+        return False
+    for applications in root:
+        if xml_local_tag(applications) != 'Applications':
+            continue
+        for app in applications:
+            if xml_local_tag(app) != 'Application':
+                continue
+            entry = (app.attrib.get('EntryPoint') or '').strip()
+            if entry and entry.split(',')[0].strip() != 'Windows.FullTrustApplication':
+                return True
     return False
 
 
@@ -743,14 +772,26 @@ def package_classes(folder, install_path=None):
         text = (folder / 'AppxManifest.xml').read_text(encoding='utf-8', errors='replace')
     except OSError:
         return {}
+    root = parse_manifest_xml(text)
+    if root is None:
+        return {}
     classes = {}
     root_path = install_path or ('Z:' + str(folder).replace('/', '\\'))
-    for server in re.findall(r'<(?:\w+:)?InProcessServer>(.*?)</(?:\w+:)?InProcessServer>', text, re.S):
-        path = re.search(r'<(?:\w+:)?Path>([^<]*)</(?:\w+:)?Path>', server)
-        names = re.findall(r'ActivatableClassId="([A-Za-z0-9_.]+)"', server)
-        if path is None or not names:
+    for server in root.iter():
+        if xml_local_tag(server) != 'InProcessServer':
             continue
-        relative = path.group(1).strip().replace('\\', '/')
+        path_el = next((el for el in server if xml_local_tag(el) == 'Path'), None)
+        if path_el is None or path_el.text is None:
+            continue
+        names = []
+        for el in server:
+            if xml_local_tag(el) == 'ActivatableClass':
+                cid = (el.attrib.get('ActivatableClassId') or '').strip()
+                if cid and re.fullmatch(r'[A-Za-z0-9_.]+', cid):
+                    names.append(cid)
+        if not names:
+            continue
+        relative = path_el.text.strip().replace('\\', '/')
         if not relative or relative.startswith('/') or ':' in relative or '..' in relative.split('/'):
             continue
         dll = folder / relative
