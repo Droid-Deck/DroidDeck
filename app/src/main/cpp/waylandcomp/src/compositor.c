@@ -952,7 +952,6 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
             g_hud_new = 1;
         }
     }
-    /* Statistics-only callback: never classifies an SHM surface as a game. */
     if (s == g_hud_shm) droiddeck_on_compositor_frame();
 }
 
