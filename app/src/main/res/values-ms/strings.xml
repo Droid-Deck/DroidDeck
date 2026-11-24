@@ -1286,8 +1286,6 @@
     <string name="gate_status">Status</string>
     <string name="gate_polling">Menyemak setiap 2 saat. Halaman ini ditutup apabila ia mati.</string>
     <string name="gate_other_ways">Cara lain</string>
-    <string name="gate_other_toggle">Debugging Wayarles, alamat manual, ADB komputer</string>
-    <string name="gate_other_no_toggle">Alamat manual, ADB komputer, Pilihan pembangun</string>
     <string name="gate_use_wireless_instead">Gunakan Debugging Wayarles sebaliknya</string>
     <string name="gate_some_roms">Sesetengah ROM turut menambah suis itu. Cari “proses anak” dalam Pilihan pembangun.</string>
     <string name="gate_from_computer">Daripada komputer dengan ADB:</string>

@@ -1292,8 +1292,6 @@
     <string name="gate_status">Status</string>
     <string name="gate_polling">Controleert elke 2 seconden. Deze pagina sluit zodra het uit staat.</string>
     <string name="gate_other_ways">Andere manieren</string>
-    <string name="gate_other_toggle">Draadloos debuggen, handmatig adres, computer-ADB</string>
-    <string name="gate_other_no_toggle">Handmatig adres, computer-ADB, Opties voor ontwikkelaars</string>
     <string name="gate_use_wireless_instead">Gebruik Draadloos debuggen in plaats daarvan</string>
     <string name="gate_some_roms">Sommige ROMs voegen de schakelaar toch toe. Zoek naar “subproces” in Opties voor ontwikkelaars.</string>
     <string name="gate_from_computer">Vanaf een computer met ADB:</string>

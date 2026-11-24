@@ -1292,8 +1292,6 @@
     <string name="gate_status">Status</string>
     <string name="gate_polling">Kontrollerer hvert 2. sekund. Denne siden lukkes når det er av.</string>
     <string name="gate_other_ways">Andre måter</string>
-    <string name="gate_other_toggle">Trådløs feilsøking, manuell adresse, ADB fra datamaskin</string>
-    <string name="gate_other_no_toggle">Manuell adresse, ADB fra datamaskin, Utvikleralternativer</string>
     <string name="gate_use_wireless_instead">Bruk trådløs feilsøking i stedet</string>
     <string name="gate_some_roms">Noen ROM-er legger til bryteren likevel. Se etter «child process» i Utvikleralternativer.</string>
     <string name="gate_from_computer">Fra en datamaskin med ADB:</string>

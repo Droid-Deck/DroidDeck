@@ -35,6 +35,7 @@
     <string name="wall_settings_fps" translatable="false">Frame rate (fps)</string>
     <string name="wall_settings_match" translatable="false">Match screen</string>
     <string name="wall_settings_speed" translatable="false">Scroll speed</string>
+    <string name="loading_first_run">First launch sets Steam up and can take a few minutes. After this it starts much faster.</string>
     <string-array name="loading_hints">
         <item>DroidDeck downloads Steam in the background while you set up, so your first launch is quicker.</item>
         <item>Your controller shows up to Steam as a Steam Deck controller. Switch it to a Steam Controller, DualShock 4, DualSense or Xbox 360 pad in the session settings; it applies next session.</item>
@@ -1442,8 +1443,8 @@
     <string name="gate_status">Status</string>
     <string name="gate_polling">Checking every 2 seconds. This page closes when it\'s off.</string>
     <string name="gate_other_ways">Other ways</string>
-    <string name="gate_other_toggle">Wireless debugging, manual address, computer ADB</string>
-    <string name="gate_other_no_toggle">Manual address, computer ADB, Developer options</string>
+    <string name="gate_other_toggle">Wireless debugging, computer ADB</string>
+    <string name="gate_other_no_toggle">Computer ADB, Developer options</string>
     <string name="gate_use_wireless_instead">Use Wireless debugging instead</string>
     <string name="gate_some_roms">Some ROMs add the switch anyway. Look for “child process” in Developer options.</string>
     <string name="gate_from_computer">From a computer with ADB:</string>
@@ -4378,6 +4379,6 @@
     <string name="onboarding_steam_failed">The Steam client download will retry</string>
     <string name="onboarding_limit_reason">Android can close Steam’s helper processes. Turn that off now, while the downloads run, and Play is ready the moment they finish.</string>
     <string name="onboarding_limit_action">Do it for me</string>
-    <string name="onboarding_limit_while_waiting">Set up while you wait</string>
+    <string name="onboarding_limit_while_waiting">One Android setting left · fix it now</string>
     <string name="onboarding_chip">Getting ready · %1$d%% · %2$s</string>
 </resources>

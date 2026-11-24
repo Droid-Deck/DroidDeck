@@ -1306,8 +1306,6 @@
     <string name="gate_status">Статус</string>
     <string name="gate_polling">Перевірка кожні 2 секунди. Ця сторінка закриється, коли це вимкнено.</string>
     <string name="gate_other_ways">Інші способи</string>
-    <string name="gate_other_toggle">Бездротове налагодження, адреса вручну, ADB з комп’ютера</string>
-    <string name="gate_other_no_toggle">Адреса вручну, ADB з комп’ютера, параметри розробника</string>
     <string name="gate_use_wireless_instead">Використати бездротове налагодження замість цього</string>
     <string name="gate_some_roms">Деякі прошивки все одно додають цей перемикач. Пошукайте «дочірній процес» у параметрах розробника.</string>
     <string name="gate_from_computer">З комп’ютера з ADB:</string>

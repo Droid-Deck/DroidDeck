@@ -1292,8 +1292,6 @@
     <string name="gate_status">Κατάσταση</string>
     <string name="gate_polling">Έλεγχος κάθε 2 δευτερόλεπτα. Αυτή η σελίδα κλείνει όταν είναι απενεργοποιημένο.</string>
     <string name="gate_other_ways">Άλλοι τρόποι</string>
-    <string name="gate_other_toggle">Ασύρματος εντοπισμός σφαλμάτων, μη αυτόματη διεύθυνση, ADB υπολογιστή</string>
-    <string name="gate_other_no_toggle">Μη αυτόματη διεύθυνση, ADB υπολογιστή, Επιλογές προγραμματιστή</string>
     <string name="gate_use_wireless_instead">Χρήση Ασύρματου εντοπισμού σφαλμάτων αντ\' αυτού</string>
     <string name="gate_some_roms">Ορισμένες ROM προσθέτουν τον διακόπτη ούτως ή άλλως. Αναζητήστε «θυγατρική διαδικασία» στις Επιλογές προγραμματιστή.</string>
     <string name="gate_from_computer">Από υπολογιστή με ADB:</string>

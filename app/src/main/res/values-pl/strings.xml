@@ -1306,8 +1306,6 @@
     <string name="gate_status">Stan</string>
     <string name="gate_polling">Sprawdzanie co 2 sekundy. Ta strona zamknie się, gdy przełącznik będzie wyłączony.</string>
     <string name="gate_other_ways">Inne sposoby</string>
-    <string name="gate_other_toggle">Debugowanie bezprzewodowe, adres ręczny, komputer z ADB</string>
-    <string name="gate_other_no_toggle">Adres ręczny, komputer z ADB, Opcje programisty</string>
     <string name="gate_use_wireless_instead">Użyj za to debugowania bezprzewodowego</string>
     <string name="gate_some_roms">Niektóre ROM-y dodają ten przełącznik mimo to. Poszukaj „child process” w Opcjach programisty.</string>
     <string name="gate_from_computer">Z komputera z ADB:</string>

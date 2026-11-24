@@ -1369,8 +1369,6 @@
     <string name="gate_status">状态</string>
     <string name="gate_polling">每 2 秒检查一次。该设置关闭后，本页面会自动关闭。</string>
     <string name="gate_other_ways">其他方式</string>
-    <string name="gate_other_toggle">无线调试、手动地址、电脑 ADB</string>
-    <string name="gate_other_no_toggle">手动地址、电脑 ADB、开发者选项</string>
     <string name="gate_use_wireless_instead">改用无线调试</string>
     <string name="gate_some_roms">部分 Android ROM 仍会加入该开关。请在开发者选项中查找“子进程”。</string>
     <string name="gate_from_computer">通过装有 ADB 的电脑：</string>

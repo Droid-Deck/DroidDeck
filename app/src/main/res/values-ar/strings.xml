@@ -1320,8 +1320,6 @@
     <string name="gate_status">الحالة</string>
     <string name="gate_polling">يتم التحقّق كل ثانيتين. تُغلَق هذه الصفحة عند إيقافه.</string>
     <string name="gate_other_ways">طرق أخرى</string>
-    <string name="gate_other_toggle">تصحيح الأخطاء اللاسلكي، عنوان يدوي، ADB من كمبيوتر</string>
-    <string name="gate_other_no_toggle">عنوان يدوي، ADB من كمبيوتر، خيارات المطوّرين</string>
     <string name="gate_use_wireless_instead">استخدام تصحيح الأخطاء اللاسلكي بدلًا من ذلك</string>
     <string name="gate_some_roms">تضيف بعض إصدارات ROM هذا المفتاح رغم ذلك. ابحث عن «العمليات الفرعية» في خيارات المطوّرين.</string>
     <string name="gate_from_computer">من جهاز كمبيوتر يحتوي على ADB:</string>

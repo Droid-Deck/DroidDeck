@@ -1290,8 +1290,6 @@
     <string name="gate_status">Stato</string>
     <string name="gate_polling">Controllo ogni 2 secondi. Questa pagina si chiude quando è disattivato.</string>
     <string name="gate_other_ways">Altri modi</string>
-    <string name="gate_other_toggle">Debug wireless, indirizzo manuale, ADB da computer</string>
-    <string name="gate_other_no_toggle">Indirizzo manuale, ADB da computer, Opzioni sviluppatore</string>
     <string name="gate_use_wireless_instead">Usa invece il Debug wireless</string>
     <string name="gate_some_roms">Alcune ROM aggiungono comunque l\'interruttore. Cerca “processi figlio” nelle Opzioni sviluppatore.</string>
     <string name="gate_from_computer">Da un computer con ADB:</string>

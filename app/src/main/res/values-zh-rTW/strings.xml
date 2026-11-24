@@ -1285,8 +1285,6 @@
     <string name="gate_status">狀態</string>
     <string name="gate_polling">每 2 秒檢查一次。關閉此開關後此頁面會自動關閉。</string>
     <string name="gate_other_ways">其他方式</string>
-    <string name="gate_other_toggle">無線偵錯、手動輸入位址、電腦 ADB</string>
-    <string name="gate_other_no_toggle">手動輸入位址、電腦 ADB、開發人員選項</string>
     <string name="gate_use_wireless_instead">改用無線偵錯</string>
     <string name="gate_some_roms">部分 ROM 仍會提供此開關。請在開發人員選項中搜尋「子處理程序」。</string>
     <string name="gate_from_computer">使用電腦上的 ADB：</string>

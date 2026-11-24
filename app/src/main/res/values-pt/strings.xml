@@ -1298,8 +1298,6 @@
     <string name="gate_status">Status</string>
     <string name="gate_polling">Verificando a cada 2 segundos. Esta página fecha quando o limite for desativado.</string>
     <string name="gate_other_ways">Outras formas</string>
-    <string name="gate_other_toggle">Depuração por Wi-Fi, endereço manual, ADB pelo computador</string>
-    <string name="gate_other_no_toggle">Endereço manual, ADB pelo computador, Opções do desenvolvedor</string>
     <string name="gate_use_wireless_instead">Usar a Depuração por Wi-Fi</string>
     <string name="gate_some_roms">Algumas ROMs adicionam a chave mesmo assim. Procure “processos filhos” nas Opções do desenvolvedor.</string>
     <string name="gate_from_computer">De um computador com ADB:</string>

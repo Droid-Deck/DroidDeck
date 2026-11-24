@@ -1298,8 +1298,6 @@
     <string name="gate_status">État</string>
     <string name="gate_polling">Vérification toutes les 2 secondes. Cette page se fermera automatiquement une fois cet interrupteur désactivé.</string>
     <string name="gate_other_ways">Autres méthodes</string>
-    <string name="gate_other_toggle">Débogage sans fil, saisie manuelle de l\'adresse, ADB sur PC</string>
-    <string name="gate_other_no_toggle">Saisie manuelle de l\'adresse, ADB sur PC, options pour les développeurs</string>
     <string name="gate_use_wireless_instead">Utiliser plutôt le débogage sans fil</string>
     <string name="gate_some_roms">Certaines ROM proposent encore cet interrupteur. Recherchez « processus enfants » dans les options pour les développeurs.</string>
     <string name="gate_from_computer">Utiliser ADB depuis un ordinateur :</string>

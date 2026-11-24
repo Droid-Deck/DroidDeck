@@ -1292,8 +1292,6 @@
     <string name="gate_status">स्थिति</string>
     <string name="gate_polling">हर 2 सेकंड में जांच हो रही है। यह बंद होने पर यह पेज बंद हो जाता है।</string>
     <string name="gate_other_ways">अन्य तरीके</string>
-    <string name="gate_other_toggle">वायरलेस डीबगिंग, मैनुअल एड्रेस, कंप्यूटर ADB</string>
-    <string name="gate_other_no_toggle">मैनुअल एड्रेस, कंप्यूटर ADB, डेवलपर विकल्प</string>
     <string name="gate_use_wireless_instead">इसके बदले वायरलेस डीबगिंग इस्तेमाल करें</string>
     <string name="gate_some_roms">कुछ ROM फिर भी यह स्विच जोड़ देते हैं। डेवलपर विकल्प में “child process” देखें।</string>
     <string name="gate_from_computer">ADB वाले कंप्यूटर से:</string>

@@ -1290,8 +1290,6 @@
     <string name="gate_status">Estado</string>
     <string name="gate_polling">A verificar a cada 2 segundos. Esta página fecha-se quando estiver desativado.</string>
     <string name="gate_other_ways">Outras formas</string>
-    <string name="gate_other_toggle">Depuração sem fios, endereço manual, ADB num computador</string>
-    <string name="gate_other_no_toggle">Endereço manual, ADB num computador, Opções de programador</string>
     <string name="gate_use_wireless_instead">Utilizar antes a Depuração sem fios</string>
     <string name="gate_some_roms">Algumas ROMs adicionam o interruptor mesmo assim. Procure “processos secundários” nas Opções de programador.</string>
     <string name="gate_from_computer">A partir de um computador com ADB:</string>

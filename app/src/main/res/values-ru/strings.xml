@@ -1306,8 +1306,6 @@
     <string name="gate_status">Статус</string>
     <string name="gate_polling">Проверка каждые 2 секунды. После отключения этого переключателя страница закроется автоматически.</string>
     <string name="gate_other_ways">Другие способы</string>
-    <string name="gate_other_toggle">Отладка по Wi-Fi, ручной ввод адреса, ADB на ПК</string>
-    <string name="gate_other_no_toggle">Ручной ввод адреса, ADB на ПК, «Для разработчиков»</string>
     <string name="gate_use_wireless_instead">Использовать отладку по Wi-Fi</string>
     <string name="gate_some_roms">В некоторых прошивках переключатель все же есть. Поищите «дочерние процессы» в разделе «Для разработчиков».</string>
     <string name="gate_from_computer">С компьютера через ADB:</string>

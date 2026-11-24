@@ -1292,8 +1292,6 @@
     <string name="gate_status">Status</string>
     <string name="gate_polling">Kontrollerar var 2 sekunder. Den här sidan stängs när det är av.</string>
     <string name="gate_other_ways">Andra sätt</string>
-    <string name="gate_other_toggle">Trådlös felsökning, manuell adress, dator-ADB</string>
-    <string name="gate_other_no_toggle">Manuell adress, dator-ADB, Utvecklaralternativ</string>
     <string name="gate_use_wireless_instead">Använd Trådlös felsökning i stället</string>
     <string name="gate_some_roms">Vissa ROM:ar lägger till omkopplaren trots allt. Leta efter ”underprocess” i Utvecklaralternativ.</string>
     <string name="gate_from_computer">Från en dator med ADB:</string>

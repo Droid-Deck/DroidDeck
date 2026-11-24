@@ -1286,8 +1286,6 @@
     <string name="gate_status">ステータス</string>
     <string name="gate_polling">2秒ごとに確認します。このスイッチをオフにすると、このページは自動的に閉じます。</string>
     <string name="gate_other_ways">他の方法</string>
-    <string name="gate_other_toggle">ワイヤレスデバッグ、手動でアドレス入力、PC ADB</string>
-    <string name="gate_other_no_toggle">手動でアドレス入力、PC ADB、開発者向けオプション</string>
     <string name="gate_use_wireless_instead">代わりにワイヤレスデバッグを使用</string>
     <string name="gate_some_roms">一部のROMではこのスイッチが提供されています。開発者向けオプションで「子プロセス」を検索してください。</string>
     <string name="gate_from_computer">PCでADBを使用：</string>

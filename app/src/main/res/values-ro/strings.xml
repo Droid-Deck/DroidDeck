@@ -1299,8 +1299,6 @@
     <string name="gate_status">Stare</string>
     <string name="gate_polling">Se verifică la fiecare 2 secunde. Această pagină se închide când este dezactivată.</string>
     <string name="gate_other_ways">Alte moduri</string>
-    <string name="gate_other_toggle">Depanare wireless, adresă manuală, ADB pe computer</string>
-    <string name="gate_other_no_toggle">Adresă manuală, ADB pe computer, Opțiuni pentru dezvoltatori</string>
     <string name="gate_use_wireless_instead">Folosește Depanarea wireless în schimb</string>
     <string name="gate_some_roms">Unele ROM-uri adaugă comutatorul oricum. Caută „procese-copil” în Opțiuni pentru dezvoltatori.</string>
     <string name="gate_from_computer">De pe un computer cu ADB:</string>

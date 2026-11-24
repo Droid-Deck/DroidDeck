@@ -1292,8 +1292,6 @@
     <string name="gate_status">Állapot</string>
     <string name="gate_polling">Ellenőrzés 2 másodpercenként. Ez az oldal bezárul, amikor kikapcsol.</string>
     <string name="gate_other_ways">Egyéb módok</string>
-    <string name="gate_other_toggle">Vezeték nélküli hibakeresés, manuális cím, számítógépes ADB</string>
-    <string name="gate_other_no_toggle">Manuális cím, számítógépes ADB, Fejlesztői beállítások</string>
     <string name="gate_use_wireless_instead">Vezeték nélküli hibakeresés használata helyette</string>
     <string name="gate_some_roms">Néhány ROM mindenképpen hozzáadja a kapcsolót. Keresse a „gyermekfolyamat” kifejezést a Fejlesztői beállításokban.</string>
     <string name="gate_from_computer">Egy ADB-vel rendelkező számítógépről:</string>

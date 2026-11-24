@@ -1306,8 +1306,6 @@
     <string name="gate_status">Stav</string>
     <string name="gate_polling">Kontroluje se každé 2 sekundy. Tato stránka se zavře, až bude vypnuto.</string>
     <string name="gate_other_ways">Jiné způsoby</string>
-    <string name="gate_other_toggle">Bezdrátové ladění, ruční adresa, ADB z počítače</string>
-    <string name="gate_other_no_toggle">Ruční adresa, ADB z počítače, Možnosti pro vývojáře</string>
     <string name="gate_use_wireless_instead">Použít místo toho Bezdrátové ladění</string>
     <string name="gate_some_roms">Některé ROM přepínač přidávají i tak. Hledejte v Možnostech pro vývojáře „child process“.</string>
     <string name="gate_from_computer">Z počítače s ADB:</string>

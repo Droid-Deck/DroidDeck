@@ -1284,8 +1284,6 @@
     <string name="gate_status">Durum</string>
     <string name="gate_polling">Her 2 saniyede bir kontrol ediliyor. Kapandığında bu sayfa kapanır.</string>
     <string name="gate_other_ways">Diğer yollar</string>
-    <string name="gate_other_toggle">Kablosuz hata ayıklama, elle adres girme, bilgisayardan ADB</string>
-    <string name="gate_other_no_toggle">Elle adres girme, bilgisayardan ADB, Geliştirici seçenekleri</string>
     <string name="gate_use_wireless_instead">Bunun yerine Kablosuz hata ayıklamayı kullan</string>
     <string name="gate_some_roms">Bazı ROM\'lar bu anahtarı yine de ekler. Geliştirici seçenekleri\'nde “alt süreç” ifadesini arayın.</string>
     <string name="gate_from_computer">ADB\'li bir bilgisayardan:</string>

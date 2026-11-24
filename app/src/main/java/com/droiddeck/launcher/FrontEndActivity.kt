@@ -1789,7 +1789,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             )
                             android.widget.Toast.makeText(this, R.string.main_adb_copied, android.widget.Toast.LENGTH_SHORT).show()
                         },
-                        onDismissPhantomGate = { showPhantomGate = false },
+                        onDismissPhantomGate = { pendingGateLaunch = null; showPhantomGate = false },
                         onShowPhantomGate = {
                             refreshPhantomStatus()
                             showPhantomGate = true
@@ -3326,6 +3326,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
         refreshPhantomStatus()
         if (steamSession && PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
+            pendingGateLaunch = intent
             showPhantomGate = true
             return false
         }
@@ -3368,8 +3369,15 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         done(granted)
     }
 
+    private var pendingGateLaunch: Intent? = null
+
     private fun refreshPhantomStatus() {
         phantomProcessStatus = PhantomProcessLimit.read(this)
+        pendingGateLaunch?.takeIf { !PhantomProcessLimit.blocksSteam(phantomProcessStatus) }?.let { launch ->
+            pendingGateLaunch = null
+            showPhantomGate = false
+            ui.post { startSession(launch, steamSession = true) }
+        }
         adbPaired = WirelessAdbFix.hasSavedPairing(this)
         phantomWarning = if (PhantomProcessLimit.blocksSteam(phantomProcessStatus)) {
             getString(
@@ -3381,7 +3389,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun openDeveloperOptions(displayId: Int?) {
         val highlight = if (PhantomProcessLimit.hasDeveloperToggle() &&
-            WirelessAdbPairingService.stage.value == WirelessAdbPairingService.Stage.Idle) null else "toggle_adb_wireless"
+            WirelessAdbPairingService.stage.value == WirelessAdbPairingService.Stage.Idle) "disable_phantom_process_monitor" else "toggle_adb_wireless"
         val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             .apply { if (highlight != null) putExtra(":settings:fragment_args_key", highlight) }

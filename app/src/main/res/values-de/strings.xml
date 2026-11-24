@@ -1284,8 +1284,6 @@
     <string name="gate_status">Status</string>
     <string name="gate_polling">Prüft alle 2 Sekunden. Diese Seite schließt sich, sobald es aus ist.</string>
     <string name="gate_other_ways">Andere Wege</string>
-    <string name="gate_other_toggle">Debugging über WLAN, manuelle Adresse, ADB am Computer</string>
-    <string name="gate_other_no_toggle">Manuelle Adresse, ADB am Computer, Entwickleroptionen</string>
     <string name="gate_use_wireless_instead">Stattdessen „Debugging über WLAN“ verwenden</string>
     <string name="gate_some_roms">Manche ROMs haben den Schalter trotzdem. Suche in den Entwickleroptionen nach „untergeordnete Prozesse“.</string>
     <string name="gate_from_computer">Von einem Computer mit ADB:</string>

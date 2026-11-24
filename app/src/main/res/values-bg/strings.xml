@@ -1292,8 +1292,6 @@
     <string name="gate_status">Състояние</string>
     <string name="gate_polling">Проверява се на всеки 2 секунди. Тази страница се затваря, когато е изключено.</string>
     <string name="gate_other_ways">Други начини</string>
-    <string name="gate_other_toggle">Безжично отстраняване на грешки, ръчен адрес, ADB от компютър</string>
-    <string name="gate_other_no_toggle">Ръчен адрес, ADB от компютър, Опции за програмисти</string>
     <string name="gate_use_wireless_instead">Използване на безжично отстраняване на грешки вместо това</string>
     <string name="gate_some_roms">Някои ROM-и добавят превключвателя въпреки това. Потърсете „child process“ в Опции за програмисти.</string>
     <string name="gate_from_computer">От компютър с ADB:</string>

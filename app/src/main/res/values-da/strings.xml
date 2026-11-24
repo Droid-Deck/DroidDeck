@@ -1292,8 +1292,6 @@
     <string name="gate_status">Status</string>
     <string name="gate_polling">Kontrollerer hvert 2. sekund. Denne side lukker, når den er fra.</string>
     <string name="gate_other_ways">Andre måder</string>
-    <string name="gate_other_toggle">Trådløs fejlretning, manuel adresse, computer-ADB</string>
-    <string name="gate_other_no_toggle">Manuel adresse, computer-ADB, Udviklerindstillinger</string>
     <string name="gate_use_wireless_instead">Brug Trådløs fejlretning i stedet</string>
     <string name="gate_some_roms">Nogle ROM’er tilføjer kontakten alligevel. Kig efter “underprocesser” i Udviklerindstillinger.</string>
     <string name="gate_from_computer">Fra en computer med ADB:</string>

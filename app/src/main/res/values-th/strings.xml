@@ -1286,8 +1286,6 @@
     <string name="gate_status">สถานะ</string>
     <string name="gate_polling">กำลังตรวจสอบทุก 2 วินาที หน้านี้จะปิดเมื่อปิดใช้งานแล้ว</string>
     <string name="gate_other_ways">วิธีอื่น</string>
-    <string name="gate_other_toggle">Wireless debugging, ที่อยู่แบบกำหนดเอง, ADB จากคอมพิวเตอร์</string>
-    <string name="gate_other_no_toggle">ที่อยู่แบบกำหนดเอง, ADB จากคอมพิวเตอร์, ตัวเลือกสำหรับนักพัฒนา</string>
     <string name="gate_use_wireless_instead">ใช้ Wireless debugging แทน</string>
     <string name="gate_some_roms">บาง ROM เพิ่มสวิตช์นี้มาเองเลย ลองหา “child process” ในตัวเลือกสำหรับนักพัฒนา</string>
     <string name="gate_from_computer">จากคอมพิวเตอร์ที่มี ADB:</string>

@@ -1286,8 +1286,6 @@
     <string name="gate_status">Trạng thái</string>
     <string name="gate_polling">Đang kiểm tra mỗi 2 giây. Trang này sẽ đóng khi nó tắt.</string>
     <string name="gate_other_ways">Cách khác</string>
-    <string name="gate_other_toggle">Gỡ lỗi qua mạng không dây, địa chỉ thủ công, ADB từ máy tính</string>
-    <string name="gate_other_no_toggle">Địa chỉ thủ công, ADB từ máy tính, Tùy chọn cho nhà phát triển</string>
     <string name="gate_use_wireless_instead">Dùng Gỡ lỗi qua mạng không dây thay vào đó</string>
     <string name="gate_some_roms">Một số ROM vẫn thêm công tắc này. Tìm “child process” trong Tùy chọn cho nhà phát triển.</string>
     <string name="gate_from_computer">Từ một máy tính có ADB:</string>

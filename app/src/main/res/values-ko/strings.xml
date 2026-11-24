@@ -1286,8 +1286,6 @@
     <string name="gate_status">상태</string>
     <string name="gate_polling">2초마다 확인합니다. 이 스위치를 끄면 이 페이지가 자동으로 닫힙니다.</string>
     <string name="gate_other_ways">다른 방법</string>
-    <string name="gate_other_toggle">무선 디버깅, 수동 주소 입력, PC ADB</string>
-    <string name="gate_other_no_toggle">수동 주소 입력, PC ADB, 개발자 옵션</string>
     <string name="gate_use_wireless_instead">대신 무선 디버깅 사용</string>
     <string name="gate_some_roms">일부 ROM에서는 이 스위치를 제공합니다. 개발자 옵션에서 \"하위 프로세스\"를 검색하세요.</string>
     <string name="gate_from_computer">PC에서 ADB 사용:</string>

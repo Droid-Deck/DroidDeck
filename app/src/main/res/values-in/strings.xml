@@ -1286,8 +1286,6 @@
     <string name="gate_status">Status</string>
     <string name="gate_polling">Memeriksa setiap 2 detik. Halaman ini akan tertutup saat statusnya nonaktif.</string>
     <string name="gate_other_ways">Cara lain</string>
-    <string name="gate_other_toggle">Debugging nirkabel, alamat manual, ADB komputer</string>
-    <string name="gate_other_no_toggle">Alamat manual, ADB komputer, Opsi pengembang</string>
     <string name="gate_use_wireless_instead">Gunakan Debugging nirkabel sebagai gantinya</string>
     <string name="gate_some_roms">Beberapa ROM menambahkan sakelar ini juga. Cari “child process” di Opsi pengembang.</string>
     <string name="gate_from_computer">Dari komputer dengan ADB:</string>

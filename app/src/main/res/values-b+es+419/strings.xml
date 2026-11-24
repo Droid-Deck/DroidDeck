@@ -1326,8 +1326,6 @@
     <string name="gate_status">Estado</string>
     <string name="gate_polling">Se comprueba cada 2 segundos. Esta página se cierra cuando esté desactivado.</string>
     <string name="gate_other_ways">Otras formas</string>
-    <string name="gate_other_toggle">Depuración inalámbrica, dirección manual, ADB desde una computadora</string>
-    <string name="gate_other_no_toggle">Dirección manual, ADB desde una computadora, Opciones de desarrollador</string>
     <string name="gate_use_wireless_instead">Usar Depuración inalámbrica en su lugar</string>
     <string name="gate_some_roms">Algunas ROM agregan el interruptor de todos modos. Busca “procesos secundarios” en Opciones de desarrollador.</string>
     <string name="gate_from_computer">Desde una computadora con ADB:</string>
