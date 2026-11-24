@@ -85,8 +85,25 @@ object Onboarding {
 
     fun pending(rows: List<Row>): Boolean = rows.any { it.state != State.DONE }
 
-    /** The aggregate fraction of the whole first-run work, weighting each step by what it downloads. */
-    fun overall(rows: List<Row>): Int {
+    @Volatile private var highWater = 0
+
+    internal fun resetProgress() { highWater = 0 }
+
+    /**
+     * The aggregate fraction of the whole first-run work, weighting each step by what it downloads.
+     * Steps download first and install later, restarting their own percent, so the figure only moves forward until everything is done.
+     */
+    @Synchronized fun overall(rows: List<Row>): Int {
+        val measured = measure(rows)
+        if (!pending(rows)) {
+            highWater = 0
+            return measured
+        }
+        highWater = maxOf(highWater, measured)
+        return highWater
+    }
+
+    internal fun measure(rows: List<Row>): Int {
         val weights = mapOf(Step.RUNTIME to 60, Step.PROTON to 15, Step.STEAM to 25)
         val total = weights.values.sum()
         val got = rows.sumOf { row ->

@@ -192,9 +192,7 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
             val onboardingFacts by com.droiddeck.launcher.session.Onboarding.facts.collectAsState()
             val onboardingRows = com.droiddeck.launcher.session.Onboarding.rows(onboardingActive, onboardingFailed, onboardingFacts)
             val settling = onboardingActive.isNotEmpty() && com.droiddeck.launcher.session.Onboarding.pending(onboardingRows)
-            val measured = com.droiddeck.launcher.session.Onboarding.overall(onboardingRows)
-            var overall by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-            overall = if (settling) maxOf(overall, measured) else 0
+            val overall = com.droiddeck.launcher.session.Onboarding.overall(onboardingRows)
             val limitBlocks = com.droiddeck.launcher.core.PhantomProcessLimit.blocksSteam(s.phantomProcessStatus)
             LaunchedEffect(settling, limitBlocks) {
                 while (settling && limitBlocks) {
