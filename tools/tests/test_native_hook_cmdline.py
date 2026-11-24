@@ -21,6 +21,7 @@ PROBE = r"""
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/auxv.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -41,6 +42,7 @@ int main(int argc, char **argv) {
   for (int i = 1; i < argc; i++) {
     if (argv[i] != argv[i - 1] + strlen(argv[i - 1]) + 1) contiguous = 0;
   }
+  printf("execfn\t%s\n", (const char *)getauxval(AT_EXECFN));
   printf("contiguous\t%d\n", contiguous);
   printf("argv");
   for (int i = 0; i < argc; i++) printf("\t%s", argv[i]);
@@ -129,6 +131,25 @@ class NativeHookCmdlineTest(unittest.TestCase):
         self.assertEqual(["/usr/bin/wine", WINDOWS_PROGRAM], seen["argv"])
         self.assertEqual(["/usr/bin/wine", WINDOWS_PROGRAM], seen["cmdline"])
         self.assertEqual([WINDOWS_PROGRAM], seen["shifted"])
+
+    @unittest.skipIf(runner()[1], "qemu answers AT_EXECFN from its own copy of the arguments")
+    def test_a_program_its_loader_starts_still_finds_its_own_path(self):
+        unchanged = self.run_probe(self.loader_argv(WINDOWS_PROGRAM), root=False)
+        self.assertEqual([str(self.probe)], unchanged["execfn"])
+        seen = self.run_probe(self.loader_argv(WINDOWS_PROGRAM, "--in-tray"))
+        self.assertEqual([WINDOWS_PROGRAM, "--in-tray"], seen["shifted"])
+        self.assertEqual(unchanged["execfn"], seen["execfn"])
+
+    @unittest.skipIf(runner()[1], "qemu answers AT_EXECFN from its own copy of the arguments")
+    def test_a_program_the_app_loader_starts_still_finds_its_own_path(self):
+        if not self.ddexec_runs:
+            self.skipTest("libddexec.so does not start a program on this host")
+        argv = [str(self.ddexec), self.ld_so] + self.loader_argv(WINDOWS_PROGRAM)
+        unchanged = self.run_probe(argv, root=False)
+        seen = self.run_probe(argv)
+        self.assertEqual([WINDOWS_PROGRAM], seen["shifted"])
+        self.assertEqual(unchanged["execfn"], seen["execfn"])
+        self.assertNotEqual([""], seen["execfn"])
 
     def test_a_loader_run_without_a_program_name_keeps_its_command_line(self):
         argv = self.loader_argv(WINDOWS_PROGRAM, name=None)

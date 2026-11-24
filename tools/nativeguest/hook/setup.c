@@ -293,6 +293,16 @@ static size_t next_arg(const char *text, size_t pos) {
     return pos + strlen(text + pos) + 1;
 }
 
+static uintptr_t *execfn_entry(int argc, char **argv) {
+    if (argv[argc]) return NULL;
+    char **env = argv + argc + 1;
+    while (*env) env++;
+    for (uintptr_t *aux = (uintptr_t *)(env + 1); aux[0] != AT_NULL; aux += 2) {
+        if (aux[0] == AT_EXECFN) return aux + 1;
+    }
+    return NULL;
+}
+
 static void compact_loader_args(int argc, char **argv) {
     if (g_ddnatv_root[0] == '\0' || argc < 1 || !argv || !argv[0]) return;
     size_t len;
@@ -328,7 +338,14 @@ static void compact_loader_args(int argc, char **argv) {
     for (int i = 1; base && i < argc; i++) {
         if (argv[i] != base + at[i]) base = NULL;
     }
-    if (base && memcmp(base, text, len) == 0) {
+    if (base && memcmp(base, text, len) != 0) base = NULL;
+    uintptr_t *execfn = base ? execfn_entry(argc, argv) : NULL;
+    char *execfn_text = NULL;
+    if (execfn && *execfn >= (uintptr_t)base && *execfn < (uintptr_t)base + len) {
+        execfn_text = strdup(text + (*execfn - (uintptr_t)base));
+        if (!execfn_text) base = NULL;
+    }
+    if (base) {
         char *old_name = argv[0];
         size_t name_len = strlen(old_name);
         char *name = program_invocation_name, *short_name = program_invocation_short_name;
@@ -345,6 +362,7 @@ static void compact_loader_args(int argc, char **argv) {
             program_invocation_short_name = argv[0] + (short_name - old_name);
         }
         if (g_real_exe[0] == '\0') ddnatv_copy_cstr(g_real_exe, sizeof(g_real_exe), text + program);
+        if (execfn_text) *execfn = (uintptr_t)execfn_text;
     }
     free(at);
     free(text);
