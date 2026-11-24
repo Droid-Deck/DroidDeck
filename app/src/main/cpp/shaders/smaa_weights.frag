@@ -106,8 +106,8 @@ void main() {
     vec4 sw = edgeAt(uv + vec2(-px.x, px.y), px);
     vec4 se = edgeAt(uv + vec2(px.x, px.y), px);
 
-    float endpointPattern = clamp(abs(negativeRun - positiveRun) / max(span, 1.0), 0.0, 1.0);
-    float endpointArea = endpointPattern / (1.0 + span * 0.055);
+    float runEndpointPattern = clamp(
+        abs(negativeRun - positiveRun) / max(span, 1.0), 0.0, 1.0);
     float crossingA = verticalLine
         ? abs(nw.a - ne.a)
         : abs(nw.g - sw.g);
@@ -124,6 +124,10 @@ void main() {
     float balancedCrossing = edgeVariation > 0.01
         ? smoothstep(threshold, threshold * 2.5, min(crossingA, crossingB))
         : 0.0;
+    // Detect graded endpoints even when run lengths are balanced.
+    // Uniform straight step edges keep zero endpoint weight.
+    float endpointPattern = max(runEndpointPattern, balancedCrossing);
+    float endpointArea = endpointPattern / (1.0 + span * 0.055);
     float areaWeight = 0.38 * crossingPattern * clamp(span / 4.0, 0.0, 1.0);
     float diagonalContrast = max(
         max(max(abs(nw.r - se.r), abs(nw.g - se.g)),
