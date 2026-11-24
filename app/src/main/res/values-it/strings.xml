@@ -4155,4 +4155,8 @@
     <string name="theme_custom_signal">Evidenziazioni</string>
     <string name="theme_custom_good">Successo</string>
     <string name="theme_custom_error">Errore</string>
+    <string name="theme_moss">Muschio</string>
+    <string name="theme_moss_detail">Superfici verde bosco con accenti di muschio.</string>
+    <string name="theme_dusk">Crepuscolo</string>
+    <string name="theme_dusk_detail">Superfici viola crepuscolare con accenti viola.</string>
 </resources>

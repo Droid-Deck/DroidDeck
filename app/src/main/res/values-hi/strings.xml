@@ -4116,4 +4116,8 @@
     <string name="theme_custom_signal">हाइलाइट</string>
     <string name="theme_custom_good">सफलता</string>
     <string name="theme_custom_error">त्रुटि</string>
+    <string name="theme_moss">काई</string>
+    <string name="theme_moss_detail">वन-हरित सतहें काई के एक्सेंट के साथ।</string>
+    <string name="theme_dusk">संध्या</string>
+    <string name="theme_dusk_detail">संध्या-बैंगनी सतहें बैंगनी एक्सेंट के साथ।</string>
 </resources>

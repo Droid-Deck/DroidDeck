@@ -4155,4 +4155,8 @@
     <string name="theme_custom_signal">Mises en évidence</string>
     <string name="theme_custom_good">Succès</string>
     <string name="theme_custom_error">Erreur</string>
+    <string name="theme_moss">Mousse</string>
+    <string name="theme_moss_detail">Surfaces vert forêt aux accents de mousse.</string>
+    <string name="theme_dusk">Crépuscule</string>
+    <string name="theme_dusk_detail">Surfaces pourpre crépusculaire aux accents violets.</string>
 </resources>

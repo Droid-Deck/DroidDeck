@@ -4116,4 +4116,8 @@
     <string name="theme_custom_signal">Accenten</string>
     <string name="theme_custom_good">Geslaagd</string>
     <string name="theme_custom_error">Fout</string>
+    <string name="theme_moss">Mos</string>
+    <string name="theme_moss_detail">Oppervlakken in bosgroen met mos-accenten.</string>
+    <string name="theme_dusk">Schemering</string>
+    <string name="theme_dusk_detail">Oppervlakken in schemerpaars met violette accenten.</string>
 </resources>

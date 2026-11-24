@@ -4086,4 +4086,8 @@
     <string name="theme_custom_signal">重點標示</string>
     <string name="theme_custom_good">成功</string>
     <string name="theme_custom_error">錯誤</string>
+    <string name="theme_moss">苔蘚</string>
+    <string name="theme_moss_detail">森林綠底色配苔蘚點綴。</string>
+    <string name="theme_dusk">暮色</string>
+    <string name="theme_dusk_detail">暮紫底色配紫羅蘭點綴。</string>
 </resources>

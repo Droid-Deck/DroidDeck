@@ -4116,4 +4116,8 @@
     <string name="theme_custom_signal">Kiemelések</string>
     <string name="theme_custom_good">Siker</string>
     <string name="theme_custom_error">Hiba</string>
+    <string name="theme_moss">Moha</string>
+    <string name="theme_moss_detail">Erdei zöld felületek moha-akcentusokkal.</string>
+    <string name="theme_dusk">Alkonyat</string>
+    <string name="theme_dusk_detail">Alkonyi lila felületek ibolya akcentusokkal.</string>
 </resources>

@@ -4116,4 +4116,8 @@
     <string name="theme_custom_signal">Markeringar</string>
     <string name="theme_custom_good">Lyckades</string>
     <string name="theme_custom_error">Fel</string>
+    <string name="theme_moss">Mossa</string>
+    <string name="theme_moss_detail">Ytor i skogsgrönt med mossackenter.</string>
+    <string name="theme_dusk">Skymning</string>
+    <string name="theme_dusk_detail">Ytor i skymningslila med violetta accenter.</string>
 </resources>

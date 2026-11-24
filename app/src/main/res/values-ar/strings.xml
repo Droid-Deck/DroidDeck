@@ -4276,4 +4276,8 @@
     <string name="theme_custom_signal">الإبرازات</string>
     <string name="theme_custom_good">نجاح</string>
     <string name="theme_custom_error">خطأ</string>
+    <string name="theme_moss">طحلب</string>
+    <string name="theme_moss_detail">أسطح بالأخضر الغابي مع لمسات طحلبية.</string>
+    <string name="theme_dusk">غروب</string>
+    <string name="theme_dusk_detail">أسطح بنفسجية وقت الغسق مع لمسات بنفسجية.</string>
 </resources>

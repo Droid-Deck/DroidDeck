@@ -4116,4 +4116,8 @@
     <string name="theme_custom_signal">Hervorhebungen</string>
     <string name="theme_custom_good">Erfolg</string>
     <string name="theme_custom_error">Fehler</string>
+    <string name="theme_moss">Moos</string>
+    <string name="theme_moss_detail">Flächen in Waldgrün mit Moos-Akzenten.</string>
+    <string name="theme_dusk">Dämmerung</string>
+    <string name="theme_dusk_detail">Flächen in Dämmerungslila mit violetten Akzenten.</string>
 </resources>

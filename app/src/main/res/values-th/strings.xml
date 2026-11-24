@@ -4086,4 +4086,8 @@
     <string name="theme_custom_signal">จุดเน้น</string>
     <string name="theme_custom_good">สำเร็จ</string>
     <string name="theme_custom_error">ข้อผิดพลาด</string>
+    <string name="theme_moss">มอสส์</string>
+    <string name="theme_moss_detail">พื้นผิวเขียวป่าแทงด้วยสีมอสส์</string>
+    <string name="theme_dusk">พลบค่ำ</string>
+    <string name="theme_dusk_detail">พื้นผิวม่วงพลบค่ำแทงด้วยสีม่วง</string>
 </resources>

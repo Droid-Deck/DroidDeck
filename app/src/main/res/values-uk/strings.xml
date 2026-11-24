@@ -4196,4 +4196,8 @@
     <string name="theme_custom_signal">Виділення</string>
     <string name="theme_custom_good">Успіх</string>
     <string name="theme_custom_error">Помилка</string>
+    <string name="theme_moss">Мох</string>
+    <string name="theme_moss_detail">Поверхні у лісовій зелені з моховими акцентами.</string>
+    <string name="theme_dusk">Сутінки</string>
+    <string name="theme_dusk_detail">Поверхні у сутінковому пурпурі з фіолетовими акцентами.</string>
 </resources>

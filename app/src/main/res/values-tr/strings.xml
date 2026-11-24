@@ -4116,4 +4116,8 @@
     <string name="theme_custom_signal">Vurgular</string>
     <string name="theme_custom_good">Başarılı</string>
     <string name="theme_custom_error">Hata</string>
+    <string name="theme_moss">Yosun</string>
+    <string name="theme_moss_detail">Orman yeşili yüzeyler ve yosun vurguları.</string>
+    <string name="theme_dusk">Alacakaranlık</string>
+    <string name="theme_dusk_detail">Alacakaranlık moru yüzeyler ve mor vurgular.</string>
 </resources>

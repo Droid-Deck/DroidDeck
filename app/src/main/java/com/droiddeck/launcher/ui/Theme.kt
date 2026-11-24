@@ -78,6 +78,8 @@ object Themes {
     const val DEFAULT_RGB_SPEED = 3
     const val RGB_HUE_STEP = 3f
     const val WHITE_RED = "white_red"
+    const val MOSS = "moss"
+    const val DUSK = "dusk"
     const val TRUE_BLACK = "true_black"
     const val DEFAULT_HIGHLIGHT = 0xFF1A9FFF.toInt()
 
@@ -208,6 +210,20 @@ object Themes {
             onBackground = Color(0xFF191919), onSurfaceVariant = Color(0xFF555555),
             primary = Color(0xFFD62828), primary2 = Color(0xFFB71C1C), onPrimary = Color(0xFFFFFFFF), signal = Color(0xFFD62828),
             good = Color(0xFF248548),
+        ),
+        Palette(
+            MOSS, R.string.theme_moss, R.string.theme_moss_detail,
+            background = Color(0xFF0A0F0C), surface = Color(0xFF101812), surfaceVariant = Color(0xFF16211A), line = Color(0xFF24322B), line2 = Color(0xFF31423A),
+            onBackground = Color(0xFFF2F5F0), onSurfaceVariant = Color(0xFF9AAE9F),
+            primary = Color(0xFF43A96E), primary2 = Color(0xFF37985F), onPrimary = Color(0xFF06130C), signal = Color(0xFF43A96E),
+            good = Color(0xFF4CD37F),
+        ),
+        Palette(
+            DUSK, R.string.theme_dusk, R.string.theme_dusk_detail,
+            background = Color(0xFF0B0A12), surface = Color(0xFF13111D), surfaceVariant = Color(0xFF1A1828), line = Color(0xFF272338), line2 = Color(0xFF363049),
+            onBackground = Color(0xFFF3F1FA), onSurfaceVariant = Color(0xFF9C97B3),
+            primary = Color(0xFF9F7AEA), primary2 = Color(0xFF8B70E0), onPrimary = Color(0xFF0F0A1F), signal = Color(0xFF9F7AEA),
+            good = Color(0xFF4CD37F),
         ),
         innerGamer(0f),
         ThemeColors.palette(DEFAULT_PRIMARY, DEFAULT_SECONDARY, R.string.theme_gradient, R.string.theme_gradient_detail),

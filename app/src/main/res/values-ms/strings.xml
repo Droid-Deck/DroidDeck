@@ -4086,4 +4086,8 @@
     <string name="theme_custom_signal">Sorotan</string>
     <string name="theme_custom_good">Berjaya</string>
     <string name="theme_custom_error">Ralat</string>
+    <string name="theme_moss">Lumut</string>
+    <string name="theme_moss_detail">Permukaan hijau hutan dengan aksen lumut.</string>
+    <string name="theme_dusk">Senja</string>
+    <string name="theme_dusk_detail">Permukaan ungu senja dengan aksen ungu.</string>
 </resources>
