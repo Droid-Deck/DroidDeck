@@ -26,40 +26,64 @@ static char *join_features(const char *have, const char *add) {
   return strcat(out, add);
 }
 
-static int electron_node_mode(char *const envp[]) {
-  static const char variable[] = "ELECTRON_RUN_AS_NODE=";
+static const char *env_value(char *const envp[], const char *variable) {
+  size_t n = strlen(variable);
   for (int i = 0; envp && envp[i]; i++)
-    if (!strncmp(envp[i], variable, sizeof variable - 1))
-      return envp[i][sizeof variable - 1] != 0;
-  return 0;
+    if (!strncmp(envp[i], variable, n) && envp[i][n] == '=') return envp[i] + n + 1;
+  return NULL;
 }
 
-static char *const *chromium_argv(const char *path, char *const argv[]) {
-  const char *slash = path ? strrchr(path, '/') : NULL;
-  if (!slash || !argv || !argv[0]) return argv;
-  int argc = 0;
-  for (; argv[argc]; argc++)
-    if (argc && (!strncmp(argv[argc], "--type=", 7) || !strcmp(argv[argc], "--no-sandbox"))) return argv;
-  size_t dir = (size_t)(slash - path) + 1;
-  char *sandbox = malloc(dir + sizeof "chrome-sandbox");
-  if (!sandbox) return argv;
-  memcpy(sandbox, path, dir);
-  strcpy(sandbox + dir, "chrome-sandbox");
-  int chromium = access(sandbox, F_OK) == 0;
-  free(sandbox);
-  if (!chromium) return argv;
-  char **out = calloc((size_t)argc + 2, sizeof *out);
+static int electron_node_mode(char *const envp[]) {
+  const char *mode = env_value(envp, "ELECTRON_RUN_AS_NODE");
+  return mode && *mode;
+}
+
+static int beside_chrome_sandbox(const char *path) {
+  char *real = realpath(path, NULL);
+  if (!real) return 0;
+  int found = 0;
+  for (int up = 0; up < 2 && !found; up++) {
+    char *slash = strrchr(real, '/');
+    if (!slash) break;
+    *slash = 0;
+    size_t dir = strlen(real);
+    char *sandbox = malloc(dir + sizeof "/chrome-sandbox");
+    if (!sandbox) break;
+    memcpy(sandbox, real, dir);
+    strcpy(sandbox + dir, "/chrome-sandbox");
+    found = access(sandbox, F_OK) == 0;
+    free(sandbox);
+  }
+  free(real);
+  return found;
+}
+
+static char *const *chromium_argv(const char *path, char *const argv[], char *const envp[]) {
+  if (!path || !argv || !argv[0]) return argv;
+  int argc = 0, sandbox = 1, ozone = 0;
+  for (; argv[argc]; argc++) {
+    if (!argc) continue;
+    if (!strncmp(argv[argc], "--type=", 7)) return argv;
+    if (!strcmp(argv[argc], "--no-sandbox")) sandbox = 0;
+    if (!strncmp(argv[argc], "--ozone-platform=", 17)) ozone = 1;
+  }
+  const char *display = env_value(envp, "DISPLAY");
+  int x11 = !ozone && display && *display;
+  if ((!sandbox && !x11) || !beside_chrome_sandbox(path)) return argv;
+  char **out = calloc((size_t)argc + 3, sizeof *out);
   if (!out) return argv;
-  out[0] = argv[0];
-  out[1] = (char *)"--no-sandbox";
-  for (int i = 1; i < argc; i++) out[i + 1] = argv[i];
+  int n = 0;
+  out[n++] = argv[0];
+  if (sandbox) out[n++] = (char *)"--no-sandbox";
+  if (x11) out[n++] = (char *)"--ozone-platform=x11";
+  for (int i = 1; i < argc; i++) out[n++] = argv[i];
   return out;
 }
 
 __attribute__((visibility("hidden")))
 char *const *dd_webhelper_argv(const char *path, char *const argv[], char *const envp[]) {
   if (electron_node_mode(envp)) return argv;
-  if (!is_webhelper_browser(path, argv)) return chromium_argv(path, argv);
+  if (!is_webhelper_browser(path, argv)) return chromium_argv(path, argv, envp);
   const char *spec = getenv("DD_WEBHELPER_ARGS");
   if (!spec || !*spec) spec = WEBHELPER_DEFAULT;
   if (!strcmp(spec, "stock")) return argv;

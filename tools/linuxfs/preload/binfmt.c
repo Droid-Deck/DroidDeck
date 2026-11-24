@@ -21,6 +21,29 @@ typedef int (*spawn_fn)(pid_t *, const char *, const posix_spawn_file_actions_t 
 __attribute__((visibility("hidden")))
 char *const *dd_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
 
+__attribute__((visibility("hidden"))) int dd_program_lookup(const char *file, char *out, size_t size) {
+  if (!file || !*file) return 0;
+  if (strchr(file, '/')) return snprintf(out, size, "%s", file) < (int)size;
+  const char *paths = getenv("PATH");
+  if (!paths) paths = "/bin:/usr/bin";
+  char candidate[PATH_MAX];
+  int found = 0;
+  for (const char *p = paths;; ) {
+    const char *end = strchrnul(p, ':');
+    int n = end > p ? snprintf(candidate, sizeof candidate, "%.*s/%s", (int)(end - p), p, file)
+                    : snprintf(candidate, sizeof candidate, "%s", file);
+    struct stat st;
+    if (n > 0 && n < (int)sizeof candidate && n < (int)size && stat(candidate, &st) == 0 && S_ISREG(st.st_mode)) {
+      int runs = access(candidate, X_OK) == 0;
+      if (runs || !found) memcpy(out, candidate, (size_t)n + 1);
+      found = 1;
+      if (runs) return 1;
+    }
+    if (!*end) return found;
+    p = end + 1;
+  }
+}
+
 #if defined(__aarch64__) || defined(BINFMT_TEST)
 
 static int flag(const char *name) {
@@ -67,21 +90,6 @@ static int wanted(const char *path, int error) {
   return (error == ENOEXEC || error == ENOENT || error == EACCES) && handing_off() && foreign(path, error);
 }
 
-static int lookup(const char *file, char *out, size_t size) {
-  if (!file || !*file) return 0;
-  if (strchr(file, '/')) return snprintf(out, size, "%s", file) < (int)size;
-  const char *paths = getenv("PATH");
-  if (!paths) paths = "/bin:/usr/bin";
-  for (const char *p = paths;; ) {
-    const char *end = strchrnul(p, ':');
-    int n = end > p ? snprintf(out, size, "%.*s/%s", (int)(end - p), p, file) : snprintf(out, size, "%s", file);
-    struct stat st;
-    if (n > 0 && n < (int)size && stat(out, &st) == 0 && S_ISREG(st.st_mode)) return 1;
-    if (!*end) return 0;
-    p = end + 1;
-  }
-}
-
 static int count(char *const argv[]) {
   int n = 0;
   while (argv && argv[n]) n++;
@@ -126,12 +134,12 @@ __attribute__((visibility("hidden"))) int dd_binfmt_retry(const char *path, char
 
 __attribute__((visibility("hidden"))) void dd_binfmt_before_search(const char *file, char *const argv[], char *const envp[]) {
   char path[PATH_MAX];
-  if (handing_off() && lookup(file, path, sizeof path)) dd_binfmt_before(path, argv, envp);
+  if (handing_off() && dd_program_lookup(file, path, sizeof path)) dd_binfmt_before(path, argv, envp);
 }
 
 __attribute__((visibility("hidden"))) int dd_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error) {
   char path[PATH_MAX];
-  if (handing_off() && lookup(file, path, sizeof path)) return dd_binfmt_retry(path, argv, envp, error);
+  if (handing_off() && dd_program_lookup(file, path, sizeof path)) return dd_binfmt_retry(path, argv, envp, error);
   errno = error;
   return -1;
 }
@@ -153,7 +161,7 @@ __attribute__((visibility("hidden"))) int dd_binfmt_spawn(pid_t *pid, const char
 
 int execvpe(const char *file, char *const argv[], char *const envp[]) {
   char resolved[PATH_MAX];
-  const char *path = lookup(file, resolved, sizeof resolved) ? resolved : file;
+  const char *path = dd_program_lookup(file, resolved, sizeof resolved) ? resolved : file;
   char *const *adjusted = dd_webhelper_argv(path, argv, envp);
   static int (*real)(const char *, char *const[], char *const[]);
   if (!real) real = (int (*)(const char *, char *const[], char *const[]))dlsym(RTLD_NEXT, "execvpe");
@@ -165,7 +173,7 @@ int execvpe(const char *file, char *const argv[], char *const envp[]) {
 int posix_spawnp(pid_t *pid, const char *file, const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *attr,
                  char *const argv[], char *const envp[]) {
   char path[PATH_MAX];
-  int found = lookup(file, path, sizeof path);
+  int found = dd_program_lookup(file, path, sizeof path);
   char *const *adjusted = dd_webhelper_argv(found ? path : file, argv, envp);
   static spawn_fn real, spawn;
   if (!real) real = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawnp");
