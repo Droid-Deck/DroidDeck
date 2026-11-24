@@ -359,6 +359,90 @@ done(28 if end < len(data) else 0)
         self.assertFalse((package / 'b.zip.9999').exists())
         self.assertEqual('123456\n', (package / 'droiddeck-cached').read_text())
 
+    PREAPPLY = SCRIPT.with_name('droiddeck-steam-preapply')
+
+    def real_cache_manifest(self):
+        import io
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, 'w') as z:
+            z.writestr('steamrtarm64/steam', b'client')
+        data = out.getvalue()
+        (self.cdn / 'a.zip.1111').write_bytes(data)
+        (self.cdn / 'steam_client_steamdeck_publicbeta_linuxarm64').write_text(
+            '"linuxarm64"\n{\n\t"version" "123456"\n\t"a_all"\n\t{\n'
+            f'\t\t"file" "a.zip.1111"\n\t\t"size" "{len(data)}"\n\t\t"sha2" "{hashlib.sha256(data).hexdigest()}"\n'
+            '\t}\n}\n')
+
+    def test_the_cache_pass_applies_the_update_so_steam_has_nothing_to_extract(self):
+        self.real_cache_manifest()
+        result = self.install(None, '--cache', DD_STEAM_PREAPPLY=str(self.PREAPPLY))
+        self.assertEqual(0, result.returncode, result.stderr)
+        package = self.steam / 'package'
+        name = 'steam_client_steamdeck_publicbeta_linuxarm64'
+        self.assertEqual(b'client', (self.steam / 'steamrtarm64/steam').read_bytes())
+        self.assertTrue(os.access(self.steam / 'steamrtarm64/steam', os.X_OK))
+        self.assertIn('steamrtarm64/steam,6;', (package / (name + '.installed')).read_text())
+        self.assertEqual((self.cdn / name).read_text(), (package / (name + '.manifest')).read_text())
+        self.assertFalse((package / 'a.zip.1111').exists())
+        self.assertEqual('123456\n', (package / 'droiddeck-cached').read_text())
+
+    def test_an_applied_update_finishes_the_install_without_fetching_the_plain_packages_again(self):
+        self.real_cache_manifest()
+        result = self.install(None, '--cache', DD_STEAM_PREAPPLY=str(self.PREAPPLY))
+        self.assertEqual(0, result.returncode, result.stderr)
+        package = self.steam / 'package'
+        self.assertEqual('123456\n', (package / 'droiddeck-installed').read_text())
+        self.assertEqual('steamdeck_publicbeta\n', (package / 'beta').read_text())
+        self.assertEqual((self.steam / 'linuxarm64').resolve(), (self.home / '.steam/sdkarm64').resolve())
+        self.assertEqual(['steam_client_steamdeck_publicbeta_linuxarm64', 'a.zip.1111'], self.requested())
+        again = self.install(None)
+        self.assertEqual(0, again.returncode, again.stderr)
+        self.assertEqual(2, len(self.requested()))
+
+    def test_a_failed_apply_clears_the_cache_marker_and_the_old_record_so_it_is_retried(self):
+        self.real_cache_manifest()
+        package = self.steam / 'package'
+        package.mkdir(parents=True)
+        name = 'steam_client_steamdeck_publicbeta_linuxarm64'
+        (package / (name + '.installed')).write_text('old\n')
+        failing = self.root / 'failing-apply'
+        failing.write_text('import sys\nsys.exit(1)\n')
+        failing.chmod(0o755)
+        result = self.install(None, '--cache', DD_STEAM_PREAPPLY=str(failing))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse((package / (name + '.installed')).exists())
+        self.assertFalse((package / 'droiddeck-cached').exists())
+        self.assertEqual((self.cdn / 'a.zip.1111').read_bytes(), (package / 'a.zip.1111').read_bytes())
+
+    def test_cancelling_the_cache_pass_stops_the_apply_helper(self):
+        self.real_cache_manifest()
+        pidfile = self.root / 'apply.pid'
+        slow = self.root / 'slow-apply'
+        slow.write_text(f'import os, time\nopen({str(pidfile)!r}, "w").write(str(os.getpid()))\ntime.sleep(30)\n')
+        slow.chmod(0o755)
+        process = subprocess.Popen(['bash', str(SCRIPT), '--cache'], env=dict(self.env, DD_STEAM_PREAPPLY=str(slow)),
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for _ in range(100):
+            if pidfile.exists() and pidfile.read_text().strip():
+                break
+            time.sleep(0.1)
+        helper = int(pidfile.read_text())
+        process.terminate()
+        process.wait(timeout=10)
+        time.sleep(0.3)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(helper, 0)
+        self.assertFalse((self.steam / 'package/droiddeck-cached').exists())
+
+    def test_a_cache_pass_that_cannot_apply_the_update_keeps_the_packages_for_steam(self):
+        self.cache_manifest()
+        result = self.install(None, '--cache', DD_STEAM_PREAPPLY=str(self.PREAPPLY))
+        self.assertEqual(0, result.returncode, result.stderr)
+        package = self.steam / 'package'
+        self.assertEqual(b'plain-package', (package / 'a.zip.1111').read_bytes())
+        self.assertFalse(list(package.glob('*.installed')))
+        self.assertFalse(list(package.glob('*.manifest')))
+
     def test_the_cache_pass_is_not_repeated_for_the_same_client_version(self):
         self.cache_manifest()
         self.assertEqual(0, self.install(None, '--cache').returncode)
@@ -612,6 +696,53 @@ with open(log, 'a') as out:
         # Only the sequential path counts parts as (1/2) and (2/2).
         self.assertIn('downloading Steam: a_all (1/2), 0 of 2 MB\n', result.stdout)
         self.assertIn('downloading Steam: client_linuxarm64_linuxarm64 (2/2), 1 of 2 MB\n', result.stdout)
+
+    def test_workers_do_not_claim_packages_with_mkdir(self):
+        source = SCRIPT.read_text()
+        region = source[source.index('run_parallel() {'):source.index('fetch_manifest() {')]
+        self.assertNotIn('mkdir "$state/claim', region)
+        self.assertIn('claim_next', region)
+
+    @unittest.skipUnless(shutil.which('flock'), 'needs flock')
+    def test_racing_workers_never_get_the_same_package(self):
+        source = SCRIPT.read_text()
+        start = source.index('claim_next() {')
+        function = source[start:source.index('\n}\n', start) + 3]
+        state = self.root / 'claims'
+        state.mkdir()
+        (state / 'next').write_text('1\n')
+        script = 'state=$1\ncount=$2\nflock_command=flock\n' + function + 'while :; do n=$(claim_next); [ "$n" -gt 0 ] || exit 0; echo "$n"; done\n'
+        workers = [subprocess.Popen(['bash', '-c', script, 'bash', str(state), '300'], stdout=subprocess.PIPE, text=True)
+                   for _ in range(8)]
+        claimed = []
+        for worker in workers:
+            out, _ = worker.communicate(timeout=120)
+            self.assertEqual(0, worker.returncode)
+            claimed += [int(n) for n in out.split()]
+        self.assertEqual(sorted(claimed), list(range(1, 301)), 'a package was claimed twice or never')
+
+    @unittest.skipUnless(shutil.which('flock'), 'needs flock')
+    def test_a_counter_that_cannot_be_used_fails_the_claim(self):
+        source = SCRIPT.read_text()
+        start = source.index('claim_next() {')
+        function = source[start:source.index('\n}\n', start) + 3]
+        for broken in ('directory', 'empty', 'text'):
+            state = self.root / f'claims-{broken}'
+            state.mkdir()
+            if broken == 'directory':
+                (state / 'next').mkdir()
+            else:
+                (state / 'next').write_text('' if broken == 'empty' else 'abc\n')
+            script = 'state=$1\ncount=5\nflock_command=flock\n' + function + 'n=$(claim_next) && echo "claimed $n" || echo failed\n'
+            result = subprocess.run(['bash', '-c', script, 'bash', str(state)], text=True, capture_output=True, timeout=30)
+            self.assertEqual('failed', result.stdout.strip(), f'{broken}: {result.stdout!r} {result.stderr!r}')
+
+    def test_a_claim_that_fails_fails_the_install_instead_of_leaving_packages_unclaimed(self):
+        self.many_parts()
+        # false is found like a flock would be, but it never takes the lock, so every claim fails.
+        result = self.install(DD_STEAM_FLOCK='false', timeout=60)
+        self.assertNotEqual(0, result.returncode, result.stdout)
+        self.assertFalse((self.steam / 'package/droiddeck-installed').exists())
 
     def test_the_parallel_workers_use_no_process_substitution(self):
         source = SCRIPT.read_text()

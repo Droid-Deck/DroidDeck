@@ -38,7 +38,7 @@ class XrealLinkTest {
         override fun close() { closed = true; bytes.clear(); bytes.offer(-1) }
     }
 
-    private class Channels : XrealChannels {
+    private class Channels(private val displayMode: Int = 2) : XrealChannels {
         override val controlInput = Input()
         override val reports = Input()
         val wrote = LinkedBlockingQueue<Int>()
@@ -53,7 +53,7 @@ class XrealLinkTest {
                 val id = ByteBuffer.wrap(request.body).int and Int.MAX_VALUE
                 wrote.offer(request.command)
                 if (acknowledge) controlInput.add(XrealProtocolTest.response(request.command, id,
-                    if (request.command == XrealProtocol.GET_DISPLAY) byteArrayOf(0x22, 2, 0x10, 2) else byteArrayOf(0x22, 0)))
+                    if (request.command == XrealProtocol.GET_DISPLAY) byteArrayOf(0x22, 2, 0x10, displayMode.toByte()) else byteArrayOf(0x22, 0)))
             }
         }
         override fun close() { controlInput.close(); reports.close(); closed.countDown() }
@@ -110,6 +110,27 @@ class XrealLinkTest {
             assertEquals(false, listener.errors.poll(2, TimeUnit.SECONDS))
             assertFalse(link.ready)
             assertNull(listener.values.poll())
+        } finally { link.close() }
+    }
+
+    @Test fun proPlusRejects1sOnlyModesAndKeepsBrightnessWithinTheSupportedRange() {
+        val channels = Channels(9)
+        val listener = Listener()
+        val link = XrealLink(object : XrealConnector {
+            override fun connect() = channels
+            override fun close() = channels.close()
+        }, listener, XrealModel.ONE_PRO_PLUS)
+        try {
+            assertTrue(listener.ready.await(2, TimeUnit.SECONDS))
+            assertEquals(VitureProtocol.MSG_GET_DISPLAY to 9, listener.values.poll(2, TimeUnit.SECONDS))
+            assertEquals(XrealProtocol.GET_DISPLAY, channels.wrote.poll(2, TimeUnit.SECONDS))
+            assertFalse(link.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(29)))
+            assertFalse(link.send(VitureProtocol.MSG_DISPLAY, byteArrayOf(2)))
+            assertFalse(link.send(VitureProtocol.MSG_BRIGHTNESS, byteArrayOf(10)))
+            assertTrue(channels.wrote.isEmpty())
+            assertTrue(link.send(VitureProtocol.MSG_BRIGHTNESS, byteArrayOf(9)))
+            assertEquals(VitureProtocol.MSG_BRIGHTNESS to 9, listener.values.poll(2, TimeUnit.SECONDS))
+            assertEquals(XrealProtocol.SET_BRIGHTNESS, channels.wrote.poll(2, TimeUnit.SECONDS))
         } finally { link.close() }
     }
 

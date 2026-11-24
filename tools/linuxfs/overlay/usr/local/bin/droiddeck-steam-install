@@ -66,6 +66,7 @@ if [ -n "$repair" ]; then
   done
 fi
 cache_only=
+applied=
 [ "${1:-}" = --cache ] && cache_only=1
 sync=
 if [ "${1:-}" = --sync ]; then
@@ -178,22 +179,42 @@ unzip_alone() {
   return $rc
 }
 
+# Takes the next unclaimed line number from a counter under a flock, and prints 0 when none is left. mkdir was tried for this
+# and handed the same line to two workers now and then in the app's guest shell, so only the kernel's lock is trusted here.
+claim_next() {
+  local n
+  while :; do
+    # A counter that cannot be read or written must fail the worker: a stale or empty number would give a package to two workers or to none.
+    n=$( { "$flock_command" 8 || exit 1
+           n=$(cat "$state/next") || exit 1
+           case $n in ''|*[!0-9]*) exit 1 ;; esac
+           echo $((n + 1)) > "$state/next" || exit 1
+           echo "$n"; } 8> "$state/claim.lock" ) || return 1
+    [ "$n" -le "$count" ] || { echo 0; return; }
+    if [ ! -e "$state/$n.done" ]; then
+      : > "$state/claim.$n"
+      echo "$n"
+      return
+    fi
+  done
+}
+
 # Fetches every line of a list ("block file sum size") into $dir with up to $parallel connections. With a third
 # argument each package is also unpacked into the client as it lands. One connection tops out near half of what a
 # Wi-Fi link carries, so the packages arrive about twice as fast. Workers take the next unclaimed line themselves
-# (mkdir is atomic) and only plain background jobs and wait on a pid are used, so nothing depends on job control.
+# (claim_next) and only plain background jobs and wait on a pid are used, so nothing depends on job control.
 run_parallel() {
   local list=$1 dir=$2 unpack=${3:-} state index=0 block file sum size
   local -a blocks=() files=() sums=() sizes=() pids=()
   state=$work/parallel
   rm -rf "$state"
   mkdir -p "$state"
+  echo 1 > "$state/next"
   while read -r block file sum size; do
     index=$((index + 1))
     blocks[index]=$block files[index]=$file sums[index]=$sum sizes[index]=$size
     if [ -n "$unpack" ] && [ -f "$dir/$file.unpacked" ]; then
       : > "$state/$index.done"
-      : > "$state/claim.$index"
     fi
   done < "$list"
   local count=$index total_bytes=0
@@ -203,10 +224,8 @@ run_parallel() {
     (
       trap ': > "$state/exit.$slot"' EXIT
       while [ ! -e "$state/failed" ]; do
-        index=0
-        for n in $(seq 1 "$count"); do
-          if mkdir "$state/claim.$n" 2>/dev/null; then index=$n; break; fi
-        done
+        # run_parallel is called in an || list, which switches set -e off in here: a failed claim has to be checked by hand.
+        index=$(claim_next) || { : > "$state/failed"; exit 1; }
         [ "$index" -gt 0 ] || exit 0
         file=${files[index]}
         fetched=""
@@ -342,8 +361,24 @@ if [ -n "$cache_only" ]; then
     done_bytes=$((done_bytes + size))
   done < "$work/cache"
   fi
+  applier=
+  trap 'kill "$applier" 2>/dev/null || :; wait "$applier" 2>/dev/null || :; rm -f "$cache/$manifest.installed" "$cached"; exit 143' TERM INT HUP
   echo "$version" > "$cached"
-  exit 0
+  preapply=${DD_STEAM_PREAPPLY:-/usr/local/bin/droiddeck-steam-preapply}
+  if [ -x "$preapply" ] && command -v python3 >/dev/null 2>&1; then
+    python3 "$preapply" "$cache" "$steam_root" "$work/manifest" "$manifest" &
+    applier=$!
+    if wait "$applier"; then
+      cp -f "$work/manifest" "$cache/$manifest.manifest"
+      chmod -R a+x "$steam_root/steamrtarm64" "$steam_root/linuxarm64" 2>/dev/null || true
+      while read -r _ file _; do rm -f "$cache/$file"; done < "$work/cache"
+      [ -f "$stamp" ] || applied=1
+    else
+      rm -f "$cache/$manifest.installed" "$cached"
+    fi
+  fi
+  trap - TERM INT HUP
+  [ -n "$applied" ] || exit 0
 fi
 if [ -n "$sync" ]; then
   installed=$(awk -F'"' '$2 == "version" { print $4; exit }' "$steam_root/package/$manifest.manifest" 2>/dev/null || true)
@@ -353,6 +388,7 @@ if [ -n "$sync" ]; then
   fi
   echo "== STEP $(date -u +%H:%M:%S) updating the arm64 Steam client to $version (was ${installed:-none}) for the x86-64 client"
 fi
+if [ -z "$applied" ]; then
 total=$(grep -c . "$work/parts" 2>/dev/null || echo 0)
 total_bytes=$(awk '{ n += $4 } END { print n + 0 }' "$work/parts")
 
@@ -387,6 +423,7 @@ while read -r block file sum size; do
   rm -f "$parts/$file"
   done_bytes=$((done_bytes + size))
 done < "$work/parts"
+fi
 fi
 find "$steam_root" -depth -name '*\\*' | while read -r odd; do
   fixed=${odd//\\//}

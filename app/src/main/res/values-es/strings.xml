@@ -3114,7 +3114,7 @@
     <string name="hand_camera_done">Hecho</string>
     <string name="glasses_xreal_network_missing">Esperando la conexión Ethernet por USB de las gafas. Puede que este teléfono no la ofrezca a las apps.</string>
     <string name="glasses_xreal_connection_failed">La conexión con las XREAL se interrumpió o devolvió una respuesta no compatible. Reintentando…</string>
-    <string name="glasses_xreal_experimental">Compatibilidad experimental con las 1S. Usa el modo Follow y desactiva la estabilización en el menú de las gafas. Aún falta probar en el dispositivo las direcciones del seguimiento y los modos de pantalla.</string>
+    <string name="glasses_xreal_experimental">Compatibilidad experimental con XREAL 1S, One, One Pro, One Pro+ y Aura. Usa el modo Follow y desactiva la estabilización en el menú de las gafas; en Aura, desactiva también Spatial Anchor. El seguimiento de cabeza y el cambio entre 2D/3D se han probado en Aura y One Pro+.</string>
     <string name="glasses_pro2_experimental">Seguimiento de cabeza experimental para Pro 2. Los ajustes de brillo y volumen y el cambio de modo de pantalla aún no son compatibles.</string>
     <string name="stores_fact_developer">Desarrollador</string>
     <string name="stores_fact_publisher">Distribuidor</string>
@@ -4117,4 +4117,6 @@
     <string name="theme_custom_signal">Destacados</string>
     <string name="theme_custom_good">Éxito</string>
     <string name="theme_custom_error">Error</string>
+    <string name="hud_only_during_game">Mostrar el HUD solo durante una partida</string>
+    <string name="hud_only_during_game_hint">Ocultar el HUD cuando no se detecten fotogramas del juego.</string>
 </resources>

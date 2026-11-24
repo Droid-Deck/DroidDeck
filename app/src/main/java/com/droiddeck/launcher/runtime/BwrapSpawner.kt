@@ -112,9 +112,16 @@ object BwrapSpawner {
         return out
     }
 
+    internal fun withKernelPaths(sessionBinds: List<Bind>, canonical: (String) -> String): List<Bind> =
+        sessionBinds + sessionBinds.filter { it.host == it.guest }.mapNotNull { bind ->
+            runCatching { canonical(bind.host) }.getOrNull()
+                ?.takeIf { it != bind.guest && sessionBinds.none { other -> other.guest == it } }
+                ?.let { Bind(bind.host, it) }
+        }
+
     internal fun plan(context: Context, request: JSONObject, dir: File): Plan {
         val rootfs = LinuxRuntime.rootDir(context).path
-        val session = LinuxRuntime.lastBinds(context).map { Bind.parse(it) }
+        val session = withKernelPaths(LinuxRuntime.lastBinds(context).map { Bind.parse(it) }) { File(it).canonicalPath }
         val root = File(dir, "root").apply { mkdirs() }
         val binds = ArrayList<Bind>()
         var scratch = 0
@@ -184,7 +191,10 @@ object BwrapSpawner {
         request.optJSONObject("env")?.let { e -> e.keys().forEach { k -> env[k] = e.getString(k) } }
         withoutRootfsSettings(env, rootfs)
         val envTool = request.optString("envTool").takeIf { it.startsWith("/") }
-        if (envTool == null && binds.any { it.guest == "/dev" }) gpu(rootfs, root, env)?.forEach { addBind(it) }
+        if (envTool == null && binds.any { it.guest == "/dev" }) {
+            val glIcd = coveringBind(GL_ICD_DIR) != null && File(hostPath(binds, root.path, GL_ICD_DIR)).isDirectory
+            gpu(rootfs, root, env, glIcd = glIcd)?.forEach { addBind(it) }
+        }
         val libc = listOf("/usr/lib/aarch64-linux-gnu/libc.so.6", "/lib/aarch64-linux-gnu/libc.so.6").map { hostPath(binds, root.path, it) }
         if (envTool == null && preloadFits(rootfs, libc.firstOrNull { File(it).isFile } ?: libc.first())) preload(session, rootfs, env).forEach { addBind(it) }
         zypakShims(binds, root, dir).forEach { addBind(it) }
@@ -211,6 +221,7 @@ object BwrapSpawner {
     }
 
     private const val GPU_DIR = "/run/droiddeck-gpu"
+    private const val GL_ICD_DIR = "/usr/lib/aarch64-linux-gnu/GL/vulkan/icd.d"
 
     private val LIB_DIRS = listOf("usr/lib/aarch64-linux-gnu", "usr/lib")
     private val GPU_LIBS = listOf("libdisplay-info.so.3", "libdisplay-info.so.2", "libSPIRV-Tools.so", "libSPIRV-Tools-opt.so")
@@ -220,9 +231,9 @@ object BwrapSpawner {
 
     internal fun gpu(
         rootfs: String, root: File, env: MutableMap<String, String>,
-        kgslAvailable: Boolean = File("/dev/kgsl-3d0").exists(),
+        kgslAvailable: Boolean = File("/dev/kgsl-3d0").exists(), glIcd: Boolean = false,
     ): List<Bind>? {
-        env["VKBRIDGE_SOCKET"]?.let { sock -> if (File(sock).exists()) return bridgeGpu(rootfs, root, env, sock) }
+        env["VKBRIDGE_SOCKET"]?.let { sock -> if (File(sock).exists()) return bridgeGpu(rootfs, root, env, sock, glIcd) }
         val driver = runtimeLib(rootfs, "libvulkan_freedreno.so")
         if (driver == null || !kgslAvailable) return null
         if (env.containsKey("VK_ICD_FILENAMES") || env.containsKey("VK_DRIVER_FILES")) return null
@@ -235,6 +246,7 @@ object BwrapSpawner {
         val icd = File(root.parentFile, "freedreno_icd.json")
         icd.writeText("{\"file_format_version\": \"1.0.0\", \"ICD\": {\"library_path\": \"$GPU_DIR/libvulkan_freedreno.so\", \"api_version\": \"1.4.0\"}}\n")
         binds.add(Bind(icd.path, "$GPU_DIR/freedreno_icd.json"))
+        if (glIcd) binds.add(icdDir(root, icd))
         env["VK_DRIVER_FILES"] = "$GPU_DIR/freedreno_icd.json"
         env["VK_ICD_FILENAMES"] = "$GPU_DIR/freedreno_icd.json"
         if (!env.containsKey("MESA_LOADER_DRIVER_OVERRIDE") && !env.containsKey("GALLIUM_DRIVER")) {
@@ -245,7 +257,14 @@ object BwrapSpawner {
         return binds
     }
 
-    private fun bridgeGpu(rootfs: String, root: File, env: MutableMap<String, String>, socket: String): List<Bind>? {
+    private fun icdDir(root: File, icd: File): Bind {
+        val dir = File(root.parentFile, "icd.d")
+        dir.mkdirs()
+        icd.copyTo(File(dir, icd.name), overwrite = true)
+        return Bind(dir.path, GL_ICD_DIR)
+    }
+
+    private fun bridgeGpu(rootfs: String, root: File, env: MutableMap<String, String>, socket: String, glIcd: Boolean): List<Bind>? {
         val driver = File(rootfs, "usr/local/lib/vkbridge/libvulkan_droidbridge.so")
         if (!driver.isFile) { Log.w(TAG, "gpu: vkbridge session but no bridge ICD in the runtime"); return null }
         val binds = ArrayList<Bind>()
@@ -258,6 +277,7 @@ object BwrapSpawner {
         }.getOrNull() ?: run { Log.w(TAG, "gpu: vkbridge session but the runtime's bridge manifest is unreadable"); return null }
         icd.writeText("{\"file_format_version\": \"1.0.0\", \"ICD\": {\"library_path\": \"$GPU_DIR/libvulkan_droidbridge.so\", \"api_version\": \"$api\"}}\n")
         binds.add(Bind(icd.path, "$GPU_DIR/vkbridge_icd.json"))
+        if (glIcd) binds.add(icdDir(root, icd))
         env["VK_DRIVER_FILES"] = "$GPU_DIR/vkbridge_icd.json"
         env["VK_ICD_FILENAMES"] = "$GPU_DIR/vkbridge_icd.json"
         if (!env.containsKey("MESA_LOADER_DRIVER_OVERRIDE") && !env.containsKey("GALLIUM_DRIVER")) {
@@ -538,6 +558,9 @@ object BwrapSpawner {
         return f
     }
 
+    internal fun prootEnvironment(plan: Plan, startsThroughEnvTool: Boolean): Map<String, String> =
+        if (startsThroughEnvTool) emptyMap() else plan.env - "LD_PRELOAD"
+
     private fun run(context: Context, plan: Plan, client: LocalSocket, out: DataOutputStream, id: Int) {
         val verbose = plan.env["DROIDDECK_PROOT_VERBOSE"]?.toIntOrNull()
         val native = if (NativeGuest.forSession(context)) nativeLaunch(context, plan) else null
@@ -559,7 +582,7 @@ object BwrapSpawner {
             ProcessBuilder(cmd).redirectErrorStream(true).directory(plan.root).also { b ->
                 b.environment().apply {
                     clear()
-                    if (!envTool) putAll(plan.env)
+                    putAll(prootEnvironment(plan, envTool))
                     put("PROOT_LOADER", LinuxRuntime.prootLoader(context).path)
                     put("PROOT_TMP_DIR", LinuxRuntime.prootTempDir(context).path)
                     if (SessionPrefs.prootNoSeccomp(context)) put("PROOT_NO_SECCOMP", "1")

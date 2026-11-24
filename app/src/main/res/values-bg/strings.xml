@@ -3098,7 +3098,7 @@
     <string name="hand_camera_done">Готово</string>
     <string name="glasses_xreal_network_missing">Изчаква се USB Ethernet връзката на очилата. Този телефон може да не я предоставя на приложенията.</string>
     <string name="glasses_xreal_connection_failed">Връзката с XREAL беше прекъсната или върна неподдържан отговор. Нов опит…</string>
-    <string name="glasses_xreal_experimental">Експериментална поддръжка на 1S. Използвайте режим Follow и изключете стабилизацията в менюто на очилата. Посоките на проследяване и режимите на показване все още трябва да се тестват на устройство.</string>
+    <string name="glasses_xreal_experimental">Експериментална поддръжка на XREAL 1S, One, One Pro, One Pro+ и Aura. Използвайте режим Follow и изключете стабилизацията в менюто на очилата; при Aura изключете и Spatial Anchor. Проследяването на главата и превключването между 2D/3D са тествани на Aura и One Pro+.</string>
     <string name="glasses_pro2_experimental">Експериментално проследяване на движенията на главата за Pro 2. Регулирането на яркостта и силата на звука и превключването на режима на показване все още не се поддържат.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Режим Cardboard</string>
@@ -4077,4 +4077,6 @@
     <string name="theme_custom_signal">Акценти</string>
     <string name="theme_custom_good">Успех</string>
     <string name="theme_custom_error">Грешка</string>
+    <string name="hud_only_during_game">Показвай HUD само по време на игра</string>
+    <string name="hud_only_during_game_hint">Скривай HUD, когато не се засичат кадри от играта.</string>
 </resources>

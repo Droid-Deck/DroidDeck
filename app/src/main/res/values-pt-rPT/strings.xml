@@ -3130,7 +3130,7 @@
     <string name="hand_camera_done">Concluído</string>
     <string name="glasses_xreal_network_missing">A aguardar a ligação Ethernet por USB dos óculos. Este telemóvel pode não a disponibilizar às apps.</string>
     <string name="glasses_xreal_connection_failed">A ligação aos óculos XREAL foi interrompida ou devolveu uma resposta não suportada. A tentar novamente…</string>
-    <string name="glasses_xreal_experimental">Suporte experimental para os 1S. Utilize o modo Follow e desative a estabilização no menu dos óculos. As direções de seguimento e os modos de ecrã ainda têm de ser testados no dispositivo.</string>
+    <string name="glasses_xreal_experimental">Suporte experimental para XREAL 1S, One, One Pro, One Pro+ e Aura. Utilize o modo Follow e desative a estabilização no menu dos óculos; no Aura, desative também Spatial Anchor. O seguimento da cabeça e a alternância entre 2D/3D foram testados nos modelos Aura e One Pro+.</string>
     <string name="glasses_pro2_experimental">Seguimento experimental dos movimentos da cabeça para Pro 2. O ajuste do brilho e do volume e a mudança do modo de ecrã ainda não são suportados.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Modo Cardboard</string>
@@ -4116,4 +4116,6 @@
     <string name="display_scaling_integer">Inteiro</string>
     <string name="display_scaling_fit">Ajustar</string>
     <string name="drawer_antialiasing">Suavização de serrilhado</string>
+    <string name="hud_only_during_game">Mostrar o HUD apenas durante um jogo</string>
+    <string name="hud_only_during_game_hint">Ocultar o HUD quando não forem detetados fotogramas do jogo.</string>
 </resources>

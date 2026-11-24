@@ -1841,6 +1841,7 @@
     <string name="main_pick_game_storage">Choose the game storage folder</string>
     <string name="main_pick_decky_zip">Choose a Decky plugin ZIP</string>
     <string name="main_storage_not_usable">Not usable: %1$s</string>
+    <string name="main_storage_fat32">FAT32 cannot hold files over 4 GB, so some games will fail to install. Reformat as exFAT.</string>
     <string name="main_running_program">Program</string>
     <string name="main_removing_runtime">Removing Linux runtime</string>
     <string name="main_settings_main_screen">Could not open Settings on the bottom screen; opened it on the main screen.</string>
@@ -3451,7 +3452,7 @@
     <string name="hand_camera_done">Done</string>
     <string name="glasses_xreal_network_missing">Waiting for the glasses’ USB Ethernet connection. This phone may not expose it to apps.</string>
     <string name="glasses_xreal_connection_failed">The XREAL connection was interrupted or returned an unsupported response. Retrying…</string>
-    <string name="glasses_xreal_experimental">Experimental XREAL 1S, One, One Pro, One Pro+ and Aura support. Use Follow mode and turn off stabilization in the glasses menu; on the Aura, also turn off Spatial Anchor. Head tracking and 2D/3D switching are tested on the Aura.</string>
+    <string name="glasses_xreal_experimental">Experimental XREAL 1S, One, One Pro, One Pro+ and Aura support. Use Follow mode and turn off stabilization in the glasses menu; on the Aura, also turn off Spatial Anchor. Head tracking and 2D/3D switching are tested on the Aura and One Pro+.</string>
     <string name="glasses_pro2_experimental">Experimental Pro 2 head tracking. Brightness, volume, and display switching are not supported yet.</string>
     <string name="display_picture_position">Picture position</string>
     <string name="display_position_top">Top</string>
@@ -4380,6 +4381,10 @@
     <string name="onboarding_steam_failed">The Steam client download will retry</string>
     <string name="onboarding_limit_reason">Android can close Steam’s helper processes. Turn that off now, while the downloads run, and Play is ready the moment they finish.</string>
     <string name="onboarding_limit_action">Do it for me</string>
+    <string name="onboarding_limit_while_waiting">Set up while you wait</string>
+    <string name="onboarding_chip">Getting ready · %1$d%% · %2$s</string>
+    <string name="hud_only_during_game">Show HUD only during a game</string>
+    <string name="hud_only_during_game_hint">Hide the HUD when no game frames are detected.</string>
     <string name="onboarding_button_getting_ready">Getting ready · %1$d%%</string>
     <string name="onboarding_button_finish">Finish setup · %1$d%%</string>
 </resources>
