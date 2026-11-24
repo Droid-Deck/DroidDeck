@@ -1336,6 +1336,10 @@ object SessionPrefs {
         SessionDisplay.effectiveChoice(
             resolutionStored(context, mode, panel, false), resolutionStored(context, mode, panel, true), portrait)
 
+    fun followScales(context: Context, mode: String, panel: Pair<Int, Int>): Pair<Float?, Float?> =
+        SessionDisplay.followScale(resolutionChoice(context, mode, panel, false)) to
+            SessionDisplay.followScale(resolutionChoice(context, mode, panel, true))
+
     fun resolutionStored(context: Context, mode: String, panel: Pair<Int, Int>, portrait: Boolean): String {
         if (!portrait) return landscapeResolutionStored(context, mode, panel)
         val value = prefs(context).getString("displayResolution.portrait.$mode", null) ?: return SessionDisplay.LINK_LANDSCAPE

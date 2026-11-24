@@ -875,9 +875,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         cornerTap = SessionPrefs.drawerCornerTap(this)
         applyOutputPacing()
         if (!SessionState.running) {
-            SessionState.followScreen = followChoice()
-            SessionState.followScale = followScale()
+            SessionState.followScales = SessionPrefs.followScales(this, displayMode(),
+                com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         }
+        applyFollowChoice()
         applyFollowOrientation(resources.configuration)
         goFullscreen()
         volumeControlStream = android.media.AudioManager.STREAM_MUSIC
@@ -2991,16 +2992,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun followPortrait(): Boolean = glassesScreen == null && SessionPrefs.portrait(this)
 
-    private fun followScale(): Float {
-        val mode = displayMode()
-        val choice = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), followPortrait())
-        return com.droiddeck.launcher.session.SessionDisplay.followScale(choice) ?: 1f
-    }
-
-    private fun followChoice(): Boolean {
-        val mode = displayMode()
-        return com.droiddeck.launcher.session.SessionDisplay.isFollow(
-            SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), followPortrait()))
+    private fun applyFollowChoice() {
+        val scale = SessionState.followScales.let { if (followPortrait()) it.second else it.first }
+        SessionState.followScreen = scale != null
+        SessionState.followScale = scale ?: 1f
     }
 
     private fun applyFollowOrientation(config: android.content.res.Configuration) {
@@ -3014,6 +3009,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             SessionService.setActivityDisplay(this, sessionActivityDisplayId)
         }
         cancelTouchGestures()
+        applyFollowChoice()
         applyFollowOrientation(newConfig)
         applyNotchInset()
         applyUnfoldedControls()
