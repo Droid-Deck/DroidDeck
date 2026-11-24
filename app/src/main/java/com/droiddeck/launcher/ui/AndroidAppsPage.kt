@@ -436,7 +436,8 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
     if (moving != null && entries.none { it.key == moving }) { moving = null; dragKey = null }
     if (!arranging && dragKey != null) dragKey = null
     // B or Back first puts down a tile being carried, so another can be picked; with none carried it ends arranging.
-    val stepBack = { if (moving != null) moving = null else arranging = false }
+    // A tile held by a finger is let go as well, so the drag cannot keep moving it after it was put down.
+    val stepBack = { if (moving != null) { moving = null; dragKey = null } else arranging = false }
     BackHandler(arranging) { stepBack() }
     // Putting a tile down or leaving arranging rebuilds the tiles, which drops focus: give it back to the tile that had it.
     val tileFocus = LocalFrontFocus.current
@@ -456,7 +457,13 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
             runCatching { f.items[id]?.requestFocus() }
         }
         androidx.compose.runtime.snapshotFlow { f.focusedRail }.collect { rail ->
-            if (rail != null) focusSoon { f.items.getValue(id) }
+            if (rail == null) return@collect
+            // A tile scrolled out of the grid has no place to take focus: bring it back first.
+            if ((f.attached[id] ?: 0) == 0) {
+                val at = entriesNow.value.indexOfFirst { it.key == key }
+                if (at >= 0) grid.scrollToItem(at + leadItems)
+            }
+            focusSoon { f.items.getValue(id) }
         }
     }
     LaunchedEffect(arranging, moving) {
@@ -687,7 +694,11 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp).clip(Shape12).background(colors.surfaceVariant).padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
                 ) {
-                    Text(stringResource(R.string.apps_move_hint), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground)
+                    // Weighted so Done keeps its width on a narrow pane or with large text, and the hint wraps instead.
+                    Text(
+                        stringResource(R.string.apps_move_hint), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
                     Text(
                         stringResource(R.string.apps_move_done), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = LocalPalette.current.signal,
                         modifier = Modifier.clip(Shape12).clickable(role = Role.Button) { arranging = false; moving = null }.padding(horizontal = 12.dp, vertical = 8.dp),
