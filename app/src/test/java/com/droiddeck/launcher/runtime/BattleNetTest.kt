@@ -216,6 +216,26 @@ class BattleNetTest {
         assertNull(BattleNet.hostFolder(context, "G:\\etc\\passwd"))
     }
 
+    @Test fun aDriveAtTheAppDataFolderHoldingTheRuntimeListsTheGamesInside() {
+        val root = LinuxRuntime.rootDir(context)
+        val data = context.filesDir.parentFile!!
+        val pfx = File(BattleNet.prefix(context), "pfx")
+        val devices = File(pfx, "dosdevices").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(devices, "d:").toPath(), data.absoluteFile.toPath())
+        java.nio.file.Files.createSymbolicLink(File(devices, "e:").toPath(), java.nio.file.Paths.get("/root/Games/Card"))
+        val wow = File(root, "root/Games/Stores/Battle.net/World of Warcraft").apply { mkdirs() }
+        File(wow, "_forever_").mkdirs()
+        val drive = "D:/" + data.absoluteFile.toPath().relativize(wow.absoluteFile.toPath()).joinToString("/")
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "wowf"), field(2, "wowf"), field(3, message(field(1, drive))))),
+        ))
+        assertEquals(wow, BattleNet.hostFolder(context, drive))
+        assertEquals(File(wow, "_forever_"), BattleNet.games(context).single().folder)
+        assertEquals(File(root, "root/Games/Card/Battle.net/X"), BattleNet.hostFolder(context, "E:\\Battle.net\\X"))
+        assertNull(BattleNet.hostFolder(context, "D:\\..\\etc"))
+    }
+
 
     @Test fun wowForeverIsListedBesideRetailInTheSharedWorldOfWarcraftFolder() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
