@@ -34,11 +34,70 @@ ln -sf /usr/local/bin/droiddeck-steam-launch /usr/local/bin/steamdeck-steam 2>/d
 ln -sf /usr/local/bin/droiddeck-steam-shim /usr/local/bin/steam 2>/dev/null
 python3 /usr/local/bin/droiddeck-desktop-games 2>&1 | sed 's/^/[games] /'
 python3 /usr/local/bin/droiddeck-desktop-programs 2>&1 | sed 's/^/[programs] /'
-# Plasma lays out the SteamOS panel only for a profile without one; a panel made from Kubuntu's own
-# layout keeps its Ubuntu launcher icon and a single pin, so it is set aside for the SteamOS one.
+# Plasma lays out the SteamOS panel only for a profile without one. The layout is written at every
+# start, and a panel made before this version (Kubuntu's own, or the first SteamOS one without the
+# pager, clock and Plasma's stock pins) is set aside once so Plasma lays out the current one.
+dd_layout=/usr/share/plasma/look-and-feel/com.valve.vapor.desktop/contents/layouts
+if [ -d "$dd_layout" ]; then
+  cat > "$dd_layout/org.kde.plasma.desktop-layout.js" <<'LAYOUT'
+var desktops = desktopsForActivity(currentActivity());
+for (var i = 0; i < desktops.length; i++) {
+    desktops[i].wallpaperPlugin = "org.kde.image";
+    desktops[i].currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
+    desktops[i].writeConfig("Image", "file:///usr/share/wallpapers/DroidDeck");
+}
+
+var panel = new Panel;
+panel.location = "bottom";
+panel.height = 2 * Math.ceil(gridUnit * 2.5 / 2);
+
+var kickoff = panel.addWidget("org.kde.plasma.kickoff");
+kickoff.currentConfigGroup = ["Shortcuts"];
+kickoff.writeConfig("global", "Alt+F1");
+kickoff.currentConfigGroup = ["General"];
+kickoff.writeConfig("icon", "distributor-logo-steamdeck");
+kickoff.writeConfig("favorites", [
+    "preferred://browser",
+    "applications:org.kde.dolphin.desktop",
+    "applications:org.kde.konsole.desktop",
+    "applications:org.kde.kate.desktop",
+    "applications:org.kde.discover.desktop",
+    "applications:systemsettings.desktop",
+]);
+
+panel.addWidget("org.kde.plasma.pager");
+
+var tasks = panel.addWidget("org.kde.plasma.icontasks");
+tasks.currentConfigGroup = ["General"];
+tasks.writeConfig("launchers", [
+    "applications:steamdeck-steam.desktop",
+    "applications:systemsettings.desktop",
+    "applications:org.kde.discover.desktop",
+    "preferred://filemanager",
+    "preferred://browser",
+    "applications:org.kde.konsole.desktop",
+    "applications:org.kde.kate.desktop",
+]);
+
+panel.addWidget("org.kde.plasma.marginsseparator");
+var tray = panel.addWidget("org.kde.plasma.systemtray");
+var trayId = tray.readConfig("SystrayContainmentId");
+if (trayId) {
+    var trayContainment = desktopById(trayId);
+    trayContainment.currentConfigGroup = ["General"];
+    trayContainment.writeConfig("scaleIconsToFit", true);
+}
+var clock = panel.addWidget("org.kde.plasma.digitalclock");
+clock.currentConfigGroup = ["Appearance"];
+clock.writeConfig("dateFormat", "isoDate");
+panel.addWidget("org.kde.plasma.showdesktop");
+LAYOUT
+fi
 dd_panel_rc="${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"
-if grep -qs '^icon=start-here-kubuntu$' "$dd_panel_rc"; then
-  mv -f "$dd_panel_rc" "$dd_panel_rc.kubuntu-layout"
+dd_panel_stamp="${XDG_CONFIG_HOME:-$HOME/.config}/droiddeck-panel-layout"
+if [ "$(cat "$dd_panel_stamp" 2>/dev/null)" != steamos-2 ]; then
+  [ -f "$dd_panel_rc" ] && mv -f "$dd_panel_rc" "$dd_panel_rc.before-steamos-2"
+  mkdir -p "$(dirname "$dd_panel_stamp")" && echo steamos-2 > "$dd_panel_stamp"
 fi
 # startplasma applies this file over the session environment, and keeps what an earlier session wrote.
 kwriteconfig6 --file plasma-localerc --group Formats --key LANG "${LANG:-C.UTF-8}"
