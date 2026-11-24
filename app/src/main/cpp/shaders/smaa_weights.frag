@@ -116,8 +116,14 @@ void main() {
         : abs(max(ne.r, ne.g) - max(se.r, se.g));
     float crossingContrast = abs(crossingA - crossingB);
     float crossingPattern = smoothstep(threshold, threshold * 2.5, crossingContrast);
-    float balancedCrossing = smoothstep(
-        threshold, threshold * 2.5, min(crossingA, crossingB));
+    vec4 edgeMin = min(min(nw, ne), min(sw, se));
+    vec4 edgeMax = max(max(nw, ne), max(sw, se));
+    float edgeVariation = max(
+        max(edgeMax.r - edgeMin.r, edgeMax.g - edgeMin.g),
+        max(edgeMax.b - edgeMin.b, edgeMax.a - edgeMin.a));
+    float balancedCrossing = edgeVariation > 0.01
+        ? smoothstep(threshold, threshold * 2.5, min(crossingA, crossingB))
+        : 0.0;
     float areaWeight = 0.38 * crossingPattern * clamp(span / 4.0, 0.0, 1.0);
     float diagonalContrast = max(
         max(max(abs(nw.r - se.r), abs(nw.g - se.g)),
