@@ -154,6 +154,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-emulators" to "usr/local/bin/droiddeck-emulators",
             "usr/local/bin/droiddeck-snap-run" to "usr/local/bin/droiddeck-snap-run",
             "usr/local/bin/droiddeck-snap-confine" to "usr/local/bin/droiddeck-snap-confine",
+            "usr/local/bin/droiddeck-diversion-stub" to "usr/local/bin/droiddeck-diversion-stub",
             "usr/local/bin/droiddeck-snapctl" to "usr/local/bin/droiddeck-snapctl",
             "usr/local/bin/droiddeck-systemd-run" to "usr/local/bin/systemd-run",
             "usr/local/bin/droiddeck-snap-cli" to "usr/local/bin/snap",
