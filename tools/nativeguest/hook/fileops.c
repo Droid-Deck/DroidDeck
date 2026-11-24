@@ -439,8 +439,8 @@ ssize_t readlink(const char *pathname, char *buf, size_t bufsiz) {
     char pbuf[PATH_MAX];
     const char *target = rewrite_path(pathname, pbuf, sizeof(pbuf));
     char whole[PATH_MAX];
-    char *out = bufsiz < sizeof(whole) ? whole : buf;
-    size_t outsiz = bufsiz < sizeof(whole) ? sizeof(whole) : bufsiz;
+    char *out = bufsiz && bufsiz < sizeof(whole) ? whole : buf;
+    size_t outsiz = out == whole ? sizeof(whole) : bufsiz;
     ssize_t ret = orig_readlink ? orig_readlink(target, out, outsiz) : -1;
     if (ret < 0 && errno == ENOENT) {
         char alt[PATH_MAX];
@@ -470,8 +470,8 @@ ssize_t readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {
     char pbuf[PATH_MAX];
     const char *target = (pathname && pathname[0] == '/') ? rewrite_path(pathname, pbuf, sizeof(pbuf)) : pathname;
     char whole[PATH_MAX];
-    char *out = bufsiz < sizeof(whole) ? whole : buf;
-    size_t outsiz = bufsiz < sizeof(whole) ? sizeof(whole) : bufsiz;
+    char *out = bufsiz && bufsiz < sizeof(whole) ? whole : buf;
+    size_t outsiz = out == whole ? sizeof(whole) : bufsiz;
     ssize_t ret = orig_readlinkat ? orig_readlinkat(dirfd, target, out, outsiz) : -1;
     if (ret < 0 && errno == ENOENT && pathname && pathname[0] == '/') {
         char alt[PATH_MAX];

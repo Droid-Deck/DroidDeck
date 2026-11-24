@@ -1,3 +1,4 @@
+import errno
 import os
 from pathlib import Path
 import subprocess
@@ -9,6 +10,7 @@ from tools.tests.test_usr2_preload import runner
 HOOK_BUILD = Path(__file__).resolve().parents[1] / "nativeguest/build.sh"
 
 PROBE = r"""
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +33,10 @@ int main(int argc, char **argv) {
   char small[4];
   show("small", readlink(link, small, sizeof(small)), small);
   show("sized-at", readlinkat(AT_FDCWD, link, exact, (size_t)st.st_size), exact);
+  errno = 0;
+  printf("zero\t%zd\t%d\n", readlink(link, full, 0), errno);
+  errno = 0;
+  printf("zero-at\t%zd\t%d\n", readlinkat(AT_FDCWD, link, full, 0), errno);
   return 0;
 }
 """
@@ -85,6 +91,11 @@ class NativeHookReadlinkTest(unittest.TestCase):
         result = self.read("/etc/alternatives/guest")
         self.assertEqual(["9", "/bin/nano"], result["sized"])
         self.assertEqual(["4", "/bin"], result["small"])
+
+    def test_a_zero_sized_buffer_is_rejected(self):
+        result = self.read("/etc/alternatives/editor")
+        self.assertEqual(["-1", str(errno.EINVAL)], result["zero"])
+        self.assertEqual(["-1", str(errno.EINVAL)], result["zero-at"])
 
 
 if __name__ == "__main__":
