@@ -106,13 +106,15 @@ class LinuxNetworkLinkComponent(
                 synchronized(lock) { writeNetworkState(currentProperties, currentCapabilities) }
             }
         }
-        appContext.registerReceiver(receiver, IntentFilter().apply {
+        val wifiFilter = IntentFilter().apply {
             addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
             addAction(WifiManager.RSSI_CHANGED_ACTION)
             addAction(WifiManager.WIFI_STATE_CHANGED_ACTION)
             addAction(WifiManager.NETWORK_STATE_CHANGED_ACTION)
             addAction(LocationManager.MODE_CHANGED_ACTION)
-        })
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 33) appContext.registerReceiver(receiver, wifiFilter, Context.RECEIVER_NOT_EXPORTED)
+        else appContext.registerReceiver(receiver, wifiFilter)
         wifiReceiver = receiver
         scanRequestStamp = File(rootDir, "etc/droiddeck-wifi-scan-request").lastModified()
         scanHandler.post(scanRequests)
@@ -273,12 +275,15 @@ class LinuxNetworkLinkComponent(
      * crash or power cut can keep the rename and lose the data, leaving a file of NUL bytes.
      */
     private fun replace(file: File, text: String) {
-        val staged = File(file.path + ".staged")
-        java.io.FileOutputStream(staged).use { out ->
-            out.write(text.toByteArray())
-            out.fd.sync()
+        synchronized(WRITES) {
+            if (runCatching { file.isFile && file.readText() == text }.getOrDefault(false)) return
+            val staged = File(file.path + ".staged")
+            java.io.FileOutputStream(staged).use { out ->
+                out.write(text.toByteArray())
+                out.fd.sync()
+            }
+            if (!staged.renameTo(file)) throw IOException("Could not replace $file")
         }
-        if (!staged.renameTo(file)) throw IOException("Could not replace $file")
     }
 
     private fun writeResolver(properties: LinkProperties?) {
@@ -331,6 +336,8 @@ class LinuxNetworkLinkComponent(
         seededMac { Settings.Secure.getString(appContext.contentResolver, Settings.Secure.ANDROID_ID) }
 
     companion object {
+        private val WRITES = Any()
+
         internal fun gateways(properties: LinkProperties?, capabilities: NetworkCapabilities?): List<InetAddress> =
             listOf(Inet4Address::class.java, Inet6Address::class.java).mapNotNull { family ->
                 properties?.routes.orEmpty()

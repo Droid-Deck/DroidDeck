@@ -20,7 +20,7 @@
 static const char *net_dir(void) {
   static char dir[256];
   if (!dir[0]) {
-    const char *base = getenv("BL_SYSV_DIR");
+    const char *base = getenv("DD_SYSV_DIR");
     snprintf(dir, sizeof(dir), "%s/net", base && *base ? base : "/dev/shm/wnsysv");
     char parent[256];
     snprintf(parent, sizeof(parent), "%s", dir);
@@ -110,18 +110,22 @@ typedef int (*connect_fn)(int, const struct sockaddr *, socklen_t);
 typedef int (*accept4_fn)(int, struct sockaddr *, socklen_t *, int);
 static unsigned guarded_port(void);
 
-__attribute__((visibility("hidden"))) int bl_udevmon_stand_in(int fd);
-__attribute__((visibility("hidden"))) int bl_nl_bind(int fd, const struct sockaddr *addr,
+__attribute__((visibility("hidden"))) int dd_udevmon_stand_in(int fd);
+__attribute__((visibility("hidden"))) int dd_udevmon_bind(int fd, const struct sockaddr *addr, socklen_t len,
+                                                          int (*real_bind)(int, const struct sockaddr *, socklen_t),
+                                                          int *rc);
+__attribute__((visibility("hidden"))) int dd_nl_bind(int fd, const struct sockaddr *addr,
                                                      socklen_t len, int *rc);
-__attribute__((visibility("hidden"))) int bl_nl_connect(int fd, const struct sockaddr *addr,
+__attribute__((visibility("hidden"))) int dd_nl_connect(int fd, const struct sockaddr *addr,
                                                         socklen_t len, int *rc);
 
 int bind(int fd, const struct sockaddr *addr, socklen_t len) {
   static bind_fn real;
   int nl_rc;
   if (!real) real = (bind_fn)dlsym(RTLD_NEXT, "bind");
-  if (bl_nl_bind(fd, addr, len, &nl_rc)) return nl_rc;
-  if (bl_udevmon_stand_in(fd)) {
+  if (dd_nl_bind(fd, addr, len, &nl_rc)) return nl_rc;
+  if (dd_udevmon_bind(fd, addr, len, real, &nl_rc)) return nl_rc;
+  if (dd_udevmon_stand_in(fd)) {
     if (addr == NULL || len < sizeof(struct sockaddr_nl) || addr->sa_family != AF_NETLINK) {
       errno = EINVAL;
       return -1;
@@ -183,7 +187,7 @@ static void bind_before_loopback_connect(int fd, const struct sockaddr *addr, so
 static unsigned guarded_port(void) {
   static int port = -1;
   if (port < 0) {
-    const char *value = getenv("BL_CDP_GUARD");
+    const char *value = getenv("DD_CDP_GUARD");
     port = value && *value ? atoi(value) : 0;
     if (port < 0 || port > 65535) port = 0;
   }
@@ -230,7 +234,7 @@ static int guest_peer(int fd) {
 int connect(int fd, const struct sockaddr *addr, socklen_t len) {
   static connect_fn real;
   int nl_rc;
-  if (bl_nl_connect(fd, addr, len, &nl_rc)) return nl_rc;
+  if (dd_nl_connect(fd, addr, len, &nl_rc)) return nl_rc;
   if (!real) real = (connect_fn)dlsym(RTLD_NEXT, "connect");
   bind_before_loopback_connect(fd, addr, len);
   unsigned peer = loopback_family(addr, len) ? addr_port(addr, len) : 0;
@@ -267,13 +271,14 @@ int accept(int fd, struct sockaddr *addr, socklen_t *len) {
 extern char **environ;
 typedef int (*spawn_fn)(pid_t *, const char *, const posix_spawn_file_actions_t *, const posix_spawnattr_t *,
                         char *const[], char *const[]);
-__attribute__((visibility("hidden"))) void bl_binfmt_before(const char *path, char *const argv[], char *const envp[]);
-__attribute__((visibility("hidden"))) int bl_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error);
-__attribute__((visibility("hidden"))) void bl_binfmt_before_search(const char *file, char *const argv[], char *const envp[]);
-__attribute__((visibility("hidden"))) int bl_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error);
+__attribute__((visibility("hidden"))) void dd_binfmt_before(const char *path, char *const argv[], char *const envp[]);
+__attribute__((visibility("hidden"))) int dd_binfmt_retry(const char *path, char *const argv[], char *const envp[], int error);
+__attribute__((visibility("hidden"))) void dd_binfmt_before_search(const char *file, char *const argv[], char *const envp[]);
+__attribute__((visibility("hidden"))) int dd_binfmt_after_search(const char *file, char *const argv[], char *const envp[], int error);
 __attribute__((visibility("hidden")))
-char *const *bl_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
-__attribute__((visibility("hidden"))) int bl_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
+char *const *dd_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
+__attribute__((visibility("hidden"))) int dd_program_lookup(const char *file, char *out, size_t size);
+__attribute__((visibility("hidden"))) int dd_binfmt_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
                                                           const posix_spawnattr_t *attr, char *const argv[], char *const envp[],
                                                           spawn_fn real);
 
@@ -320,7 +325,7 @@ static int maybe_answer_lsof(const char *path, char *const argv[]) {
 }
 
 static char **web_helper_redirect(const char *path, char *const argv[], const char **launcher) {
-  const char *want = getenv("BL_X64_ARM_WEBHELPER");
+  const char *want = getenv("DD_X64_ARM_WEBHELPER");
   if (!want || !*want || !path) return NULL;
   const char *base = strrchr(path, '/');
   if (strcmp(base ? base + 1 : path, "steamwebhelper") != 0) return NULL;
@@ -342,7 +347,7 @@ static char **web_helper_redirect(const char *path, char *const argv[], const ch
 }
 
 int execve(const char *path, char *const argv_in[], char *const envp[]) {
-  char *const *argv = bl_webhelper_argv(path, argv_in, envp);
+  char *const *argv = dd_webhelper_argv(path, argv_in, envp);
   static int (*real)(const char *, char *const[], char *const[]);
   if (!real) real = (int (*)(const char *, char *const[], char *const[]))dlsym(RTLD_NEXT, "execve");
   maybe_answer_lsof(path, argv);
@@ -352,9 +357,9 @@ int execve(const char *path, char *const argv_in[], char *const envp[]) {
     real(launcher, redirected, envp);
     free(redirected);
   }
-  bl_binfmt_before(path, argv, envp);
+  dd_binfmt_before(path, argv, envp);
   real(path, argv, envp);
-  return bl_binfmt_retry(path, argv, envp, errno);
+  return dd_binfmt_retry(path, argv, envp, errno);
 }
 
 static int answer_lsof_via_spawn(const char *path, char *const argv[], pid_t *pid) {
@@ -373,17 +378,18 @@ static int answer_lsof_via_spawn(const char *path, char *const argv[], pid_t *pi
 }
 
 int execvp(const char *file, char *const argv_in[]) {
-  char *const *argv = bl_webhelper_argv(file, argv_in, environ);
+  char resolved[PATH_MAX];
+  char *const *argv = dd_webhelper_argv(dd_program_lookup(file, resolved, sizeof resolved) ? resolved : file, argv_in, environ);
   static int (*real)(const char *, char *const[]);
   if (!real) real = (int (*)(const char *, char *const[]))dlsym(RTLD_NEXT, "execvp");
   maybe_answer_lsof(file, argv);
-  bl_binfmt_before_search(file, argv, environ);
+  dd_binfmt_before_search(file, argv, environ);
   real(file, argv);
-  return bl_binfmt_after_search(file, argv, environ, errno);
+  return dd_binfmt_after_search(file, argv, environ, errno);
 }
 
 int execv(const char *path, char *const argv_in[]) {
-  char *const *argv = bl_webhelper_argv(path, argv_in, environ);
+  char *const *argv = dd_webhelper_argv(path, argv_in, environ);
   static int (*real)(const char *, char *const[]);
   if (!real) real = (int (*)(const char *, char *const[]))dlsym(RTLD_NEXT, "execv");
   maybe_answer_lsof(path, argv);
@@ -393,9 +399,9 @@ int execv(const char *path, char *const argv_in[]) {
     real(launcher, redirected);
     free(redirected);
   }
-  bl_binfmt_before(path, argv, environ);
+  dd_binfmt_before(path, argv, environ);
   real(path, argv);
-  return bl_binfmt_retry(path, argv, environ, errno);
+  return dd_binfmt_retry(path, argv, environ, errno);
 }
 
 int posix_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
@@ -407,6 +413,6 @@ int posix_spawn(pid_t *pid, const char *path, const posix_spawn_file_actions_t *
   }
   static spawn_fn real;
   if (!real) real = (spawn_fn)dlsym(RTLD_NEXT, "posix_spawn");
-  char *const *adjusted = bl_webhelper_argv(path, argv, envp);
-  return bl_binfmt_spawn(pid, path, fa, attr, (char *const *)adjusted, envp, real);
+  char *const *adjusted = dd_webhelper_argv(path, argv, envp);
+  return dd_binfmt_spawn(pid, path, fa, attr, (char *const *)adjusted, envp, real);
 }

@@ -1,0 +1,81 @@
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.h b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.h
+index d720866..f55bce4 100644
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.h
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.h
+@@ -288,6 +288,7 @@ public:
+   ///// VMA (Virtual Memory Area) tracking /////
+   static bool HandleSegfault(FEXCore::Core::InternalThreadState* Thread, int Signal, void* info, void* ucontext);
+   void MarkGuestExecutableRange(FEXCore::Core::InternalThreadState* Thread, uint64_t Start, uint64_t Length) override;
++  void ProtectWritableAliasOfCode(uint64_t Base, uint64_t Length);
+   void InvalidateGuestCodeRange(FEXCore::Core::InternalThreadState* Thread, uint64_t Start, uint64_t Length) override;
+   std::optional<FEXCore::ExecutableFileSectionInfo>
+   LookupExecutableFileSection(FEXCore::Core::InternalThreadState* Thread, uint64_t GuestAddr) final override;
+diff --git a/Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp b/Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp
+index 94bdd37..5d6c850 100644
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp
+@@ -196,6 +196,44 @@ void SyscallHandler::MarkGuestExecutableRange(FEXCore::Core::InternalThreadState
+   }
+ }
+ 
++void SyscallHandler::ProtectWritableAliasOfCode(uint64_t Base, uint64_t Length) {
++  if (SMCChecks != FEXCore::Config::CONFIG_SMC_MTRACK) {
++    return;
++  }
++
++  const auto End = Base + Length;
++  auto Mapping = VMATracking.FindVMAEntry(Base);
++  if (Mapping == VMATracking.VMAs.end()) {
++    Mapping = VMATracking.VMAs.lower_bound(Base);
++  }
++
++  for (; Mapping != VMATracking.VMAs.end() && Mapping->first < End; ++Mapping) {
++    if (!Mapping->second.Flags.Shared || !Mapping->second.Prot.Writable || !Mapping->second.Resource) {
++      continue;
++    }
++
++    const auto MapBase = std::max(Base, Mapping->first);
++    const auto MapTop = std::min(End, Mapping->first + Mapping->second.Length);
++    if (MapTop <= MapBase) {
++      continue;
++    }
++
++    const auto OffsetBase = Mapping->second.Offset + (MapBase - Mapping->first);
++    const auto OffsetTop = OffsetBase + (MapTop - MapBase);
++
++    for (auto VMA = Mapping->second.Resource->FirstVMA; VMA; VMA = VMA->ResourceNextVMA) {
++      if (!VMA->Prot.Executable || VMA->Offset >= OffsetTop || VMA->Offset + VMA->Length <= OffsetBase) {
++        continue;
++      }
++
++      const auto OverlapBase = std::max(VMA->Offset, OffsetBase);
++      const auto OverlapTop = std::min(VMA->Offset + VMA->Length, OffsetTop);
++      auto rv = mprotect((void*)(MapBase + (OverlapBase - OffsetBase)), OverlapTop - OverlapBase, PROT_READ);
++      LogMan::Throw::AFmt(rv == 0, "mprotect({}, {}) failed", OverlapBase, OverlapTop - OverlapBase);
++    }
++  }
++}
++
+ void SyscallHandler::InvalidateGuestCodeRange(FEXCore::Core::InternalThreadState* Thread, uint64_t Start, uint64_t Length) {
+   InvalidateCodeRangeIfNecessary(Thread, Start, Length, false);
+ }
+@@ -334,6 +372,9 @@ void* SyscallHandler::GuestMmap(bool Is64Bit, FEXCore::Core::InternalThreadState
+     }
+ 
+     LateMetadata = TrackMmap(Thread, Result, length, prot, flags, fd, offset, CachedSection);
++    if (prot & PROT_WRITE) {
++      ProtectWritableAliasOfCode(Result, Size);
++    }
+     PendingResourceDeletion = VMATracking.HasPendingResourceDeletions();
+   }
+ 
+@@ -479,6 +520,9 @@ uint64_t SyscallHandler::GuestMprotect(FEXCore::Core::InternalThreadState* Threa
+     }
+ 
+     TrackMprotect(Thread, addr, len, prot);
++    if (prot & PROT_WRITE) {
++      ProtectWritableAliasOfCode(reinterpret_cast<uint64_t>(addr), FEXCore::AlignUp(len, FEXCore::Utils::FEX_PAGE_SIZE));
++    }
+   }
+ 
+   InvalidateCodeRangeIfNecessary(Thread, reinterpret_cast<uint64_t>(addr), len, false);

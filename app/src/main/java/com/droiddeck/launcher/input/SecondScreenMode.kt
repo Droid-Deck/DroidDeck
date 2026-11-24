@@ -9,6 +9,7 @@ import com.droiddeck.launcher.session.SessionPrefs
 
 enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindings: String? = null) {
     NONE("none", R.string.second_mode_none),
+    MENU("menu", R.string.touch_droiddeck_menu),
     KEYBOARD_TRACKPAD("keyboard-trackpad", R.string.second_mode_keyboard_trackpad, InputStockLayouts.TRACKPAD),
     TERMINAL("terminal", R.string.second_mode_terminal),
     DECK_CONTROLS("deck-controls", R.string.second_mode_deck_controls, InputStockLayouts.DECK),
@@ -21,25 +22,30 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindi
     fun panel(context: Context): String? = if (this == DECK_CONTROLS) SessionPrefs.deckPanel(context).bindings else bindings
 
     companion object {
-        fun opening(remembered: String?, deckPad: Boolean, dashboard: Boolean = false, bottomDesktop: Boolean = false, desktopSession: Boolean = false): SecondScreenMode {
+        /** The mode the bottom screen opens in: the one picked last if it is still available, else the DroidDeck menu. */
+        fun opening(remembered: String?, deckPad: Boolean, dashboard: Boolean = false, bottomDesktop: Boolean = false): SecondScreenMode =
             entries.firstOrNull {
                 it != NONE && it.id == remembered && (it != DECK_CONTROLS || deckPad) && (it != DASHBOARD || dashboard) &&
                     (it != DESKTOP || bottomDesktop)
-            }?.let { return it }
-            val picked = entries.any { it != NONE && it.id == remembered }
-            return when {
-                desktopSession -> KEYBOARD_TRACKPAD
-                deckPad -> DECK_CONTROLS
-                dashboard && !picked -> DASHBOARD
-                else -> KEYBOARD_TRACKPAD
-            }
-        }
+            } ?: MENU
     }
 }
 
 data class SecondScreenDisplay(val id: Int, val label: String)
 
 object SecondScreenDisplays {
+    fun selection(selected: Int, available: List<Int>, gameRequested: Boolean): Int =
+        if (selected in available || gameRequested && selected >= 0) selected else available.firstOrNull() ?: -1
+
+    fun selection(selected: Int, available: List<Int>, gameRequested: Boolean, save: (Int) -> Unit): Int =
+        selection(selected, available, gameRequested).also { if (it != selected) save(it) }
+
+    fun keyboardOnPrimary(gameRequested: Boolean, selected: Int, available: List<Int>, visible: Boolean = true, taken: (Int) -> Boolean): Boolean =
+        visible && gameRequested && selected >= 0 && (selected !in available || taken(selected))
+
+    fun routeKeyboard(steam: Boolean, enabled: Boolean, panel: Boolean, dock: Boolean, primaryFallback: Boolean): Boolean =
+        steam && enabled && (panel || dock || primaryFallback)
+
     fun available(displayManager: DisplayManager, primaryDisplayId: Int = Display.DEFAULT_DISPLAY): List<SecondScreenDisplay> =
         displayManager.getDisplays(DisplayManager.DISPLAY_CATEGORY_PRESENTATION)
             .asSequence()

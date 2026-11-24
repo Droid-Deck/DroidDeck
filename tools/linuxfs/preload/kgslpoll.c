@@ -69,7 +69,7 @@ static int read_retired(int (*real)(int, unsigned long, void *), int fd,
 }
 
 /* Quest refuses some KGSL ioctls, and Mesa 27 turns a failed timestamp read into VK_ERROR_UNKNOWN. */
-__attribute__((visibility("hidden"))) void bl_kgsl_track(int (*real)(int, unsigned long, void *),
+__attribute__((visibility("hidden"))) void dd_kgsl_track(int (*real)(int, unsigned long, void *),
                                                          int fd, unsigned long request, void *arg,
                                                          int *rc) {
   int saved = errno;
@@ -113,12 +113,12 @@ static int enabled(void) {
   const char *off;
 
   if (cached >= 0) return cached;
-  off = getenv("BL_NO_KGSL_POLL_FIX");
+  off = getenv("DD_NO_KGSL_POLL_FIX");
   cached = !(off != NULL && off[0] == '1');
   return cached;
 }
 
-__attribute__((visibility("hidden"))) int bl_kgsl_poll(int (*real)(int, unsigned long, void *),
+__attribute__((visibility("hidden"))) int dd_kgsl_poll(int (*real)(int, unsigned long, void *),
                                                        int fd, unsigned long request, void *arg,
                                                        int *rc) {
   const struct kgsl_device_waittimestamp_ctxtid *wait = arg;

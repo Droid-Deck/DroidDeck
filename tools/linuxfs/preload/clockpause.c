@@ -14,10 +14,10 @@
 #include <time.h>
 #include <unistd.h>
 
-#if defined(__aarch64__) || defined(BL_CLOCK_ANY_ARCH)
+#if defined(__aarch64__) || defined(DD_CLOCK_ANY_ARCH)
 
 #ifndef CP_CTL
-#define CP_CTL "/tmp/.bl-clock"
+#define CP_CTL "/tmp/.dd-clock"
 #endif
 #ifndef FUTEX_LOCK_PI2
 #define FUTEX_LOCK_PI2 13
@@ -25,7 +25,6 @@
 #define CP_FDS 65536
 
 static const int64_t *cp_shift;
-static int cp_state;
 static size_t cp_cond_byte;
 static unsigned char cp_cond_mask;
 static unsigned char cp_fds[CP_FDS / 8];
@@ -94,25 +93,14 @@ static void cp_init(void) {
 }
 
 static int64_t cp_offset(void) {
-  const int64_t *shift;
-  int state = __atomic_load_n(&cp_state, __ATOMIC_ACQUIRE);
-  if (state == 0) {
-    int expected = 0;
-    if (__atomic_compare_exchange_n(&cp_state, &expected, 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-      cp_init();
-      __atomic_store_n(&cp_state, 2, __ATOMIC_RELEASE);
-    }
-    return 0;
-  }
-  if (state != 2) return 0;
-  shift = __atomic_load_n(&cp_shift, __ATOMIC_ACQUIRE);
+  const int64_t *shift = __atomic_load_n(&cp_shift, __ATOMIC_ACQUIRE);
   if (!shift) return 0;
   int64_t value = __atomic_load_n(shift, __ATOMIC_RELAXED);
   return value > 0 ? value : 0;
 }
 
 __attribute__((constructor)) static void cp_start(void) {
-  cp_offset();
+  cp_init();
 }
 
 static int cp_mono(clockid_t clock) {
@@ -255,7 +243,7 @@ int timerfd_settime(int fd, int flags, const struct itimerspec *value, struct it
   return cp_tfd_settime(fd, flags, cp_timer(fd, flags, value, &moved), old);
 }
 
-__attribute__((visibility("hidden"))) int bl_clock_syscall(long number, const long *args, long (*real)(long, ...), long *ret) {
+__attribute__((visibility("hidden"))) int dd_clock_syscall(long number, const long *args, long (*real)(long, ...), long *ret) {
   struct timespec moved;
   struct itimerspec timer;
   int64_t shift;
@@ -302,7 +290,7 @@ __attribute__((visibility("hidden"))) int bl_clock_syscall(long number, const lo
 
 #else
 
-__attribute__((visibility("hidden"))) int bl_clock_syscall(long number, const long *args, long (*real)(long, ...), long *ret) {
+__attribute__((visibility("hidden"))) int dd_clock_syscall(long number, const long *args, long (*real)(long, ...), long *ret) {
   (void)number;
   (void)args;
   (void)real;

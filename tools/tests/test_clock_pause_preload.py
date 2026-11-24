@@ -15,12 +15,12 @@ PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 
 def clock_reset_command(control):
     script = (PRELOAD.parent / "overlay/usr/local/bin/droiddeck-session").read_text()
-    start = script.index('if [ -z "${BL_INSIDE:-}" ]; then\n  if [ "${BL_ZRAM:-0}"')
+    start = script.index('if [ -z "${DD_INSIDE:-}" ]; then\n  if [ "${DD_ZRAM:-0}"')
     end = script.index("\nfi", start) + len("\nfi")
-    paths = {"/tmp/.bl-clock": shlex.quote(str(control)),
-             "/tmp/.bl-zram": shlex.quote(str(control.parent / "zram"))}
+    paths = {"/tmp/.dd-clock": shlex.quote(str(control)),
+             "/tmp/.dd-zram": shlex.quote(str(control.parent / "zram"))}
     pattern = "|".join(re.escape(token) for token in paths)
-    return 'BL_INSIDE=; BL_ZRAM=0; ' + re.sub(pattern, lambda match: paths[match.group(0)], script[start:end])
+    return 'DD_INSIDE=; DD_ZRAM=0; ' + re.sub(pattern, lambda match: paths[match.group(0)], script[start:end])
 
 PROGRAM = r"""
 #define _GNU_SOURCE
@@ -107,6 +107,51 @@ int main(void) {
 }
 """
 
+EARLY_LIBRARY = r"""
+#include <pthread.h>
+#include <time.h>
+
+pthread_mutex_t early_lock = PTHREAD_MUTEX_INITIALIZER;
+
+__attribute__((constructor)) static void early_start(void) {
+  struct timespec ts;
+  pthread_mutex_lock(&early_lock);
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  pthread_mutex_unlock(&early_lock);
+}
+"""
+
+EARLY_PROGRAM = r"""
+#define _GNU_SOURCE
+#include <fcntl.h>
+#include <pthread.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <sys/syscall.h>
+#include <time.h>
+#include <unistd.h>
+
+extern pthread_mutex_t early_lock;
+
+int open(const char *path, int flags, ...) {
+  va_list args;
+  va_start(args, flags);
+  mode_t mode = (mode_t)va_arg(args, int);
+  va_end(args);
+  pthread_mutex_lock(&early_lock);
+  pthread_mutex_unlock(&early_lock);
+  return (int)syscall(SYS_openat, AT_FDCWD, path, flags, mode);
+}
+
+int main(void) {
+  struct timespec mono, boot;
+  clock_gettime(CLOCK_MONOTONIC, &mono);
+  clock_gettime(CLOCK_BOOTTIME, &boot);
+  printf("gap %lld\n", (long long)(((boot.tv_sec - mono.tv_sec) * 1000000000LL + boot.tv_nsec - mono.tv_nsec) / 1000000LL));
+  return 0;
+}
+"""
+
 SHIFT_MS = 10000
 
 
@@ -120,14 +165,21 @@ class ClockPausePreloadTest(unittest.TestCase):
         build = cls.dir / "build"
         build.mkdir()
         (build / "program.c").write_text(PROGRAM)
-        cls.preload = build / "libblsession.so"
-        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-DBL_CLOCK_ANY_ARCH",
+        cls.preload = build / "libddsession.so"
+        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-DDD_CLOCK_ANY_ARCH",
                         '-DCP_CTL="%s"' % cls.control, "-o", str(cls.preload),
                         *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl"], check=True)
         cls.shell = build / "plasmashell"
         subprocess.run(["cc", "-O2", "-pthread", "-o", str(cls.shell), str(build / "program.c")], check=True)
         cls.other = build / "kwin_wayland"
         shutil.copy(cls.shell, cls.other)
+        (build / "early.c").write_text(EARLY_LIBRARY)
+        (build / "early_program.c").write_text(EARLY_PROGRAM)
+        subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-pthread", "-o", str(build / "libearly.so"),
+                        str(build / "early.c")], check=True)
+        cls.early = build / "early_program"
+        subprocess.run(["cc", "-O2", "-pthread", "-o", str(cls.early), str(build / "early_program.c"),
+                        "-L", str(build), "-learly", "-Wl,-rpath," + str(build)], check=True)
 
     @classmethod
     def tearDownClass(cls):
@@ -152,6 +204,11 @@ class ClockPausePreloadTest(unittest.TestCase):
         for name in ("cond_mono", "cond_real", "clockwait", "sem", "nanosleep", "timerfd", "futex"):
             self.assertGreaterEqual(paused[name], 50, name)
             self.assertLess(paused[name], 1000, name)
+
+    def test_clock_read_inside_a_library_constructor_does_not_reenter_the_program(self):
+        plain = self.run_program(self.early, 0)
+        paused = self.run_program(self.early, SHIFT_MS)
+        self.assertAlmostEqual(paused["gap"] - plain["gap"], SHIFT_MS, delta=50)
 
     def test_program_without_preload_keeps_the_real_clock(self):
         plain = self.run_program(self.other, 0, preload=False)
@@ -259,7 +316,7 @@ class ClockResetCommandTest(unittest.TestCase):
     def test_reset_does_not_rewrite_placeholders_inside_substituted_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            folder = root / "tmp/.bl-zram/$(touch injected)"
+            folder = root / "tmp/.dd-zram/$(touch injected)"
             folder.mkdir(parents=True)
             control = folder / "clock"
             control.write_bytes(struct.pack("<q", 10_000_000_000))

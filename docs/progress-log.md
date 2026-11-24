@@ -58,7 +58,7 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
   `mirror-release.yml`, checked against a new `fex.json` catalog there (Components PR #2), and
   `droiddeck-steam-x64` downloads it from there instead of The412Banner/DroidDeck.
 - **FEX fex-2610-r4** (PR #71 review): without openat2 (proot) FEX opened rootfs paths with absolute
-  symlinks resolved against the arm64 guest, and `libblsession.so` converted every openat2 the same way
+  symlinks resolved against the arm64 guest, and `libddsession.so` converted every openat2 the same way
   before FEX saw ENOSYS. `preload/robust.c` now resolves `RESOLVE_IN_ROOT` paths component by component
   inside the root (59 cases; 100,000-path differential fuzz; new `test_openat2_preload.py`), and patch
   0001 does the same in FEX. Patch 0003 marks only the host mappings that overlap a failed MAP_32BIT
@@ -313,7 +313,7 @@ stay as they were (`afa479ee`).
 
 - **Merged main (94 commits).** Main dropped the Steam channel and Deck-mode settings (#546): only the
   client choice (`steamClientArch`), `activeSteamRoot` and VAC diagnostics remain. Main's web-helper
-  arguments (#566, `bl_webhelper_argv`) are composed with the x86 client's arm64 web-helper redirect in
+  arguments (#566, `dd_webhelper_argv`) are composed with the x86 client's arm64 web-helper redirect in
   `preload/net.c`. Main's single background loop (#575) now carries the x86 hooks: the client's own
   compat pass (`--x64 --live`), `steamrt64` in the pinning and stale-tmp patterns, Lossless probe off for
   x86, and the once-per-title restart after a new mapping. The text-strings merge had dropped three of
@@ -483,7 +483,7 @@ cache is saved as the round goes, so a sync the user closes the app on still lea
   paths (`SessionPrefs.gameFolderBinds`), so the listing and every Steam shortcut are unchanged;
   `addedGamesDirs` is cleared. Log: `games: migrated <root> → N games`.
 - **Libraries:** `GameStorage.gamesFolderLibraries` returns only a Games folder Steam installed
-  into (an appmanifest in its `steamapps/`); the others drop out of `BL_STEAM_LIBRARIES` and the
+  into (an appmanifest in its `steamapps/`); the others drop out of `DD_STEAM_LIBRARIES` and the
   runtime's `droiddeck-steam-library` forgets the `/root/Games/...` entries it had registered.
   The user's two folders have `steamapps/` without manifests (checked on the device), so both go.
 - **Tests:** `GamesFolderMigrationTest` (exe / appid / name / removal kept, guest paths unchanged,
@@ -510,7 +510,7 @@ What it took, in order (each step was the next failure on device):
   could not find libtinfo. `tools/fex/patches/0001-openat2-enosys-fallback.patch`.
 - **FEXServer owns the rootfs** - a server started before `FEX_ROOTFS` (any earlier FEX run) answers
   every client with no rootfs. The launcher stops it first.
-- **32-bit x86 died with SIGILL** - libblfastpath (the proot fast path, preloaded into every guest
+- **32-bit x86 died with SIGILL** - libddfastpath (the proot fast path, preloaded into every guest
   process, FEX itself included) breaks FEX's 32-bit mode. `PROOT_FP_OFF=1` for FEX.
 - **"Steam now requires user namespaces"** - steam-runtime-check-requirements' bwrap probe; the
   arm64 client has no such probe. The SteamRT3 client (`steamrt64/steam`) is started directly, the
@@ -518,7 +518,7 @@ What it took, in order (each step was the next failure on device):
   runtime linked file by file and only the probe replaced.
 - **tier0 assertion "Function not implemented"** - semget: Android has no System V IPC. Traced with
   a `-DDEBUG_STRACE` FEX (build-fex.yml `cxxflags` input, artifact only). The session shim
-  (`preload/*.c`) is now also built natively as `libblsession-x86_64.so`, staged, and preloaded
+  (`preload/*.c`) is now also built natively as `libddsession-x86_64.so`, staged, and preloaded
   through the rootfs's own `/etc/ld.so.preload`.
 - **re-exec into pressure-vessel after self-update** - `STEAM_STEAMRT_RECURSION_GUARD=1`.
 - **libgtk-x11-2.0 missing / soname links / old glibc shadowing** - Valve's steamrt3c platform
@@ -526,10 +526,10 @@ What it took, in order (each step was the next failure on device):
   and only libraries the rootfs lacks (LD_LIBRARY_PATH beats system folders whatever its order).
 - **GLX failed** - the desktop exports zink over the arm64 Turnip ICD; cleared, llvmpipe used.
 - **web helper died of SIGTRAP a second after start** - found with pid-tagged traces (FEX AppConfig
-  `OutputLog=server` + a foreground FEXServer, `BL_FEXSERVER_LOG`; file logs overwrite each other):
+  `OutputLog=server` + a foreground FEXServer, `DD_FEXSERVER_LOG`; file logs overwrite each other):
   every web helper read `/proc/self/status` from libtier0_s.so, saw proot as a tracer, and tier0 broke
   into the "debugger" with int3. `preload/tracer.c` exempts the web helper on purpose (Chromium traps
-  on a status fd that is not procfs); with `BL_WEBHELPER_HIDE_TRACER=1` only opens called from
+  on a status fd that is not procfs); with `DD_WEBHELPER_HIDE_TRACER=1` only opens called from
   libtier0_s.so get the copy.
 - `SessionFiles` stages `bannerlator-steam-x64` and the x86-64 shim (they were missing from the list).
 
@@ -545,7 +545,7 @@ Later the same day (device-proven unless noted):
 - From an audit of `bannerlator-session`: stale lock cleanup, branch sync before every start, core
   re-pinning, path cache and `perms.c` for `steamrt64`, the app's FEX preset (PERFORMANCE_TSO).
 - **Play button (built, not yet device-tested)**: Steam settings > Client > "Steam client: ARM64 /
-  x86-64 (FEX, experimental)" (`BL_STEAM_CLIENT_ARCH`). The session then starts the x86 client via
+  x86-64 (FEX, experimental)" (`DD_STEAM_CLIENT_ARCH`). The session then starts the x86 client via
   `bannerlator-steam-x64 --prepare/--exec` and gives it everything it gives the arm64 one; steps
   only for the arm64 client (ARM64 Proton, mapping, seeding, Decky, steamclient.so probes) are
   skipped.
@@ -908,7 +908,7 @@ without it and Setup says "Stores engine not built").
   launch, so it is removed (user decision): no overlay switch, no download, no `OverlayPath`; a
   launch removes a pointer an earlier build wrote, and the app deletes an earlier 656 MB download
   once. The work is parked on `park/epic-eos-overlay` (at `bf81104`). Kept: the browser hand-off,
-  the Epic card (sign-in, offline, Resolve Epic sign-in) and `BL_DEBUG_BROWSER`.
+  the Epic card (sign-in, offline, Resolve Epic sign-in) and `DD_DEBUG_BROWSER`.
 - **A game launched from the Games tab with no session running sat at "Launching"** (device,
   2026-10-09-04-steam, and 2026-10-08-05 before it). The session put `steam://rungameid/<id>` on
   the client's command line; the client took it seconds before its interface was up (focus went to
@@ -931,9 +931,9 @@ without it and Setup says "Stores engine not built").
   browser in the prefix (`"Browsers"="/usr/local/bin/droiddeck-open-url,xdg-open"`, an absolute path
   that does not depend on Wine's PATH), linked as `xdg-open` first on the game's PATH, and reading
   the session channel from `/tmp/droiddeck-browser/launch-dir` when Wine does not pass
-  `BL_LAUNCH_DIR` on. Whether EOS calls ShellExecute at all in its browser flow (rather than handing
+  `DD_LAUNCH_DIR` on. Whether EOS calls ShellExecute at all in its browser flow (rather than handing
   a verification URI and code to the game to show) is what the next run's `droiddeck xdg-open:` line,
-  or `BL_DEBUG_BROWSER=1` in droiddeck-env (`WINEDEBUG=+shell,+winebrowser`), will show.
+  or `DD_DEBUG_BROWSER=1` in droiddeck-env (`WINEDEBUG=+shell,+winebrowser`), will show.
 - **Resolve Epic sign-in** (the Epic card): opens Epic's account page behind its sign-in in Android's
   browser, where a pending corrective action (privacy policy, EULA) is presented.
 - **Epic overlay off by default** (device A/B, Metalstorm: overlay pointer set → exits while
@@ -1449,8 +1449,9 @@ State: **main = `90c7574`** (PR #14 merge), main build run 35895701784. No tag, 
 - A runtime script must be named `bannerlator-*` or CI never packages it.
 - `gh release create --target` needs the full sha.
 - A proot bind is invisible to a program's "Computer" list; put what users need under home.
-- The compositor decides its driver and its HDR gate once per app process - anything that changes
-  them applies after the app is fully closed, and the UI must say so.
+- The compositor decides its driver once per app process - anything that changes it applies after
+  the app is fully closed, and the UI must say so. Its HDR gate follows what the device can present,
+  so the HDR setting itself switches during a session.
 - Bannerlator's File Manager ports mechanically (`port_fm.py` anchors) once the container hooks
   are cut; do not hand-edit 2,500 lines.
 - Deleting a release asset on GitHub can drop a sibling asset - re-list and restore.

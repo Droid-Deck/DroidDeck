@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Matrix
@@ -174,6 +175,7 @@ internal fun StepOut(
     var grown by remember { mutableStateOf(false) }
     var measured by remember { mutableStateOf<IntSize?>(null) }
     val first = remember { FocusRequester() }
+    var holdsFocus by remember { mutableStateOf(false) }
     val glide = LocalFocusGlide.current
     val opener = remember { arrayOfNulls<GlideSource>(1) }
     val openNow = androidx.compose.runtime.rememberUpdatedState(open)
@@ -241,8 +243,12 @@ internal fun StepOut(
         LaunchedEffect(open, measured) {
             if (!open || measured == null || inputMode.inputMode != InputMode.Keyboard) return@LaunchedEffect
             delay(Motion.ms(300).toLong())
-            withFrameNanos { }
-            runCatching { first.requestFocus() }
+            // Another focus group can hold on to focus for a few frames, so the request is repeated until it lands.
+            repeat(30) {
+                withFrameNanos { }
+                if (holdsFocus) return@LaunchedEffect
+                runCatching { first.requestFocus() }
+            }
         }
 
         LaunchedEffect(open, grown, inputMode.inputMode) {
@@ -289,6 +295,7 @@ internal fun StepOut(
                 .heightIn(max = availableHeight)
                 .onSizeChanged { if (measured != it) measured = it }
                 .controllerBack(onDismiss)
+                .onFocusChanged { holdsFocus = it.hasFocus }
                 .focusProperties { exit = { if (openNow.value) FocusRequester.Cancel else FocusRequester.Default } }
                 .focusGroup()
                 .verticalScroll(rememberScrollState())

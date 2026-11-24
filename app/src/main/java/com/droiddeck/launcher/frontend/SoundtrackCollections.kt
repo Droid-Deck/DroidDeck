@@ -177,9 +177,10 @@ object SoundtrackCollections {
         source = Library.SOURCE_COLLECTION, soundtrack = true,
     )
 
-    fun games(context: Context, favoritesLabel: String): List<Library.SteamGame> {
+    fun games(context: Context, favoritesLabel: String, skipEmptyFavorites: Boolean = false): List<Library.SteamGame> {
         val s = snapshot
-        return listOf(game(context, FAVORITES_ID, favoritesLabel, s.favorites)) + s.collections.map { game(context, it.id, it.name, it.tracks) }
+        val favorites = if (skipEmptyFavorites && s.favorites.isEmpty()) emptyList() else listOf(game(context, FAVORITES_ID, favoritesLabel, s.favorites))
+        return favorites + s.collections.map { game(context, it.id, it.name, it.tracks) }
     }
 
     fun album(context: Context, id: Int): Soundtrack.Album {

@@ -1,32 +1,148 @@
 // Part of libddnatv-hook.so, included by ddnatv-hook.c.
 //
-// shm_open() and shm_unlink() of glibc open /dev/shm/NAME with a system call of their own, which
-// the path hooks never see and Android has no /dev/shm for. They go through open() and unlink()
-// here, which map /dev/shm.
+// shm_open(), shm_unlink() and the named semaphores of glibc open /dev/shm/NAME with system calls
+// of their own, which the path hooks never see and Android has no /dev/shm for. They go through
+// open(), renameat2() and unlink() here, which map /dev/shm.
 
 #ifndef DDNATV_HOST_TEST
 
-static int posix_shm_path(const char *name, char *path, size_t size) {
+static int posix_shm_path(const char *name, const char *prefix, char *path, size_t size) {
     if (!name) { errno = EINVAL; return -1; }
     while (*name == '/') name++;
-    size_t len = strlen(name);
-    if (len == 0 || len > NAME_MAX || strchr(name, '/') || strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+    size_t len = strlen(name) + strlen(prefix);
+    if (len == strlen(prefix) || len > NAME_MAX || strchr(name, '/') || strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
         errno = len > NAME_MAX ? ENAMETOOLONG : EINVAL;
         return -1;
     }
-    if (snprintf(path, size, "/dev/shm/%s", name) >= (int)size) { errno = ENAMETOOLONG; return -1; }
+    if (snprintf(path, size, "/dev/shm/%s%s", prefix, name) >= (int)size) { errno = ENAMETOOLONG; return -1; }
     return 0;
 }
 
 int shm_open(const char *name, int oflag, mode_t mode) {
     char path[PATH_MAX];
-    if (posix_shm_path(name, path, sizeof(path)) < 0) return -1;
+    if (posix_shm_path(name, "", path, sizeof(path)) < 0) return -1;
     return open(path, (oflag & (O_ACCMODE | O_CREAT | O_EXCL | O_TRUNC)) | O_NOFOLLOW | O_CLOEXEC, mode);
 }
 
 int shm_unlink(const char *name) {
     char path[PATH_MAX];
-    if (posix_shm_path(name, path, sizeof(path)) < 0) return -1;
+    if (posix_shm_path(name, "", path, sizeof(path)) < 0) return -1;
+    return unlink(path);
+}
+
+struct posix_sem {
+    dev_t dev;
+    ino_t ino;
+    sem_t *addr;
+    unsigned int refs;
+    struct posix_sem *next;
+};
+static struct posix_sem *g_posix_sems;
+static pthread_mutex_t g_posix_sems_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static void posix_sems_unlock(void) { pthread_mutex_unlock(&g_posix_sems_lock); }
+
+static void posix_sems_hold(void) { pthread_mutex_lock(&g_posix_sems_lock); }
+
+__attribute__((constructor)) static void posix_sems_across_fork(void) {
+    pthread_atfork(posix_sems_hold, posix_sems_unlock, posix_sems_unlock);
+}
+
+static void close_keeping_errno(int fd) {
+    int saved = errno;
+    close(fd);
+    errno = saved;
+}
+
+static sem_t *posix_sem_map(int fd) {
+    struct stat st;
+    if (fstat(fd, &st) < 0) return SEM_FAILED;
+    sem_t *sem = SEM_FAILED;
+    posix_sems_hold();
+    struct posix_sem *e = g_posix_sems;
+    while (e && (e->dev != st.st_dev || e->ino != st.st_ino)) e = e->next;
+    if (e) {
+        e->refs++;
+        sem = e->addr;
+    } else {
+        void *addr = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+        e = addr == MAP_FAILED ? NULL : malloc(sizeof(*e));
+        if (e) {
+            *e = (struct posix_sem){st.st_dev, st.st_ino, addr, 1, g_posix_sems};
+            g_posix_sems = e;
+            sem = addr;
+        } else if (addr != MAP_FAILED) {
+            munmap(addr, sizeof(sem_t));
+            errno = ENOMEM;
+        }
+    }
+    posix_sems_unlock();
+    return sem;
+}
+
+static sem_t *posix_sem_open_fd(int fd) {
+    if (fd < 0) return SEM_FAILED;
+    sem_t *sem = posix_sem_map(fd);
+    close_keeping_errno(fd);
+    return sem;
+}
+
+sem_t *sem_open(const char *name, int oflag, ...) {
+    char path[PATH_MAX];
+    if (posix_shm_path(name, "sem.", path, sizeof(path)) < 0) return SEM_FAILED;
+    if (!(oflag & O_CREAT)) return posix_sem_open_fd(open(path, O_RDWR | O_NOFOLLOW | O_CLOEXEC));
+    va_list args;
+    va_start(args, oflag);
+    mode_t mode = va_arg(args, mode_t);
+    unsigned int value = va_arg(args, unsigned int);
+    va_end(args);
+    static unsigned int serial;
+    for (;;) {
+        if (!(oflag & O_EXCL)) {
+            int fd = open(path, O_RDWR | O_NOFOLLOW | O_CLOEXEC);
+            if (fd >= 0 || errno != ENOENT) return posix_sem_open_fd(fd);
+        }
+        if (value > SEM_VALUE_MAX) { errno = EINVAL; return SEM_FAILED; }
+        sem_t initial;
+        memset(&initial, 0, sizeof(initial));
+        sem_init(&initial, 1, value);
+        char temp[PATH_MAX];
+        int fd;
+        do {
+            snprintf(temp, sizeof(temp), "/dev/shm/.sem-%d-%u", (int)getpid(), __atomic_fetch_add(&serial, 1, __ATOMIC_RELAXED));
+            fd = open(temp, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, mode);
+        } while (fd < 0 && errno == EEXIST);
+        if (fd < 0) return SEM_FAILED;
+        errno = EIO;
+        sem_t *sem = write(fd, &initial, sizeof(initial)) == (ssize_t)sizeof(initial) ? posix_sem_map(fd) : SEM_FAILED;
+        close_keeping_errno(fd);
+        if (sem != SEM_FAILED && renameat2(AT_FDCWD, temp, AT_FDCWD, path, RENAME_NOREPLACE) == 0) return sem;
+        int saved = errno;
+        if (sem != SEM_FAILED) sem_close(sem);
+        unlink(temp);
+        errno = saved;
+        if (errno != EEXIST || (oflag & O_EXCL)) return SEM_FAILED;
+    }
+}
+
+int sem_close(sem_t *sem) {
+    posix_sems_hold();
+    struct posix_sem **link = &g_posix_sems;
+    while (*link && (*link)->addr != sem) link = &(*link)->next;
+    struct posix_sem *e = *link;
+    if (e && --e->refs == 0) {
+        *link = e->next;
+        munmap(e->addr, sizeof(sem_t));
+        free(e);
+    }
+    posix_sems_unlock();
+    if (!e) { errno = EINVAL; return -1; }
+    return 0;
+}
+
+int sem_unlink(const char *name) {
+    char path[PATH_MAX];
+    if (posix_shm_path(name, "sem.", path, sizeof(path)) < 0) return -1;
     return unlink(path);
 }
 

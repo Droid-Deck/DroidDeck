@@ -112,9 +112,19 @@ object XboxBackend : StoreBackend {
     fun selectPackage(context: Context, choice: org.json.JSONObject) {
         val pending = packageChoice ?: return
         packageChoice = null
-        val item = pending.item.copy(extra = pending.item.extra + ("contentId" to choice.getString("contentId")))
+        val item = pending.item.chosen(choice)
         com.droiddeck.launcher.stores.download.SavedQueue.remember(context, item, pending.root)
         enqueue(context.applicationContext, item, pending.root)
+    }
+
+    /**
+     * The picker can offer a package in a different container format than the
+     * catalogue listed, and the installer dispatches on that format, so the
+     * choice decides it and the catalogue value only fills a missing one.
+     */
+    private fun CatalogItem.chosen(choice: org.json.JSONObject): CatalogItem {
+        val format = choice.optString("packageFormat").takeIf { it.isNotBlank() } ?: extra["format"].orEmpty()
+        return copy(extra = extra + mapOf("contentId" to choice.getString("contentId"), "format" to format))
     }
 
     override fun install(context: Context, item: CatalogItem, root: File) {
@@ -128,7 +138,7 @@ object XboxBackend : StoreBackend {
                 val choices = XboxCatalog.objects(plan.getJSONArray("choices")).filter { it.optBoolean("supported") && it.optString("kind") == "Game" }
                 check(choices.isNotEmpty()) { "This offer has no supported PC package." }
                 if (plan.getString("status") == "ready" && choices.size == 1) {
-                    val selected = item.copy(extra = item.extra + ("contentId" to choices.single().getString("contentId")))
+                    val selected = item.chosen(choices.single())
                     com.droiddeck.launcher.stores.download.SavedQueue.remember(app, selected, root)
                     enqueue(app, selected, root)
                 } else StoresState.post { packageChoice = PackageChoice(item, root, choices) }

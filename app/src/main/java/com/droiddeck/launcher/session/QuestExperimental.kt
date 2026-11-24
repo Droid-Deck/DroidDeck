@@ -68,7 +68,7 @@ object QuestExperimental {
             appendLine("driverMode=${SessionPrefs.gpuDriverMode(context)}")
             appendLine("androidDriver=${SessionPrefs.androidDriver(context)}")
             appendLine("steamSurfaceControlWorkaround=${SessionPrefs.hdr(context, "steam")}")
-            appendLine("GPUOBJ fallback installed in Android driver and ARM64 libblsession")
+            appendLine("GPUOBJ fallback installed in Android driver and ARM64 libddsession")
             appendLine("Experimental Quest 2/3/3S compatibility; 2D panel application")
         }
         Log.i(TAG, report)

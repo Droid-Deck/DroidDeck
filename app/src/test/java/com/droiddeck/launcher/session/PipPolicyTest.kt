@@ -18,6 +18,12 @@ class PipPolicyTest {
         assertFalse(PipPolicy.eligible(true, false, SessionPhase.SUSPENDED, true, false))
     }
 
+    @Test fun goingHomeFloatsOnlyGamesDroidDeckLaunchedItself() {
+        assertTrue(PipPolicy.autoEnter(enabled = true, launchedByAnotherApp = false))
+        assertFalse(PipPolicy.autoEnter(enabled = true, launchedByAnotherApp = true))
+        assertFalse(PipPolicy.autoEnter(enabled = false, launchedByAnotherApp = false))
+    }
+
     @Test fun aspectRatiosStayWithinAndroidLimitsWithoutChangingNormalContent() {
         assertEquals(1920 to 1080, PipPolicy.aspect(1920, 1080))
         assertEquals(239 to 100, PipPolicy.aspect(5760, 1080))

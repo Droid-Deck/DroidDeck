@@ -28,7 +28,7 @@ RECORD = SYNC["RECORD"]
 VALVE_LINE = "1789159687 experimental-11.0-20260910b-arm64"
 GE_LINE = "1789520806 GE-Proton11-7"
 EXPORTS = ("NtClose", "NtCreateEvent", "wine_server_call")
-WATCHED = ("WINESERVER", "BL_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "BL_SYNC", "CUSTOM")
+WATCHED = ("WINESERVER", "DD_SYNC_PACK", "WINEESYNC", "PROTON_NO_ESYNC", "DD_SYNC", "CUSTOM")
 PROTON = ("#!/usr/bin/python3\nimport json, os, sys\n"
           "print(json.dumps([sys.argv[0], sys.argv[1:], {k: os.environ.get(k) for k in %r}]))\n" % (WATCHED,))
 MANIFEST = '"manifest" { "commandline" "/proton %verb%" }'
@@ -117,7 +117,7 @@ def concurrent_worker(barrier, queue, root, tool, pack, steam):
     try:
         with contextlib.redirect_stderr(io.StringIO()):
             path = SYNC["ensure_dist"](root, tool, pack)
-            SYNC["reconcile"](steam, {"HOME": str(Path(root).parents[2]), "BL_SYNC_FALLBACK": "1"})
+            SYNC["reconcile"](steam, {"HOME": str(Path(root).parents[2]), "DD_SYNC_FALLBACK": "1"})
         queue.put(path)
     except Exception as error:
         queue.put("error: %r" % error)
@@ -138,7 +138,7 @@ class SyncTestCase(unittest.TestCase):
         return self.root
 
     def env(self, **extra):
-        env = {"HOME": str(self.home), "STEAM_COMPAT_DATA_PATH": "/compatdata/42", "BL_SYNC_FALLBACK": "1", "BL_SYNC_MIN_NOFILE": "1"}
+        env = {"HOME": str(self.home), "STEAM_COMPAT_DATA_PATH": "/compatdata/42", "DD_SYNC_FALLBACK": "1", "DD_SYNC_MIN_NOFILE": "1"}
         env.update(extra)
         return {name: value for name, value in env.items() if value is not None}
 
@@ -358,8 +358,8 @@ class SelectTest(SyncTestCase):
         env = self.env()
         command, chosen_env, said = self.select(tool, env)
         self.assertEqual((command, chosen_env, said), ([str(tool / "proton"), "waitforexitandrun", "game.exe"], env, ""))
-        command, chosen_env, said = self.select(tool, self.env(PROTON_NO_NTSYNC="1", BL_SYNC="1"))
-        self.assertEqual(chosen_env, self.env(PROTON_NO_NTSYNC="1", BL_SYNC="0"))
+        command, chosen_env, said = self.select(tool, self.env(PROTON_NO_NTSYNC="1", DD_SYNC="1"))
+        self.assertEqual(chosen_env, self.env(PROTON_NO_NTSYNC="1", DD_SYNC="0"))
         self.assertIsNone(self.quiet(SYNC["reconcile"], str(self.tmp / "steam"), env))
         self.assertEqual(SYNC["gc"](None), 0)
         self.assertIsNone(SYNC["store_root"](env))
@@ -385,7 +385,7 @@ class SelectTest(SyncTestCase):
         tool = make_tool(self.tools, "Proton Experimental (ARM64)")
         make_pack(root, tool, "valve-experimental-r1")
         for value in ("0", None, "yes"):
-            env = self.env(BL_SYNC_FALLBACK=value)
+            env = self.env(DD_SYNC_FALLBACK=value)
             command, chosen_env, said = self.select(tool, env)
             self.assertEqual((command[0], chosen_env), (str(tool / "proton"), SYNC["wineserver_only"](env)))
             self.assertEqual(said, "droiddeck-esync: off; wineserver sync only\n")
@@ -398,10 +398,10 @@ class SelectTest(SyncTestCase):
         tool = make_tool(self.tools, "Proton Experimental (ARM64)")
         pack = make_pack(root, tool, "valve-experimental-r1")
         dist = self.dist_of(pack["id"], tool)
-        command, env, said = self.select(tool, self.env(BL_SYNC="1"))
+        command, env, said = self.select(tool, self.env(DD_SYNC="1"))
         self.assertEqual(command, [str(dist / "proton"), "waitforexitandrun", "game.exe"])
         self.assertEqual(env["WINESERVER"], str(dist / WINESERVER))
-        self.assertEqual(env["BL_SYNC_PACK"], pack["id"])
+        self.assertEqual(env["DD_SYNC_PACK"], pack["id"])
         self.assertEqual(env["WINEESYNC"], "1")
         self.assertNotIn("PROTON_NO_ESYNC", env)
         self.assertTrue(said.startswith("droiddeck-esync: pack %s for Proton Experimental (ARM64) (%s, exact match); "
@@ -427,7 +427,7 @@ class SelectTest(SyncTestCase):
                  {"WINEESYNC": "0", "PROTON_NO_ESYNC": "0"})
         for extra in cases:
             command, env, _ = self.select(tool, self.env(**extra))
-            self.assertEqual((env["WINEESYNC"], env["PROTON_NO_ESYNC"], env["BL_SYNC_PACK"]), ("0", "1", pack["id"]), extra)
+            self.assertEqual((env["WINEESYNC"], env["PROTON_NO_ESYNC"], env["DD_SYNC_PACK"]), ("0", "1", pack["id"]), extra)
             self.assertNotIn("PROTON_NO_FSYNC", env, extra)
             self.assertEqual(command[0], str(self.dist_of(pack["id"], tool) / "proton"))
         for extra in ({"PROTON_NO_ESYNC": "0"}, {"PROTON_NO_ESYNC": ""}, {"STEAM_COMPAT_APP_ID": "42", "SteamAppId": "2630"},
@@ -443,7 +443,7 @@ class SelectTest(SyncTestCase):
                                 ({"PROTON_NO_FSYNC": ""}, ""), ({"PROTON_NO_FSYNC": "1"}, "1")):
             env = self.select(tool, self.env(**extra))[1]
             self.assertEqual(env.get("PROTON_NO_FSYNC"), expected, extra)
-        stock = self.select(tool, self.env(BL_SYNC_FALLBACK="0"))[1]
+        stock = self.select(tool, self.env(DD_SYNC_FALLBACK="0"))[1]
         self.assertEqual((stock["PROTON_NO_FSYNC"], stock["WINEFSYNC"]), ("1", "0"))
 
     def test_open_file_limit_threshold(self):
@@ -454,21 +454,21 @@ class SelectTest(SyncTestCase):
                  ((1024, 4096), "junk", "0"), ((1024, 8192), None, "1"), ((1024, -1), "999999", "1"))
         for limits, minimum, expected in cases:
             with mock.patch("resource.getrlimit", return_value=limits):
-                command, env, said = self.select(tool, self.env(BL_SYNC_MIN_NOFILE=minimum))
+                command, env, said = self.select(tool, self.env(DD_SYNC_MIN_NOFILE=minimum))
             self.assertEqual(env["WINEESYNC"], expected, (limits, minimum))
         self.assertIn("fds 1024/unlimited", said)
 
     def test_proton_no_ntsync_turns_emulation_off(self):
         tool = make_tool(self.tools, "Proton Experimental (ARM64)")
-        self.assertEqual(self.select(tool, self.env(PROTON_NO_NTSYNC="1", BL_SYNC="1"))[1]["BL_SYNC"], "0")
-        self.assertEqual(self.select(tool, self.env(PROTON_NO_NTSYNC="1"))[1]["BL_SYNC"], "0")
-        self.assertEqual(self.select(tool, self.env(PROTON_NO_NTSYNC="0", BL_SYNC="1"))[1]["BL_SYNC"], "1")
+        self.assertEqual(self.select(tool, self.env(PROTON_NO_NTSYNC="1", DD_SYNC="1"))[1]["DD_SYNC"], "0")
+        self.assertEqual(self.select(tool, self.env(PROTON_NO_NTSYNC="1"))[1]["DD_SYNC"], "0")
+        self.assertEqual(self.select(tool, self.env(PROTON_NO_NTSYNC="0", DD_SYNC="1"))[1]["DD_SYNC"], "1")
         root = self.store()
-        _, env, _ = self.select(tool, self.env(PROTON_NO_NTSYNC="1", BL_SYNC="1"))
-        self.assertEqual(env["BL_SYNC"], "0")
+        _, env, _ = self.select(tool, self.env(PROTON_NO_NTSYNC="1", DD_SYNC="1"))
+        self.assertEqual(env["DD_SYNC"], "0")
         pack = make_pack(root, tool, "valve-experimental-r1")
-        _, env, said = self.select(tool, self.env(PROTON_NO_NTSYNC="1", BL_SYNC="1"))
-        self.assertEqual((env["BL_SYNC"], env["BL_SYNC_PACK"]), ("0", pack["id"]))
+        _, env, said = self.select(tool, self.env(PROTON_NO_NTSYNC="1", DD_SYNC="1"))
+        self.assertEqual((env["DD_SYNC"], env["DD_SYNC_PACK"]), ("0", pack["id"]))
         self.assertIn("droiddeck-ntsync off", said)
 
     def test_internal_failure_launches_stock(self):
@@ -483,52 +483,52 @@ class SelectTest(SyncTestCase):
             with mock.patch.dict(GLOBALS, {name: broken}):
                 command, env, said = self.select(tool, self.env(PROTON_NO_NTSYNC="1"))
             self.assertEqual(command[0], str(tool / "proton"), name)
-            self.assertEqual(env, self.env(PROTON_NO_NTSYNC="1", BL_SYNC="0"), name)
+            self.assertEqual(env, self.env(PROTON_NO_NTSYNC="1", DD_SYNC="0"), name)
             self.assertIn("boom", said)
 
     def test_droiddeck_ntsync_stands_in_without_a_pack(self):
         root = self.store()
         tool = make_tool(self.tools, "Proton Experimental (ARM64)")
-        command, env, said = self.select(tool, self.env(BL_SYNC="0"))
+        command, env, said = self.select(tool, self.env(DD_SYNC="0"))
         self.assertEqual(command[0], str(tool / "proton"))
-        self.assertEqual(env, self.env(BL_SYNC="1"))
+        self.assertEqual(env, self.env(DD_SYNC="1"))
         self.assertTrue(said.endswith("; stock binaries with droiddeck-ntsync\n"), said)
         self.assertEqual((root / "launches.log").read_text().split("\n")[-2].split("\t")[6], "1")
-        command, env, said = self.select(tool, self.env(PROTON_NO_NTSYNC="1", BL_SYNC="1"))
-        self.assertEqual(env, self.env(PROTON_NO_NTSYNC="1", BL_SYNC="0"))
+        command, env, said = self.select(tool, self.env(PROTON_NO_NTSYNC="1", DD_SYNC="1"))
+        self.assertEqual(env, self.env(PROTON_NO_NTSYNC="1", DD_SYNC="0"))
         self.assertTrue(said.endswith("; stock binaries\n"), said)
         pack = make_pack(root, tool, "valve-experimental-r1")
         (root / "packs" / pack["id"] / NTDLL).write_bytes(b"tampered")
-        command, env, said = self.select(tool, self.env(BL_SYNC="0"))
+        command, env, said = self.select(tool, self.env(DD_SYNC="0"))
         self.assertEqual(command[0], str(tool / "proton"))
-        self.assertEqual(env, self.env(BL_SYNC="1"))
+        self.assertEqual(env, self.env(DD_SYNC="1"))
         self.assertIn("unusable", said)
         self.assertTrue(said.endswith("; stock binaries with droiddeck-ntsync\n"), said)
 
     def test_droiddeck_fsync_stands_in_without_a_pack(self):
         root = self.store()
         tool = make_tool(self.tools, "Proton Experimental (ARM64)", fsync=True)
-        command, env, said = self.select(tool, self.env(BL_SYNC="0"))
+        command, env, said = self.select(tool, self.env(DD_SYNC="0"))
         self.assertEqual(command, [str(tool / "proton"), "waitforexitandrun", "game.exe"])
-        self.assertEqual(env, self.env(BL_SYNC="0", BL_FSYNC="1", WINEFSYNC="1"))
+        self.assertEqual(env, self.env(DD_SYNC="0", DD_FSYNC="1", WINEFSYNC="1"))
         self.assertEqual(said, "droiddeck-fsync: no pack for Proton Experimental (ARM64) (%s, ntdll %s); "
                          "stock binaries with Proton's fsync\n" % (VALVE_LINE, sha(tool / NTDLL)[:12]))
         fields = (root / "launches.log").read_text().splitlines()[-1].split("\t")
         self.assertEqual((fields[4], fields[6], fields[8]), ("-", "0", "1"))
         self.assertEqual(len((root / "wanted.tsv").read_text().splitlines()), 1)
-        for extra in ({"BL_SYNC": "1"}, {"PROTON_NO_FSYNC": "1"}, {"STEAM_COMPAT_APP_ID": "2630"}, {"SteamAppId": "1233880"}):
+        for extra in ({"DD_SYNC": "1"}, {"PROTON_NO_FSYNC": "1"}, {"STEAM_COMPAT_APP_ID": "2630"}, {"SteamAppId": "1233880"}):
             command, env, said = self.select(tool, self.env(**extra))
-            self.assertNotIn("BL_FSYNC", env, extra)
-            self.assertEqual(env["BL_SYNC"], "1", extra)
+            self.assertNotIn("DD_FSYNC", env, extra)
+            self.assertEqual(env["DD_SYNC"], "1", extra)
             self.assertTrue(said.endswith("; stock binaries with droiddeck-ntsync\n"), (extra, said))
-        for extra in ({"STEAM_COMPAT_APP_ID": "2630", "PROTON_NO_FSYNC": "0"}, {"PROTON_NO_FSYNC": ""}, {"BL_SYNC": "0"}):
-            self.assertEqual(self.select(tool, self.env(**extra))[1]["BL_FSYNC"], "1", extra)
+        for extra in ({"STEAM_COMPAT_APP_ID": "2630", "PROTON_NO_FSYNC": "0"}, {"PROTON_NO_FSYNC": ""}, {"DD_SYNC": "0"}):
+            self.assertEqual(self.select(tool, self.env(**extra))[1]["DD_FSYNC"], "1", extra)
         env = self.select(tool, self.env(PROTON_NO_FSYNC="1", PROTON_NO_NTSYNC="1"))[1]
-        self.assertEqual((env["BL_SYNC"], "BL_FSYNC" in env), ("0", False))
+        self.assertEqual((env["DD_SYNC"], "DD_FSYNC" in env), ("0", False))
         pack = make_pack(root, tool, "valve-experimental-r1")
         (root / "packs" / pack["id"] / NTDLL).write_bytes(b"tampered")
         command, env, said = self.select(tool, self.env())
-        self.assertEqual((command[0], env["BL_FSYNC"]), (str(tool / "proton"), "1"))
+        self.assertEqual((command[0], env["DD_FSYNC"]), (str(tool / "proton"), "1"))
         self.assertIn("\ndroiddeck-fsync: pack %s unusable for Proton Experimental (ARM64) (" % pack["id"], said)
         self.assertTrue(said.endswith("; stock binaries with Proton's fsync\n"), said)
 
@@ -536,24 +536,24 @@ class SelectTest(SyncTestCase):
         root = self.store()
         tool = make_tool(self.tools, "Proton Experimental (ARM64)", fsync=True)
         pack = make_pack(root, tool, "valve-experimental-r1")
-        for extra in ({}, {"BL_SYNC_FALLBACK": None}, {"BL_SYNC_FALLBACK": "0"}, {"BL_FSYNC": "0"}):
-            command, env, said = self.select(tool, self.env(BL_FSYNC_FIRST="1", **extra))
+        for extra in ({}, {"DD_SYNC_FALLBACK": None}, {"DD_SYNC_FALLBACK": "0"}, {"DD_FSYNC": "0"}):
+            command, env, said = self.select(tool, self.env(DD_FSYNC_FIRST="1", **extra))
             self.assertEqual(command[0], str(tool / "proton"), extra)
-            self.assertEqual((env["BL_FSYNC"], env["BL_SYNC"], env["WINEFSYNC"]), ("1", "0", "1"), extra)
-            self.assertNotIn("BL_SYNC_PACK", env, extra)
+            self.assertEqual((env["DD_FSYNC"], env["DD_SYNC"], env["WINEFSYNC"]), ("1", "0", "1"), extra)
+            self.assertNotIn("DD_SYNC_PACK", env, extra)
             self.assertEqual(said, "droiddeck-fsync: chosen for Proton Experimental (ARM64); stock binaries with Proton's fsync\n")
         self.assertFalse((root / "wanted.tsv").exists())
-        command, env, said = self.select(tool, self.env(BL_FSYNC_FIRST="1", BL_SYNC="1"))
-        self.assertEqual((command[0], env["BL_SYNC_PACK"], env["BL_SYNC"]), (str(self.dist_of(pack["id"], tool) / "proton"), pack["id"], "1"))
-        self.assertNotIn("BL_FSYNC", env)
-        command, env, said = self.select(tool, self.env(BL_FSYNC_FIRST="1", BL_FSYNC="1", STEAM_COMPAT_APP_ID="414740"))
-        self.assertEqual((env["BL_FSYNC"], env["BL_SYNC_PACK"], env["PROTON_NO_ESYNC"]), ("0", pack["id"], "1"))
-        command, env, said = self.select(tool, self.env(BL_FSYNC_FIRST="1", BL_FSYNC="1", BL_SYNC_FALLBACK="0", PROTON_NO_FSYNC="1"))
-        self.assertEqual((command[0], env["BL_FSYNC"], said), (str(tool / "proton"), "0", "droiddeck-esync: off\n"))
+        command, env, said = self.select(tool, self.env(DD_FSYNC_FIRST="1", DD_SYNC="1"))
+        self.assertEqual((command[0], env["DD_SYNC_PACK"], env["DD_SYNC"]), (str(self.dist_of(pack["id"], tool) / "proton"), pack["id"], "1"))
+        self.assertNotIn("DD_FSYNC", env)
+        command, env, said = self.select(tool, self.env(DD_FSYNC_FIRST="1", DD_FSYNC="1", STEAM_COMPAT_APP_ID="414740"))
+        self.assertEqual((env["DD_FSYNC"], env["DD_SYNC_PACK"], env["PROTON_NO_ESYNC"]), ("0", pack["id"], "1"))
+        command, env, said = self.select(tool, self.env(DD_FSYNC_FIRST="1", DD_FSYNC="1", DD_SYNC_FALLBACK="0", PROTON_NO_FSYNC="1"))
+        self.assertEqual((command[0], env["DD_FSYNC"], said), (str(tool / "proton"), "0", "droiddeck-esync: off\n"))
         plain = make_tool(self.tools, "GE-Proton11-9", "1790000000 GE-Proton11-9", builtin=True, ge=True)
-        command, env, said = self.select(plain, self.env(BL_FSYNC_FIRST="1"))
+        command, env, said = self.select(plain, self.env(DD_FSYNC_FIRST="1"))
         self.assertEqual((command[0], said), (str(plain / "proton"), "droiddeck-esync: GE-Proton11-9 has esync built in\n"))
-        self.assertNotIn("BL_FSYNC", env)
+        self.assertNotIn("DD_FSYNC", env)
 
     def test_fsync_takes_over_when_esync_is_off_for_a_game(self):
         root = self.store()
@@ -561,18 +561,18 @@ class SelectTest(SyncTestCase):
         pack = make_pack(root, tool, "valve-experimental-r1")
         for extra in ({"PROTON_NO_ESYNC": "1"}, {"WINEESYNC": "0"}):
             command, env, said = self.select(tool, self.env(**extra))
-            self.assertEqual((command[0], env["BL_FSYNC"]), (str(tool / "proton"), "1"), extra)
+            self.assertEqual((command[0], env["DD_FSYNC"]), (str(tool / "proton"), "1"), extra)
             self.assertEqual(said, "droiddeck-fsync: esync is off for this game; stock binaries with Proton's fsync\n")
         with mock.patch("resource.getrlimit", return_value=(1024, 4096)):
-            env = self.select(tool, self.env(BL_SYNC_MIN_NOFILE=None))[1]
-        self.assertEqual(env["BL_FSYNC"], "1")
-        for extra in ({"STEAM_COMPAT_APP_ID": "2630"}, {"PROTON_NO_ESYNC": "1", "PROTON_NO_FSYNC": "1"}, {"WINEESYNC": "0", "BL_SYNC": "1"}):
+            env = self.select(tool, self.env(DD_SYNC_MIN_NOFILE=None))[1]
+        self.assertEqual(env["DD_FSYNC"], "1")
+        for extra in ({"STEAM_COMPAT_APP_ID": "2630"}, {"PROTON_NO_ESYNC": "1", "PROTON_NO_FSYNC": "1"}, {"WINEESYNC": "0", "DD_SYNC": "1"}):
             command, env, said = self.select(tool, self.env(**extra))
-            self.assertEqual((env["BL_SYNC_PACK"], env["WINEESYNC"]), (pack["id"], "0"), extra)
-            self.assertNotIn("BL_FSYNC", env, extra)
+            self.assertEqual((env["DD_SYNC_PACK"], env["WINEESYNC"]), (pack["id"], "0"), extra)
+            self.assertNotIn("DD_FSYNC", env, extra)
         command, env, said = self.select(tool, self.env())
-        self.assertEqual((env["BL_SYNC_PACK"], env["WINEESYNC"], env["PROTON_NO_FSYNC"]), (pack["id"], "1", "1"))
-        self.assertNotIn("BL_FSYNC", env)
+        self.assertEqual((env["DD_SYNC_PACK"], env["WINEESYNC"], env["PROTON_NO_FSYNC"]), (pack["id"], "1", "1"))
+        self.assertNotIn("DD_FSYNC", env)
 
     def test_the_hash_cache_remembers_fsync(self):
         root = self.store()
@@ -585,7 +585,7 @@ class SelectTest(SyncTestCase):
         self.assertEqual(rows[os.path.realpath(tool / NTDLL)][9], "0")
         (root / "hash-cache.tsv").write_text("\n".join("\t".join(row[:9]) for row in rows.values()) + "\n")
         self.assertEqual(SYNC["parse_cache"]((root / "hash-cache.tsv").read_text()), {})
-        self.assertEqual(self.select(tool, self.env())[1]["BL_FSYNC"], "1")
+        self.assertEqual(self.select(tool, self.env())[1]["DD_FSYNC"], "1")
 
     def test_esync_off_games_get_droiddeck_ntsync_on_a_pack(self):
         root = self.store()
@@ -593,49 +593,49 @@ class SelectTest(SyncTestCase):
         pack = make_pack(root, tool, "valve-experimental-r1")
         for extra in ({"PROTON_NO_ESYNC": "1"}, {"STEAM_COMPAT_APP_ID": "2630"}, {"WINEESYNC": "0"}):
             command, env, said = self.select(tool, self.env(**extra))
-            self.assertEqual((env["BL_SYNC_PACK"], env["WINEESYNC"], env["BL_SYNC"]), (pack["id"], "0", "1"), extra)
+            self.assertEqual((env["DD_SYNC_PACK"], env["WINEESYNC"], env["DD_SYNC"]), (pack["id"], "0", "1"), extra)
             self.assertIn("droiddeck-ntsync on, droiddeck-esync off", said)
         env = self.select(tool, self.env(PROTON_NO_ESYNC="1", PROTON_NO_NTSYNC="1"))[1]
-        self.assertEqual((env["WINEESYNC"], env["BL_SYNC"]), ("0", "0"))
-        env = self.select(tool, self.env(BL_SYNC="0"))[1]
-        self.assertEqual((env["WINEESYNC"], env["BL_SYNC"]), ("1", "0"))
+        self.assertEqual((env["WINEESYNC"], env["DD_SYNC"]), ("0", "0"))
+        env = self.select(tool, self.env(DD_SYNC="0"))[1]
+        self.assertEqual((env["WINEESYNC"], env["DD_SYNC"]), ("1", "0"))
 
     def test_a_running_prefix_keeps_its_sync_choice(self):
         root = self.store()
         tool = make_tool(self.tools, "Proton Experimental (ARM64)", fsync=True)
         prefix = os.path.realpath("/compatdata/42/pfx")
         command, first, _ = self.select(tool, self.env())
-        self.assertEqual(first["BL_FSYNC"], "1")
+        self.assertEqual(first["DD_FSYNC"], "1")
         rows = json.loads((root / "prefixes.json").read_text())
-        self.assertEqual(rows[prefix]["env"]["BL_FSYNC"], "1")
-        self.assertIsNone(rows[prefix]["env"]["BL_SYNC_PACK"])
+        self.assertEqual(rows[prefix]["env"]["DD_FSYNC"], "1")
+        self.assertIsNone(rows[prefix]["env"]["DD_SYNC_PACK"])
         pack = make_pack(root, tool, "valve-experimental-r1")
         dist = self.dist_of(pack["id"], tool)
         running = []
         with mock.patch.dict(GLOBALS, {"server_running": lambda path: running.append(path) or True}):
-            command, env, said = self.select(tool, self.env(BL_SYNC="0", WINEFSYNC=None))
+            command, env, said = self.select(tool, self.env(DD_SYNC="0", WINEFSYNC=None))
         self.assertEqual(running, [prefix])
         self.assertEqual(command[0], str(tool / "proton"))
-        self.assertEqual(env, self.env(BL_SYNC="0", BL_FSYNC="1", WINEFSYNC="1"))
+        self.assertEqual(env, self.env(DD_SYNC="0", DD_FSYNC="1", WINEFSYNC="1"))
         self.assertEqual(said, "droiddeck-esync: Wine is still running in this prefix; keeping its sync choice (droiddeck-fsync)\n")
         command, env, said = self.select(tool, self.env())
-        self.assertEqual((command[0], env["BL_SYNC_PACK"]), (str(dist / "proton"), pack["id"]))
-        self.assertNotIn("BL_FSYNC", env)
+        self.assertEqual((command[0], env["DD_SYNC_PACK"]), (str(dist / "proton"), pack["id"]))
+        self.assertNotIn("DD_FSYNC", env)
         with mock.patch.dict(GLOBALS, {"server_running": lambda path: True}):
-            command, env, said = self.select(tool, self.env(BL_FSYNC_FIRST="1"))
-            self.assertEqual((command[0], env["BL_SYNC_PACK"], env["WINESERVER"]), (str(dist / "proton"), pack["id"], str(dist / WINESERVER)))
-            self.assertNotIn("BL_FSYNC", env)
+            command, env, said = self.select(tool, self.env(DD_FSYNC_FIRST="1"))
+            self.assertEqual((command[0], env["DD_SYNC_PACK"], env["WINESERVER"]), (str(dist / "proton"), pack["id"], str(dist / WINESERVER)))
+            self.assertNotIn("DD_FSYNC", env)
             self.assertIn("(droiddeck-esync)", said)
             other = make_tool(self.tools, "Proton 11.0 (ARM64)", salt=b"11", fsync=True)
-            self.assertEqual(self.select(other, self.env())[1]["BL_FSYNC"], "1")
+            self.assertEqual(self.select(other, self.env())[1]["DD_FSYNC"], "1")
             shutil.rmtree(self.root / "dist")
             command, env, said = self.select(tool, self.env())
-            self.assertEqual((command[0], env["BL_SYNC_PACK"]), (str(dist / "proton"), pack["id"]))
+            self.assertEqual((command[0], env["DD_SYNC_PACK"]), (str(dist / "proton"), pack["id"]))
             self.assertNotIn("keeping", said)
         (root / "prefixes.json").write_text("not json")
         with mock.patch.dict(GLOBALS, {"server_running": lambda path: True}):
-            self.assertEqual(self.select(tool, self.env())[1]["BL_SYNC_PACK"], pack["id"])
-        self.assertEqual(json.loads((root / "prefixes.json").read_text())[prefix]["env"]["BL_SYNC_PACK"], pack["id"])
+            self.assertEqual(self.select(tool, self.env())[1]["DD_SYNC_PACK"], pack["id"])
+        self.assertEqual(json.loads((root / "prefixes.json").read_text())[prefix]["env"]["DD_SYNC_PACK"], pack["id"])
 
     def test_a_running_prefix_drops_a_pack_that_no_longer_fits(self):
         root = self.store()
@@ -645,31 +645,31 @@ class SelectTest(SyncTestCase):
         self.assertEqual(self.select(tool, self.env())[0][0], str(dist / "proton"))
         with mock.patch.dict(GLOBALS, {"server_running": lambda path: True}):
             command, env, said = self.select(tool, self.env())
-            self.assertEqual((command[0], env["BL_SYNC_PACK"]), (str(dist / "proton"), pack["id"]))
+            self.assertEqual((command[0], env["DD_SYNC_PACK"]), (str(dist / "proton"), pack["id"]))
             self.assertIn("keeping its sync choice", said)
             (tool / NTDLL).write_bytes(elf(EXPORTS, salt=b"updated in place"))
             (tool / "version").write_text("1791000000 experimental-11.0-20261008-arm64\n")
             command, env, said = self.select(tool, self.env(), verb="run")
-            self.assertEqual((command[0], env["BL_SYNC_PACK"]), (str(dist / "proton"), pack["id"]))
+            self.assertEqual((command[0], env["DD_SYNC_PACK"]), (str(dist / "proton"), pack["id"]))
             self.assertIn("keeping its sync choice", said)
             command, env, said = self.select(tool, self.env())
             self.assertEqual(command[0], str(tool / "proton"))
-            self.assertNotIn("BL_SYNC_PACK", env)
+            self.assertNotIn("DD_SYNC_PACK", env)
             self.assertNotIn("keeping", said)
             self.assertIn("no pack for Proton Experimental (ARM64)", said)
         other = make_tool(self.tools, "Proton 11.0 (ARM64)", "1788504814 proton-11.0-2c-arm64", salt=b"2c")
         pack = make_pack(root, other, "valve-proton-11.0-2c-arm64-r1")
         dist = self.dist_of(pack["id"], other)
-        self.assertEqual(self.select(other, self.env())[1]["BL_SYNC_PACK"], pack["id"])
+        self.assertEqual(self.select(other, self.env())[1]["DD_SYNC_PACK"], pack["id"])
         rev2 = make_pack(root, other, "valve-proton-11.0-2c-arm64-r2", rev=2)
         with mock.patch.dict(GLOBALS, {"server_running": lambda path: True}):
-            self.assertEqual(self.select(other, self.env(), verb="run")[1]["BL_SYNC_PACK"], pack["id"])
-            self.assertEqual(self.select(other, self.env())[1]["BL_SYNC_PACK"], rev2["id"])
+            self.assertEqual(self.select(other, self.env(), verb="run")[1]["DD_SYNC_PACK"], pack["id"])
+            self.assertEqual(self.select(other, self.env())[1]["DD_SYNC_PACK"], rev2["id"])
         for gone in (pack, rev2):
             data = json.loads((root / "packs" / gone["id"] / "pack.json").read_text())
             (root / "packs" / gone["id"] / "pack.json").write_text(json.dumps(dict(data, revoked=True)))
         with mock.patch.dict(GLOBALS, {"server_running": lambda path: True}):
-            self.assertEqual(self.select(other, self.env(), verb="run")[1]["BL_SYNC_PACK"], rev2["id"])
+            self.assertEqual(self.select(other, self.env(), verb="run")[1]["DD_SYNC_PACK"], rev2["id"])
             command, env, said = self.select(other, self.env())
         self.assertEqual(command[0], str(other / "proton"))
         self.assertNotIn("keeping", said)
@@ -677,8 +677,8 @@ class SelectTest(SyncTestCase):
     def test_droiddeck_ntsync_does_not_stand_in_when_esync_is_off(self):
         self.store()
         tool = make_tool(self.tools, "Proton Experimental (ARM64)")
-        env = self.env(BL_SYNC="0")
-        env.pop("BL_SYNC_FALLBACK", None)
+        env = self.env(DD_SYNC="0")
+        env.pop("DD_SYNC_FALLBACK", None)
         command, chosen, said = self.select(tool, env)
         self.assertEqual(chosen, SYNC["wineserver_only"](env))
         self.assertEqual(said, "droiddeck-esync: off; wineserver sync only\n")
@@ -686,38 +686,38 @@ class SelectTest(SyncTestCase):
     def test_the_wineserver_tab_turns_proton_sync_off(self):
         self.store()
         tool = make_tool(self.tools, "GE-Proton11-9", "1790000000 GE-Proton11-9", builtin=True, ge=True, fsync=True)
-        command, env, said = self.select(tool, self.env(BL_SYNC_FALLBACK="0"))
+        command, env, said = self.select(tool, self.env(DD_SYNC_FALLBACK="0"))
         self.assertEqual(command[0], str(tool / "proton"))
-        self.assertEqual({name: env.get(name) for name in ("PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC", "WINEFSYNC", "BL_SYNC")},
-                         {"PROTON_NO_ESYNC": "1", "PROTON_NO_FSYNC": "1", "PROTON_NO_NTSYNC": "1", "WINEESYNC": "0", "WINEFSYNC": "0", "BL_SYNC": "0"})
-        env = self.select(tool, self.env(BL_SYNC_FALLBACK="0", PROTON_NO_FSYNC="0"))[1]
+        self.assertEqual({name: env.get(name) for name in ("PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC", "WINEFSYNC", "DD_SYNC")},
+                         {"PROTON_NO_ESYNC": "1", "PROTON_NO_FSYNC": "1", "PROTON_NO_NTSYNC": "1", "WINEESYNC": "0", "WINEFSYNC": "0", "DD_SYNC": "0"})
+        env = self.select(tool, self.env(DD_SYNC_FALLBACK="0", PROTON_NO_FSYNC="0"))[1]
         self.assertEqual((env["PROTON_NO_FSYNC"], "WINEFSYNC" in env, env["PROTON_NO_ESYNC"]), ("0", False, "1"))
         self.assertEqual(SYNC["describe"](SYNC["wineserver_only"]({})), "wineserver")
 
     def test_the_ntsync_tab_needs_a_wine_with_ntsync(self):
         root = self.store()
         tool = make_tool(self.tools, "Proton 11.0 (ARM64)", "1789000000 proton-11.0-3", fsync=True, ntsync=False)
-        command, env, said = self.select(tool, self.env(BL_SYNC="1"))
-        self.assertEqual((command[0], env["BL_SYNC"], env["BL_FSYNC"], env["WINEFSYNC"]), (str(tool / "proton"), "0", "1", "1"))
+        command, env, said = self.select(tool, self.env(DD_SYNC="1"))
+        self.assertEqual((command[0], env["DD_SYNC"], env["DD_FSYNC"], env["WINEFSYNC"]), (str(tool / "proton"), "0", "1", "1"))
         self.assertIn("droiddeck-ntsync: Proton 11.0 (ARM64) has no ntsync; trying droiddeck-fsync\n", said)
         plain = make_tool(self.tools, "Proton 10.0 (ARM64)", "1780000000 proton-10.0-1", salt=b"p", ntsync=False)
-        command, env, said = self.select(plain, self.env(BL_SYNC="1"))
-        self.assertEqual((env["BL_SYNC"], "BL_FSYNC" in env), ("0", False))
+        command, env, said = self.select(plain, self.env(DD_SYNC="1"))
+        self.assertEqual((env["DD_SYNC"], "DD_FSYNC" in env), ("0", False))
         self.assertTrue(said.endswith("; stock binaries (this Wine has no ntsync)\n"), said)
         pack = make_pack(root, plain, "valve-10-r1")
         command, env, said = self.select(plain, self.env(PROTON_NO_ESYNC="1"))
-        self.assertEqual((env["BL_SYNC_PACK"], env["WINEESYNC"], env.get("BL_SYNC")), (pack["id"], "0", None))
+        self.assertEqual((env["DD_SYNC_PACK"], env["WINEESYNC"], env.get("DD_SYNC")), (pack["id"], "0", None))
 
     def test_built_in_esync_still_falls_back_when_esync_is_off(self):
         self.store()
         tool = make_tool(self.tools, "GE-Proton11-9", "1790000000 GE-Proton11-9", builtin=True, ge=True, fsync=True)
         for extra in ({"PROTON_NO_ESYNC": "1"}, {"WINEESYNC": "0"}, {"STEAM_COMPAT_APP_ID": "2630", "PROTON_NO_FSYNC": "0"}):
             command, env, said = self.select(tool, self.env(**extra))
-            self.assertEqual((command[0], env["BL_FSYNC"]), (str(tool / "proton"), "1"), extra)
+            self.assertEqual((command[0], env["DD_FSYNC"]), (str(tool / "proton"), "1"), extra)
         plain = make_tool(self.tools, "GE-Proton11-8", "1789900000 GE-Proton11-8", salt=b"g", builtin=True, ge=True)
         for extra in ({"PROTON_NO_ESYNC": "1"}, {"STEAM_COMPAT_APP_ID": "2630"}):
             command, env, said = self.select(plain, self.env(**extra))
-            self.assertEqual((env["BL_SYNC"], env["PROTON_NO_ESYNC"], env["WINEESYNC"]), ("1", "1", "0"), extra)
+            self.assertEqual((env["DD_SYNC"], env["PROTON_NO_ESYNC"], env["WINEESYNC"]), ("1", "1", "0"), extra)
             self.assertTrue(said.endswith("; stock binaries with droiddeck-ntsync\n"), (extra, said))
         command, env, said = self.select(plain, self.env())
         self.assertEqual(said, "droiddeck-esync: GE-Proton11-8 has esync built in\n")
@@ -729,11 +729,11 @@ class SelectTest(SyncTestCase):
         command, env, said = self.select(tool, self.env())
         prefix = os.path.realpath("/compatdata/42/pfx")
         rows = json.loads((root / "prefixes.json").read_text())
-        self.assertEqual(rows[prefix]["env"]["BL_SYNC_PACK"], pack["id"])
+        self.assertEqual(rows[prefix]["env"]["DD_SYNC_PACK"], pack["id"])
         stock = [str(tool / "proton"), "waitforexitandrun", "game.exe"]
         self.quiet(SYNC["record"], stock, self.env())
         rows = json.loads((root / "prefixes.json").read_text())
-        self.assertEqual((rows[prefix]["command"], rows[prefix]["env"]["BL_SYNC_PACK"]), (stock[0], None))
+        self.assertEqual((rows[prefix]["command"], rows[prefix]["env"]["DD_SYNC_PACK"]), (stock[0], None))
 
     def test_built_in_esync_never_uses_a_pack(self):
         root = self.store()
@@ -751,7 +751,7 @@ class SelectTest(SyncTestCase):
         tool = make_tool(self.tools, "DroidDeck-Proton 11-7.5", "1791000000 DroidDeck-Proton-11-7.5", builtin=True, ge=True, fsync=True)
         command, env, said = self.select(tool, self.env())
         self.assertEqual(command[0], str(tool / "proton"))
-        self.assertNotIn("BL_SYNC_PACK", env)
+        self.assertNotIn("DD_SYNC_PACK", env)
         self.assertEqual(said, "droiddeck-esync: DroidDeck-Proton 11-7.5 has esync built in\n")
         self.assertFalse((root / "wanted.tsv").exists())
         self.assertFalse((root / "dist").exists())
@@ -763,7 +763,7 @@ class SelectTest(SyncTestCase):
         self.assertEqual(command[0], str(tool / "proton"))
         self.assertEqual(said, "droiddeck-esync: no pack for GE-Proton11-7 (%s, ntdll %s); stock binaries with droiddeck-ntsync\n"
                          % (GE_LINE, sha(tool / NTDLL)[:12]))
-        self.assertEqual(env["BL_SYNC"], "1")
+        self.assertEqual(env["DD_SYNC"], "1")
         wanted = root / "wanted.tsv"
         rows = [line.split("\t") for line in wanted.read_text().splitlines()]
         self.assertEqual(len(rows), 1)
@@ -904,13 +904,13 @@ class ReconcileTest(SyncTestCase):
             wanted = [line.split("\t") for line in (root / "wanted.tsv").read_text().splitlines()]
             self.assertEqual(sorted(row[4] for row in wanted), sorted([str(loose), str(ge)]))
             self.assertTrue((root / "hash-cache.tsv").is_file())
-            summary = self.quiet(SYNC["reconcile"], str(steam), {"HOME": str(self.home), "BL_SYNC_FALLBACK": "1"})
+            summary = self.quiet(SYNC["reconcile"], str(steam), {"HOME": str(self.home), "DD_SYNC_FALLBACK": "1"})
             self.assertEqual(summary, "droiddeck-esync: 1 pack(s) in use, 2 wanted")
             dist = self.dist_of(pack["id"], valve)
             self.assertEqual(json.loads((dist / RECORD).read_text())["tool"], str(valve))
             make_pack(root, ge, "ge-GE-Proton11-7-r1", flavor="ge")
             make_pack(root, loose, "ge-GE-Proton10-1-r1", flavor="ge")
-            summary = self.quiet(SYNC["reconcile"], str(steam), {"HOME": str(self.home), "BL_SYNC_FALLBACK": "1"})
+            summary = self.quiet(SYNC["reconcile"], str(steam), {"HOME": str(self.home), "DD_SYNC_FALLBACK": "1"})
             self.assertEqual(summary, "droiddeck-esync: 2 pack(s) in use, 0 wanted")
             self.assertEqual((root / "wanted.tsv").read_text(), "")
             self.assertTrue(self.dist_of("ge-GE-Proton11-7-r1", ge).is_dir())
@@ -928,7 +928,7 @@ class ReconcileTest(SyncTestCase):
     def test_steam_compatibility_reports_sync(self):
         steam = self.tmp / "steam"
         make_tool(steam / "steamapps/common", "Proton Experimental (ARM64)")
-        env = {"PATH": os.defpath, "HOME": str(self.home), "BL_SYNC_FALLBACK": "1"}
+        env = {"PATH": os.defpath, "HOME": str(self.home), "DD_SYNC_FALLBACK": "1"}
         result = subprocess.run([sys.executable, str(BIN / "steam-compatibility"), str(steam)], env=env,
                                 capture_output=True, text=True, check=True)
         self.assertNotIn("droiddeck-esync", result.stdout + result.stderr)
@@ -970,7 +970,7 @@ class ReconcileTest(SyncTestCase):
             self.assertFalse(dist.exists())
             new = make_pack(root, tool, "valve-experimental-20261008-r1")
             command, env, said = self.select(tool, self.env())
-            self.assertEqual((command[0], env["BL_SYNC_PACK"]), (str(self.dist_of(new["id"], tool) / "proton"), new["id"]))
+            self.assertEqual((command[0], env["DD_SYNC_PACK"]), (str(self.dist_of(new["id"], tool) / "proton"), new["id"]))
             summary = self.quiet(SYNC["reconcile"], str(steam), {"HOME": str(self.home)})
             self.assertEqual(summary, "droiddeck-esync: 1 pack(s) in use, 0 wanted")
 
@@ -1033,7 +1033,7 @@ class GcTest(SyncTestCase):
         self.assertEqual(sorted(os.listdir(root / "dist")), [second_dist.name, second_dist.name + ".lock"])
         self.assertTrue((root / "packs" / first["id"] / ".complete").is_file())
         _, env, _ = self.select(tool, self.env())
-        self.assertEqual(env["BL_SYNC_PACK"], second["id"])
+        self.assertEqual(env["DD_SYNC_PACK"], second["id"])
 
 
 class LauncherTest(SyncTestCase):
@@ -1042,9 +1042,9 @@ class LauncherTest(SyncTestCase):
         config = self.home / ".config/droiddeck/game-environment.json"
         config.parent.mkdir(parents=True)
         config.write_text(json.dumps({"version": 1, "shared": {"PROTON_NO_NTSYNC": "1", "CUSTOM": "shared"},
-                                      "games": {"42": {"WINEESYNC": "3", "BL_SYNC_FALLBACK": "1"}}}))
-        env = {"PATH": os.defpath, "HOME": str(self.home), "STEAM_COMPAT_DATA_PATH": "/compatdata/42", "BL_SYNC": "1",
-               "BL_SYNC_MIN_NOFILE": "1"}
+                                      "games": {"42": {"WINEESYNC": "3", "DD_SYNC_FALLBACK": "1"}}}))
+        env = {"PATH": os.defpath, "HOME": str(self.home), "STEAM_COMPAT_DATA_PATH": "/compatdata/42", "DD_SYNC": "1",
+               "DD_SYNC_MIN_NOFILE": "1"}
 
         def launch(verb):
             output = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(tool / "proton"), verb, "a b"],
@@ -1053,7 +1053,7 @@ class LauncherTest(SyncTestCase):
 
         argv0, args, seen = launch("run")
         self.assertEqual((argv0, args), (str(tool / "proton"), ["run", "a b"]))
-        self.assertEqual((seen["CUSTOM"], seen["BL_SYNC"], seen["WINEESYNC"]), (None, "0", "3"))
+        self.assertEqual((seen["CUSTOM"], seen["DD_SYNC"], seen["WINEESYNC"]), (None, "0", "3"))
         self.assertEqual(launch("waitforexitandrun")[2]["CUSTOM"], "shared")
         root = self.store()
         pack = make_pack(root, tool, "valve-experimental-r1")
@@ -1061,7 +1061,7 @@ class LauncherTest(SyncTestCase):
         for verb in ("run", "waitforexitandrun", "getcompatpath"):
             argv0, args, seen = launch(verb)
             self.assertEqual((argv0, args), (str(dist / "proton"), [verb, "a b"]))
-            self.assertEqual((seen["WINEESYNC"], seen["BL_SYNC_PACK"], seen["WINESERVER"]), ("3", pack["id"], str(dist / WINESERVER)))
+            self.assertEqual((seen["WINEESYNC"], seen["DD_SYNC_PACK"], seen["WINESERVER"]), ("3", pack["id"], str(dist / WINESERVER)))
 
     def test_failed_dist_exec_keeps_the_sync_choice(self):
         tool = make_tool(self.tools, "Proton Experimental (ARM64)")
@@ -1077,7 +1077,7 @@ class LauncherTest(SyncTestCase):
         )
         for inherited, expected in cases:
             with self.subTest(inherited=inherited):
-                env = self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", BL_SYNC="1", WINEESYNC="1", **inherited)
+                env = self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", DD_SYNC="1", WINEESYNC="1", **inherited)
                 calls = []
 
                 def execvpe(path, args, environment):
@@ -1092,8 +1092,8 @@ class LauncherTest(SyncTestCase):
                         game_env["main"]()
                 self.assertEqual([call[:2] for call in calls], [(str(dist / "proton"), [str(dist / "proton")] + command[1:]),
                                                                 (str(tool / "proton"), command)])
-                self.assertEqual((calls[0][2]["WINEESYNC"], calls[0][2]["PROTON_NO_ESYNC"], calls[0][2]["BL_SYNC_PACK"]), ("0", "1", pack["id"]))
-                self.assertEqual(calls[1][2], self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", BL_SYNC="0", WINEESYNC="1",
+                self.assertEqual((calls[0][2]["WINEESYNC"], calls[0][2]["PROTON_NO_ESYNC"], calls[0][2]["DD_SYNC_PACK"]), ("0", "1", pack["id"]))
+                self.assertEqual(calls[1][2], self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", DD_SYNC="0", WINEESYNC="1",
                                                        vblank_mode="0", GAMESCOPE_WSI_MIN_IMAGE_COUNT="8",
                                                        GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT="1", **expected))
                 self.assertEqual(calls[0][2].get("WINEDLLOVERRIDES"), expected.get("WINEDLLOVERRIDES"))
@@ -1112,7 +1112,7 @@ class LauncherTest(SyncTestCase):
         packs = {depot: make_pack(root, depot, "valve-experimental-r1"), extra: make_pack(root, extra, "ge-GE-Proton11-7-r1", flavor="ge")}
         wrappers = {depot: tools / COMPAT["TOOL"] / COMPAT["LAUNCHER"], extra: extra / COMPAT["EXTRA_WRAPPER"]}
         env = {"PATH": os.defpath, "HOME": str(self.home), "STEAM_COMPAT_DATA_PATH": "/compatdata/42",
-               "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(steam), "BL_SYNC_FALLBACK": "1", "BL_SYNC_MIN_NOFILE": "1"}
+               "STEAM_COMPAT_CLIENT_INSTALL_PATH": str(steam), "DD_SYNC_FALLBACK": "1", "DD_SYNC_MIN_NOFILE": "1"}
         for tool, wrapper in wrappers.items():
             wrapper.write_text(wrapper.read_text().replace("/usr/local/bin/droiddeck-game-env", str(BIN / "droiddeck-game-env")))
             dist = self.dist_of(packs[tool]["id"], tool)
@@ -1120,13 +1120,13 @@ class LauncherTest(SyncTestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             argv0, args, seen = json.loads(result.stdout)
             self.assertEqual((argv0, args), (str(dist / "proton"), ["waitforexitandrun", "game with spaces.exe"]))
-            self.assertEqual((seen["BL_SYNC_PACK"], seen["WINESERVER"], seen["WINEESYNC"]),
+            self.assertEqual((seen["DD_SYNC_PACK"], seen["WINESERVER"], seen["WINEESYNC"]),
                              (packs[tool]["id"], str(dist / WINESERVER), "1"))
             self.assertIn("droiddeck-esync: pack %s" % packs[tool]["id"], result.stderr)
             for name in ("droiddeck-proton-wrap", "toolmanifest.vdf", "compatibilitytool.vdf", "toolmanifest.vdf.droiddeck-orig",
                          "bannerlator-proton-wrap", "toolmanifest.vdf.bannerlator-orig"):
                 self.assertFalse(os.path.lexists(dist / name), name)
-            result = subprocess.run([str(wrapper), "waitforexitandrun"], env={**env, "BL_SYNC_FALLBACK": "0"}, text=True, capture_output=True)
+            result = subprocess.run([str(wrapper), "waitforexitandrun"], env={**env, "DD_SYNC_FALLBACK": "0"}, text=True, capture_output=True)
             self.assertEqual(json.loads(result.stdout)[0], str(tool / "proton"), result.stderr)
 
     def test_session_collects_sync_tables(self):
@@ -1134,7 +1134,7 @@ class LauncherTest(SyncTestCase):
         start = script.index("collect_steam_logs() {")
         function = script[start:script.index("\n}\n", start) + 3]
         debug = self.tmp / "debug"
-        env = {"PATH": os.defpath, "HOME": str(self.home), "BL_DEBUG_DIR": str(debug)}
+        env = {"PATH": os.defpath, "HOME": str(self.home), "DD_DEBUG_DIR": str(debug)}
         subprocess.run(["bash", "-c", "set -u\n" + function + "collect_steam_logs"], env=env, check=True, capture_output=True)
         self.assertFalse((debug / "droiddeck-esync").exists())
         root = self.store()

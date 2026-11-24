@@ -120,7 +120,7 @@ class DescriptorPreloadTest(unittest.TestCase):
         build = Path(cls.build_dir.name)
         (build / "fake.c").write_text(FAKE)
         (build / "program.c").write_text(PROGRAM)
-        cls.preload = build / "libblsession.so"
+        cls.preload = build / "libddsession.so"
         cls.fake = build / "fake.so"
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(cls.preload),
                         *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl"], check=True)

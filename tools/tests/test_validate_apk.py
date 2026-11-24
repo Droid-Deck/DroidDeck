@@ -153,3 +153,41 @@ class ValidateApkTest(unittest.TestCase):
         self.git("commit", "-qm", "Rename source")
         with contextlib.chdir(self.root):
             self.assertFalse(validate_apk.documentation_only(self.git("rev-parse", "HEAD")))
+
+
+class RateLimitTest(unittest.TestCase):
+    def call(self, results):
+        replies = list(results)
+        runs = []
+
+        def run(args, **kwargs):
+            runs.append(args)
+            code, out, err = replies.pop(0)
+            return subprocess.CompletedProcess(args, code, out, err)
+
+        with patch.object(validate_apk.subprocess, "run", side_effect=run), \
+                patch.object(validate_apk, "rate_limit_wait", return_value=7), \
+                patch.object(validate_apk.time, "sleep") as sleep, \
+                contextlib.redirect_stderr(open(os.devnull, "w")):
+            try:
+                return validate_apk.api("repos/x/pulls/1"), runs, sleep
+            except subprocess.CalledProcessError as error:
+                return error, runs, sleep
+
+    def test_waits_for_the_rate_limit_then_retries(self):
+        result, runs, sleep = self.call([(1, "", "gh: API rate limit exceeded for installation."), (0, '{"number": 1}', "")])
+        self.assertEqual(result, {"number": 1})
+        self.assertEqual(len(runs), 2)
+        sleep.assert_called_once_with(7)
+
+    def test_other_errors_fail_without_waiting(self):
+        result, runs, sleep = self.call([(1, "", "gh: Not Found (HTTP 404)")])
+        self.assertIsInstance(result, subprocess.CalledProcessError)
+        self.assertEqual(len(runs), 1)
+        sleep.assert_not_called()
+
+    def test_gives_up_after_the_last_attempt(self):
+        result, runs, sleep = self.call([(1, "", "API rate limit exceeded")] * 3)
+        self.assertIsInstance(result, subprocess.CalledProcessError)
+        self.assertEqual(len(runs), 3)
+        self.assertEqual(sleep.call_count, 2)

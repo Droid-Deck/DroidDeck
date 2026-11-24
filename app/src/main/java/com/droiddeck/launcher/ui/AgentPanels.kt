@@ -50,6 +50,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import com.droiddeck.launcher.agent.AgentTools
@@ -62,7 +67,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-/** The model, reasoning effort and plan mode for the next turns; a conversation keeps going with whatever is chosen. */
+/** The model, reasoning effort, permissions and plan mode for the next turns; a conversation keeps going with whatever is chosen. */
 @Composable
 internal fun AgentModelPicker() {
     val context = LocalContext.current
@@ -85,6 +90,20 @@ internal fun AgentModelPicker() {
                     if (level == AgentHost.effort) PrimaryButton(label, compact = true) {}
                     else SecondaryButton(label, compact = true) { AgentHost.chooseEffort(context, level) }
                 }
+            }
+        }
+        val modes = AgentHost.harness.permissions
+        if (modes.size > 1) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(stringResource(R.string.agent_permissions), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(horizontal = 2.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                for (mode in modes) {
+                    val label = stringResource(mode.label)
+                    if (mode.id == AgentHost.permission) PrimaryButton(label, compact = true, modifier = Modifier.testTag("agent-permission")) {}
+                    else SecondaryButton(label, compact = true, modifier = Modifier.testTag("agent-permission")) { AgentHost.choosePermission(context, mode.id) }
+                }
+            }
+            modes.firstOrNull { it.id == AgentHost.permission }?.let {
+                Text(stringResource(it.hint), fontSize = 12.5.sp, color = pal.onSurfaceVariant, modifier = Modifier.padding(horizontal = 2.dp))
             }
         }
         if (AgentHost.harness.plans) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
@@ -416,14 +435,23 @@ private fun ToolsRow(title: String, detail: String, action: @Composable () -> Un
 }
 
 @Composable
-private fun ToolsField(value: String, onValue: (String) -> Unit, hint: String, tag: String) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    Box(Modifier.fillMaxWidth().clip(Shape12).background(pal.surfaceVariant).padding(horizontal = 12.dp, vertical = 10.dp)) {
-        if (value.isEmpty()) Text(hint, fontSize = 14.sp, color = pal.onSurfaceVariant, maxLines = 1)
-        BasicTextField(
-            value, onValue, singleLine = true, textStyle = TextStyle(fontSize = 14.sp, fontFamily = FontFamily.Monospace, color = colors.onSurface),
-            cursorBrush = SolidColor(pal.primary), modifier = Modifier.fillMaxWidth().testTag(tag),
-        )
-    }
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+internal fun ToolsField(value: String, onValue: (String) -> Unit, hint: String, tag: String) {
+    // The launcher's pane focus group sends a Compose text field's focus back to the last tile it remembers,
+    // so these fields use the EditText the rest of the launcher types into.
+    val view = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    var focused by remember { mutableStateOf(false) }
+    val window = androidx.compose.ui.platform.LocalView.current
+    // An EditText's focus does not scroll its Compose parent, so the field follows the keyboard as it opens.
+    val keyboard = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
+    LaunchedEffect(focused, keyboard) { if (focused) view.bringIntoView() }
+    AdbTextField(
+        value = value, onValueChange = onValue, label = hint, keyboardType = KeyboardType.Text, imeAction = ImeAction.Done,
+        modifier = Modifier.bringIntoViewRequester(view).testTag(tag), placeholder = hint, compact = true, showLabel = false,
+        onFocusChange = { focused = it },
+        onDone = {
+            (window.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)
+                ?.hideSoftInputFromWindow(window.windowToken, 0)
+        },
+    )
 }

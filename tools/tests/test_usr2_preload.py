@@ -251,13 +251,13 @@ class Usr2PreloadTest(unittest.TestCase):
         (tmp / "ntdll.c").write_text(NTDLL)
         (tmp / "prog.c").write_text(PROGRAM)
         sources = sorted(str(p) for p in PRELOAD.glob("*.c"))
-        subprocess.run([cls.cc, "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(tmp / "libblsession.so"),
+        subprocess.run([cls.cc, "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-o", str(tmp / "libddsession.so"),
                         *sources, "-ldl"], check=True)
         subprocess.run([cls.cc, "-shared", "-fPIC", "-O2", "-o", str(tmp / "ntdll.so"), str(tmp / "ntdll.c")], check=True)
         subprocess.run([cls.cc, "-O1", "-U_FORTIFY_SOURCE", "-pthread", "-o", str(tmp / "prog"), str(tmp / "prog.c"), str(tmp / "ntdll.so"),
                         "-Wl,-rpath," + str(tmp)], check=True)
         cls.program = tmp / "prog"
-        cls.preload = tmp / "libblsession.so"
+        cls.preload = tmp / "libddsession.so"
 
     @classmethod
     def tearDownClass(cls):

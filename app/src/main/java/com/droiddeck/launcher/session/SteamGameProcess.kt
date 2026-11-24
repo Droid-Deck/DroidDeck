@@ -40,8 +40,9 @@ object SteamGameProcess {
                 val appId = args.getOrNull(i + 1)
                     ?.takeIf { it.startsWith("AppId=") }
                     ?.removePrefix("AppId=")
+                val launchOptions = args.drop(i + 2).takeWhile { it != "--" }
 
-                if (appId == expectedAppId) return true
+                if (appId == expectedAppId && "Install=1" !in launchOptions) return true
             }
 
             if (args[i] == "-applaunch" &&
@@ -60,4 +61,11 @@ object SteamGameProcess {
                 runCatching { File(p, "cmdline").readBytes() }
                     .getOrNull()?.let { matches(it, gameId) } == true
         } == true
+
+    // A front end that resumes a player by launching the same game again would otherwise have Steam
+    // start it a second time, which Steam answers with "Game already running".
+    fun alreadyRunning(requested: String, current: String?, proc: File = File("/proc")): Boolean {
+        val appId = steamAppIdForGameId(requested) ?: return false
+        return appId == steamAppIdForGameId(current.orEmpty()) && running(requested, proc)
+    }
 }
