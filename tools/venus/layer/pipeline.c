@@ -436,40 +436,61 @@ static void undo_rewrite(struct device *dev, struct pipeline_rewrite *rw)
     free(rw->attachments);
 }
 
-/* Library pipelines and pipelines linked from them are handled as if both depth states were dynamic. */
-static bool uses_libraries(const VkGraphicsPipelineCreateInfo *info)
+/* What a pipeline's own fragment shader state fixes of the depth test. */
+static uintptr_t static_depth_of(const VkGraphicsPipelineCreateInfo *info)
 {
-    if (info->flags & VK_PIPELINE_CREATE_LIBRARY_BIT_KHR)
-        return true;
-    for (const VkBaseInStructure *s = info->pNext; s; s = s->pNext) {
-        if (s->sType == VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR ||
-            s->sType == VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT)
-            return true;
+    uintptr_t fixed = STATIC_DEPTH_KNOWN;
+    bool test_dynamic = false, op_dynamic = false;
+    for (uint32_t i = 0; info->pDynamicState && i < info->pDynamicState->dynamicStateCount; i++) {
+        VkDynamicState state = info->pDynamicState->pDynamicStates[i];
+        test_dynamic |= state == VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE;
+        op_dynamic |= state == VK_DYNAMIC_STATE_DEPTH_COMPARE_OP;
     }
-    return false;
+    if (!test_dynamic) {
+        bool on = info->pDepthStencilState && info->pDepthStencilState->depthTestEnable;
+        fixed |= STATIC_DEPTH_TEST | (on ? STATIC_DEPTH_TEST_ON : 0);
+    }
+    if (!op_dynamic)
+        fixed |= STATIC_DEPTH_OP;
+    return fixed;
+}
+
+/*
+ * The depth test is fragment shader state. A pipeline that has it itself is read directly; one
+ * that links it from a library takes what was kept for that library. 0 when it is not known.
+ */
+static uintptr_t resolve_static_depth(struct device *dev, const VkGraphicsPipelineCreateInfo *info)
+{
+    const VkGraphicsPipelineLibraryCreateInfoEXT *subsets = NULL;
+    const VkPipelineLibraryCreateInfoKHR *libraries = NULL;
+    for (const VkBaseInStructure *s = info->pNext; s; s = s->pNext) {
+        if (s->sType == VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT)
+            subsets = (const VkGraphicsPipelineLibraryCreateInfoEXT *)s;
+        else if (s->sType == VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR)
+            libraries = (const VkPipelineLibraryCreateInfoKHR *)s;
+    }
+    uint32_t library_count = libraries ? libraries->libraryCount : 0;
+    /* Without the subset structure, a library or a linked pipeline has no state of its own and
+     * any other pipeline has all of it. */
+    bool own = subsets ? (subsets->flags & VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT) != 0
+                       : !(info->flags & VK_PIPELINE_CREATE_LIBRARY_BIT_KHR) && !library_count;
+    if (own)
+        return static_depth_of(info);
+    for (uint32_t i = 0; i < library_count; i++) {
+        uintptr_t fixed = (uintptr_t)map_get(&dev->depth_pipelines, HANDLE(libraries->pLibraries[i]));
+        if (fixed)
+            return fixed;
+    }
+    return 0;
 }
 
 static void remember_static_depth(struct device *dev, const VkGraphicsPipelineCreateInfo *info, VkPipeline pipeline)
 {
     if (pipeline == VK_NULL_HANDLE)
         return;
-    uintptr_t fixed = STATIC_DEPTH_KEPT;
-    if (!uses_libraries(info)) {
-        bool test_dynamic = false, op_dynamic = false;
-        for (uint32_t i = 0; info->pDynamicState && i < info->pDynamicState->dynamicStateCount; i++) {
-            VkDynamicState state = info->pDynamicState->pDynamicStates[i];
-            test_dynamic |= state == VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE;
-            op_dynamic |= state == VK_DYNAMIC_STATE_DEPTH_COMPARE_OP;
-        }
-        if (!test_dynamic) {
-            bool on = info->pDepthStencilState && info->pDepthStencilState->depthTestEnable;
-            fixed |= STATIC_DEPTH_TEST | (on ? STATIC_DEPTH_TEST_ON : 0);
-        }
-        if (!op_dynamic)
-            fixed |= STATIC_DEPTH_OP;
-    }
     pthread_mutex_lock(&dev->lock);
-    if (fixed != STATIC_DEPTH_KEPT)
+    uintptr_t fixed = resolve_static_depth(dev, info);
+    if (fixed)
         map_put(&dev->depth_pipelines, HANDLE(pipeline), (void *)fixed);
     else
         map_remove(&dev->depth_pipelines, HANDLE(pipeline));

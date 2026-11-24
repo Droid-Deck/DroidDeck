@@ -536,7 +536,7 @@ static VkPipeline create_depth_pipeline(VkDevice device, const void *next,
     return pipeline;
 }
 
-/* Pipelines that make only one of the two depth states dynamic. */
+/* Pipelines that make only one of the two depth states dynamic, built directly or from libraries. */
 static void test_depth_static_pipeline_state(void)
 {
     VkDevice device;
@@ -559,12 +559,30 @@ static void test_depth_static_pipeline_state(void)
                                                    .depthCompareOp = VK_COMPARE_OP_LESS};
     VkPipeline static_op = create_depth_pipeline(device, NULL, &depth, test_only, 1);
     VkPipeline static_off = create_depth_pipeline(device, NULL, &depth, op_only, 1);
+    VkPipeline all_static_off = create_depth_pipeline(device, NULL, &depth, NULL, 0);
     depth.depthTestEnable = VK_TRUE;
     VkPipeline static_on = create_depth_pipeline(device, NULL, &depth, op_only, 1);
     VkPipeline dynamic = create_depth_pipeline(device, NULL, &depth, both, 2);
-    VkPipelineLibraryCreateInfoKHR libraries = {.sType = VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR};
-    VkPipeline linked = create_depth_pipeline(device, &libraries, &depth, NULL, 0);
-    assert(dev->depth_pipelines.count == 3);
+
+    /* A linked pipeline takes the depth state of the library with the fragment shader state. */
+    VkGraphicsPipelineLibraryCreateInfoEXT vertex_subset = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT,
+                                                            NULL, VK_GRAPHICS_PIPELINE_LIBRARY_VERTEX_INPUT_INTERFACE_BIT_EXT};
+    VkGraphicsPipelineLibraryCreateInfoEXT fragment_subset = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT,
+                                                              NULL, VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT};
+    VkPipeline vertex_library = create_depth_pipeline(device, &vertex_subset, NULL, NULL, 0);
+    VkPipeline static_library = create_depth_pipeline(device, &fragment_subset, &depth, NULL, 0);
+    VkPipeline dynamic_library = create_depth_pipeline(device, &fragment_subset, &depth, both, 2);
+    VkPipeline libraries[] = {vertex_library, static_library};
+    VkPipelineLibraryCreateInfoKHR link = {VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR, NULL, 2, libraries};
+    VkPipeline linked_static = create_depth_pipeline(device, &link, NULL, NULL, 0);
+    libraries[1] = dynamic_library;
+    VkPipeline linked_dynamic = create_depth_pipeline(device, &link, NULL, NULL, 0);
+    link.libraryCount = 1;
+    VkPipeline linked_unknown = create_depth_pipeline(device, &link, NULL, NULL, 0);
+    assert(dev->depth_pipelines.count == 9);
+    assert(map_get(&dev->depth_pipelines, (uint64_t)(uintptr_t)linked_static) ==
+           map_get(&dev->depth_pipelines, (uint64_t)(uintptr_t)static_library));
+    assert(!map_get(&dev->depth_pipelines, (uint64_t)(uintptr_t)linked_unknown));
 
     VkCommandBuffer cmd = (VkCommandBuffer)&mock_command_buffer;
     VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
@@ -610,7 +628,23 @@ static void test_depth_static_pipeline_state(void)
     set_op(cmd, VK_COMPARE_OP_LESS);
     assert(driver_depth_op == VK_COMPARE_OP_ALWAYS);
 
-    VkPipeline pipelines[] = {static_op, static_off, static_on, dynamic, linked};
+    /* After a pipeline that fixes both states with the test off: a linked pipeline that fixes them
+     * as well gets no op, nor does one whose depth state is unknown. One with both dynamic gets
+     * ALWAYS like any other. */
+    assert(begin(cmd, &begin_info) == VK_SUCCESS);
+    bind(cmd, graphics, all_static_off);
+    driver_depth_op_calls = 0;
+    bind(cmd, graphics, linked_static);
+    bind(cmd, graphics, all_static_off);
+    bind(cmd, graphics, linked_unknown);
+    assert(driver_depth_op_calls == 0);
+    bind(cmd, graphics, all_static_off);
+    bind(cmd, graphics, linked_dynamic);
+    assert(driver_depth_op_calls == 1 && driver_depth_op == VK_COMPARE_OP_ALWAYS);
+
+    VkPipeline pipelines[] = {static_op,      static_off,      all_static_off, static_on,      dynamic,
+                              vertex_library, static_library,  dynamic_library, linked_static, linked_dynamic,
+                              linked_unknown};
     for (size_t i = 0; i < sizeof(pipelines) / sizeof(pipelines[0]); i++)
         destroy(device, pipelines[i], NULL);
     assert(dev->depth_pipelines.count == 0);

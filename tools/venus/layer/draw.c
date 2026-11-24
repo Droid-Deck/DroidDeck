@@ -501,7 +501,7 @@ void depth_state_forget(struct device *dev, VkCommandBuffer cmd)
 /*
  * Binding a pipeline sets what it fixes: its test enable, and its op in place of any dynamic one.
  * A dynamic op stays, so the driver gets ALWAYS or the application's op again when the bind
- * changed which of the two it needs.
+ * changed which of the two it needs. Nothing is sent for a pipeline whose depth state is unknown.
  */
 VKAPI_ATTR void VKAPI_CALL CmdBindPipeline(VkCommandBuffer cmd, VkPipelineBindPoint point, VkPipeline pipeline)
 {
@@ -518,7 +518,7 @@ VKAPI_ATTR void VKAPI_CALL CmdBindPipeline(VkCommandBuffer cmd, VkPipelineBindPo
         state = (state & ~(uintptr_t)(DEPTH_OP | DEPTH_SENT)) | DEPTH_STATIC_OP;
     bool off = (state & DEPTH_KNOWN) && !(state & DEPTH_ON);
     VkCompareOp op = off ? VK_COMPARE_OP_ALWAYS : depth_op(state, DEPTH_OP_SHIFT);
-    bool send = !(state & DEPTH_STATIC_OP) && (off || (state & DEPTH_OP)) &&
+    bool send = fixed && !(state & DEPTH_STATIC_OP) && (off || (state & DEPTH_OP)) &&
                 (!(state & DEPTH_SENT) || depth_op(state, DEPTH_SENT_SHIFT) != op);
     if (send)
         state = with_depth_op(state, DEPTH_SENT, DEPTH_SENT_SHIFT, op);

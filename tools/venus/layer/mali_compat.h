@@ -36,9 +36,10 @@ enum gap {
     GAP_DEPTH_OP = 1u << 10,
 };
 
-/* What a graphics pipeline fixes of the depth test (pipeline.c), kept for pipelines that fix either part. */
+/* What a graphics pipeline fixes of the depth test (pipeline.c), kept for every pipeline whose
+ * fragment shader state is known, its own or a library's. */
 enum static_depth {
-    STATIC_DEPTH_KEPT = 1,
+    STATIC_DEPTH_KNOWN = 1,
     STATIC_DEPTH_TEST = 2,    /* depthTestEnable is static, */
     STATIC_DEPTH_TEST_ON = 4, /* and on */
     STATIC_DEPTH_OP = 8,      /* depthCompareOp is static */
