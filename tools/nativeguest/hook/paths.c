@@ -755,11 +755,6 @@ static size_t append_rootfs_lib_dirs_missing_from(char *out, size_t outsz, size_
     return used;
 }
 
-// All of them.
-static size_t append_rootfs_lib_dirs(char *out, size_t outsz, size_t used, int separate) {
-    return append_rootfs_lib_dirs_missing_from(out, outsz, used, separate, NULL);
-}
-
 #ifndef DDNATV_HOST_TEST
 // Relative *at() calls. A program that walks a path one component at a time (systemd's chase(), used
 // by libudev; fts) opens "/" and then "sys", "class", ... relative to the last descriptor, and those

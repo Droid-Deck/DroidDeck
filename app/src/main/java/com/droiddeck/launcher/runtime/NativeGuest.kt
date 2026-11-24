@@ -76,7 +76,6 @@ object NativeGuest {
     fun environment(root: File, preload: List<String> = emptyList()): Map<String, String> = linkedMapOf(
         "DDNATV_ROOT" to root.path,
         "DDNATV_EXEC" to execLoader.orEmpty(),
-        "LD_LIBRARY_PATH" to libraryPath(root),
         "LD_PRELOAD" to (preload.map { File(root, it.removePrefix("/")).path } + hook(root).path).joinToString(":"),
     ).filterValues { it.isNotEmpty() }
 
@@ -87,7 +86,7 @@ object NativeGuest {
     fun command(root: File, program: String, args: List<String>): List<String> {
         val loader = checkNotNull(loader(root)) { "no glibc loader in ${root.path}" }
         val host = File(root, program.removePrefix("/"))
-        val launch = listOf(loader.path, "--argv0", host.name, host.path) + args
+        val launch = listOf(loader.path, "--library-path", libraryPath(root), "--argv0", host.name, host.path) + args
         return simulator(root)?.let { it + launch } ?: (execPrefix(loader.path) + launch)
     }
 
@@ -100,7 +99,6 @@ object NativeGuest {
             "DDNATV_HOSTNAME" to hostname.orEmpty(),
             "DDNATV_BINDS" to binds.joinToString("|") { if (it.contains(':')) it else "$it:$it" },
             "DDNATV_PRELOAD" to preload.joinToString(":"),
-            "LD_LIBRARY_PATH" to libraryPath(root),
             "LD_PRELOAD" to (preload.map { File(root, it.removePrefix("/")).path } + hook(root).path).joinToString(":"),
         ).filterValues { it.isNotEmpty() }
     }

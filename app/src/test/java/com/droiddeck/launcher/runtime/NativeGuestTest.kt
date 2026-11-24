@@ -44,7 +44,8 @@ class NativeGuestTest {
         val root = rootWithLoader()
         val command = NativeGuest.command(root, "/usr/bin/env", listOf("-i", "A=1"))
         assertEquals(File(root, "usr/lib/ld-linux-aarch64.so.1").path, command[0])
-        assertEquals(listOf("--argv0", "env", File(root, "usr/bin/env").path, "-i", "A=1"), command.drop(1))
+        assertEquals(listOf("--library-path", NativeGuest.libraryPath(root), "--argv0", "env", File(root, "usr/bin/env").path, "-i", "A=1"), command.drop(1))
+        assertTrue("LD_LIBRARY_PATH" !in NativeGuest.environment(root))
     }
 
     @Test
@@ -53,6 +54,7 @@ class NativeGuestTest {
         val env = NativeGuest.sessionEnvironment(root, listOf("/dev", "/a:/b"))
         assertEquals("/dev:/dev|/a:/b", env["DDNATV_BINDS"])
         assertEquals(root.path, env["DDNATV_ROOT"])
+        assertTrue("LD_LIBRARY_PATH" !in env)
         assertTrue(env.getValue("LD_PRELOAD").replace(File.separatorChar, '/').endsWith("usr/lib/libddnatv-hook.so"))
     }
 
