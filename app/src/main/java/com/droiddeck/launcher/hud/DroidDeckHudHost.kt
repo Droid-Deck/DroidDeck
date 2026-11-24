@@ -95,6 +95,10 @@ class DroidDeckHudHost(context: Context) {
             lastCompositorFrameNanos = System.nanoTime()
             feed.onCompositorFrame(lastCompositorFrameNanos)
         }
+
+        override fun onCompositorFrame() {
+            feed.onCompositorFrame(System.nanoTime())
+        }
     }
 
     private val frameCallback = object : Choreographer.FrameCallback {

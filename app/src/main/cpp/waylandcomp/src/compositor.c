@@ -894,6 +894,7 @@ int droiddeck_hud_frame_times(float *out, int len, int64_t *total) {
 static uint64_t g_game_frames;
 extern void droiddeck_on_game_surface(const char *window, const char *gpu);
 extern void droiddeck_on_game_frame(void);
+extern void droiddeck_on_compositor_frame(void);
 extern void droiddeck_on_content_rate(int fps);
 static int64_t g_cadence_ns;
 static int64_t g_cadence_frames;
@@ -951,6 +952,8 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
             g_hud_new = 1;
         }
     }
+    /* Statistics-only callback: never classifies an SHM surface as a game. */
+    if (s == g_hud_shm) droiddeck_on_compositor_frame();
 }
 
 static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resource *buffer) {
