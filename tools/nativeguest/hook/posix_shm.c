@@ -39,6 +39,18 @@ struct posix_sem {
 };
 static struct posix_sem *g_posix_sems;
 static pthread_mutex_t g_posix_sems_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_once_t g_posix_sems_once = PTHREAD_ONCE_INIT;
+
+static void posix_sems_unlock(void) { pthread_mutex_unlock(&g_posix_sems_lock); }
+
+static void posix_sems_hold(void) { pthread_mutex_lock(&g_posix_sems_lock); }
+
+static void posix_sems_across_fork(void) { pthread_atfork(posix_sems_hold, posix_sems_unlock, posix_sems_unlock); }
+
+static void posix_sems_lock(void) {
+    pthread_once(&g_posix_sems_once, posix_sems_across_fork);
+    posix_sems_hold();
+}
 
 static void close_keeping_errno(int fd) {
     int saved = errno;
@@ -50,7 +62,7 @@ static sem_t *posix_sem_map(int fd) {
     struct stat st;
     if (fstat(fd, &st) < 0) return SEM_FAILED;
     sem_t *sem = SEM_FAILED;
-    pthread_mutex_lock(&g_posix_sems_lock);
+    posix_sems_lock();
     struct posix_sem *e = g_posix_sems;
     while (e && (e->dev != st.st_dev || e->ino != st.st_ino)) e = e->next;
     if (e) {
@@ -68,7 +80,7 @@ static sem_t *posix_sem_map(int fd) {
             errno = ENOMEM;
         }
     }
-    pthread_mutex_unlock(&g_posix_sems_lock);
+    posix_sems_unlock();
     return sem;
 }
 
@@ -118,7 +130,7 @@ sem_t *sem_open(const char *name, int oflag, ...) {
 }
 
 int sem_close(sem_t *sem) {
-    pthread_mutex_lock(&g_posix_sems_lock);
+    posix_sems_lock();
     struct posix_sem **link = &g_posix_sems;
     while (*link && (*link)->addr != sem) link = &(*link)->next;
     struct posix_sem *e = *link;
@@ -127,7 +139,7 @@ int sem_close(sem_t *sem) {
         munmap(e->addr, sizeof(sem_t));
         free(e);
     }
-    pthread_mutex_unlock(&g_posix_sems_lock);
+    posix_sems_unlock();
     if (!e) { errno = EINVAL; return -1; }
     return 0;
 }

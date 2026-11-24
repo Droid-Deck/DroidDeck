@@ -50,6 +50,48 @@ KEEP = r"""
 int main(int argc, char **argv) { return sem_open(argv[1], O_CREAT | O_EXCL, 0640, 3) == SEM_FAILED; }
 """
 
+FORKER = r"""
+#include <fcntl.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <stdio.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+static const char *name;
+static volatile int done;
+
+static void *churn(void *arg) {
+  while (!done) {
+    sem_t *sem = sem_open(name, O_CREAT, 0600, 0);
+    if (sem != SEM_FAILED) sem_close(sem);
+  }
+  return arg;
+}
+
+int main(int argc, char **argv) {
+  name = argv[1];
+  pthread_t thread;
+  pthread_create(&thread, NULL, churn, NULL);
+  int finished = 0;
+  for (int i = 0; i < 200; i++) {
+    pid_t pid = fork();
+    if (pid == 0) {
+      alarm(10);
+      sem_t *sem = sem_open(name, O_CREAT, 0600, 0);
+      _exit(sem == SEM_FAILED || sem_close(sem) != 0);
+    }
+    int status;
+    if (waitpid(pid, &status, 0) == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0) finished++;
+  }
+  done = 1;
+  pthread_join(thread, NULL);
+  sem_unlink(name);
+  printf("finished\t%d\n", finished);
+  return 0;
+}
+"""
+
 CALLS = ("create", "exclusive", "existing", "too-large", "wait", "shared", "close", "unlink", "gone")
 
 
@@ -90,6 +132,13 @@ class NativeHookNamedSemaphoresTest(unittest.TestCase):
         self.assertEqual({call: "1" for call in CALLS}, self.run_hooked(self.probe, name))
         self.assertFalse(Path(f"/dev/shm/sem.{name[1:]}").exists())
         self.assertEqual([], list(self.shm.iterdir()))
+
+    def test_a_child_forked_while_another_thread_opens_a_semaphore_can_open_one(self):
+        source = self.probe.with_name("forker.c")
+        source.write_text(FORKER)
+        forker = self.probe.with_name("forker")
+        subprocess.run([self.cc, "-O1", "-pthread", "-o", str(forker), str(source)], check=True)
+        self.assertEqual({"finished": "200"}, self.run_hooked(forker, f"/ddsem-fork-{os.getpid()}"))
 
     def test_a_created_semaphore_keeps_its_name_and_mode(self):
         name = f"ddsem-kept-{os.getpid()}"
