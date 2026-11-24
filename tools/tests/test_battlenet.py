@@ -6,7 +6,6 @@ import re
 import runpy
 import shutil
 import tempfile
-import threading
 import time
 import unittest
 from unittest import mock
@@ -103,8 +102,6 @@ class IdTest(unittest.TestCase):
         self.assertEqual(int(BNET["APP_ID"]), zlib.crc32(b'"droiddeck-battlenet"Battle.net') | 0x80000000)
         found = re.search(r"const val APP_ID = (\d+)L", KOTLIN.read_text())
         self.assertEqual(found.group(1), BNET["APP_ID"])
-        for name in ("FEX_REQUEST", "FEX_RESULT"):
-            self.assertIn('const val %s = "%s"' % (name, BNET[name]), KOTLIN.read_text())
 
 
 class ProtonRunOptionsTest(Temp):
@@ -771,36 +768,6 @@ class TidyTest(unittest.TestCase):
         self.assertEqual(self.stopped, [])
 
 
-class FexRequestTest(Temp):
-    def answer(self, text, delay=0.2):
-        def respond():
-            request = self.tmp / BNET["FEX_REQUEST"]
-            deadline = time.monotonic() + 5
-            while not request.exists() and time.monotonic() < deadline:
-                time.sleep(0.02)
-            self.requested = request.read_text()
-            request.unlink()
-            time.sleep(delay)
-            (self.tmp / (BNET["FEX_RESULT"] + ".tmp")).write_text(text + "\n")
-            os.replace(self.tmp / (BNET["FEX_RESULT"] + ".tmp"), self.tmp / BNET["FEX_RESULT"])
-        thread = threading.Thread(target=respond)
-        thread.start()
-        self.addCleanup(thread.join)
-
-    def test_the_apps_answer_comes_back(self):
-        (self.tmp / BNET["FEX_RESULT"]).write_text("ok an-old-answer\n")
-        self.answer("ok FEXCore-2610-d2rfix28-linux.wcp")
-        self.assertEqual(BNET["ask_fex"](str(self.tmp), wait=5), "ok FEXCore-2610-d2rfix28-linux.wcp")
-        self.assertEqual(self.requested, "appid=%s\n" % BNET["APP_ID"])
-        self.assertFalse((self.tmp / BNET["FEX_RESULT"]).exists())
-
-    def test_no_answer_or_no_session_starts_without_one(self):
-        with mock.patch.dict(BNET, {"say": lambda message: None}):
-            self.assertIsNone(BNET["ask_fex"](str(self.tmp), wait=0.3))
-            self.assertIsNone(BNET["ask_fex"](None))
-            self.assertIsNone(BNET["ask_fex"](str(self.tmp / "gone")))
-
-
 class OpenTest(Temp):
     def setUp(self):
         super().setUp()
@@ -809,7 +776,6 @@ class OpenTest(Temp):
         self.alive = []
         self.menu = self.tmp / "droiddeck-battlenet.desktop"
         patcher = mock.patch.dict(BNET, {
-            "ask_fex": lambda launch_dir, wait=0: "ok fex.wcp",
             "say": lambda message: None, "notify": lambda *a, **k: self.calls.append(("notify", a[0])),
             "wine_processes": lambda pfx, proc="/proc": list(self.alive),
             "stop": lambda processes, wait=0: self.calls.append(("stop", [pid for pid, _ in processes])) or self.alive.clear(),
@@ -998,7 +964,6 @@ class Harness(Temp):
         self.states = []
         self.last = []
         patcher = mock.patch.dict(BNET, {
-            "ask_fex": lambda launch_dir, wait=0: self.calls.append(("fex",)) or "ok fex.wcp",
             "say": lambda message: None, "notify": lambda *a, **k: self.calls.append(("notify", a[0])),
             "wine_processes": self.processes,
             "stop": lambda processes, wait=0: self.calls.append(("stop", sorted(pid for pid, _ in processes))),
@@ -1029,7 +994,7 @@ class LaunchTest(Harness):
         self.states = [[], [], up, up + [(40, self.GAME)], up, up]
         self.assertEqual(BNET["launch"](self.root, "Fen"), 0)
         self.assertEqual(self.calls, [
-            ("fex",), ("start", "Battle.net Launcher.exe", None),
+            ("start", "Battle.net Launcher.exe", None),
             ("spawn", "Battle.net.exe", "run", ["--exec=launch Fen"]),
             ("stop", [10, 11, 12, 13, 14, 30]),
         ])
@@ -1044,7 +1009,7 @@ class LaunchTest(Harness):
         with mock.patch.dict(BNET, {"GAME_SETTLE": 0}):
             self.assertEqual(BNET["launch"](self.root, "Fen"), 0)
         self.assertEqual(self.calls, [
-            ("fex",), ("start", "Battle.net Launcher.exe", None),
+            ("start", "Battle.net Launcher.exe", None),
             ("spawn", "Battle.net.exe", "run", ["--exec=launch Fen"]),
             ("stop", [10, 11, 12, 13, 14, 30]),
             ("stop", [50]),
@@ -1458,7 +1423,8 @@ class AgentJobTest(Harness):
         self.assertEqual(code, 0)
         self.assertTrue(os.path.isdir(folder))
         cmd = self.started[0]
-        self.assertEqual(cmd[:6], ["gamescope", "--backend", "headless", "-w", "640", "-h"])
+        self.assertEqual(cmd[:4], ["/usr/local/bin/droiddeck-headless", str(self.tmp / "cache" / "agent-runtime"), "--log",
+                                   str(self.tmp / "cache" / "agent.log")])
         self.assertEqual(cmd[cmd.index("--") + 2:-1], ["agent-serve", "install", "gryphon", "gryphon", "Z:" + folder, "enUS", "USA", "US"])
         self.assertEqual([kind for kind, _ in self.lines], ["STATE", "PROGRESS", "DONE"])
         self.assertEqual(json.loads(self.lines[-1][1]), {"install_dir": "Z:" + folder, "exe": "WarcraftRumble.exe", "version": "16.1.2.119725"})
@@ -1686,16 +1652,6 @@ class AgentJobTest(Harness):
         path.write_bytes(json.dumps({"state": 1004}).encode("utf-8"))
         self.assertEqual(BNET["read_status"](str(path)), {"state": 1004})
 
-    def test_a_large_agent_log_is_rotated_before_a_job(self):
-        self.install()
-        os.makedirs(self.tmp / "cache")
-        log = self.tmp / "cache" / "agent.log"
-        log.write_bytes(b"x" * (BNET["AGENT_LOG_LIMIT"] + 1))
-        self.files = {".game": json.dumps({"installed": False})}
-        BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0)
-        self.assertEqual((self.tmp / "cache" / "agent.log.1").stat().st_size, BNET["AGENT_LOG_LIMIT"] + 1)
-        self.assertEqual(log.stat().st_size, 0)
-
     def test_it_queues_behind_another_battle_net_job(self):
         self.install()
         self.files = {".game": json.dumps({"installed": False})}
@@ -1726,13 +1682,11 @@ class AgentJobTest(Harness):
         self.assertEqual(self.lines[0], ("STATE", "waiting"))
         self.assertEqual(self.lines[1], ("STATE", "starting"))
 
-    def test_gamescope_gets_no_display_but_the_agent_keeps_the_one_gamescope_gives_it(self):
+    def test_the_agent_keeps_the_display_gamescope_gives_it_and_launches_through_the_shared_headless_helper(self):
         self.install()
-        os.environ.update(DISPLAY=":5", WAYLAND_DISPLAY="wayland-1")
         self.files = {".game": json.dumps({"installed": False})}
         BNET["agent_job"](self.root, "uninstall", "gryphon", poll=0)
-        self.assertNotIn("DISPLAY", self.envs[0])
-        self.assertNotIn("WAYLAND_DISPLAY", self.envs[0])
+        self.assertEqual(self.started[0][0], BNET["HEADLESS"])
         self.assertEqual(self.envs[0]["PROTON_USE_XALIA"], "0")
         os.environ["DISPLAY"] = ":0"
         self.assertEqual(BNET["agent_env"]()["DISPLAY"], ":0")

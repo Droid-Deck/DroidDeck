@@ -1,0 +1,67 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+index d7d11b3..cfec551 100644
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -7188,6 +7188,19 @@ init_runtime_info()
+ 	update_runtime_info();
+ }
+ 
++static uint64_t limiter_latch_target( uint64_t ulPreviousTarget, uint64_t ulLatched, uint64_t ulLimitedCycle, uint64_t ulRefreshCycle )
++{
++	const uint64_t ulTarget = ulPreviousTarget + ulLimitedCycle;
++	const bool bLate = ulTarget + ulRefreshCycle * 3 / 4 < ulLatched;
++	const bool bEarly = ulTarget > ulLatched + ulRefreshCycle;
++	return ( bLate || bEarly ) ? ulLatched : ulTarget;
++}
++
++static bool limiter_holds_vblank( uint64_t ulTarget, uint64_t ulNow, uint64_t ulLimitedCycle, uint64_t ulRefreshCycle )
++{
++	return ulNow + ulRefreshCycle / 2 < ulTarget + ulLimitedCycle;
++}
++
+ static void
+ steamcompmgr_flush_frame_done( steamcompmgr_win_t *w )
+ {
+@@ -7206,6 +7219,9 @@ steamcompmgr_flush_frame_done( steamcompmgr_win_t *w )
+ 
+ 		w->last_commit_first_latch_time = timespec_to_nanos(now);
+ 
++		w->limiter_latch_target_time = limiter_latch_target( w->limiter_latch_target_time, w->last_commit_first_latch_time,
++			g_SteamCompMgrLimitedAppRefreshCycle, g_SteamCompMgrAppRefreshCycle );
++
+ 		// Acknowledge commit once.
+ 		wlserver_lock();
+ 
+@@ -7258,8 +7274,7 @@ static bool steamcompmgr_should_vblank_window( bool bShouldLimitFPS, uint64_t vb
+ 		{
+ 			if ( w && now )
+ 			{
+-				uint64_t schedule = w->last_commit_first_latch_time + g_SteamCompMgrLimitedAppRefreshCycle;
+-				if ( now + g_SteamCompMgrAppRefreshCycle / 2 < schedule )
++				if ( limiter_holds_vblank( w->limiter_latch_target_time, now, g_SteamCompMgrLimitedAppRefreshCycle, g_SteamCompMgrAppRefreshCycle ) )
+ 					bSendCallback = false;
+ 			}
+ 			else
+@@ -11047,9 +11062,7 @@ steamcompmgr_main(int argc, char **argv)
+ 				}
+ 				else
+ 				{
+-					int nVblankDivisor = nRealRefreshHz / nTargetFPS;
+-
+-					g_SteamCompMgrLimitedAppRefreshCycle = g_SteamCompMgrAppRefreshCycle * nVblankDivisor;
++					g_SteamCompMgrLimitedAppRefreshCycle = g_SteamCompMgrAppRefreshCycle * nRealRefreshHz / nTargetFPS;
+ 				}
+ 			}
+ 		}
+diff --git a/src/steamcompmgr_shared.hpp b/src/steamcompmgr_shared.hpp
+index 0fcc80b..3c74d62 100644
+--- a/src/steamcompmgr_shared.hpp
++++ b/src/steamcompmgr_shared.hpp
+@@ -146,6 +146,7 @@ struct steamcompmgr_win_t {
+ 	bool outdatedInteractiveFocus = false;
+ 
+ 	uint64_t last_commit_first_latch_time = 0;
++	uint64_t limiter_latch_target_time = 0;
+ 	uint64_t last_commit_present_time = 0;
+ 
+ 	bool hasHwndStyle = false;

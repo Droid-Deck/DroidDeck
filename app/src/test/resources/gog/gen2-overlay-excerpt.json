@@ -1,0 +1,58 @@
+{
+  "base": [
+    {
+      "path": "gog.dat",
+      "chunks": [
+        {
+          "md5": "63b62221caca352670bec591f0e4ed7a",
+          "size": 65664,
+          "compressedMd5": "c5695c2838aa020b028334cda81c89e6",
+          "compressedSize": 34046
+        }
+      ],
+      "type": "DepotFile"
+    },
+    {
+      "path": "gog.idx",
+      "chunks": [
+        {
+          "md5": "0a1f9d90b61039cb3f4f2952f47aeea7",
+          "size": 28,
+          "compressedMd5": "7a7f3c3d18c10a3890426ed3f11f6220",
+          "compressedSize": 24
+        }
+      ],
+      "type": "DepotFile",
+      "sfcRef": {
+        "offset": 11,
+        "size": 28
+      }
+    }
+  ],
+  "dlc": [
+    {
+      "path": "gog.dat",
+      "chunks": [
+        {
+          "md5": "dac36aea47f5de743d0e0ca10c79ad58",
+          "size": 16777344,
+          "compressedMd5": "a27cd9af6e5183a6392c25c973fc367c",
+          "compressedSize": 3992002
+        }
+      ],
+      "type": "DepotFile"
+    },
+    {
+      "path": "gog.idx",
+      "chunks": [
+        {
+          "md5": "ae818b813bd3585c47846cf1e288b2e5",
+          "size": 28,
+          "compressedMd5": "869fd5dd8c9ad554ca8bccb0317a9757",
+          "compressedSize": 26
+        }
+      ],
+      "type": "DepotFile"
+    }
+  ]
+}

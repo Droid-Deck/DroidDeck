@@ -46,8 +46,11 @@ internal class InputLayoutPreviewView(context: Context) : View(context) {
     private var sourceHeight = 563
     fun update(layout: SavedInputLayout, role: InputRole) {
         sourceHeight = if (role == InputRole.PRIMARY) 563 else 870
-        renderer.updateCustomLayout(layout.elements)
-        renderer.updateStyle(layout.style.copy(opacity = 100))
+        val primary = role == InputRole.PRIMARY
+        val artwork = if (primary) PadKit.forOverlay(context, layout) else null
+        val elements = if (artwork != null) OnScreenLayout.editorElements(context, layout, 1000, sourceHeight) else layout.elements
+        renderer.updateCustomLayout(elements)
+        renderer.updateStyle(layout.style.copy(opacity = 100), artwork)
         renderer.measure(MeasureSpec.makeMeasureSpec(1000, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(sourceHeight, MeasureSpec.EXACTLY))
         renderer.layout(0, 0, 1000, sourceHeight)
         contentDescription = layout.name

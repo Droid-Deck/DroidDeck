@@ -311,6 +311,7 @@ internal fun AppDialog(
     width: Dp? = null, fitContent: Boolean = false,
     back: (() -> Unit)? = null,
     scrollable: Boolean = true,
+    fillHeight: Boolean = false,
     scrollState: androidx.compose.foundation.ScrollState = rememberScrollState(),
     side: (@Composable () -> Unit)? = null,
     sideRoom: Dp = 0.dp,
@@ -348,6 +349,7 @@ internal fun AppDialog(
                             },
                         )
                         .heightIn(max = (LocalConfiguration.current.screenHeightDp - 24).dp)
+                        .then(if (fillHeight) Modifier.fillMaxHeight() else Modifier)
                         .shadow(24.dp, Shape16, ambientColor = Color.Black, spotColor = Color.Black)
                         .clip(Shape16)
                         .background(pal.surfaceVariant.copy(alpha = 0.97f))
@@ -358,7 +360,7 @@ internal fun AppDialog(
                         .then(if (scrollable) Modifier.verticalScroll(scrollState) else Modifier)
                         .padding(horizontal = 18.dp, vertical = 16.dp),
                 ) {
-                    content()
+                    androidx.compose.runtime.CompositionLocalProvider(LocalRevealChecked provides true) { content() }
                     if (side != null && !beside) side()
                 }
             }

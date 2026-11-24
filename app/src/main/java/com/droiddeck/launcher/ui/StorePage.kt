@@ -533,7 +533,7 @@ private fun AppCard(app: CardApp, size: Dp, first: Boolean, cards: HashMap<Strin
     Column(
         Modifier.width(size).paneItem("tile:store:${app.id}").then(if (first) Modifier.firstTile() else Modifier)
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(shape).background(if (hot) pal.signal.copy(alpha = 0.10f) else colors.surface)
+            .clip(shape).background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.10f)) else Modifier)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)

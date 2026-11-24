@@ -48,20 +48,14 @@ class SecondScreenProfileMigrationTest {
         SessionState.deckPad = previousDeckPad
     }
 
-    @Test fun firstOpeningKeepsTheLibraryAndOpensTheTrackpadOnDesktopAndTheControllerPanelInGames() {
+    @Test fun firstOpeningKeepsTheLibraryAndOpensTheMenuOverTheTrackpad() {
         for (desktop in listOf(false, true)) for (deckPad in listOf(false, true)) {
             val original = customLibrary(desktop)
             open(desktop, deckPad)
             assertEquals(original, InputLibraries.read(activity))
             assertNull(SessionPrefs.secondScreenPanel(activity, desktop))
-            val dashboard = ReflectionHelpers.callInstanceMethod<List<*>>(activity, "bottomPages").isNotEmpty()
-            val expected = when {
-                desktop -> SecondScreenMode.KEYBOARD_TRACKPAD
-                deckPad -> SecondScreenMode.DECK_CONTROLS
-                dashboard -> SecondScreenMode.DASHBOARD
-                else -> SecondScreenMode.KEYBOARD_TRACKPAD
-            }
-            assertEquals(expected, SessionState.secondScreenMode)
+            assertEquals(SecondScreenMode.MENU, ReflectionHelpers.callInstanceMethod<SecondScreenMode>(activity, "openingPanel"))
+            assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SessionState.secondScreenMode)
         }
     }
 
@@ -107,12 +101,20 @@ class SecondScreenProfileMigrationTest {
             customLibrary(desktop)
             SessionState.deckPad = false
             show(SecondScreenMode.DECK_CONTROLS)
-            val fallback = ReflectionHelpers.callInstanceMethod<SecondScreenMode>(activity, "openingPanel")
-            assertNotEquals(SecondScreenMode.DECK_CONTROLS, fallback)
-            if (desktop) assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, fallback)
+            val fallback = ReflectionHelpers.callInstanceMethod<SecondScreenMode>(activity, "openingSurface")
+            assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, fallback)
             assertEquals(fallback, SessionState.secondScreenMode)
             assertNotEquals(InputLibraries.DECK, routedLayout()?.id)
         }
+    }
+
+    @Test fun pickingAnotherModeClearsTheMenuRestoreLeftByATeardown() {
+        customLibrary(desktop = false)
+        SessionState.bottomMenu = true
+        ReflectionHelpers.callInstanceMethod<Unit>(activity, "pickSecondScreenMode",
+            ReflectionHelpers.ClassParameter.from(SecondScreenMode::class.java, SecondScreenMode.KEYBOARD_TRACKPAD))
+        assertFalse(SessionState.bottomMenu)
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD.id, SessionPrefs.secondScreenPanel(activity, false))
     }
 
     private fun customLibrary(desktop: Boolean): InputLibrary {
