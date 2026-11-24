@@ -25,6 +25,9 @@ object ProtonExtras {
     var installInProgress = false
     @Volatile var prefetching = false
         private set
+    @Volatile private var checkedArchive: Triple<String, Long, Long>? = null
+
+    private fun fingerprint(archive: File) = Triple(archive.path, archive.length(), archive.lastModified())
     @Volatile
     private var replacing = false
 
@@ -259,7 +262,9 @@ object ProtonExtras {
         if (asset.size > 0 && archive.length() > asset.size) archive.delete()
         val missing = (asset.size - archive.length()).coerceAtLeast(0L)
         if (StatFs(context.filesDir.path).availableBytes < NEED_BYTES + missing) return context.getString(R.string.pextra_no_space, tool.name)
-        return fetchArchive(context, tool, asset, archive, onProgress)
+        val problem = fetchArchive(context, tool, asset, archive, onProgress)
+        checkedArchive = if (problem == null && asset.sha256 != null && asset.size > 0 && archive.length() == asset.size) fingerprint(archive) else null
+        return problem
     }
 
     private fun installNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
@@ -275,7 +280,8 @@ object ProtonExtras {
             return context.getString(R.string.pextra_no_space, tool.name)
         }
 
-        fetchArchive(context, tool, asset, archive, onProgress)?.let { return it }
+        val checked = asset.sha256 != null && asset.size > 0 && checkedArchive == fingerprint(archive)
+        if (!checked) fetchArchive(context, tool, asset, archive, onProgress)?.let { return it }
         if (asset.size > 0 && archive.length() != asset.size) {
             if (archive.length() > asset.size) {
                 archive.delete()
@@ -286,6 +292,7 @@ object ProtonExtras {
 
         onProgress(context.getString(R.string.pextra_verifying), -1)
         val verified = when {
+            checked -> true
             asset.sha256 != null -> asset.sha256.equals(Hashes.sha256(archive), ignoreCase = true)
             asset.sha512 != null -> {
                 val expected = Downloader.downloadDirect(asset.sha512)?.let { Regex("(?i)\\b[0-9a-f]{128}\\b").find(it)?.value }

@@ -386,6 +386,19 @@ done(28 if end < len(data) else 0)
         self.assertFalse((package / 'a.zip.1111').exists())
         self.assertEqual('123456\n', (package / 'droiddeck-cached').read_text())
 
+    def test_an_applied_update_finishes_the_install_without_fetching_the_plain_packages_again(self):
+        self.real_cache_manifest()
+        result = self.install(None, '--cache', DD_STEAM_PREAPPLY=str(self.PREAPPLY))
+        self.assertEqual(0, result.returncode, result.stderr)
+        package = self.steam / 'package'
+        self.assertEqual('123456\n', (package / 'droiddeck-installed').read_text())
+        self.assertEqual('steamdeck_publicbeta\n', (package / 'beta').read_text())
+        self.assertEqual((self.steam / 'linuxarm64').resolve(), (self.home / '.steam/sdkarm64').resolve())
+        self.assertEqual(['steam_client_steamdeck_publicbeta_linuxarm64', 'a.zip.1111'], self.requested())
+        again = self.install(None)
+        self.assertEqual(0, again.returncode, again.stderr)
+        self.assertEqual(2, len(self.requested()))
+
     def test_a_cache_pass_that_cannot_apply_the_update_keeps_the_packages_for_steam(self):
         self.cache_manifest()
         result = self.install(None, '--cache', DD_STEAM_PREAPPLY=str(self.PREAPPLY))

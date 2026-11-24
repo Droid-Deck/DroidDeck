@@ -66,6 +66,7 @@ if [ -n "$repair" ]; then
   done
 fi
 cache_only=
+applied=
 [ "${1:-}" = --cache ] && cache_only=1
 sync=
 if [ "${1:-}" = --sync ]; then
@@ -367,8 +368,9 @@ if [ -n "$cache_only" ]; then
     cp -f "$work/manifest" "$cache/$manifest.manifest"
     chmod -R a+x "$steam_root/steamrtarm64" "$steam_root/linuxarm64" 2>/dev/null || true
     while read -r _ file _; do rm -f "$cache/$file"; done < "$work/cache"
+    [ -f "$stamp" ] || applied=1
   fi
-  exit 0
+  [ -n "$applied" ] || exit 0
 fi
 if [ -n "$sync" ]; then
   installed=$(awk -F'"' '$2 == "version" { print $4; exit }' "$steam_root/package/$manifest.manifest" 2>/dev/null || true)
@@ -378,6 +380,7 @@ if [ -n "$sync" ]; then
   fi
   echo "== STEP $(date -u +%H:%M:%S) updating the arm64 Steam client to $version (was ${installed:-none}) for the x86-64 client"
 fi
+if [ -z "$applied" ]; then
 total=$(grep -c . "$work/parts" 2>/dev/null || echo 0)
 total_bytes=$(awk '{ n += $4 } END { print n + 0 }' "$work/parts")
 
@@ -412,6 +415,7 @@ while read -r block file sum size; do
   rm -f "$parts/$file"
   done_bytes=$((done_bytes + size))
 done < "$work/parts"
+fi
 fi
 find "$steam_root" -depth -name '*\\*' | while read -r odd; do
   fixed=${odd//\\//}
