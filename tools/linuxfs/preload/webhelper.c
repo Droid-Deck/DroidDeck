@@ -58,6 +58,25 @@ static int beside_chrome_sandbox(const char *path) {
   return found;
 }
 
+static char *folder_of(const char *path) {
+  char *real = realpath(path, NULL);
+  char *slash = real ? strrchr(real, '/') : NULL;
+  if (slash) *slash = 0;
+  return real;
+}
+
+static int started_by_its_own_app(const char *path) {
+  char self[4096];
+  ssize_t n = readlink("/proc/self/exe", self, sizeof self - 1);
+  if (n <= 0) return 0;
+  self[n] = 0;
+  char *mine = folder_of(self), *theirs = folder_of(path);
+  int same = mine && theirs && !strcmp(mine, theirs) && beside_chrome_sandbox(self);
+  free(mine);
+  free(theirs);
+  return same;
+}
+
 static char *const *chromium_argv(const char *path, char *const argv[], char *const envp[]) {
   if (!path || !argv || !argv[0]) return argv;
   int argc = 0, sandbox = 1, ozone = 0;
@@ -69,7 +88,7 @@ static char *const *chromium_argv(const char *path, char *const argv[], char *co
   }
   const char *display = env_value(envp, "DISPLAY");
   int x11 = !ozone && display && *display;
-  if ((!sandbox && !x11) || !beside_chrome_sandbox(path)) return argv;
+  if ((!sandbox && !x11) || !beside_chrome_sandbox(path) || started_by_its_own_app(path)) return argv;
   char **out = calloc((size_t)argc + 3, sizeof *out);
   if (!out) return argv;
   int n = 0;
