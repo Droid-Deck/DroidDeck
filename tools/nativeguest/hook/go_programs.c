@@ -70,14 +70,20 @@ static int go_read_phdrs(int fd, struct go_ph *ph, uint16_t *etype, uint16_t *ma
 static const uint32_t k_go_syscall6[7] = {
     0xf94007e8u, 0xf9400be0u, 0xf9400fe1u, 0xf94013e2u, 0xf94017e3u, 0xf9401be4u, 0xf9401fe5u,
 };
+static const uint32_t k_go_raw_no_error[7] = {
+    0xf9400be0u, 0xf9400fe1u, 0xf94013e2u, 0xaa1f03e3u, 0xaa1f03e4u, 0xaa1f03e5u, 0xf94007e8u,
+};
 #define GO_SVC 0xd4000001u
 #define GO_CMN_X0_4095 0xb13ffc1fu
+#define GO_STR_X0_SP40 0xf90017e0u
+#define GO_THUNK_STRIDE 32u
+#define GO_QUIET_MAX 4
+_Static_assert(GO_THUNK_STRIDE * (GO_QUIET_MAX + 1) <= GOSYS_THUNK_BYTES, "the thunks fit");
 
 // Where Syscall6 makes its call: the file offset of the instruction after the seven loads (the
 // "svc #0", or the branch that replaced it). *found counts the places; the first is returned.
-static int64_t go_find_syscall6(int fd, const struct go_ph *ph, int n, int *found) {
-    int64_t first = -1;
-    *found = 0;
+static int go_find_calls(int fd, const struct go_ph *ph, int n, const uint32_t *code, uint32_t after, int64_t *at, int max) {
+    int found = 0;
     enum { CHUNK = 1 << 20, KEEP = 36 };
     unsigned char *buf = (unsigned char *)malloc(CHUNK + KEEP);
     if (!buf) return -1;
@@ -90,19 +96,19 @@ static int64_t go_find_syscall6(int fd, const struct go_ph *ph, int n, int *foun
             ssize_t got = pread(fd, buf, (size_t)want, (off_t)(ph[i].offset + pos));
             if (got <= KEEP) break;
             for (ssize_t o = 0; o + 36 <= got; o += 4) {
-                if (rd32(buf + o) != k_go_syscall6[0]) continue;
+                if (rd32(buf + o) != code[0]) continue;
                 int same = 1;
-                for (int k = 1; k < 7 && same; k++) same = rd32(buf + o + 4 * k) == k_go_syscall6[k];
-                if (!same || rd32(buf + o + 32) != GO_CMN_X0_4095) continue;
-                if (*found == 0) first = (int64_t)(ph[i].offset + pos + (uint64_t)o + 28);
-                (*found)++;
+                for (int k = 1; k < 7 && same; k++) same = rd32(buf + o + 4 * k) == code[k];
+                if (!same || rd32(buf + o + 32) != after) continue;
+                if (found < max) at[found] = (int64_t)(ph[i].offset + pos + (uint64_t)o + 28);
+                found++;
             }
             if (pos + (uint64_t)got >= ph[i].filesz) break;
             pos += (uint64_t)got - (KEEP - 4); // the next chunk starts where the last place of this could begin, no place is split or counted twice
         }
     }
     free(buf);
-    return first;
+    return found;
 }
 
 // "b <delta>" / "bl <delta>" for a distance in bytes, or 0 when it does not fit
@@ -179,13 +185,7 @@ static int go_open_for_write(int fd, const struct stat *st, const char *path, in
 // The bytes of the added code for a given place: the code with its header (the strings, and where
 // the scratch memory is), the instructions that connect the call site to it, and the trailer that
 // says what was changed to put it there.
-static void go_build_image(unsigned char *img, const struct gosys_hdr *strings, uint64_t cave_v, uint64_t scratch_v,
-                           uint32_t to_entry, uint32_t back, const struct gosys_trailer *info) {
-    memcpy(img, gosys_blob, GOSYS_BLOB_SIZE);
-    struct gosys_hdr h = *strings;
-    h.scratch_rel = (int64_t)scratch_v - (int64_t)cave_v;
-    memcpy(img, &h, sizeof(h));
-    unsigned char *th = img + GOSYS_THUNKS_OFF;
+static void go_write_thunk(unsigned char *th, uint32_t to_entry, uint32_t back) {
     wr32(th + 0, 0xd10043ffu);  // sub  sp, sp, #16
     wr32(th + 4, 0xf90003feu);  // str  x30, [sp]
     wr32(th + 8, 0xaa0803e7u);  // mov  x7, x8        (the number is the eighth argument)
@@ -193,6 +193,15 @@ static void go_build_image(unsigned char *img, const struct gosys_hdr *strings, 
     wr32(th + 16, 0xf94003feu); // ldr  x30, [sp]
     wr32(th + 20, 0x910043ffu); // add  sp, sp, #16
     wr32(th + 24, back);        // b    <the instruction after the call>
+}
+
+static void go_build_image(unsigned char *img, const struct gosys_hdr *strings, uint64_t cave_v, uint64_t scratch_v,
+                           const uint32_t *to_entry, const uint32_t *back, int sites, const struct gosys_trailer *info) {
+    memcpy(img, gosys_blob, GOSYS_BLOB_SIZE);
+    struct gosys_hdr h = *strings;
+    h.scratch_rel = (int64_t)scratch_v - (int64_t)cave_v;
+    memcpy(img, &h, sizeof(h));
+    for (int k = 0; k < sites; k++) go_write_thunk(img + GOSYS_THUNKS_OFF + GO_THUNK_STRIDE * (uint64_t)k, to_entry[k], back[k]);
     struct gosys_trailer t;
     memcpy(&t, img + GOSYS_BLOB_SIZE - sizeof(t), sizeof(t));
     t.version = GOSYS_VERSION;
@@ -220,11 +229,12 @@ static uint32_t go_blob_fingerprint(void) {
 
 // Gives the program its old segments and call back: the added code is zeroed, the data segment
 // is shortened, the instruction is a "svc #0" again.
-static int go_undo(int wfd, struct go_ph *ph, int cave_seg, const struct gosys_trailer *tr, int64_t site_off) {
+static int go_undo(int wfd, struct go_ph *ph, int cave_seg, const struct gosys_trailer *tr, const int64_t *site_off, int sites) {
     uint64_t cave_off = ph[cave_seg].offset + ph[cave_seg].filesz - tr->total_size;
     unsigned char word[4];
     wr32(word, GO_SVC);
-    if (go_pwrite_all(wfd, word, 4, (uint64_t)site_off) != 0) return -1;
+    for (int k = sites - 1; k >= 0; k--)
+        if (go_pwrite_all(wfd, word, 4, (uint64_t)site_off[k]) != 0) return -1;
     unsigned char sz[16];
     go_wr64(sz, tr->text_orig_filesz);
     go_wr64(sz + 8, tr->text_orig_filesz);
@@ -253,12 +263,28 @@ static int go_disabled(void) {
 
 // The three branches that connect the call site and the code: site -> thunk, thunk -> entry (bl),
 // thunk -> the instruction after the site. 0 when one of them is too far.
-static int go_branches(uint64_t cave_v, uint64_t site_v, uint32_t *to_thunk, uint32_t *to_entry, uint32_t *back) {
-    uint64_t thunk_v = cave_v + GOSYS_THUNKS_OFF;
+static int go_branches(uint64_t cave_v, uint64_t site_v, int k, uint32_t *to_thunk, uint32_t *to_entry, uint32_t *back) {
+    uint64_t thunk_v = cave_v + GOSYS_THUNKS_OFF + GO_THUNK_STRIDE * (uint64_t)k;
     *to_thunk = go_branch(0x14000000u, (int64_t)thunk_v - (int64_t)site_v);
     *to_entry = go_branch(0x94000000u, (int64_t)(cave_v + GOSYS_ENTRY_OFF) - (int64_t)(thunk_v + 12));
     *back = go_branch(0x14000000u, (int64_t)(site_v + 4) - (int64_t)(thunk_v + 24));
     return *to_thunk && *to_entry && *back;
+}
+
+static int go_links(uint64_t cave_v, const uint64_t *site_v, int sites, uint32_t *to_thunk, uint32_t *to_entry, uint32_t *back) {
+    if (!go_branches(cave_v, site_v[0], 0, &to_thunk[0], &to_entry[0], &back[0])) return 0;
+    for (int k = 1; k < sites; k++)
+        if (!go_branches(cave_v, site_v[k], k, &to_thunk[k], &to_entry[k], &back[k])) return 1;
+    return sites;
+}
+
+static int go_write_sites(int wfd, const int64_t *site_off, const uint32_t *to_thunk, int sites) {
+    unsigned char word[4];
+    for (int k = sites - 1; k >= 0; k--) {
+        wr32(word, to_thunk[k]);
+        if (go_pwrite_all(wfd, word, 4, (uint64_t)site_off[k]) != 0) return -1;
+    }
+    return 0;
 }
 
 // Adds the code to the program, or brings it up to date. Returns 1 when it changed the file, 0 when
@@ -271,9 +297,10 @@ static int prepare_go_program(int fd, const char *path, const struct stat *st) {
     if (n < 0) return -1;
     if (machine != EM_AARCH64 || (etype != GO_ET_EXEC && etype != GO_ET_DYN)) return 0;
 
-    int found = 0;
-    int64_t site_off = go_find_syscall6(fd, ph, n, &found);
-    if (found != 1) return 0; // not a Go of 1.19 or newer (or its function is not there once)
+    int64_t site_off[GO_QUIET_MAX + 1];
+    if (go_find_calls(fd, ph, n, k_go_syscall6, GO_CMN_X0_4095, site_off, 1) != 1) return 0; // not a Go of 1.19 or newer (or its function is not there once)
+    int quiet = go_find_calls(fd, ph, n, k_go_raw_no_error, GO_STR_X0_SP40, site_off + 1, GO_QUIET_MAX);
+    int sites = 1 + (quiet <= GO_QUIET_MAX ? quiet : 0);
 
     // The loadable segments, by address
     int order[GO_MAX_PH], nl = 0;
@@ -289,13 +316,16 @@ static int prepare_go_program(int fd, const char *path, const struct stat *st) {
     if (nl < 2) return 0;
 
     // The call site must be in a segment that is mapped as code
-    uint64_t site_v = 0;
-    for (int i = 0; i < nl; i++) {
-        const struct go_ph *s = &ph[order[i]];
-        if ((s->flags & GO_PF_X) && (uint64_t)site_off >= s->offset && (uint64_t)site_off < s->offset + s->filesz)
-            site_v = s->vaddr + ((uint64_t)site_off - s->offset);
+    uint64_t site_v[GO_QUIET_MAX + 1] = { 0 };
+    for (int k = 0; k < sites; k++) {
+        for (int i = 0; i < nl; i++) {
+            const struct go_ph *s = &ph[order[i]];
+            if ((s->flags & GO_PF_X) && (uint64_t)site_off[k] >= s->offset && (uint64_t)site_off[k] < s->offset + s->filesz)
+                site_v[k] = s->vaddr + ((uint64_t)site_off[k] - s->offset);
+        }
+        if (site_v[k] == 0) sites = k;
     }
-    if (site_v == 0) return 0;
+    if (sites == 0) return 0;
 
     struct gosys_hdr strings;
     memset(&strings, 0, sizeof(strings));
@@ -333,7 +363,7 @@ static int prepare_go_program(int fd, const char *path, const struct stat *st) {
             if (wfd < 0) {
                 rc = -1;
             } else {
-                rc = go_undo(wfd, ph, cave_seg, &tr, site_off);
+                rc = go_undo(wfd, ph, cave_seg, &tr, site_off, sites);
                 changed = rc == 0;
             }
         }
@@ -343,19 +373,20 @@ static int prepare_go_program(int fd, const char *path, const struct stat *st) {
     if (cave_seg >= 0) {
         uint64_t cave_off = ph[cave_seg].offset + ph[cave_seg].filesz - tr.total_size;
         uint64_t cave_v = ph[cave_seg].vaddr + (cave_off - ph[cave_seg].offset);
-        int same = 0, site_ok = 0;
-        uint32_t to_thunk = 0, to_entry = 0, back = 0;
+        int same = 0, site_ok = 0, linked = 0;
+        uint32_t to_thunk[GO_QUIET_MAX + 1], to_entry[GO_QUIET_MAX + 1], back[GO_QUIET_MAX + 1];
         // Is it what would be put there now? (the code of an older The native userland differs)
         if (tr.total_size == GOSYS_BLOB_SIZE && tr.rw_index < (uint32_t)n && ph[tr.rw_index].type == 1 &&
-            go_branches(cave_v, site_v, &to_thunk, &to_entry, &back)) {
+            (linked = go_links(cave_v, site_v, sites, to_thunk, to_entry, back)) > 0) {
             uint64_t scratch_v = go_align_up(ph[tr.rw_index].vaddr + tr.rw_orig_memsz, 64);
-            go_build_image(img, &strings, cave_v, scratch_v, to_entry, back, &tr);
+            go_build_image(img, &strings, cave_v, scratch_v, to_entry, back, linked, &tr);
             same = pread(fd, have, GOSYS_BLOB_SIZE, (off_t)cave_off) == (ssize_t)GOSYS_BLOB_SIZE &&
                    memcmp(have, img, GOSYS_BLOB_SIZE) == 0 &&
                    ph[tr.rw_index].memsz == scratch_v - ph[tr.rw_index].vaddr + GOSYS_SCRATCH_SIZE;
         }
         unsigned char cur[4];
-        site_ok = same && pread(fd, cur, 4, (off_t)site_off) == 4 && rd32(cur) == to_thunk;
+        site_ok = same;
+        for (int k = 0; k < linked && site_ok; k++) site_ok = pread(fd, cur, 4, (off_t)site_off[k]) == 4 && rd32(cur) == to_thunk[k];
         if (same && site_ok) goto done;
 
         wfd = go_open_for_write(fd, st, path, &made_writable);
@@ -365,13 +396,12 @@ static int prepare_go_program(int fd, const char *path, const struct stat *st) {
         }
         if (same) {
             // The code is there, only the branch is not (a patch that was cut short)
-            wr32(word, to_thunk);
-            rc = go_pwrite_all(wfd, word, 4, (uint64_t)site_off);
+            rc = go_write_sites(wfd, site_off, to_thunk, linked);
             changed = rc == 0;
             goto done;
         }
         // An older code, or other strings: back to the plain program, then patch again
-        if (go_undo(wfd, ph, cave_seg, &tr, site_off) != 0) {
+        if (go_undo(wfd, ph, cave_seg, &tr, site_off, sites) != 0) {
             rc = -1;
             goto done;
         }
@@ -394,7 +424,7 @@ static int prepare_go_program(int fd, const char *path, const struct stat *st) {
             if (s->memsz != s->filesz || s->filesz == 0) continue;
             uint64_t v = go_align_up(s->vaddr + s->filesz, 64);
             uint64_t off = s->offset + (v - s->vaddr);
-            if (v + total > nx->vaddr || (nx->vaddr & 0x3fff) != 0) continue;
+            if (v + total > (nx->vaddr & ~0x3fffull)) continue;
             if (off + total > nx->offset || off + total > (uint64_t)st->st_size) continue;
             // Only padding may be written over
             uint64_t pad_from = s->offset + s->filesz, pad_len = off + total - pad_from;
@@ -410,8 +440,9 @@ static int prepare_go_program(int fd, const char *path, const struct stat *st) {
         }
     }
     int rw = order[nl - 1];
-    uint32_t to_thunk = 0, to_entry = 0, back = 0;
-    if (text < 0 || !(ph[rw].flags & GO_PF_W) || rw == text || !go_branches(cave_v, site_v, &to_thunk, &to_entry, &back)) goto done;
+    uint32_t to_thunk[GO_QUIET_MAX + 1], to_entry[GO_QUIET_MAX + 1], back[GO_QUIET_MAX + 1];
+    int linked = text < 0 ? 0 : go_links(cave_v, site_v, sites, to_thunk, to_entry, back);
+    if (text < 0 || !(ph[rw].flags & GO_PF_W) || rw == text || linked == 0) goto done;
 
     uint64_t scratch_v = go_align_up(ph[rw].vaddr + ph[rw].memsz, 64);
     struct gosys_trailer info;
@@ -421,8 +452,8 @@ static int prepare_go_program(int fd, const char *path, const struct stat *st) {
     info.rw_orig_memsz = ph[rw].memsz;
     info.text_index = (uint32_t)text;
     info.rw_index = (uint32_t)rw;
-    info.site_file_off = (uint64_t)site_off;
-    go_build_image(img, &strings, cave_v, scratch_v, to_entry, back, &info);
+    info.site_file_off = (uint64_t)site_off[0];
+    go_build_image(img, &strings, cave_v, scratch_v, to_entry, back, linked, &info);
 
     wfd = go_open_for_write(fd, st, path, &made_writable);
     if (wfd < 0) {
@@ -442,10 +473,7 @@ static int prepare_go_program(int fd, const char *path, const struct stat *st) {
         wr32(word, ph[text].flags | GO_PF_X);
         rc = go_pwrite_all(wfd, word, 4, ph[text].pos + 4);
     }
-    if (rc == 0) {
-        wr32(word, to_thunk);
-        rc = go_pwrite_all(wfd, word, 4, (uint64_t)site_off);
-    }
+    if (rc == 0) rc = go_write_sites(wfd, site_off, to_thunk, linked);
     changed = rc == 0;
 
 done:
