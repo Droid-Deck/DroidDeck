@@ -576,11 +576,20 @@ VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int scene_w, int sce
     int spatial = 0;
     if (spatial_mode(s->scaling) && (s->scaling == 6 || upscaling)) spatial = s->scaling;
     /* NIS here is the SDR implementation and is documented for <=2x upscales. */
-    if (spatial == 7 &&
+    const int nis_fallback = spatial == 7 &&
         (g_scene_is_pq || cw < scene_w || ch < scene_h ||
          (double)cw > (double)scene_w * 2.0 ||
-         (double)ch > (double)scene_h * 2.0))
-        spatial = 0;
+         (double)ch > (double)scene_h * 2.0);
+    static int last_nis_fallback = 0;
+    const int was_nis_fallback =
+        __atomic_exchange_n(&last_nis_fallback, nis_fallback, __ATOMIC_RELAXED);
+    if (nis_fallback) {
+        spatial = 4; /* FSR fallback; keep the saved NIS selection unchanged. */
+        if (!was_nis_fallback)
+            droiddeck_log("effects", "NIS unsupported for this output; FSR fallback active");
+    } else if (was_nis_fallback && s->scaling == 7) {
+        droiddeck_log("effects", "NIS supported again; NIS active");
+    }
     const int nfx = effect_count(s);
     const int resize = cw != scene_w || ch != scene_h;
     const int fuse_toon_color = s->toon && s->color_on && g_fx_fmt == FX_FORMAT;
