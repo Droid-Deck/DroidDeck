@@ -138,9 +138,9 @@ ci_run=
 ci_cache="${cache_dir}/ci-components"
 reuse_ci_components() {
     [[ "${DROIDDECK_CI_COMPONENTS:-1}" == 1 ]] && command -v gh >/dev/null 2>&1 || return 1
-    # CI prepares with the pinned NDK and its own PulseAudio source.
+    # CI prepares with the pinned NDK, its own PulseAudio source and the system Vulkan headers.
     . "${repo_root}/tools/ci/toolchains.env"
-    [[ "${ndk_version}" == "${CI_ANDROID_NDK_VERSION}" && -z "${DROIDDECK_PA13_SOURCE_DIR:-}" ]] || return 1
+    [[ "${ndk_version}" == "${CI_ANDROID_NDK_VERSION}" && -z "${DROIDDECK_PA13_SOURCE_DIR:-}" && -z "${VK_INCLUDE:-}" ]] || return 1
     local base candidates run artifact archive part
     base=$(git -C "${repo_root}" merge-base HEAD origin/main 2>/dev/null || true)
     # Only runs of this repository's own main: a fork's pull request can also name its branch main.
