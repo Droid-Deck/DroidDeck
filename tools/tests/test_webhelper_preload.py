@@ -122,6 +122,22 @@ class WebhelperPreloadTest(unittest.TestCase):
         (root / "bin/app").touch()
         self.assertEqual(self.argv(str(root / "bin/app")), [str(root / "bin/app"), "--no-sandbox"])
 
+    def test_a_chromium_app_starting_a_program_from_its_own_folder_leaves_it_alone(self):
+        handler = self.chromium("chrome-app", "chrome_crashpad_handler")
+        browser = self.tmp / "chrome-app/chrome"
+        shutil.copy(self.program, browser)
+        out = subprocess.run([str(browser), handler, "--database=/tmp/x"], env={"TEST_DISPLAY": ":0"},
+                             capture_output=True, text=True, check=True).stdout.splitlines()
+        self.assertEqual([handler, "--database=/tmp/x"], out)
+
+    def test_a_chromium_app_starting_another_chromium_app_still_flags_it(self):
+        other = self.chromium("other-app", "chrome")
+        editor = self.tmp / "editor-app/code"
+        self.chromium("editor-app", "code")
+        shutil.copy(self.program, editor)
+        out = subprocess.run([str(editor), other], env={}, capture_output=True, text=True, check=True).stdout.splitlines()
+        self.assertEqual([other, "--no-sandbox"], out)
+
     def test_with_an_x_display_chromium_apps_use_x11(self):
         chrome = self.chromium("chromium-x11", "chrome")
         self.assertEqual(self.argv(chrome, "--new-window", display=":0"),
