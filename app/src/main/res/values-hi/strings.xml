@@ -2714,6 +2714,7 @@
     <string name="stores_login_error_ssl">साइन-इन पेज से कनेक्शन सुरक्षित नहीं है।</string>
     <string name="stores_login_error_verification">साइन-इन सत्यापित नहीं हो सका। फिर कोशिश करें।</string>
     <string name="stores_login_error_generic">साइन-इन विफल रहा। फिर कोशिश करें।</string>
+    <string name="stores_login_continue_in_browser">%1$s को एक और चरण चाहिए। खुले हुए ब्राउज़र में इसे पूरा करें, फिर दोबारा कोशिश करें।</string>
     <string name="common_close">बंद करें</string>
     <string name="common_back">बैक</string>
     <string name="common_edit">संपादित करें</string>
@@ -3098,7 +3099,7 @@
     <string name="hand_camera_done">हो गया</string>
     <string name="glasses_xreal_network_missing">चश्मे के USB Ethernet कनेक्शन का इंतज़ार है। हो सकता है यह फ़ोन इसे ऐप्स को उपलब्ध न कराए।</string>
     <string name="glasses_xreal_connection_failed">XREAL कनेक्शन टूट गया या उसने ऐसा जवाब दिया जो समर्थित नहीं है। फिर से कोशिश हो रही है…</string>
-    <string name="glasses_xreal_experimental">1S के लिए प्रायोगिक सपोर्ट। चश्मे के मेनू में Follow मोड चुनें और स्टेबिलाइज़ेशन बंद करें। ट्रैकिंग की दिशाएं और डिस्प्ले मोड अभी डिवाइस पर टेस्ट होने बाकी हैं।</string>
+    <string name="glasses_xreal_experimental">XREAL 1S, One, One Pro, One Pro+ और Aura के लिए प्रायोगिक सपोर्ट। चश्मे के मेनू में Follow मोड चुनें और स्टेबिलाइज़ेशन बंद करें; Aura पर Spatial Anchor भी बंद करें। Aura और One Pro+ पर हेड ट्रैकिंग और 2D/3D स्विचिंग का परीक्षण किया गया है।</string>
     <string name="glasses_pro2_experimental">Pro 2 के लिए प्रायोगिक हेड ट्रैकिंग। चमक और वॉल्यूम बदलना और डिस्प्ले मोड स्विच करना अभी समर्थित नहीं है।</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard मोड</string>
@@ -4077,4 +4078,6 @@
     <string name="theme_custom_signal">हाइलाइट</string>
     <string name="theme_custom_good">सफलता</string>
     <string name="theme_custom_error">त्रुटि</string>
+    <string name="hud_only_during_game">HUD केवल गेम के दौरान दिखाएँ</string>
+    <string name="hud_only_during_game_hint">गेम के फ़्रेम का पता न चलने पर HUD छिपाएँ।</string>
 </resources>

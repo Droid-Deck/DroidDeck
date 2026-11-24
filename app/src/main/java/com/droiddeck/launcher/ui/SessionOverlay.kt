@@ -283,6 +283,7 @@ class DrawerActions(
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
+    val onHudOnlyDuringGame: (Boolean) -> Unit = {},
     val onHudSetting: (String, String) -> Unit = { _, _ -> },
     val onGpuClockPin: (Boolean) -> Unit = {},
     val onHudOrder: (Map<String, Boolean>, List<String>) -> Unit = { _, _ -> },

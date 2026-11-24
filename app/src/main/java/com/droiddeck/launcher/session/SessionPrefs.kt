@@ -502,6 +502,13 @@ object SessionPrefs {
 
     fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), false)
 
+    fun hudOnlyDuringGame(context: Context): Boolean =
+        prefs(context).getBoolean("hudOnlyDuringGame", false)
+
+    fun setHudOnlyDuringGame(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("hudOnlyDuringGame", on).apply()
+    }
+
     fun setHudEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(hudKey(context), on).apply()
     }
@@ -805,6 +812,11 @@ object SessionPrefs {
 
     fun setGpuAutoInstalled(context: Context, ids: Set<String>) {
         prefs(context).edit().putStringSet("gpuAutoInstalled", ids.toSet()).apply()
+    }
+
+    fun displayDriverFromAuto(context: Context): Boolean {
+        val id = androidDriver(context)
+        return id.isEmpty() || (gpuDriverMode(context) == GPU_DRIVERS_AUTO && id in gpuAutoInstalled(context))
     }
 
 
@@ -1335,6 +1347,10 @@ object SessionPrefs {
     fun resolutionChoice(context: Context, mode: String, panel: Pair<Int, Int>, portrait: Boolean = false): String =
         SessionDisplay.effectiveChoice(
             resolutionStored(context, mode, panel, false), resolutionStored(context, mode, panel, true), portrait)
+
+    fun followScales(context: Context, mode: String, panel: Pair<Int, Int>): Pair<Float?, Float?> =
+        SessionDisplay.followScale(resolutionChoice(context, mode, panel, false)) to
+            SessionDisplay.followScale(resolutionChoice(context, mode, panel, true))
 
     fun resolutionStored(context: Context, mode: String, panel: Pair<Int, Int>, portrait: Boolean): String {
         if (!portrait) return landscapeResolutionStored(context, mode, panel)

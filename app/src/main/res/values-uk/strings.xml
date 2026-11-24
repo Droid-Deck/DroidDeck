@@ -2766,6 +2766,7 @@
     <string name="stores_login_error_ssl">З’єднання зі сторінкою входу не захищене.</string>
     <string name="stores_login_error_verification">Не вдалося підтвердити вхід. Спробуйте ще раз.</string>
     <string name="stores_login_error_generic">Вхід не вдався. Спробуйте ще раз.</string>
+    <string name="stores_login_continue_in_browser">%1$s потребує ще одного кроку. Завершіть його у відкритому браузері та спробуйте ще раз.</string>
     <string name="common_close">Закрити</string>
     <string name="common_back">Назад</string>
     <string name="common_edit">Редагувати</string>
@@ -3158,7 +3159,7 @@
     <string name="hand_camera_done">Готово</string>
     <string name="glasses_xreal_network_missing">Очікування з’єднання USB Ethernet від окулярів. Цей телефон може не надавати його додаткам.</string>
     <string name="glasses_xreal_connection_failed">З’єднання з XREAL перервалося або повернуло непідтримувану відповідь. Повторна спроба…</string>
-    <string name="glasses_xreal_experimental">Експериментальна підтримка 1S. Увімкніть режим Follow і вимкніть стабілізацію в меню окулярів. Напрямки відстеження й режими відображення ще потрібно перевірити на пристрої.</string>
+    <string name="glasses_xreal_experimental">Експериментальна підтримка XREAL 1S, One, One Pro, One Pro+ та Aura. Використовуйте режим Follow і вимкніть стабілізацію в меню окулярів; на Aura також вимкніть Spatial Anchor. Відстеження голови та перемикання між 2D/3D перевірено на Aura й One Pro+.</string>
     <string name="glasses_pro2_experimental">Експериментальне відстеження рухів голови для Pro 2. Налаштування яскравості й гучності та перемикання режимів відображення ще не підтримуються.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Режим Cardboard</string>
@@ -4157,4 +4158,6 @@
     <string name="theme_custom_signal">Виділення</string>
     <string name="theme_custom_good">Успіх</string>
     <string name="theme_custom_error">Помилка</string>
+    <string name="hud_only_during_game">Показувати HUD лише під час гри</string>
+    <string name="hud_only_during_game_hint">Приховувати HUD, коли кадри гри не виявляються.</string>
 </resources>
