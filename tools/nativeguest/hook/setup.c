@@ -203,15 +203,9 @@ static void exe_from_cmdline(const char *cmdline_path, char *out, size_t outsz) 
 }
 
 static ssize_t copy_guest_exe(const char *real_exe, char *buf, size_t bufsiz) {
-    const char *out_path = real_exe;
-    if (g_ddnatv_root[0] != '\0') {
-        size_t rlen = g_ddnatv_root_len;
-        if (strncmp(real_exe, g_ddnatv_root, rlen) == 0 &&
-            (real_exe[rlen] == '/' || real_exe[rlen] == '\0')) {
-            out_path = real_exe + rlen;
-            if (out_path[0] == '\0') out_path = "/";
-        }
-    }
+    char guest[PATH_MAX];
+    const char *out_path = guest_path_of_host_dir(real_exe, guest, sizeof(guest));
+    if (!out_path) out_path = real_exe;
     size_t len = strlen(out_path);
     size_t copy_len = (len < bufsiz) ? len : bufsiz;
     memcpy(buf, out_path, copy_len);
