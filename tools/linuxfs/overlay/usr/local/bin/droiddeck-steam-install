@@ -132,6 +132,38 @@ fetch() {
   done
 }
 
+# The same decisions as fetch for the parallel workers, with curl in the foreground and a plain sleep between tries:
+# the shell here cannot open /dev/fd for process substitution from a background job.
+fetch_one() {
+  local url=$1 dest=$2 size=$3 sum=$4 part=$5 failures=0 bad=0 finished=0 before rc http wait
+  while :; do
+    if [ -f "$dest" ] && { [ "$finished" = 1 ] || { [ "$size" -gt 0 ] && [ "$(size_of "$dest")" -ge "$size" ]; }; }; then
+      echo "$sum  $dest" | sha256sum -c --quiet 2>/dev/null && return 0
+      rm -f "$dest"
+      finished=0 bad=$((bad + 1))
+      [ "$bad" -lt 3 ] || { echo "droiddeck-steam-install: $part does not match its checksum" >&2; return 1; }
+    fi
+    before=$(size_of "$dest")
+    http=$(curl -fsSL "${limits[@]}" -w '%{http_code}' -C - -o "$dest" "$url") && rc=0 || rc=$?
+    if [ "$rc" = 0 ]; then finished=1; continue; fi
+    case "$rc:${http:-}" in
+      22:416 | 33:*) rm -f "$dest" ;;
+      22:4??)
+        echo "droiddeck-steam-install: $part: HTTP $http from ${url%/*}" >&2
+        return 1
+        ;;
+    esac
+    if [ "$(size_of "$dest")" -gt "$before" ]; then failures=0; else failures=$((failures + 1)); fi
+    if [ "$failures" -gt "${#delays[@]}" ]; then
+      echo "droiddeck-steam-install: could not download $part (curl exit $rc); what arrived is kept for the next try" >&2
+      return 1
+    fi
+    wait=${delays[$((failures > 0 ? failures - 1 : 0))]}
+    step "downloading Steam: $part - interrupted (curl exit $rc), trying again in ${wait} s"
+    sleep "$wait"
+  done
+}
+
 parallel=${DD_STEAM_PARALLEL:-4}
 case $parallel in ''|*[!0-9]*|0) parallel=1 ;; esac
 
@@ -158,7 +190,7 @@ run_parallel() {
   local slot
   for slot in $(seq 1 "$parallel"); do
     (
-      progress() { [ -z "${3:-}" ] || step "downloading Steam: $2 - $3"; }
+      trap ': > "$state/exit.$slot"' EXIT
       while [ ! -e "$state/failed" ]; do
         index=0
         for n in $(seq 1 "$count"); do
@@ -168,7 +200,7 @@ run_parallel() {
         file=${files[index]}
         fetched=""
         for host in "${cdn_order[@]}"; do
-          if fetch "$host/$file" "$dir/$file" "${sizes[index]}" "${sums[index]}" "${blocks[index]}"; then
+          if fetch_one "$host/$file" "$dir/$file" "${sizes[index]}" "${sums[index]}" "${blocks[index]}"; then
             fetched=$host
             break
           fi
@@ -191,7 +223,7 @@ run_parallel() {
   local shown="" got n alive mark current
   while :; do
     alive=0
-    for slot in "${pids[@]}"; do kill -0 "$slot" 2>/dev/null && alive=1; done
+    for slot in $(seq 1 "$parallel"); do [ -e "$state/exit.$slot" ] || alive=1; done
     got=0 n=0 current=""
     for index in $(seq 1 "$count"); do
       if [ -e "$state/$index.done" ]; then
@@ -206,6 +238,7 @@ run_parallel() {
       shown=$mark
       step "downloading Steam: ${blocks[current]} ($((n + 1))/$count), $mark of $((total_bytes / 1000000)) MB"
     fi
+    [ "$n" -lt "$count" ] || alive=0
     [ "$alive" = 1 ] || break
     sleep 1
   done

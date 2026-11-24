@@ -62,6 +62,8 @@ if action[:1] == ['http']:
     done(22, action[1])
 if action[:1] == ['norange'] and offset:
     done(33)
+import time
+time.sleep(float(os.environ.get('TEST_SLEEP', '0')))
 data = open(os.path.join(os.environ['TEST_CDN'], name), 'rb').read()
 end = int(action[1]) if action[:1] == ['cut'] else len(data)
 with open(out, 'ab' if offset else 'wb') as target:
@@ -498,6 +500,20 @@ class SteamInstallParallelTest(SteamInstallTest):
         self.assertEqual(0, self.install().returncode)
         self.assertTrue((self.steam / 'parts/p4_all').is_file())
         self.assertEqual('123456\n', (self.steam / 'package/droiddeck-installed').read_text())
+
+    def test_progress_is_reported_while_several_parts_arrive(self):
+        self.many_parts()
+        result = self.install(TEST_SLEEP='1.2', **{})
+        self.assertEqual(0, result.returncode, result.stderr)
+        lines = [line for line in result.stdout.splitlines() if 'downloading Steam:' in line and ' of ' in line]
+        self.assertGreaterEqual(len(lines), 2, result.stdout)
+        self.assertIn(' MB', lines[-1])
+
+    def test_the_parallel_workers_use_no_process_substitution(self):
+        source = SCRIPT.read_text()
+        region = source[source.index('fetch_one() {'):source.index('fetch_manifest() {')]
+        self.assertNotIn('<(', region)
+        self.assertNotIn('kill -0', region)
 
     def test_the_cache_pass_with_several_connections_keeps_every_package(self):
         self.cache_manifest()
