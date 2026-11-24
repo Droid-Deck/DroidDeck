@@ -407,7 +407,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
         if (probe.is_elf && !probe.is_dynamic) static_elf = elf_target;
         // A Go program built for Android asks for Android's linker, so it is started like the dynamic
         // ones, but it makes its own system calls: it gets the code of the static Go programs (#42)
-        if (probe.is_dynamic && probe.android_interp) prepare_static_program_ex(elf_target, 1);
+        if (probe.is_dynamic) prepare_static_program_ex(elf_target, 1);
 
         // 1. Transparently route dynamically linked glibc ELF binaries through ld.so
         // Note: Statically linked binaries (PT_INTERP absent, e.g. Meta Muse Code) must execute directly!
@@ -959,7 +959,7 @@ static int ddnatv_posix_spawn(pid_t *pid, const char *path,
     int ret = -1;
     if (via_ld_so) {
         ensure_exec_bit(elf_target, probe.mode);
-        if (probe.android_interp) prepare_static_program_ex(elf_target, 1); // a Go program built for Android (#42)
+        prepare_static_program_ex(elf_target, 1); // a Go program built for Android (#42)
 
         char hook_buf[PATH_MAX];
         const char *hook_so = ddnatv_hook_library(hook_buf, sizeof(hook_buf));
