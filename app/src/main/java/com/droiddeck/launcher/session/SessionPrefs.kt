@@ -814,6 +814,11 @@ object SessionPrefs {
         prefs(context).edit().putStringSet("gpuAutoInstalled", ids.toSet()).apply()
     }
 
+    fun displayDriverFromAuto(context: Context): Boolean {
+        val id = androidDriver(context)
+        return id.isEmpty() || (gpuDriverMode(context) == GPU_DRIVERS_AUTO && id in gpuAutoInstalled(context))
+    }
+
 
     fun picturePosition(context: Context): String =
         prefs(context).getString("picturePosition", "center")
