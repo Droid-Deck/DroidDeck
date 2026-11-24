@@ -613,6 +613,29 @@ with open(log, 'a') as out:
         self.assertIn('downloading Steam: a_all (1/2), 0 of 2 MB\n', result.stdout)
         self.assertIn('downloading Steam: client_linuxarm64_linuxarm64 (2/2), 1 of 2 MB\n', result.stdout)
 
+    def test_workers_do_not_claim_packages_with_mkdir(self):
+        source = SCRIPT.read_text()
+        region = source[source.index('run_parallel() {'):source.index('fetch_manifest() {')]
+        self.assertNotIn('mkdir "$state/claim', region)
+        self.assertIn('claim_next', region)
+
+    @unittest.skipUnless(shutil.which('flock'), 'needs flock')
+    def test_racing_workers_never_get_the_same_package(self):
+        source = SCRIPT.read_text()
+        start = source.index('claim_next() {')
+        function = source[start:source.index('\n}\n', start) + 3]
+        state = self.root / 'claims'
+        state.mkdir()
+        script = 'state=$1\ncount=$2\n' + function + 'while :; do n=$(claim_next); [ "$n" -gt 0 ] || exit 0; echo "$n"; done\n'
+        workers = [subprocess.Popen(['bash', '-c', script, 'bash', str(state), '300'], stdout=subprocess.PIPE, text=True)
+                   for _ in range(8)]
+        claimed = []
+        for worker in workers:
+            out, _ = worker.communicate(timeout=120)
+            self.assertEqual(0, worker.returncode)
+            claimed += [int(n) for n in out.split()]
+        self.assertEqual(sorted(claimed), list(range(1, 301)), 'a package was claimed twice or never')
+
     def test_the_parallel_workers_use_no_process_substitution(self):
         source = SCRIPT.read_text()
         region = source[source.index('fetch_one() {'):source.index('fetch_manifest() {')]
