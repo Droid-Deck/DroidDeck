@@ -27,6 +27,7 @@ GAME_ENVIRONMENT = os.path.join(HOME, ".config", "droiddeck", "game-environment.
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 PRELOADS = "/usr/local/lib/droiddeck-fex"
 URUNTIME = "/usr/local/lib/droiddeck/uruntime"
+DWARFSEXTRACT = "/usr/local/lib/droiddeck/dwarfsextract"
 HOST_PRELOAD = "/etc/ld.so.preload"
 FEX_APPID = "3127680"
 OWN_FEX = "/usr/local"
@@ -824,6 +825,30 @@ def extracted():
     return os.path.isdir("squashfs-root")
 
 
+def dwarfs_image(image):
+    try:
+        offset = appimage_offset(image)
+        with open(image, "rb") as f:
+            f.seek(offset)
+            return f.read(6) == b"DWARFS"
+    except (OSError, ValueError, struct.error):
+        return False
+
+
+def dwarfs_extract(image):
+    clear_extracted()
+    os.mkdir("squashfs-root")
+    with open(image, "rb") as source:
+        status = subprocess.call([DWARFSEXTRACT, "--input", "/proc/self/fd/%d" % source.fileno(),
+                                  "--image-offset=%d" % appimage_offset(image), "--output", "squashfs-root",
+                                  "--log-level=error"], stdout=subprocess.DEVNULL, pass_fds=(source.fileno(),))
+    if status == 0 and extracted():
+        return True
+    say("dwarfsextract could not extract it (status %d)" % status)
+    clear_extracted()
+    return False
+
+
 def want_fex():
     with locked():
         update_own_fex()
@@ -869,6 +894,10 @@ def extract(image):
             return 0
         say("uruntime could not extract it (status %d)" % status)
         clear_extracted()
+    if os.access(DWARFSEXTRACT, os.X_OK) and dwarfs_image(image) and dwarfs_extract(image):
+        if x86:
+            want_fex()
+        return 0
     fex = prepare() if x86 else None
     if fex is not None:
         status = subprocess.call([fex["bin"], image, "--appimage-extract"], stdout=subprocess.DEVNULL,

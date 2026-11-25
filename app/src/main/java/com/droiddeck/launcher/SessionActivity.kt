@@ -5158,10 +5158,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var sessionTouchDown = false
     private var screenTapsClick = true
 
-    private fun onScreenMouseButtonShown(): Boolean = listOfNotNull(
+    private fun onScreenLeftMouseButtonShown(): Boolean = listOfNotNull(
         onScreenControls?.inputSurface, bottomInputControls?.inputSurface, unfoldedPanel?.inputSurface, unfoldedDeckSurface,
         secondScreenPresentation?.controlsView, swappedInputSurface,
-    ).any { it.isShown && inputProfile.showsMouseButton(it.inputRole, it.shownElements, stockInputProfile) }
+    ).any { it.isShown && inputProfile.showsLeftMouseButton(it.inputRole, it.shownElements, stockInputProfile) }
 
     override fun onTouchEvent(event: MotionEvent): Boolean = inSurfaceSpace(event) { handleTouch(event) }
 
@@ -5197,7 +5197,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val snapshot = fingerTouchSnapshot(uiBlocking)
         val route = com.droiddeck.launcher.input.TouchRouter.decide(snapshot)
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            screenTapsClick = !onScreenMouseButtonShown()
+            screenTapsClick = !onScreenLeftMouseButtonShown()
             if (::touchpad.isInitialized) touchpad.clicks = screenTapsClick
             if (::scrollTouch.isInitialized) scrollTouch.clicks = screenTapsClick
         }

@@ -672,7 +672,7 @@
     <string name="perf_fastpath_needs_seccomp">Needs proot\'s seccomp filter.</string>
     <string name="perf_fastpath_hint">Faster file lookups and less stutter. Turn off if a program can\'t find its files.</string>
     <string name="perf_cursor_composite">Draw the cursor inside gamescope</string>
-    <string name="perf_cursor_composite_hint">Gamescope paints the pointer itself instead of handing it to Android. Turn on for a controller-driven cursor. Off is faster on a phone. Applies next session.</string>
+    <string name="perf_cursor_composite_hint">Gamescope paints the pointer itself instead of handing it to Android. Applies next session.</string>
     <string name="perf_identity">Session identity</string>
     <string name="perf_hostname">Host name</string>
     <string name="perf_hostname_hint">The name Steam sees for this device. Blank restores %1$s.</string>

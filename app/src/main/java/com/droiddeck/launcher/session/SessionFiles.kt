@@ -143,6 +143,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-proton-extra" to "usr/local/bin/droiddeck-proton-extra",
             "usr/local/bin/droiddeck-netmanager" to "usr/local/bin/droiddeck-netmanager",
             "usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1",
+            "usr/local/bin/droiddeck-documents" to "usr/local/bin/droiddeck-documents",
             "usr/local/bin/droiddeck-steam-launch" to "usr/local/bin/droiddeck-steam-launch",
             "usr/local/bin/droiddeck-desktop-games" to "usr/local/bin/droiddeck-desktop-games",
             "usr/local/bin/droiddeck-desktop-programs" to "usr/local/bin/droiddeck-desktop-programs",
@@ -154,6 +155,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-emulators" to "usr/local/bin/droiddeck-emulators",
             "usr/local/bin/droiddeck-snap-run" to "usr/local/bin/droiddeck-snap-run",
             "usr/local/bin/droiddeck-snap-confine" to "usr/local/bin/droiddeck-snap-confine",
+            "usr/local/bin/droiddeck-diversion-stub" to "usr/local/bin/droiddeck-diversion-stub",
             "usr/local/bin/droiddeck-snapctl" to "usr/local/bin/droiddeck-snapctl",
             "usr/local/bin/droiddeck-systemd-run" to "usr/local/bin/systemd-run",
             "usr/local/bin/droiddeck-snap-cli" to "usr/local/bin/snap",
@@ -263,7 +265,9 @@ object SessionFiles {
             "usr/local/share/vkbridge/droidbridge_icd.json" to "usr/local/share/vkbridge/droidbridge_icd.json",
             "usr/local/bin/droiddeck-vkbridge-smoke" to "usr/local/bin/droiddeck-vkbridge-smoke",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
+            "usr/local/lib/droiddeck/dwarfsextract" to "usr/local/lib/droiddeck/dwarfsextract",
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
+            "usr/local/share/licenses/dwarfs/LICENSE" to "usr/local/share/licenses/dwarfs/LICENSE",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
         ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')

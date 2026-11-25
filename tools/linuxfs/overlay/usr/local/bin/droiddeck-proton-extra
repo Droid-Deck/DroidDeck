@@ -13,8 +13,10 @@ RELEASES = "https://api.github.com/repos/%s/releases"
 SOURCES = {
     "ge": ("GloriousEggroll/proton-ge-custom", re.compile(r"aarch64\.tar\.(gz|xz)$")),
     "cachyos": ("CachyOS/proton-cachyos", re.compile(r"arm64\.tar\.(gz|xz)$")),
-    "droiddeck": ("Droid-Deck/DroidDeck-Proton", re.compile(r"aarch64\.tar\.(gz|xz)$")),
+    "droiddeck": ("Droid-Deck/DroidDeck-Proton", re.compile(r"^DroidDeck-Proton-.*aarch64\.tar\.(gz|xz)$")),
+    "bionic": ("Droid-Deck/DroidDeck-Proton", re.compile(r"^DroidDeck-Bionic-.*aarch64\.tar\.(gz|xz)$")),
 }
+PRERELEASES = {"bionic"}
 USER_AGENT = "droiddeck-proton-extra"
 NEED_BYTES = 4 * 1024 * 1024 * 1024
 
@@ -33,7 +35,7 @@ def fetch_json(url):
 def pick_asset(source):
     repo, pattern = SOURCES[source]
     for release in fetch_json(RELEASES % repo + "?per_page=15"):
-        if release.get("draft") or release.get("prerelease"):
+        if release.get("draft") or (release.get("prerelease") and source not in PRERELEASES):
             continue
         assets = {a["name"]: a["browser_download_url"] for a in release.get("assets", ())}
         for name in sorted(assets):

@@ -12,8 +12,11 @@ object StoreLaunch {
     const val EPIC_CODE = ".droiddeck-epic-code"
     const val EPIC_ARGS = ".droiddeck-epic-args"
     const val UBISOFT_LAUNCH = ".droiddeck-ubisoft.json"
-    private const val UBISOFT_SERVICE = "Z:\\usr\\local\\lib\\droiddeck-ubisoft\\droiddeck-upc.exe"
-    const val EPIC_PARENT = "Z:\\usr\\local\\lib\\droiddeck-epic\\EpicGamesLauncher.exe"
+    /** DroidDeck-Bionic's Wine has Android's root on Z:; that tool sets this to the guest's root as its Wine names it. */
+    const val GUEST_ROOT = "DROIDDECK_GUEST_ROOT"
+    private const val ROOT_VAR = "DD_R"
+    private const val UBISOFT_SERVICE = "%$ROOT_VAR%\\usr\\local\\lib\\droiddeck-ubisoft\\droiddeck-upc.exe"
+    const val EPIC_PARENT = "%$ROOT_VAR%\\usr\\local\\lib\\droiddeck-epic\\EpicGamesLauncher.exe"
     /** Per-game environment switch: 1 starts any Epic game under [EPIC_PARENT], 0 never does. */
     const val EPIC_PARENT_SWITCH = "DD_EPIC_PARENT"
     /** Epic app names whose launchers treat the game as unowned unless a process named EpicGamesLauncher.exe started it. */
@@ -47,6 +50,10 @@ object StoreLaunch {
         for ((k, v) in sidecar.env) if (ENV_NAME.matches(k)) lines += "set \"$k=${v.replace("\"", "")}\""
         val args = sidecar.args.joinToString(" ") { if (sidecar.store == Store.ROCKSTAR) batchArg(it) else quoteArg(it) }
         val run = "\"%~dp0$exe\"" + (if (args.isNotEmpty()) " $args" else "")
+        if (sidecar.store == Store.EPIC || sidecar.store == Store.UBISOFT) {
+            lines += "set \"$ROOT_VAR=Z:\""
+            lines += "if defined $GUEST_ROOT set \"$ROOT_VAR=%$GUEST_ROOT%\""
+        }
         if (sidecar.store == Store.EPIC) {
             lines += "set \"$PARENT_VAR=${if (sidecar.id in EPIC_PARENT_TITLES) "1" else ""}\""
             lines += "if \"%$EPIC_PARENT_SWITCH%\"==\"1\" set \"$PARENT_VAR=1\""
@@ -137,7 +144,6 @@ object StoreLaunch {
         if (sidecar.store !in listOf(Store.UBISOFT, Store.ROCKSTAR) || !sidecar.isInstalled) return sidecar
         if (sidecar.store == Store.ROCKSTAR && java.nio.file.Files.isSymbolicLink(File(folder, LAUNCHER).toPath())) return sidecar.copy(launcher = null)
         val wrongExe = !sidecar.exeFile(folder).isFile || sidecar.exe.contains("installer", ignoreCase = true) || sidecar.exe.contains("autorun", ignoreCase = true)
-        if (sidecar.store == Store.UBISOFT && sidecar.launcher == LAUNCHER && !wrongExe) return sidecar
         val metadataExe = if (sidecar.store == Store.ROCKSTAR) com.droiddeck.launcher.stores.rockstar.RockstarMetadata.find(folder)?.exe
             ?.takeIf { File(folder, it).isFile && File(folder, it).canonicalPath.startsWith(folder.canonicalPath + File.separator) } else null
         val exe = metadataExe ?: if (wrongExe) StoreExe.pick(folder, null, sidecar.title).ifEmpty { sidecar.exe } else sidecar.exe

@@ -73,9 +73,10 @@ object NativeGuest {
     fun libraryPath(root: File): String = LIB_DIRS.joinToString(":") { File(root, it).path }
 
     /** Environment every native process starts with; a guest `env -i` is re-seeded by the hook. */
-    fun environment(root: File, preload: List<String> = emptyList()): Map<String, String> = linkedMapOf(
+    fun environment(root: File, program: String, preload: List<String> = emptyList()): Map<String, String> = linkedMapOf(
         "DDNATV_ROOT" to root.path,
         "DDNATV_EXEC" to execLoader.orEmpty(),
+        "DDNATV_REAL_EXE" to hostProgram(root, program).path,
         "LD_PRELOAD" to (preload.map { File(root, it.removePrefix("/")).path } + hook(root).path).joinToString(":"),
     ).filterValues { it.isNotEmpty() }
 
@@ -85,17 +86,20 @@ object NativeGuest {
      */
     fun command(root: File, program: String, args: List<String>, libraryPath: String = libraryPath(root)): List<String> {
         val loader = checkNotNull(loader(root)) { "no glibc loader in ${root.path}" }
-        val host = File(root, program.removePrefix("/"))
+        val host = hostProgram(root, program)
         val launch = listOf(loader.path, "--library-path", libraryPath, "--argv0", host.name, host.path) + args
         return simulator(root)?.let { it + launch } ?: (execPrefix(loader.path) + launch)
     }
 
+    private fun hostProgram(root: File, program: String): File = File(root, program.removePrefix("/"))
+
     /** The environment of the session process: the hook's root, the mounts proot used to make, the preload list. */
-    fun sessionEnvironment(root: File, binds: List<String>, hostname: String? = null): Map<String, String> {
+    fun sessionEnvironment(root: File, binds: List<String>, program: String, hostname: String? = null): Map<String, String> {
         val preload = preloadList(root)
         return linkedMapOf(
             "DDNATV_ROOT" to root.path,
             "DDNATV_EXEC" to execLoader.orEmpty(),
+            "DDNATV_REAL_EXE" to hostProgram(root, program).path,
             "DDNATV_HOSTNAME" to hostname.orEmpty(),
             "DDNATV_BINDS" to binds.joinToString("|") { if (it.contains(':')) it else "$it:$it" },
             "DDNATV_PRELOAD" to preload.joinToString(":"),
@@ -114,7 +118,7 @@ object NativeGuest {
             .also { builder ->
                 builder.environment().apply {
                     remove("LD_AUDIT")
-                    putAll(sessionEnvironment(root, binds, SessionPrefs.guestHostname(context)))
+                    putAll(sessionEnvironment(root, binds, guest.first(), SessionPrefs.guestHostname(context)))
                 }
             }
 
@@ -278,7 +282,7 @@ object NativeGuest {
         builder.directory(File(root, cwd.removePrefix("/")).takeIf { it.isDirectory } ?: root)
         builder.environment().apply {
             clear()
-            putAll(environment(root, preload))
+            putAll(environment(root, program, preload))
             putAll(env)
         }
         return builder
