@@ -112,11 +112,8 @@ object OnScreenLayout {
                 val total = left.width + gapSize + right.width
                 val center = ((left.x + left.width / 2f) + (right.x + right.width / 2f)) / 2f
                 val start = (center - total / 2f).coerceIn(leftBound, (rightBound - total).coerceAtLeast(leftBound))
-                val leftIsFirst = leftControl == InputControl.LT
-                val first = left.copy(x = start)
-                val second = right.copy(x = start + left.width + gapSize)
-                scaled[li] = if (leftIsFirst) first else second
-                scaled[ri] = if (leftIsFirst) second else first
+                scaled[li] = left.copy(x = start)
+                scaled[ri] = right.copy(x = start + left.width + gapSize)
             }
             spacePair(InputControl.LT, InputControl.LB)
             spacePair(InputControl.RB, InputControl.RT)
