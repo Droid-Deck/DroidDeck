@@ -44,7 +44,7 @@ object OnScreenLayout {
         val (reference, matched) = reference(context, layout, width, height)
         if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
         if (dock?.portrait == true && !dock.grips && !matched && layout.aspect > 0f && layout.aspect < 1f && stored.any(::isGamepad))
-            return cluster(stored.filterNot { it.alwaysShown || isGamepad(it) && (it.id == KEYBOARD_ID || it.control in BAR) }, layout.aspect, width, height, safe)
+            return scaleDocked(cluster(stored.filterNot { it.alwaysShown || isGamepad(it) && (it.id == KEYBOARD_ID || it.control in BAR) }, layout.aspect, width, height, safe), ControllerPrefs.read(context).size / 100f, width, height, safe)
         val generated = matched || PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) &&
             (dock != null || height > width && layout.aspect >= 1f || height <= width && layout.aspect > 0f && layout.aspect < 1f)
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
@@ -57,7 +57,7 @@ object OnScreenLayout {
         val placed = regenerated + gamepad.filter { g -> dock == null && optional(g) && regenerated.none { it.id == g.id } }
         val byId = (placed + others).associateBy { it.id }
         val ordered = stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
-        val kit = PadKit.forOverlay(context, layout) ?: return ordered
+        val kit = PadKit.forOverlay(context, layout) ?: return if (dock == null) ordered else scaleDocked(ordered, ControllerPrefs.read(context).size / 100f, width, height, safe)
         val controllerScale = layout.scale * ControllerPrefs.read(context).size / 100f
         if (generated &&
             ControllerPrefs.layout(context, reference.first.toInt(), reference.second.toInt()).isEmpty() &&
