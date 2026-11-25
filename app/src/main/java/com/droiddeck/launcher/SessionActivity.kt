@@ -875,9 +875,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         cornerTap = SessionPrefs.drawerCornerTap(this)
         applyOutputPacing()
         if (!SessionState.running) {
-            SessionState.followScreen = followChoice()
-            SessionState.followScale = followScale()
+            SessionState.followScales = SessionPrefs.followScales(this, displayMode(),
+                com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         }
+        applyFollowChoice()
         applyFollowOrientation(resources.configuration)
         goFullscreen()
         volumeControlStream = android.media.AudioManager.STREAM_MUSIC
@@ -1545,6 +1546,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             secondScreenDisplays = secondScreenDisplays,
             selectedSecondScreenDisplay = selectedSecondScreenDisplay,
             onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
+            onHudOnlyDuringGame = { on ->
+                SessionPrefs.setHudOnlyDuringGame(this@SessionActivity, on)
+                hud.refresh()
+            },
             onGpuClockPin = { on ->
                 SessionPrefs.setGpuClockPin(this@SessionActivity, on)
                 gpuClockPin = on
@@ -2991,16 +2996,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun followPortrait(): Boolean = glassesScreen == null && SessionPrefs.portrait(this)
 
-    private fun followScale(): Float {
-        val mode = displayMode()
-        val choice = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), followPortrait())
-        return com.droiddeck.launcher.session.SessionDisplay.followScale(choice) ?: 1f
-    }
-
-    private fun followChoice(): Boolean {
-        val mode = displayMode()
-        return com.droiddeck.launcher.session.SessionDisplay.isFollow(
-            SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this), followPortrait()))
+    private fun applyFollowChoice() {
+        val scale = SessionState.followScales.let { if (followPortrait()) it.second else it.first }
+        SessionState.followScreen = scale != null
+        SessionState.followScale = scale ?: 1f
     }
 
     private fun applyFollowOrientation(config: android.content.res.Configuration) {
@@ -3014,6 +3013,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             SessionService.setActivityDisplay(this, sessionActivityDisplayId)
         }
         cancelTouchGestures()
+        applyFollowChoice()
         applyFollowOrientation(newConfig)
         applyNotchInset()
         applyUnfoldedControls()
@@ -3548,6 +3548,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val normalized = com.droiddeck.launcher.input.GuestKeys.normalizeKeyboardEscape(event)
+        if (normalized === event) return dispatchSessionKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            Log.i(TAG, "hardware Esc normalized from Back device=${event.deviceId} scan=${event.scanCode}")
+        }
+        return dispatchSessionKeyEvent(normalized)
+    }
+
+    private fun dispatchSessionKeyEvent(event: KeyEvent): Boolean {
         if (com.droiddeck.launcher.ui.AgentPet.handleBack(this, event)) return true
         when (event.keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_VOLUME_MUTE -> {
@@ -5149,10 +5158,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var sessionTouchDown = false
     private var screenTapsClick = true
 
-    private fun onScreenMouseButtonShown(): Boolean = listOfNotNull(
+    private fun onScreenLeftMouseButtonShown(): Boolean = listOfNotNull(
         onScreenControls?.inputSurface, bottomInputControls?.inputSurface, unfoldedPanel?.inputSurface, unfoldedDeckSurface,
         secondScreenPresentation?.controlsView, swappedInputSurface,
-    ).any { it.isShown && inputProfile.showsMouseButton(it.inputRole, it.shownElements, stockInputProfile) }
+    ).any { it.isShown && inputProfile.showsLeftMouseButton(it.inputRole, it.shownElements, stockInputProfile) }
 
     override fun onTouchEvent(event: MotionEvent): Boolean = inSurfaceSpace(event) { handleTouch(event) }
 
@@ -5188,7 +5197,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val snapshot = fingerTouchSnapshot(uiBlocking)
         val route = com.droiddeck.launcher.input.TouchRouter.decide(snapshot)
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            screenTapsClick = !onScreenMouseButtonShown()
+            screenTapsClick = !onScreenLeftMouseButtonShown()
             if (::touchpad.isInitialized) touchpad.clicks = screenTapsClick
             if (::scrollTouch.isInitialized) scrollTouch.clicks = screenTapsClick
         }

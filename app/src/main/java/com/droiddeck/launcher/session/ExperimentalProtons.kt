@@ -74,10 +74,16 @@ object ExperimentalProtons {
         return PREFIX + base + (tag?.let { "-$it" } ?: "")
     }
 
+    /** DroidDeck-Bionic test builds are prereleases of the same repository and have their own row in the Proton list. */
+    internal fun listed(assets: List<ProtonExtras.Asset>): List<ProtonExtras.Asset> {
+        val bionic = ProtonExtras.tools.first { it.id == ProtonExtras.BIONIC }
+        return assets.filterNot { bionic.assetPattern.containsMatchIn(it.name) }
+    }
+
     fun refresh(context: Context): List<Release>? {
         val tool = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }
         val fetched = ProtonExtras.releasesForRemoval(tool) ?: return null
-        val assets = ProtonExtras.assets(tool, fetched.releases, prerelease = true)
+        val assets = listed(ProtonExtras.assets(tool, fetched.releases, prerelease = true))
         val rows = assets.map { Release(it.tag, it.name, it.url, it.sha512, it.size, it.releaseName) }.distinctBy { it.tag }
         if (!SessionState.running) {
             reconcile(context, fetched)

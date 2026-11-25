@@ -61,9 +61,11 @@ class BwrapSpawnerTest {
             "DDNATV_ROOT" to rootfs, "DDNATV_BINDS" to "/dev:/dev", "HOME" to "/root",
             "SPA_PLUGIN_DIR" to "/usr/local/lib/droiddeck-pipewire/lib/spa-0.2",
             "LD_PRELOAD" to "/run/droiddeck-preload/libddsession.so:$rootfs/usr/local/lib/libddsession.so:$rootfs/usr/lib/libddnatv-hook.so",
+            "DROIDDECK_FDS" to "droiddeck-fds-1",
         )
         BwrapSpawner.withoutRootfsSettings(env, rootfs)
-        assertEquals(mapOf("HOME" to "/root", "LD_PRELOAD" to "/run/droiddeck-preload/libddsession.so"), env)
+        assertEquals(mapOf("HOME" to "/root", "LD_PRELOAD" to "/run/droiddeck-preload/libddsession.so",
+            "DROIDDECK_FDS" to "droiddeck-fds-1"), env)
         val onlySession = mutableMapOf("LD_PRELOAD" to "$rootfs/usr/lib/libddnatv-hook.so")
         BwrapSpawner.withoutRootfsSettings(onlySession, rootfs)
         assertTrue(onlySession.isEmpty())
@@ -73,6 +75,32 @@ class BwrapSpawnerTest {
         val x11 = mutableMapOf("SDL_VIDEODRIVER" to "x11", "WAYLAND_DISPLAY" to "wayland-0", "DISPLAY" to ":99")
         BwrapSpawner.withoutRootfsSettings(x11, rootfs)
         assertEquals("x11", x11["SDL_VIDEODRIVER"])
+    }
+
+    @Test fun sourcesNamedByTheirKernelPathReachTheSessionsMounts() {
+        val files = "/data/user/0/com.droiddeck.launcher/files"
+        val kernel = "/data/data/com.droiddeck.launcher/files"
+        val binds = session + Bind(files, files)
+        val aliased = BwrapSpawner.withKernelPaths(binds) { it.replace("/data/user/0/", "/data/data/") }
+        val runtime = "/linuxfs/root/.local/share/flatpak/runtime/org.example.Platform/aarch64/1/abc/files"
+        assertEquals("$files$runtime", BwrapSpawner.hostPath(aliased, "$files/linuxfs", "$kernel$runtime"))
+        assertEquals("$files$runtime", BwrapSpawner.hostPath(aliased, "$files/linuxfs", "$files$runtime"))
+        assertEquals("$files/linuxfs/usr/bin/env", BwrapSpawner.hostPath(aliased, "$files/linuxfs", "/usr/bin/env"))
+    }
+
+    @Test fun kernelPathsLeaveOtherMountsAlone() {
+        assertEquals(session, BwrapSpawner.withKernelPaths(session) { it })
+        val renamed = listOf(Bind("/data/user/0/x", "/mnt/x"), Bind("/data/user/0/y", "/data/user/0/y"), Bind("/elsewhere", "/data/data/y"))
+        assertEquals(renamed, BwrapSpawner.withKernelPaths(renamed) { it.replace("/data/user/0/", "/data/data/") })
+        assertEquals(session, BwrapSpawner.withKernelPaths(session) { throw java.io.IOException(it) })
+    }
+
+    @Test fun prootGetsNoGuestPreloadOfItsOwn() {
+        val plan = BwrapSpawner.Plan(File("/sandbox"), emptyList(), "/", listOf("/app/bin/apply_extra"),
+            mapOf("LD_PRELOAD" to "/run/droiddeck-preload/libddsession.so", "FLATPAK_ID" to "org.example.Ext"))
+        assertEquals(mapOf("FLATPAK_ID" to "org.example.Ext"), BwrapSpawner.prootEnvironment(plan, false))
+        assertTrue(BwrapSpawner.prootEnvironment(plan, true).isEmpty())
+        assertEquals("/run/droiddeck-preload/libddsession.so", plan.env["LD_PRELOAD"])
     }
 
     @Test fun normalizeResolvesDotsLexically() {
@@ -144,6 +172,20 @@ class BwrapSpawnerPlanTest {
         assertTrue(lib.delete())
         assertEquals(null, BwrapSpawner.gpu(runtime.path, root, unavailable, true))
         assertEquals(mapOf("DD_DESKTOP" to "1"), unavailable)
+    }
+
+    @Test fun theRuntimeGlExtensionVulkanDirectoryListsOnlyTheSessionDriver() {
+        val lib = File(runtime, "usr/lib/aarch64-linux-gnu/libvulkan_freedreno.so")
+        lib.parentFile!!.mkdirs()
+        lib.writeText("")
+        val root = File(dir, "root").apply { mkdirs() }
+        val glIcd = "/usr/lib/aarch64-linux-gnu/GL/vulkan/icd.d"
+        val binds = BwrapSpawner.gpu(runtime.path, root, mutableMapOf("DD_DESKTOP" to "1"), true, glIcd = true)!!
+        val listed = File(binds.single { it.guest == glIcd }.host).listFiles()!!.map { it.name }
+        assertEquals(listOf("freedreno_icd.json"), listed)
+        assertTrue(File(binds.single { it.guest == glIcd }.host, "freedreno_icd.json").readText().contains("/run/droiddeck-gpu/libvulkan_freedreno.so"))
+        assertTrue(BwrapSpawner.gpu(runtime.path, root, mutableMapOf("DD_DESKTOP" to "1"), true)!!.none { it.guest == glIcd })
+        assertEquals(null, BwrapSpawner.gpu(runtime.path, root, mutableMapOf("VK_DRIVER_FILES" to "/custom/icd.json"), true, glIcd = true))
     }
 
     @Test fun buildsTheTreeFlatpakAsksFor() {

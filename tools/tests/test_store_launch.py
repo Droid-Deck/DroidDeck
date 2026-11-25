@@ -1005,6 +1005,23 @@ class Ubisoft(unittest.TestCase):
         self.assertEqual('C:/users/steamuser/Saved Games/Ubisoft/u1/109/', launch['saves'])
         self.assertTrue((self.compat_data / 'pfx/drive_c/users/steamuser/Saved Games/Ubisoft/u1/109').is_dir())
 
+    def test_a_bionic_launch_names_the_android_files(self):
+        self.runtime()
+        tool = self.root / 'DroidDeck-Bionic-12.8-r41-Proton'
+        (tool / 'bionic').mkdir(parents=True)
+        (tool / 'bionic/launch.sh').write_text('')
+        proton = Path(__file__).resolve().parents[1] / 'bionic-runtime/tool/proton'
+        (tool / 'proton').write_bytes(proton.read_bytes())
+        (tool / 'proton').chmod(0o755)
+        env = {'DD_STORE_PROTON': str(tool / 'proton'), 'DDNATV_ROOT': '/data/user/0/app/files/linuxfs',
+               'DDNATV_BINDS': '/storage/emulated/0/T:%s' % self.root}
+        with patch.dict(os.environ, env):
+            self.prepare(self.answer)
+        launch = json.loads((self.folder / store.UBISOFT_LAUNCH).read_text())
+        self.assertEqual('Z:\\storage\\emulated\\0\\T\\Games\\Stores\\Ubisoft\\Splinter Cell\\system\\SplinterCell.exe', launch['exe'])
+        for key in ('bridge', 'log'):
+            self.assertTrue(launch[key].startswith('Z:\\storage\\emulated\\0\\T\\cache\\'), launch[key])
+
     def test_without_a_session_the_launch_file_is_removed_and_the_game_starts_as_is(self):
         self.runtime()
         (self.folder / store.UBISOFT_LAUNCH).write_text('{}')

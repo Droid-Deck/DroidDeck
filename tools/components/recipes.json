@@ -8,6 +8,7 @@
       "tools/linuxfs/desktop",
       "tools/linuxfs/licenses",
       "tools/linuxfs/uruntime.env",
+      "tools/linuxfs/unwrap-dwarfs.sh",
       "tools/gamescope/release.env",
       "tools/wlroots/release.env",
       "tools/mangoapp",
