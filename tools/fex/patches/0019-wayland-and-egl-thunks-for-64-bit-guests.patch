@@ -108,7 +108,7 @@ index 8d18d0e..c10066f 100644
    generate(libGL ${CMAKE_CURRENT_SOURCE_DIR}/../libGL/libGL_interface.cpp ${GUEST_BITNESS})
    target_include_directories_from_pkgconfig(libGL-${GUEST_BITNESS}-deps gl)
 diff --git a/ThunkLibs/libEGL/libEGL_Guest.cpp b/ThunkLibs/libEGL/libEGL_Guest.cpp
-index c157f00..45e49bf 100644
+index c157f00..196c7e8 100644
 --- a/ThunkLibs/libEGL/libEGL_Guest.cpp
 +++ b/ThunkLibs/libEGL/libEGL_Guest.cpp
 @@ -5,11 +5,22 @@ desc: Depends on glXGetProcAddress thunk
@@ -134,7 +134,7 @@ index c157f00..45e49bf 100644
  
  #include "common/Guest.h"
  
-@@ -17,12 +28,94 @@ $end_info$
+@@ -17,12 +28,128 @@ $end_info$
  
  typedef void voidFunc();
  
@@ -146,46 +146,80 @@ index c157f00..45e49bf 100644
 +  return self;
 +}
 +
-+static constexpr std::pair<std::string_view, const char*> ExtensionEntrypoints[] = {
++static constexpr std::pair<std::string_view, std::string_view> ExtensionEntrypoints[] = {
 +  {"EGL_ANDROID_blob_cache", "eglSetBlobCacheFuncsANDROID"},
-+  {"EGL_ANDROID_get_frame_timestamps", "eglGetFrameTimestampsANDROID"},
++  {"EGL_ANDROID_create_native_client_buffer", "eglCreateNativeClientBufferANDROID"},
++  {"EGL_ANDROID_get_frame_timestamps", "eglGetCompositorTimingSupportedANDROID eglGetCompositorTimingANDROID eglGetNextFrameIdANDROID eglGetFrameTimestampSupportedANDROID eglGetFrameTimestampsANDROID"},
 +  {"EGL_ANDROID_get_native_client_buffer", "eglGetNativeClientBufferANDROID"},
++  {"EGL_ANDROID_native_fence_sync", "eglDupNativeFenceFDANDROID"},
 +  {"EGL_ANDROID_presentation_time", "eglPresentationTimeANDROID"},
-+  {"EGL_EXT_compositor", "eglCompositorSetContextListEXT"},
-+  {"EGL_EXT_output_base", "eglGetOutputLayersEXT"},
++  {"EGL_ANGLE_query_surface_pointer", "eglQuerySurfacePointerANGLE"},
++  {"EGL_ANGLE_sync_control_rate", "eglGetMscRateANGLE"},
++  {"EGL_EXT_client_sync", "eglClientSignalSyncEXT"},
++  {"EGL_EXT_compositor", "eglCompositorSetContextListEXT eglCompositorSetContextAttributesEXT eglCompositorSetWindowListEXT eglCompositorSetWindowAttributesEXT eglCompositorBindTexWindowEXT eglCompositorSetSizeEXT eglCompositorSwapPolicyEXT"},
++  {"EGL_EXT_device_base", "eglQueryDeviceAttribEXT eglQueryDeviceStringEXT eglQueryDevicesEXT eglQueryDisplayAttribEXT"},
++  {"EGL_EXT_device_enumeration", "eglQueryDevicesEXT"},
++  {"EGL_EXT_device_persistent_id", "eglQueryDeviceBinaryEXT"},
++  {"EGL_EXT_device_query", "eglQueryDeviceAttribEXT eglQueryDeviceStringEXT eglQueryDisplayAttribEXT"},
++  {"EGL_EXT_image_dma_buf_import_modifiers", "eglQueryDmaBufFormatsEXT eglQueryDmaBufModifiersEXT"},
++  {"EGL_EXT_output_base", "eglGetOutputLayersEXT eglGetOutputPortsEXT eglOutputLayerAttribEXT eglQueryOutputLayerAttribEXT eglQueryOutputLayerStringEXT eglOutputPortAttribEXT eglQueryOutputPortAttribEXT eglQueryOutputPortStringEXT"},
++  {"EGL_EXT_platform_base", "eglGetPlatformDisplayEXT eglCreatePlatformWindowSurfaceEXT eglCreatePlatformPixmapSurfaceEXT"},
 +  {"EGL_EXT_stream_consumer_egloutput", "eglStreamConsumerOutputEXT"},
 +  {"EGL_EXT_surface_compression", "eglQuerySupportedCompressionRatesEXT"},
++  {"EGL_EXT_swap_buffers_with_damage", "eglSwapBuffersWithDamageEXT"},
 +  {"EGL_EXT_sync_reuse", "eglUnsignalSyncEXT"},
 +  {"EGL_HI_clientpixmap", "eglCreatePixmapSurfaceHI"},
 +  {"EGL_KHR_cl_event2", "eglCreateSync64KHR"},
-+  {"EGL_KHR_debug", "eglDebugMessageControlKHR"},
++  {"EGL_KHR_debug", "eglDebugMessageControlKHR eglQueryDebugKHR eglLabelObjectKHR"},
 +  {"EGL_KHR_display_reference", "eglQueryDisplayAttribKHR"},
-+  {"EGL_KHR_lock_surface", "eglLockSurfaceKHR"},
-+  {"EGL_KHR_lock_surface3", "eglQuerySurface64KHR"},
++  {"EGL_KHR_fence_sync", "eglCreateSyncKHR eglDestroySyncKHR eglClientWaitSyncKHR eglGetSyncAttribKHR"},
++  {"EGL_KHR_image", "eglCreateImageKHR eglDestroyImageKHR"},
++  {"EGL_KHR_image_base", "eglCreateImageKHR eglDestroyImageKHR"},
++  {"EGL_KHR_lock_surface", "eglLockSurfaceKHR eglUnlockSurfaceKHR"},
++  {"EGL_KHR_lock_surface3", "eglLockSurfaceKHR eglUnlockSurfaceKHR eglQuerySurface64KHR"},
 +  {"EGL_KHR_partial_update", "eglSetDamageRegionKHR"},
-+  {"EGL_KHR_reusable_sync", "eglSignalSyncKHR"},
-+  {"EGL_KHR_stream", "eglCreateStreamKHR"},
++  {"EGL_KHR_reusable_sync", "eglCreateSyncKHR eglDestroySyncKHR eglClientWaitSyncKHR eglSignalSyncKHR eglGetSyncAttribKHR"},
++  {"EGL_KHR_stream", "eglCreateStreamKHR eglDestroyStreamKHR eglStreamAttribKHR eglQueryStreamKHR eglQueryStreamu64KHR"},
++  {"EGL_KHR_stream_attrib", "eglCreateStreamAttribKHR eglSetStreamAttribKHR eglQueryStreamAttribKHR eglStreamConsumerAcquireAttribKHR eglStreamConsumerReleaseAttribKHR"},
++  {"EGL_KHR_stream_consumer_gltexture", "eglStreamConsumerGLTextureExternalKHR eglStreamConsumerAcquireKHR eglStreamConsumerReleaseKHR"},
++  {"EGL_KHR_stream_cross_process_fd", "eglGetStreamFileDescriptorKHR eglCreateStreamFromFileDescriptorKHR"},
++  {"EGL_KHR_stream_fifo", "eglQueryStreamTimeKHR"},
++  {"EGL_KHR_stream_producer_eglsurface", "eglCreateStreamProducerSurfaceKHR"},
 +  {"EGL_KHR_swap_buffers_with_damage", "eglSwapBuffersWithDamageKHR"},
-+  {"EGL_MESA_drm_image", "eglCreateDRMImageMESA"},
-+  {"EGL_MESA_gl_interop", "eglGLInteropExportObjectMESA"},
-+  {"EGL_MESA_image_dma_buf_export", "eglExportDMABUFImageMESA"},
-+  {"EGL_MESA_query_driver", "eglGetDisplayDriverName"},
++  {"EGL_KHR_wait_sync", "eglWaitSyncKHR"},
++  {"EGL_MESA_drm_image", "eglCreateDRMImageMESA eglExportDRMImageMESA"},
++  {"EGL_MESA_image_dma_buf_export", "eglExportDMABUFImageQueryMESA eglExportDMABUFImageMESA"},
++  {"EGL_MESA_query_driver", "eglGetDisplayDriverConfig eglGetDisplayDriverName"},
++  {"EGL_NOK_swap_region", "eglSwapBuffersRegionNOK"},
 +  {"EGL_NOK_swap_region2", "eglSwapBuffersRegion2NOK"},
++  {"EGL_NV_native_query", "eglQueryNativeDisplayNV eglQueryNativeWindowNV eglQueryNativePixmapNV"},
 +  {"EGL_NV_post_sub_buffer", "eglPostSubBufferNV"},
++  {"EGL_NV_stream_consumer_eglimage", "eglStreamImageConsumerConnectNV eglQueryStreamConsumerEventNV eglStreamAcquireImageNV eglStreamReleaseImageNV"},
 +  {"EGL_NV_stream_consumer_gltexture_yuv", "eglStreamConsumerGLTextureExternalAttribsNV"},
-+  {"EGL_NV_stream_metadata", "eglSetStreamMetadataNV"},
++  {"EGL_NV_stream_flush", "eglStreamFlushNV"},
++  {"EGL_NV_stream_metadata", "eglQueryDisplayAttribNV eglSetStreamMetadataNV eglQueryStreamMetadataNV"},
++  {"EGL_NV_stream_reset", "eglResetStreamNV"},
 +  {"EGL_NV_stream_sync", "eglCreateStreamSyncNV"},
-+  {"EGL_NV_sync", "eglCreateFenceSyncNV"},
-+  {"EGL_NV_system_time", "eglGetSystemTimeNV"},
-+  {"EGL_WL_bind_wayland_display", "eglBindWaylandDisplayWL"},
++  {"EGL_NV_sync", "eglCreateFenceSyncNV eglDestroySyncNV eglFenceNV eglClientWaitSyncNV eglSignalSyncNV eglGetSyncAttribNV"},
++  {"EGL_NV_system_time", "eglGetSystemTimeFrequencyNV eglGetSystemTimeNV"},
++  {"EGL_WL_bind_wayland_display", "eglBindWaylandDisplayWL eglUnbindWaylandDisplayWL eglQueryWaylandBufferWL"},
 +  {"EGL_WL_create_wayland_buffer_from_image", "eglCreateWaylandBufferFromImageWL"},
 +};
 +
 +static bool GuestHasEntrypoints(std::string_view extension) {
-+  for (const auto& [name, entrypoint] : ExtensionEntrypoints) {
-+    if (name == extension) {
-+      return Self() && dlsym(Self(), entrypoint);
++  for (const auto& [name, entrypoints] : ExtensionEntrypoints) {
++    if (name != extension) {
++      continue;
 +    }
++    std::string_view rest = entrypoints;
++    while (!rest.empty()) {
++      auto end = rest.find(' ');
++      if (!Self() || !dlsym(Self(), std::string {rest.substr(0, end)}.c_str())) {
++        return false;
++      }
++      rest = end == std::string_view::npos ? std::string_view {} : rest.substr(end + 1);
++    }
++    return true;
 +  }
 +  return true;
 +}
@@ -232,18 +266,20 @@ index c157f00..45e49bf 100644
 -LOAD_LIB(libEGL)
 +LOAD_LIB_INIT(libEGL, OnInit)
 diff --git a/ThunkLibs/libEGL/libEGL_Host.cpp b/ThunkLibs/libEGL/libEGL_Host.cpp
-index ac8a87e..7db6ed2 100644
+index ac8a87e..466c0ea 100644
 --- a/ThunkLibs/libEGL/libEGL_Host.cpp
 +++ b/ThunkLibs/libEGL/libEGL_Host.cpp
-@@ -4,14 +4,158 @@ tags: thunklibs|EGL
+@@ -4,14 +4,159 @@ tags: thunklibs|EGL
  $end_info$
  */
  
++#include <algorithm>
 +#include <atomic>
  #include <cstdio>
  #include <dlfcn.h>
 +#include <mutex>
 +#include <unordered_map>
++#include <vector>
  
 +#define EGL_EGLEXT_PROTOTYPES 1
  #include <EGL/egl.h>
@@ -287,17 +323,16 @@ index ac8a87e..7db6ed2 100644
 +}
 +
 +static bool IsHostDevice(void* native) {
-+  EGLDeviceEXT devices[16];
 +  EGLint count = 0;
-+  if (!fexldr_ptr_libEGL_eglQueryDevicesEXT || !fexldr_ptr_libEGL_eglQueryDevicesEXT(16, devices, &count)) {
++  if (!fexldr_ptr_libEGL_eglQueryDevicesEXT || !fexldr_ptr_libEGL_eglQueryDevicesEXT(0, nullptr, &count) || count <= 0) {
 +    return false;
 +  }
-+  for (EGLint i = 0; i < count; ++i) {
-+    if (devices[i] == native) {
-+      return true;
-+    }
++  std::vector<EGLDeviceEXT> devices(count);
++  if (!fexldr_ptr_libEGL_eglQueryDevicesEXT(count, devices.data(), &count)) {
++    return false;
 +  }
-+  return false;
++  devices.resize(std::min<size_t>(count, devices.size()));
++  return std::find(devices.begin(), devices.end(), native) != devices.end();
 +}
 +
 +static void* HostNativeDisplay(EGLenum platform, void* native, _XDisplay** guest_x11) {

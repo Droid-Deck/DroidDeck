@@ -79,6 +79,29 @@ class FexWaylandEglThunksTest(unittest.TestCase):
                     self.assertEqual(launcher[name], entries[name])
         self.assertEqual({"EGL", "WaylandEGL"}, set(entries) & set(THUNKS))
 
+    def test_the_upstream_wayland_client_entry_is_left_unchanged(self):
+        changed = [line for line in blocks()["Data/ThunksDB.json"].splitlines()
+                   if line[:1] in "+-" and not line.startswith(("+++", "---"))]
+        self.assertFalse([line for line in changed if "WaylandClient" in line or "wayland-client" in line])
+
+    def test_an_extension_is_advertised_only_with_every_entrypoint(self):
+        guest = "\n".join(files()["ThunkLibs/libEGL/libEGL_Guest.cpp"])
+        table = dict(re.findall(r'\{"(EGL_\w+)", "([\w ]+)"\}', guest))
+        self.assertEqual("eglQueryNativeDisplayNV eglQueryNativeWindowNV eglQueryNativePixmapNV",
+                         table["EGL_NV_native_query"])
+        self.assertIn("eglSignalSyncKHR", table["EGL_KHR_reusable_sync"].split())
+        self.assertIn("eglCreateSyncKHR", table["EGL_KHR_reusable_sync"].split())
+        body = re.search(r"static bool GuestHasEntrypoints\(.*?\n\}", guest, re.S).group(0)
+        self.assertRegex(body, r"while \(!rest\.empty\(\)\)")
+        self.assertRegex(body, r"dlsym\(Self\(\), .*rest\.substr\(0, end\)")
+
+    def test_device_handles_are_matched_against_every_host_device(self):
+        host = "\n".join(files()["ThunkLibs/libEGL/libEGL_Host.cpp"])
+        body = re.search(r"static bool IsHostDevice\(.*?\n\}", host, re.S).group(0)
+        self.assertIn("eglQueryDevicesEXT(0, nullptr, &count)", body)
+        self.assertIn("std::vector<EGLDeviceEXT> devices(count)", body)
+        self.assertNotRegex(body, r"\[\d+\]")
+
     def test_gles_is_overlaid_only_by_the_64_bit_egl_thunk(self):
         overlays, name = {}, None
         for line in blocks()["Data/ThunksDB.json"].splitlines():
