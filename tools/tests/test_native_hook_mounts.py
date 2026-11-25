@@ -65,6 +65,11 @@ int main(int argc, char **argv) {
       printf("%s\t%s\n", argv[i], ok ? cwd : "-");
       continue;
     }
+    if (strncmp(argv[i], "lstat:", 6) == 0) {
+      int ok = lstat(argv[i] + 6, &st) == 0;
+      printf("%s\t%d\t%d\n", argv[i], ok, ok && S_ISLNK(st.st_mode));
+      continue;
+    }
     if (strncmp(argv[i], "at:", 3) == 0) {
       int dfd = open(argv[i] + 3, O_RDONLY | O_DIRECTORY);
       printf("%s\t%d\t%d\n", argv[i], fstatat(AT_FDCWD, argv[i] + 3, &st, 0) == 0, dfd >= 0);
@@ -149,6 +154,14 @@ class NativeHookMountTest(unittest.TestCase):
         private_copy = cls.private / "456/pfx/dosdevices"
         private_copy.mkdir(parents=True)
         os.symlink("../" * 12 + "..", private_copy / "z:")
+        cls.links = tmp / "links"
+        (cls.links / "real/sub").mkdir(parents=True)
+        (cls.links / "real/sub/file.txt").write_text("deep")
+        os.symlink("real", cls.links / "dir")
+        os.symlink(str(cls.links / "real"), cls.links / "hostdir")
+        os.symlink("/etc/hostname", cls.links / "guest")
+        os.symlink("real/sub/file.txt", cls.links / "file")
+        os.symlink("/mnt/links/real", cls.links / "real/up")
         cls.eqlen_src = tmp / "eqsrcdir"
         cls.eqlen_dst = "/" + "d" * (len(str(cls.eqlen_src)) - 1)
         eqlen_pfx = cls.eqlen_src / "123/pfx/dosdevices"
@@ -309,6 +322,39 @@ class NativeHookMountTest(unittest.TestCase):
         result = self.run_probe(path, cd)
         self.assertEqual(result[path], ["1", "library"])
         self.assertEqual(result[cd], [GAME])
+
+    def test_plain_paths_in_a_mount_reach_their_files(self):
+        binds = f"{self.links}:/mnt/links"
+        paths = ["/mnt/links/real/sub/file.txt", "/mnt/links/real/sub/../sub/file.txt", "/mnt/links//real/sub/file.txt"]
+        result = self.run_probe(*paths, binds=binds)
+        for path in paths:
+            self.assertEqual(result[path], ["1", "deep"], path)
+
+    def test_links_inside_a_mount_are_followed_in_the_guest_view(self):
+        binds = f"{self.links}:/mnt/links"
+        paths = {"/mnt/links/dir/sub/file.txt": ["1", "deep"], "/mnt/links/hostdir/sub/file.txt": ["1", "deep"],
+                 "/mnt/links/file": ["1", "deep"], "/mnt/links/guest": ["1", "rootfs"],
+                 "/mnt/links/real/up/sub/file.txt": ["1", "deep"], "/mnt/links/dir/up/up/sub/file.txt": ["1", "deep"]}
+        result = self.run_probe(*paths, binds=binds)
+        for path, want in paths.items():
+            self.assertEqual(result[path], want, path)
+
+    def test_last_link_in_a_mount_is_seen_by_lstat(self):
+        binds = f"{self.links}:/mnt/links"
+        cases = {"lstat:/mnt/links/guest": ["1", "1"], "lstat:/mnt/links/dir": ["1", "1"],
+                 "lstat:/mnt/links/dir/sub/file.txt": ["1", "0"], "lstat:/mnt/links/real/sub": ["1", "0"],
+                 "lstat:/mnt/links/dir/missing": ["0", "0"]}
+        result = self.run_probe(*cases, binds=binds)
+        for case, want in cases.items():
+            self.assertEqual(result[case], want, case)
+
+    def test_missing_paths_in_a_mount_stay_missing(self):
+        binds = f"{self.links}:/mnt/links"
+        paths = ["/mnt/links/real/missing", "/mnt/links/dir/missing", "/mnt/links/missing/file.txt",
+                 "/mnt/links/real/sub/file.txt/more"]
+        result = self.run_probe(*paths, binds=binds)
+        for path in paths:
+            self.assertEqual(result[path], ["0", "-"], path)
 
 
 if __name__ == "__main__":
