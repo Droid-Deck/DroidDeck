@@ -309,6 +309,21 @@ class BattleNetTest {
         assertEquals(mapOf("WoWF" to root), BattleNet.ownFolders(mapOf("WoWF" to (forever to root)), mapOf("WoWF" to "/elsewhere")))
     }
 
+    @Test fun aFolderSavedThroughAnAliasOfTheAppDataFolderIsKept() {
+        val data = context.filesDir.parentFile!!
+        val root = File(context.filesDir, "World of Warcraft").apply { mkdirs() }
+        val foreverDir = File(root, "_forever_").apply { mkdirs() }
+        val forever = BattleNet.title("wow_forever")!!
+        val alias = File(data.parentFile, "alias-" + data.name)
+        java.nio.file.Files.createSymbolicLink(alias.toPath(), data.absoluteFile.toPath())
+        try {
+            val saved = File(alias, data.absoluteFile.toPath().relativize(foreverDir.absoluteFile.toPath()).toString()).path
+            assertEquals(mapOf("WoWF" to foreverDir), BattleNet.ownFolders(mapOf("WoWF" to (forever to root)), mapOf("WoWF" to saved)))
+        } finally {
+            java.nio.file.Files.delete(alias.toPath())
+        }
+    }
+
     @Test fun theListedFolderIsRememberedAcrossScans() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
         val wow = File(pfx, "drive_c/Program Files (x86)/World of Warcraft").apply { mkdirs() }

@@ -666,15 +666,28 @@ def write_bytes(path, data):
     os.replace(path + ".tmp", path)
 
 
+def install_folders(root):
+    try:
+        with open(os.path.join(drive_c(root), *PRODUCT_DB), "rb") as f:
+            data = f.read()
+    except FileNotFoundError:
+        return []
+    folders = []
+    rewrite_field(data, INSTALL_FOLDER, lambda value: folders.append(value) or value)
+    return folders
+
+
 def drop_rootfs_drives(root):
     pfx = os.path.join(prefix(root), "pfx")
     drives = rootfs_drives(root)
     if not drives or wine_processes(pfx):
         return []
-    product = os.path.join(drive_c(root), *PRODUCT_DB)
-    paths = [os.path.join(pfx, "system.reg"), os.path.join(pfx, "user.reg"), os.path.join(drive_c(root), *CONFIG), product]
+    try:
+        folders = install_folders(root)
+    except ValueError:
+        return []
     texts = {}
-    for path in paths:
+    for path in (os.path.join(pfx, "system.reg"), os.path.join(pfx, "user.reg"), os.path.join(drive_c(root), *CONFIG)):
         try:
             with open(path, "rb") as f:
                 texts[path] = f.read()
@@ -686,14 +699,16 @@ def drop_rootfs_drives(root):
         head = rb"(?<![A-Za-z0-9])[" + letter.encode() + letter.upper().encode() + rb"]:"
         inner = b"".join(sep + re.escape(part.encode()) for part in rest.split("/") if part)
         for path in changed:
-            if path != product:
-                changed[path] = re.sub(head + inner + rb"(?=" + sep + rb")", b"Z:", changed[path])
+            changed[path] = re.sub(head + inner + rb"(?=" + sep + rb")", b"Z:", changed[path])
     for path, data in changed.items():
         if data != texts[path]:
             write_bytes(path, data)
     dropped = []
     for letter in sorted(drives):
-        used = rb"(?<![A-Za-z0-9])[" + letter.encode() + letter.upper().encode() + rb"]:" + sep
+        drive = letter.encode() + letter.upper().encode()
+        used = rb"(?<![A-Za-z0-9])[" + drive + rb"]:" + sep
+        if any(re.match(rb"[" + drive + rb"]:[\\/]", folder) for folder in folders):
+            continue
         if not any(re.search(used, data) for data in changed.values()):
             os.unlink(os.path.join(dosdevices(root), letter + ":"))
             dropped.append(letter)

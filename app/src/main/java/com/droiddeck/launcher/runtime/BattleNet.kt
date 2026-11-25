@@ -207,7 +207,8 @@ object BattleNet {
         val taken = HashSet<File>()
         fun options(title: Title, folder: File) = listOfNotNull(folder, title.flavor?.let { File(folder, it) }?.takeIf { it.isDirectory })
         for ((code, game) in games) {
-            val keep = saved[code]?.let(::File)?.takeIf { it in options(game.first, game.second) && it !in taken } ?: continue
+            val want = saved[code]?.let { runCatching { File(it).canonicalFile }.getOrNull() } ?: continue
+            val keep = options(game.first, game.second).firstOrNull { runCatching { it.canonicalFile }.getOrNull() == want }?.takeIf { it !in taken } ?: continue
             out[code] = keep
             taken.add(keep)
         }
@@ -248,7 +249,7 @@ object BattleNet {
             val rootfs = LinuxRuntime.rootDir(context)
             runCatching {
                 val home = rootfs.canonicalFile.toPath()
-                val host = File(target).canonicalFile.toPath().resolve(relative).normalize()
+                val host = File("$target/$relative").canonicalFile.toPath()
                 if (host.startsWith(home)) File(rootfs, home.relativize(host).toString()) else null
             }.getOrNull()?.let { return it }
         }
