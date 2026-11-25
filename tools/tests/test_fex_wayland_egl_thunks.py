@@ -95,12 +95,15 @@ class FexWaylandEglThunksTest(unittest.TestCase):
         self.assertRegex(body, r"while \(!rest\.empty\(\)\)")
         self.assertRegex(body, r"dlsym\(Self\(\), .*rest\.substr\(0, end\)")
 
-    def test_device_handles_are_matched_against_every_host_device(self):
+    def test_a_legacy_display_follows_the_platform_mesa_would_pick(self):
         host = "\n".join(files()["ThunkLibs/libEGL/libEGL_Host.cpp"])
-        body = re.search(r"static bool IsHostDevice\(.*?\n\}", host, re.S).group(0)
-        self.assertIn("eglQueryDevicesEXT(0, nullptr, &count)", body)
-        self.assertIn("std::vector<EGLDeviceEXT> devices(count)", body)
-        self.assertNotRegex(body, r"\[\d+\]")
+        env = re.search(r"static std::string_view EnvPlatform\(\) \{.*?\n\}", host, re.S).group(0)
+        self.assertLess(env.index('getenv("EGL_PLATFORM")'), env.index('getenv("EGL_DISPLAY")'))
+        legacy = re.search(r"case 0:\n(.*?)\n  default:", host, re.S).group(1)
+        self.assertLess(legacy.index("EnvPlatform()"), legacy.index("IsWaylandDisplay(native)"))
+        self.assertIn('env == "xcb"', legacy)
+        self.assertIn('env != "x11"', legacy)
+        self.assertNotIn("IsHostDevice", host)
 
     def test_gles_is_overlaid_only_by_the_64_bit_egl_thunk(self):
         overlays, name = {}, None

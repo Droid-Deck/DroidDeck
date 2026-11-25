@@ -266,20 +266,20 @@ index c157f00..196c7e8 100644
 -LOAD_LIB(libEGL)
 +LOAD_LIB_INIT(libEGL, OnInit)
 diff --git a/ThunkLibs/libEGL/libEGL_Host.cpp b/ThunkLibs/libEGL/libEGL_Host.cpp
-index ac8a87e..466c0ea 100644
+index ac8a87e..9b154b8 100644
 --- a/ThunkLibs/libEGL/libEGL_Host.cpp
 +++ b/ThunkLibs/libEGL/libEGL_Host.cpp
-@@ -4,14 +4,159 @@ tags: thunklibs|EGL
+@@ -4,14 +4,163 @@ tags: thunklibs|EGL
  $end_info$
  */
  
-+#include <algorithm>
 +#include <atomic>
  #include <cstdio>
++#include <cstdlib>
  #include <dlfcn.h>
 +#include <mutex>
++#include <string_view>
 +#include <unordered_map>
-+#include <vector>
  
 +#define EGL_EGLEXT_PROTOTYPES 1
  #include <EGL/egl.h>
@@ -322,17 +322,12 @@ index ac8a87e..466c0ea 100644
 +  return wl_display_interface && *reinterpret_cast<void**>(native) == wl_display_interface;
 +}
 +
-+static bool IsHostDevice(void* native) {
-+  EGLint count = 0;
-+  if (!fexldr_ptr_libEGL_eglQueryDevicesEXT || !fexldr_ptr_libEGL_eglQueryDevicesEXT(0, nullptr, &count) || count <= 0) {
-+    return false;
++static std::string_view EnvPlatform() {
++  const char* name = getenv("EGL_PLATFORM");
++  if (!name || !*name) {
++    name = getenv("EGL_DISPLAY");
 +  }
-+  std::vector<EGLDeviceEXT> devices(count);
-+  if (!fexldr_ptr_libEGL_eglQueryDevicesEXT(count, devices.data(), &count)) {
-+    return false;
-+  }
-+  devices.resize(std::min<size_t>(count, devices.size()));
-+  return std::find(devices.begin(), devices.end(), native) != devices.end();
++  return name ? std::string_view {name} : std::string_view {};
 +}
 +
 +static void* HostNativeDisplay(EGLenum platform, void* native, _XDisplay** guest_x11) {
@@ -345,7 +340,16 @@ index ac8a87e..466c0ea 100644
 +  case EGL_PLATFORM_XCB_EXT: return x11_manager.GuestToHostConnection(static_cast<xcb_connection_t*>(native));
 +#endif
 +  case 0:
-+    if (IsHostDevice(native) || IsWaylandDisplay(native)) {
++    if (auto env = EnvPlatform(); !env.empty()) {
++      if (env == "xcb") {
++        return x11_manager.GuestToHostConnection(static_cast<xcb_connection_t*>(native));
++      }
++      if (env != "x11") {
++        return native;
++      }
++      break;
++    }
++    if (IsWaylandDisplay(native)) {
 +      return native;
 +    }
 +    break;
