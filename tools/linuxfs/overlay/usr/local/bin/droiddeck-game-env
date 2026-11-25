@@ -212,15 +212,15 @@ def arkham_city_x87(game):
 
 
 @fix
-def inno_setup_stability(game):
-    if is_inno_setup(game.exe):
-        return STABILITY_FEX, [], "Inno Setup installer: FEX Stability settings (under Performance + TSO the 32-bit setup stub corrupts its own paths)"
-
-
-@fix
 def split_second_x87_fip(game):
     if game.app_id == "297860" or game.stem == "splitsecond":
         return {"FEX_JITFEATURES": "enablex87fip"}, [], "Split/Second: FEX x87 FIP emulation on (its SecuROM stops with error 8016 without it)"
+
+
+@fix
+def inno_setup_stability(game):
+    if is_inno_setup(game.exe):
+        return STABILITY_FEX, [], "Inno Setup installer: FEX Stability settings (under Performance + TSO the 32-bit setup stub corrupts its own paths)"
 
 
 @fix
@@ -1575,14 +1575,21 @@ def main():
             if note:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
         else:
+            # An installer started with the run verb gets the same Stability settings as one started with
+            # waitforexitandrun; explicit game settings still win over them in apply_config.
+            installer = {}
+            if len(command) > 2 and command[1] == "run" and is_inno_setup(command[2]):
+                installer = dict(STABILITY_FEX)
+                print("droiddeck-game-env: Inno Setup installer: FEX Stability settings", file=sys.stderr)
             path = Path.home() / ".config/droiddeck/game-environment.json"
             try:
                 with path.open(encoding="utf-8") as source:
                     config = json.load(source)
-                env = apply_config(env, sync_config(config, app_id), app_id)
+                env = apply_config(env, sync_config(config, app_id), app_id, installer)
             except FileNotFoundError:
-                pass
+                env = dict(env, **installer)
             except (OSError, ValueError, TypeError, AttributeError):
+                env = dict(env, **installer)
                 print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
         if waiting:
             before_debug = env

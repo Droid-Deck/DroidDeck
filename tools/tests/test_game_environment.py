@@ -1738,6 +1738,27 @@ class GameEnvironmentTest(unittest.TestCase):
                 (asylum / name).touch()
             self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
 
+    def test_split_second_gets_x87_fip_unless_the_game_sets_jit_features(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / "SplitSecond"
+            game.mkdir()
+            exe = game / "SplitSecond.exe"
+            exe.touch()
+            for app_id in ("297860", ""):
+                env, extra, notes = MODULE["engine_fixes"](str(exe), [], app_id)
+                self.assertEqual((env, extra), ({"FEX_JITFEATURES": "enablex87fip"}, []))
+                self.assertTrue(notes)
+            other = Path(tmp) / "Other/Game.exe"
+            other.parent.mkdir()
+            other.touch()
+            self.assertEqual(MODULE["engine_fixes"](str(other), [], "297860")[0], {"FEX_JITFEATURES": "enablex87fip"})
+            self.assertEqual(MODULE["engine_fixes"](str(other), [], "42"), ({}, [], []))
+            config = {"version": 1, "shared": {"FEX_X87REDUCEDPRECISION": "1"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "297860", env),
+                             {"FEX_X87REDUCEDPRECISION": "1", "FEX_JITFEATURES": "enablex87fip"})
+            config["games"] = {"297860": {"FEX_JITFEATURES": "off"}}
+            self.assertEqual(MODULE["apply_config"]({}, config, "297860", env)["FEX_JITFEATURES"], "off")
+
     def test_inno_setup_installers_get_the_stability_preset_over_the_default(self):
         stability = {"FEX_TSOENABLED": "1", "FEX_VECTORTSOENABLED": "1", "FEX_MEMCPYSETTSOENABLED": "1",
                      "FEX_HALFBARRIERTSOENABLED": "1", "FEX_X87REDUCEDPRECISION": "0", "FEX_MULTIBLOCK": "0"}
@@ -1786,26 +1807,23 @@ class GameEnvironmentTest(unittest.TestCase):
             for other in not_installers:
                 self.assertEqual(MODULE["engine_fixes"](str(other), []), ({}, [], []), other)
 
-    def test_split_second_gets_x87_fip_unless_the_game_sets_jit_features(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            game = Path(tmp) / "SplitSecond"
-            game.mkdir()
-            exe = game / "SplitSecond.exe"
-            exe.touch()
-            for app_id in ("297860", ""):
-                env, extra, notes = MODULE["engine_fixes"](str(exe), [], app_id)
-                self.assertEqual((env, extra), ({"FEX_JITFEATURES": "enablex87fip"}, []))
-                self.assertTrue(notes)
-            other = Path(tmp) / "Other/Game.exe"
-            other.parent.mkdir()
-            other.touch()
-            self.assertEqual(MODULE["engine_fixes"](str(other), [], "297860")[0], {"FEX_JITFEATURES": "enablex87fip"})
-            self.assertEqual(MODULE["engine_fixes"](str(other), [], "42"), ({}, [], []))
-            config = {"version": 1, "shared": {"FEX_X87REDUCEDPRECISION": "1"}}
-            self.assertEqual(MODULE["apply_config"]({}, config, "297860", env),
-                             {"FEX_X87REDUCEDPRECISION": "1", "FEX_JITFEATURES": "enablex87fip"})
-            config["games"] = {"297860": {"FEX_JITFEATURES": "off"}}
-            self.assertEqual(MODULE["apply_config"]({}, config, "297860", env)["FEX_JITFEATURES"], "off")
+            # The run verb skips engine_fixes; an installer started that way still gets Stability.
+            probe = folder / "proton"
+            probe.write_text("#!" + sys.executable + "\nimport json, os\nprint(json.dumps(dict(os.environ)))\n")
+            probe.chmod(0o755)
+            base = {**os.environ, **performance_tso, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": str(folder / "compatdata/42")}
+
+            def run_verb(program):
+                out = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "run", program],
+                                     env=base, text=True, capture_output=True, check=True).stdout
+                return {name: value for name, value in json.loads(out).items() if name in stability}
+
+            self.assertEqual(run_verb(installers[0]), stability)
+            self.assertEqual(run_verb(str(folder / "Game.exe")), performance_tso)
+            config_path = folder / ".config/droiddeck/game-environment.json"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(json.dumps({"version": 1, "shared": {"WINEESYNC": "1"}}))
+            self.assertEqual(run_verb(installers[0]), stability)
 
     def test_d3dgear_capture_hook_beside_the_game_is_turned_off(self):
         with tempfile.TemporaryDirectory() as tmp:
