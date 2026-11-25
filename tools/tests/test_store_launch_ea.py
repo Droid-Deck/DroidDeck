@@ -3,6 +3,7 @@ import importlib.machinery
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -147,12 +148,12 @@ class EaHook(unittest.TestCase):
             folder.mkdir()
             asked = {}
 
-            def fake_ask(channel, request, timeout=5.0):
+            def fake_ask(channel, request, timeout=5.0, claim=False):
                 asked.update(request)
                 return {'ok': True, 'lsx': True, 'license': 'ok v4', 'licenses': [{'path': 'ProgramData/L/x.dlf', 'data': base64.b64encode(b'z').decode()}]}
 
             with patch.object(store, 'ask', fake_ask), patch.object(store, 'ea_registry', lambda *a, **k: 'ready'), \
-                    patch.object(store, 'ea_touchup', lambda *a, **k: 'none'), patch.dict('os.environ', {'BL_STORE_PROTON': ''}):
+                    patch.object(store, 'ea_touchup', lambda *a, **k: 'none'), patch.dict('os.environ', {'DD_STORE_PROTON': ''}):
                 store.prepare_ea(folder, {'id': 'Origin.OFR.1'}, str(compat), str(Path(tmp) / 'launch'))
             self.assertEqual(asked['op'], 'ea-prepare')
             self.assertEqual(asked['hardware'], probe)
@@ -169,6 +170,105 @@ class EaHook(unittest.TestCase):
             whole = dict(partial, osInstallDate='20261108')
             (pfx / store.EA_HARDWARE).write_text(json.dumps(whole))
             self.assertEqual(store.ea_hardware(tmp, ''), (whole, 'cached'))
+
+    def touchup_setup(self, tmp):
+        folder = Path(tmp) / 'game'
+        (folder / 'Touchup').mkdir(parents=True)
+        (folder / 'Touchup/touchup.exe').write_text('')
+        compat = Path(tmp) / 'compat'
+        (compat / 'pfx').mkdir(parents=True)
+        proton = Path(tmp) / 'proton'
+        proton.write_text('')
+        sidecar = {'id': 'Origin.OFR.1', 'installVersion': '1', 'installedAt': 'now', 'extra': {'touchup': 'Touchup/touchup.exe'}}
+        return folder, sidecar, str(compat), str(proton)
+
+    def test_a_failed_touchup_is_retried_and_a_successful_one_is_not(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder, sidecar, compat, proton = self.touchup_setup(tmp)
+            codes = iter([3, 124, 0])
+            calls = []
+
+            def fake_run(cmd, **kwargs):
+                calls.append(cmd)
+                kwargs['stdout'].write(b'PhysX failed\n')
+                return subprocess.CompletedProcess(cmd, next(codes))
+
+            logged = []
+            with patch.object(store.subprocess, 'run', fake_run), patch.object(store, 'log', logged.append):
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'exit-3')
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'exit-124')
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'ok')
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'done')
+            self.assertEqual(len(calls), 3)
+            self.assertIn('touchup: PhysX failed', logged)
+
+    def test_a_timed_out_touchup_is_retried(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder, sidecar, compat, proton = self.touchup_setup(tmp)
+            calls = []
+
+            def fake_run(cmd, **kwargs):
+                calls.append(cmd)
+                kwargs['stdout'].write(b'still running\n')
+                if len(calls) == 1:
+                    raise subprocess.TimeoutExpired(cmd, 1)
+                return subprocess.CompletedProcess(cmd, 0)
+
+            logged = []
+            marker = list((Path(compat) / 'pfx').glob('.droiddeck-ea-touchup-*'))
+            with patch.object(store.subprocess, 'run', fake_run), patch.object(store, 'log', logged.append):
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'timeout')
+                self.assertIn('touchup: still running', logged)
+                self.assertEqual(list((Path(compat) / 'pfx').glob('.droiddeck-ea-touchup-*')), marker)
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'ok')
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'done')
+            self.assertEqual(len(calls), 2)
+
+    def test_only_the_tail_of_a_long_touchup_output_is_logged(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder, sidecar, compat, proton = self.touchup_setup(tmp)
+
+            def fake_run(cmd, **kwargs):
+                kwargs['stdout'].write(b''.join(b'line %d\n' % i for i in range(100000)))
+                return subprocess.CompletedProcess(cmd, 0)
+
+            logged = []
+            with patch.object(store.subprocess, 'run', fake_run), patch.object(store, 'log', logged.append):
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'ok')
+            self.assertEqual(len(logged), 200)
+            self.assertEqual(logged[-1], 'touchup: line 99999')
+
+    def test_touchup_runs_and_is_marked_when_its_output_cannot_be_captured(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder, sidecar, compat, proton = self.touchup_setup(tmp)
+            seen = []
+
+            def fake_run(cmd, **kwargs):
+                seen.append(kwargs['stdout'])
+                return subprocess.CompletedProcess(cmd, 0)
+
+            def no_space(*a, **k):
+                raise OSError('no space')
+
+            with patch.object(store.subprocess, 'run', fake_run), patch.object(store.tempfile, 'TemporaryFile', no_space):
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'ok')
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'done')
+            self.assertEqual(seen, [subprocess.DEVNULL])
+
+    def test_touchup_result_survives_an_unreadable_output_tail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder, sidecar, compat, proton = self.touchup_setup(tmp)
+
+            class Broken:
+                def seek(self, *a):
+                    raise OSError('io')
+
+                def close(self):
+                    pass
+
+            with patch.object(store.subprocess, 'run', lambda cmd, **k: subprocess.CompletedProcess(cmd, 0)), \
+                    patch.object(store.tempfile, 'TemporaryFile', Broken):
+                self.assertEqual(store.ea_touchup(folder, sidecar, compat, proton), 'ok')
 
 
 if __name__ == '__main__':

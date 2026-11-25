@@ -117,9 +117,9 @@ class StoreGameSidecarTest {
         val text = StoreLaunch.launcherText(sample.copy(exe = "Binaries/Win64/Celeste.exe"))
         assertTrue(text.contains("cd /d \"%~dp0Binaries\\Win64\"\r\n"))
         assertTrue(text.contains("set \"FOO=bar\"\r\n"))
-        assertTrue(text.contains("\r\n\"%~dp0Binaries\\Win64\\Celeste.exe\" -EpicPortal -epicusername=\"Some One\"\r\n"))
+        assertTrue(text.contains("\r\n%DD_P% \"%~dp0Binaries\\Win64\\Celeste.exe\" -EpicPortal -epicusername=\"Some One\" %*\r\n"))
         assertTrue(text.contains("set /p DD_X=<\"%~dp0.droiddeck-epic-code\""))
-        assertTrue(text.contains("set \"DD_X=\" & \"%~dp0Binaries\\Win64\\Celeste.exe\" -EpicPortal -epicusername=\"Some One\" -AUTH_LOGIN=unused -AUTH_PASSWORD=%DD_X% -AUTH_TYPE=exchangecode\r\n"))
+        assertTrue(text.contains("set \"DD_X=\" & %DD_P% \"%~dp0Binaries\\Win64\\Celeste.exe\" -EpicPortal -epicusername=\"Some One\" -AUTH_LOGIN=unused -AUTH_PASSWORD=%DD_X% -AUTH_TYPE=exchangecode %*\r\n"))
         assertFalse(text.contains("AUTH="))
         assertFalse(text.contains("DD_AUTH"))
     }
@@ -157,11 +157,38 @@ class StoreGameSidecarTest {
                 "set /p DD_A=<\"%~dp0.droiddeck-epic-args\"",
                 "del \"%~dp0.droiddeck-epic-args\"",
                 "if exist \"%~dp0.droiddeck-epic-code\" del \"%~dp0.droiddeck-epic-code\"",
-                "set \"DD_A=\" & \"%~dp0Binaries\\Win64\\Celeste.exe\" %DD_A%",
+                "set \"DD_A=\" & %DD_P% \"%~dp0Binaries\\Win64\\Celeste.exe\" %DD_A% %*",
             ),
             lines.subList(client + 1, client + 6),
         )
-        assertTrue(text.endsWith("%DD_A%\r\n"))
+        assertTrue(text.endsWith("%DD_A% %*\r\n"))
+    }
+
+    private val parentLines = listOf(
+        "if \"%DD_EPIC_PARENT%\"==\"1\" set \"DD_P=1\"",
+        "if \"%DD_EPIC_PARENT%\"==\"0\" set \"DD_P=\"",
+        "if defined DD_P set \"SteamAppId=\"",
+        "if defined DD_P if not exist \"%DD_R%\\usr\\local\\lib\\droiddeck-epic\\EpicGamesLauncher.exe\" set \"DD_P=\"",
+        "if defined DD_P set DD_P=\"%DD_R%\\usr\\local\\lib\\droiddeck-epic\\EpicGamesLauncher.exe\"",
+    )
+
+    @Test fun epicTitlesThatCheckTheirParentStartUnderTheStandIn() {
+        for (id in listOf("9d2d0eb64d5c44529cece33fe2a46482", "8769e24080ea413b8ebca3f1b8c50951", "Heather")) {
+            val lines = StoreLaunch.launcherText(StoreGameSidecar(Store.EPIC, id, "Rockstar title", "PlayGTAV.exe")).split("\r\n")
+            val on = lines.indexOf("set \"DD_P=1\"")
+            assertTrue(id, on > lines.indexOf("cd /d \"%~dp0\""))
+            assertEquals(parentLines, lines.subList(on + 1, on + 6))
+            assertEquals("if exist \"%~dp0.droiddeck-epic-args\" goto client", lines[on + 6])
+            assertEquals(3, lines.count { it.contains("%DD_P% \"%~dp0PlayGTAV.exe\"") })
+        }
+    }
+
+    @Test fun otherEpicGamesUseTheStandInOnlyWhenTheirEnvironmentAsksForIt() {
+        val lines = StoreLaunch.launcherText(sample).split("\r\n")
+        val off = lines.indexOf("set \"DD_P=\"")
+        assertTrue(off > 0)
+        assertFalse(lines.contains("set \"DD_P=1\""))
+        assertEquals(parentLines, lines.subList(off + 1, off + 6))
     }
 
     @Test fun gogLauncherHasNoEpicBlockAndIsOnlyWrittenWhenNeeded() {

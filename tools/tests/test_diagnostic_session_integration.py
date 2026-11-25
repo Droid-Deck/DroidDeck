@@ -23,10 +23,10 @@ class DiagnosticSessionIntegrationTest(unittest.TestCase):
                 helper.chmod(0o755)
             env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'],
                        MARKER=str(marker), DROIDDECK_ENHANCED_DIAGNOSTICS='1' if enabled else '0')
-            env['BL_INSIDE'] = '1' if inside else ''
+            env['DD_INSIDE'] = '1' if inside else ''
             script = match.group() + '\nstart_diagnostic_inventory\n'
             if installed and enabled and not inside:
-                script += 'wait "$_bl_diagnostic_inventory"\n'
+                script += 'wait "$_dd_diagnostic_inventory"\n'
             result = subprocess.run(['bash', '-c', script], env=env, capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
             return marker.read_text().splitlines() if marker.exists() else [], result.stdout

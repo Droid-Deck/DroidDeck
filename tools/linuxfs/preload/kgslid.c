@@ -28,7 +28,7 @@ static const struct {
     {0x44050A21, 0x44050A31},
 };
 
-void bl_kgsl_chip_id_fixup(unsigned long request, void *arg, int rc) {
+void dd_kgsl_chip_id_fixup(unsigned long request, void *arg, int rc) {
     if (rc != 0 || request != IOCTL_KGSL_DEVICE_GETPROPERTY || arg == NULL) return;
     struct kgsl_device_getproperty *prop = arg;
     if (prop->type != KGSL_PROP_DEVICE_INFO || prop->value == NULL

@@ -60,9 +60,22 @@ missing prefix is removed first, and nothing is copied.
 
 The account's `.droiddeck-routes.json` maps shortcut IDs to real Steam app IDs so the
 Android launcher uses the same title and Proton prefix as Steam. Other accounts do not
-inherit those routes. Managed shortcuts are replaced; user-created shortcuts and
+inherit those routes. A program chosen in DroidDeck other than the folder's default executable (for example a mod
+launcher beside the game's own executable) is never routed: it stays its own shortcut and tile.
+A target set in the Steam shortcut's properties keeps the route. Managed shortcuts are replaced; user-created shortcuts and
 unreadable shortcut files are preserved. Both routes use the existing ARM64 Proton
 registration.
+
+## Adopting shared library folders
+
+At every session start, `droiddeck-steam-library` looks through `steamapps/common` of each
+added library for non-empty folders no manifest names. A folder whose name is the
+`config.installdir` of exactly one playable app in `appcache/appinfo.vdf` (the `game`
+type wins over a demo; tools, DLC and ambiguous names are skipped) gets an
+`appmanifest_<id>.acf` with `Universe=1`, `StateFlags=4` and no build, so Steam verifies
+the existing files and downloads only what differs. Existing manifests are never
+rewritten, an app installed in another library is skipped, and only the added library is
+written to. Ownership is not read before the client runs; Steam enforces the license.
 
 ## Launcher artwork
 

@@ -176,7 +176,7 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
     }
 
 
-    fun elements(): List<InputSurfaceElement> {
+    fun elements(previousStickGeometry: Boolean = false): List<InputSurfaceElement> {
         fit = fitScale()
         controls.forEach { it.radius = scaled(it.radiusDp) }
         placeAuto(width.toFloat(), height.toFloat())
@@ -189,7 +189,7 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         }.map { c ->
             InputSurfaceElement(requireNotNull(InputControl.fromId(c.id)), (c.cx - c.halfW) / width, (c.cy - c.halfH) / height,
                 2 * c.halfW / width, 2 * c.halfH / height, floating = settings.adaptiveSticks, hideWhenIdle = c.stick >= 0 && settings.adaptiveSticks,
-                buttonShape = if (c.id in shoulderIds) InputButtonShape.PILL else InputButtonShape.CIRCLE).let(::widenStick).bounded()
+                buttonShape = if (c.id in shoulderIds) InputButtonShape.PILL else InputButtonShape.CIRCLE).let { if (previousStickGeometry) widenStickPreviously(it) else widenStick(it) }.bounded()
         }.toMutableList()
         if (settings.keyboardButton) result += keyboard()
         return result
@@ -197,19 +197,8 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
 
     fun regenerate(stored: List<InputSurfaceElement>): List<InputSurfaceElement> = withGeometry(stored, elements())
 
-    fun rescale(stored: List<InputSurfaceElement>, from: LegacyGamepadLayout): List<InputSurfaceElement> {
-        val before = from.elements().associateBy { it.id }
-        val after = elements().associateBy { it.id }
-        return stored.map { e ->
-            val b = before[e.id] ?: return@map e
-            val a = after[e.id] ?: return@map e
-            val w = (a.width * e.width / b.width).coerceIn(.03f, 1f)
-            val h = (a.height * e.height / b.height).coerceIn(.03f, 1f)
-            val cx = a.x + a.width / 2 + (e.x + e.width / 2 - b.x - b.width / 2)
-            val cy = a.y + a.height / 2 + (e.y + e.height / 2 - b.y - b.height / 2)
-            e.copy(x = (cx - w / 2).coerceIn(0f, 1f - w), y = (cy - h / 2).coerceIn(0f, 1f - h), width = w, height = h).bounded()
-        }
-    }
+    fun rescale(stored: List<InputSurfaceElement>, from: LegacyGamepadLayout): List<InputSurfaceElement> =
+        rescaleBetween(stored, from.elements(), elements())
 
     fun buttonsOnly(stored: List<InputSurfaceElement>): List<InputSurfaceElement> {
         val inset = dp(BUTTONS_ONLY_INSET_DP)
@@ -315,11 +304,21 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         return e.copy(x = (cx - radius) / width, y = (cy - radius) / height, width = 2 * radius / width, height = 2 * radius / height)
     }
 
-    private fun widenStick(e: InputSurfaceElement): InputSurfaceElement {
+    private fun widenStickPreviously(e: InputSurfaceElement): InputSurfaceElement {
         val extra = e.width * (STICK_REACH - 1f)
         return when (e.control) {
             InputControl.LS -> (e.x - extra).coerceAtLeast(0f).let { x -> e.copy(x = x, width = e.x + e.width - x) }
             InputControl.RS -> e.copy(width = (e.width + extra).coerceAtMost(1f - e.x))
+            else -> e
+        }
+    }
+
+    private fun widenStick(e: InputSurfaceElement): InputSurfaceElement {
+        val extra = e.width * (STICK_REACH - 1f)
+        val width = e.width + extra
+        return when (e.control) {
+            InputControl.LS -> e.copy(x = (e.x - extra).coerceIn(0f, (1f - width).coerceAtLeast(0f)), width = width)
+            InputControl.RS -> e.copy(x = e.x.coerceIn(0f, (1f - width).coerceAtLeast(0f)), width = width)
             else -> e
         }
     }
@@ -335,7 +334,6 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         const val STICK_REACH = 1.25f
         const val LEGACY_DPAD_RADIUS_DP = 26f
         const val LEGACY_DPAD_OFFSET_DP = 52f
-        val DPAD = setOf(InputControl.UP, InputControl.RIGHT, InputControl.DOWN, InputControl.LEFT)
         const val KEYBOARD_ID = "builtin:keyboard"
         const val KEYBOARD_RADIUS_DP = 18f
         const val KEYBOARD_X_DP = 90f
@@ -348,5 +346,24 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
         val FACE_ORDER = listOf(InputControl.Y, InputControl.B, InputControl.A, InputControl.X)
         val GRIPS = listOf(InputControl.L4 to GamepadGeometry.Slot.L4, InputControl.L5 to GamepadGeometry.Slot.L5,
             InputControl.R5 to GamepadGeometry.Slot.R5, InputControl.R4 to GamepadGeometry.Slot.R4)
+    }
+}
+
+internal fun rescaleBetween(stored: List<InputSurfaceElement>, from: List<InputSurfaceElement>, to: List<InputSurfaceElement>,
+    sizeFrom: List<InputSurfaceElement> = from, sizeTo: List<InputSurfaceElement> = to): List<InputSurfaceElement> {
+    val before = from.associateBy { it.id }
+    val after = to.associateBy { it.id }
+    val smaller = sizeFrom.associateBy { it.id }
+    val larger = sizeTo.associateBy { it.id }
+    return stored.map { e ->
+        val b = before[e.id] ?: return@map e
+        val a = after[e.id] ?: return@map e
+        val sb = smaller[e.id] ?: b
+        val sa = larger[e.id] ?: a
+        val w = (sa.width * e.width / sb.width).coerceIn(.03f, 1f)
+        val h = (sa.height * e.height / sb.height).coerceIn(.03f, 1f)
+        val cx = a.x + a.width / 2 + (e.x + e.width / 2 - b.x - b.width / 2)
+        val cy = a.y + a.height / 2 + (e.y + e.height / 2 - b.y - b.height / 2)
+        e.copy(x = (cx - w / 2).coerceIn(0f, 1f - w), y = (cy - h / 2).coerceIn(0f, 1f - h), width = w, height = h).bounded()
     }
 }

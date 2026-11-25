@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import runpy
 import tempfile
 import unittest
 import zlib
@@ -24,6 +25,15 @@ def load(name):
 imports = load('droiddeck-steam-games')
 shortcuts = load('droiddeck-steam-shortcuts')
 library = load('droiddeck-steam-library')
+
+
+class ManifestTextTest(unittest.TestCase):
+    def test_minimal_and_bare_text_is_exact(self):
+        build = runpy.run_path(str(BIN / 'steam-compatibility'))['manifest_text']
+        minimal = ('"AppState"\n{\n    "appid" "7"\n    "Universe" "1"\n    "name" "A \\"B\\" C D"\n'
+                   '    "StateFlags" "4"\n    "installdir" "DroidDeck-7"\n}\n')
+        self.assertEqual(minimal, build(7, 'A "B"\nC\rD', 'DroidDeck-7'))
+        self.assertEqual(minimal[:-2] + '    "AutoUpdateBehavior" "1"\n}\n', build(7, 'A "B"\nC\rD', 'DroidDeck-7', True))
 
 
 class ImportsTest(unittest.TestCase):
@@ -247,6 +257,27 @@ class ImportsTest(unittest.TestCase):
     def test_watch_never_looks_up_store_installs(self):
         listing = self.root / 'games.json'
         listing.write_text(json.dumps([dict(self.game, store='gog')]))
+        with patch.object(imports, 'identify') as identify:
+            imports.watch(str(self.steam), str(listing))
+        identify.assert_not_called()
+
+    def test_another_program_of_a_steam_install_stays_a_shortcut_beside_the_steam_app(self):
+        game, library = self.steam_install()
+        other = dict(game, name='Mod Launcher', exe=str(Path(game['folder']) / 'ModLauncher.exe'),
+                     appid=0x87654322, route=False)
+        Path(other['exe']).write_bytes(b'mod')
+        imports.save_json(self.acct / 'config' / imports.STATE,
+                          dict(account='123', owned={'42': True}, candidates={game['folder']: 42},
+                               sources={game['folder']: imports.source_stamp(game)}))
+        games, routes = imports.route(self.steam, self.acct, [game, other])
+        self.assertEqual([other], games)
+        self.assertEqual({str(game['appid']): 42}, routes)
+        link = self.steam / 'steamapps/compatdata' / str(other['appid'] & 0xFFFFFFFF)
+        self.assertEqual(library / 'steamapps/compatdata/42', link.resolve())
+
+    def test_watch_never_looks_up_programs_that_are_not_the_steam_apps_own(self):
+        listing = self.root / 'games.json'
+        listing.write_text(json.dumps([dict(self.game, route=False)]))
         with patch.object(imports, 'identify') as identify:
             imports.watch(str(self.steam), str(listing))
         identify.assert_not_called()
@@ -681,6 +712,21 @@ class ImportsTest(unittest.TestCase):
             self.assertEqual(([self.game], {}), imports.route(self.steam, self.acct, [self.game]))
         self.assert_not_imported_as(480)
         self.assertEqual(b'game', self.exe.read_bytes())
+
+    def test_spacewar_import_is_released_for_a_program_that_is_not_the_steam_apps_own(self):
+        self.import_as(480)
+        other = dict(self.game, appid=0x87654322, route=False)
+        with patch('builtins.print'):
+            self.assertEqual(([other], {}), imports.route(self.steam, self.acct, [other]))
+        self.assert_not_imported_as(480)
+        self.assertEqual(b'game', self.exe.read_bytes())
+
+    def test_a_steam_import_stays_when_another_program_of_the_install_is_listed(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        other = dict(self.game, appid=0x87654322, route=False)
+        imports.route(self.steam, self.acct, [other])
+        self.assertTrue((self.steam / 'steamapps/appmanifest_42.acf').is_file())
 
     def test_import_follows_the_app_the_files_name_now(self):
         self.snapshot()

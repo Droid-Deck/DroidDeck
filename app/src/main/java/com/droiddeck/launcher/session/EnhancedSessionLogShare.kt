@@ -708,10 +708,10 @@ internal object EnhancedSessionLogShare {
         }
         val logs = LinuxRuntime.logDir(context)
         for ((name, root) in listOf(SessionLogShare.STORES_DIR to File(logs, SessionLogShare.STORES_DIR), SessionPaths.TOOLS_DIR to File(logs, SessionPaths.TOOLS_DIR))) {
-            val scan = directFiles(root, remaining(maxFiles, out.size))
+            val scan = directFiles(root, STORE_LOG_SCAN)
             truncated = truncated || scan.truncated
             partial = partial || scan.partial
-            scan.files.asSequence().filter { recent(it) }
+            scan.files.filter { recent(it) }.sortedByDescending { it.lastModified() }.take(remaining(maxFiles, out.size))
                 .forEach { add(it, root, "$name/${it.name}", name) }
         }
         if (legacy) {
@@ -935,9 +935,9 @@ internal object EnhancedSessionLogShare {
 
     private fun category(entry: String): Category {
         val value = entry.lowercase(Locale.US)
-        if (value.startsWith("battlenet/") || value.startsWith("stores/") || value.startsWith("tools/") ||
+        if (value.startsWith("battlenet/") || value.startsWith("stores/") || value.startsWith("tools/") || value.startsWith("rpcs3/") ||
             value.contains("droiddeck-esync/") || GAME_LOG.matches(value.substringAfterLast('/')) ||
-            listOf("proton", "wine", "dxvk", "vkd3d", "battle.net", "game-debug").any(value::contains)) return Category.GAMES
+            listOf("proton", "wine", "dxvk", "vkd3d", "battle.net", "game-debug", "bionic").any(value::contains)) return Category.GAMES
         if (listOf("wayland", "gamescope", "xwayland", "vulkan", "gpu", "mesa", "egl", "glx", "drm", "compositor", "frame-trace").any(value::contains)) return Category.GRAPHICS
         return Category.SESSION
     }
@@ -948,8 +948,9 @@ internal object EnhancedSessionLogShare {
         "droiddeck", "droiddeck-esync", "session.log", "app.log", "wayland.log", "audio.log",
         "device.txt", "network.txt", "events.jsonl", "memory.csv", "capture.json", "crash.log",
         "frame-trace.log", "process-trace.log", "game-lifecycle.log", "launches.log", "tools.tsv", "wanted.tsv", "prefixes.json",
-        "battlenet.log", "spawned.log", "flatpak-install.log", "cef_log.txt", "cef_log.previous.txt",
+        "battlenet.log", "spawned.log", "flatpak-install.log", "cef_log.txt", "cef_log.previous.txt", "droiddeck-bionic.log",
         "console_log.txt", "webhelper_js.txt", "controller_support.txt", "systemperfmanager.txt",
+        "rpcs3", "RPCS3.log",
     )
     private val KNOWN_COMPONENT_PATTERNS = listOf(
         Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{2,}-[a-z0-9-]{1,24}"),
@@ -965,6 +966,7 @@ internal object EnhancedSessionLogShare {
         "events.jsonl", "memory.csv", "capture.json", "crash.log",
     )
     private const val RECENT_MILLIS = 7L * 24 * 60 * 60 * 1000
+    private const val STORE_LOG_SCAN = 512
     private const val COPY_BUFFER_BYTES = 64 * 1024
     private const val TRACE_SCAN_BYTES = 16L * 1024 * 1024
     private const val LEGACY_LOG_MAX_BYTES = 8L * 1024 * 1024

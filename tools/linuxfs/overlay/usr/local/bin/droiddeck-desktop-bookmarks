@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 import hashlib
 import json
 import os
@@ -23,7 +23,7 @@ ET.register_namespace("bookmark", ICON_NS)
 def steam_libraries(home, data):
     steam = data / "Steam"
     libraries = {steam: "Internal Storage"}
-    listing = os.environ.get("BL_STEAM_LIBRARIES")
+    listing = os.environ.get("DD_STEAM_LIBRARIES")
     selected = None
     if listing:
         try:
@@ -46,15 +46,15 @@ def steam_libraries(home, data):
             managed = path == LIBRARY or path.is_relative_to(home / "Games") or path.is_relative_to(ADDED)
             if selected is not None and managed and path not in selected:
                 continue
-            if path == LIBRARY and selected is None and not os.environ.get("BL_LIBRARY_LABEL"):
+            if path == LIBRARY and selected is None and not os.environ.get("DD_LIBRARY_LABEL"):
                 continue
             label = entry.get("label")
             label = re.sub(r'\\(["\\])', r'\1', label) if isinstance(label, str) else ""
             libraries[path] = label or path.name
     if selected is not None:
         libraries.update(selected)
-    elif os.environ.get("BL_LIBRARY_LABEL"):
-        libraries[LIBRARY] = os.environ["BL_LIBRARY_LABEL"]
+    elif os.environ.get("DD_LIBRARY_LABEL"):
+        libraries[LIBRARY] = os.environ["DD_LIBRARY_LABEL"]
     libraries[steam] = "Internal Storage"
     return {path.as_uri(): "Steam (" + (" ".join(label.split()) or path.name) + ")"
             for path, label in libraries.items() if path.is_absolute() and (path / "steamapps").is_dir()}
@@ -67,7 +67,25 @@ def place_uri(uri):
     return uri
 
 
-def update_places(path, libraries):
+def removable_volumes():
+    listing = os.environ.get("DD_DESKTOP_VOLUMES")
+    if not listing:
+        return {}
+    volumes = {}
+    for entry in json.loads(Path(listing).read_text()):
+        path = Path(entry["path"])
+        if not path.is_absolute():
+            continue
+        try:
+            with os.scandir(path):
+                pass
+        except OSError:
+            continue
+        volumes[path.as_uri()] = " ".join(str(entry["label"]).split()) or path.name
+    return volumes
+
+
+def update_places(path, libraries, mark=MARK, icon_name="steam", id_prefix="droiddeck-steam-"):
     if path.is_file():
         parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True, insert_pis=True))
         root = ET.fromstring(path.read_bytes(), parser=parser)
@@ -80,10 +98,10 @@ def update_places(path, libraries):
     before = ET.tostring(root)
     seen = set()
     personal = {place_uri(b.get("href")) for b in root.findall("bookmark")
-                if b.find("info/metadata[@owner='" + KDE_OWNER + "']/" + MARK) is None}
+                if b.find("info/metadata[@owner='" + KDE_OWNER + "']/" + mark) is None}
     for bookmark in root.findall("bookmark"):
         metadata = bookmark.find("info/metadata[@owner='" + KDE_OWNER + "']")
-        if metadata is None or metadata.find(MARK) is None:
+        if metadata is None or metadata.find(mark) is None:
             continue
         uri = place_uri(bookmark.get("href"))
         if uri not in libraries or uri in seen or uri in personal:
@@ -101,10 +119,10 @@ def update_places(path, libraries):
         ET.SubElement(bookmark, "title").text = label
         info = ET.SubElement(bookmark, "info")
         icon = ET.SubElement(info, "metadata", {"owner": "http://freedesktop.org"})
-        ET.SubElement(icon, "{" + ICON_NS + "}icon", {"name": "steam"})
+        ET.SubElement(icon, "{" + ICON_NS + "}icon", {"name": icon_name})
         metadata = ET.SubElement(info, "metadata", {"owner": KDE_OWNER})
-        ET.SubElement(metadata, "ID").text = "droiddeck-steam-" + hashlib.sha256(uri.encode()).hexdigest()[:16]
-        ET.SubElement(metadata, MARK).text = "true"
+        ET.SubElement(metadata, "ID").text = id_prefix + hashlib.sha256(uri.encode()).hexdigest()[:16]
+        ET.SubElement(metadata, mark).text = "true"
         ET.SubElement(metadata, "isSystemItem").text = "false"
     if ET.tostring(root) != before:
         atomic_write(path, ET.tostring(root, encoding="unicode", xml_declaration=True))
@@ -150,11 +168,13 @@ def atomic_write(path, content):
 def main():
     home = Path.home()
     config = Path(os.environ.get("XDG_CONFIG_HOME") or home / ".config")
-    label = os.environ.get("BL_LIBRARY_LABEL")
+    label = os.environ.get("DD_LIBRARY_LABEL")
     available = bool(label) and (LIBRARY / "steamapps").is_dir()
     update_bookmark(bookmarks_file(home, config), label if available else None)
     data = Path(os.environ.get("XDG_DATA_HOME") or home / ".local/share")
-    update_places(data / "user-places.xbel", steam_libraries(home, data))
+    places = data / "user-places.xbel"
+    update_places(places, steam_libraries(home, data))
+    update_places(places, removable_volumes(), "DroidDeckRemovableVolume", "drive-removable-media", "droiddeck-volume-")
 
 
 if __name__ == "__main__":

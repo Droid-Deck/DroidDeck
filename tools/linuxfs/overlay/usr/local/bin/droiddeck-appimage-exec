@@ -9,6 +9,40 @@ if [ -x /usr/local/bin/droiddeck-fex ]; then
     3|62) exec /usr/local/bin/droiddeck-fex run --mode on -- "$image" "$@" ;;
   esac
 fi
+if [ -n "${DDNATV_ROOT:-}" ]; then
+  image=$(realpath -- "$image") || exit 127
+  cache=${XDG_CACHE_HOME:-${HOME:-/root}/.cache}/droiddeck-appimage
+  mkdir -p "$cache" || exit 1
+  exec 9>"$cache/.lock"
+  flock 9 || exit 1
+  state() { printf '%s\n%s' "$1" "$(TZ=UTC0 stat -Lc '%s %y' -- "$1" 2>/dev/null)"; }
+  for dir in "$cache"/*/; do
+    dir=${dir%/}
+    [ ! -L "$dir" ] && [ -f "$dir/source" ] || continue
+    [ "$(cat "$dir/source")" = "$(state "$(head -n 1 "$dir/source")")" ] && continue
+    (flock -n 7 && rm -rf -- "${dir:?}") 7<"$dir/source"
+  done
+  find "$cache" -mindepth 1 -maxdepth 1 -name '.unpack.*' -mmin +60 -exec rm -rf -- {} + 2>/dev/null
+  source=$(state "$image")
+  unpacked=$cache/$(printf '%s' "$source" | md5sum | cut -c1-16)
+  if [ "$(cat "$unpacked/source" 2>/dev/null)" != "$source" ] || [ ! -e "$unpacked/squashfs-root/AppRun" ]; then
+    echo "== appimage: unpacking $image"
+    work=$(mktemp -d "$cache/.unpack.XXXXXX") || exit 1
+    if ! (cd "$work" && /usr/local/bin/droiddeck-fex extract "$image") || [ ! -e "$work/squashfs-root/AppRun" ]; then
+      rm -rf -- "${work:?}"
+      echo "droiddeck-appimage-exec: could not unpack $image" >&2
+      exit 1
+    fi
+    printf '%s\n' "$source" > "$work/source"
+    rm -rf -- "${unpacked:?}"
+    mv -- "$work" "$unpacked" || exit 1
+  fi
+  exec 8<"$unpacked/source"
+  flock -s 8 || exit 1
+  exec 9>&-
+  export APPIMAGE=$image APPDIR=$unpacked/squashfs-root ARGV0=$image OWD=$PWD
+  exec "$APPDIR/AppRun" "$@"
+fi
 if [ -x /usr/local/lib/droiddeck/uruntime ]; then
   export TARGET_APPIMAGE=$image
   exec /usr/local/lib/droiddeck/uruntime "$@"

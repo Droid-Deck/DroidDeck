@@ -12,7 +12,10 @@ PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 SHIM = r"""
 #define _GNU_SOURCE
 #include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -92,6 +95,46 @@ FILE *fopen(const char *path, const char *mode) {
     return real(path, mode);
 }
 
+static int denied(const char *path) {
+    const char *prefixes = getenv("NETLINK_TEST_DENIED");
+    if (!prefixes || !path) return 0;
+    for (const char *prefix = prefixes; *prefix;) {
+        size_t length = strcspn(prefix, ":");
+        if (length && !strncmp(path, prefix, length)) {
+            errno = EACCES;
+            return 1;
+        }
+        prefix += length + (prefix[length] == ':');
+    }
+    return 0;
+}
+
+int open(const char *path, int flags, ...) {
+    static int (*real)(const char *, int, ...);
+    if (!real) real = dlsym(RTLD_NEXT, "open");
+    va_list ap;
+    va_start(ap, flags);
+    mode_t mode = va_arg(ap, mode_t);
+    va_end(ap);
+    return denied(path) ? -1 : real(path, flags, mode);
+}
+
+int __open_2(const char *path, int flags) {
+    static int (*real)(const char *, int);
+    if (!real) real = dlsym(RTLD_NEXT, "__open_2");
+    return denied(path) ? -1 : real(path, flags);
+}
+
+int openat(int dirfd, const char *path, int flags, ...) {
+    static int (*real)(int, const char *, int, ...);
+    if (!real) real = dlsym(RTLD_NEXT, "openat");
+    va_list ap;
+    va_start(ap, flags);
+    mode_t mode = va_arg(ap, mode_t);
+    va_end(ap);
+    return denied(path) ? -1 : real(dirfd, path, flags, mode);
+}
+
 int close_range(unsigned int first, unsigned int last, int flags) {
     return syscall(SYS_close_range, (long)first, (long)last, (long)flags, 0L, 0L, 0L);
 }
@@ -135,6 +178,40 @@ static int route_socket(void) {
     require(descriptor >= 0, "socket");
     require(bind(descriptor, (struct sockaddr *)&address, sizeof(address)) == 0, "bind");
     return descriptor;
+}
+
+static void proc_net_test(int denied, int sealed) {
+    static const char *const tables[] = {"/proc/net/tcp", "/proc/net/tcp6", "/proc/net/udp", "/proc/net/udp6"};
+    char text[512], target[128], link[64];
+    for (unsigned i = 0; i < sizeof(tables) / sizeof(tables[0]); i++) {
+        int descriptor = i % 2 ? openat(AT_FDCWD, tables[i], O_RDONLY | O_CLOEXEC) : open(tables[i], O_RDONLY | O_CLOEXEC);
+        require(descriptor >= 0, "socket table opens");
+        require(fcntl(descriptor, F_GETFD) & FD_CLOEXEC, "socket table keeps close-on-exec");
+        snprintf(link, sizeof(link), "/proc/self/fd/%d", descriptor);
+        ssize_t length = readlink(link, target, sizeof(target) - 1);
+        require(length > 0, "socket table target");
+        target[length] = 0;
+        require((strncmp(target, "/memfd:droiddeck-net", 20) == 0) == denied, "synthesized only when denied");
+        if (denied) {
+            if (sealed) {
+                require(fcntl(descriptor, F_GET_SEALS) & F_SEAL_WRITE, "socket table is sealed");
+                require(write(descriptor, "x", 1) < 0 && errno == EPERM, "sealed socket table rejects writes");
+            } else {
+                require((fcntl(descriptor, F_GETFL) & O_ACCMODE) == O_RDONLY, "socket table is read-only");
+                require(write(descriptor, "x", 1) < 0 && errno == EBADF, "socket table rejects writes");
+            }
+            ssize_t total = read(descriptor, text, sizeof(text) - 1);
+            require(total > 0, "socket table read");
+            text[total] = 0;
+            require(strstr(text, "local_address") && strchr(text, '\n') == text + total - 1, "header without sockets");
+        }
+        close(descriptor);
+    }
+    if (denied) {
+        require(open("/proc/net/tcp", O_WRONLY) < 0 && errno == EACCES, "socket table writes stay denied");
+        require(open("/proc/net/netstat", O_RDONLY) < 0 && errno == EACCES, "other tables stay denied");
+        require(open("/proc/net/tcp", O_RDONLY | O_DIRECTORY) < 0 && errno == EACCES, "directory opens stay denied");
+    }
 }
 
 static unsigned port_of(int descriptor) {
@@ -609,6 +686,13 @@ static void batch_test(int oversized) {
     close(descriptor);
 }
 
+static unsigned groups_of(int descriptor) {
+    struct sockaddr_nl address;
+    socklen_t length = sizeof(address);
+    require(getsockname(descriptor, (struct sockaddr *)&address, &length) == 0, "getsockname");
+    return address.nl_groups;
+}
+
 static void inherited_test(int argc, char **argv) {
     require(argc == 6, "inherited arguments");
     int descriptor = atoi(argv[2]), closed = atoi(argv[4]), datagram = atoi(argv[5]);
@@ -616,6 +700,7 @@ static void inherited_test(int argc, char **argv) {
     require(fcntl(closed, F_GETFD) == -1 && errno == EBADF, "cloexec descriptor closed");
     require(port_of(descriptor) == port && !(fcntl(descriptor, F_GETFD) & FD_CLOEXEC),
             "inherited bound port");
+    require(groups_of(descriptor) == RTMGRP_LINK, "membership survives exec");
     socket_info(descriptor, SOCK_RAW);
     socket_info(datagram, SOCK_DGRAM);
     require(fcntl(datagram, F_GETFL) & O_NONBLOCK, "inherited nonblocking flag");
@@ -640,6 +725,9 @@ static void exec_test(const char *program, int forked) {
     int enabled = 1;
     require(setsockopt(descriptor, SOL_NETLINK, NETLINK_CAP_ACK, &enabled, sizeof(enabled)) == 0,
             "inherited cap ack");
+    int group = RTNLGRP_LINK;
+    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group)) == 0,
+            "inherited membership");
     unsigned port = port_of(descriptor);
     int alias = fcntl(descriptor, F_DUPFD, 100);
     int closed = fcntl(descriptor, F_DUPFD_CLOEXEC, 200);
@@ -718,8 +806,8 @@ static void ack_test(const char *mode) {
 static void options_test(void) {
     int descriptor = route_socket();
     int group = RTNLGRP_LINK;
-    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group)) == -1
-            && errno == EACCES, "membership denied");
+    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group)) == 0,
+            "membership accepted");
     require(setsockopt(descriptor, SOL_NETLINK, NETLINK_PKTINFO, &group, sizeof(group)) == -1
             && errno == ENOPROTOOPT, "unsupported option");
     require(setsockopt(descriptor, SOL_NETLINK, NETLINK_EXT_ACK, &group, sizeof(group)) == 0, "ext ack");
@@ -732,6 +820,44 @@ static void options_test(void) {
     unsigned char buffer[4096];
     require(recv(descriptor, buffer, sizeof(buffer), 0) == -1
             && (errno == EAGAIN || errno == EWOULDBLOCK), "receive times out");
+    close(descriptor);
+}
+
+static void subscribe_test(void) {
+    unsigned wanted = RTMGRP_LINK | RTMGRP_IPV4_IFADDR | RTMGRP_IPV6_IFADDR;
+    int descriptor = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
+    struct sockaddr_nl address = {.nl_family = AF_NETLINK, .nl_groups = wanted};
+    require(descriptor >= 0, "socket");
+    require(bind(descriptor, (struct sockaddr *)&address, sizeof(address)) == 0, "bind with groups");
+    require(groups_of(descriptor) == wanted, "bound groups");
+    int group = RTNLGRP_IPV4_ROUTE;
+    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group)) == 0,
+            "add membership");
+    require(groups_of(descriptor) == (wanted | RTMGRP_IPV4_ROUTE), "added group");
+    group = RTNLGRP_LINK;
+    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_DROP_MEMBERSHIP, &group, sizeof(group)) == 0,
+            "drop membership");
+    require(groups_of(descriptor) == ((wanted & ~RTMGRP_LINK) | RTMGRP_IPV4_ROUTE), "dropped group");
+    pid_t child = fork();
+    require(child >= 0, "membership fork");
+    if (child == 0) {
+        group = RTNLGRP_IPV4_ROUTE;
+        _exit(setsockopt(descriptor, SOL_NETLINK, NETLINK_DROP_MEMBERSHIP, &group, sizeof(group)) == 0
+              && groups_of(descriptor) == (wanted & ~RTMGRP_LINK) ? 0 : 1);
+    }
+    int status;
+    require(waitpid(child, &status, 0) == child && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+            "membership child");
+    require(groups_of(descriptor) == (wanted & ~RTMGRP_LINK), "membership shared after fork");
+    group = 0;
+    require(setsockopt(descriptor, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &group, sizeof(group)) == -1
+            && errno == EINVAL, "group zero refused");
+    struct timeval timeout = {.tv_usec = 30000};
+    require(setsockopt(descriptor, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) == 0, "receive timeout");
+    unsigned char buffer[4096];
+    require(recv(descriptor, buffer, sizeof(buffer), 0) == -1
+            && (errno == EAGAIN || errno == EWOULDBLOCK), "no unsolicited events");
+    usable(descriptor);
     close(descriptor);
 }
 
@@ -1040,6 +1166,7 @@ int main(int argc, char **argv) {
     if (!strcmp(argv[1], "ack") || !strcmp(argv[1], "error") || !strcmp(argv[1], "capped"))
         ack_test(argv[1]);
     else if (!strcmp(argv[1], "options")) options_test();
+    else if (!strcmp(argv[1], "subscribe")) subscribe_test();
     else if (!strcmp(argv[1], "dump")) dump_test();
     else if (!strcmp(argv[1], "send_timeout")) send_timeout_test(0);
     else if (!strcmp(argv[1], "nonblocking")) send_timeout_test(1);
@@ -1082,6 +1209,7 @@ int main(int argc, char **argv) {
     }
     else if (!strcmp(argv[1], "range") || !strcmp(argv[1], "cloexec") || !strcmp(argv[1], "closefrom"))
         close_range_test(argv[1]);
+    else if (!strcmp(argv[1], "proc_net")) proc_net_test(argc > 2 && strcmp(argv[2], "allowed"), argc > 2 && !strcmp(argv[2], "sealed"));
     else if (!strcmp(argv[1], "route")) {
         require(argc >= 3, "route destination");
         route_test(argv[2]);
@@ -1107,7 +1235,7 @@ class NetlinkPreloadTest(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory()
         cls.directory = Path(cls.temp.name)
-        cls.preload = cls.directory / "libblsession.so"
+        cls.preload = cls.directory / "libddsession.so"
         cls.shim = cls.directory / "libshim.so"
         cls.program = cls.directory / "program"
         (cls.directory / "shim.c").write_text(SHIM)
@@ -1129,10 +1257,12 @@ class NetlinkPreloadTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.temp.cleanup()
 
-    def run_program(self, mode, *arguments, snapshot=None):
+    def run_program(self, mode, *arguments, snapshot=None, denied=None):
         env = dict(os.environ, LD_PRELOAD=f"{self.preload}:{self.shim}",
                    NETLINK_TEST_SNAPSHOT=str(snapshot or self.snapshot),
-                   BL_SYSV_DIR=str(self.directory / "sysv"))
+                   DD_SYSV_DIR=str(self.directory / "sysv"))
+        if denied:
+            env["NETLINK_TEST_DENIED"] = denied
         result = subprocess.run([str(self.program), mode, *arguments], env=env,
                                 capture_output=True, text=True, timeout=5)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -1207,8 +1337,11 @@ class NetlinkPreloadTest(unittest.TestCase):
     def test_cloexec_sockets_release_their_ports_after_exec(self):
         self.run_program("all_cloexec")
 
-    def test_subscription_is_denied_and_receive_timeout_is_applied(self):
+    def test_membership_is_accepted_and_receive_timeout_is_applied(self):
         self.run_program("options")
+
+    def test_change_listeners_subscribe_and_still_query(self):
+        self.run_program("subscribe")
 
     def test_dump_keeps_multipart_completion(self):
         self.run_program("dump")
@@ -1249,6 +1382,15 @@ class NetlinkPreloadTest(unittest.TestCase):
             with self.subTest(mode=mode):
                 self.run_program(mode)
 
+    def test_denied_socket_tables_open_as_empty_tables(self):
+        self.run_program("proc_net", "denied", denied="/proc/net/")
+
+    def test_denied_socket_tables_open_when_fd_reopen_is_denied(self):
+        self.run_program("proc_net", "sealed", denied="/proc/net/:/proc/self/fd/")
+
+    def test_readable_socket_tables_stay_real(self):
+        self.run_program("proc_net")
+
     def test_loopback_and_own_addresses_are_local_routes(self):
         for destination, source in (("127.0.0.2", "127.0.0.1"), ("::1", "::1"),
                                     ("192.168.1.10", "192.168.1.10"), ("2001:db8::10", "2001:db8::10")):
@@ -1280,7 +1422,7 @@ class NetlinkPreloadTest(unittest.TestCase):
     def test_iproute2_dumps_and_lookups_accept_the_replies(self):
         env = dict(os.environ, LD_PRELOAD=f"{self.preload}:{self.shim}",
                    NETLINK_TEST_SNAPSHOT=str(self.snapshot),
-                   BL_SYSV_DIR=str(self.directory / "sysv"))
+                   DD_SYSV_DIR=str(self.directory / "sysv"))
         queries = ((["link", "show"], "wlan0"),
                    (["link", "show", "wlan0"], "wlan0"),
                    (["-d", "link", "show", "dev", "wlan0"], "wlan0"),

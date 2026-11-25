@@ -18,7 +18,7 @@ static int ww_uffd = -1;
 static int scan_blocked;
 #endif
 
-__attribute__((visibility("hidden"))) int bl_writewatch_syscall(long number, const long *args, long (*real)(long, ...), long *rc) {
+__attribute__((visibility("hidden"))) int dd_writewatch_syscall(long number, const long *args, long (*real)(long, ...), long *rc) {
 #if defined(__aarch64__) && defined(PAGEMAP_SCAN) && defined(UFFD_USER_MODE_ONLY)
   if (number != WINE_ARM64_USERFAULTFD || (args[0] & ~(long)(O_CLOEXEC | O_NONBLOCK | UFFD_USER_MODE_ONLY))) return 0;
   *rc = real(SYS_userfaultfd, args[0]);
@@ -89,7 +89,7 @@ done:
 }
 #endif
 
-__attribute__((visibility("hidden"))) int bl_writewatch_ioctl(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
+__attribute__((visibility("hidden"))) int dd_writewatch_ioctl(int (*real)(int, unsigned long, void *), int fd, unsigned long request,
                                                              void *arg, int *rc) {
 #if defined(PAGEMAP_SCAN) && defined(UFFD_USER_MODE_ONLY)
   if (request != PAGEMAP_SCAN) return 0;

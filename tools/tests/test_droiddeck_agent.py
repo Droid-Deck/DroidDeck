@@ -203,7 +203,7 @@ class AgentTest(unittest.TestCase):
 
     def tag(self, wins, arch="arm64"):
         snap = {"displays": {":0": [], ":1": wins}}
-        with patch.dict(os.environ, {"DISPLAY": ":0", "BL_STEAM_CLIENT_ARCH": arch}), \
+        with patch.dict(os.environ, {"DISPLAY": ":0", "DD_STEAM_CLIENT_ARCH": arch}), \
                 patch.object(agent.subprocess, "run") as run, patch.object(agent, "log"):
             run.return_value.returncode = 0
             tagged = agent.tag_game_windows(snap, proc=self.dir / "proc")
@@ -348,8 +348,47 @@ class AgentTest(unittest.TestCase):
                 self.assertEqual("INVALID_TARGET", caught.exception.code)
                 connect.assert_not_called()
 
+    def test_one_shot_inspector_eval_prints_the_session_answer_without_a_launch_dir(self):
+        import contextlib
+        import io
+        url = "ws://127.0.0.1:43117/0f8fad5b-d9cb-469f-a165-70867728950e"
+        seen = {}
+
+        def evaluate(agent_dir, expression, target=None, await_promise=True, timeout=15, inspector=None, command_line_api=False):
+            seen.update(expression=expression, timeout=timeout, inspector=inspector, api=command_line_api)
+            return {"target": "inspector", "type": "string", "value": "ok", "description": None}
+
+        out = io.StringIO()
+        with patch.dict(os.environ, {}, clear=False), patch.object(agent, "cdp_eval", evaluate), contextlib.redirect_stdout(out):
+            os.environ.pop("DD_LAUNCH_DIR", None)
+            self.assertEqual(0, agent.main(["--cdp-inspector", url, "12.5", "1 + 1"]))
+        self.assertEqual({"target": "inspector", "type": "string", "value": "ok", "description": None, "ok": True}, json.loads(out.getvalue()))
+        self.assertEqual({"expression": "1 + 1", "timeout": 12.5, "inspector": url, "api": True}, seen)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(0, agent.main(["--cdp-inspector", "ws://example.com:9229/x", "5", "1"]))
+        self.assertEqual("INVALID_REQUEST", json.loads(out.getvalue())["error"]["code"])
+        self.assertEqual(2, agent.main(["--cdp-inspector", url]))
+
+    def test_a_devtools_endpoint_lost_while_sending_is_reported_as_gone(self):
+        class Lost:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def send(self, text):
+                raise BrokenPipeError("closed")
+
+            def close(self):
+                pass
+
+        with patch.object(agent, "WebSocket", Lost), patch.object(
+                agent, "cdp_targets", return_value=[{"title": "SharedJSContext", "webSocketDebuggerUrl": "ws://127.0.0.1:1/x"}]):
+            with self.assertRaises(agent.AgentError) as caught:
+                agent.cdp_eval(str(self.dir), "1")
+        self.assertEqual("DEVTOOLS_UNREACHABLE", caught.exception.code)
+
     def test_cdp_without_a_port(self):
-        os.environ.pop("BL_CDP_PORT", None)
+        os.environ.pop("DD_CDP_PORT", None)
         self.assertEqual("NO_DEVTOOLS", self.ask({"kind": "cdp", "expression": "1"})["error"]["code"])
 
     def test_cdp_eval(self):
@@ -367,6 +406,22 @@ class AgentTest(unittest.TestCase):
         self.assertEqual("SharedJSContext", targets["targets"][0]["title"])
         missing = self.ask({"kind": "cdp", "expression": "1", "target": "Nope"})
         self.assertEqual("NO_TARGET", missing["error"]["code"])
+
+    def test_cdp_eval_on_a_secret_inspector_url(self):
+        server = FakeDevTools({"result": {"result": {"type": "string", "value": "ok"}}})
+        server.start()
+        self.addCleanup(server.server.close)
+        os.environ.pop("DD_CDP_PORT", None)
+        url = "ws://127.0.0.1:%d/0f8fad5b-d9cb-469f-a165-70867728950e" % server.port
+        answer = self.ask({"kind": "cdp", "expression": "require('electron')", "inspector": url, "commandLineApi": True})
+        self.assertTrue(answer["ok"], answer)
+        self.assertEqual("inspector", answer["target"])
+        self.assertTrue(server.seen[0]["params"]["includeCommandLineAPI"])
+
+    def test_cdp_refuses_inspector_urls_without_a_session_id(self):
+        for url in ("ws://127.0.0.1:9229/", "ws://127.0.0.1:9229/json/list", "ws://10.0.0.2:9229/0f8fad5b-d9cb-469f-a165-70867728950e",
+                    "ws://127.0.0.1:80/0f8fad5b-d9cb-469f-a165-70867728950e", "ws://127.0.0.1:9229/0f8fad5b-d9cb-469f-a165-70867728950e/x", 9229):
+            self.assertEqual("INVALID_REQUEST", self.ask({"kind": "cdp", "expression": "1", "inspector": url})["error"]["code"])
 
     def test_steam_selection(self):
         with patch.object(agent, "cdp_eval", return_value={"value": "3180310"}) as evaluate:
@@ -448,7 +503,7 @@ class AgentTest(unittest.TestCase):
     def test_shortcut_state_command_exits_with_the_state(self):
         game_id = str((3333273269 << 32) | 0x02000000)
         launch = self.dir.parent
-        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(launch)}):
+        with patch.dict(os.environ, {"DD_LAUNCH_DIR": str(launch)}):
             for state, code in (("ready", 0), ("missing", 4), ("not-shortcut", 3), ("loading", 1)):
                 with self.subTest(state=state), patch.object(agent, "steam_shortcut_state", return_value=state) as ask:
                     self.assertEqual(code, agent.main(["--steam-shortcut-state", game_id, "2"]))
@@ -478,7 +533,7 @@ class AgentTest(unittest.TestCase):
             agent.steam_clear_pending_interstitial(self.dir, "0")
 
     def test_asleep_command_reports_steams_own_sleep_state(self):
-        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
+        with patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.dir.parent)}):
             for value, code in (("yes", 0), ("no", 5), ("unknown", 1), (None, 1)):
                 with self.subTest(value=value), patch.object(agent, "cdp_eval", return_value={"value": value}) as ask:
                     self.assertEqual(code, agent.main(["--steam-asleep"]))
@@ -488,7 +543,7 @@ class AgentTest(unittest.TestCase):
                 self.assertEqual(1, agent.main(["--steam-asleep"]))
 
     def test_supports_vr_command_separates_vr_flat_and_unknown_apps(self):
-        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
+        with patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.dir.parent)}):
             for value, code in ((True, 0), (False, 5), (None, 1)):
                 with self.subTest(value=value), patch.object(agent, "cdp_eval", return_value={"value": value}) as ask:
                     self.assertEqual(code, agent.main(["--steam-supports-vr", "204360"]))
@@ -500,7 +555,7 @@ class AgentTest(unittest.TestCase):
                 self.assertEqual(2, agent.main(["--steam-supports-vr"] + bad))
 
     def test_idle_inhibit_command_reports_whether_steam_reached_the_state(self):
-        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}):
+        with patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.dir.parent)}):
             for value, code in ((True, 0), (False, 1), (None, 1)):
                 with self.subTest(value=value), patch.object(agent, "cdp_eval", return_value={"value": value}) as ask:
                     self.assertEqual(code, agent.main(["--steam-idle-inhibit", "on"]))
@@ -522,7 +577,7 @@ class AgentTest(unittest.TestCase):
             self.assertEqual(900, agent.steam_idle_suspend_seconds(self.dir, vpower))
         with patch.object(agent, "cdp_eval", return_value={"value": None}):
             self.assertIsNone(agent.steam_idle_suspend_seconds(self.dir, vpower))
-        with patch.dict(os.environ, {"BL_LAUNCH_DIR": str(self.dir.parent)}), \
+        with patch.dict(os.environ, {"DD_LAUNCH_DIR": str(self.dir.parent)}), \
                 patch.object(agent, "steam_idle_suspend_seconds", return_value=None):
             self.assertEqual(1, agent.main(["--steam-idle-suspend-seconds"]))
 
@@ -538,7 +593,7 @@ class AgentTest(unittest.TestCase):
 
     def test_serve_answers_request_files(self):
         server = subprocess.Popen([sys.executable, str(SCRIPT), "--no-focus"],
-                                  env=dict(os.environ, BL_LAUNCH_DIR=str(self.dir)),
+                                  env=dict(os.environ, DD_LAUNCH_DIR=str(self.dir)),
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         def stop_server():
             server.terminate()
@@ -865,6 +920,82 @@ const value = subscribe => {
             call()
         except Exception as e:
             return e
+
+
+class FocusSnapshotTest(unittest.TestCase):
+    def test_publication_failure_retries_unknown_and_recovers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'focus.json'
+            watcher = agent.FocusWatcher(path)
+            watcher.publish({'focusedApp': 42})
+            write_json = agent.write_json
+            writes = []
+
+            def write(path, value):
+                writes.append(value)
+                if len(writes) == 1:
+                    raise OSError('unavailable')
+                write_json(path, value)
+
+            with patch.object(threading.Thread, 'start'), \
+                 patch.object(watcher.changed, 'wait', side_effect=[True, True, True, StopIteration]), \
+                 patch.object(agent, 'vr_scene_app', return_value=None), \
+                 patch.object(agent, 'focus_snapshot', side_effect=[OSError('unavailable'), OSError('unavailable'), {'focusedApp': 42}]), \
+                 patch.object(agent, 'write_json', side_effect=write), \
+                 patch.object(agent.time, 'sleep'), \
+                 patch.object(agent, 'log'):
+                with self.assertRaises(StopIteration):
+                    watcher.run()
+            self.assertEqual(writes, [{'seq': 2}, {'seq': 2}, {'focusedApp': 42, 'seq': 3}])
+            self.assertEqual(json.loads(path.read_text()), {'focusedApp': 42, 'seq': 3})
+
+    def test_successful_snapshot_write_failure_retries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'focus.json'
+            watcher = agent.FocusWatcher(path)
+            with patch.object(agent, 'write_json', side_effect=OSError('unavailable')), patch.object(agent, 'log'):
+                watcher.publish({'focusedApp': 42})
+            self.assertIsNone(watcher.last)
+            self.assertEqual(watcher.seq, 0)
+            self.assertTrue(watcher.changed.is_set())
+            watcher.publish({'focusedApp': 42})
+            self.assertEqual(json.loads(path.read_text()), {'focusedApp': 42, 'seq': 1})
+
+    def test_collection_failure_invalidates_and_recovery_republishes(self):
+        for error in (OSError('unavailable'), agent.AgentError('X', 'unavailable')):
+            with self.subTest(error=type(error).__name__), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'focus.json'
+                watcher = agent.FocusWatcher(path)
+                snapshot = {'focusedApp': 42, 't': 1}
+                watcher.publish(snapshot)
+                observed = []
+
+                def collect():
+                    observed.append(json.loads(path.read_text()))
+                    if len(observed) == 1:
+                        raise error
+                    return dict(snapshot, t=2)
+
+                with patch.object(threading.Thread, 'start'), \
+                     patch.object(watcher.changed, 'wait', side_effect=[True, True, StopIteration]), \
+                     patch.object(agent, 'vr_scene_app', return_value=None), \
+                     patch.object(agent, 'focus_snapshot', side_effect=collect), \
+                     patch.object(agent.time, 'sleep'), \
+                     patch.object(agent, 'log'):
+                    with self.assertRaises(StopIteration):
+                        watcher.run()
+                self.assertEqual(observed, [dict(snapshot, seq=1), {'seq': 2}])
+                self.assertEqual(json.loads(path.read_text()), {'focusedApp': 42, 't': 2, 'seq': 3})
+
+    def test_unchanged_successful_focus_stays_valid(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'focus.json'
+            watcher = agent.FocusWatcher(path)
+            watcher.publish({'focusedApp': 769, 't': 1})
+            with patch.object(agent, 'write_json') as write:
+                watcher.publish({'focusedApp': 769, 't': 100})
+            write.assert_not_called()
+            self.assertEqual(json.loads(path.read_text()), {'focusedApp': 769, 't': 1, 'seq': 1})
 
 
 class VrFocusTest(unittest.TestCase):

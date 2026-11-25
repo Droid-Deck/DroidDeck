@@ -11,10 +11,28 @@
 static char g_ddnatv_root[PATH_MAX] = {0};
 static size_t g_ddnatv_root_len = 0;
 
+// The path the kernel reports for [path] (/proc/self/fd, getcwd(), realpath()): for a targetSdk 30+
+// app, Android's own /data/user/0 is a link to /data/data, so the app's paths are not what the kernel
+// gives back for them. Into out, or path itself when it cannot be resolved; returns out's length.
+static size_t ddnatv_kernel_path(const char *path, size_t len, char *out, size_t outsz) {
+    static char *(*libc_realpath)(const char *, char *) = NULL;
+    if (!libc_realpath) libc_realpath = (char *(*)(const char *, char *))dlsym(RTLD_NEXT, "realpath");
+    char given[PATH_MAX];
+    if (len >= sizeof(given)) len = sizeof(given) - 1;
+    memcpy(given, path, len);
+    given[len] = '\0';
+    char resolved[PATH_MAX];
+    const char *use = (libc_realpath && libc_realpath(given, resolved)) ? resolved : given;
+    size_t n = strlen(use);
+    if (n >= outsz) n = outsz - 1;
+    memcpy(out, use, n);
+    out[n] = '\0';
+    return n;
+}
+
 static void ddnatv_set_root(const char *root, size_t len) {
     if (!root) len = 0;
-    if (len > sizeof(g_ddnatv_root) - 1) len = sizeof(g_ddnatv_root) - 1;
-    if (len > 0) memcpy(g_ddnatv_root, root, len);
+    if (len > 0) len = ddnatv_kernel_path(root, len, g_ddnatv_root, sizeof(g_ddnatv_root));
     g_ddnatv_root[len] = '\0';
     g_ddnatv_root_len = len;
 }
@@ -61,6 +79,11 @@ static void ddnatv_load_binds(const char *spec) {
         if (colon) *colon = '\0';
         if (src[0] != '/' || dst[0] != '/' || strcmp(dst, "/") == 0) continue;
         struct ddnatv_bind *b = &g_binds[g_nbinds++];
+        char kernel_src[PATH_MAX];
+        if (strcmp(src, dst) != 0) {
+            ddnatv_kernel_path(src, strlen(src), kernel_src, sizeof(kernel_src));
+            if (strncmp(kernel_src, "/proc/", 6) != 0 || kernel_src[6] < '0' || kernel_src[6] > '9') src = kernel_src;
+        }
         b->src = strdup(src);
         b->dst = strdup(dst);
         b->src_len = strlen(src);
@@ -148,6 +171,11 @@ static int is_android_host_path(const char *path) {
 }
 
 static const char *rewrite_path_in_root(const char *path, char *buffer, size_t bufsize);
+#ifndef DDNATV_HOST_TEST
+static const char *proc_root_host(const char *path, char *buf, size_t size, int bare, int follow);
+static const char *rewrite_path_follow(const char *path, char *buffer, size_t bufsize);
+static const char *proc_root_at(int dirfd, const char *rel, char *buf, size_t size);
+#endif
 
 #if defined(__aarch64__)
 static long raw_readlinkat(int dirfd, const char *path, char *buf, size_t size) {
@@ -164,6 +192,25 @@ static long raw_readlinkat(int dirfd, const char *path, char *buf, size_t size) 
 static __thread int t_bind_link_depth = 0;
 
 static void normalize_path(char *path);
+
+static int climbs_past_root(const char *dir, const char *target) {
+    long depth = 0;
+    for (const char *p = dir; *p; p++)
+        if (*p != '/' && (p == dir || p[-1] == '/')) depth++;
+    for (const char *p = target; *p;) {
+        while (*p == '/') p++;
+        const char *end = p;
+        while (*end && *end != '/') end++;
+        size_t len = (size_t)(end - p);
+        if (len == 2 && p[0] == '.' && p[1] == '.') {
+            if (--depth < 0) return 1;
+        } else if (len > 0 && !(len == 1 && p[0] == '.')) {
+            depth++;
+        }
+        p = end;
+    }
+    return 0;
+}
 
 #if defined(__aarch64__)
 static long raw_link_dir(const char *link, char *out, size_t size) {
@@ -190,25 +237,6 @@ static long raw_link_dir(const char *link, char *out, size_t size) {
     if (n <= 0 || out[0] != '/') return -1;
     out[n] = '\0';
     return n;
-}
-
-static int climbs_past_root(const char *dir, const char *target) {
-    long depth = 0;
-    for (const char *p = dir; *p; p++)
-        if (*p != '/' && (p == dir || p[-1] == '/')) depth++;
-    for (const char *p = target; *p;) {
-        while (*p == '/') p++;
-        const char *end = p;
-        while (*end && *end != '/') end++;
-        size_t len = (size_t)(end - p);
-        if (len == 2 && p[0] == '.' && p[1] == '.') {
-            if (--depth < 0) return 1;
-        } else if (len > 0 && !(len == 1 && p[0] == '.')) {
-            depth++;
-        }
-        p = end;
-    }
-    return 0;
 }
 
 static size_t guest_path_of_mount_source(char *buf, size_t len, size_t cap, int *converted);
@@ -312,6 +340,15 @@ static const char *resolve_drive_links(const char *host, char *buffer, size_t bu
 
 // Maps an absolute Ubuntu path into the rootfs. Returns `path` (possibly advanced past
 // redundant leading "/" and "/." components) when it needs no change, else `buffer`.
+static const char *rewrite_normalized_in_root(const char *path, char *buffer, size_t bufsize) {
+    char normalized[PATH_MAX];
+    ddnatv_copy_cstr(normalized, sizeof(normalized), path);
+    normalize_path(normalized);
+    const char *mapped = rewrite_path_in_root(normalized, buffer, bufsize);
+    if (mapped != buffer) ddnatv_copy_cstr(buffer, bufsize, mapped);
+    return buffer;
+}
+
 static const char *rewrite_path_in_root(const char *path, char *buffer, size_t bufsize) {
     if (!path) return NULL;
     if (path[0] != '/' || g_ddnatv_root_len == 0) return path;
@@ -331,16 +368,27 @@ static const char *rewrite_path_in_root(const char *path, char *buffer, size_t b
         }
     }
 
+    if (strstr(path, "/..") && climbs_past_root("", path)) return rewrite_normalized_in_root(path, buffer, bufsize);
+
     // Root directory
     if (path[1] == '\0') {
         ddnatv_append(buffer, bufsize, 0, g_ddnatv_root, g_ddnatv_root_len);
         return buffer;
     }
 
+#ifndef DDNATV_HOST_TEST
+    if (path[1] == 'p' && strncmp(path, "/proc/", 6) == 0 && path[6] >= '1' && path[6] <= '9') {
+        const char *other = proc_root_host(path, buffer, bufsize, 0, 0);
+        if (other) return other;
+    }
+#endif
+
     for (int i = 0; i < g_nbinds; i++) {
         const struct ddnatv_bind *b = &g_binds[i];
         if (path[1] == b->dst[1] && is_path_prefix(path, b->dst, b->dst_len)) {
             if (b->identity) return path;
+            if (strstr(path + b->dst_len, "/..") && climbs_past_root("", path + b->dst_len))
+                return rewrite_normalized_in_root(path, buffer, bufsize);
             size_t n = ddnatv_append(buffer, bufsize, 0, b->src, b->src_len);
             ddnatv_append(buffer, bufsize, n, path + b->dst_len, strlen(path + b->dst_len));
             return resolve_bind_links(buffer, b->src_len, buffer, bufsize);
@@ -719,11 +767,6 @@ static size_t append_rootfs_lib_dirs_missing_from(char *out, size_t outsz, size_
     return used;
 }
 
-// All of them.
-static size_t append_rootfs_lib_dirs(char *out, size_t outsz, size_t used, int separate) {
-    return append_rootfs_lib_dirs_missing_from(out, outsz, used, separate, NULL);
-}
-
 #ifndef DDNATV_HOST_TEST
 // Relative *at() calls. A program that walks a path one component at a time (systemd's chase(), used
 // by libudev; fts) opens "/" and then "sys", "class", ... relative to the last descriptor, and those
@@ -783,10 +826,40 @@ static void ddnatv_build_at_dirs(void) {
     }
 }
 
+#if defined(__aarch64__)
+static const char *map_parent_walk(int dirfd, const char *rel, char *buf, size_t size) {
+    char link[32], host[PATH_MAX], dir_buf[PATH_MAX], guest[PATH_MAX];
+    if (dirfd == AT_FDCWD) ddnatv_copy_cstr(link, sizeof(link), "/proc/self/cwd");
+    else snprintf(link, sizeof(link), "/proc/self/fd/%d", dirfd);
+    long n = raw_readlinkat(AT_FDCWD, link, host, sizeof(host) - 1);
+    if (n <= 0 || host[0] != '/') return NULL;
+    host[n] = '\0';
+    const char *dir = guest_path_of_host_dir(host, dir_buf, sizeof(dir_buf));
+    if (!dir || strcmp(dir, host) == 0) return NULL;
+    if (get_rootfs_subpath(host) && !climbs_past_root(dir, rel)) return NULL;
+    size_t used = ddnatv_append(guest, sizeof(guest), 0, dir, strlen(dir));
+    used = ddnatv_append(guest, sizeof(guest), used, "/", 1);
+    used = ddnatv_append(guest, sizeof(guest), used, rel, strlen(rel));
+    if (used + 1 >= sizeof(guest)) return NULL;
+    const char *mapped = rewrite_path_in_root(guest, buf, size);
+    if (mapped != buf) ddnatv_copy_cstr(buf, size, mapped);
+    return buf;
+}
+#endif
+
 // The absolute host path for `rel` given relative to `dirfd`, or NULL when the call needs no change.
 static const char *map_at(int dirfd, const char *rel, char *buf, size_t size) {
 #if defined(__aarch64__)
-    if (dirfd == AT_FDCWD || !rel || rel[0] == '\0' || rel[0] == '/' || g_nbinds == 0) return NULL;
+    if (!rel || rel[0] == '\0' || rel[0] == '/') return NULL;
+#ifndef DDNATV_HOST_TEST
+    const char *other = proc_root_at(dirfd, rel, buf, size);
+    if (other) return other;
+#endif
+    if (strstr(rel, "..")) {
+        const char *walked = map_parent_walk(dirfd, rel, buf, size);
+        if (walked || dirfd == AT_FDCWD) return walked;
+    }
+    if (dirfd == AT_FDCWD || g_nbinds == 0) return NULL;
     pthread_once(&g_at_once, ddnatv_build_at_dirs);
     if (g_n_at_dirs == 0) return NULL;
     struct stat st;
@@ -795,6 +868,7 @@ static const char *map_at(int dirfd, const char *rel, char *buf, size_t size) {
         if (g_at_dirs[i].ino != (unsigned long)st.st_ino || g_at_dirs[i].dev != (unsigned long)st.st_dev) continue;
         char guest[PATH_MAX];
         const char *base = g_at_dirs[i].guest;
+        if (base[1] && climbs_past_root(base, rel)) return NULL;
         size_t used = ddnatv_append(guest, sizeof(guest), 0, base, strlen(base));
         if (used > 1) used = ddnatv_append(guest, sizeof(guest), used, "/", 1);
         ddnatv_append(guest, sizeof(guest), used, rel, strlen(rel));

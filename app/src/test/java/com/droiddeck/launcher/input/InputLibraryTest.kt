@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.input
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.SharedPreferences
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Before
@@ -46,6 +48,100 @@ class InputLibraryTest {
         for (layout in InputStockLayouts.layouts()) assertTrue(layout.elements.none { it.id.startsWith("command:") })
         assertTrue(game.elements.filter { it.kind == InputElementKind.TRACKPAD }.all { it.y == .02f })
         assertEquals(library, InputLibraries.decode(InputLibraries.encode(library)))
+    }
+
+    @Test fun reopeningARedesignLibraryRestoresTheGamepadAndKeepsCustomBindings() {
+        val original = InputLibraries.read(context)
+        val overlay = original.activeLayout(false, InputRole.PRIMARY)!!
+        val custom = InputSurfaceElement(InputControl.A, .98f, .2f, .02f, .02f, id = "extra")
+        val preset = original.preset(original.profile("game").binding(InputRole.PRIMARY))
+        val saved = original.copy(
+            layouts = original.layouts.map { if (it.id == overlay.id) it.copy(elements = listOf(custom), aspect = 0f) else it },
+            bindings = original.bindings.map {
+                if (it.id == preset.id) it.copy(elements = it.elements + mapOf("extra" to InputAction.Keys(listOf(29)),
+                    "legacy:a" to InputAction.Keys(listOf(30)))) else it
+            },
+        )
+        for (version in 15..16) {
+            val raw = JSONObject(InputLibraries.encode(saved)).put("version", version).toString()
+            prefs.edit().putString("library", raw).commit()
+
+            val restored = InputLibraries.read(context)
+            val layout = restored.activeLayout(false, InputRole.PRIMARY)!!
+            assertTrue(layout.elements.any { it.id == "legacy:a" })
+            assertEquals(custom.bounded(), layout.elements.single { it.id == "extra" })
+            assertEquals(InputAction.Keys(listOf(30)), restored.preset(preset.id).elements["legacy:a"])
+            assertEquals(InputAction.Keys(listOf(29)), restored.preset(preset.id).elements["extra"])
+            assertEquals(raw, prefs.getString("library-before-controller-revert", null))
+            assertEquals(restored, InputLibraries.read(context))
+            assertEquals(restored, InputLibraries.update(context) { it })
+        }
+    }
+
+    @Test fun failedRollbackBackupLeavesTheLayoutUsableAndRetriesLater() {
+        val original = InputLibraries.read(context)
+        val raw = JSONObject(InputLibraries.encode(original)).put("version", 16).toString()
+        val backup = "library-before-controller-revert"
+        prefs.edit().putString("library", raw).putString(backup, "previous backup").commit()
+
+        assertEquals(original, InputLibraries.read(contextWithFailedCommits()))
+        assertEquals(raw, prefs.getString("library", null))
+        assertEquals("previous backup", prefs.getString(backup, null))
+
+        assertEquals(original, InputLibraries.read(context))
+        assertEquals(14, JSONObject(prefs.getString("library", null)!!).getInt("version"))
+        assertEquals(raw, prefs.getString(backup, null))
+    }
+
+    @Test fun failedRecoveryRestoresBothValuesAndTheNextEditRetriesRecovery() {
+        val raw = "unreadable library"
+        val backup = "library-recovery." + java.util.UUID.nameUUIDFromBytes(raw.toByteArray(Charsets.UTF_8))
+        prefs.edit().putString("library", raw).putString(backup, "previous backup").commit()
+        val failing = contextWithFailedCommits()
+
+        repeat(2) {
+            assertThrows(IllegalStateException::class.java) { InputLibraries.update(failing) { it } }
+            assertEquals(raw, prefs.getString("library", null))
+            assertEquals("previous backup", prefs.getString(backup, null))
+        }
+        InputLibraries.update(context) { it }
+        assertEquals(raw, prefs.getString(backup, null))
+        assertNotNull(InputLibraries.decode(prefs.getString("library", null)!!))
+    }
+
+    private fun contextWithFailedCommits(): Context = object : ContextWrapper(context) {
+        override fun getSharedPreferences(name: String, mode: Int): SharedPreferences {
+            val original = super.getSharedPreferences(name, mode)
+            if (name != "input-profiles") return original
+            return object : SharedPreferences by original {
+                override fun edit(): SharedPreferences.Editor {
+                    val editor = original.edit()
+                    return object : SharedPreferences.Editor by editor {
+                        override fun putString(key: String, value: String?): SharedPreferences.Editor {
+                            editor.putString(key, value)
+                            return this
+                        }
+
+                        override fun commit(): Boolean {
+                            editor.apply()
+                            return false
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test fun revertingKeepsIntentionallyEmptyGamepadsEmpty() {
+        val original = InputLibraries.read(context)
+        val doc = JSONObject(InputLibraries.encode(original)).put("version", 16)
+        val layouts = doc.getJSONArray("layouts")
+        val overlay = (0 until layouts.length()).map(layouts::getJSONObject)
+            .single { it.getString("id") == InputLibraries.OVERLAY }
+        overlay.put("kitless", true).put("elements", org.json.JSONArray())
+        prefs.edit().putString("library", doc.toString()).commit()
+
+        assertTrue(InputLibraries.read(context).activeLayout(false, InputRole.PRIMARY)!!.elements.isEmpty())
     }
 
     @Test fun legacyLowerScreenBindingsKeepTheirOriginalControlsWithoutSavedGeometry() {
@@ -591,5 +687,46 @@ class InputLibraryTest {
         assertEquals(old.layouts.single { it.id == InputLibraries.TRACKPAD }, upgraded.layouts.single { it.id == InputLibraries.TRACKPAD })
         assertEquals(old.preset(InputStockLayouts.TRACKPAD), upgraded.preset(InputStockLayouts.TRACKPAD))
         assertEquals(InputStockLayouts.layouts().single { it.id == InputLibraries.DECK }.elements, upgraded.layouts.single { it.id == InputLibraries.DECK }.elements)
+    }
+
+    @Test fun stockSecondScreenPanelsKeepTapsClicking() {
+        val library = InputLibraries.read(context)
+        for (desktop in listOf(false, true)) for (panel in listOf(null, InputStockLayouts.TRACKPAD) + DeckPanel.entries.map { it.bindings }) {
+            val shown = library.panelLayout(desktop, panel)!!.elements
+            assertTrue(shown.isNotEmpty())
+            assertFalse(library.compileActive(desktop, panel).showsLeftMouseButton(InputRole.SECONDARY, shown, library.compileStock(desktop, panel)))
+        }
+    }
+
+    @Test fun userBoundSecondScreenLeftMouseButtonIsDetected() {
+        val stock = InputLibraries.read(context)
+        val grips = DeckPanel.GRIPS.bindings
+        val button = stock.panelLayout(false, grips)!!.elements.first { it.control.dimensions == 1 }
+        val bound = stock.withPreset(stock.preset(grips).copy(elements = mapOf(button.id to InputAction.MouseButton(272))))
+        for (desktop in listOf(false, true)) {
+            assertTrue(bound.compileActive(desktop, grips).showsLeftMouseButton(InputRole.SECONDARY, listOf(button), bound.compileStock(desktop, grips)))
+            assertFalse(bound.compileActive(desktop, grips).showsLeftMouseButton(InputRole.PRIMARY, listOf(button), bound.compileStock(desktop, grips)))
+        }
+        val pad = stock.panelLayout(true, InputStockLayouts.TRACKPAD)!!.elements.single()
+        val rebound = stock.withPreset(stock.preset(InputStockLayouts.TRACKPAD).let { it.copy(clicks = it.clicks + (pad.id to InputAction.MouseButton(273))) })
+        assertFalse(rebound.compileActive(true).showsLeftMouseButton(InputRole.SECONDARY, listOf(pad), rebound.compileStock(true)))
+    }
+
+    @Test fun copiedStockPanelsKeepTapsClickingUntilAMouseButtonIsAdded() {
+        val stock = InputLibraries.read(context)
+        for (desktop in listOf(false, true)) {
+            val source = stock.panelLayout(desktop, null)!!
+            val copied = stock.useLayout(stock.activeId(desktop), InputRole.SECONDARY, source.id, shared = false)
+            val layout = copied.activeLayout(desktop, InputRole.SECONDARY)!!
+            assertNotEquals(source.id, layout.id)
+            assertEquals(source.id, layout.origin)
+            assertFalse(copied.compileActive(desktop).showsLeftMouseButton(InputRole.SECONDARY, layout.elements, copied.compileStock(desktop)))
+            val added = InputSurfaceElement(InputControl.A, .4f, .4f, .1f, .1f, id = "custom:added")
+            val grown = copied.withLayout(layout.copy(elements = layout.elements + added))
+            val bindings = grown.activePart(desktop, InputRole.SECONDARY).bindings
+            val bound = grown.withPreset(grown.preset(bindings).let { it.copy(elements = it.elements + (added.id to InputAction.MouseButton(272))) })
+            assertTrue(bound.compileActive(desktop).showsLeftMouseButton(InputRole.SECONDARY, layout.elements + added, bound.compileStock(desktop)))
+            assertFalse(bound.compileActive(desktop).showsLeftMouseButton(InputRole.SECONDARY, layout.elements, bound.compileStock(desktop)))
+        }
     }
 }

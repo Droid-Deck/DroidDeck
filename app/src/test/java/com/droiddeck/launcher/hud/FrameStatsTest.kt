@@ -82,7 +82,7 @@ class FrameStatsTest {
     }
 
     @Test fun guestFrameTimesMoveByThePausedSessionsClockShift() {
-        val control = java.io.File.createTempFile("bl-clock", null)
+        val control = java.io.File.createTempFile("dd-clock", null)
         try {
             control.writeBytes(java.nio.ByteBuffer.allocate(8).order(java.nio.ByteOrder.LITTLE_ENDIAN).putLong(62_283_930_706L).array())
             val feed = GameFrameFeed(java.io.File("/nonexistent/droiddeck-hud/frames"), clockControl = control)

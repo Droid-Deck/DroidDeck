@@ -17,6 +17,9 @@ import android.provider.Settings
 import android.util.Log
 import com.droiddeck.launcher.core.SessionPart
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.SessionHdr
+import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionState
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -74,8 +77,10 @@ class DeviceControlsComponent(context: Context, root: File, private val activity
             val value = Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
             write("backlight/droiddeck/brightness", "$value\n")
             write("backlight/droiddeck/actual_brightness", "$value\n")
-            val state = JSONObject().put("brightness", (value.coerceIn(1, 255) - 1) / 254.0)
-                .put("brightnessWritable", Settings.System.canWrite(context)).toString()
+            val controls = JSONObject().put("brightness", (value.coerceIn(1, 255) - 1) / 254.0)
+                .put("brightnessWritable", Settings.System.canWrite(context))
+            if (SessionState.hdrCapable) controls.put("hdr", SessionState.hdr)
+            val state = controls.toString()
             if (force || state != previous) {
                 write("state.json", JSONObject(state).put("revision", ++revision).toString())
                 previous = state
@@ -95,10 +100,13 @@ class DeviceControlsComponent(context: Context, root: File, private val activity
             permissionNotified = false
             context.contentResolver.registerContentObserver(Settings.System.CONTENT_URI, true, observer)
             requests.startWatching()
-            context.registerReceiver(volumeSteps, IntentFilter().apply {
+            val volumeFilter = IntentFilter().apply {
                 addAction(VOLUME_CHANGED_ACTION)
                 addAction(STREAM_MUTE_CHANGED_ACTION)
-            }, null, handler)
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 33)
+                context.registerReceiver(volumeSteps, volumeFilter, null, handler, Context.RECEIVER_NOT_EXPORTED)
+            else context.registerReceiver(volumeSteps, volumeFilter, null, handler)
             refresh.run()
         }
     }
@@ -128,6 +136,9 @@ class DeviceControlsComponent(context: Context, root: File, private val activity
                     "volume.request" -> text.toIntOrNull()?.let {
                         audio.setStreamVolume(AudioManager.STREAM_MUSIC,
                             it.coerceIn(0, audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)), 0)
+                    }
+                    "hdr.request" -> if (text == "0" || text == "1") {
+                        SessionHdr.set(context, SessionPrefs.prefMode(SessionState.mode), text == "1")
                     }
                     "mute.request" -> if (text == "0" || text == "1") {
                         audio.adjustStreamVolume(AudioManager.STREAM_MUSIC,
@@ -193,7 +204,7 @@ class DeviceControlsComponent(context: Context, root: File, private val activity
         private const val STREAM_MUTE_CHANGED_ACTION = "android.media.STREAM_MUTE_CHANGED_ACTION"
         private const val PERMISSION_CHANNEL = "brightness_permission"
         private const val PERMISSION_NOTIFICATION = 0x4442
-        private val REQUESTS = setOf("brightness.request", "volume.request", "mute.request")
+        private val REQUESTS = setOf("brightness.request", "volume.request", "mute.request", "hdr.request")
         @JvmStatic fun directory(root: File) = File(root, "etc/droiddeck-device-controls")
         @JvmStatic fun prepareBacklight(context: Context, root: File): File {
             val base = File(directory(root), "backlight")

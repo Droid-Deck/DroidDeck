@@ -14,17 +14,28 @@ import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.hud.DroidDeckHudConfig
 import com.droiddeck.launcher.hud.DroidDeckHudSize
+import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.StripMetric
 
 @Composable
 internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (String) -> Modifier) {
     val cfg = a.hudConfig
+    val context = LocalContext.current
+    var onlyDuringGame by remember { mutableStateOf(SessionPrefs.hudOnlyDuringGame(context)) }
     fun on(key: String) = cfg[key] == "1"
     fun int(key: String, fallback: Int) = cfg[key]?.toIntOrNull() ?: fallback
 
     SettingsGroup(stringResource(R.string.drawer_hud)) {
         ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn, chipModifier = track("hud"), onChange = a.onHud)
+        if (a.hudOn) ToggleRow(
+            host, "hud-only-during-game", stringResource(R.string.hud_only_during_game),
+            stringResource(R.string.hud_only_during_game_hint), onlyDuringGame,
+            chipModifier = track("hud-only-during-game")
+        ) { on ->
+            onlyDuringGame = on
+            a.onHudOnlyDuringGame(on)
+        }
         if (!a.hudOn) return@SettingsGroup
         val size = DroidDeckHudSize.from(cfg["hudSize"])
         ChoiceRow(host, "hud-size", stringResource(R.string.hud_size), stringResource(R.string.hud_size_hint),
@@ -37,11 +48,17 @@ internal fun DroidDeckHudSettings(host: MenuHost, a: DrawerActions, track: (Stri
                 DroidDeckHudSize.STRIP to stringResource(R.string.hud_size_strip),
             ),
             size, chipModifier = track("hud-size")) { a.onHudSetting("hudSize", it.token) }
+        ChoiceRow(host, "hud-hold", stringResource(R.string.hud_hold), null,
+            listOf("collapse" to stringResource(R.string.hud_hold_collapse),
+                DroidDeckHudConfig.HOLD_LOCKS to stringResource(R.string.hud_hold_lock)),
+            if (cfg["hudHold"] == DroidDeckHudConfig.HOLD_LOCKS) DroidDeckHudConfig.HOLD_LOCKS else "collapse",
+            chipModifier = track("hud-hold")) { a.onHudSetting("hudHold", it) }
         ToggleRow(host, "hud-locked", stringResource(R.string.hud_locked), stringResource(R.string.hud_locked_hint), on("hudLocked"),
             chipModifier = track("hud-locked")) { a.onHudSetting("hudLocked", flag(it)) }
         ToggleRow(host, "hud-snap", stringResource(R.string.hud_snap), stringResource(R.string.hud_snap_hint), on("hudSnap"),
             chipModifier = track("hud-snap")) { a.onHudSetting("hudSnap", flag(it)) }
     }
+    if (GpuClockPin.supported) GpuClockGroup(host, a.gpuClockPin, track("gpuclock"), a.onGpuClockPin)
     if (a.dashboardAvailable && a.secondScreenDisplays.isNotEmpty()) BottomStripSettings(host, track)
     if (!a.hudOn) return
 

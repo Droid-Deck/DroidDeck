@@ -441,7 +441,7 @@ private:
             if (paths && !strncmp(paths, "0=", 2)) path.assign(paths + 2, strcspn(paths + 2, ";"));
         }
         if (path.empty()) {
-            if (const char *dir = getenv("BL_LAUNCH_DIR")) path = std::string(dir) + "/dev/fakeinput-rings/ring0";
+            if (const char *dir = getenv("DD_LAUNCH_DIR")) path = std::string(dir) + "/dev/fakeinput-rings/ring0";
         }
         if (path.empty()) return false;
         int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);

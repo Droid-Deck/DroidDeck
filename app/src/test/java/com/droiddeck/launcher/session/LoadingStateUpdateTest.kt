@@ -76,6 +76,80 @@ class LoadingStateUpdateTest {
         assertEquals(LoadingState.Topic.DESKTOP, state.topic)
     }
 
+    @Test fun bootstrapperProgressWithThousandsSeparatorsIsRead() {
+        val state = read("[2026-11-15 11:58:51] Downloading update (184,557 of 573,070 KB)...")
+        assertEquals(32, state.percent)
+        assertEquals("Downloading the Steam client update · 32%", state.step)
+    }
+
+    @Test fun translatedBootstrapperProgressUsesItsPercentLine() {
+        val state = read(
+            "[2026-11-15 11:58:51] 正在下载更新 (已下载 184,557，共 573,070 KB)...",
+            "[2026-11-15 11:58:51] Set status message: 正在下载更新 (已下载 184,557，共 573,070 KB)...",
+            "[2026-11-15 11:58:51] Set percent complete: 32",
+        )
+        assertEquals(32, state.percent)
+        assertEquals(LoadingState.Topic.STEAM, state.topic)
+        assertTrue(state.readable)
+    }
+
+    @Test fun anUnknownPercentDoesNotLookLikeProgress() {
+        val state = read("[2026-11-15 11:53:37] Set percent complete: -1")
+        assertEquals(-1, state.percent)
+    }
+
+    @Test fun aVerificationOnlyPassKeepsTheScriptStep() {
+        val state = read(
+            "[2026-11-15 11:53:36] Set percent complete: 0",
+            "[2026-11-15 11:53:37] Set percent complete: -1",
+            "[2026-11-15 11:53:37] Verifying installation...",
+        )
+        assertEquals("starting the Steam client", state.step)
+        assertEquals(-1, state.percent)
+    }
+
+    @Test fun aPercentLineDoesNotReplaceApplyingInTheSameStep() {
+        assertApplying(read("Extracting package...", "[2026-11-15 11:58:52] Set percent complete: 100"))
+    }
+
+    @Test fun anUnknownPercentEndsAnEarlierPercent() {
+        val state = read(
+            "[2026-11-15 11:58:51] Set percent complete: 40",
+            "[2026-11-15 11:58:52] Set percent complete: -1",
+        )
+        assertEquals("starting the Steam client", state.step)
+        assertEquals(-1, state.percent)
+    }
+
+    @Test fun aPercentLineCountsAgainAfterANewStep() {
+        val state = read(
+            "Installing update...",
+            "== STEP 12:00:03 starting the Steam client",
+            "[2026-11-15 11:58:51] Set percent complete: 40",
+        )
+        assertEquals(40, state.percent)
+    }
+
+    @Test fun aPercentOutsideTheIntRangeIsIgnored() {
+        val state = read(
+            "[2026-11-15 11:58:51] Set percent complete: 40",
+            "[2026-11-15 11:58:52] Set percent complete: 2147483648",
+        )
+        assertEquals(40, state.percent)
+    }
+
+    @Test fun anUnknownPercentClearsTheDisplayedPercentAfterTheStepLeavesTheTail() {
+        val context = RuntimeEnvironment.getApplication()
+        val log = log("[2026-11-15 11:58:51] Set percent complete: 40")
+        val state = LoadingState(context)
+        state.update(context, log)
+        assertEquals(40, state.percent)
+        log.appendText("\n" + "Loading cached metrics\n".repeat(4096) + "[2026-11-15 11:58:52] Set percent complete: -1")
+        state.update(context, log)
+        assertEquals(-1, state.percent)
+        assertEquals("starting the Steam client", state.step)
+    }
+
     @Test fun anExistingLoadingStateFollowsUpdatesAcrossPolls() {
         val context = RuntimeEnvironment.getApplication()
         val log = log("Downloading update (100 of 100 KB)")

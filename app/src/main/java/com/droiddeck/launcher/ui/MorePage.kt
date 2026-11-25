@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -43,10 +44,9 @@ internal fun MorePage(s: FrontEndState, a: FrontEndActions, onSelect: (String) -
     Column(modifier.verticalScroll(rememberScrollState())) {
         PageHeader(stringResource(R.string.rail_more)) {
             Spacer(Modifier.weight(1f))
-            SecondaryButton(stringResource(R.string.more_edit_tabs), compact = true) {
-                SetupTabs.openLauncher = true
-                SetupTabs.focusTabs = true
-                onSelect("setup")
+            SecondaryButton(stringResource(R.string.more_edit_tabs), compact = true,
+                modifier = Modifier.focusRequester(MoreTabs.button).testTag("more-edit-tabs")) {
+                MoreTabs.editing = true
             }
         }
         BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -81,7 +81,7 @@ private fun MoreTile(s: FrontEndState, key: String, first: Boolean, modifier: Mo
             .then(if (first) Modifier.paneEntry() else Modifier.paneItem("more:$key"))
             .testTag("more-$key")
             .height(112.dp).clip(shape)
-            .background(if (hot) pal.signal.copy(alpha = 0.12f) else colors.surface)
+            .background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.12f)) else Modifier)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(src)
             .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Tab, onClick = onClick)

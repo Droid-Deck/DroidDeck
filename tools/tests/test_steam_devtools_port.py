@@ -29,7 +29,7 @@ class SteamDevtoolsPortTest(unittest.TestCase):
         function = devtools_function()
         self.assertIsNotNone(function, "droiddeck-session has no steam_devtools()")
         script = function + "steam_root=%s\nsteam_devtools %d\n" % (shlex.quote(str(self.root)), port)
-        script += 'echo "port=$BL_CDP_PORT"\necho "args=${_bl_cdp[*]}"\n'
+        script += 'echo "port=$DD_CDP_PORT"\necho "args=${_dd_cdp[*]}"\n'
         out = subprocess.run(["bash", "-c", script], capture_output=True, text=True, timeout=30, check=True).stdout
         lines = out.splitlines()
         port_line = next(l for l in lines if l.startswith("port="))
@@ -71,7 +71,7 @@ class SteamDevtoolsPortTest(unittest.TestCase):
 
     def test_the_x86_64_decky_exemption_only_covers_the_fixed_port(self):
         text = SESSION.read_text()
-        self.assertIn('[ "${decky_arch:-}" = x86_64 ] && [ ${#_bl_cdp[@]} = 0 ]', text)
+        self.assertIn('[ "${decky_arch:-}" = x86_64 ] && [ ${#_dd_cdp[@]} = 0 ]', text)
 
 
 if __name__ == "__main__":

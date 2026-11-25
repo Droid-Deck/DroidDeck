@@ -44,6 +44,35 @@ class DroidDeckHudHost(context: Context) {
     private var protonPid = 0
     private var proton = ""
     @Volatile private var lastWindow: String? = null
+    @Volatile private var lastCompositorFrameNanos = 0L
+    @Volatile private var lastVisibilityGameActive = false
+    private var candidateGameActive = false
+    private var candidateGameActiveSinceNs = 0L
+    private var stableGameActive = false
+
+    private fun isGameActive(): Boolean {
+        val now = System.nanoTime()
+        val compositorLive = lastCompositorFrameNanos > 0L &&
+            now - lastCompositorFrameNanos <= 1_000_000_000L
+        val detected = if (feed.live) {
+            feed.steamFocusKnown && !feed.steamFocused
+        } else {
+            compositorLive
+        }
+
+        if (detected != candidateGameActive) {
+            candidateGameActive = detected
+            candidateGameActiveSinceNs = now
+        }
+
+        if (detected != stableGameActive &&
+            now - candidateGameActiveSinceNs >= GAME_ACTIVITY_STABLE_NS
+        ) {
+            stableGameActive = detected
+        }
+
+        return stableGameActive
+    }
 
     var onPresentingWindowChanged: (() -> Unit)? = null
 
@@ -66,6 +95,12 @@ class DroidDeckHudHost(context: Context) {
         }
 
         override fun onGameFrame() {
+            if (feed.live && (!feed.steamFocusKnown || feed.steamFocused)) return
+            lastCompositorFrameNanos = System.nanoTime()
+            feed.onCompositorFrame(lastCompositorFrameNanos)
+        }
+
+        override fun onCompositorFrame() {
             feed.onCompositorFrame(System.nanoTime())
         }
     }
@@ -73,7 +108,9 @@ class DroidDeckHudHost(context: Context) {
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!running || !polling) return
+            reconcileGameActivity()
             if (feed.poll(System.nanoTime())) view?.onFrames()
+            reconcileGameActivity()
             Choreographer.getInstance().postFrameCallback(this)
         }
     }
@@ -119,6 +156,7 @@ class DroidDeckHudHost(context: Context) {
         }
         hud.setOnSizeCycledListener { size -> DroidDeckHudConfig.set(context, "hudSize", size); onConfigChanged?.invoke() }
         hud.setOnDockChangedListener { token -> setDock(hud, DroidDeckHudDock.from(token)) }
+        hud.setOnHoldListener { rawX, rawY -> collapseAt(hud, rawX, rawY) }
         hud.setOnScaledListener { percent ->
             DroidDeckHudConfig.set(context, "hudScale", percent.toString())
             onConfigChanged?.invoke()
@@ -150,7 +188,7 @@ class DroidDeckHudHost(context: Context) {
 
     fun refresh() {
         applyConfig()
-        if (!enabled) stop() else if (!running) start()
+        if (!enabled) stop() else if (!running) start() else applyShown()
     }
 
     fun start() {
@@ -180,14 +218,26 @@ class DroidDeckHudHost(context: Context) {
         applyShown()
     }
 
+    private fun reconcileGameActivity() {
+        if (!SessionPrefs.hudOnlyDuringGame(context)) {
+            lastVisibilityGameActive = isGameActive()
+            return
+        }
+        if (isGameActive() != lastVisibilityGameActive) applyShown()
+    }
+
     private fun applyShown() {
         if (!running) return
-        val show = !hidden && !backgrounded
+        val onlyDuringGame = SessionPrefs.hudOnlyDuringGame(context)
+        val gameActive = isGameActive()
+        val show = !hidden && !backgrounded && (!onlyDuringGame || gameActive)
         view?.visibility = if (show) View.VISIBLE else View.GONE
         showing = show
-        if (show != polling) {
-            polling = show
-            if (show) Choreographer.getInstance().postFrameCallback(frameCallback)
+        lastVisibilityGameActive = gameActive
+        val shouldPoll = !hidden && !backgrounded && (show || onlyDuringGame)
+        if (shouldPoll != polling) {
+            polling = shouldPoll
+            if (shouldPoll) Choreographer.getInstance().postFrameCallback(frameCallback)
             else Choreographer.getInstance().removeFrameCallback(frameCallback)
         }
     }
@@ -291,7 +341,7 @@ class DroidDeckHudHost(context: Context) {
             DroidDeckHudDock.RIGHT -> (maxX - hud.x) / hud.width
             DroidDeckHudDock.TOP -> hud.y / hud.height
             DroidDeckHudDock.BOTTOM -> (maxY - hud.y) / hud.height
-            DroidDeckHudDock.NONE -> 0f
+            DroidDeckHudDock.NONE, DroidDeckHudDock.FLOAT -> 0f
         }
         if (pulled >= 1f) { setDock(hud, DroidDeckHudDock.NONE); return }
         wantX = hud.x; wantY = hud.y
@@ -375,12 +425,30 @@ class DroidDeckHudHost(context: Context) {
         hud.scaleX = s; hud.scaleY = s
     }
 
-    private fun setDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
+    private fun setDock(hud: DroidDeckHudView, edge: DroidDeckHudDock, center: Pair<Float, Float>? = null) {
         if (edge == hud.dock) return
-        animateDock(hud, edge) { commitDock(hud, edge) }
+        animateDock(hud, edge, center) { commitDock(hud, edge) }
     }
 
+    private fun collapseAt(hud: DroidDeckHudView, rawX: Float, rawY: Float) {
+        if (hud.dock != DroidDeckHudDock.NONE) return
+        val p = hud.parent as? View ?: return
+        val at = IntArray(2).also { p.getLocationOnScreen(it) }
+        val x = rawX - at[0]
+        val y = rawY - at[1]
+        val edge = if (snaps) nearestEdge(x, y, p.width.toFloat(), p.height.toFloat()) else DroidDeckHudDock.FLOAT
+        setDock(hud, edge, Pair(x, y))
+    }
+
+    private fun nearestEdge(x: Float, y: Float, width: Float, height: Float): DroidDeckHudDock = mapOf(
+        DroidDeckHudDock.LEFT to x,
+        DroidDeckHudDock.RIGHT to width - x,
+        DroidDeckHudDock.TOP to y,
+        DroidDeckHudDock.BOTTOM to height - y,
+    ).minByOrNull { it.value }!!.key
+
     private fun commitDock(hud: DroidDeckHudView, edge: DroidDeckHudDock) {
+        snapping = false
         val tabX = hud.x; val tabY = hud.y
         if (edge != DroidDeckHudDock.NONE) {
             val p = hud.parent as? View
@@ -407,12 +475,17 @@ class DroidDeckHudHost(context: Context) {
         SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
     }
 
-    private fun animateDock(hud: DroidDeckHudView, edge: DroidDeckHudDock, commit: () -> Unit) {
+    private fun animateDock(hud: DroidDeckHudView, edge: DroidDeckHudDock, center: Pair<Float, Float>?, commit: () -> Unit) {
         stopMotion(hud)
         previewFade?.cancel(); previewFade = null
         snapping = false
         hud.alpha = 1f
         val p = hud.parent as? View
+        if (edge != DroidDeckHudDock.NONE && center != null) {
+            val (tabW, tabH) = hud.dockTabSize()
+            wantX = center.first - tabW / 2f
+            wantY = center.second - tabH / 2f
+        }
         if (Motion.scale == 0f || p == null || !hud.isLaidOut || hud.width <= 0) {
             hud.scaleX = 1f; hud.scaleY = 1f
             hud.setDockPreview(DroidDeckHudDock.NONE, 0f)
@@ -424,11 +497,14 @@ class DroidDeckHudHost(context: Context) {
             hud.pivotX = 0f; hud.pivotY = 0f
             hud.x = left; hud.y = top
             val (tabW, tabH) = hud.dockTabSize()
-            wantX = left + (shownW - tabW) / 2f
-            wantY = top + (shownH - tabH) / 2f
+            if (center == null) {
+                wantX = left + (shownW - tabW) / 2f
+                wantY = top + (shownH - tabH) / 2f
+            }
             val (tabX, tabY) = settled(p, edge, tabW, tabH)
             val sx = tabW / hud.width; val sy = tabH / hud.height
             val from = hud.dockPreviewBlend
+            snapping = true
             hud.animate().x(tabX).y(tabY).scaleX(sx).scaleY(sy).setDuration(Motion.ms(220).toLong()).setInterpolator(EASE)
                 .setUpdateListener { hud.setDockPreview(edge, from + (1f - from) * it.animatedFraction) }
                 .withEndAction {
@@ -473,7 +549,7 @@ class DroidDeckHudHost(context: Context) {
             DroidDeckHudDock.RIGHT -> x = maxX
             DroidDeckHudDock.TOP -> y = 0f
             DroidDeckHudDock.BOTTOM -> y = maxY
-            DroidDeckHudDock.NONE -> {}
+            DroidDeckHudDock.NONE, DroidDeckHudDock.FLOAT -> {}
         }
         return Pair(x, y)
     }
@@ -505,6 +581,7 @@ class DroidDeckHudHost(context: Context) {
     }
 
     companion object {
+        private const val GAME_ACTIVITY_STABLE_NS = 350_000_000L
         private const val DOCK_OVERHANG = 0.4f
         private const val PREVIEW_FROM = 0.55f
         private const val STRIP_PULL_ACROSS_DP = 360f

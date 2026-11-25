@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -73,7 +74,7 @@ internal fun SourceChip(source: String, small: Boolean = false, modifier: Modifi
 }
 
 @Composable
-internal fun StateChip(text: String, tone: ChipTone, small: Boolean = false) {
+internal fun StateChip(text: String, tone: ChipTone, small: Boolean = false, fraction: Float? = null, key: Any? = null) {
     val pal = LocalPalette.current
     val (fill, ink) = when (tone) {
         ChipTone.OK -> Color(0xFF16321F) to pal.good
@@ -82,10 +83,14 @@ internal fun StateChip(text: String, tone: ChipTone, small: Boolean = false) {
         ChipTone.DEAL -> Color(0xFF1E3A1A) to Color(0xFF9BE27A)
         ChipTone.PLAIN -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Text(
-        text, fontSize = if (small) 9.sp else 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp, color = ink, maxLines = 1,
-        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(fill).padding(horizontal = if (small) 5.dp else 8.dp, vertical = if (small) 1.dp else 2.dp),
-    )
+    val shape = RoundedCornerShape(6.dp)
+    Box(Modifier.clip(shape).background(fill)) {
+        if (fraction != null) ChipFill(fraction, key, ink.copy(alpha = 0.26f))
+        Text(
+            text, fontSize = if (small) 9.sp else 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp, color = ink, maxLines = 1,
+            modifier = Modifier.padding(horizontal = if (small) 5.dp else 8.dp, vertical = if (small) 1.dp else 2.dp),
+        )
+    }
 }
 
 internal enum class ChipTone { OK, BUSY, WARN, DEAL, PLAIN }

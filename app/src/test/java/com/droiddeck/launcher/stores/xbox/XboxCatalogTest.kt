@@ -184,6 +184,23 @@ class XboxCatalogTest {
         assertFalse(XboxCatalog.product(product(game, "Windows.Desktop"), mapOf(game to "gamepass"), null)!!.xboxCloud)
     }
 
+    @Test fun trialAndPreorderSkusDoNotMakeAGamePcInstallable() {
+        fun sku(format: String, vararg flags: String) = JSONObject().put("Sku", JSONObject().put("Properties", JSONObject().apply {
+            flags.forEach { put(it, true) }
+            put("Packages", JSONArray().put(JSONObject().put("PackageFormat", format).put("MaxDownloadSizeInBytes", 7L)
+                .put("PlatformDependencies", JSONArray().put(JSONObject().put("PlatformName", "Windows.Desktop")))))
+        }))
+        fun offer(vararg skus: JSONObject) = JSONObject().put("ProductId", game).put("ProductType", "Game")
+            .put("LocalizedProperties", JSONArray().put(JSONObject().put("ProductTitle", "A Game")))
+            .put("DisplaySkuAvailabilities", JSONArray(skus.toList()))
+        assertNull(XboxCatalog.product(offer(sku("EAPPX", "IsTrial")), mapOf(game to "owned")))
+        assertNull(XboxCatalog.product(offer(sku("MSIXVC", "IsPreOrder")), mapOf(game to "owned")))
+        val streamed = XboxCatalog.product(offer(sku("EAPPX", "IsTrial")), mapOf(game to "gamepass"), XboxCloudCatalog(setOf(game), emptySet()))!!
+        assertFalse(streamed.xboxPc); assertTrue(streamed.xboxCloud); assertEquals("", streamed.extra["format"]); assertEquals(0L, streamed.sizeBytes)
+        val retail = XboxCatalog.product(offer(sku("MSIXVC", "IsTrial"), sku("EAPPX")), mapOf(game to "owned"))!!
+        assertTrue(retail.xboxPc); assertEquals("EAPPX", retail.extra["format"]); assertEquals(7L, retail.sizeBytes)
+    }
+
     @Test fun aCloudOnlyEditionFoldsIntoThePcCardWithTheSameTitle() {
         val cloud = XboxCloudCatalog(gamePass = setOf(parent), all = emptySet())
         val pc = XboxCatalog.product(product(game, "Windows.Desktop"), mapOf(game to "gamepass"), cloud)!!

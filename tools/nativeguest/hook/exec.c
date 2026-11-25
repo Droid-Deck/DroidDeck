@@ -9,17 +9,72 @@
 // Runs before every exec, mostly in a child a shell has just forked: the copies write only the
 // string (ddnatv_copy_cstr), not the whole PATH_MAX buffer, since each page written there is a
 // copy-on-write fault.
+static int follow_link(const char *path, char *target, size_t size) {
+    ssize_t len = readlink(path, target, size - 1);
+    if (len < 0) return 0;
+    target[len] = '\0';
+    // proot's link2symlink leaves hard links as ".l2s.*" files that programs must not see by name
+    const char *base = strrchr(target, '/');
+    return strncmp(base ? base + 1 : target, ".l2s.", 5) != 0;
+}
+
 static void resolve_symlinks(const char *path, char *out, size_t out_size, int depth) {
     if (!path || !out || out_size == 0) return;
     ddnatv_copy_cstr(out, out_size, path);
     if (depth > 8) return;
-
     char link_target[PATH_MAX];
-    ssize_t len = readlink(path, link_target, sizeof(link_target) - 1);
-    if (len < 0) return;
-    link_target[len] = '\0';
-
     char next_path[PATH_MAX];
+    if (g_ddnatv_root_len > 0 && strncmp(path, g_ddnatv_root, g_ddnatv_root_len) == 0 && path[g_ddnatv_root_len] == '/') {
+        char done[PATH_MAX];
+        char todo[PATH_MAX];
+        size_t used = ddnatv_append(done, sizeof(done), 0, g_ddnatv_root, g_ddnatv_root_len);
+        ddnatv_copy_cstr(todo, sizeof(todo), path + g_ddnatv_root_len);
+        int links = 0;
+        char *rest = todo;
+        while (*rest) {
+            while (*rest == '/') rest++;
+            if (!*rest) break;
+            char *end = strchr(rest, '/');
+            size_t n = end ? (size_t)(end - rest) : strlen(rest);
+            if (n == 1 && rest[0] == '.') {
+                rest += n;
+                continue;
+            }
+            if (n == 2 && rest[0] == '.' && rest[1] == '.') {
+                char *slash = strrchr(done + g_ddnatv_root_len, '/');
+                if (slash) used = (size_t)(slash - done);
+                done[used] = '\0';
+                rest += n;
+                continue;
+            }
+            size_t before = used;
+            used = ddnatv_append(done, sizeof(done), used, "/", 1);
+            used = ddnatv_append(done, sizeof(done), used, rest, n);
+            rest += n;
+            if (used >= sizeof(done) - 1) return;
+            if (!follow_link(done, link_target, sizeof(link_target))) {
+                struct stat st;
+                if (*rest && (syscall(SYS_newfstatat, AT_FDCWD, done, &st, 0) != 0 || !S_ISDIR(st.st_mode))) return;
+                continue;
+            }
+            if (++links > 40) return;
+            size_t m = ddnatv_append(next_path, sizeof(next_path), 0, link_target, strlen(link_target));
+            m = ddnatv_append(next_path, sizeof(next_path), m, rest, strlen(rest));
+            if (m >= sizeof(next_path) - 1) return;
+            if (link_target[0] == '/') {
+                char rw_buf[PATH_MAX];
+                resolve_symlinks(rewrite_path(next_path, rw_buf, sizeof(rw_buf)), out, out_size, depth + 1);
+                return;
+            }
+            used = before;
+            done[used] = '\0';
+            ddnatv_copy_cstr(todo, sizeof(todo), next_path);
+            rest = todo;
+        }
+        if (used > g_ddnatv_root_len) ddnatv_copy_cstr(out, out_size, done);
+        return;
+    }
+    if (!follow_link(path, link_target, sizeof(link_target))) return;
     if (link_target[0] == '/') {
         char rw_buf[PATH_MAX];
         const char *rewritten = rewrite_path(link_target, rw_buf, sizeof(rw_buf));
@@ -32,20 +87,16 @@ static void resolve_symlinks(const char *path, char *out, size_t out_size, int d
             memcpy(next_path, path, dir_len);
             next_path[dir_len] = '\0';
             size_t n = ddnatv_append(next_path, sizeof(next_path), dir_len, "/", 1);
-            ddnatv_append(next_path, sizeof(next_path), n, link_target, (size_t)len);
+            ddnatv_append(next_path, sizeof(next_path), n, link_target, strlen(link_target));
         } else {
             ddnatv_copy_cstr(next_path, sizeof(next_path), link_target);
         }
     }
-    // proot's link2symlink leaves hard links as ".l2s.*" files that programs must not see by name
-    const char *next_base = strrchr(next_path, '/');
-    next_base = next_base ? next_base + 1 : next_path;
-    if (strncmp(next_base, ".l2s.", 5) == 0) return;
     resolve_symlinks(next_path, out, out_size, depth + 1);
 }
 
-static char **ensure_hook_in_envp(char *const envp[], const char *real_exe) {
-    return prepare_ddnatv_env(envp, real_exe);
+static char **ensure_hook_in_envp(char *const envp[], const char *real_exe, const char *lib_path) {
+    return prepare_ddnatv_env(envp, real_exe, lib_path);
 }
 
 // The file whose header decides how to start `target`: the symlink-resolved ELF (so ld.so and
@@ -135,12 +186,103 @@ static int in_exec_rehearsal(void) {
            pthread_equal(pthread_self(), g_exec_rehearsal_thread);
 }
 
+// Android's own programs, and the app's extracted libraries, may still be executed directly.
+static int exec_directly(const char *path) {
+    static const char *const prefixes[] = {"/system/", "/vendor/", "/apex/", "/product/", "/odm/", "/system_ext/", "/data/app/"};
+    if (g_exec_loader[0] == '\0' || !path || path[0] != '/' || strcmp(path, g_exec_loader) == 0) return 1;
+    for (size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); i++)
+        if (strncmp(path, prefixes[i], strlen(prefixes[i])) == 0) return 1;
+    return 0;
+}
+
+// ENOENT when the program names a dynamic linker that is not there (a glibc program's
+// "/lib/ld-linux-aarch64.so.1" on Android), as the kernel answers: callers try another way.
+static int exec_interp_missing(int fd) {
+    Elf64_Ehdr eh;
+    if (syscall(SYS_pread64, fd, &eh, sizeof(eh), 0) != (long)sizeof(eh) || eh.e_ident[EI_CLASS] != ELFCLASS64 ||
+        eh.e_machine != EM_AARCH64 || (eh.e_type != ET_EXEC && eh.e_type != ET_DYN) ||
+        eh.e_phentsize != sizeof(Elf64_Phdr) || eh.e_phnum == 0 || eh.e_phnum > 64)
+        return ENOEXEC;
+    for (int i = 0; i < eh.e_phnum; i++) {
+        Elf64_Phdr ph;
+        if (syscall(SYS_pread64, fd, &ph, sizeof(ph), (long)(eh.e_phoff + (Elf64_Off)i * sizeof(ph))) != (long)sizeof(ph))
+            return ENOEXEC;
+        if (ph.p_type != PT_INTERP) continue;
+        char interp[PATH_MAX];
+        if (ph.p_filesz == 0 || ph.p_filesz >= sizeof(interp) ||
+            syscall(SYS_pread64, fd, interp, ph.p_filesz, (long)ph.p_offset) != (long)ph.p_filesz)
+            return ENOEXEC;
+        interp[ph.p_filesz] = 0;
+        int ifd = (int)call_orig_syscall(SYS_openat, AT_FDCWD, (unsigned long)interp, O_RDONLY | O_CLOEXEC | O_NONBLOCK, 0, 0, 0);
+        if (ifd < 0) return errno;
+        syscall(SYS_close, ifd);
+        return 0;
+    }
+    return 0;
+}
+
+// The errors execve() itself would give for [path], which the loader cannot report once it runs:
+// a shell walking $PATH moves on at ENOENT and EACCES, and runs a file without "#!" as a script at
+// ENOEXEC.
+static int exec_preflight(const char *path) {
+    int fd = (int)call_orig_syscall(SYS_openat, AT_FDCWD, (unsigned long)path, O_RDONLY | O_CLOEXEC | O_NONBLOCK, 0, 0, 0);
+    if (fd < 0) return errno;
+    struct stat st;
+    int err = 0;
+    unsigned char magic[4];
+    if (syscall(SYS_fstat, fd, &st) != 0) err = errno;
+    else if (!S_ISREG(st.st_mode)) err = EACCES;
+    else if (syscall(SYS_faccessat, AT_FDCWD, path, X_OK, 0) != 0) err = EACCES;
+    else if (syscall(SYS_read, fd, magic, 2) == 2 && magic[0] == '#' && magic[1] == '!') err = -1;
+    else if (syscall(SYS_pread64, fd, magic, sizeof(magic), 0) != (long)sizeof(magic) ||
+             magic[0] != 0x7f || magic[1] != 'E' || magic[2] != 'L' || magic[3] != 'F') err = ENOEXEC;
+    else err = exec_interp_missing(fd);
+    syscall(SYS_close, fd);
+    return err;
+}
+
+// "libddexec.so <path> <argv...>"; NULL when [path] is executed directly, as a "#!" script the
+// kernel hands to its interpreter is. *err is set when the exec would fail.
+static char **loader_argv(const char *path, char *const argv[], int *err) {
+    *err = 0;
+    if (exec_directly(path)) return NULL;
+    int preflight = exec_preflight(path);
+    if (preflight == -1) return NULL;
+    *err = preflight;
+    if (*err) return NULL;
+    int argc = 0;
+    while (argv && argv[argc]) argc++;
+    char **out = (char **)malloc(sizeof(char *) * (size_t)(argc + 4));
+    if (!out) {
+        *err = ENOMEM;
+        return NULL;
+    }
+    out[0] = g_exec_loader;
+    out[1] = (char *)path;
+    int n = 2;
+    if (argc == 0) out[n++] = (char *)path;
+    for (int i = 0; i < argc; i++) out[n++] = argv[i];
+    out[n] = NULL;
+    return out;
+}
+
 static int run_execve(orig_execve_f_type f, const char *path, char *const argv[], char *const envp[]) {
     if (in_exec_rehearsal()) {
         errno = 0;
         return 0;
     }
-    return f(path, argv, envp);
+    int err;
+    char **via = loader_argv(path, argv, &err);
+    if (err) {
+        errno = err;
+        return -1;
+    }
+    if (!via) return f(path, argv, envp);
+    int ret = f(g_exec_loader, via, envp);
+    int saved_errno = errno;
+    free(via);
+    errno = saved_errno;
+    return ret;
 }
 
 // ldconfig does nothing in The native userland (its cache is for paths that ld.so opens without the hook), but the
@@ -170,6 +312,60 @@ static void ldconfig_mark_cache(char *const argv[]) {
 
 static int is_ldconfig_name(const char *name) {
     return strcmp(name, "ldconfig") == 0 || strcmp(name, "ldconfig.real") == 0;
+}
+
+struct ldso_direct {
+    char prog[PATH_MAX];
+    char lib_path[PATH_MAX * 6];
+};
+
+// ld.so started directly (ldd, "ld.so --list PROGRAM", "ld.so PROGRAM"): the program it loads
+// gets the --library-path a start of its own gets, or ldd reports its libraries as not found,
+// and its path mapped into the rootfs, since ld.so opens it without the hook
+static char **ldso_direct_argv(char *const argv[], char *const envp[], struct ldso_direct *buf, int *err) {
+    *err = 0;
+    int caller_lib_path = 0;
+    int pi = ldso_program_index(argv, &caller_lib_path);
+    if (pi <= 0) return NULL;
+    int argc = 0;
+    while (argv[argc]) argc++;
+    const char *prog = argv[pi];
+    if (caller_lib_path) {
+        // the caller's own --library-path stays as it is; only the program is mapped (when it is
+        // in the rootfs: a caller can also name a file by its real path)
+        if (prog[0] == '/') {
+            const char *mapped = rewrite_path(prog, buf->prog, sizeof(buf->prog));
+            int fd = mapped != prog ? (int)syscall(SYS_openat, AT_FDCWD, mapped, O_PATH | O_CLOEXEC) : -1;
+            if (fd >= 0) {
+                syscall(SYS_close, fd);
+                prog = mapped;
+            }
+        }
+        char **out = (char **)malloc(sizeof(char *) * (size_t)(argc + 1));
+        if (!out) {
+            *err = ENOMEM;
+            return NULL;
+        }
+        for (int i = 0; i <= argc; i++) out[i] = argv[i];
+        out[pi] = (char *)prog;
+        return out;
+    }
+    if (prog[0] == '/') prog = rewrite_path(prog, buf->prog, sizeof(buf->prog));
+    struct exec_probe prog_probe;
+    probe_exec_file(prog, &prog_probe);
+    build_ld_library_path(envp, prog_probe.runpath, prog_probe.runpath_is_rpath,
+                          prog[0] == '/' ? prog : NULL, buf->lib_path, sizeof(buf->lib_path));
+    char **out = (char **)malloc(sizeof(char *) * (size_t)(argc + 3));
+    if (!out) {
+        *err = ENOMEM;
+        return NULL;
+    }
+    out[0] = argv[0];
+    out[1] = (char *)"--library-path";
+    out[2] = buf->lib_path;
+    for (int i = 1; i <= argc; i++) out[i + 2] = argv[i];
+    out[pi + 2] = (char *)prog; // ld.so opens it itself: "ldd /usr/bin/adb" as well
+    return out;
 }
 
 static int ddnatv_execve(const char *filename, char *const argv[], char *const envp[], int depth) {
@@ -262,7 +458,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
         if (probe.is_elf && !probe.is_dynamic) static_elf = elf_target;
         // A Go program built for Android asks for Android's linker, so it is started like the dynamic
         // ones, but it makes its own system calls: it gets the code of the static Go programs (#42)
-        if (probe.is_dynamic && probe.android_interp) prepare_static_program_ex(elf_target, 1);
+        if (probe.is_dynamic) prepare_static_program_ex(elf_target, 1);
 
         // 1. Transparently route dynamically linked glibc ELF binaries through ld.so
         // Note: Statically linked binaries (PT_INTERP absent, e.g. Meta Muse Code) must execute directly!
@@ -283,7 +479,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
                     errno = ENOMEM;
                     return -1;
                 }
-                char **new_env = ensure_hook_in_envp(envp, elf_target);
+                char **new_env = ensure_hook_in_envp(envp, elf_target, ld_lib_path);
                 int ret = run_execve(orig_execve, ld_so, new_argv, new_env);
                 if (errno == EACCES && chmod(ld_so, 0755) == 0) {
                     // ld.so without its exec bit (an unusual restore): fix it once and retry
@@ -297,65 +493,17 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
             }
         }
 
-        // ld.so started directly (ldd, "ld.so --list PROGRAM", "ld.so PROGRAM"): the program it loads
-        // gets the --library-path a start of its own gets, or ldd reports its libraries as not found,
-        // and its path mapped into the rootfs, since ld.so opens it without the hook
         if (probe.is_elf && !probe.is_dynamic && is_ld_linux(elf_target)) {
-            int caller_lib_path = 0;
-            int pi = ldso_program_index(argv, &caller_lib_path);
-            if (pi > 0 && caller_lib_path) {
-                // the caller's own --library-path stays as it is; only the program is mapped (when it is
-                // in the rootfs: a caller can also name a file by its real path)
-                char prog_buf[PATH_MAX];
-                const char *prog = argv[pi];
-                if (prog[0] == '/') {
-                    const char *mapped = rewrite_path(prog, prog_buf, sizeof(prog_buf));
-                    int fd = mapped != prog ? (int)syscall(SYS_openat, AT_FDCWD, mapped, O_PATH | O_CLOEXEC) : -1;
-                    if (fd >= 0) {
-                        syscall(SYS_close, fd);
-                        prog = mapped;
-                    }
-                }
-                int argc = 0;
-                while (argv[argc]) argc++;
-                char **new_argv = (char **)malloc(sizeof(char *) * (size_t)(argc + 1));
-                if (!new_argv) {
-                    errno = ENOMEM;
-                    return -1;
-                }
-                for (int i = 0; i <= argc; i++) new_argv[i] = argv[i];
-                new_argv[pi] = (char *)prog;
-                prepare_static_program(static_elf); // ld.so is a static program itself
-                char **ddnatv_env = prepare_ddnatv_env(envp, target);
-                int ret = run_execve(orig_execve, target, new_argv, ddnatv_env);
-                int saved_errno = errno;
-                free_modified_env(ddnatv_env, envp);
-                free(new_argv);
-                errno = saved_errno;
-                return ret;
+            struct ldso_direct direct;
+            int err;
+            char **new_argv = ldso_direct_argv(argv, envp, &direct, &err);
+            if (err) {
+                errno = err;
+                return -1;
             }
-            if (pi > 0) {
-                char prog_buf[PATH_MAX];
-                const char *prog = argv[pi][0] == '/' ? rewrite_path(argv[pi], prog_buf, sizeof(prog_buf)) : argv[pi];
-                struct exec_probe prog_probe;
-                probe_exec_file(prog, &prog_probe);
-                char ld_lib_path[PATH_MAX * 6];
-                build_ld_library_path(envp, prog_probe.runpath, prog_probe.runpath_is_rpath,
-                                      prog[0] == '/' ? prog : NULL, ld_lib_path, sizeof(ld_lib_path));
-                int argc = 0;
-                while (argv[argc]) argc++;
-                char **new_argv = (char **)malloc(sizeof(char *) * (size_t)(argc + 3));
-                if (!new_argv) {
-                    errno = ENOMEM;
-                    return -1;
-                }
-                new_argv[0] = argv[0];
-                new_argv[1] = (char *)"--library-path";
-                new_argv[2] = ld_lib_path;
-                for (int i = 1; i <= argc; i++) new_argv[i + 2] = argv[i];
-                new_argv[pi + 2] = (char *)prog; // ld.so opens it itself: "ldd /usr/bin/adb" as well
+            if (new_argv) {
                 prepare_static_program(static_elf); // ld.so is a static program itself
-                char **ddnatv_env = prepare_ddnatv_env(envp, target);
+                char **ddnatv_env = prepare_ddnatv_env(envp, target, NULL);
                 int ret = run_execve(orig_execve, target, new_argv, ddnatv_env);
                 int saved_errno = errno;
                 free_modified_env(ddnatv_env, envp);
@@ -379,7 +527,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
                 return -1;
             }
             int ret;
-            if (is_host_interpreter(rewritten_interp)) {
+            if (is_host_interpreter(interp, rewritten_interp)) {
                 char **sys_env = clean_env_for_system(envp);
                 ret = run_execve(orig_execve, rewritten_interp, new_argv, sys_env);
                 int saved_errno = errno;
@@ -389,7 +537,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
                 errno = ELOOP;
                 ret = -1;
             } else {
-                char **ddnatv_env = prepare_ddnatv_env(envp, NULL);
+                char **ddnatv_env = prepare_ddnatv_env(envp, NULL, NULL);
                 ret = ddnatv_execve(rewritten_interp, new_argv, ddnatv_env, depth + 1);
                 int saved_errno = errno;
                 free_modified_env(ddnatv_env, envp);
@@ -409,7 +557,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
     }
 
     if (static_elf) prepare_static_program(static_elf);
-    char **ddnatv_env = prepare_ddnatv_env(envp, target);
+    char **ddnatv_env = prepare_ddnatv_env(envp, target, NULL);
     int ret = run_execve(orig_execve, target, argv, ddnatv_env);
     int saved_errno = errno;
     free_modified_env(ddnatv_env, envp);
@@ -615,81 +763,82 @@ int execle(const char *path, const char *arg0, ...) {
     return ret;
 }
 
-int execvp(const char *file, char *const argv[]) {
+static int exec_or_script(const char *path, char *const argv[], char *const envp[]) {
+    execve(path, argv, envp);
+    if (errno != ENOEXEC) return -1;
+    int argc = 0;
+    while (argv && argv[argc]) argc++;
+    char **script = (char **)malloc(sizeof(char *) * (size_t)(argc + 3));
+    if (!script) {
+        errno = ENOMEM;
+        return -1;
+    }
+    script[0] = (char *)"/bin/sh";
+    script[1] = (char *)path;
+    int n = 2;
+    for (int i = 1; i < argc; i++) script[n++] = argv[i];
+    script[n] = NULL;
+    execve(script[0], script, envp);
+    int saved_errno = errno;
+    free(script);
+    errno = saved_errno;
+    return -1;
+}
+
+static int exec_search_dir(const char *dir, size_t len, const char *file, char *const argv[], char *const envp[], int *denied) {
+    char candidate[PATH_MAX];
+    int n = len ? snprintf(candidate, sizeof(candidate), "%.*s/%s", (int)len, dir, file)
+                : snprintf(candidate, sizeof(candidate), "%s", file);
+    if (n < 0 || n >= (int)sizeof(candidate)) {
+        errno = ENAMETOOLONG;
+        return 0;
+    }
+    exec_or_script(candidate, argv, envp);
+    switch (errno) {
+    case EACCES:
+        *denied = 1;
+        return 0;
+    case ENOENT: case ENOTDIR: case ESTALE: case ENODEV: case ETIMEDOUT: case ENAMETOOLONG:
+        return 0;
+    default:
+        return 1;
+    }
+}
+
+static int exec_search(const char *file, char *const argv[], char *const envp[], const char *path_env) {
     if (!file || !*file) {
         errno = ENOENT;
         return -1;
     }
-    if (strchr(file, '/')) {
-        return execve(file, argv, environ);
-    }
-    const char *path_env = getenv("PATH");
+    if (strchr(file, '/')) return exec_or_script(file, argv, envp);
     if (!path_env) path_env = "/usr/bin:/bin";
-    char path_copy[4096];
-    strncpy(path_copy, path_env, sizeof(path_copy) - 1);
-    path_copy[sizeof(path_copy) - 1] = '\0';
-    char *saveptr = NULL;
-    char *token = strtok_r(path_copy, ":", &saveptr);
-    while (token) {
-        char candidate[PATH_MAX];
-        snprintf(candidate, sizeof(candidate), "%s/%s", token, file);
-        if (access(candidate, F_OK) == 0) {
-            return execve(candidate, argv, environ);
-        }
-        token = strtok_r(NULL, ":", &saveptr);
+    int denied = 0;
+    for (const char *p = path_env;; ) {
+        const char *end = strchrnul(p, ':');
+        if (exec_search_dir(p, (size_t)(end - p), file, argv, envp, &denied)) return -1;
+        if (!*end) break;
+        p = end + 1;
     }
-    const char *standard_paths[] = {"/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin", NULL};
-    for (int i = 0; standard_paths[i] != NULL; i++) {
-        char candidate[PATH_MAX];
-        snprintf(candidate, sizeof(candidate), "%s/%s", standard_paths[i], file);
-        if (access(candidate, F_OK) == 0) {
-            return execve(candidate, argv, environ);
-        }
-    }
-    return execve(file, argv, environ);
+    static const char *const standard_paths[] = {"/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin"};
+    for (size_t i = 0; i < sizeof(standard_paths) / sizeof(standard_paths[0]); i++)
+        if (exec_search_dir(standard_paths[i], strlen(standard_paths[i]), file, argv, envp, &denied)) return -1;
+    errno = denied ? EACCES : ENOENT;
+    return -1;
+}
+
+int execvp(const char *file, char *const argv[]) {
+    return exec_search(file, argv, environ, getenv("PATH"));
 }
 
 int execvpe(const char *file, char *const argv[], char *const envp[]) {
-    if (!file || !*file) {
-        errno = ENOENT;
-        return -1;
-    }
-    if (strchr(file, '/')) {
-        return execve(file, argv, envp);
-    }
     const char *path_env = NULL;
-    if (envp) {
-        for (char *const *ep = envp; *ep; ep++) {
-            if (strncmp(*ep, "PATH=", 5) == 0) {
-                path_env = *ep + 5;
-                break;
-            }
+    for (char *const *ep = envp; ep && *ep; ep++) {
+        if (strncmp(*ep, "PATH=", 5) == 0) {
+            path_env = *ep + 5;
+            break;
         }
     }
-    if (!path_env) path_env = getenv("PATH");
-    if (!path_env) path_env = "/usr/bin:/bin";
-    char path_copy[4096];
-    strncpy(path_copy, path_env, sizeof(path_copy) - 1);
-    path_copy[sizeof(path_copy) - 1] = '\0';
-    char *saveptr = NULL;
-    char *token = strtok_r(path_copy, ":", &saveptr);
-    while (token) {
-        char candidate[PATH_MAX];
-        snprintf(candidate, sizeof(candidate), "%s/%s", token, file);
-        if (access(candidate, F_OK) == 0) {
-            return execve(candidate, argv, envp);
-        }
-        token = strtok_r(NULL, ":", &saveptr);
-    }
-    const char *standard_paths[] = {"/usr/bin", "/bin", "/usr/sbin", "/sbin", "/usr/local/bin", NULL};
-    for (int i = 0; standard_paths[i] != NULL; i++) {
-        char candidate[PATH_MAX];
-        snprintf(candidate, sizeof(candidate), "%s/%s", standard_paths[i], file);
-        if (access(candidate, F_OK) == 0) {
-            return execve(candidate, argv, envp);
-        }
-    }
-    return execve(file, argv, envp);
+    return exec_search(file, argv, envp, path_env ? path_env : getenv("PATH"));
 }
 
 typedef int (*orig_posix_spawn_f_type)(pid_t *, const char *, const posix_spawn_file_actions_t *,
@@ -699,6 +848,17 @@ static orig_posix_spawn_f_type real_posix_spawn(void) {
     static orig_posix_spawn_f_type orig_posix_spawn = NULL;
     if (!orig_posix_spawn) orig_posix_spawn = (orig_posix_spawn_f_type)dlsym(RTLD_NEXT, "posix_spawn");
     return orig_posix_spawn;
+}
+
+static int run_spawn(orig_posix_spawn_f_type f, pid_t *pid, const char *path, const posix_spawn_file_actions_t *file_actions,
+                     const posix_spawnattr_t *attrp, char *const argv[], char *const envp[]) {
+    int err;
+    char **via = loader_argv(path, argv, &err);
+    if (err) return err;
+    if (!via) return f(pid, path, file_actions, attrp, argv, envp);
+    int ret = f(pid, g_exec_loader, file_actions, attrp, via, envp);
+    free(via);
+    return ret;
 }
 
 static int ddnatv_posix_spawn(pid_t *pid, const char *path,
@@ -721,7 +881,7 @@ static int spawn_script(pid_t *pid, const char *script, struct exec_probe *probe
     char **new_argv = build_script_argv(rewritten_interp, interp_arg, script, argv);
     if (!new_argv) return ENOMEM;
     int ret;
-    if (is_host_interpreter(rewritten_interp)) {
+    if (is_host_interpreter(interp, rewritten_interp)) {
         orig_posix_spawn_f_type orig_posix_spawn = real_posix_spawn();
         char **sys_env = clean_env_for_system(envp);
         ret = orig_posix_spawn ? orig_posix_spawn(pid, rewritten_interp, file_actions, attrp, new_argv, sys_env) : ENOSYS;
@@ -840,35 +1000,49 @@ static int ddnatv_posix_spawn(pid_t *pid, const char *path,
 
     // Android programs get Android's environment, as execve() gives them: the glibc hook in
     // LD_PRELOAD crashes them.
-    char **new_envp = in_root ? ensure_hook_in_envp(orig_ep, elf_target) : clean_env_for_system(orig_ep);
+    int via_ld_so = has_ld_so && strcmp(elf_target, ld_so) != 0;
+    char ld_lib_path[PATH_MAX * 6];
+    ld_lib_path[0] = '\0';
+    if (via_ld_so)
+        build_ld_library_path(orig_ep, probe.runpath, probe.runpath_is_rpath, elf_target, ld_lib_path, sizeof(ld_lib_path));
+    char **new_envp = in_root ? ensure_hook_in_envp(orig_ep, elf_target, via_ld_so ? ld_lib_path : NULL)
+                              : clean_env_for_system(orig_ep);
 
     int ret = -1;
-    if (has_ld_so && strcmp(elf_target, ld_so) != 0) {
+    if (via_ld_so) {
         ensure_exec_bit(elf_target, probe.mode);
-        if (probe.android_interp) prepare_static_program_ex(elf_target, 1); // a Go program built for Android (#42)
+        prepare_static_program_ex(elf_target, 1); // a Go program built for Android (#42)
 
         char hook_buf[PATH_MAX];
         const char *hook_so = ddnatv_hook_library(hook_buf, sizeof(hook_buf));
-        char ld_lib_path[PATH_MAX * 6];
-        build_ld_library_path(orig_ep, probe.runpath, probe.runpath_is_rpath, elf_target, ld_lib_path, sizeof(ld_lib_path));
         char **new_argv = build_ldso_argv(ld_so, hook_so, ld_lib_path, elf_target, prog_name, argv);
         if (!new_argv) {
             ret = ENOMEM;
         } else {
             if (orig_posix_spawn) {
-                ret = orig_posix_spawn(pid, ld_so, file_actions, attrp, new_argv, new_envp);
+                ret = run_spawn(orig_posix_spawn, pid, ld_so, file_actions, attrp, new_argv, new_envp);
                 if (ret == EACCES && chmod(ld_so, 0755) == 0) {
                     // ld.so without its exec bit (an unusual restore): fix it once and retry
-                    ret = orig_posix_spawn(pid, ld_so, file_actions, attrp, new_argv, new_envp);
+                    ret = run_spawn(orig_posix_spawn, pid, ld_so, file_actions, attrp, new_argv, new_envp);
                 }
             }
             free(new_argv);
         }
     } else {
         if (in_root && probe.is_elf && !probe.is_dynamic) prepare_static_program(elf_target);
-        if (orig_posix_spawn) {
-            ret = orig_posix_spawn(pid, target, file_actions, attrp, argv, new_envp);
+        char **spawn_argv = (char **)argv;
+        int err = 0;
+        struct ldso_direct direct;
+        if (in_root && probe.is_elf && !probe.is_dynamic && is_ld_linux(elf_target)) {
+            char **direct_argv = ldso_direct_argv(argv, orig_ep, &direct, &err);
+            if (direct_argv) spawn_argv = direct_argv;
         }
+        if (err) {
+            ret = err;
+        } else if (orig_posix_spawn) {
+            ret = run_spawn(orig_posix_spawn, pid, target, file_actions, attrp, spawn_argv, new_envp);
+        }
+        if (spawn_argv != argv) free(spawn_argv);
     }
 
     if (!orig_posix_spawn) {

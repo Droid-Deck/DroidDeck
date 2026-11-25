@@ -27,6 +27,11 @@ class CloudFile(val name: String, var modifiedMs: Long, var md5: String? = null,
 class CloudPut(val modifiedMs: Long, val md5: String?)
 
 interface CloudTransport {
+    /** False when [CloudFile.md5] is a version the service assigns rather than a digest of the content. */
+    val contentDigests: Boolean get() = true
+    fun committed(name: String): CloudFile? = null
+    fun wants(name: String): Boolean = true
+    fun deleted(file: CloudFile): Boolean = false
     fun list(): List<CloudFile>
     fun details(file: CloudFile) {}
     fun get(file: CloudFile): Pair<ByteArray, Long>
@@ -182,6 +187,8 @@ internal fun isoDate(s: String?): Long {
 
 class NoCloudSaves : Exception("no cloud saves")
 
+class CloudChanged(val sent: Map<String, Long>, val unsent: List<String>) : Exception("cloud saves changed since they were read")
+
 internal fun splitGogName(name: String): Pair<String?, String> {
     val slash = name.indexOf('/')
     return if (slash <= 0 || slash == name.length - 1) null to name
@@ -246,6 +253,8 @@ private fun gzipFile(src: File, dst: File): GzipFile {
     }
 }
 
+internal const val GOG_DELETED_MD5 = "aadd86936a80ee8a369579c3926f1b3c"
+
 internal const val GOG_CLOUD_UA = "GOGGalaxyCommunicationService/2.0.13.27 (Windows_32bit) dont_sync_marker/true installation_source/gog"
 
 /** GOG Galaxy parses `X-Object-Meta-LocalLastModified`; objects without it fail as "invalid data". */
@@ -270,8 +279,11 @@ class GogCloud(
 
     private fun cloudKey(name: String) = key((prefix ?: "") + name)
 
+    override fun deleted(file: CloudFile): Boolean = file.md5.equals(GOG_DELETED_MD5, ignoreCase = true)
+
     override fun list(): List<CloudFile> {
         val c = open(base, "GET", token, ua)
+        c.setRequestProperty("Accept", "application/json")
         val code = c.responseCode
         if (code == 404) { c.disconnect(); return emptyList() }
         if (code !in 200..299) {
@@ -294,7 +306,7 @@ class GogCloud(
                     lm > 0 -> lm * 1000
                     iso > 0 -> iso
                     else -> -1L
-                })
+                }, o.optString("hash").trim().ifEmpty { null })
             }
         } else {
             text.lines().map { it.trim() }.filter { it.isNotEmpty() }.map { CloudFile(it, -1L) }

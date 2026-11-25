@@ -79,7 +79,7 @@ internal class ComponentsMenu(private val activity: android.app.Activity, privat
                     checkAgain = null
                     checkComponentUpdates(again)
                 }
-                if (notes.isNotEmpty()) android.widget.Toast.makeText(activity, notes.joinToString("\n"), android.widget.Toast.LENGTH_LONG).show()
+                if (notes.isNotEmpty()) Log.i(TAG, notes.joinToString("; "))
                 refreshComponents()
             }
         }, "component-updates").start()

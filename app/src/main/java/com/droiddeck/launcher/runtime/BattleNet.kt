@@ -12,9 +12,6 @@ object BattleNet {
 
     const val APP_ID = 2596113170L
 
-    const val FEX_REQUEST = "battlenet-fex.request"
-    const val FEX_RESULT = "battlenet-fex.result"
-
     const val PROGRAM = "/usr/local/bin/droiddeck-battlenet"
 
     class Title(val uid: String, val name: String, val code: String, val steam: Int? = null, val shop: String? = null, val product: String? = null, val flavor: String? = null)
@@ -59,7 +56,7 @@ object BattleNet {
         Title("aqua", "Avowed", "AQUA", 2457220, shop = "avowed", product = "aqua"),
     )
 
-    val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" && it.code != "WoWC" && it.code != "WoWF" }
+    val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" && it.code != "WoWC" }
 
     // Blizzard's China client installs some products under a CN uid; they are the same games and keep their store identity.
     private val CN_UIDS = mapOf("s2_cn" to "s2", "osic" to "osi", "anbs_cn" to "anbs")
@@ -162,8 +159,6 @@ object BattleNet {
             source = com.droiddeck.launcher.stores.Store.BATTLENET.id,
         )
 
-    fun fexInUse(context: Context): String? = ComponentsManager.gameComponents(context, APP_ID.toString())["fex"]
-
     internal fun title(uid: String): Title? {
         val id = uid.lowercase()
         TITLES.firstOrNull { it.uid == id }?.let { return it }
@@ -212,7 +207,8 @@ object BattleNet {
         val taken = HashSet<File>()
         fun options(title: Title, folder: File) = listOfNotNull(folder, title.flavor?.let { File(folder, it) }?.takeIf { it.isDirectory })
         for ((code, game) in games) {
-            val keep = saved[code]?.let(::File)?.takeIf { it in options(game.first, game.second) && it !in taken } ?: continue
+            val want = saved[code]?.let { runCatching { File(it).canonicalFile }.getOrNull() } ?: continue
+            val keep = options(game.first, game.second).firstOrNull { runCatching { it.canonicalFile }.getOrNull() == want }?.takeIf { it !in taken } ?: continue
             out[code] = keep
             taken.add(keep)
         }
@@ -249,6 +245,14 @@ object BattleNet {
                 "/" + rootfs.relativize(resolved).joinToString("/")
             }
         }.trimEnd('/')
+        if (mapped?.startsWith("/") == true) {
+            val rootfs = LinuxRuntime.rootDir(context)
+            runCatching {
+                val home = rootfs.canonicalFile.toPath()
+                val host = File("$target/$relative").canonicalFile.toPath()
+                if (host.startsWith(home)) File(rootfs, home.relativize(host).toString()) else null
+            }.getOrNull()?.let { return it }
+        }
         return com.droiddeck.launcher.frontend.AddedGames.hostPath(context, "$target/$relative")
     }
 
@@ -391,54 +395,6 @@ object BattleNet {
         Log.i(TAG, "removed")
     }
 
-    private val D2RFIX = Regex("""(?i)FEXCore-(\d+(?:\.\d+)*)-d2rfix(\d+)-linux\.wcp""")
-
-    private const val LISTING_MAX_AGE = 6 * 3600L
-
-    private val NEWEST = Comparator<Pair<List<Long>, Long>> { a, b ->
-        for (i in 0 until minOf(a.first.size, b.first.size)) if (a.first[i] != b.first[i]) return@Comparator a.first[i].compareTo(b.first[i])
-        if (a.first.size != b.first.size) a.first.size.compareTo(b.first.size) else a.second.compareTo(b.second)
-    }
-
-    internal fun d2rfix(file: String): Pair<List<Long>, Long>? {
-        val m = D2RFIX.matchEntire(file) ?: return null
-        val version = m.groupValues[1].split('.').map { it.toLongOrNull() ?: return null }
-        return version to (m.groupValues[2].toLongOrNull() ?: return null)
-    }
-
-    internal fun newestD2rFix(items: List<ComponentsManager.CatalogItem>): ComponentsManager.CatalogItem? =
-        items.filter { it.comp == "fex" }.mapNotNull { item -> d2rfix(item.file)?.let { item to it } }
-            .maxWithOrNull { a, b -> NEWEST.compare(a.second, b.second) }?.first
-
-    fun ensureFex(context: Context): String = ensureFex(context) { ComponentsManager.catalog(it, true).items }
-
-    @Synchronized
-    internal fun ensureFex(context: Context, refresh: (Context) -> List<ComponentsManager.CatalogItem>): String {
-        val item = newestD2rFix(listing(context, refresh)) ?: error("no d2rfix FEXCore build in the Nightlies listing")
-        val file = ComponentsManager.safeName(item.file)
-        if (ComponentsManager.packages(context).none { it.file == file }) {
-            Log.i(TAG, "downloading ${item.file}")
-            ComponentsManager.download(context, item) {}
-        }
-        val scope = APP_ID.toString()
-        if (ComponentsManager.gameComponents(context, scope)["fex"] != file) {
-            ComponentsManager.setGameComponent(context, scope, "fex", file)
-            Log.i(TAG, "FEX for the Battle.net prefix: $file")
-        } else if (ComponentsManager.republish(context)) {
-            Log.i(TAG, "FEX for the Battle.net prefix: $file, now in every installed Proton")
-        }
-        return file
-    }
-
-    private fun listing(context: Context, refresh: (Context) -> List<ComponentsManager.CatalogItem>): List<ComponentsManager.CatalogItem> {
-        val cached = ComponentsManager.catalog(context, false)
-        val age = System.currentTimeMillis() / 1000 - cached.fetchedAt
-        if (age in 0 until LISTING_MAX_AGE && newestD2rFix(cached.items) != null) return cached.items
-        val fetched = runCatching { refresh(context) }
-            .onFailure { Log.w(TAG, "Nightlies listing: ${it.message}") }.getOrNull().orEmpty()
-        return if (newestD2rFix(fetched) != null) fetched else cached.items
-    }
-
     internal fun videoMemory(totalMb: Long): Int = (totalMb / 5 / 512 * 512).coerceIn(1536, 3584).toInt()
 
     internal fun videoMemoryOptions(megabytes: Int): String =
@@ -464,21 +420,9 @@ object BattleNet {
         return true
     }
 
-    fun answerFexRequest(context: Context, dir: File) {
-        val app = context.applicationContext
-        Thread({
-            runCatching { ensureVideoMemory(app) }.onFailure { Log.w(TAG, "video memory cap for the Battle.net profile", it) }
-            runCatching { ensureNoSteam(app) }.onFailure { Log.w(TAG, "Start without Steam for the Battle.net profile", it) }
-            val answer = try {
-                "ok " + ensureFex(app)
-            } catch (e: Exception) {
-                Log.w(TAG, "FEX for the Battle.net prefix", e)
-                "error " + (e.message ?: e.javaClass.simpleName)
-            }
-            Log.i(TAG, "FEX request: $answer")
-            val result = File(dir, FEX_RESULT)
-            val partial = File(dir, "$FEX_RESULT.tmp")
-            runCatching { partial.writeText(answer.replace('\n', ' ') + "\n"); partial.renameTo(result) }
-        }, "battlenet-fex").start()
+    fun ensureDefaults(context: Context, program: String?) {
+        if (program != PROGRAM && !installed(context)) return
+        runCatching { ensureVideoMemory(context) }.onFailure { Log.w(TAG, "video memory cap for the Battle.net profile", it) }
+        runCatching { ensureNoSteam(context) }.onFailure { Log.w(TAG, "Start without Steam for the Battle.net profile", it) }
     }
 }
