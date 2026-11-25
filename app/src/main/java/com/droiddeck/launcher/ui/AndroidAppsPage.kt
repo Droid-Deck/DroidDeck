@@ -847,9 +847,12 @@ private fun HeaderChoiceButton(
     }
 }
 
-/** Scrolls the least that shows item [index] whole inside the padding, a row at a time while it is still outside the laid out items. */
+/**
+ * Scrolls the least that shows item [index] whole inside the padding, a row at a time while it is still outside the laid out items.
+ * It keeps going however many rows a burst of presses moved the target, and stops once the grid cannot scroll any further.
+ */
 private suspend fun LazyGridState.reveal(index: Int) {
-    repeat(4) {
+    while (true) {
         val info = layoutInfo
         val shown = info.visibleItemsInfo
         val item = shown.firstOrNull { it.index == index }
@@ -863,7 +866,7 @@ private suspend fun LazyGridState.reveal(index: Int) {
             else -> return
         }
         if (by == 0) return
-        scrollBy(by.toFloat())
+        if (scrollBy(by.toFloat()) == 0f) return
     }
 }
 
