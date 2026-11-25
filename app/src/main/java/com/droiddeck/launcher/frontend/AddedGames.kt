@@ -239,6 +239,7 @@ object AddedGames {
         for (entry in AddedExes.list(context)) {
             val folder = File(entry.folder)
             if (folder.path in removed || !folder.isDirectory) continue
+            if (StoreGameSidecar.read(folder)?.isInstalled == false) continue
             scanGame(context, folder, out, single = entry, reuse = true)
         }
         for (folder in libraryDepotInstalls(context)) if (folder.path !in removed) scanGame(context, folder, out, reuse = true)
@@ -337,9 +338,10 @@ object AddedGames {
         val owner = ownerFolder(app, exe)
         if (owner != null && owner.path !in SessionPrefs.removedAddedGames(app)) {
             single(app, owner.path)?.takeIf { canonical(it.exe) == path }?.let {
-                if (guestPath(app, it.exe) != null) {
-                    SessionPrefs.setAddedGameExe(app, owner.path, it.exe.path)
-                    AddedExes.put(app, AddedExes.Entry(owner.path, it.exe.path))
+                val keep = listOf(it.exe, exe).firstOrNull { f -> guestPath(app, f) != null }
+                if (keep != null) {
+                    SessionPrefs.setAddedGameExe(app, owner.path, keep.path)
+                    AddedExes.put(app, AddedExes.Entry(owner.path, keep.path))
                 }
                 return AddResult.Existing(it)
             }
