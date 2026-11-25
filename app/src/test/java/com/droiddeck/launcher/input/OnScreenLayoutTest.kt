@@ -124,6 +124,32 @@ class OnScreenLayoutTest {
         assertInside(resized, w, h)
     }
 
+    @Test fun changingControllerSizeRegeneratesSavedLandscapeBuiltInOverlay() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val layout = gamepad().copy(aspect = 2f)
+        val w = 1200
+        val h = 540
+        ControllerPrefs.setSize(context, 100)
+        val original = OnScreenLayout.elements(context, layout, w, h, Rect())
+        ControllerPrefs.setSize(context, 125)
+        val resized = OnScreenLayout.elements(context, layout, w, h, Rect())
+        assertNotEquals(original.at(InputControl.A).width, resized.at(InputControl.A).width, .0001f)
+    }
+
+    @Test fun enlargedDefaultDockedControlsDoNotOverlapTheActionButtonAndRightStick() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        ControllerPrefs.setSize(context, 125)
+        val placed = OnScreenLayout.elements(
+            context, gamepad(), 1200, 540, Rect(),
+            dock = OnScreenLayout.Dock(false, false),
+        )
+        val stick = placed.at(InputControl.RS)
+        val button = placed.at(InputControl.A)
+        val overlapX = minOf(stick.x + stick.width, button.x + button.width) - maxOf(stick.x, button.x)
+        val overlapY = minOf(stick.y + stick.height, button.y + button.height) - maxOf(stick.y, button.y)
+        assertFalse("RS and A hit rectangles must not overlap", overlapX > 0f && overlapY > 0f)
+    }
+
     @Test fun changingControllerSizeResizesDockedControlsWithASavedLayout() {
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
         val layout = gamepad()
