@@ -154,7 +154,7 @@ new file mode 100755
 index 0000000..d43c5fc
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1460 @@
+@@ -0,0 +1,1476 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
