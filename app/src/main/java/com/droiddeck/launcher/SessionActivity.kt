@@ -2099,6 +2099,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         change()
         controllerSettings = ControllerPrefs.read(this)
         onScreenControls?.reload()
+        bottomInputControls?.reload()
+        unfoldedPanel?.reload()
     }
 
     private fun routeBackAction() {
