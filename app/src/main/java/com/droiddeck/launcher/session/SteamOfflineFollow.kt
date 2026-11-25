@@ -48,6 +48,7 @@ class SteamOfflineFollow : SessionPart() {
         active = this
         online = AutoComponents.isOnline(app())
         app().getSystemService(ConnectivityManager::class.java).registerDefaultNetworkCallback(registered, handler)
+        sync()
     }
 
     private fun changed(now: Boolean) {

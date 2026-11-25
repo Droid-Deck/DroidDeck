@@ -155,6 +155,18 @@ class OfflineModeTest {
     }
 
     @Test
+    fun anAutomaticOfflineStaysAutomaticWhenSteamCannotBeReachedOnReturn() {
+        network(online = false)
+        assertTrue(OfflineMode.apply(context, root))
+        network(online = true)
+        assertEquals(null, OfflineMode.follow(context))
+        writeSteam("1")
+        assertFalse(OfflineMode.enabled(context))
+        assertFalse(OfflineMode.apply(context, root))
+        assertEquals("0", steamWants())
+    }
+
+    @Test
     fun autoIsOnByDefaultAndManualModeIgnoresTheNetwork() {
         assertTrue(OfflineMode.auto(context))
         OfflineMode.setAuto(context, false)

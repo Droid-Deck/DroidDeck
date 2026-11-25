@@ -84,7 +84,11 @@ object OfflineMode {
     fun follow(context: Context): Boolean? {
         if (!auto(context)) return false
         val root = LinuxRuntime.rootDir(context)
-        return switchLive(context, write(context, root, afterNetworkChange(saved(context, root), isOnline(context))))
+        val byNetwork = prefs(context).getBoolean(NETWORK_KEY, false)
+        val offline = write(context, root, afterNetworkChange(saved(context, root), isOnline(context)))
+        val result = switchLive(context, offline)
+        if (result == null && !offline && byNetwork) prefs(context).edit().putBoolean(NETWORK_KEY, true).apply()
+        return result
     }
 
     private fun isOnline(context: Context) = com.droiddeck.launcher.frontend.AutoComponents.isOnline(context)
