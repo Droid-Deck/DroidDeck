@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import android.content.Context
 import android.util.Log
+import com.droiddeck.launcher.agent.AgentGuest
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import java.io.File
 
@@ -13,6 +14,7 @@ object OfflineMode {
     private val SKIP = Regex("""^(\s*"SkipOfflineModeWarning"\s*")([01])(".*)$""")
     private val REMEMBER = Regex(""""RememberPassword"\s*"1"""")
     private val PERSONA = Regex(""""PersonaName"\s*"([^"]*)"""")
+    private const val EVAL_TIMEOUT_MS = 10_000L
 
     private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
 
@@ -60,19 +62,48 @@ object OfflineMode {
         offline(enabled(context), com.droiddeck.launcher.frontend.AutoComponents.isOnline(context))
 
     fun setEnabled(context: Context, on: Boolean) {
-        write(context, LinuxRuntime.rootDir(context), on)
+        val offline = write(context, LinuxRuntime.rootDir(context), on)
+        if (SessionState.running && (SessionState.mode == SessionService.MODE_STEAM || SessionState.mode == SessionService.MODE_DESKTOP)) {
+            val app = context.applicationContext
+            Thread({ switchLive(app, offline) }, "steam-offline").start()
+        }
     }
 
-    fun apply(context: Context, root: File): Boolean {
+    fun apply(context: Context, root: File): Boolean = write(context, root, saved(context, root))
+
+    fun follow(context: Context): Boolean? = switchLive(context, remember(context, saved(context, LinuxRuntime.rootDir(context))))
+
+    private fun saved(context: Context, root: File): Boolean {
         val prefs = prefs(context)
-        return write(context, root, manual(steamWants(context, root), prefs.getBoolean(AUTO_KEY, false), prefs.getBoolean(KEY, false)))
+        return manual(steamWants(context, root), prefs.getBoolean(AUTO_KEY, false), prefs.getBoolean(KEY, false))
     }
 
-    private fun write(context: Context, root: File, manual: Boolean): Boolean {
+    private fun remember(context: Context, manual: Boolean): Boolean {
         val online = com.droiddeck.launcher.frontend.AutoComponents.isOnline(context)
         val offline = offline(manual, online)
         prefs(context).edit().putBoolean(KEY, manual).putBoolean(AUTO_KEY, offline && !manual).apply()
         Log.i(TAG, "manual=$manual online=$online offline=$offline")
+        return offline
+    }
+
+    private fun switchLive(context: Context, offline: Boolean): Boolean? {
+        val answer = try {
+            AgentGuest.steamEval(context, "$SWITCH($offline)", EVAL_TIMEOUT_MS)
+        } catch (e: Exception) {
+            Log.w(TAG, "steam not reachable: ${e.javaClass.simpleName}: ${e.message}")
+            return null
+        }
+        val result = if (answer.optBoolean("ok")) answer.optString("value") else answer.optJSONObject("error")?.optString("message")
+        Log.i(TAG, "live offline=$offline: $result")
+        return when (result) {
+            "switched" -> true
+            "same" -> false
+            else -> null
+        }
+    }
+
+    private fun write(context: Context, root: File, manual: Boolean): Boolean {
+        val offline = remember(context, manual)
         applyTo(loginUsers(root), offline)
         applyTo(x64LoginUsers(root), offline)
         return offline
@@ -128,4 +159,20 @@ object OfflineMode {
             Log.w(TAG, "could not write loginusers.vdf", e)
         }
     }
+
+    private val SWITCH = """(async want => {
+          const user = globalThis.SteamClient?.User;
+          if (typeof user?.GoOffline !== 'function' || typeof user?.GoOnline !== 'function') return "missing";
+          const current = await new Promise(done => {
+            let handle = null, value;
+            const finish = v => { clearTimeout(timer); try { handle?.unregister(); } catch (e) {} done(v); };
+            const timer = setTimeout(() => finish(null), 4000);
+            handle = user.RegisterForCurrentUserChanges(u => { value = !!u?.bIsOfflineMode; if (handle) finish(value); });
+            if (value !== undefined) finish(value);
+          });
+          if (current === null) return "unknown";
+          if (current === want) return "same";
+          if (want) user.GoOffline(); else user.GoOnline();
+          return "switched";
+        })"""
 }

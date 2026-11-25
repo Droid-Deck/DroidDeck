@@ -126,4 +126,30 @@ class OfflineModeTest {
         assertFalse(OfflineMode.apply(context, root))
         assertEquals("0", steamWants())
     }
+
+    @Test
+    fun steamGoingOfflineAfterANetworkDropIsNotTakenAsAChoice() {
+        assertFalse(OfflineMode.apply(context, root))
+        network(online = false)
+        OfflineMode.follow(context)
+        writeSteam("1")
+        assertFalse(OfflineMode.enabled(context))
+        network(online = true)
+        OfflineMode.follow(context)
+        writeSteam("0")
+        assertFalse(OfflineMode.enabled(context))
+        assertFalse(OfflineMode.apply(context, root))
+    }
+
+    @Test
+    fun chosenOfflineSurvivesANetworkDropAndReturn() {
+        OfflineMode.setEnabled(context, true)
+        network(online = false)
+        OfflineMode.follow(context)
+        network(online = true)
+        OfflineMode.follow(context)
+        assertTrue(OfflineMode.enabled(context))
+        assertTrue(OfflineMode.apply(context, root))
+        assertEquals("1", steamWants())
+    }
 }

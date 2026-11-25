@@ -813,6 +813,11 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "desktop language pack: $it") }
         }
 
+        if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) {
+            val steamOffline = SteamOfflineFollow()
+            steamOffline.attach(this)
+            components.add(steamOffline)
+        }
         val networkLink = LinuxNetworkLinkComponent(this, root)
         networkLink.attach(this)
         networkLink.publish()
