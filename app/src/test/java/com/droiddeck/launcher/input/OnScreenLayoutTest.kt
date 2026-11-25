@@ -109,6 +109,26 @@ class OnScreenLayoutTest {
         assertNotEquals(original.single { it.id == "legacy:ls" }.height, resized.single { it.id == "legacy:ls" }.height, .0001f)
     }
 
+    @Test fun changingControllerSizeResizesDockedControlsWithASavedLayout() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val layout = gamepad()
+        val w = 1200
+        val h = 540
+        ControllerPrefs.setLayout(context, w, h, mapOf("ls" to (.12f to .7f)))
+        val dock = OnScreenLayout.Dock(false, false)
+        ControllerPrefs.setSize(context, 100)
+        val original = OnScreenLayout.elements(context, layout, w, h, Rect(), dock = dock)
+        ControllerPrefs.setSize(context, 120)
+        val resized = OnScreenLayout.elements(context, layout, w, h, Rect(), dock = dock)
+        val before = original.single { it.id == "legacy:a" }
+        val after = resized.single { it.id == "legacy:a" }
+        assertTrue(after.width > before.width)
+        assertTrue(after.height > before.height)
+        assertEquals(before.x + before.width / 2f, after.x + after.width / 2f, .001f)
+        assertEquals(before.y + before.height / 2f, after.y + after.height / 2f, .001f)
+        assertEquals(mapOf("ls" to (.12f to .7f)), ControllerPrefs.layout(context, w, h))
+    }
+
     @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
     fun aBuiltInGamepadSavedAtTheDisplaySizeRegeneratesForTheMeasuredSurface() {
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
