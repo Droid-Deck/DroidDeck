@@ -136,7 +136,83 @@ static void init_ddnatv_hook(void) {
 // time it was read.
 static void compact_loader_args(int argc, char **argv);
 
+#define DDNATV_MAX_FORWARDED_FDS 64
+
+static int forwarded_targets(char *text, int *targets, int max) {
+    int count = 0;
+    for (char *p = text; *p && count < max;) {
+        char *end;
+        long fd = strtol(p, &end, 10);
+        if (end == p) break;
+        targets[count++] = fd >= 0 && fd <= INT_MAX ? (int)fd : -1;
+        p = *end == ',' ? end + 1 : end;
+    }
+    return count;
+}
+
+static void adopt_forwarded_fds(void) {
+    const char *name = getenv("DROIDDECK_FDS");
+    if (!name) return;
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    size_t len = strlen(name);
+    int usable = len > 0 && len + 1 <= sizeof(addr.sun_path);
+    if (usable) memcpy(addr.sun_path + 1, name, len);
+    unsetenv("DROIDDECK_FDS");
+    if (!usable) return;
+    int sock = (int)syscall(SYS_socket, AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
+    if (sock < 0) return;
+    char text[1024];
+    int got[DDNATV_MAX_FORWARDED_FDS];
+    int count = 0;
+    ssize_t n = -1;
+    socklen_t addr_len = (socklen_t)(offsetof(struct sockaddr_un, sun_path) + 1 + len);
+    if (syscall(SYS_connect, sock, &addr, addr_len) == 0) {
+        union {
+            struct cmsghdr header;
+            char buf[CMSG_SPACE(sizeof(got))];
+        } control;
+        struct iovec iov = {text, sizeof(text) - 1};
+        struct msghdr msg;
+        memset(&msg, 0, sizeof(msg));
+        msg.msg_iov = &iov;
+        msg.msg_iovlen = 1;
+        msg.msg_control = control.buf;
+        msg.msg_controllen = sizeof(control.buf);
+        do {
+            n = syscall(SYS_recvmsg, sock, &msg, MSG_CMSG_CLOEXEC);
+        } while (n < 0 && errno == EINTR);
+        for (struct cmsghdr *c = n >= 0 ? CMSG_FIRSTHDR(&msg) : NULL; c; c = CMSG_NXTHDR(&msg, c)) {
+            if (c->cmsg_level != SOL_SOCKET || c->cmsg_type != SCM_RIGHTS) continue;
+            size_t k = (c->cmsg_len - CMSG_LEN(0)) / sizeof(int);
+            for (size_t i = 0; i < k && count < DDNATV_MAX_FORWARDED_FDS; i++) {
+                memcpy(&got[count++], CMSG_DATA(c) + i * sizeof(int), sizeof(int));
+            }
+        }
+    }
+    syscall(SYS_close, sock);
+    text[n > 0 ? n : 0] = '\0';
+    int targets[DDNATV_MAX_FORWARDED_FDS];
+    int wanted = forwarded_targets(text, targets, DDNATV_MAX_FORWARDED_FDS);
+    int above = 3;
+    for (int i = 0; i < wanted; i++) {
+        if (targets[i] >= above) above = targets[i] + 1;
+    }
+    int high[DDNATV_MAX_FORWARDED_FDS];
+    for (int i = 0; i < count; i++) {
+        high[i] = (int)syscall(SYS_fcntl, got[i], F_DUPFD_CLOEXEC, above);
+        syscall(SYS_close, got[i]);
+    }
+    for (int i = 0; i < count; i++) {
+        if (high[i] < 0) continue;
+        if (i < wanted && targets[i] > 2) syscall(SYS_dup3, high[i], targets[i], 0);
+        syscall(SYS_close, high[i]);
+    }
+}
+
 __attribute__((constructor(103))) static void init_ddnatv_hook_early(int argc, char **argv) {
+    adopt_forwarded_fds();
     init_ddnatv_hook();
     compact_loader_args(argc, argv);
     // The kernel names the process after what it executed, the rootfs ld.so: process monitors, and
@@ -278,6 +354,145 @@ static int proc_env_value(pid_t pid, const char *key, char *out, size_t outsz) {
         free(env);
     }
     return found;
+}
+
+static pid_t proc_root_pid(const char *path, const char **rest) {
+    if (!path || strncmp(path, "/proc/", 6) != 0 || path[6] < '1' || path[6] > '9') return 0;
+    const char *p = path + 6;
+    long pid = 0;
+    while (*p >= '0' && *p <= '9') {
+        pid = pid * 10 + (*p++ - '0');
+        if (pid > 0x3fffffff) return 0;
+    }
+    if (strncmp(p, "/root", 5) != 0 || (p[5] != '\0' && p[5] != '/')) return 0;
+    *rest = p + 5;
+    return (pid_t)pid;
+}
+
+static int proc_view_of(pid_t pid, char **root, char **binds) {
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%d/environ", (int)pid);
+    size_t used;
+    int whole;
+    *root = NULL;
+    *binds = NULL;
+    char *env = read_proc_file(path, &used, &whole);
+    if (!env) return 0;
+    for (char *e = env; e < env + used; e += strlen(e) + 1) {
+        if (!*root && strncmp(e, "DDNATV_ROOT=", 12) == 0 && e[12] == '/') *root = strdup(e + 12);
+        else if (!*binds && strncmp(e, "DDNATV_BINDS=", 13) == 0) *binds = strdup(e + 13);
+    }
+    free(env);
+    if (*root) return 1;
+    free(*binds);
+    *binds = NULL;
+    return 0;
+}
+
+static const char *proc_view_path(const char *root, char *binds, const char *guest, char *buf, size_t size) {
+    const char *best_src = NULL, *best_dst = NULL;
+    size_t best_len = 0;
+    char *save = NULL;
+    for (char *entry = binds ? strtok_r(binds, "|", &save) : NULL; entry; entry = strtok_r(NULL, "|", &save)) {
+        char *colon = strchr(entry, ':');
+        const char *dst = colon ? colon + 1 : entry;
+        if (colon) *colon = '\0';
+        size_t len = strlen(dst);
+        while (len > 1 && dst[len - 1] == '/') len--;
+        if (entry[0] != '/' || dst[0] != '/' || len < 2 || len <= best_len || !is_path_prefix(guest, dst, len)) continue;
+        best_src = entry;
+        best_dst = dst;
+        best_len = len;
+    }
+    if (best_src && strncmp(best_src, best_dst, best_len) == 0 && best_src[best_len] == '\0') {
+        ddnatv_copy_cstr(buf, size, guest);
+    } else if (best_src) {
+        size_t n = strncmp(best_src, "/proc/", 6) == 0 && best_src[6] >= '0' && best_src[6] <= '9'
+            ? ddnatv_copy_cstr(buf, size, best_src)
+            : ddnatv_kernel_path(best_src, strlen(best_src), buf, size);
+        ddnatv_append(buf, size, n, guest + best_len, strlen(guest + best_len));
+    } else if (is_android_host_path(guest)) {
+        ddnatv_copy_cstr(buf, size, guest);
+    } else {
+        size_t n = ddnatv_copy_cstr(buf, size, root);
+        if (guest[1]) ddnatv_append(buf, size, n, guest, strlen(guest));
+    }
+    return buf;
+}
+
+static const char *proc_root_host(const char *path, char *buf, size_t size, int bare) {
+    const char *rest = NULL;
+    pid_t pid = proc_root_pid(path, &rest);
+    if (pid <= 0 || (!bare && rest[strspn(rest, "/")] == '\0')) return NULL;
+    char *root, *binds;
+    if (!proc_view_of(pid, &root, &binds)) return NULL;
+    size_t root_len = strlen(root);
+    while (root_len > 1 && root[root_len - 1] == '/') root_len--;
+    char root_k[PATH_MAX], guest[PATH_MAX];
+    ddnatv_kernel_path(root, root_len, root_k, sizeof(root_k));
+    ddnatv_copy_cstr(guest, sizeof(guest), rest[0] ? rest : "/");
+    normalize_path(guest);
+    if (strcmp(root_k, g_ddnatv_root) == 0 && strcmp(binds ? binds : "", g_binds_raw ? g_binds_raw : "") == 0) {
+        const char *own = rewrite_path_in_root(guest, buf, size);
+        if (own != buf) ddnatv_copy_cstr(buf, size, own);
+    } else {
+        proc_view_path(root_k, binds, guest, buf, size);
+    }
+    free(root);
+    free(binds);
+    return buf;
+}
+
+struct ddnatv_proc_root_fd {
+    int fd;
+    pid_t pid;
+    unsigned long dev, ino;
+};
+static struct ddnatv_proc_root_fd g_proc_root_fds[32];
+static int g_n_proc_root_fds = 0;
+static pthread_mutex_t g_proc_root_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void forget_proc_root_fd(int fd) {
+    if (fd < 0 || __atomic_load_n(&g_n_proc_root_fds, __ATOMIC_ACQUIRE) == 0) return;
+    pthread_mutex_lock(&g_proc_root_mutex);
+    for (int i = 0; i < g_n_proc_root_fds; i++) {
+        if (g_proc_root_fds[i].fd != fd) continue;
+        g_proc_root_fds[i] = g_proc_root_fds[--g_n_proc_root_fds];
+        break;
+    }
+    pthread_mutex_unlock(&g_proc_root_mutex);
+}
+
+static void remember_proc_root_fd(int fd, const char *path) {
+    const char *rest = NULL;
+    pid_t pid = proc_root_pid(path, &rest);
+    struct stat st;
+    if (fd < 0 || pid <= 0 || rest[strspn(rest, "/")] != '\0' || syscall(SYS_fstat, fd, &st) != 0) return;
+    forget_proc_root_fd(fd);
+    pthread_mutex_lock(&g_proc_root_mutex);
+    int slot = g_n_proc_root_fds < (int)(sizeof(g_proc_root_fds) / sizeof(g_proc_root_fds[0])) ? g_n_proc_root_fds : 0;
+    g_proc_root_fds[slot] = (struct ddnatv_proc_root_fd){fd, pid, (unsigned long)st.st_dev, (unsigned long)st.st_ino};
+    if (slot == g_n_proc_root_fds) __atomic_store_n(&g_n_proc_root_fds, g_n_proc_root_fds + 1, __ATOMIC_RELEASE);
+    pthread_mutex_unlock(&g_proc_root_mutex);
+}
+
+static const char *proc_root_at(int dirfd, const char *rel, char *buf, size_t size) {
+    if (dirfd < 0 || __atomic_load_n(&g_n_proc_root_fds, __ATOMIC_ACQUIRE) == 0) return NULL;
+    pid_t pid = 0;
+    unsigned long dev = 0, ino = 0;
+    pthread_mutex_lock(&g_proc_root_mutex);
+    for (int i = 0; i < g_n_proc_root_fds; i++) {
+        if (g_proc_root_fds[i].fd != dirfd) continue;
+        pid = g_proc_root_fds[i].pid;
+        dev = g_proc_root_fds[i].dev;
+        ino = g_proc_root_fds[i].ino;
+        break;
+    }
+    pthread_mutex_unlock(&g_proc_root_mutex);
+    struct stat st;
+    if (pid <= 0 || syscall(SYS_fstat, dirfd, &st) != 0 || (unsigned long)st.st_dev != dev || (unsigned long)st.st_ino != ino) return NULL;
+    if (snprintf(buf, size, "/proc/%d/root/%s", (int)pid, rel) >= (int)size) return NULL;
+    return buf;
 }
 
 static int is_loader_option(const char *arg) {

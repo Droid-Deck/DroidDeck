@@ -213,7 +213,8 @@ int open(const char *pathname, int flags, ...) {
     int status_fd = open_proc_status(pathname, flags);
     if (status_fd != -2) return status_fd;
     char buf[PATH_MAX];
-    const char *target = ((flags & O_NOFOLLOW) ? rewrite_path : rewrite_path_follow)(pathname, buf, sizeof(buf));
+    const char *target = proc_root_host(pathname, buf, sizeof(buf), 1);
+    if (!target) target = ((flags & O_NOFOLLOW) ? rewrite_path : rewrite_path_follow)(pathname, buf, sizeof(buf));
     if (open_needs_mode(flags)) {
         va_list args;
         va_start(args, flags);
@@ -223,7 +224,9 @@ int open(const char *pathname, int flags, ...) {
         if (fd < 0 && (flags & O_CREAT) && refused_in_repaired_dir(AT_FDCWD, target)) fd = orig_open(target, flags, mode);
         return fd;
     }
-    return orig_open(target, flags);
+    int fd = orig_open(target, flags);
+    if (target == buf) remember_proc_root_fd(fd, pathname);
+    return fd;
 }
 
 // Hook openat
@@ -243,7 +246,8 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
     int status_fd = (pathname && pathname[0] == '/') ? open_proc_status(pathname, flags) : open_proc_status_at(dirfd, pathname, flags);
     if (status_fd != -2) return status_fd;
     char buf[PATH_MAX];
-    const char *target = (pathname && pathname[0] == '/') ? ((flags & O_NOFOLLOW) ? rewrite_path : rewrite_path_follow)(pathname, buf, sizeof(buf)) : pathname;
+    const char *target = proc_root_host(pathname, buf, sizeof(buf), 1);
+    if (!target) target = (pathname && pathname[0] == '/') ? ((flags & O_NOFOLLOW) ? rewrite_path : rewrite_path_follow)(pathname, buf, sizeof(buf)) : pathname;
     if (open_needs_mode(flags)) {
         va_list args;
         va_start(args, flags);
@@ -253,7 +257,9 @@ int openat(int dirfd, const char *pathname, int flags, ...) {
         if (fd < 0 && (flags & O_CREAT) && refused_in_repaired_dir(dirfd, target)) fd = orig_openat(dirfd, target, flags, mode);
         return fd;
     }
-    return orig_openat(dirfd, target, flags);
+    int fd = orig_openat(dirfd, target, flags);
+    if (target == buf) remember_proc_root_fd(fd, pathname);
+    return fd;
 }
 
 // Hook creat

@@ -1,0 +1,122 @@
+#!/usr/bin/python3
+import os
+import stat
+import sys
+
+import gi
+
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib
+
+NAME = "org.freedesktop.portal.Documents"
+PATH = "/org/freedesktop/portal/documents"
+VERSION = 5
+AS_NEEDED_BY_APP = 1 << 2
+DIRECTORY = 1 << 3
+FAILED = "org.freedesktop.portal.Error.Failed"
+NOT_FOUND = "org.freedesktop.portal.Error.NotFound"
+NOT_ALLOWED = "org.freedesktop.portal.Error.NotAllowed"
+INVALID = "org.freedesktop.portal.Error.InvalidArgument"
+INTROSPECTION = """
+<node>
+  <interface name="org.freedesktop.portal.Documents">
+    <method name="GetMountPoint"><arg type="ay" direction="out"/></method>
+    <method name="Add">
+      <arg type="h" direction="in"/><arg type="b" direction="in"/><arg type="b" direction="in"/>
+      <arg type="s" direction="out"/>
+    </method>
+    <method name="AddNamed">
+      <arg type="h" direction="in"/><arg type="ay" direction="in"/><arg type="b" direction="in"/>
+      <arg type="b" direction="in"/><arg type="s" direction="out"/>
+    </method>
+    <method name="AddFull">
+      <arg type="ah" direction="in"/><arg type="u" direction="in"/><arg type="s" direction="in"/>
+      <arg type="as" direction="in"/><arg type="as" direction="out"/><arg type="a{sv}" direction="out"/>
+    </method>
+    <method name="AddNamedFull">
+      <arg type="h" direction="in"/><arg type="ay" direction="in"/><arg type="u" direction="in"/>
+      <arg type="s" direction="in"/><arg type="as" direction="in"/><arg type="s" direction="out"/>
+      <arg type="a{sv}" direction="out"/>
+    </method>
+    <method name="GrantPermissions">
+      <arg type="s" direction="in"/><arg type="s" direction="in"/><arg type="as" direction="in"/>
+    </method>
+    <method name="RevokePermissions">
+      <arg type="s" direction="in"/><arg type="s" direction="in"/><arg type="as" direction="in"/>
+    </method>
+    <method name="Delete"><arg type="s" direction="in"/></method>
+    <method name="Lookup"><arg type="ay" direction="in"/><arg type="s" direction="out"/></method>
+    <method name="Info">
+      <arg type="s" direction="in"/><arg type="ay" direction="out"/><arg type="a{sas}" direction="out"/>
+    </method>
+    <method name="List"><arg type="s" direction="in"/><arg type="a{say}" direction="out"/></method>
+    <method name="GetHostPaths"><arg type="as" direction="in"/><arg type="a{say}" direction="out"/></method>
+    <property name="version" type="u" access="read"/>
+  </interface>
+</node>
+"""
+
+
+def passed_fds(invocation, handles):
+    fd_list = invocation.get_message().get_unix_fd_list()
+    fds = fd_list.peek_fds() if fd_list else []
+    return [fds[h] if 0 <= h < len(fds) else -1 for h in handles]
+
+
+def usable(fd, flags):
+    try:
+        mode = os.fstat(fd).st_mode
+    except OSError:
+        return False
+    return stat.S_ISDIR(mode) if flags & DIRECTORY else stat.S_ISREG(mode)
+
+
+def reachable_in_place(invocation, flags, handles, directories):
+    if not flags & AS_NEEDED_BY_APP:
+        invocation.return_dbus_error(NOT_ALLOWED, "Documents can only be shared in place")
+        return False
+    if not all(fd >= 0 and usable(fd, DIRECTORY if directories else flags) for fd in passed_fds(invocation, handles)):
+        invocation.return_dbus_error(INVALID, "Invalid fd passed")
+        return False
+    return True
+
+
+def on_call(connection, sender, path, interface, method, params, invocation):
+    args = params.unpack()
+    if method == "AddFull":
+        handles, flags = args[0], args[1]
+        if reachable_in_place(invocation, flags, handles, False):
+            invocation.return_value(GLib.Variant("(asa{sv})", ([""] * len(handles), {})))
+    elif method == "AddNamedFull":
+        if reachable_in_place(invocation, args[2], [args[0]], True):
+            invocation.return_value(GLib.Variant("(sa{sv})", ("", {})))
+    elif method == "Lookup":
+        invocation.return_value(GLib.Variant("(s)", ("",)))
+    elif method == "List":
+        invocation.return_value(GLib.Variant("(a{say})", ({},)))
+    elif method == "GetHostPaths":
+        invocation.return_value(GLib.Variant("(a{say})", ({},)))
+    elif method in ("Add", "AddNamed"):
+        invocation.return_dbus_error(NOT_ALLOWED, "Documents can only be shared in place")
+    elif method in ("GrantPermissions", "RevokePermissions", "Delete", "Info"):
+        invocation.return_dbus_error(NOT_FOUND, "Invalid document id")
+    else:
+        invocation.return_dbus_error(FAILED, "No document store mount")
+
+
+def on_get(connection, sender, path, interface, prop):
+    return GLib.Variant("u", VERSION) if prop == "version" else None
+
+
+def main():
+    loop = GLib.MainLoop()
+    info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION).interfaces[0]
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+    bus.register_object(PATH, info, on_call, on_get, None)
+    Gio.bus_own_name_on_connection(bus, NAME, Gio.BusNameOwnerFlags.DO_NOT_QUEUE, None, lambda *_: loop.quit())
+    loop.run()
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

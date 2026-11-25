@@ -244,6 +244,7 @@ int close(int fd) {
     if (g_kept_fd_count > 0 && is_kept_fd(fd)) return 0;
     clear_dns_redirect(fd);
     set_chosen_port_fd(fd, 0);
+    forget_proc_root_fd(fd);
     return orig_close ? orig_close(fd) : -1;
 }
 
@@ -253,6 +254,7 @@ int dup2(int oldfd, int newfd) {
     if (oldfd != newfd) {
         clear_dns_redirect(newfd);
         set_chosen_port_fd(newfd, is_chosen_port_fd(oldfd));
+        forget_proc_root_fd(newfd);
     }
     return orig_dup2 ? orig_dup2(oldfd, newfd) : -1;
 }
@@ -263,6 +265,7 @@ int dup3(int oldfd, int newfd, int flags) {
     if (oldfd != newfd) {
         clear_dns_redirect(newfd);
         set_chosen_port_fd(newfd, is_chosen_port_fd(oldfd));
+        forget_proc_root_fd(newfd);
     }
     return orig_dup3 ? orig_dup3(oldfd, newfd, flags) : -1;
 }

@@ -3,11 +3,13 @@ import base64
 import fcntl
 import json
 import os
+import secrets
 import signal
 import socket
 import struct
 import subprocess
 import sys
+import threading
 
 SOCKET_FILE = "/etc/droiddeck/bwrap-socket"
 
@@ -94,6 +96,7 @@ class Spec:
         self.json_fds = []
         self.keep_fds = []
         self.lock_files = []
+        self.lock_fds = []
         self.command = []
         self.argv0 = None
         self.env_tool = None
@@ -363,6 +366,7 @@ def hold_locks(s):
             sys.stderr.write("bwrap: Can't lock file %s: %s\n" % (path, e.strerror))
             sys.exit(1)
         os.set_inheritable(fd, True)
+        s.lock_fds.append(fd)
 
 
 def report_pid(s, pid):
@@ -379,8 +383,28 @@ def report_pid(s, pid):
             pass
 
 
+def bind_flatpak_info(s):
+    if not s.env.get("DDNATV_ROOT"):
+        return
+    for op in s.ops:
+        if op["t"] != "file" or op["dest"] != "/.flatpak-info":
+            continue
+        try:
+            fd = os.memfd_create("flatpak-info", 0)
+        except (AttributeError, OSError):
+            return
+        data = memoryview(op["data"])
+        while data:
+            data = data[os.write(fd, data):]
+        os.lseek(fd, 0, os.SEEK_SET)
+        entry = "/proc/%d/fd/%d:/.flatpak-info" % (os.getpid(), fd)
+        binds = s.env.get("DDNATV_BINDS")
+        s.env["DDNATV_BINDS"] = binds + "|" + entry if binds else entry
+
+
 def run_here(s):
     report_pid(s, os.getpid())
+    bind_flatpak_info(s)
     for fd in s.json_fds:
         os.close(fd)
     if s.cwd:
@@ -410,7 +434,48 @@ def recv_exact(sock, n):
     return buf
 
 
+def inherited_fds(s):
+    own = set(s.info_fds + s.json_fds + s.keep_fds + s.lock_fds)
+    fds = []
+    for name in os.listdir("/proc/self/fd"):
+        fd = int(name)
+        if fd <= 2 or fd in own:
+            continue
+        try:
+            if os.get_inheritable(fd):
+                fds.append(fd)
+        except OSError:
+            pass
+    return sorted(fds)
+
+
+def hand_over(listener, fds):
+    try:
+        conn, _ = listener.accept()
+    except OSError:
+        return
+    with conn, listener:
+        creds = conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
+        if struct.unpack("3i", creds)[1] != os.getuid():
+            return
+        conn.sendmsg([",".join(map(str, fds)).encode()],
+                     [(socket.SOL_SOCKET, socket.SCM_RIGHTS, struct.pack("%di" % len(fds), *fds))])
+
+
+def offer_fds(s):
+    fds = inherited_fds(s)
+    if not fds:
+        return
+    name = "droiddeck-fds-" + secrets.token_hex(16)
+    listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    listener.bind("\0" + name)
+    listener.listen(1)
+    s.env["DROIDDECK_FDS"] = name
+    threading.Thread(target=hand_over, args=(listener, fds), daemon=True).start()
+
+
 def run_by_app(s):
+    offer_fds(s)
     ops = []
     for op in s.ops:
         op = dict(op)
