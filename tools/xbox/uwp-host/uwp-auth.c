@@ -4623,6 +4623,414 @@ static const void *auth_factory_vtbl[] = {
     (const void *)auth_factory_Activate,
 };
 
+/* --------------------------------------------------------------------------
+ * Shared Xbox Live session & signed HTTPS transport helpers for uwp-gamesave
+ * -------------------------------------------------------------------------- */
+
+static WCHAR *auth_utf8_to_wide(const char *s)
+{
+    int n;
+    WCHAR *w;
+    if (!s) return NULL;
+    n = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
+    if (n <= 0) return NULL;
+    w = (WCHAR *)malloc((size_t)n * sizeof(WCHAR));
+    if (!w) return NULL;
+    if (!MultiByteToWideChar(CP_UTF8, 0, s, -1, w, n)) {
+        free(w);
+        return NULL;
+    }
+    return w;
+}
+
+static int auth_http_once(const WCHAR *method_w, const WCHAR *host_w, INTERNET_PORT port,
+                          const WCHAR *path_w, const WCHAR *headers_w,
+                          const void *body, DWORD body_len,
+                          DWORD *status_out, BYTE **resp_out, DWORD *resp_len_out)
+{
+    HINTERNET hSession = NULL, hConnect = NULL, hReq = NULL;
+    DWORD status = 0, status_sz = sizeof status;
+    DWORD connect_ms = 20000, send_ms = 60000, recv_ms = 120000;
+    BYTE *buf = NULL;
+    size_t total = 0, cap = 0;
+    int ok = 0;
+    const WCHAR *accept_types[] = { L"*/*", NULL };
+
+    *status_out = 0;
+    *resp_out = NULL;
+    *resp_len_out = 0;
+    if (!g_inet_ready) return 0;
+
+    hSession = fn_InternetOpenW(L"XboxLiveUwp/1.0", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
+    if (!hSession) goto done;
+    if (fn_InternetSetOptionW) {
+        fn_InternetSetOptionW(hSession, INTERNET_OPTION_CONNECT_TIMEOUT, &connect_ms, sizeof connect_ms);
+        fn_InternetSetOptionW(hSession, INTERNET_OPTION_SEND_TIMEOUT, &send_ms, sizeof send_ms);
+        fn_InternetSetOptionW(hSession, INTERNET_OPTION_RECEIVE_TIMEOUT, &recv_ms, sizeof recv_ms);
+    }
+
+    hConnect = fn_InternetConnectW(hSession, host_w, port, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
+    if (!hConnect) goto done;
+
+    hReq = fn_HttpOpenRequestW(hConnect, method_w, path_w, NULL, NULL, (LPCWSTR *)accept_types,
+                               INTERNET_FLAG_SECURE | INTERNET_FLAG_RELOAD |
+                               INTERNET_FLAG_NO_CACHE_WRITE | INTERNET_FLAG_NO_COOKIES, 0);
+    if (!hReq) goto done;
+
+    if (!fn_HttpSendRequestW(hReq, headers_w, headers_w ? (DWORD)-1L : 0,
+                             (LPVOID)body, body ? body_len : 0)) {
+        auth_log("auth_http_once HttpSendRequestW failed err=%lu", GetLastError());
+        goto done;
+    }
+
+    fn_HttpQueryInfoW(hReq, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &status, &status_sz, NULL);
+    *status_out = status;
+
+    for (;;) {
+        BYTE chunk[16384];
+        DWORD got = 0;
+        if (!fn_InternetReadFile(hReq, chunk, sizeof chunk, &got)) {
+            auth_log("auth_http_once InternetReadFile failed err=%lu", GetLastError());
+            goto done;
+        }
+        if (got == 0) break;
+        if (total + got > 256u * 1024u * 1024u) {
+            auth_log("auth_http_once response exceeded 256 MiB limit");
+            goto done;
+        }
+        if (total + got + 1 > cap) {
+            size_t ncap = cap ? cap * 2 : 65536;
+            while (ncap < total + got + 1) ncap *= 2;
+            BYTE *nb = (BYTE *)realloc(buf, ncap);
+            if (!nb) goto done;
+            buf = nb;
+            cap = ncap;
+        }
+        memcpy(buf + total, chunk, got);
+        total += got;
+    }
+
+    if (!buf) buf = (BYTE *)calloc(1, 1);
+    else buf[total] = 0;
+    if (!buf) goto done;
+    *resp_out = buf;
+    *resp_len_out = (DWORD)total;
+    buf = NULL;
+    ok = 1;
+
+done:
+    free(buf);
+    if (hReq) fn_InternetCloseHandle(hReq);
+    if (hConnect) fn_InternetCloseHandle(hConnect);
+    if (hSession) fn_InternetCloseHandle(hSession);
+    return ok;
+}
+
+static xsts_entry g_device_xsts_cache;
+
+/* Connected Storage (titlestorage.xboxlive.com) requires a device-scoped XSTS
+ * token (DeviceToken + UserTokens + ProofKey, without SISU's Xbox-App TitleToken).
+ * Sending a mismatched TitleToken yields HTTP 403 on the title's SCID. */
+static int acquire_device_xsts_entry(int force_refresh, xsts_entry *out)
+{
+    time_t now;
+    char *esc_ut = NULL, *esc_dt = NULL, *body = NULL, *resp = NULL;
+    char not_after[64] = "";
+    DWORD status = 0;
+    xsts_entry *entry = NULL;
+    int ok = 0;
+
+    auth_init_once();
+    EnterCriticalSection(&g_auth_lock);
+    now = time(NULL);
+    if (!force_refresh && g_device_xsts_cache.token[0] && g_device_xsts_cache.uhs[0] &&
+        g_device_xsts_cache.expires > 0 && now + 120 < g_device_xsts_cache.expires) {
+        *out = g_device_xsts_cache;
+        LeaveCriticalSection(&g_auth_lock);
+        return 1;
+    }
+
+    if (!fetch_xbl_user_token_locked(force_refresh)) goto unlock;
+
+    esc_ut = (char *)malloc(10240);
+    esc_dt = (char *)malloc(10240);
+    body = (char *)malloc(32768);
+    entry = (xsts_entry *)calloc(1, sizeof(xsts_entry));
+    if (!esc_ut || !esc_dt || !body || !entry) goto unlock;
+
+    json_escape(esc_ut, 10240, g_xbl_user_token);
+    if (g_xbl_device_token[0] && g_proof_key && g_proof_key_json[0]) {
+        json_escape(esc_dt, 10240, g_xbl_device_token);
+        snprintf(body, 32768,
+                 "{\"RelyingParty\":\"http://xboxlive.com\",\"TokenType\":\"JWT\","
+                 "\"Properties\":{\"SandboxId\":\"RETAIL\",\"DeviceToken\":\"%s\","
+                 "\"UserTokens\":[\"%s\"],\"ProofKey\":%s}}",
+                 esc_dt, esc_ut, g_proof_key_json);
+        if (!https_post_json_ex(L"xsts.auth.xboxlive.com", L"/xsts/authorize",
+                                body, 1, 1, &status, &resp) || status != 200) {
+            auth_log("device xsts/authorize failed HTTP %lu", (unsigned long)status);
+            goto unlock;
+        }
+    } else if (g_xbl_device_token[0]) {
+        json_escape(esc_dt, 10240, g_xbl_device_token);
+        snprintf(body, 32768,
+                 "{\"RelyingParty\":\"http://xboxlive.com\",\"TokenType\":\"JWT\","
+                 "\"Properties\":{\"SandboxId\":\"RETAIL\",\"DeviceToken\":\"%s\","
+                 "\"UserTokens\":[\"%s\"]}}",
+                 esc_dt, esc_ut);
+        if (!https_post_json_ex(L"xsts.auth.xboxlive.com", L"/xsts/authorize",
+                                body, 1, 0, &status, &resp) || status != 200) {
+            auth_log("device xsts/authorize (no proof) failed HTTP %lu", (unsigned long)status);
+            goto unlock;
+        }
+    } else {
+        snprintf(body, 32768,
+                 "{\"RelyingParty\":\"http://xboxlive.com\",\"TokenType\":\"JWT\","
+                 "\"Properties\":{\"SandboxId\":\"RETAIL\",\"UserTokens\":[\"%s\"]}}",
+                 esc_ut);
+        if (!https_post_json_ex(L"xsts.auth.xboxlive.com", L"/xsts/authorize",
+                                body, 1, 0, &status, &resp) || status != 200) {
+            auth_log("device xsts/authorize (user-only) failed HTTP %lu", (unsigned long)status);
+            goto unlock;
+        }
+    }
+
+    snprintf(entry->rp, sizeof entry->rp, "http://xboxlive.com");
+    if (!json_extract_str(resp, "Token", entry->token, sizeof entry->token) || !entry->token[0]) {
+        auth_log("device xsts/authorize response missing Token");
+        goto unlock;
+    }
+    json_extract_str(resp, "uhs", entry->uhs, sizeof entry->uhs);
+    json_extract_str(resp, "xid", entry->xuid, sizeof entry->xuid);
+    if (!entry->xuid[0] && g_cached_xuid[0])
+        snprintf(entry->xuid, sizeof entry->xuid, "%s", g_cached_xuid);
+    else if (entry->xuid[0])
+        snprintf(g_cached_xuid, sizeof g_cached_xuid, "%s", entry->xuid);
+
+    now = time(NULL);
+    entry->expires = now + 3600;
+    if (json_extract_str(resp, "NotAfter", not_after, sizeof not_after) && not_after[0]) {
+        time_t parsed_exp = 0;
+        if (parse_iso8601_utc(not_after, &parsed_exp) && parsed_exp > now)
+            entry->expires = parsed_exp;
+    }
+    g_device_xsts_cache = *entry;
+    *out = *entry;
+    auth_log("acquired device XSTS token for connected storage (has_xuid=%d has_uhs=%d len=%u)",
+             entry->xuid[0] != '\0', entry->uhs[0] != '\0', (unsigned)strlen(entry->token));
+    ok = 1;
+
+unlock:
+    LeaveCriticalSection(&g_auth_lock);
+    free(esc_ut);
+    free(esc_dt);
+    free(body);
+    free(resp);
+    free(entry);
+    return ok;
+}
+
+int uwp_auth_get_cached_xuid(char *out, size_t cap);
+int uwp_auth_get_cached_xuid(char *out, size_t cap)
+{
+    int ok = 0;
+    if (out && cap) out[0] = '\0';
+    auth_init_once();
+    EnterCriticalSection(&g_auth_lock);
+    if (g_cached_xuid[0] && out && cap) {
+        int n = snprintf(out, cap, "%s", g_cached_xuid);
+        if (n > 0 && (size_t)n < cap) ok = 1;
+        else out[0] = '\0';
+    }
+    LeaveCriticalSection(&g_auth_lock);
+    return ok;
+}
+
+int uwp_auth_get_xbl_session(int force_refresh, char *auth_out, size_t auth_cap,
+                             char *xuid_out, size_t xuid_cap);
+int uwp_auth_get_xbl_session(int force_refresh, char *auth_out, size_t auth_cap,
+                             char *xuid_out, size_t xuid_cap)
+{
+    xsts_entry entry;
+    int n;
+
+    if (auth_out && auth_cap) auth_out[0] = '\0';
+    if (xuid_out && xuid_cap) xuid_out[0] = '\0';
+    auth_init_once();
+    memset(&entry, 0, sizeof entry);
+    if (!acquire_device_xsts_entry(force_refresh, &entry))
+        return 0;
+    if (!entry.uhs[0] || !entry.token[0] || !entry.xuid[0])
+        return 0;
+    if (auth_out && auth_cap) {
+        n = snprintf(auth_out, auth_cap, "XBL3.0 x=%s;%s", entry.uhs, entry.token);
+        if (n < 0 || (size_t)n >= auth_cap) {
+            auth_out[0] = '\0';
+            return 0;
+        }
+    }
+    if (xuid_out && xuid_cap) {
+        n = snprintf(xuid_out, xuid_cap, "%s", entry.xuid);
+        if (n < 0 || (size_t)n >= xuid_cap) {
+            xuid_out[0] = '\0';
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int uwp_auth_xbl_request(const char *method, const WCHAR *host, const char *path_and_query,
+                         const char *auth_header, const char *extra_headers,
+                         const void *body, DWORD body_len,
+                         DWORD *status_out, BYTE **resp_out, DWORD *resp_len_out);
+int uwp_auth_xbl_request(const char *method, const WCHAR *host, const char *path_and_query,
+                         const char *auth_header, const char *extra_headers,
+                         const void *body, DWORD body_len,
+                         DWORD *status_out, BYTE **resp_out, DWORD *resp_len_out)
+{
+    WCHAR *method_w = NULL, *path_w = NULL;
+    int attempt, ok = 0;
+
+    if (!status_out || !resp_out || !resp_len_out) return 0;
+    *status_out = 0;
+    *resp_out = NULL;
+    *resp_len_out = 0;
+    if (!method || !host || !path_and_query) return 0;
+
+    auth_init_once();
+    if (!g_inet_ready) return 0;
+
+    method_w = auth_utf8_to_wide(method);
+    path_w = auth_utf8_to_wide(path_and_query);
+    if (!method_w || !path_w) goto done;
+
+    for (attempt = 0; attempt < 3; attempt++) {
+        char sig[128];
+        size_t hdr_cap, sign_len;
+        char *hdr_a = NULL;
+        WCHAR *hdr_w = NULL;
+        DWORD st = 0, rlen = 0;
+        BYTE *rbuf = NULL;
+        int sent;
+
+        if (attempt > 0) Sleep((DWORD)(500 * attempt));
+        sig[0] = '\0';
+        sign_len = body ? (body_len > 8192 ? 8192 : (size_t)body_len) : 0;
+
+        EnterCriticalSection(&g_auth_lock);
+        sign_xbox_request_locked(1, method, path_and_query, auth_header ? auth_header : "",
+                                 body, sign_len, sig);
+        LeaveCriticalSection(&g_auth_lock);
+        if (!sig[0]) goto done;
+
+        hdr_cap = 64 + (auth_header ? strlen(auth_header) : 0) + strlen(sig) +
+                  (extra_headers ? strlen(extra_headers) : 0);
+        hdr_a = (char *)malloc(hdr_cap);
+        if (!hdr_a) goto done;
+        if (auth_header && auth_header[0]) {
+            snprintf(hdr_a, hdr_cap, "Authorization: %s\r\nSignature: %s\r\n%s",
+                     auth_header, sig, extra_headers ? extra_headers : "");
+        } else {
+            snprintf(hdr_a, hdr_cap, "Signature: %s\r\n%s",
+                     sig, extra_headers ? extra_headers : "");
+        }
+        hdr_w = auth_utf8_to_wide(hdr_a);
+        free(hdr_a);
+        if (!hdr_w) goto done;
+
+        sent = auth_http_once(method_w, host, INTERNET_DEFAULT_HTTPS_PORT, path_w, hdr_w,
+                              body, body_len, &st, &rbuf, &rlen);
+        free(hdr_w);
+
+        if (sent && st < 500) {
+            *status_out = st;
+            *resp_out = rbuf;
+            *resp_len_out = rlen;
+            ok = 1;
+            break;
+        }
+        free(rbuf);
+    }
+
+done:
+    free(method_w);
+    free(path_w);
+    return ok;
+}
+
+int uwp_auth_direct_request(const char *method, const char *url, const char *extra_headers,
+                            const void *body, DWORD body_len,
+                            DWORD *status_out, BYTE **resp_out, DWORD *resp_len_out);
+int uwp_auth_direct_request(const char *method, const char *url, const char *extra_headers,
+                            const void *body, DWORD body_len,
+                            DWORD *status_out, BYTE **resp_out, DWORD *resp_len_out)
+{
+    const char *p, *slash, *colon;
+    char host_a[256];
+    const char *path_a;
+    INTERNET_PORT port = INTERNET_DEFAULT_HTTPS_PORT;
+    WCHAR *method_w = NULL, *host_w = NULL, *path_w = NULL, *hdr_w = NULL;
+    int attempt, ok = 0;
+
+    if (!status_out || !resp_out || !resp_len_out) return 0;
+    *status_out = 0;
+    *resp_out = NULL;
+    *resp_len_out = 0;
+    if (!method || !url) return 0;
+    if (_strnicmp(url, "https://", 8) != 0) return 0;
+
+    auth_init_once();
+    if (!g_inet_ready) return 0;
+
+    p = url + 8;
+    slash = strchr(p, '/');
+    path_a = slash ? slash : "/";
+    {
+        size_t hlen = slash ? (size_t)(slash - p) : strlen(p);
+        if (hlen == 0 || hlen >= sizeof host_a) return 0;
+        memcpy(host_a, p, hlen);
+        host_a[hlen] = '\0';
+    }
+    colon = strchr(host_a, ':');
+    if (colon) {
+        long pv = strtol(colon + 1, NULL, 10);
+        if (pv <= 0 || pv > 65535) return 0;
+        port = (INTERNET_PORT)pv;
+        host_a[colon - host_a] = '\0';
+    }
+
+    method_w = auth_utf8_to_wide(method);
+    host_w = auth_utf8_to_wide(host_a);
+    path_w = auth_utf8_to_wide(path_a);
+    if (extra_headers && extra_headers[0]) hdr_w = auth_utf8_to_wide(extra_headers);
+    if (!method_w || !host_w || !path_w || (extra_headers && extra_headers[0] && !hdr_w))
+        goto done;
+
+    for (attempt = 0; attempt < 3; attempt++) {
+        DWORD st = 0, rlen = 0;
+        BYTE *rbuf = NULL;
+        int sent;
+        if (attempt > 0) Sleep((DWORD)(500 * attempt));
+        sent = auth_http_once(method_w, host_w, port, path_w, hdr_w, body, body_len,
+                              &st, &rbuf, &rlen);
+        if (sent && st < 500) {
+            *status_out = st;
+            *resp_out = rbuf;
+            *resp_len_out = rlen;
+            ok = 1;
+            break;
+        }
+        free(rbuf);
+    }
+
+done:
+    free(method_w);
+    free(host_w);
+    free(path_w);
+    free(hdr_w);
+    return ok;
+}
+
 void uwp_auth_install(void);
 int uwp_auth_lookup(const WCHAR *class_name, void **factory);
 

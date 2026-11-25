@@ -2829,6 +2829,18 @@ int uwp_local_state_dir(WCHAR *out, size_t cap)
     return 1;
 }
 
+int uwp_package_family_name(char *out, size_t cap);
+int uwp_package_family_name(char *out, size_t cap)
+{
+    int n;
+    if (!out || cap == 0) return 0;
+    out[0] = 0;
+    package_load();
+    if (!identity.family[0]) return 0;
+    n = WideCharToMultiByte(CP_UTF8, 0, identity.family, -1, out, (int)cap, NULL, NULL);
+    return n > 1;
+}
+
 static storage_item *package_folder(const WCHAR *sub)
 {
     WCHAR path[MAX_PATH];
