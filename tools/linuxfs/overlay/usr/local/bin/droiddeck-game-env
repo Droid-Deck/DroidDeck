@@ -423,28 +423,77 @@ def project_zomboid_jvm(command):
         print("droiddeck-game-env: Project Zomboid JVM settings left as is (%s)" % error, file=sys.stderr)
 
 
+EAC_BOOTSTRAPPER = re.compile(r"start_protected_game(?:_?x64|_?64)?\.exe", re.IGNORECASE)
+EAC_MARKS = tuple(text.encode(encoding) for text in ("EasyAntiCheat", "Easy Anti-Cheat")
+                  for encoding in ("ascii", "utf-16-le"))
+EAC_BOOTSTRAPPER_LIMIT = 32 << 20
+
+
+def child_ignoring_case(folder, name):
+    exact = os.path.join(folder, name)
+    if os.path.lexists(exact):
+        return exact
+    wanted = name.lower()
+    try:
+        with os.scandir(folder) as entries:
+            return next((entry.path for entry in entries if entry.name.lower() == wanted), None)
+    except OSError:
+        return None
+
+
+def path_ignoring_case(folder, relative):
+    path = folder
+    for part in relative.split(os.sep):
+        path = child_ignoring_case(path, part)
+        if path is None:
+            return None
+    return path
+
+
+def is_eac_bootstrapper(path):
+    if EAC_BOOTSTRAPPER.fullmatch(os.path.basename(path)):
+        return True
+    try:
+        if os.path.getsize(path) > EAC_BOOTSTRAPPER_LIMIT:
+            return False
+        with open(path, "rb") as source:
+            data = source.read()
+    except OSError:
+        return False
+    return any(mark in data for mark in EAC_MARKS)
+
+
 def offline_without_anticheat(command, env):
     if (env.get("DROIDDECK_ANTICHEAT_OFFLINE") != "1" or len(command) <= 2
             or command[1] != "waitforexitandrun"
-            or not re.fullmatch(r"start_protected_game(?:_?x64|_?64)?\.exe",
-                                os.path.basename(command[2]), re.IGNORECASE)):
+            or not command[2].lower().endswith(".exe")):
         return command
     folder = os.path.dirname(command[2])
+    settings = path_ignoring_case(folder, os.path.join("EasyAntiCheat", "settings.json"))
+    if settings is None:
+        return command
     try:
-        with open(os.path.join(folder, "EasyAntiCheat", "settings.json"), encoding="utf-8-sig") as source:
+        with open(settings, encoding="utf-8-sig") as source:
             executable = json.load(source).get("executable")
     except (OSError, ValueError, AttributeError):
         return command
     if not isinstance(executable, str) or not executable:
         return command
     relative = os.path.normpath(executable.replace("\\", "/"))
-    game = os.path.join(folder, relative)
-    if os.path.isabs(relative) or relative.startswith("..") or not os.path.isfile(game):
+    if os.path.isabs(relative) or relative.startswith(".."):
+        return command
+    game = path_ignoring_case(folder, relative)
+    if game is None or not os.path.isfile(game):
         return command
     root = os.path.realpath(folder)
     if os.path.commonpath((root, os.path.realpath(game))) != root:
         return command
-    if os.path.normcase(os.path.abspath(game)) == os.path.normcase(os.path.abspath(command[2])):
+    try:
+        if os.path.samefile(game, command[2]):
+            return command
+    except OSError:
+        return command
+    if not is_eac_bootstrapper(command[2]):
         return command
     print("droiddeck-game-env: started without Easy Anti-Cheat (offline only)", file=sys.stderr)
     return command[:2] + [game] + command[3:]
