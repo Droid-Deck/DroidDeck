@@ -187,6 +187,9 @@ dd_components() {
     # The selected system PowerVR runtime supplies DXVK at launch. Keep saved selections
     # for a later manual-driver session without rewriting this Proton's bundled files now.
     [ "$comp" = dxvk ] && [ -n "${DROIDDECK_POWERVR_RUNTIME:-}" ] && continue
+    # DroidDeck-Bionic loads only Android-built FEX unix libraries: -bionic packages or its own saved copy.
+    # A row without such a source (a glibc package, or a removal) is skipped and the tool keeps its FEX files.
+    if [ "$comp" = fex ] && [[ "$cm_tool" == DroidDeck-Bionic* ]] && [[ "${src,,}" != *bionic* ]]; then continue; fi
     cm_rows+=("$comp"$'\\t'"$rel"$'\\t'"$sum"$'\\t'"$src")
     [ "$src" != "-" ] && [ -f "$base/$rel" ] && cm_files+=("$base/$rel")
   done <<< "$cm_selected"
@@ -288,6 +291,23 @@ dd_vacdiag() {
   esac
   printf '%s\tapp %s\tcondebug %s\t%s\n' "$(date +%s)" "$app" "$added" "${exe##*/}" >> /root/.droiddeck-vac-launches
 }
+"""
+
+# DroidDeck-Bionic runs only without proot. With proot on, a launch Steam sends to a DroidDeck-Bionic tool goes to the
+# newest DroidDeck-Proton's wrapper before anything else runs, as if that Proton had been picked; the picks stay as set.
+DD_BIONIC_PROOT_FALLBACK = """
+if [ -f "$here/bionic/launch.sh" ] && [ -z "${DDNATV_ROOT:-}" ]; then
+  dd_fallback=$(cd "$here/.." 2>/dev/null && for d in DroidDeck-Proton*; do
+    [ -x "$d/droiddeck-proton-wrap" ] && [ ! -e "$d/bionic/launch.sh" ] || continue
+    v=${d#DroidDeck-Proton}; printf '%s\\t%s/%s\\n' "${v#[ -]}" "$PWD" "$d"
+  done | sort -V | tail -n 1 | cut -f 2-)
+  if [ -n "$dd_fallback" ]; then
+    echo "droiddeck-proton: DroidDeck-Bionic needs Run without proot; this launch uses ${dd_fallback##*/}" >&2
+    exec "$dd_fallback/droiddeck-proton-wrap" "$verb" "$@"
+  fi
+  echo "droiddeck-proton: DroidDeck-Bionic needs Run without proot, and no DroidDeck-Proton is installed to run this launch instead; turn on Run without proot or install DroidDeck-Proton" >&2
+  exit 1
+fi
 """
 
 DD_DRIVER_QUERY_SKIP = """
@@ -487,7 +507,7 @@ dd_run ${DD_TASKSET:-} /usr/local/bin/droiddeck-game-env "$DD_STORE_PROTON" "$ve
 def extra_wrapper_sh(entry_point):
     return (EXTRA_WRAPPER_SH % entry_point).replace(
         'here=$(dirname "$0")',
-        'here=$(dirname "$0")\n' + DD_DRIVER_QUERY_SKIP + DD_DESKTOP_GPU_SETUP + DD_DIRECTAUDIO_SETUP + DD_GAME_CPUS_SETUP
+        'here=$(dirname "$0")\n' + DD_BIONIC_PROOT_FALLBACK + DD_DRIVER_QUERY_SKIP + DD_DESKTOP_GPU_SETUP + DD_DIRECTAUDIO_SETUP + DD_GAME_CPUS_SETUP
         + DD_IDTECH3_SETUP + DD_VACDIAG_SETUP + DD_COMPONENTS_SETUP + DD_LIBPATH_SETUP + DD_STORE_SETUP, 1)
 
 

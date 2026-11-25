@@ -446,6 +446,7 @@ static int close_range_part(unsigned int first, unsigned int last, void *flags) 
 }
 
 int close_range(unsigned int first, unsigned int last, int flags) {
+    if (!(flags & CLOSE_RANGE_CLOEXEC)) forget_proc_root_range(first, last);
     // Close-on-exec only (CLOSE_RANGE_CLOEXEC) leaves the translator's files open
     if (g_kept_fd_count > 0 && !(flags & CLOSE_RANGE_CLOEXEC)) {
         return for_each_range_without(first, last, g_kept_fds, g_kept_fd_count, close_range_part, &flags);
@@ -722,6 +723,21 @@ long syscall(long number, ...) {
 #if defined(__NR_bind)
         if (number == __NR_bind) {
             return (long)bind((int)arg1, (const struct sockaddr *)arg2, (socklen_t)arg3);
+        }
+#endif
+#if defined(__NR_sendmsg)
+        if (number == __NR_sendmsg) {
+            return (long)sendmsg((int)arg1, (const struct msghdr *)arg2, (int)arg3);
+        }
+#endif
+#if defined(__NR_recvmsg)
+        if (number == __NR_recvmsg) {
+            return (long)recvmsg((int)arg1, (struct msghdr *)arg2, (int)arg3);
+        }
+#endif
+#if defined(__NR_getsockopt)
+        if (number == __NR_getsockopt) {
+            return (long)getsockopt((int)arg1, (int)arg2, (int)arg3, (void *)arg4, (socklen_t *)arg5);
         }
 #endif
 #if defined(__NR_truncate)

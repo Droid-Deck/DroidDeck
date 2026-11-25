@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import functools
 import json
 import os
 import re
@@ -156,7 +157,27 @@ def ask(channel, request, timeout=TIMEOUT, claim=False):
 
 
 def windows_path(unix):
-    return "Z:" + unix.replace("/", "\\")
+    tool = bionic_tool(os.environ.get("DD_STORE_PROTON", ""))
+    return (tool and bionic_path(tool, unix)) or "Z:" + unix.replace("/", "\\")
+
+
+def bionic_tool(proton):
+    if not proton or not os.environ.get("DDNATV_ROOT"):
+        return None
+    tool = Path(proton).parent
+    return str(tool / "proton") if (tool / "bionic" / "launch.sh").is_file() else None
+
+
+@functools.lru_cache(maxsize=None)
+def bionic_path(proton, unix):
+    # DroidDeck-Bionic's Wine sees Android's root on Z:, so a guest path is named by the Android file it maps to.
+    try:
+        result = subprocess.run([proton, "getcompatpath", unix], stdin=subprocess.DEVNULL, capture_output=True,
+                                text=True, timeout=TIMEOUT)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    path = result.stdout.strip()
+    return path if result.returncode == 0 and path[:3] == "Z:\\" else None
 
 
 def reg_escape(value):
@@ -1480,13 +1501,31 @@ def ea_touchup(folder, sidecar, compat_data, proton, timeout=900):
         pass
     args = touchup_args(str(extra.get("touchupArgs") or ""), str(extra.get("locale") or "en_US"), windows_path(str(folder)).rstrip("\\"))
     try:
+        sink = tempfile.TemporaryFile()
+    except OSError:
+        sink = None
+    try:
         run = subprocess.run([proton, "run", str(exe)] + args, cwd=str(exe.parent), stdin=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=timeout)
+                             stdout=sink or subprocess.DEVNULL, stderr=subprocess.STDOUT, timeout=timeout)
         result = "ok" if run.returncode == 0 else "exit-%d" % run.returncode
     except subprocess.TimeoutExpired:
         result = "timeout"
     except OSError:
         return "failed"
+    finally:
+        output = b""
+        if sink is not None:
+            try:
+                sink.seek(0, os.SEEK_END)
+                sink.seek(max(0, sink.tell() - 65536))
+                output = sink.read()
+            except OSError:
+                pass
+            sink.close()
+    for line in output.decode("utf-8", "replace").splitlines()[-200:]:
+        log("touchup: " + line)
+    if result != "ok":
+        return result
     try:
         marker.write_text(stamp)
     except OSError:

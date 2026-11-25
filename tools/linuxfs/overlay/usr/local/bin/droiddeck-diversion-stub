@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+path=$1 target=$2 mode=$3
+if [ "$mode" = migrate ]; then
+  resolved=$(readlink -f "$target") || exit 0
+  [ -n "$resolved" ] && [ -L "$path" ] && [ "$(readlink -f "$path")" = "$resolved" ] || exit 0
+elif [ "$mode" != install ]; then
+  exit 1
+fi
+tmp=$(mktemp "${path}.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+printf '#!/bin/sh\nexec %s "$@"\n' "$target" > "$tmp"
+chmod 755 "$tmp"
+mv -f "$tmp" "$path"

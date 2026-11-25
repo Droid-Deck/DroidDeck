@@ -1023,6 +1023,128 @@ class ExtractTest(FexTestCase):
         self.assertIn("-no-xattrs", commands[-1])
         self.assertTrue(Path("squashfs-root/AppRun").is_file())
 
+    def seven_zip(self, tool, which, works=True):
+        commands = []
+
+        def call(argv, **kwargs):
+            commands.append(argv)
+            if argv[0] != "/usr/bin/7z" or not works:
+                return 2
+            (self.work / "squashfs-root").mkdir()
+            (self.work / "squashfs-root/AppRun").touch()
+            return 0
+
+        with mock.patch.dict(G, {
+            "URUNTIME": tool,
+            "prepare": lambda: None,
+            "fex_install": lambda: None,
+            "steam_running": lambda: False,
+            "want_fex": lambda: None,
+        }), mock.patch("shutil.which", side_effect=lambda name: which.get(name)), \
+                mock.patch("subprocess.call", side_effect=call):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        return status, said, commands
+
+    def test_without_proot_the_shipped_runtime_reads_the_open_image(self):
+        self.write(self.image, elf(183) + b"payload", 0o755)
+        tool = self.uruntime('cmp "$TARGET_APPIMAGE" "%s" || exit 9\nmkdir -p AppDir && touch AppDir/AppRun\n' % self.image)
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(self.tmp / "rootfs")}):
+            status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
+        self.assertEqual((status, said), (0, ""))
+        self.assertEqual([], commands)
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+
+    def test_without_proot_runtime_failure_falls_back_to_7zip(self):
+        self.write(self.image, elf(183) + b"payload", 0o755)
+        tool = self.uruntime("exit 1\n")
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(self.tmp / "rootfs")}):
+            status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertEqual("/usr/bin/7z", commands[-1][0])
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+
+    def test_with_proot_the_shipped_runtime_is_still_tried_first(self):
+        ran = self.tmp / "uruntime-ran"
+        tool = self.uruntime("touch %s\nexit 1\n" % ran)
+        env = {k: v for k, v in os.environ.items() if k != "DDNATV_ROOT"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertTrue(ran.exists())
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertEqual("/usr/bin/7z", commands[-1][0])
+
+    def test_unsquashfs_is_preferred_over_7zip(self):
+        tool = self.uruntime("exit 1\n")
+        status, said, commands = self.seven_zip(tool, {"unsquashfs": "/usr/bin/unsquashfs", "7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertIn("unsquashfs could not extract it (status 2)", said)
+        self.assertEqual(["/usr/bin/unsquashfs", "/usr/bin/7z"], [c[0] for c in commands])
+
+    def test_a_7zip_failure_leaves_nothing_unpacked(self):
+        tool = self.uruntime("exit 1\n")
+        status, said, _ = self.seven_zip(tool, {"7z": "/usr/bin/7z"}, works=False)
+        self.assertEqual(status, 1)
+        self.assertIn("7-Zip could not extract it (status 2)", said)
+        self.assertNotIn("no unsquashfs", said)
+        self.assertFalse(os.path.lexists("squashfs-root"))
+
+    def runtime_elf(self):
+        head = bytearray(elf(183))
+        struct.pack_into("<Q", head, 0x28, len(head))
+        return bytes(head)
+
+    def dwarfs(self, body):
+        self.write(self.image, self.runtime_elf() + b"DWARFS\x02\x05payload", 0o755)
+        self.ran = self.tmp / "dwarfsextract-ran"
+        return str(self.write(self.tmp / "dwarfsextract", "#!/bin/sh\ntouch %s\n%s" % (self.ran, body), 0o755))
+
+    def test_a_dwarfs_image_the_runtime_cannot_unpack_is_read_through_its_open_descriptor(self):
+        reader = self.dwarfs(
+            '[ "$1 $3 $4 $5" = "--input --image-offset=64 --output squashfs-root" ] || exit 9\n'
+            'case $2 in /proc/self/fd/*) ;; *) exit 8 ;; esac\n'
+            'cmp -s "$2" "%s" || exit 7\ntouch squashfs-root/AppRun\n' % self.image)
+        tool = self.uruntime("echo 'Failed to execute dwarfsextract: EACCES: Permission denied' >&2\nexit 1\n")
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(self.tmp / "rootfs")}), \
+                mock.patch.dict(G, {"URUNTIME": tool, "DWARFSEXTRACT": reader}), \
+                mock.patch("shutil.which", return_value=None):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual(status, 0)
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertNotIn("dwarfsextract could not", said)
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+        self.assertFalse((self.home / ".config/droiddeck/fex-wanted").exists())
+
+    def test_a_dwarfs_image_the_runtime_unpacks_never_runs_dwarfsextract(self):
+        reader = self.dwarfs("touch squashfs-root/AppRun\n")
+        tool = self.uruntime("mkdir -p AppDir && touch AppDir/AppRun\n")
+        with mock.patch.dict(G, {"URUNTIME": tool, "DWARFSEXTRACT": reader}):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual((status, said), (0, ""))
+        self.assertFalse(self.ran.exists())
+
+    def test_a_dwarfsextract_failure_leaves_nothing_unpacked(self):
+        reader = self.dwarfs("mkdir -p squashfs-root/usr\nexit 3\n")
+        tool = self.uruntime("exit 1\n")
+        with mock.patch.dict(G, {"URUNTIME": tool, "DWARFSEXTRACT": reader}), \
+                mock.patch("shutil.which", return_value=None):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual(status, 1)
+        self.assertTrue(self.ran.exists())
+        self.assertIn("dwarfsextract could not extract it (status 3)", said)
+        self.assertFalse(os.path.lexists("squashfs-root"))
+
+    def test_a_squashfs_image_still_goes_to_unsquashfs(self):
+        reader = self.dwarfs("exit 0\n")
+        self.write(self.image, self.runtime_elf() + b"hsqs" + b"payload", 0o755)
+        tool = self.uruntime("exit 1\n")
+        with mock.patch.dict(G, {"DWARFSEXTRACT": reader}):
+            status, said, commands = self.seven_zip(tool, {"unsquashfs": "/usr/bin/unsquashfs", "7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertNotIn("dwarfsextract", said)
+        self.assertEqual(["/usr/bin/unsquashfs", "/usr/bin/7z"], [c[0] for c in commands])
+
 
 class LaunchTest(FexTestCase):
     def test_the_guest_environment(self):

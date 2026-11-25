@@ -44,16 +44,55 @@ class NativeGuestTest {
         val root = rootWithLoader()
         val command = NativeGuest.command(root, "/usr/bin/env", listOf("-i", "A=1"))
         assertEquals(File(root, "usr/lib/ld-linux-aarch64.so.1").path, command[0])
-        assertEquals(listOf("--argv0", "env", File(root, "usr/bin/env").path, "-i", "A=1"), command.drop(1))
+        assertEquals(listOf("--library-path", NativeGuest.libraryPath(root), "--argv0", "env", File(root, "usr/bin/env").path, "-i", "A=1"), command.drop(1))
+        assertTrue("LD_LIBRARY_PATH" !in NativeGuest.environment(root, "/usr/bin/env"))
+    }
+
+    @Test
+    fun builderKeepsCallerLibraryPathAheadOfRootfsDirectories() {
+        val root = rootWithLoader()
+        val rootDirs = NativeGuest.libraryPath(root).split(':')
+        val callerPath = "/custom/lib:${rootDirs[1]}:/other/lib"
+        val builder = NativeGuest.builder(root, "/", listOf("/usr/bin/env"), mapOf("LD_LIBRARY_PATH" to callerPath))
+        val command = builder.command()
+        assertEquals(listOf("/custom/lib", rootDirs[1], "/other/lib") + rootDirs.filterNot { it == rootDirs[1] },
+            command[command.indexOf("--library-path") + 1].split(':'))
+        assertEquals(callerPath, builder.environment()["LD_LIBRARY_PATH"])
+    }
+
+    @Test
+    fun builderPreservesEmptyCallerLibraryPathComponents() {
+        val root = rootWithLoader()
+        val rootPath = NativeGuest.libraryPath(root)
+        for (callerPath in listOf(":/custom/lib", "/custom/lib:", ":/custom/lib::")) {
+            val builder = NativeGuest.builder(root, "/", listOf("/usr/bin/env"), mapOf("LD_LIBRARY_PATH" to callerPath))
+            val command = builder.command()
+            assertEquals("$callerPath:$rootPath", command[command.indexOf("--library-path") + 1])
+            assertEquals(callerPath, builder.environment()["LD_LIBRARY_PATH"])
+        }
+        for (env in listOf(emptyMap(), mapOf("LD_LIBRARY_PATH" to ""))) {
+            val command = NativeGuest.builder(root, "/", listOf("/usr/bin/env"), env).command()
+            assertEquals(rootPath, command[command.indexOf("--library-path") + 1])
+        }
     }
 
     @Test
     fun mountsWithoutADestinationMapToThemselves() {
         val root = rootWithLoader()
-        val env = NativeGuest.sessionEnvironment(root, listOf("/dev", "/a:/b"))
+        val env = NativeGuest.sessionEnvironment(root, listOf("/dev", "/a:/b"), "/usr/bin/env")
         assertEquals("/dev:/dev|/a:/b", env["DDNATV_BINDS"])
         assertEquals(root.path, env["DDNATV_ROOT"])
+        assertTrue("LD_LIBRARY_PATH" !in env)
         assertTrue(env.getValue("LD_PRELOAD").replace(File.separatorChar, '/').endsWith("usr/lib/libddnatv-hook.so"))
+    }
+
+    @Test
+    fun theProgramTheLoaderRunsIsNamedInItsEnvironment() {
+        val root = rootWithLoader()
+        val program = NativeGuest.command(root, "/usr/bin/env", listOf("-i"))[5]
+        assertEquals(program, NativeGuest.sessionEnvironment(root, listOf("/dev"), "/usr/bin/env")["DDNATV_REAL_EXE"])
+        assertEquals(program, NativeGuest.environment(root, "/usr/bin/env")["DDNATV_REAL_EXE"])
+        assertEquals(program, NativeGuest.builder(root, "/", listOf("/usr/bin/env", "-i"), emptyMap()).environment()["DDNATV_REAL_EXE"])
     }
 
     private val linkRoot = "/data/user/0/app/files/linuxfs"

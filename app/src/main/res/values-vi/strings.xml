@@ -2689,6 +2689,7 @@
     <string name="stores_login_error_ssl">Kết nối đến trang đăng nhập không an toàn.</string>
     <string name="stores_login_error_verification">Không thể xác minh đăng nhập. Hãy thử lại.</string>
     <string name="stores_login_error_generic">Đăng nhập thất bại. Hãy thử lại.</string>
+    <string name="stores_login_continue_in_browser">%1$s cần thêm một bước. Hãy hoàn tất trong trình duyệt vừa mở, rồi thử lại.</string>
     <string name="common_close">Đóng</string>
     <string name="common_back">Quay lại</string>
     <string name="common_edit">Sửa</string>
@@ -3069,7 +3070,7 @@
     <string name="hand_camera_done">Xong</string>
     <string name="glasses_xreal_network_missing">Đang chờ kết nối USB Ethernet của kính. Điện thoại này có thể không cho ứng dụng truy cập kết nối đó.</string>
     <string name="glasses_xreal_connection_failed">Kết nối XREAL bị gián đoạn hoặc trả về phản hồi không được hỗ trợ. Đang thử lại…</string>
-    <string name="glasses_xreal_experimental">Hỗ trợ 1S thử nghiệm. Dùng chế độ Follow và tắt ổn định hình ảnh trong menu của kính. Hướng theo dõi và các chế độ hiển thị vẫn cần thử nghiệm trên thiết bị.</string>
+    <string name="glasses_xreal_experimental">Hỗ trợ thử nghiệm cho XREAL 1S, One, One Pro, One Pro+ và Aura. Dùng chế độ Follow và tắt ổn định hình ảnh trong menu của kính; trên Aura, hãy tắt cả Spatial Anchor. Tính năng theo dõi đầu và chuyển đổi 2D/3D đã được thử nghiệm trên Aura và One Pro+.</string>
     <string name="glasses_pro2_experimental">Theo dõi chuyển động đầu thử nghiệm cho Pro 2. Chưa hỗ trợ điều chỉnh độ sáng, âm lượng và chuyển chế độ hiển thị.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Chế độ Cardboard</string>
@@ -4047,4 +4048,6 @@
     <string name="theme_custom_signal">Điểm nhấn</string>
     <string name="theme_custom_good">Thành công</string>
     <string name="theme_custom_error">Lỗi</string>
+    <string name="hud_only_during_game">Chỉ hiển thị HUD khi đang chơi</string>
+    <string name="hud_only_during_game_hint">Ẩn HUD khi không phát hiện khung hình trò chơi.</string>
 </resources>

@@ -2818,6 +2818,7 @@
     <string name="stores_login_error_ssl">الاتصال بصفحة تسجيل الدخول غير آمن.</string>
     <string name="stores_login_error_verification">تعذّر التحقّق من تسجيل الدخول. حاوِل مرة أخرى.</string>
     <string name="stores_login_error_generic">فشل تسجيل الدخول. حاوِل مرة أخرى.</string>
+    <string name="stores_login_continue_in_browser">يحتاج %1$s إلى خطوة أخرى. أكملها في المتصفح الذي فُتح، ثم حاول مرة أخرى.</string>
     <string name="common_close">إغلاق</string>
     <string name="common_back">رجوع</string>
     <string name="common_edit">تعديل</string>
@@ -3218,7 +3219,7 @@
     <string name="hand_camera_done">تم</string>
     <string name="glasses_xreal_network_missing">في انتظار اتصال USB Ethernet الخاص بالنظارة. قد لا يتيحه هذا الهاتف للتطبيقات.</string>
     <string name="glasses_xreal_connection_failed">انقطع اتصال XREAL أو أعاد استجابة غير مدعومة. جارٍ إعادة المحاولة…</string>
-    <string name="glasses_xreal_experimental">دعم تجريبي لـ 1S. استخدم وضع Follow وعطّل تثبيت الصورة من قائمة النظارة. لا تزال اتجاهات التتبّع وأوضاع العرض بحاجة إلى اختبار على الجهاز.</string>
+    <string name="glasses_xreal_experimental">دعم تجريبي لـ XREAL 1S وOne وOne Pro وOne Pro+ وAura. استخدم وضع Follow وأوقف تثبيت الصورة في قائمة النظارة؛ وعلى Aura، أوقف Spatial Anchor أيضًا. تم اختبار تتبع الرأس والتبديل بين 2D/3D على Aura وOne Pro+.</string>
     <string name="glasses_pro2_experimental">تتبّع تجريبي لحركة الرأس لنظارة Pro 2. لا يُدعم بعد ضبط السطوع ومستوى الصوت أو تبديل وضع العرض.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">وضع Cardboard</string>
@@ -4237,4 +4238,6 @@
     <string name="theme_custom_signal">الإبرازات</string>
     <string name="theme_custom_good">نجاح</string>
     <string name="theme_custom_error">خطأ</string>
+    <string name="hud_only_during_game">عرض HUD أثناء اللعب فقط</string>
+    <string name="hud_only_during_game_hint">إخفاء HUD عند عدم اكتشاف إطارات اللعبة.</string>
 </resources>

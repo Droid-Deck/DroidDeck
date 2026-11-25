@@ -2689,6 +2689,7 @@
     <string name="stores_login_error_ssl">Koneksi ke halaman masuk tidak aman.</string>
     <string name="stores_login_error_verification">Proses masuk tidak dapat diverifikasi. Coba lagi.</string>
     <string name="stores_login_error_generic">Proses masuk gagal. Coba lagi.</string>
+    <string name="stores_login_continue_in_browser">%1$s memerlukan satu langkah lagi. Selesaikan di browser yang terbuka, lalu coba lagi.</string>
     <string name="common_close">Tutup</string>
     <string name="common_back">Kembali</string>
     <string name="common_edit">Edit</string>
@@ -3069,7 +3070,7 @@
     <string name="hand_camera_done">Selesai</string>
     <string name="glasses_xreal_network_missing">Menunggu koneksi Ethernet USB dari kacamata. Ponsel ini mungkin tidak menyediakannya untuk aplikasi.</string>
     <string name="glasses_xreal_connection_failed">Koneksi XREAL terputus atau memberikan respons yang tidak didukung. Mencoba lagi…</string>
-    <string name="glasses_xreal_experimental">Dukungan 1S eksperimental. Gunakan mode Follow dan nonaktifkan stabilisasi di menu kacamata. Arah pelacakan dan mode tampilan masih perlu diuji di perangkat.</string>
+    <string name="glasses_xreal_experimental">Dukungan eksperimental untuk XREAL 1S, One, One Pro, One Pro+, dan Aura. Gunakan mode Follow dan nonaktifkan stabilisasi di menu kacamata; pada Aura, nonaktifkan juga Spatial Anchor. Pelacakan kepala dan peralihan 2D/3D telah diuji pada Aura dan One Pro+.</string>
     <string name="glasses_pro2_experimental">Pelacakan kepala Pro 2 eksperimental. Pengaturan kecerahan, volume, dan pergantian mode tampilan belum didukung.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Mode Cardboard</string>
@@ -4047,4 +4048,6 @@
     <string name="theme_custom_signal">Sorotan</string>
     <string name="theme_custom_good">Berhasil</string>
     <string name="theme_custom_error">Kesalahan</string>
+    <string name="hud_only_during_game">Tampilkan HUD hanya saat bermain</string>
+    <string name="hud_only_during_game_hint">Sembunyikan HUD saat tidak ada frame game yang terdeteksi.</string>
 </resources>

@@ -244,6 +244,7 @@ int close(int fd) {
     if (g_kept_fd_count > 0 && is_kept_fd(fd)) return 0;
     clear_dns_redirect(fd);
     set_chosen_port_fd(fd, 0);
+    forget_proc_root_fd(fd);
     return orig_close ? orig_close(fd) : -1;
 }
 
@@ -254,7 +255,9 @@ int dup2(int oldfd, int newfd) {
         clear_dns_redirect(newfd);
         set_chosen_port_fd(newfd, is_chosen_port_fd(oldfd));
     }
-    return orig_dup2 ? orig_dup2(oldfd, newfd) : -1;
+    int ret = orig_dup2 ? orig_dup2(oldfd, newfd) : -1;
+    if (ret >= 0) copy_proc_root_fd(oldfd, ret);
+    return ret;
 }
 
 int dup3(int oldfd, int newfd, int flags) {
@@ -264,7 +267,9 @@ int dup3(int oldfd, int newfd, int flags) {
         clear_dns_redirect(newfd);
         set_chosen_port_fd(newfd, is_chosen_port_fd(oldfd));
     }
-    return orig_dup3 ? orig_dup3(oldfd, newfd, flags) : -1;
+    int ret = orig_dup3 ? orig_dup3(oldfd, newfd, flags) : -1;
+    if (ret >= 0) copy_proc_root_fd(oldfd, ret);
+    return ret;
 }
 
 static int get_dns_redirect(int fd, struct sockaddr_storage *orig, socklen_t *orig_len) {
