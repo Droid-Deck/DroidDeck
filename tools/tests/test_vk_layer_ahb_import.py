@@ -191,7 +191,81 @@ int main(void) {
 }
 '''
 
+SNIFF_HARNESS = r'''
+#include <assert.h>
+#include <stdint.h>
+#include <sys/types.h>
+
+#define MOD_LINEAR 0ULL
+#define MOD_QCOM_COMPRESSED 0x0500000000000001ULL
+
+struct droiddeck_native_handle { int version; int numFds; int numInts; int data[40]; };
+static off_t fake_fd_size;
+static off_t test_lseek(int fd, off_t off, int whence) {
+    (void)fd; (void)off;
+    return whence == 2 ? fake_fd_size : 0;
+}
+#define SEEK_SET 0
+#define SEEK_END 2
+#define lseek test_lseek
+
+%(sniff_modifier)s
+
+int main(void) {
+    uint64_t mod = 123;
+    struct droiddeck_native_handle gmsm_ubwc = {
+        .numFds = 2, .numInts = 2, .data = {3, 4, (int)0x676d736dU, (int)0x08000000U}
+    };
+    assert(sniff_modifier(&gmsm_ubwc, &mod) == 1 && mod == MOD_QCOM_COMPRESSED);
+
+    struct droiddeck_native_handle gmsm_lin = {
+        .numFds = 1, .numInts = 2, .data = {3, (int)0x676d736dU, 0x200}
+    };
+    assert(sniff_modifier(&gmsm_lin, &mod) == 1 && mod == MOD_LINEAR);
+
+    struct droiddeck_native_handle snap_ubwc = {
+        .numFds = 2, .numInts = 34,
+        .data = {
+            10, 11,
+            0, 1, 0x0a000000, 5120, 1280, 720, 1280, 720, 1, 0, 1, 0x800, 0, 0x10000b00, 0, 3710976, 0
+        }
+    };
+    fake_fd_size = 3710976;
+    assert(sniff_modifier(&snap_ubwc, &mod) == 1 && mod == MOD_QCOM_COMPRESSED);
+
+    snap_ubwc.data[2 + 2] = 0x200;
+    assert(sniff_modifier(&snap_ubwc, &mod) == 1 && mod == MOD_LINEAR);
+
+    fake_fd_size = 1024;
+    assert(sniff_modifier(&snap_ubwc, &mod) == 0);
+
+    fake_fd_size = 3710976;
+    snap_ubwc.data[2 + 10] = 2;
+    assert(sniff_modifier(&snap_ubwc, &mod) == 0);
+
+    struct droiddeck_native_handle non_qti = {.numFds = 1, .numInts = 2, .data = {3, 0x12345678, 0}};
+    assert(sniff_modifier(&non_qti, &mod) == 0);
+    return 0;
+}
+'''
+
+
 class LayerAhbImportTest(unittest.TestCase):
+    def test_sniff_modifier_supports_legacy_gmsm_and_qti_snap_handles(self):
+        compiler = shutil.which(os.environ.get("CC", "cc") or "gcc") or shutil.which("gcc")
+        if not compiler:
+            self.fail("A C compiler is required for the sniff_modifier test")
+        body = function((SRC / "sc_layer.c").read_text(), "sniff_modifier")
+        with tempfile.TemporaryDirectory(prefix="droiddeck-sniff-") as tmp:
+            source = Path(tmp) / "sniff_test.c"
+            source.write_text(SNIFF_HARNESS % {"sniff_modifier": body})
+            program = Path(tmp) / "sniff-test"
+            built = subprocess.run([compiler, "-std=c11", "-Wall", "-Wextra", "-Werror", "-UNDEBUG", str(source),
+                                    "-o", str(program)], capture_output=True, text=True)
+            self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+            ran = subprocess.run([str(program)], capture_output=True, text=True, timeout=30)
+            self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+
     def test_only_the_system_driver_imports_gralloc_layouts(self):
         compiler = shutil.which(os.environ.get("CC", "cc"))
         if not compiler:

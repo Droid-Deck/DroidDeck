@@ -62,15 +62,60 @@ class Holder:
         self.held = {}
         self.core = None
 
-    def slow_core(self):
-        def top(cpu):
+    def _policy_speeds(self, cpus):
+        speeds = {}
+        cpufreq = self.cpufreq / "cpufreq"
+        if not cpufreq.is_dir():
+            return speeds
+        for policy in cpufreq.iterdir():
+            if not policy.name.startswith("policy") or not policy.name[6:].isdigit():
+                continue
             try:
-                return int((self.cpufreq / f"cpu{cpu}/cpufreq/cpuinfo_max_freq").read_text())
+                freq = int((policy / "cpuinfo_max_freq").read_text())
             except (OSError, ValueError):
-                return 0
+                continue
+            if freq <= 0:
+                continue
+            for rel in ("related_cpus", "affected_cpus"):
+                try:
+                    members = {int(tok) for tok in (policy / rel).read_text().split()}
+                except (OSError, ValueError):
+                    continue
+                for cpu in members & cpus:
+                    speeds[cpu] = freq
+                break
+        return speeds
+
+    def slow_core(self):
         cpus = self.cores.own()
-        slowest = min(top(cpu) for cpu in cpus)
-        return max(cpu for cpu in cpus if top(cpu) == slowest)
+        if not cpus:
+            return 0
+        speeds = {}
+        for cpu in cpus:
+            try:
+                value = int((self.cpufreq / f"cpu{cpu}/cpufreq/cpuinfo_max_freq").read_text())
+            except (OSError, ValueError):
+                continue
+            if value > 0:
+                speeds[cpu] = value
+        if len(speeds) < len(cpus):
+            for cpu, freq in self._policy_speeds(cpus).items():
+                speeds.setdefault(cpu, freq)
+        if len(set(speeds.values())) <= 1:
+            cap = {}
+            for cpu in cpus:
+                try:
+                    value = int((self.cpufreq / f"cpu{cpu}/cpu_capacity").read_text())
+                except (OSError, ValueError):
+                    continue
+                if value > 0:
+                    cap[cpu] = value
+            if len(set(cap.values())) > 1 or (not speeds and cap):
+                speeds = cap
+        if not speeds:
+            return min(cpus)
+        slowest = min(speeds.values())
+        return max(cpu for cpu, value in speeds.items() if value == slowest)
 
     def helpers(self):
         for name in os.listdir(self.proc):

@@ -163,8 +163,18 @@ class TurnipDriverAutoTest {
 
     @Test fun normalizedGpuModelsSelectExistingGenerationDrivers() {
         for (sdk in listOf(28, 36)) {
+            assertEquals("turnip26.3.0-a6xx", TurnipDriver.chooseByModel(610, sdk))
+            assertEquals("turnip26.3.0-a6xx", TurnipDriver.chooseByModel(619, sdk))
             assertEquals("turnip26.3.0-a6xx", TurnipDriver.chooseByModel(650, sdk))
+            assertEquals("turnip25.1.0", TurnipDriver.chooseByModel(725, sdk))
             assertEquals("turnip25.1.0", TurnipDriver.chooseByModel(730, sdk))
+            assertEquals("turnip25.1.0", TurnipDriver.chooseByModel(732, sdk))
+            assertEquals("turnip25.1.0", TurnipDriver.chooseByModel(735, sdk))
+            assertEquals("turnip25.1.0", TurnipDriver.chooseByModel(GpuInfo.threeDigits("Adreno A32"), sdk))
+            assertEquals("turnip-sdk36", TurnipDriver.chooseByModel(810, sdk))
+            assertEquals("turnip-sdk36", TurnipDriver.chooseByModel(825, sdk))
+            assertEquals("turnip-sdk36", TurnipDriver.chooseByModel(829, sdk))
+            assertEquals("turnip-sdk36", TurnipDriver.chooseByModel(840, sdk))
             assertEquals("turnip-sdk36", TurnipDriver.chooseByModel(850, sdk))
         }
     }

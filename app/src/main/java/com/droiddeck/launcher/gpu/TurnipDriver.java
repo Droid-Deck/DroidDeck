@@ -298,11 +298,12 @@ public final class TurnipDriver {
         }
         // A Mali under Auto draws its display on Android's own Vulkan loader, whatever an earlier
         // build set: a PanVK Android half fails on Mali gralloc. A manual pick is respected.
-        if (chosen != null && !chosen.isEmpty() && new File("/dev/mali0").exists()
+        if (chosen != null && !chosen.isEmpty()
                 && !com.droiddeck.launcher.core.DeviceSupport.INSTANCE.adreno()
                 && SessionPrefs.GPU_DRIVERS_AUTO.equals(SessionPrefs.INSTANCE.gpuDriverMode(context))) {
             DriverBundle.Bundle bundle = DriverBundle.INSTANCE.containing(context, chosen, false);
-            if (bundle != null && DriverPairs.INSTANCE.isNonAdreno(bundle.getId())) {
+            if (bundle != null && DriverPairs.INSTANCE.isNonAdreno(bundle.getId())
+                    && (new File("/dev/mali0").exists() || com.droiddeck.launcher.core.DeviceSupport.INSTANCE.mali())) {
                 Log.i(TAG, "Mali under Auto: display on the system Vulkan loader, not " + chosen);
                 return null;
             }

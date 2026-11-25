@@ -3,13 +3,13 @@ package com.droiddeck.launcher.core
 import android.content.Context
 import android.os.Build
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.gpu.GpuInfo
+import com.droiddeck.launcher.gpu.SocNames
 import com.droiddeck.launcher.gpu.SystemVulkanDriver
 import java.io.File
 
 object DeviceSupport {
-    private val adrenoGpu by lazy {
-        File("/sys/class/kgsl/kgsl-3d0").exists() || File("/vendor/lib64/hw/vulkan.adreno.so").exists()
-    }
+    private val adrenoGpu by lazy { GpuInfo.adrenoHardwarePresent() }
 
     fun adreno(): Boolean = adrenoGpu
 
@@ -24,9 +24,11 @@ object DeviceSupport {
     fun mali(): Boolean = isMali
 
     private val isMali by lazy {
-        !adreno() && (File("/dev/mali0").exists() ||
-            com.droiddeck.launcher.gpu.GpuInfo.detect().family.name.startsWith("MALI"))
+        isMali(adreno(), File("/dev/mali0").exists(), GpuInfo.detect().family)
     }
+
+    internal fun isMali(adreno: Boolean, maliNode: Boolean, family: GpuInfo.Family): Boolean =
+        !adreno && (maliNode || family.mali)
 
     fun bridgeUsable(): Boolean = bridgeUsable(adreno(), SystemVulkanDriver.isAvailable())
 
@@ -44,7 +46,7 @@ object DeviceSupport {
         com.droiddeck.launcher.session.VenusComponent.wanted(context)
 
     fun gpuName(context: Context): String {
-        val soc = if (Build.VERSION.SDK_INT >= 31) Build.SOC_MODEL.takeIf { it.isNotBlank() && it != Build.UNKNOWN } else null
+        val soc = if (Build.VERSION.SDK_INT >= 31) SocNames.model().ifEmpty { null } else null
         return soc?.let { "$it (${Build.HARDWARE})" } ?: Build.HARDWARE.ifBlank { context.getString(R.string.gpu_this_gpu) }
     }
 

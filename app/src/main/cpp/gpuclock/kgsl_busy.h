@@ -38,7 +38,7 @@ static inline int kgsl_busy_sample(const volatile uint32_t *memstore, int first,
 // leave the ringbuffer entries at 0. The GMU firmware writes each context's own entry instead
 // (gen8_hwsched_hfi.c send_context_pointers). Context ids run from 1 below the ringbuffer entries, lowest free first,
 // and kgsl zeroes an entry when its context is created or destroyed.
-#define KGSL_BUSY_MAX_LIVE 64
+#define KGSL_BUSY_MAX_LIVE 128
 
 // Collects the contexts to sample: every entry below first with a non-zero start stamp (kgsl zeroes an entry when its
 // context is created or destroyed). Entries whose start stamp changed since the previous scan (seen[]) or that are

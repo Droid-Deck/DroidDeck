@@ -440,9 +440,26 @@ static void drain_and_free_pools(void) {
 static int sniff_modifier(const struct droiddeck_native_handle *h, uint64_t *mod) {
     const uint32_t gmsm = ('g' << 24) | ('m' << 16) | ('s' << 8) | 'm';
     if (!h || h->numFds < 1 || h->numInts < 2) return 0;
-    if ((uint32_t)h->data[h->numFds] != gmsm) return 0;
-    *mod = (h->data[h->numFds + 1] & 0x08000000) ? MOD_QCOM_COMPRESSED : MOD_LINEAR;
-    return 1;
+    const uint32_t *ints = (const uint32_t *)(h->data + h->numFds);
+    if (ints[0] == gmsm) {
+        *mod = (ints[1] & 0x08000000u) ? MOD_QCOM_COMPRESSED : MOD_LINEAR;
+        return 1;
+    }
+    /* Android 16+ QTI SnapHandle drops the gmsm header and places flags at int[2] and byte size at int[15..16]. */
+    if (h->numFds == 2 && h->numInts >= 20 && ints[0] == 0 && ints[1] == 1) {
+        const uint32_t stride_bytes = ints[3], aw = ints[4], ah = ints[5], uw = ints[6], uh = ints[7];
+        const uint64_t size = (uint64_t)ints[15] | ((uint64_t)ints[16] << 32);
+        if (uw && uh && aw >= uw && ah >= uh && stride_bytes && !(stride_bytes & 3u) &&
+            (uint64_t)stride_bytes >= (uint64_t)aw * 4u && ints[10] == 1 && size) {
+            const off_t fd0 = lseek(h->data[0], 0, SEEK_END);
+            if (fd0 >= 0) lseek(h->data[0], 0, SEEK_SET);
+            if (fd0 > 0 && (uint64_t)fd0 == size) {
+                *mod = (ints[2] & 0x08000000u) ? MOD_QCOM_COMPRESSED : MOD_LINEAR;
+                return 1;
+            }
+        }
+    }
+    return 0;
 }
 
 #define SC_MOD_GRALLOC (~0ULL - 1)

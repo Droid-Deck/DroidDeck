@@ -35,19 +35,60 @@ def parse_cores(text):
     return cores
 
 
+def _policy_speeds(cpu, online):
+    speeds = {}
+    cpufreq = cpu / "cpufreq"
+    if not cpufreq.is_dir():
+        return speeds
+    for policy in cpufreq.iterdir():
+        if not policy.name.startswith("policy") or not policy.name[6:].isdigit():
+            continue
+        try:
+            freq = int((policy / "cpuinfo_max_freq").read_text())
+        except (OSError, ValueError):
+            continue
+        if freq <= 0:
+            continue
+        for rel in ("related_cpus", "affected_cpus"):
+            try:
+                members = {int(tok) for tok in (policy / rel).read_text().split()}
+            except (OSError, ValueError):
+                continue
+            for core in members & online:
+                speeds[core] = freq
+            break
+    return speeds
+
+
 def efficient_cores(cpu=Path("/sys/devices/system/cpu"), own=None):
     try:
         online = parse_cores((cpu / "online").read_text())
     except (OSError, ValueError):
         online = set(range(os.cpu_count() or 0))
     online &= own if own is not None else os.sched_getaffinity(0)
+    if not online:
+        return set()
     for name in ("cpu_capacity", "cpufreq/cpuinfo_max_freq"):
-        try:
-            speed = {core: int((cpu / f"cpu{core}/{name}").read_text()) for core in online}
-        except (OSError, ValueError):
+        speed = {}
+        for core in online:
+            try:
+                value = int((cpu / f"cpu{core}/{name}").read_text())
+            except (OSError, ValueError):
+                continue
+            if value > 0:
+                speed[core] = value
+        if name == "cpu_capacity" and len(speed) < len(online):
             continue
-        top = max(speed.values(), default=0)
-        return {core for core, value in speed.items() if value < top}
+        if name == "cpufreq/cpuinfo_max_freq" and len(speed) < len(online):
+            for core, freq in _policy_speeds(cpu, online).items():
+                speed.setdefault(core, freq)
+        if len(set(speed.values())) > 1:
+            top = max(speed.values())
+            return {core for core, value in speed.items() if value < top}
+    policy = _policy_speeds(cpu, online)
+    if len(set(policy.values())) > 1:
+        top = max(policy.values())
+        return {core for core, value in policy.items() if value < top}
     return set()
 
 

@@ -129,12 +129,15 @@ static uint64_t gralloc_bytes(uint32_t format, uint64_t usage, uint32_t *stride)
 static int ubwc_probe(uint32_t format) {
     int *state = &g_ubwc_probed[format == AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM ? 0 : 1];
     if (*state) return *state > 0;
-    uint32_t stride = 0, linear_stride = 0;
+    uint32_t stride = 0, plain_stride = 0, linear_stride = 0;
     const uint64_t flagged = gralloc_bytes(format, SC_LAYER_AHB_USAGE_VENDOR_UBWC, &stride);
-    const uint64_t plain = gralloc_bytes(format, 0, &stride);
+    const uint64_t plain = gralloc_bytes(format, 0, &plain_stride);
     const uint64_t linear = gralloc_bytes(format, AHARDWAREBUFFER_USAGE_CPU_READ_RARELY, &linear_stride);
-    const uint64_t need = ubwc_size(DISPLAY_BUFFERS_PROBE_W, DISPLAY_BUFFERS_PROBE_H, stride * 4);
-    *state = stride && linear != need && (flagged == need || plain == need) ? 1 : -1;
+    const uint64_t need_flagged = stride ? ubwc_size(DISPLAY_BUFFERS_PROBE_W, DISPLAY_BUFFERS_PROBE_H, stride * 4) : 0;
+    const uint64_t need_plain = plain_stride ? ubwc_size(DISPLAY_BUFFERS_PROBE_W, DISPLAY_BUFFERS_PROBE_H, plain_stride * 4) : 0;
+    const uint64_t need = need_flagged ? need_flagged : need_plain;
+    *state = (need_flagged && linear != need_flagged && flagged == need_flagged) ||
+             (need_plain && linear != need_plain && plain == need_plain) ? 1 : -1;
     droiddeck_log("layer", "display buffers: gralloc %s buffers %s (%ux%u: the layout takes %llu bytes; gralloc gives %llu "
                "asked for UBWC, %llu unasked, %llu linear)", droiddeck_ahb_format_name(format),
                *state > 0 ? "use the UBWC layout the drivers render to: compressed frames can go on the display layer"

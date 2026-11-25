@@ -366,6 +366,8 @@ tasks.named('preBuild').configure { dependsOn(buildRustStores) }
 
 def maliBridgeDir = rootProject.file('external/MaliBridge')
 def vkbridgeJniLibsDir = layout.buildDirectory.dir('vkbridgeJniLibs')
+def bashExecutable = org.gradle.internal.os.OperatingSystem.current().isWindows() && new File('C:/Program Files/Git/bin/bash.exe').isFile()
+    ? 'C:/Program Files/Git/bin/bash.exe' : 'bash'
 def buildVkBridgeServer = tasks.register('buildVkBridgeServer', Exec) {
     description = 'Builds the Vulkan bridge server (libvkbridge_server.so) with the NDK.'
     inputs.dir(new File(maliBridgeDir, 'common'))
@@ -373,8 +375,8 @@ def buildVkBridgeServer = tasks.register('buildVkBridgeServer', Exec) {
     inputs.dir(new File(maliBridgeDir, 'third_party'))
     inputs.file(new File(maliBridgeDir, 'scripts/build-server-android.sh'))
     outputs.dir(vkbridgeJniLibsDir)
-    commandLine 'bash', new File(maliBridgeDir, 'scripts/build-server-android.sh').absolutePath,
-        android.ndkDirectory.absolutePath, vkbridgeJniLibsDir.get().asFile.absolutePath
+    commandLine bashExecutable, new File(maliBridgeDir, 'scripts/build-server-android.sh').absolutePath.replace('\\', '/'),
+        android.ndkDirectory.absolutePath.replace('\\', '/'), vkbridgeJniLibsDir.get().asFile.absolutePath.replace('\\', '/')
 }
 android.sourceSets.main.jniLibs.srcDir(vkbridgeJniLibsDir)
 tasks.named('preBuild').configure { dependsOn(buildVkBridgeServer) }

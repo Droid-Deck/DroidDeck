@@ -584,7 +584,34 @@ def game_cores(env):
         print("droiddeck-game-env: could not use game cores %r (%s)" % (text, error), file=sys.stderr)
 
 
+def policy_speeds(cores, root="/sys/devices/system/cpu"):
+    cpufreq = Path(root) / "cpufreq"
+    if not cpufreq.is_dir():
+        return None
+    wanted = set(cores)
+    speeds = {}
+    for policy in cpufreq.iterdir():
+        if not policy.name.startswith("policy") or not policy.name[6:].isdigit():
+            continue
+        try:
+            freq = int((policy / "cpuinfo_max_freq").read_text().strip())
+        except (OSError, ValueError):
+            continue
+        if freq <= 0:
+            continue
+        for rel in ("related_cpus", "affected_cpus"):
+            try:
+                members = {int(tok) for tok in (policy / rel).read_text().split()}
+            except (OSError, ValueError):
+                continue
+            for core in members & wanted:
+                speeds[core] = freq
+            break
+    return speeds if len(speeds) == len(wanted) else None
+
+
 def core_speeds(cores, root="/sys/devices/system/cpu"):
+    first_uniform = None
     for name in ("cpu_capacity", "cpufreq/cpuinfo_max_freq"):
         speeds = {}
         for core in cores:
@@ -594,8 +621,14 @@ def core_speeds(cores, root="/sys/devices/system/cpu"):
             except (OSError, ValueError):
                 break
         else:
-            return speeds
-    return None
+            if len(cores) <= 1 or len(set(speeds.values())) > 1:
+                return speeds
+            if first_uniform is None:
+                first_uniform = speeds
+    policy = policy_speeds(cores, root)
+    if policy and (len(cores) <= 1 or len(set(policy.values())) > 1 or first_uniform is None):
+        return policy
+    return first_uniform
 
 
 def fastest_first(cores):
@@ -639,7 +672,7 @@ def cpu_topology(env, command=()):
     except OSError:
         return
     online = online_cores()
-    if not cores or cores[-1] >= len(online):
+    if not cores or not set(cores) <= online:
         return
     picked = picked and not set(cores) >= online
     if fastest:

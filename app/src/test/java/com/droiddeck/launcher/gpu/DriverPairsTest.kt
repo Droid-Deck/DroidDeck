@@ -278,10 +278,14 @@ class DriverPairsTest {
     @Test
     fun aMaliTheDeviceDoesNotNameIsKnownByItsChip() {
         assertEquals("Mali-G720 (by chip mt6989)", GpuInfo.maliOfSoc(listOf("", "mt6989")))
+        assertEquals("Mali-G720 (by chip mt6989w)", GpuInfo.maliOfSoc(listOf("MT6989W")))
         assertEquals("Mali-G710 (by chip gs201)", GpuInfo.maliOfSoc(listOf("GS201")))
+        assertEquals("Mali-G715 (by chip zuma_pro)", GpuInfo.maliOfSoc(listOf("zuma_pro")))
+        assertEquals("Mali-G615 (by chip s5e8535)", GpuInfo.maliOfSoc(listOf("s5e8535")))
         assertEquals(null, GpuInfo.maliOfSoc(listOf("unknown-chip")))
         // An Exynos with a Mali, and a Helio G99, by board name.
         assertEquals(Family.MALI_JM, GpuInfo.familyOf(false, 0, mali = GpuInfo.maliOfSoc(listOf("s5e8835"))))
+        assertEquals(Family.MALI_G615, GpuInfo.familyOf(false, 0, mali = GpuInfo.maliOfSoc(listOf("s5e8535"))))
         assertEquals(Family.MALI_JM, GpuInfo.familyOf(false, 0, mali = GpuInfo.maliOfSoc(listOf("MT6789"))))
         assertEquals(Family.MALI_G720, GpuInfo.familyOf(false, 0, mali = "Mali-G720 (by chip mt6989)"))
         assertEquals(Family.MALI_LATEST, GpuInfo.familyOf(false, 0, mali = "Mali-G925 (by chip mt6991)"))
@@ -299,5 +303,76 @@ class DriverPairsTest {
     fun autoTakesRadvOnAnXclipseAndLeavesPowerVrOnTheSystemDriver() {
         assertEquals(DriverPairs.NAD_RADV_XCLIPSE, DriverPairs.recommendedKey(GpuInfo("Samsung Xclipse 940", 0, Family.POWERVR, "", false), emptyList()))
         assertNull(DriverPairs.recommendedKey(GpuInfo("PowerVR", 0, Family.POWERVR, "", false), emptyList()))
+    }
+
+    @Test
+    fun maliVariantsImmortalisAndThirdGenerationValhallAreCovered() {
+        for (name in listOf("Immortalis-G720 MC12", "Immortalis-G925", "Mali-G78AE", "Mali-G310", "Mali-G510 MC6")) {
+            assertTrue(name, GpuInfo.maliKbaseCovered(name))
+        }
+        assertEquals(720, GpuInfo.maliNumber("Immortalis-G720 MC12"))
+        assertEquals(925, GpuInfo.maliNumber("Immortalis-G925"))
+        assertEquals(78, GpuInfo.maliNumber("Mali-G78AE"))
+        assertEquals(310, GpuInfo.maliNumber("Mali-G310"))
+        assertEquals(510, GpuInfo.maliNumber("Mali-G510"))
+        assertEquals(null, GpuInfo.maliNumber("RG556"))
+
+        assertEquals(Family.MALI_G720, GpuInfo.familyOf(false, 0, mali = "Immortalis-G720 MC12"))
+        assertEquals(Family.MALI_LATEST, GpuInfo.familyOf(false, 0, mali = "Immortalis-G925"))
+        assertEquals(Family.MALI_JM, GpuInfo.familyOf(false, 0, mali = "Mali-G78AE"))
+        assertEquals(Family.MALI_G610_G710, GpuInfo.familyOf(false, 0, mali = "Mali-G310"))
+        assertEquals(Family.MALI_G610_G710, GpuInfo.familyOf(false, 0, mali = "Mali-G510 MC6"))
+
+        val g310 = GpuInfo("Mali-G310", 0, Family.MALI_G610_G710, "", false)
+        val g510 = GpuInfo("Mali-G510 MC6", 0, Family.MALI_G610_G710, "", false)
+        assertEquals(DriverPairs.NAD_MALI_G710, DriverPairs.recommendedKey(g310, emptyList(), sdk = 34))
+        assertEquals(DriverPairs.NAD_MALI_KBASE, DriverPairs.recommendedKey(g310, emptyList(), sdk = 35))
+        assertEquals(DriverPairs.NAD_MALI_G710, DriverPairs.recommendedKey(g510, emptyList(), sdk = 34))
+        assertEquals(DriverPairs.NAD_MALI_KBASE, DriverPairs.recommendedKey(g510, emptyList(), sdk = 35))
+    }
+
+    @Test
+    fun expandedMaliSocMapCoversMediaTekExynosTensorUnisocAndRockchip() {
+        val expected = mapOf(
+            "mt6991" to "Mali-G925", "mt6991w" to "Mali-G925", "mt6899" to "Mali-G720",
+            "mt6985" to "Mali-G715", "mt6985w" to "Mali-G715",
+            "mt6983" to "Mali-G710", "mt6983w" to "Mali-G710",
+            "mt6897" to "Mali-G615", "mt6897z" to "Mali-G615", "mt6878" to "Mali-G615",
+            "mt6895" to "Mali-G610", "mt6895z" to "Mali-G610", "mt6896" to "Mali-G610", "mt6886" to "Mali-G610",
+            "mt6893" to "Mali-G77", "mt6891" to "Mali-G77", "mt6889" to "Mali-G77", "mt6885" to "Mali-G77",
+            "mt6877" to "Mali-G68", "mt6873" to "Mali-G57", "mt6875" to "Mali-G57",
+            "mt6853" to "Mali-G57", "mt6835" to "Mali-G57", "mt6833" to "Mali-G57",
+            "mt6785" to "Mali-G76", "mt6781" to "Mali-G52", "mt6769" to "Mali-G52", "mt6768" to "Mali-G52",
+            "mt6771" to "Mali-G72", "mt8183" to "Mali-G72", "mt8186" to "Mali-G52",
+            "mt8192" to "Mali-G57", "mt8195" to "Mali-G57",
+            "gs101" to "Mali-G78", "gs301" to "Mali-G715", "gs401" to "Mali-G715",
+            "zuma" to "Mali-G715", "zumapro" to "Mali-G715",
+            "Tensor G3" to "Mali-G715", "Tensor G4" to "Mali-G715", "GoogleTensorG4" to "Mali-G715",
+            "exynos2100" to "Mali-G78", "s5e9840" to "Mali-G78", "exynos1080" to "Mali-G78",
+            "exynos990" to "Mali-G77", "s5e9830" to "Mali-G77",
+            "exynos9820" to "Mali-G76", "s5e9820" to "Mali-G76", "exynos9825" to "Mali-G76",
+            "s5e8835" to "Mali-G68", "s5e8825" to "Mali-G68", "exynos850" to "Mali-G52",
+            "ums9620" to "Mali-G57", "ums9230" to "Mali-G57", "ums512" to "Mali-G52",
+            "rk3588" to "Mali-G610", "rk3588s" to "Mali-G610", "rk3566" to "Mali-G52",
+        )
+        for ((soc, gpu) in expected) {
+            assertEquals(soc, "$gpu (by chip ${soc.lowercase()})", GpuInfo.maliOfSoc(listOf(soc)))
+        }
+        // Xclipse Exynos SoCs and PowerVR Tensor G5 must never be classified as Mali.
+        for (nonMali in listOf("s5e9925", "s5e9945", "s5e9955", "s5e8845", "s5e8855", "laguna", "Tensor G5")) {
+            assertNull(nonMali, GpuInfo.maliOfSoc(listOf(nonMali)))
+        }
+    }
+
+    @Test
+    fun adrenoASeriesAndNewerFamiliesPickCompatibleDrivers() {
+        val a32 = GpuInfo.threeDigits("Adreno (TM) A32")
+        val a22 = GpuInfo.threeDigits("Adreno (TM) A22")
+        val a12 = GpuInfo.threeDigits("Adreno (TM) A12")
+        assertEquals(DriverPairs.BANNER, DriverPairs.recommendedKey(gpu(a32), emptyList()))
+        assertEquals(DriverPairs.BANNER_710, DriverPairs.recommendedKey(gpu(a22), emptyList()))
+        assertEquals(DriverPairs.BANNER_710, DriverPairs.recommendedKey(gpu(a12), emptyList()))
+        assertEquals(DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(810), emptyList()))
+        assertEquals(DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(829), emptyList()))
     }
 }

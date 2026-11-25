@@ -96,6 +96,35 @@ class EfficientCoresTest(unittest.TestCase):
                 (cpu / f'cpu{core}/cpu_capacity').write_text('1024\n')
             self.assertEqual(efficient_cores(cpu, set(range(4))), set())
 
+    def test_s26_ultra_and_three_or_four_cluster_topologies(self):
+        cases = [
+            ('0-7', {0: 3628800, 1: 3628800, 2: 3628800, 3: 3628800, 4: 3628800, 5: 3628800, 6: 4742400, 7: 4742400}, set(range(6))),
+            ('0-7', {0: 1800000, 1: 1800000, 2: 1800000, 3: 1800000, 4: 2800000, 5: 2800000, 6: 2800000, 7: 3200000}, set(range(7))),
+            ('0-7', {0: 2265600, 1: 2265600, 2: 3148800, 3: 3148800, 4: 3148800, 5: 2956800, 6: 2956800, 7: 3302400}, set(range(7))),
+            ('0-7', {0: 2000000, 1: 2000000, 2: 2000000, 3: 2800000, 4: 2800000, 5: 2800000, 6: 2800000, 7: 3200000}, set(range(7))),
+            ('0-9', {0: 1960000, 1: 1960000, 2: 1960000, 3: 1960000, 4: 2600000, 5: 2600000, 6: 2600000, 7: 2900000, 8: 2900000, 9: 3210000}, set(range(9))),
+        ]
+        for online_text, freqs, expected in cases:
+            with self.subTest(online=online_text, expected=expected), tempfile.TemporaryDirectory() as temp:
+                cpu = Path(temp)
+                (cpu / 'online').write_text(online_text + '\n')
+                for core, freq in freqs.items():
+                    (cpu / f'cpu{core}/cpufreq').mkdir(parents=True)
+                    (cpu / f'cpu{core}/cpu_capacity').write_text('1024\n')
+                    (cpu / f'cpu{core}/cpufreq/cpuinfo_max_freq').write_text(f'{freq}\n')
+                self.assertEqual(efficient_cores(cpu, set(freqs)), expected)
+
+    def test_cpufreq_policy_fallback_without_per_core_nodes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            cpu = Path(temp)
+            (cpu / 'online').write_text('0-7\n')
+            for policy, cpus, freq in ((0, '0 1 2 3 4 5', 3628800), (6, '6 7', 4742400)):
+                p = cpu / f'cpufreq/policy{policy}'
+                p.mkdir(parents=True)
+                (p / 'related_cpus').write_text(cpus + '\n')
+                (p / 'cpuinfo_max_freq').write_text(f'{freq}\n')
+            self.assertEqual(efficient_cores(cpu, set(ALL)), EFFICIENT)
+
 
 class GovernorTest(unittest.TestCase):
     PID = 400

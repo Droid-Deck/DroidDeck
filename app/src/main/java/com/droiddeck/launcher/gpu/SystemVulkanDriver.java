@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import org.json.JSONObject;
 
@@ -26,7 +27,14 @@ public final class SystemVulkanDriver {
     /** Vendor HALs the bridge loads. Samsung Xclipse (Exynos, sgpu) is experimental. */
     private static final String[] HALS = {
         "/vendor/lib64/hw/vulkan.powervr.so",
-        "/vendor/lib64/hw/vulkan.samsung.so"
+        "/vendor/lib64/hw/vulkan.img.so",
+        "/vendor/lib64/hw/vulkan.pvr.so",
+        "/vendor/lib64/hw/vulkan.rogue.so",
+        "/vendor/lib64/hw/vulkan.laguna.so",
+        "/vendor/lib64/hw/vulkan.mtk.so",
+        "/vendor/lib64/hw/vulkan.sgpu.so",
+        "/vendor/lib64/hw/vulkan.samsung.so",
+        "/vendor/lib64/hw/vulkan.exynos.so"
     };
     private static final String[] REQUIRED = {
         "lib/libhybris-vulkan-icd.so.0", "lib/libhybris-common.so.1",
@@ -45,22 +53,52 @@ public final class SystemVulkanDriver {
     private SystemVulkanDriver() {}
 
     /**
-     * The first vendor HAL present, or null. An Exynos with a Mali (Exynos 1280/1380: /dev/mali0)
-     * may name its HAL vulkan.samsung.so too; that is a Mali, not an Xclipse, and is not taken.
+     * The first vendor HAL present, or null. Exynos and MediaTek SoCs with Mali GPUs may name
+     * their HAL vulkan.samsung.so, vulkan.exynos.so or vulkan.mtk.so; those are skipped on Mali.
      */
     public static String hal() {
+        return hal(path -> new File(path).isFile(), SystemVulkanDriver::hasMaliDevice);
+    }
+
+    static String hal(Predicate<String> isFile, boolean hasMali) {
+        return hal(isFile, () -> hasMali);
+    }
+
+    private static String hal(Predicate<String> isFile, BooleanSupplier hasMali) {
+        Boolean mali = null;
         for (String path : HALS) {
-            if (!new File(path).isFile()) continue;
-            if (path.endsWith("/vulkan.samsung.so") && new File("/dev/mali0").exists()) continue;
+            if (!isFile.test(path)) continue;
+            if (isSharedVendorHal(path)) {
+                if (mali == null) mali = hasMali.getAsBoolean();
+                if (mali) continue;
+            }
             return path;
         }
         return null;
     }
 
+    private static boolean hasMaliDevice() {
+        return new File("/dev/mali0").exists()
+                || new File("/sys/class/misc/mali0").exists()
+                || new File("/vendor/lib64/hw/vulkan.mali.so").exists()
+                || GpuInfo.Companion.isKnownMaliHint();
+    }
+
+    private static boolean isSharedVendorHal(String path) {
+        return path.endsWith("/vulkan.samsung.so")
+                || path.endsWith("/vulkan.exynos.so")
+                || path.endsWith("/vulkan.mtk.so");
+    }
+
     /** Samsung's Xclipse (Exynos, sgpu) rather than PowerVR. */
     public static boolean isXclipse() {
-        String hal = hal();
-        return hal != null && hal.endsWith("/vulkan.samsung.so");
+        return isXclipse(hal());
+    }
+
+    static boolean isXclipse(String hal) {
+        return hal != null && (hal.endsWith("/vulkan.samsung.so")
+                || hal.endsWith("/vulkan.sgpu.so")
+                || hal.endsWith("/vulkan.exynos.so"));
     }
 
     /** The system-driver GPU family, for labels. */

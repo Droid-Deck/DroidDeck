@@ -25,6 +25,14 @@ class GpuDetectionTest {
         assertEquals(0, GpuInfo.threeDigits("0x2a02be7"))
         assertEquals(0, GpuInfo.threeDigits("Adreno 8500"))
         assertEquals(0, GpuInfo.threeDigits("Mali-G850"))
+        assertEquals(740, GpuInfo.threeDigits("Adreno A32"))
+        assertEquals(740, GpuInfo.threeDigits("Adreno (TM) A32"))
+        assertEquals(740, GpuInfo.threeDigits("AdrenoA32v2"))
+        assertEquals(722, GpuInfo.threeDigits("Adreno A22"))
+        assertEquals(710, GpuInfo.threeDigits("Adreno (TM) A12"))
+        assertEquals(619, GpuInfo.threeDigits("Adreno A21"))
+        assertEquals(610, GpuInfo.threeDigits("Adreno A11"))
+        assertEquals(0, GpuInfo.threeDigits("Adreno A99"))
     }
 
     @Test fun nonAdrenoRenderersAreNeverAdrenoWhateverNumberTheyCarry() {
@@ -91,9 +99,52 @@ class GpuDetectionTest {
         assertEquals(660, GpuInfo.platformModel("LAHAINA"))
         assertEquals(730, GpuInfo.platformModel("taro"))
         assertEquals(730, GpuInfo.platformModel("cape"))
+        assertEquals(735, GpuInfo.platformModel("cliff"))
         assertEquals(830, GpuInfo.platformModel("Sun"))
+        assertEquals(840, GpuInfo.platformModel("canoe"))
+        assertEquals(840, GpuInfo.platformModel("Canoe"))
+        assertEquals(825, GpuInfo.platformModel("tuna"))
+        assertEquals(732, GpuInfo.platformModel("cliffs"))
+        assertEquals(810, GpuInfo.platformModel("volcano"))
+        assertEquals(720, GpuInfo.platformModel("crow"))
+        assertEquals(725, GpuInfo.platformModel("ukee"))
+        assertEquals(642, GpuInfo.platformModel("yupik"))
+        assertEquals(620, GpuInfo.platformModel("lito"))
+        assertEquals(618, GpuInfo.platformModel("atoll"))
+        assertEquals(710, GpuInfo.platformModel("parrot"))
+        assertEquals(619, GpuInfo.platformModel("holi"))
+        assertEquals(610, GpuInfo.platformModel("khaje"))
+        assertEquals(610, GpuInfo.platformModel("bengal"))
+        assertEquals(610, GpuInfo.platformModel("trinket"))
         assertEquals(0, GpuInfo.platformModel(""))
         assertEquals(0, GpuInfo.platformModel("exynos2400"))
         assertEquals(0, GpuInfo.platformModel(" kona "))
+    }
+
+    @Test fun maliDetectionCoversImmortalisAndChipFallbacksWithoutNode() {
+        assertEquals(
+            "Immortalis-G720 MC12",
+            GpuInfo.detectMali(adreno = false, powerVr = false, maliNode = false, vulkanDevice = "Immortalis-G720 MC12", kbaseName = null, socIds = emptyList()),
+        )
+        assertEquals(
+            "Mali-G720 (by chip mt6989)",
+            GpuInfo.detectMali(adreno = false, powerVr = false, maliNode = false, vulkanDevice = null, kbaseName = null, socIds = listOf("MT6989")),
+        )
+        assertEquals(
+            "",
+            GpuInfo.detectMali(adreno = false, powerVr = false, maliNode = true, vulkanDevice = null, kbaseName = null, socIds = emptyList()),
+        )
+        assertEquals(
+            null,
+            GpuInfo.detectMali(adreno = false, powerVr = false, maliNode = false, vulkanDevice = null, kbaseName = null, socIds = listOf("unknown")),
+        )
+        assertEquals(
+            null,
+            GpuInfo.detectMali(adreno = true, powerVr = false, maliNode = true, vulkanDevice = "Mali-G720", kbaseName = "Mali-G720", socIds = listOf("mt6989")),
+        )
+        assertEquals(
+            null,
+            GpuInfo.detectMali(adreno = false, powerVr = true, maliNode = true, vulkanDevice = "Mali-G720", kbaseName = "Mali-G720", socIds = listOf("mt6989")),
+        )
     }
 }

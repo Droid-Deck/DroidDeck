@@ -99,6 +99,7 @@ int main(void) {
     for (int i = 0; i < count; i++) assert(live[i] != KGSL_BUSY_MAX_LIVE + 5);
     puts("PASS: kgsl memstore contexts");
 
+    assert(kgsl_layout_for(0x44050a31u) == &KGSL_LAYOUT_A8XX);  // Adreno 840v2
     assert(kgsl_layout_for(0x44050001u) == &KGSL_LAYOUT_A8XX);  // Adreno 830
     assert(kgsl_layout_for(0x44030a20u) == &KGSL_LAYOUT_A8XX);  // Adreno 829
     assert(kgsl_layout_for(0x43020100u) == &KGSL_LAYOUT_A7XX);  // Adreno 722

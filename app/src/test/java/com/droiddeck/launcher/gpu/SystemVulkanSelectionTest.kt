@@ -126,4 +126,40 @@ class SystemVulkanSelectionTest {
         assertEquals("imports/chosen/icd.json", LinuxVulkanDriver.resolveIcdPath("chosen", true,
             { error("manual must not prepare the system bridge") }, { "imports/$it/icd.json" }))
     }
+
+    @Test fun vendorHalsCoverPowerVrMediaTekImgAndXclipseVariantsWhileSkippingMali() {
+        for (hal in listOf(
+            "/vendor/lib64/hw/vulkan.powervr.so",
+            "/vendor/lib64/hw/vulkan.img.so",
+            "/vendor/lib64/hw/vulkan.pvr.so",
+            "/vendor/lib64/hw/vulkan.rogue.so",
+            "/vendor/lib64/hw/vulkan.laguna.so",
+        )) {
+            assertEquals(hal, SystemVulkanDriver.hal({ it == hal }, true))
+            assertFalse(hal, SystemVulkanDriver.isXclipse(hal))
+        }
+
+        assertEquals("/vendor/lib64/hw/vulkan.mtk.so",
+            SystemVulkanDriver.hal({ it == "/vendor/lib64/hw/vulkan.mtk.so" }, false))
+        assertFalse(SystemVulkanDriver.isXclipse("/vendor/lib64/hw/vulkan.mtk.so"))
+        assertNull("Mali MediaTek must not take vulkan.mtk.so as PowerVR",
+            SystemVulkanDriver.hal({ it == "/vendor/lib64/hw/vulkan.mtk.so" }, true))
+
+        for (xclipseHal in listOf(
+            "/vendor/lib64/hw/vulkan.samsung.so",
+            "/vendor/lib64/hw/vulkan.sgpu.so",
+            "/vendor/lib64/hw/vulkan.exynos.so",
+        )) {
+            assertEquals(xclipseHal, SystemVulkanDriver.hal({ it == xclipseHal }, false))
+            assertTrue(xclipseHal, SystemVulkanDriver.isXclipse(xclipseHal))
+        }
+
+        assertEquals("/vendor/lib64/hw/vulkan.sgpu.so",
+            SystemVulkanDriver.hal({ it == "/vendor/lib64/hw/vulkan.sgpu.so" }, true))
+        for (sharedExynos in listOf("/vendor/lib64/hw/vulkan.samsung.so", "/vendor/lib64/hw/vulkan.exynos.so")) {
+            assertNull("Mali Exynos must not take $sharedExynos as Xclipse",
+                SystemVulkanDriver.hal({ it == sharedExynos }, true))
+        }
+        assertFalse(SystemVulkanDriver.isXclipse(null))
+    }
 }

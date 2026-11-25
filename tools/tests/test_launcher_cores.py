@@ -213,6 +213,42 @@ class LauncherCoresTest(unittest.TestCase):
         self.governor.tick()
         self.assertEqual([], self.cores.calls)
 
+    def test_slow_core_across_two_three_and_four_cluster_topologies(self):
+        cases = [
+            ({0: 3628800, 1: 3628800, 2: 3628800, 3: 3628800, 4: 3628800, 5: 3628800, 6: 4742400, 7: 4742400}, 5),
+            ({0: 1800000, 1: 1800000, 2: 1800000, 3: 1800000, 4: 2800000, 5: 2800000, 6: 2800000, 7: 3200000}, 3),
+            ({0: 2265600, 1: 2265600, 2: 3148800, 3: 3148800, 4: 3148800, 5: 2956800, 6: 2956800, 7: 3302400}, 1),
+            ({0: 2000000, 1: 2000000, 2: 2000000, 3: 2800000, 4: 2800000, 5: 2800000, 6: 2800000, 7: 3200000}, 2),
+            ({0: 1960000, 1: 1960000, 2: 1960000, 3: 1960000, 4: 2600000, 5: 2600000, 6: 2600000, 7: 2900000, 8: 2900000, 9: 3210000}, 3),
+        ]
+        for freqs, expected in cases:
+            with self.subTest(expected=expected), tempfile.TemporaryDirectory() as temp:
+                sys_cpu = Path(temp)
+                for cpu, freq in freqs.items():
+                    (sys_cpu / f'cpu{cpu}/cpufreq').mkdir(parents=True)
+                    (sys_cpu / f'cpu{cpu}/cpufreq/cpuinfo_max_freq').write_text(f'{freq}\n')
+                cores = FakeCores()
+                cores.own = lambda s=set(freqs): set(s)
+                self.assertEqual(Holder(self.proc, sys_cpu, cores).slow_core(), expected)
+
+    def test_slow_core_ignores_unreadable_fast_core_and_falls_back_cleanly(self):
+        with tempfile.TemporaryDirectory() as temp:
+            sys_cpu = Path(temp)
+            for cpu in range(7):
+                (sys_cpu / f'cpu{cpu}/cpufreq').mkdir(parents=True)
+                (sys_cpu / f'cpu{cpu}/cpufreq/cpuinfo_max_freq').write_text('3628800\n' if cpu < 6 else '4742400\n')
+            self.assertEqual(Holder(self.proc, sys_cpu, self.cores).slow_core(), 5)
+        with tempfile.TemporaryDirectory() as temp:
+            self.assertEqual(Holder(self.proc, Path(temp), self.cores).slow_core(), 0)
+        with tempfile.TemporaryDirectory() as temp:
+            sys_cpu = Path(temp)
+            for policy, cpus, freq in ((0, '0 1 2 3 4 5', 3628800), (6, '6 7', 4742400)):
+                p = sys_cpu / f'cpufreq/policy{policy}'
+                p.mkdir(parents=True)
+                (p / 'related_cpus').write_text(cpus + '\n')
+                (p / 'cpuinfo_max_freq').write_text(f'{freq}\n')
+            self.assertEqual(Holder(self.proc, sys_cpu, self.cores).slow_core(), 5)
+
 
 if __name__ == '__main__':
     unittest.main()

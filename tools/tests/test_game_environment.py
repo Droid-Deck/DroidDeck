@@ -2008,6 +2008,37 @@ class GameEnvironmentTest(unittest.TestCase):
             self.assertEqual(speeds([0, 1], tmp), {0: 2265600, 1: 3302400})
             self.assertIsNone(speeds([0, 2], tmp))
 
+    def test_cpu_topology_across_s26_ultra_three_four_clusters_and_non_contiguous_online(self):
+        os_mod = MODULE["os"]
+        speeds_fn = MODULE["core_speeds"]
+        with tempfile.TemporaryDirectory() as tmp:
+            for policy, cpus, freq in ((0, "0 1 2 3 4 5", "3628800"), (6, "6 7", "4742400")):
+                p = Path(tmp) / "cpufreq" / f"policy{policy}"
+                p.mkdir(parents=True)
+                (p / "related_cpus").write_text(cpus + "\n")
+                (p / "cpuinfo_max_freq").write_text(freq + "\n")
+            for core in range(8):
+                (Path(tmp) / f"cpu{core}").mkdir()
+                (Path(tmp) / f"cpu{core}/cpu_capacity").write_text("1024\n")
+            self.assertEqual(speeds_fn(list(range(8)), tmp),
+                             {0: 3628800, 1: 3628800, 2: 3628800, 3: 3628800, 4: 3628800, 5: 3628800, 6: 4742400, 7: 4742400})
+        s26 = {0: 3628800, 1: 3628800, 2: 3628800, 3: 3628800, 4: 3628800, 5: 3628800, 6: 4742400, 7: 4742400}
+        ten_core = {0: 1960000, 1: 1960000, 2: 1960000, 3: 1960000, 4: 2600000, 5: 2600000, 6: 2600000, 7: 2900000, 8: 2900000, 9: 3210000}
+        cases = [
+            ({}, set(range(8)), set(range(8)), s26, "8:6,7,0,1,2,3,4,5"),
+            ({}, set(range(10)), set(range(10)), ten_core, "10:9,7,8,4,5,6,0,1,2,3"),
+            ({}, {0, 1, 2, 3, 6, 7}, {0, 1, 2, 3, 6, 7}, s26, "6:6,7,0,1,2,3"),
+            ({"DD_GAME_CPUS": "6,7"}, {0, 1, 2, 3, 6, 7}, {6, 7}, s26, "2:6,7"),
+        ]
+        for env, online, affinity, speeds, expected in cases:
+            env = dict(env, STEAM_COMPAT_DATA_PATH="/steam/compatdata/3608888694")
+            with mock.patch.dict(MODULE["cpu_topology"].__globals__, {"online_cores": lambda o=online: o}), \
+                    mock.patch.dict(MODULE["fastest_first"].__globals__, {"core_speeds": lambda cores, s=speeds: s}), \
+                    mock.patch.object(os_mod, "sched_getaffinity", return_value=affinity, create=True):
+                MODULE["cpu_topology"](env, [])
+            self.assertEqual(env.get("WINE_CPU_TOPOLOGY"), expected, env)
+            self.assertEqual(env.get("PROTON_CPU_TOPOLOGY"), expected, env)
+
     def test_titles_with_former_feature_level_workarounds_keep_detected_capabilities(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

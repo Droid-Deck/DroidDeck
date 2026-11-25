@@ -443,11 +443,13 @@ program_cores() {
   local f n max min= list=
   for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/cpuinfo_max_freq; do
     max=$(cat "$f" 2>/dev/null) || continue
+    case $max in ""|*[!0-9]*|0) continue ;; esac
     [ -z "$min" ] || [ "$max" -lt "$min" ] && min=$max
   done
   [ -n "$min" ] || return 0
   for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/cpuinfo_max_freq; do
     max=$(cat "$f" 2>/dev/null) || continue
+    case $max in ""|*[!0-9]*|0) continue ;; esac
     n=${f#/sys/devices/system/cpu/cpu}; n=${n%%/*}
     [ "$max" -gt "$min" ] && list="$list${list:+,}$n"
   done
