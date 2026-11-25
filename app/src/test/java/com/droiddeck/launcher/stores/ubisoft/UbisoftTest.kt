@@ -105,9 +105,26 @@ class UbisoftTest {
         val text = StoreLaunch.launcherText(StoreGameSidecar(Store.UBISOFT, "space-sc", "Splinter Cell", "system/SplinterCell.exe"))
         val lines = text.trimEnd().split("\r\n")
         assertTrue(lines.contains("if not exist \"%~dp0.droiddeck-ubisoft.json\" goto direct"))
-        assertTrue(lines.contains("\"Z:\\usr\\local\\lib\\droiddeck-ubisoft\\droiddeck-upc.exe\" \"%~dp0.droiddeck-ubisoft.json\""))
+        val service = lines.indexOf("\"%DD_R%\\usr\\local\\lib\\droiddeck-ubisoft\\droiddeck-upc.exe\" \"%~dp0.droiddeck-ubisoft.json\"")
+        assertTrue(service in 0 until lines.indexOf(":direct"))
+        assertTrue(lines.indexOf("set \"DD_R=Z:\"") in 0 until lines.indexOf("if defined DROIDDECK_GUEST_ROOT set \"DD_R=%DROIDDECK_GUEST_ROOT%\""))
+        assertTrue(lines.indexOf("if defined DROIDDECK_GUEST_ROOT set \"DD_R=%DROIDDECK_GUEST_ROOT%\"") < service)
         assertEquals("\"%~dp0system\\SplinterCell.exe\"", lines.last())
         assertTrue(lines.indexOf(":direct") < lines.lastIndex)
+    }
+
+    @Test fun anInstalledGamesOlderLauncherIsRewritten() {
+        val folder = java.nio.file.Files.createTempDirectory("ubisoft-adopt").toFile()
+        try {
+            File(folder, "system").mkdirs()
+            File(folder, "system/SplinterCell.exe").writeText("exe")
+            val sidecar = StoreGameSidecar(Store.UBISOFT, "space-sc", "Splinter Cell", "system/SplinterCell.exe", launcher = StoreLaunch.LAUNCHER)
+            File(folder, StoreLaunch.LAUNCHER).writeText("@echo off\r\nif not exist \"Z:\\usr\\local\\lib\\droiddeck-ubisoft\\droiddeck-upc.exe\" goto direct\r\n")
+            StoreLaunch.adopt(folder, sidecar)
+            assertEquals(StoreLaunch.launcherText(sidecar), File(folder, StoreLaunch.LAUNCHER).readText())
+        } finally {
+            folder.deleteRecursively()
+        }
     }
 
     @Test fun activationPayloadsSurviveTheHexHop() {

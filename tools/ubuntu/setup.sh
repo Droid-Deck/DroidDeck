@@ -85,10 +85,14 @@ install_turnip() {
 }
 
 divert_to() {
-  local path=$1 target=$2 owner=$3
+  local path=$1 target=$2 owner=$3 kind=${4:-link}
   [ -e "$path" ] || [ -L "$path" ] || return 0
   dpkg-divert --package "$owner" --rename --divert "$path.distrib" --add "$path"
-  ln -sf "$target" "$path"
+  if [ "$kind" = stub ]; then
+    sh "$here/diversion-stub" "$path" "$target" install
+  else
+    ln -sf "$target" "$path"
+  fi
 }
 
 record_apt_state() {
@@ -179,8 +183,8 @@ grep -v '^$' "$here/packages-desktop.txt" | xargs apt-get install -y firefox
 install_held
 build_package droiddeck-desktop "$here/overlay-desktop" "$here/protected-desktop.txt" "DroidDeck's Plasma desktop"
 
-divert_to /usr/bin/pkexec /usr/local/bin/pkexec droiddeck-desktop
-divert_to /usr/lib/snapd/snap-confine /usr/local/bin/droiddeck-snap-confine droiddeck-desktop
+divert_to /usr/bin/pkexec /usr/local/bin/pkexec droiddeck-desktop stub
+divert_to /usr/lib/snapd/snap-confine /usr/local/bin/droiddeck-snap-confine droiddeck-desktop stub
 mkdir -p /snap/bin /var/lib/snapd/desktop/applications
 rm -rf /etc/skel/Desktop
 finish

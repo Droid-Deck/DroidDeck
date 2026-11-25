@@ -7,9 +7,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.runtime.BattleNet
 import com.droiddeck.launcher.runtime.GuestCommand
-import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameStorage
-import com.droiddeck.launcher.session.SecondaryLibrary
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.Store
@@ -75,22 +73,10 @@ object BattleNetInstall {
     }
 
     internal fun binds(context: Context): List<String> {
-        val out = ArrayList<String>(StoreInstallRoot.externalBindSpecs(context))
-        val root = LinuxRuntime.rootDir(context)
         GameStorage.effective(context)?.let { library ->
             if (!File(library.path).isDirectory) throw IllegalStateException(context.getString(R.string.game_sync_err_game_storage))
-            val content = SecondaryLibrary.contentPath(File(library.path)).path
-            for (guest in SecondaryLibrary.CARD_GUESTS) {
-                File(root, guest.removePrefix("/")).mkdirs()
-                out += "$content:$guest"
-            }
         }
-        for (folder in AddedGames.roots(context)) {
-            if (!folder.host.isDirectory || !folder.host.canRead()) continue
-            File(root, folder.guest.removePrefix("/")).mkdirs()
-            out += folder.host.path + ":" + folder.guest
-        }
-        return out
+        return StoreInstallRoot.guestBinds(context)
     }
 
     internal fun run(context: Context, args: List<String>, cancelled: AtomicBoolean?, onLine: (String) -> Unit): Int =

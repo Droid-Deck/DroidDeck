@@ -29,6 +29,7 @@ sudo cp /etc/resolv.conf "$root/etc/resolv.conf"
 for m in dev dev/pts proc sys; do sudo mount --bind "/$m" "$root/$m"; done
 sudo mkdir -p "$root/tmp/droiddeck/debs"
 sudo cp -r "$here/." "$root/tmp/droiddeck/src"
+sudo cp "$here/../linuxfs/overlay/usr/local/bin/droiddeck-diversion-stub" "$root/tmp/droiddeck/src/diversion-stub"
 sudo cp "$debs"/*.deb "$root/tmp/droiddeck/debs/"
 base_url=${DESKTOP_BASE_URL:-https://github.com/Droid-Deck/DroidDeck-Components/releases/download/$runtime_id}
 desktop_id=$runtime_id-desktop

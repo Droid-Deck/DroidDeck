@@ -299,6 +299,27 @@ def map_drive(root, volume):
     return None
 
 
+def rootfs():
+    host = os.environ.get("DDNATV_ROOT")
+    return os.path.realpath(host) if host else None
+
+
+def guest_path(path):
+    host = rootfs()
+    if not host or not inside(path, host):
+        return None
+    return "/" + path[len(host):].strip("/")
+
+
+def rootfs_drive(root, text):
+    found = re.match(r"(?i)^([abd-y]):[\\/]", text)
+    host = rootfs()
+    if not found or not host:
+        return False
+    link = os.path.join(dosdevices(root), found.group(1).lower() + ":")
+    return os.path.islink(link) and inside(host, os.path.realpath(link))
+
+
 def install_path(root, library):
     library = library.rstrip("/") or "/"
     try:
@@ -308,6 +329,9 @@ def install_path(root, library):
         return "Z:" + library
     if volume == "/":
         return "Z:" + library
+    host = rootfs()
+    if host and inside(host, volume):
+        return "Z:" + (guest_path(path) or library)
     drive = mapped_drive(root, path, volume)
     if drive is None and not wine_processes(os.path.join(prefix(root), "pfx")):
         drive = map_drive(root, volume)
@@ -586,11 +610,15 @@ def drive_folder(root, value):
         text = value.decode("utf-8")
     except UnicodeDecodeError:
         return value
-    if not re.match(r"(?i)^z:[\\/]", text):
+    holds_root = rootfs_drive(root, text)
+    if not holds_root and not re.match(r"(?i)^z:[\\/]", text):
         return value
     folder = windows_path(root, text)
     if not folder or not os.path.isdir(folder):
         return value
+    if holds_root:
+        guest = guest_path(os.path.realpath(folder))
+        return value if guest is None else ("Z:" + guest).encode("utf-8")
     moved = install_path(root, folder)
     return value if moved.startswith("Z:") else moved.replace("\\", "/").encode("utf-8")
 
@@ -725,7 +753,7 @@ def configure(root, library=None):
         return
     try:
         if move_installs(root):
-            say("Battle.net's installed games on a mapped volume now use its Wine drive")
+            say("Battle.net's installed games now use the Wine drive of their volume")
     except OSError as error:
         say("Battle.net's installed games not moved to their Wine drive: %s" % error)
     try:

@@ -137,4 +137,30 @@ class AddedGamesStoreScanTest {
         val game = AddedGames.scan(app).single { it.folder.absolutePath == folder.absolutePath }
         assertEquals("/root/Games/Stores/GOG/Witcher Game", game.guestDir)
     }
+
+    @Test fun aStoreGameThatIsUpdatingIsNotListedThroughItsSavedExe() {
+        val folder = install(Store.GOG, "upd", "Updating GOG", "Binaries/Game.exe", launcher = true)
+        val own = File(folder, "Binaries/Game.exe")
+        assertTrue(AddedGames.addExe(app, own) is AddedGames.AddResult.Existing)
+        assertTrue(AddedGames.scan(app).any { it.folder.absolutePath == folder.absolutePath })
+        StoreGameSidecar.read(folder)!!.copy(state = StoreGameSidecar.STATE_UPDATING).write(folder)
+        assertTrue(AddedGames.scan(app).none { it.folder.absolutePath == folder.absolutePath })
+    }
+
+    @Test fun reselectingTheMappedExeReplacesAnUnmappedAliasOfIt() {
+        val folder = install(Store.EPIC, "alias", "Alias Epic", "Binaries/Game.exe", launcher = true)
+        val own = File(folder, "Binaries/Game.exe")
+        val alias = File(java.nio.file.Files.createTempDirectory("alias").toFile(), "bin")
+        try {
+            java.nio.file.Files.createSymbolicLink(alias.toPath(), File(folder, "Binaries").toPath())
+        } catch (e: Exception) {
+            org.junit.Assume.assumeNoException(e)
+        }
+        val aliased = File(alias, "Game.exe")
+        assertNull(AddedGames.guestPath(app, aliased))
+        SessionPrefs.setAddedGameExe(app, folder.path, aliased.path)
+        assertTrue(AddedGames.addExe(app, own) is AddedGames.AddResult.Existing)
+        assertEquals(own.path, SessionPrefs.addedGameExe(app, folder.path))
+        assertEquals(own.path, AddedExes.list(app).single { it.folder == folder.path }.exe)
+    }
 }

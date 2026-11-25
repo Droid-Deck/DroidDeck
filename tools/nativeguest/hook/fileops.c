@@ -505,7 +505,7 @@ int is_selinux_enabled(void) { return 0; }
 ssize_t getxattr(const char *path, const char *name, void *value, size_t size) {
     static ssize_t (*orig_getxattr)(const char *, const char *, void *, size_t) = NULL;
     if (!orig_getxattr) orig_getxattr = (ssize_t (*)(const char *, const char *, void *, size_t))dlsym(RTLD_NEXT, "getxattr");
-    if (is_selinux_xattr(name)) {
+    if (is_selinux_xattr(name) || (name && strcmp(name, "security.capability") == 0)) {
         errno = ENODATA;
         return -1;
     }
@@ -516,7 +516,7 @@ ssize_t getxattr(const char *path, const char *name, void *value, size_t size) {
 ssize_t lgetxattr(const char *path, const char *name, void *value, size_t size) {
     static ssize_t (*orig_lgetxattr)(const char *, const char *, void *, size_t) = NULL;
     if (!orig_lgetxattr) orig_lgetxattr = (ssize_t (*)(const char *, const char *, void *, size_t))dlsym(RTLD_NEXT, "lgetxattr");
-    if (is_selinux_xattr(name)) {
+    if (is_selinux_xattr(name) || (name && strcmp(name, "security.capability") == 0)) {
         errno = ENODATA;
         return -1;
     }
@@ -543,7 +543,7 @@ ssize_t llistxattr(const char *path, char *list, size_t size) {
 ssize_t fgetxattr(int fd, const char *name, void *value, size_t size) {
     static ssize_t (*orig_fgetxattr)(int, const char *, void *, size_t) = NULL;
     if (!orig_fgetxattr) orig_fgetxattr = (ssize_t (*)(int, const char *, void *, size_t))dlsym(RTLD_NEXT, "fgetxattr");
-    if (is_selinux_xattr(name)) {
+    if (is_selinux_xattr(name) || (name && strcmp(name, "security.capability") == 0)) {
         errno = ENODATA;
         return -1;
     }
@@ -558,6 +558,7 @@ ssize_t flistxattr(int fd, char *list, size_t size) {
 }
 
 int setxattr(const char *path, const char *name, const void *value, size_t size, int flags) {
+    if (name && strcmp(name, "security.capability") == 0) return 0;
     static int (*orig_setxattr)(const char *, const char *, const void *, size_t, int) = NULL;
     if (!orig_setxattr) orig_setxattr = (int (*)(const char *, const char *, const void *, size_t, int))dlsym(RTLD_NEXT, "setxattr");
     char pbuf[PATH_MAX];
@@ -565,6 +566,7 @@ int setxattr(const char *path, const char *name, const void *value, size_t size,
 }
 
 int lsetxattr(const char *path, const char *name, const void *value, size_t size, int flags) {
+    if (name && strcmp(name, "security.capability") == 0) return 0;
     static int (*orig_lsetxattr)(const char *, const char *, const void *, size_t, int) = NULL;
     if (!orig_lsetxattr) orig_lsetxattr = (int (*)(const char *, const char *, const void *, size_t, int))dlsym(RTLD_NEXT, "lsetxattr");
     char pbuf[PATH_MAX];
@@ -572,6 +574,7 @@ int lsetxattr(const char *path, const char *name, const void *value, size_t size
 }
 
 int removexattr(const char *path, const char *name) {
+    if (name && strcmp(name, "security.capability") == 0) return 0;
     static int (*orig_removexattr)(const char *, const char *) = NULL;
     if (!orig_removexattr) orig_removexattr = (int (*)(const char *, const char *))dlsym(RTLD_NEXT, "removexattr");
     char pbuf[PATH_MAX];
@@ -579,10 +582,25 @@ int removexattr(const char *path, const char *name) {
 }
 
 int lremovexattr(const char *path, const char *name) {
+    if (name && strcmp(name, "security.capability") == 0) return 0;
     static int (*orig_lremovexattr)(const char *, const char *) = NULL;
     if (!orig_lremovexattr) orig_lremovexattr = (int (*)(const char *, const char *))dlsym(RTLD_NEXT, "lremovexattr");
     char pbuf[PATH_MAX];
     return orig_lremovexattr ? orig_lremovexattr(rewrite_path(path, pbuf, sizeof(pbuf)), name) : -1;
+}
+
+int fsetxattr(int fd, const char *name, const void *value, size_t size, int flags) {
+    static int (*orig)(int, const char *, const void *, size_t, int) = NULL;
+    if (name && strcmp(name, "security.capability") == 0) return 0;
+    if (!orig) orig = dlsym(RTLD_NEXT, "fsetxattr");
+    return orig ? orig(fd, name, value, size, flags) : -1;
+}
+
+int fremovexattr(int fd, const char *name) {
+    static int (*orig)(int, const char *) = NULL;
+    if (name && strcmp(name, "security.capability") == 0) return 0;
+    if (!orig) orig = dlsym(RTLD_NEXT, "fremovexattr");
+    return orig ? orig(fd, name) : -1;
 }
 
 // Hook symlink

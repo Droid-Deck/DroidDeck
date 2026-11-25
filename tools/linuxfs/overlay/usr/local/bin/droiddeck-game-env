@@ -218,6 +218,12 @@ def inno_setup_stability(game):
 
 
 @fix
+def split_second_x87_fip(game):
+    if game.app_id == "297860" or game.stem == "splitsecond":
+        return {"FEX_JITFEATURES": "enablex87fip"}, [], "Split/Second: FEX x87 FIP emulation on (its SecuROM stops with error 8016 without it)"
+
+
+@fix
 def doom_2016_swapchain_images(game):
     if "doomx64vk.exe" in game.files and game.stem in ("doomx64", "doomx64vk"):
         images = {
@@ -910,6 +916,8 @@ def read_vdf(text):
 
 
 def run_keys(items, appid=""):
+    # (hasrunkey, value name, MinimumHasRunValue) of each "run process" entry; Steam runs the process unless the
+    # value is a DWORD of at least that minimum (1 when the script does not say)
     appid = next((value for name, value in items if name.lower() == "appid" and isinstance(value, str)), appid)
     found = set()
     for name, value in items:
@@ -918,30 +926,44 @@ def run_keys(items, appid=""):
         if any(isinstance(v, str) and re.fullmatch(r"process [0-9]+", n.lower()) for n, v in value):
             key = next((v for n, v in value if n.lower() == "hasrunkey" and isinstance(v, str)),
                        "HKEY_LOCAL_MACHINE\\Software\\Valve\\Steam\\Apps\\" + appid)
-            found.add((key.lower(), name.lower()))
+            minimum = next((v for n, v in value if n.lower() == "minimumhasrunvalue" and isinstance(v, str)), "1")
+            try:
+                minimum = int(minimum.strip(), 0)
+            except ValueError:
+                minimum = int(minimum.strip()) if minimum.strip().isdigit() else 1
+            found.add((key.lower(), name.lower(), minimum))
         found |= run_keys(value, appid)
     return found
 
 
 def registry_values(path):
-    found, section = set(), None
+    # {(key, value name): DWORD, or None for a value of another type}
+    found, section = {}, None
     with open(path, encoding="utf-8", errors="replace") as reg:
         for line in reg:
             if line.startswith("["):
                 section = line[1:line.find("]")].replace("\\\\", "\\").lower() if "]" in line else None
             elif section and line.startswith('"') and '"=' in line:
-                found.add((section, line[1:line.index('"=')].replace("\\\\", "\\").lower()))
+                name = line[1:line.index('"=')].replace("\\\\", "\\").lower()
+                data = line[line.index('"=') + 2:].strip()
+                dword = None
+                if data.lower().startswith("dword:"):
+                    try:
+                        dword = int(data[6:], 16)
+                    except ValueError:
+                        pass
+                found[(section, name)] = dword
     return found
 
 
-def has_run(key, value, values):
+def has_run(key, value, values, minimum=1):
     path = key[len("hkey_local_machine\\"):] if key.startswith("hkey_local_machine\\") else None
     if path is None:
         return False
     views = [path]
     if path.startswith("software\\"):
         views.append("software\\wow6432node\\" + path[len("software\\"):])
-    return any((view, value) in values for view in views)
+    return any(isinstance(values.get((view, value)), int) and values[(view, value)] >= minimum for view in views)
 
 
 def scripts_digest(scripts):
@@ -952,18 +974,49 @@ def scripts_digest(scripts):
     return digest.hexdigest()
 
 
+def only_guarded_runs(items):
+    # True when every action in the scripts is a "run process" entry. With all their hasrunkeys set, Steam's
+    # evaluator would run nothing, so the scripts need no run even when Steam has rewritten the file (its
+    # SteamID, language, install path or order change between launches).
+    found = False
+    for _, entries in items:
+        if not isinstance(entries, list):
+            return False
+        for _, entry in entries:
+            if not isinstance(entry, list):
+                return False
+            for _, block in entry:
+                if not isinstance(block, list):
+                    continue
+                for section, actions in block:
+                    if section.lower() != "run process" or not isinstance(actions, list):
+                        return False
+                    for _, action in actions:
+                        if not isinstance(action, list) or not any(
+                                isinstance(v, str) and re.fullmatch(r"process [0-9]+", n.lower()) for n, v in action):
+                            return False
+                        found = True
+    return found
+
+
 def install_scripts_done(scripts, env):
     prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
     try:
-        if (prefix / INSTALL_STAMP).read_text().strip() != scripts_digest(scripts):
-            return False
-        keys = set()
+        keys, parsed = set(), []
         for path in scripts:
-            keys |= run_keys(read_vdf(Path(path).read_text(encoding="utf-8", errors="replace")))
+            parsed.append(read_vdf(Path(path).read_text(encoding="utf-8", errors="replace")))
+            keys |= run_keys(parsed[-1])
         values = registry_values(prefix / "system.reg")
     except (OSError, ValueError):
         return False
-    return bool(keys) and all(has_run(key, value, values) for key, value in keys)
+    if not keys or not all(has_run(key, value, values, minimum) for key, value, minimum in keys):
+        return False
+    try:
+        if (prefix / INSTALL_STAMP).read_text().strip() == scripts_digest(scripts):
+            return True
+    except OSError:
+        pass
+    return all(only_guarded_runs(items) for items in parsed)
 
 
 def record_install_scripts(digest, env):

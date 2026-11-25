@@ -156,7 +156,7 @@ internal class ProtonMenu(
 
     fun refreshProtons() {
         refreshExperimental()
-        protonRows = ProtonExtras.tools.map {
+        protonRows = ProtonExtras.offered(activity).map {
             val all = ProtonExtras.installedAll(activity, it)
             ProtonRow(it.id, it.name, all.lastOrNull(), ProtonExtras.queued(activity, it), all, ProtonExtras.update(activity, it))
         }
