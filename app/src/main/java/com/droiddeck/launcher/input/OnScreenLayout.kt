@@ -98,8 +98,8 @@ object OnScreenLayout {
                 .coerceIn(topBound, (bottomBound - h).coerceAtLeast(topBound))
             element.copy(x = x, y = y, width = w, height = h).bounded()
         }.toMutableList()
-        if (scale != 1f) {
-            val gap = 4f * (width.toFloat() / width) / width
+        if (scale > 1f) {
+            val gap = 4f / width
             fun spacePair(leftControl: InputControl, rightControl: InputControl) {
                 val li = scaled.indexOfFirst { isGamepad(it) && it.control == leftControl }
                 val ri = scaled.indexOfFirst { isGamepad(it) && it.control == rightControl }
