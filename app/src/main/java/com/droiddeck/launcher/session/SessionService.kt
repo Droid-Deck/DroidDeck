@@ -1002,6 +1002,7 @@ class SessionService : Service() {
         ))
         guest.add("TZ=" + java.util.TimeZone.getDefault().id)
         if (SessionState.mode == MODE_STEAM) SessionPrefs.pendingShaderPrecache(this)?.let { guest.add("DD_SHADER_PRECACHE=" + if (it) "1" else "0") }
+        guest.add("DD_VALVE_PROTON=" + if (SessionPrefs.ownProtonFirst(this)) "0" else "1")
         guest.add("XDG_RUNTIME_DIR=" + LinuxRuntime.GUEST_RUNTIME_DIR)
         guest.add("XDG_SESSION_TYPE=wayland")
         guest.add("WAYLAND_DISPLAY=wayland-0")

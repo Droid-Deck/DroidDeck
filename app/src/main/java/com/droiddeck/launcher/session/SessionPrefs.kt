@@ -845,6 +845,15 @@ object SessionPrefs {
 
     fun returnAfterGame(context: Context): Boolean = prefs(context).getBoolean("returnAfterGame", true)
 
+    fun valveProtonOnDemand(context: Context): Boolean = prefs(context).getBoolean("valveProtonOnDemand", true)
+
+    fun setValveProtonOnDemand(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("valveProtonOnDemand", on).apply()
+    }
+
+    /** DroidDeck-Proton is the Proton placed before the client starts; Valve's ARM64 Proton waits for a title that needs it. */
+    fun ownProtonFirst(context: Context): Boolean = valveProtonOnDemand(context) && !ProtonExtras.declined(context)
+
     fun setReturnAfterGame(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("returnAfterGame", on).apply()
     }

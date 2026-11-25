@@ -966,6 +966,7 @@ class Helper:
         self.fex_asked = set()
         self.tools_asked = {}
         self.tools_checked = None
+        self.valve_names = None
         self.vr_launch = None
         self.chooser = None
         self.controls_state = None
@@ -1207,6 +1208,10 @@ class Helper:
             asked = [app for app, request in COMPAT["game_requests"]().items() if COMPAT["valid_game_request"](app, request)]
             apps = sorted(set(apps) | set(asked), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
+            names = set(current.values()) | {default}
+            if COMPAT["uses_valve_proton"](names) and not COMPAT["uses_valve_proton"](self.valve_names or ()):
+                self.tools_checked = None
+            self.valve_names = names
             refused = set(apps) - set(current)
             refused_native = native_choices & refused
             if refused:
@@ -1276,7 +1281,8 @@ class Helper:
         self.tools_checked = now
         if COMPAT["game_running"]():
             return
-        for app, action in COMPAT["tool_downloads"](self.steam_root):
+        needed = COMPAT["valve_proton_needed"](self.steam_root, self.valve_names)
+        for app, action in COMPAT["tool_downloads"](self.steam_root, needed):
             if now - self.tools_asked.get(app, -TOOL_RETRY_SECONDS) < TOOL_RETRY_SECONDS:
                 continue
             self.tools_asked[app] = now
