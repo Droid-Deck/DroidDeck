@@ -154,7 +154,7 @@ new file mode 100755
 index 0000000..d43c5fc
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1406 @@
+@@ -0,0 +1,1411 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -995,7 +995,8 @@ index 0000000..d43c5fc
 +            let manifest = folder.join(LEGACY_MANIFEST);
 +            if manifest.is_file() {
 +                let text = std::fs::read_to_string(&manifest).unwrap_or_default().to_ascii_lowercase();
-+                if text.contains("processorarchitecture=\"x64\"") {
++                let compact: String = text.chars().filter(|ch| !ch.is_ascii_whitespace()).collect();
++                if compact.contains("processorarchitecture=\"x64\"") || compact.contains("processorarchitecture='x64'") {
 +                    return Some(folder);
 +                }
 +            }
@@ -1165,7 +1166,11 @@ index 0000000..d43c5fc
 +    if applications.len() > 1 {
 +        let x64: Vec<PathBuf> = applications
 +            .iter()
-+            .filter(|folder| manifest_text(folder).contains("processorarchitecture=\"x64\""))
++            .filter(|folder| {
++                let text = manifest_text(folder);
++                let compact: String = text.chars().filter(|ch| !ch.is_ascii_whitespace()).collect();
++                compact.contains("processorarchitecture=\"x64\"") || compact.contains("processorarchitecture='x64'")
++            })
 +            .cloned()
 +            .collect();
 +        if x64.len() == 1 {
