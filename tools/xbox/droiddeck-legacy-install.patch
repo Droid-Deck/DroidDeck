@@ -154,7 +154,7 @@ new file mode 100755
 index 0000000..d43c5fc
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1446 @@
+@@ -0,0 +1,1460 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -1084,7 +1084,12 @@ index 0000000..d43c5fc
 +/// and records what it copied so a later attempt can take exactly that back.
 +fn copy_libraries(from: &Path, to: &Path) -> Result<(), String> {
 +    let mut copied: Vec<String> = Vec::new();
-+    copy_libraries_into(from, to, &mut copied)?;
++    if let Err(error) = copy_libraries_into(from, to, &mut copied) {
++        for name in &copied {
++            let _ = std::fs::remove_file(to.join(name));
++        }
++        return Err(error);
++    }
 +    std::fs::write(from.join(COPIED), copied.join("\n")).map_err(|error| format!("framework copy list failed: {error}"))?;
 +    Ok(())
 +}
@@ -1106,7 +1111,16 @@ index 0000000..d43c5fc
 +        if target.exists() {
 +            continue;
 +        }
-+        std::fs::copy(&path, &target).map_err(|error| format!("framework copy failed: {error}"))?;
++        let temporary = to.join(format!(".{}.copying-{}", file_name.to_string_lossy(), std::process::id()));
++        let _ = std::fs::remove_file(&temporary);
++        if let Err(error) = std::fs::copy(&path, &temporary) {
++            let _ = std::fs::remove_file(&temporary);
++            return Err(format!("framework copy failed: {error}"));
++        }
++        if let Err(error) = std::fs::rename(&temporary, &target) {
++            let _ = std::fs::remove_file(&temporary);
++            return Err(format!("framework publish failed: {error}"));
++        }
 +        copied.push(file_name.to_string_lossy().into_owned());
 +    }
 +    Ok(())
