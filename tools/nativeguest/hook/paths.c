@@ -330,19 +330,28 @@ static int fd_is_at(long fd, const char *path, size_t len) {
     return n == (long)len && memcmp(real, path, len) == 0;
 }
 
-static int dir_has_no_links(const char *host, size_t dir_len) {
+static int prefix_has_no_links(const char *host, size_t dir_len, size_t src_len) {
     char dir[PATH_MAX];
-    if (dir_len == 0 || dir_len >= sizeof(dir)) return 0;
+    if (dir_len <= src_len || dir_len >= sizeof(dir)) return 0;
     memcpy(dir, host, dir_len);
     dir[dir_len] = '\0';
-    long fd = raw_open_path(dir, O_DIRECTORY);
-    if (fd < 0) return 0;
-    int plain = fd_is_at(fd, dir, dir_len);
-    raw_close_fd(fd);
-    return plain;
+    size_t at = dir_len;
+    for (;;) {
+        long fd = raw_open_path(dir, O_NOFOLLOW);
+        if (fd >= 0) {
+            char target[2];
+            int plain = fd_is_at(fd, dir, at) && raw_readlinkat((int)fd, "", target, sizeof(target)) < 0;
+            raw_close_fd(fd);
+            return plain;
+        }
+        if (fd != -ENOENT && fd != -ENOTDIR) return 0;
+        while (at > src_len && dir[at] != '/') at--;
+        if (at <= src_len) return 0;
+        dir[at] = '\0';
+    }
 }
 
-static int path_has_no_links(const char *host, size_t len, size_t dir_len) {
+static int path_has_no_links(const char *host, size_t len, size_t dir_len, size_t src_len) {
     t_plain_host = NULL;
     long fd = raw_open_path(host, O_NOFOLLOW);
     if (fd >= 0) {
@@ -354,9 +363,9 @@ static int path_has_no_links(const char *host, size_t len, size_t dir_len) {
             t_plain_len = len;
             return 1;
         }
-        return dir_has_no_links(host, dir_len);
+        return prefix_has_no_links(host, dir_len, src_len);
     }
-    if (!dir_has_no_links(host, dir_len)) return 0;
+    if (!prefix_has_no_links(host, dir_len, src_len)) return 0;
     if (fd == -ENOENT) {
         t_plain_host = host;
         t_plain_len = len;
@@ -377,7 +386,7 @@ static const char *resolve_links_after(const char *host, size_t src_len, char *b
     if (len >= PATH_MAX || t_bind_link_depth >= 8) return host;
     const char *last = strrchr(host, '/');
     size_t dir_len = last ? (size_t)(last - host) : 0;
-    if (check_plain && dir_len > src_len && path_has_no_links(host, len, dir_len)) return host == buffer ? buffer : host;
+    if (check_plain && dir_len > src_len && path_has_no_links(host, len, dir_len, src_len)) return host == buffer ? buffer : host;
     for (size_t i = src_len + 1; i < len; i++) {
         if (host[i] != '/') continue;
         char prefix[PATH_MAX];

@@ -157,6 +157,8 @@ class NativeHookMountTest(unittest.TestCase):
         cls.links = tmp / "links"
         (cls.links / "real/sub").mkdir(parents=True)
         (cls.links / "real/sub/file.txt").write_text("deep")
+        (cls.links / "real/sub/deeper/more").mkdir(parents=True)
+        (cls.links / "real/sub/deeper/more/leaf.txt").write_text("leaf")
         os.symlink("real", cls.links / "dir")
         os.symlink(str(cls.links / "real"), cls.links / "hostdir")
         os.symlink("/etc/hostname", cls.links / "guest")
@@ -347,6 +349,26 @@ class NativeHookMountTest(unittest.TestCase):
         result = self.run_probe(*cases, binds=binds)
         for case, want in cases.items():
             self.assertEqual(result[case], want, case)
+
+    def test_links_above_missing_folders_in_a_mount_are_still_followed(self):
+        binds = f"{self.links}:/mnt/links"
+        paths = {"/mnt/links/real/up/sub/deeper/more/leaf.txt": ["1", "leaf"],
+                 "/mnt/links/dir/up/sub/deeper/more/leaf.txt": ["1", "leaf"],
+                 "/mnt/links/real/up/no/such/folder/file.txt": ["0", "-"],
+                 "/mnt/links/dir/up/sub/no/such/file.txt": ["0", "-"]}
+        result = self.run_probe(*paths, binds=binds)
+        for path, want in paths.items():
+            self.assertEqual(result[path], want, path)
+
+    def test_paths_below_missing_folders_in_a_mount_stay_missing(self):
+        binds = f"{self.links}:/mnt/links"
+        paths = ["/mnt/links/real/sub/no/such/folder/file.txt", "/mnt/links/real/sub/deeper/no/file.txt",
+                 "/mnt/links/no/such/folder", "/mnt/links/real/sub/file.txt/more/deeper",
+                 "/mnt/links/real/sub/deeper/more/leaf.txt/x/y"]
+        result = self.run_probe(*paths, binds=binds)
+        for path in paths:
+            self.assertEqual(result[path], ["0", "-"], path)
+        self.assertEqual(self.run_probe("/mnt/links/real/sub/deeper/more/leaf.txt", binds=binds)["/mnt/links/real/sub/deeper/more/leaf.txt"], ["1", "leaf"])
 
     def test_missing_paths_in_a_mount_stay_missing(self):
         binds = f"{self.links}:/mnt/links"
