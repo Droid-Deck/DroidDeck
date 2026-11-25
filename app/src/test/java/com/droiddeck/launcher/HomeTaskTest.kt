@@ -259,6 +259,32 @@ class HomeTaskTest {
         assertTrue(started.flags and Intent.FLAG_ACTIVITY_NEW_TASK != 0)
     }
 
+    @Test fun aPlainFrontEndRunningWhenDroidDeckBecomesHomeHandsLaterLaunchesToTheHomeFrontEnd() {
+        // A plain front end opened while DroidDeck is not Home, from which the user then makes DroidDeck the Home app.
+        val plain = Robolectric.buildActivity(FrontEndActivity::class.java, Intent(context, FrontEndActivity::class.java)).create()
+        shadowOf(Looper.getMainLooper()).idle()
+        val front = plain.get()
+        assertFalse(front.isFinishing)
+        while (shadowOf(front).nextStartedActivity != null) Unit
+        makeHome()
+        // The role request's result only refreshes the Home state: the screen the user chose Home from stays put.
+        FrontEndActivity::class.java.getDeclaredMethod("refreshHomeAppState").apply { isAccessible = true }.invoke(front)
+        assertFalse(front.isFinishing)
+        assertNull(shadowOf(front).nextStartedActivity)
+        // The Home press then reaches the Home front end, which routes it as usual.
+        AppUiPrefs.setHomePage(context, AppUiPrefs.HOME_PAGE_APPS)
+        val home = Robolectric.buildActivity(HomeActivity::class.java, home()).get()
+        assertFalse(handOff(home))
+        assertFalse(home.isFinishing)
+        assertEquals(AppUiPrefs.HOME_PAGE_APPS, home.intent.getStringExtra(StoreDownloadService.EXTRA_NAV))
+        // A later launch that reaches the old plain front end goes to the Home task, and the plain one closes.
+        plain.newIntent(Intent(context, FrontEndActivity::class.java).putExtra(StoreDownloadService.EXTRA_NAV, "downloads"))
+        assertTrue(front.isFinishing)
+        val started = shadowOf(front).nextStartedActivity
+        assertTrue(HomeRoute.isHomeIntent(started))
+        assertEquals("downloads", HomeRoute.resolve(context, started).frontEnd.getStringExtra(StoreDownloadService.EXTRA_NAV))
+    }
+
     private fun home() = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
 
     private fun makeHome() {

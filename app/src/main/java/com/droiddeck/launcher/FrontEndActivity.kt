@@ -1339,10 +1339,15 @@ open class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.Age
         val request = if (savedInstanceState == null) intent
             else if (HomeRoute.forwards(intent)) Intent(this, FrontEndActivity::class.java) else return false
         if (!forwardToHome(request)) return false
+        closeHandedOff()
+        return true
+    }
+
+    /** Closes this instance once its launch went to the Home front end, so that one stays the only front end running. */
+    private fun closeHandedOff() {
         // A plain finish() leaves the emptied task behind as a card on the recents screen.
         if (isTaskRoot) finishAndRemoveTask() else finish()
         @Suppress("DEPRECATION") overridePendingTransition(0, 0)
-        return true
     }
 
     /** Whether this instance hands itself on instead of taking a new intent: the Home front end once DroidDeck is not Home. */
@@ -2062,7 +2067,12 @@ open class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.Age
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (leaveHome() || forwardToHome(intent)) return
+        if (leaveHome()) return
+        // A plain front end left running from before DroidDeck became Home hands the launch on and closes, as at create.
+        if (forwardToHome(intent)) {
+            closeHandedOff()
+            return
+        }
         setIntent(intent)
         supersedeUncommittedLaunch()
         if (intent.action == SteamIntegration.ACTION_SETUP) {
