@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.SdStorage
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Toys
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Icon
@@ -205,6 +206,7 @@ internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "agent" -> R.string.rail_agent to Icons.Filled.Terminal
     "android-apps" -> R.string.rail_apps to Icons.Filled.Apps
     "setup" -> R.string.rail_setup to Icons.Filled.Settings
+    "trinkets" -> R.string.rail_trinkets to Icons.Filled.Toys
     "storage" -> R.string.rail_storage to Icons.Filled.SdStorage
     "sync" -> R.string.rail_sync to Icons.Filled.Sync
     "decky" -> R.string.rail_decky to DeckyIcon
