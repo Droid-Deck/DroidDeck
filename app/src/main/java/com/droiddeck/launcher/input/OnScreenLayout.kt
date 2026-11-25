@@ -45,9 +45,13 @@ object OnScreenLayout {
         if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
         if (dock?.portrait == true && !dock.grips && !matched && layout.aspect > 0f && layout.aspect < 1f && stored.any(::isGamepad))
             return scaleDocked(cluster(stored.filterNot { it.alwaysShown || isGamepad(it) && (it.id == KEYBOARD_ID || it.control in BAR) }, layout.aspect, width, height, safe), ControllerPrefs.read(context).size / 100f, width, height, safe)
-        // Only regenerate unmatched layouts when dock geometry is explicitly requested.
-        // For floating overlays, reference() already recognizes built-in layouts saved at any supported size.
-        val generated = matched || dock != null && PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad)
+        // Keep edits in the layout's saved orientation, but use stock controls when
+        // an unmatched floating layout is displayed in the opposite orientation.
+        // reference() recognizes built-in layouts saved at any supported size.
+        val oppositeOrientation = layout.aspect > 0f && ((layout.aspect < 1f) != (height > width))
+        val generated = matched ||
+            dock != null && PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) ||
+            dock == null && oppositeOrientation && stored.any(::isGamepad)
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
         val others = fit(stored.filterNot { generated && isGamepad(it) || dock != null && it.alwaysShown }, reference.first, reference.second, width, height, safe)
         val regenerated = when {
