@@ -698,7 +698,72 @@ class ProtonRunTest(Temp):
             self.assertIsNone(OPEN["game_folder"](str(program)))
         self.assertEqual(ran, [[OPEN["STEAM_LAUNCH"], "desktop", "413150"]])
 
+    def depot(self, name="Proton 11.0 (ARM64)"):
+        self.write("Steam/steamapps/common/%s/proton" % name, b"#!/bin/sh\n", 0o755)
+        self.write("Steam/steamapps/common/%s/files/bin-arm64/wine" % name, b"#!/bin/sh\n", 0o755)
+
+    def own_build(self, version):
+        folder = "compatibilitytools.d/DroidDeck-Proton %s" % version
+        self.write("Steam/%s/compatibilitytool.vdf" % folder, TOOL_VDF % ("DroidDeck-Proton-" + version, version, "windows"))
+        self.write("Steam/%s/toolmanifest.vdf" % folder, '"manifest"\n{\n  "commandline" "/proton %verb%"\n}\n')
+        self.write("Steam/%s/proton" % folder, b"#!/bin/sh\n", 0o755)
+        return "DroidDeck-Proton-" + version
+
+    def test_a_wrapper_without_its_depot_gives_way_to_an_installed_proton(self):
+        newest = [self.own_build(v) for v in ("11-12.2", "11-12.3")][-1]
+        available = RUN["startable"](str(self.root), RUN["tools"](str(self.root)))
+        self.assertEqual(sorted(available), ["DroidDeck-Proton-11-12.2", newest])
+        current = RUN["mapping"](str(self.root))
+        self.assertEqual(RUN["choose_tool"]("70", current, available), (newest, "the newest DroidDeck-Proton"))
+        self.assertEqual(RUN["choose_tool"]("413150", current, available), (newest, "the newest DroidDeck-Proton"))
+        self.assertEqual(RUN["choose_tool"]("70", {"0": "DroidDeck-Proton-11-12.2"}, available),
+                         ("DroidDeck-Proton-11-12.2", "Steam's default"))
+
+    def test_a_wrapper_with_its_depot_is_still_steams_choice(self):
+        self.own_build("11-12.3")
+        self.depot()
+        available = RUN["startable"](str(self.root), RUN["tools"](str(self.root)))
+        self.assertIn("droiddeck-proton-arm64", available)
+        self.assertIn("droiddeck-proton-11-arm64", available)
+        current = RUN["mapping"](str(self.root))
+        self.assertEqual(RUN["choose_tool"]("70", current, available), ("droiddeck-proton-arm64", "Steam's default"))
+        self.assertEqual(RUN["choose_tool"]("413150", current, available), ("droiddeck-proton-11-arm64", "Steam's choice for this title"))
+
+    def test_each_wrapper_needs_its_own_depot(self):
+        self.depot("Proton Experimental (ARM64)")
+        available = RUN["startable"](str(self.root), RUN["tools"](str(self.root)))
+        self.assertEqual(sorted(available), ["droiddeck-proton-arm64"])
+
+    def test_an_unfinished_depot_is_not_started(self):
+        self.write("Steam/steamapps/common/Proton 11.0 (ARM64)/files/bin-arm64/wine", b"#!/bin/sh\n", 0o755)
+        self.assertEqual(RUN["startable"](str(self.root), RUN["tools"](str(self.root))), {})
+
+    def test_with_no_runnable_proton_the_launch_stops_with_the_download_state(self):
+        program = self.game("413150", "Stardew Valley", "Stardew Valley.exe")
+        self.write("Steam/steamapps/appmanifest_4427310.acf", '"AppState"\n{\n  "appid" "4427310"\n'
+                   '  "BytesToDownload" "288773824"\n  "BytesDownloaded" "37081024"\n  "BytesToStage" "1370855407"\n}\n')
+        said = []
+        with mock.patch.dict(os.environ, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.root)}), \
+                mock.patch.object(RUN["os"], "execve") as execve, mock.patch.dict(RUN, {"say": said.append}):
+            code = RUN["main"]([str(program)])
+        self.assertEqual(code, 69)
+        execve.assert_not_called()
+        self.assertRegex(said[-1], r"^Proton Experimental \(ARM64\) has not finished downloading in Steam "
+                                   r"\(35 of 275 MB downloaded, 1307 MB to unpack, \d+ MB free in ")
+        self.assertFalse((self.root / "steamapps/compatdata/413150").exists())
+
+    def test_with_no_proton_at_all_the_launch_says_what_to_download(self):
+        program = self.game("413150", "Stardew Valley", "Stardew Valley.exe")
+        said = []
+        with mock.patch.dict(os.environ, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.root)}), \
+                mock.patch.object(RUN["os"], "execve") as execve, mock.patch.dict(RUN, {"say": said.append}):
+            self.assertEqual(RUN["main"]([str(program)]), 69)
+        execve.assert_not_called()
+        self.assertEqual(said[-1], "no Proton is installed yet; open Steam and keep it open until it has downloaded "
+                                   "Proton Experimental (ARM64)")
+
     def test_the_tool_is_started_as_steam_starts_it(self):
+        self.depot()
         program = self.game("413150", "Stardew Valley", "Stardew Valley.exe")
         calls = []
         with mock.patch.dict(os.environ, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.root)}), \
@@ -713,6 +778,7 @@ class ProtonRunTest(Temp):
         self.assertTrue((self.root / "steamapps/compatdata/413150").is_dir())
 
     def run_main(self, argv):
+        self.depot()
         calls, dirs = [], []
         with mock.patch.dict(os.environ, {"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(self.root)}), \
                 mock.patch.object(RUN["os"], "execve", lambda *a: calls.append(a)), \

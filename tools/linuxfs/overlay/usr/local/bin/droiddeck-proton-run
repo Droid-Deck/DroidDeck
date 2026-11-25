@@ -100,6 +100,31 @@ def tools(root):
     return found
 
 
+def startable(root, available):
+    c = compat()
+    sources = dict(c["OWN_TOOLS"])
+    return {name: tool for name, tool in available.items()
+            if name not in sources or c["find_source"](root, sources[name], runnable=True)}
+
+
+def missing_proton(root):
+    c = compat()
+    for library in c["libraries"](root):
+        text = read_text(os.path.join(library, "steamapps", "appmanifest_%s.acf" % c["PROTON_ARM64_APPID"]))
+        if text is None:
+            continue
+        tokens = c["tokenize"](text)
+        sizes = tuple(c["manifest_number"](tokens, key) // 2 ** 20 for key in ("BytesDownloaded", "BytesToDownload", "BytesToStage"))
+        try:
+            st = os.statvfs(library)
+            free = "%d MB" % (st.f_bavail * st.f_frsize // 2 ** 20)
+        except OSError:
+            free = "unknown"
+        return ("%s has not finished downloading in Steam (%d of %d MB downloaded, %d MB to unpack, %s free in %s); "
+                "keep Steam open until it finishes" % ((c["SOURCES"][0],) + sizes + (free, library)))
+    return "no Proton is installed yet; open Steam and keep it open until it has downloaded %s" % c["SOURCES"][0]
+
+
 def state_default():
     try:
         with open(STATE, encoding="utf-8") as f:
@@ -130,6 +155,8 @@ def choose_tool(appid, current, available):
     for name in (default, c["TOOL"], c["TOOL_11"]):
         if name in available:
             return name, "the default ARM64 Proton"
+    if newest:
+        return newest, "the newest DroidDeck-Proton"
     return (sorted(available)[0], "the only one installed") if available else (None, None)
 
 
@@ -515,10 +542,10 @@ def main(argv):
             target = fixed(program, root, prefix, compatdata)
         else:
             target = locate(program, root)
-    available = tools(root)
+    available = startable(root, tools(root))
     name, why = choose_tool(target.appid, mapping(root), available)
     if name is None:
-        say("no Proton is installed yet; open Steam once and it is downloaded for you")
+        say(missing_proton(root))
         return 69
     folder, command = available[name]
     os.makedirs(target.compatdata, exist_ok=True)
