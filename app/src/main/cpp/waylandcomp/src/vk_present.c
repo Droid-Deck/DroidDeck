@@ -1549,8 +1549,12 @@ struct vkp_image *vkp_image_import_ahb(AHardwareBuffer *ahb, int as_blit_dst) {
     return img;
 }
 
+int vkp_gpu_is_qualcomm(void) {
+    return dev_init() == 0 && g_vendor_id == VKP_VENDOR_QUALCOMM;
+}
+
 int vkp_can_import_ahb(void) {
-    return dev_init() == 0 && !g_library_name && g_ahb_import &&
+    return dev_init() == 0 && g_vendor_id != VKP_VENDOR_QUALCOMM && !g_library_name && g_ahb_import &&
            g_vk.GetAndroidHardwareBufferPropertiesANDROID;
 }
 

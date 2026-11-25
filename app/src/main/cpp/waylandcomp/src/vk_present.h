@@ -44,6 +44,7 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
 int vkp_image_is_dmabuf(const struct vkp_image *img);
 struct AHardwareBuffer;
 int vkp_can_import_ahb(void);
+int vkp_gpu_is_qualcomm(void);
 
 struct vkp_image *vkp_image_create_shm(int w, int h);
 struct vkp_image *vkp_image_from_ahb(struct AHardwareBuffer *ahb);

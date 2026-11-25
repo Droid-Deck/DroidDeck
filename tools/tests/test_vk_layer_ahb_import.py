@@ -64,6 +64,7 @@ POOL_HARNESS = r'''
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 
 #define FOURCC(a, b, c, d) ((uint32_t)(a) | ((uint32_t)(b) << 8) | ((uint32_t)(c) << 16) | ((uint32_t)(d) << 24))
@@ -72,6 +73,7 @@ POOL_HARNESS = r'''
 #define AHB_RGBA8 1u
 #define AHB_RGB10A2 0x2bu
 #define MOD_LINEAR 0ULL
+#define VKP_MOD_INVALID (~0ULL)
 #define MOD_QCOM_COMPRESSED 0x0500000000000001ULL
 #define SC_MOD_GRALLOC (~0ULL - 1)
 #define SC_LAYER_AHB_USAGE_VENDOR_UBWC (1ULL << 28)
@@ -101,7 +103,7 @@ struct layer {
     uint64_t logged_mod;
 };
 
-enum { TIER_UBWC, TIER_PLAIN, TIER_LINEAR };
+enum { TIER_PLAIN, TIER_UBWC, TIER_LINEAR };
 static int g_alloc_failed;
 static uint32_t g_hdr_pool_fmt = AHB_RGB10A2;
 
@@ -110,19 +112,24 @@ static AHardwareBuffer *buffer = (AHardwareBuffer *)&handle;
 static struct vkp_image image;
 static int allocations, imports_10_bit, imports_8_bit, accept_10_bit, accept_8_bit;
 
+static AHardwareBuffer_Desc allocated;
 static int AHardwareBuffer_allocate(const AHardwareBuffer_Desc *d, AHardwareBuffer **out) {
-    (void)d; allocations++; *out = buffer; return 0;
+    allocated = *d; allocations++; *out = buffer; return 0;
 }
 static void AHardwareBuffer_describe(const AHardwareBuffer *b, AHardwareBuffer_Desc *d) {
-    (void)b; d->stride = 1920; d->usage = 0;
+    (void)b; *d = allocated; d->stride = 1920; d->usage = 0;
 }
 static void AHardwareBuffer_release(AHardwareBuffer *b) { (void)b; }
 static const void *native_handle(const AHardwareBuffer *b) { (void)b; return &handle; }
 static struct { const void *(*getNativeHandle)(const AHardwareBuffer *); } api = {native_handle};
-static int sniff_modifier(const struct droiddeck_native_handle *h, uint64_t *mod) { (void)h; (void)mod; return 0; }
+static int sniff_modifier(const struct droiddeck_native_handle *h, uint64_t *mod) { (void)h; *mod = MOD_LINEAR; return 1; }
+static int vkp_gpu_is_qualcomm(void) { return 1; }
+static int vkp_dmabuf_modifiers(uint32_t drm, uint64_t *out, int max) { (void)drm; (void)max; out[0] = MOD_LINEAR; return 1; }
+static int test_fstat(int fd, struct stat *st) { (void)fd; st->st_size = 1920 * 4 * 1080; return 0; }
+#define fstat(fd, st) test_fstat(fd, st)
 static int vkp_can_import_ahb(void) { return 0; }
-static struct vkp_image *vkp_image_import_ahb(AHardwareBuffer *b, char *info, size_t n) {
-    (void)b; (void)info; (void)n; return NULL;
+static struct vkp_image *vkp_image_import_ahb(AHardwareBuffer *b, int as_blit_dst) {
+    (void)b; (void)as_blit_dst; return NULL;
 }
 static struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm, uint64_t mod, int w, int h, uint32_t pitch,
                                                  uint32_t offset, int planes) {
@@ -167,10 +174,10 @@ int main(void) {
     reset(0, 1);
     assert(frame(&ten_bit_refused) == 0);
     assert(g_hdr_pool_fmt == AHB_RGBA8);
-    assert(imports_10_bit == 1 && imports_8_bit == 1);
+    assert(imports_10_bit == 3 && imports_8_bit == 1);
     assert(ten_bit_refused.alloc_tier == TIER_LINEAR);
     assert(frame(&ten_bit_refused) == 0);
-    assert(imports_10_bit == 1 && imports_8_bit == 2);
+    assert(imports_10_bit == 3 && imports_8_bit == 2);
 
     struct layer ten_bit_works = {.name = "game", .pool_n = 3};
     reset(1, 1);
@@ -181,12 +188,12 @@ int main(void) {
     struct layer nothing_imports = {.name = "game", .pool_n = 3};
     reset(0, 0);
     assert(frame(&nothing_imports) == -1 && g_alloc_failed);
-    assert(imports_10_bit == 1 && imports_8_bit == 1);
+    assert(imports_10_bit == 3 && imports_8_bit == 1);
     const int tried = allocations;
     assert(frame(&nothing_imports) == -1 && g_alloc_failed);
     assert(frame(&nothing_imports) == -1 && g_alloc_failed);
     assert(allocations == tried);
-    assert(imports_10_bit == 1 && imports_8_bit == 1);
+    assert(imports_10_bit == 3 && imports_8_bit == 1);
     return 0;
 }
 '''

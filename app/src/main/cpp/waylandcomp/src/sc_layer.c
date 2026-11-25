@@ -586,7 +586,7 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
     g_alloc_failed = 0;
     const unsigned fmt_bit = fmt == AHB_RGB10A2 ? 2u : 1u;
     while (l->alloc_tier <= TIER_LINEAR && !(l->import_failed_fmts & fmt_bit)) {
-        if (l->alloc_tier == TIER_UBWC && !strstr(vkp_gpu_name(), "Adreno")) l->alloc_tier = TIER_LINEAR;
+        if (l->alloc_tier == TIER_UBWC && !vkp_gpu_is_qualcomm()) l->alloc_tier = TIER_LINEAR;
         const int tier = l->alloc_tier;
         AHardwareBuffer_Desc d = {
             .width = (uint32_t)w, .height = (uint32_t)h, .layers = 1,
@@ -612,10 +612,10 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
         uint64_t mod = VKP_MOD_INVALID;
         const int dims_ok = got.width == (uint32_t)w && got.height == (uint32_t)h &&
             got.layers == 1 && got.format == fmt;
-        struct vkp_image *img = dims_ok ? vkp_image_import_ahb(ahb, 1) : NULL;
+        struct vkp_image *img = dims_ok && vkp_can_import_ahb() ? vkp_image_import_ahb(ahb, 1) : NULL;
         const int standard = img != NULL;
         const char *path = "standard AHB import";
-        if (!img && dims_ok && sniff_modifier(nh, &mod) && strstr(vkp_gpu_name(), "Adreno")) {
+        if (!img && dims_ok && sniff_modifier(nh, &mod) && vkp_gpu_is_qualcomm()) {
             const uint32_t drm = fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888;
             const off_t need = (off_t)got.stride * 4 * h;
             int which = -1;
