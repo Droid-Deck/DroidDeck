@@ -16,6 +16,7 @@
 #include <limits.h>
 #include <net/if.h>
 #include <net/if_arp.h>
+#include <net/route.h>
 #include <netpacket/packet.h>
 #include <netinet/in.h>
 #include <pthread.h>
@@ -533,6 +534,8 @@ static void write_table(FILE *out, const char *table, const struct link *link) {
     }
 }
 
+#define ROUTE_TABLE 0
+#define IPV6_ROUTE_TABLE 1
 #define CARRIER_TABLE 5
 
 #define SOCKET_TABLES 6
@@ -606,6 +609,48 @@ static FILE *synthesize(int table) {
     return out;
 }
 
+static int link_has_gateway(int family) {
+    struct link link;
+    if (!load_link(&link)) return 0;
+    for (int i = 0; i < link.gateway_count; i++) {
+        if (link.gateways[i].family == family) return 1;
+    }
+    return 0;
+}
+
+static int default_route_line(const char *line, int table) {
+    unsigned flags, prefix;
+    if (table == ROUTE_TABLE) {
+        unsigned destination, gateway, mask;
+        return sscanf(line, "%*s %x %x %x %*d %*d %*d %x", &destination, &gateway, &flags, &mask) == 4
+                && destination == 0 && mask == 0 && (flags & RTF_UP);
+    }
+    char destination[33];
+    return sscanf(line, "%32s %x %*s %*x %*s %*x %*x %*x %x", destination, &prefix, &flags) == 3
+            && prefix == 0 && strspn(destination, "0") == 32 && (flags & RTF_UP) && !(flags & RTF_REJECT);
+}
+
+static int misses_default_route(int fd, int table) {
+    if (table != ROUTE_TABLE && table != IPV6_ROUTE_TABLE) return 0;
+    if (!link_has_gateway(table == ROUTE_TABLE ? AF_INET : AF_INET6)) return 0;
+    size_t capacity = 65536, size = 0;
+    char *text = malloc(capacity + 1);
+    if (text == NULL) return 0;
+    ssize_t got = 1;
+    while (size < capacity && (got = pread(fd, text + size, capacity - size, (off_t) size)) > 0) size += (size_t) got;
+    int misses = got == 0;
+    text[size] = '\0';
+    for (char *line = text; misses && *line;) {
+        char *end = strchr(line, '\n');
+        if (end) *end = '\0';
+        if (default_route_line(line, table)) misses = 0;
+        if (end == NULL) break;
+        line = end + 1;
+    }
+    free(text);
+    return misses;
+}
+
 int dd_status_without_tracer(const char *path, int flags, const void *caller) __attribute__((visibility("hidden")));
 
 const char *dd_oom_adj_redirect(const char *path, int writing) __attribute__((visibility("hidden")));
@@ -623,6 +668,12 @@ static FILE *open_stream(fopen_fn real, const char *path, const char *mode, cons
     FILE *f;
     if (table >= 0 && denied_recently(table, path) && (f = synthesize(table)) != NULL) return f;
     f = real(path, mode);
+    if (f && table >= 0 && misses_default_route(fileno(f), table)) {
+        FILE *link_table = synthesize(table);
+        if (link_table == NULL) return f;
+        fclose(f);
+        return link_table;
+    }
     if (f || table < 0) return f;
     int saved = errno;
     if ((f = synthesize(table)) != NULL) {
@@ -636,9 +687,9 @@ static FILE *open_stream(fopen_fn real, const char *path, const char *mode, cons
 int dd_net_open(const char *path, int flags, int fd) __attribute__((visibility("hidden")));
 
 int dd_net_open(const char *path, int flags, int fd) {
-    if (fd >= 0 || path == NULL || (flags & O_ACCMODE) != O_RDONLY || (flags & O_DIRECTORY)) return fd;
+    if (path == NULL || (flags & O_ACCMODE) != O_RDONLY || (flags & O_DIRECTORY)) return fd;
     int table = denied_table(path);
-    if (table < 0) return fd;
+    if (table < 0 || (fd >= 0 && !misses_default_route(fd, table))) return fd;
     int saved = errno;
     FILE *f = synthesize(table);
     if (f == NULL) {
@@ -656,7 +707,8 @@ int dd_net_open(const char *path, int flags, int fd) {
         errno = saved;
         return fd;
     }
-    if (saved == EACCES) remember_denial(table, path);
+    if (fd >= 0) close(fd);
+    else if (saved == EACCES) remember_denial(table, path);
     return copy;
 }
 

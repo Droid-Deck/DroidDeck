@@ -87,12 +87,21 @@ int getsockopt(int fd, int level, int option, void *value, socklen_t *len) {
     return real(fd, level, option, value, len);
 }
 
+static __thread char fixture_path[4096];
+
+static const char *table_fixture(const char *path) {
+    const char *directory = getenv("NETLINK_TEST_TABLES");
+    if (!directory || !path || strncmp(path, "/proc/net/", 10)) return path;
+    snprintf(fixture_path, sizeof(fixture_path), "%s/%s", directory, path + 10);
+    return access(fixture_path, F_OK) == 0 ? fixture_path : path;
+}
+
 FILE *fopen(const char *path, const char *mode) {
     static FILE *(*real)(const char *, const char *);
     if (!real) real = dlsym(RTLD_NEXT, "fopen");
     const char *snapshot = getenv("NETLINK_TEST_SNAPSHOT");
     if (snapshot && !strcmp(path, "/etc/droiddeck-net")) path = snapshot;
-    return real(path, mode);
+    return real(table_fixture(path), mode);
 }
 
 static int denied(const char *path) {
@@ -116,13 +125,13 @@ int open(const char *path, int flags, ...) {
     va_start(ap, flags);
     mode_t mode = va_arg(ap, mode_t);
     va_end(ap);
-    return denied(path) ? -1 : real(path, flags, mode);
+    return denied(path) ? -1 : real(table_fixture(path), flags, mode);
 }
 
 int __open_2(const char *path, int flags) {
     static int (*real)(const char *, int);
     if (!real) real = dlsym(RTLD_NEXT, "__open_2");
-    return denied(path) ? -1 : real(path, flags);
+    return denied(path) ? -1 : real(table_fixture(path), flags);
 }
 
 int openat(int dirfd, const char *path, int flags, ...) {
@@ -132,7 +141,7 @@ int openat(int dirfd, const char *path, int flags, ...) {
     va_start(ap, flags);
     mode_t mode = va_arg(ap, mode_t);
     va_end(ap);
-    return denied(path) ? -1 : real(dirfd, path, flags, mode);
+    return denied(path) ? -1 : real(dirfd, table_fixture(path), flags, mode);
 }
 
 int close_range(unsigned int first, unsigned int last, int flags) {
@@ -212,6 +221,37 @@ static void proc_net_test(int denied, int sealed) {
         require(open("/proc/net/netstat", O_RDONLY) < 0 && errno == EACCES, "other tables stay denied");
         require(open("/proc/net/tcp", O_RDONLY | O_DIRECTORY) < 0 && errno == EACCES, "directory opens stay denied");
     }
+}
+
+static const char *table_source(int descriptor) {
+    char link[64], target[4096];
+    snprintf(link, sizeof(link), "/proc/self/fd/%d", descriptor);
+    ssize_t length = readlink(link, target, sizeof(target) - 1);
+    require(length > 0, "route table target");
+    target[length] = 0;
+    return strncmp(target, "/memfd:droiddeck-net", 20) == 0 ? "link" : "real";
+}
+
+static void route_tables_test(void) {
+    static const char *const tables[] = {"/proc/net/route", "/proc/net/ipv6_route"};
+    static const char *const gateways[] = {"\t00000000\t0101A8C0\t0003\t", "20010db8000000000000000000000001 "};
+    char text[4096];
+    for (unsigned i = 0; i < 2; i++) {
+        FILE *stream = fopen(tables[i], "r");
+        require(stream != NULL, "route table fopen");
+        const char *source = table_source(fileno(stream));
+        size_t total = fread(text, 1, sizeof(text) - 1, stream);
+        text[total] = 0;
+        require(strcmp(source, "link") || strstr(text, gateways[i]), "link table lists the default gateway");
+        printf("%s ", source);
+        fclose(stream);
+        int descriptor = i ? openat(AT_FDCWD, tables[i], O_RDONLY | O_CLOEXEC) : open(tables[i], O_RDONLY | O_CLOEXEC);
+        require(descriptor >= 0, "route table open");
+        require(fcntl(descriptor, F_GETFD) & FD_CLOEXEC, "route table keeps close-on-exec");
+        printf("%s ", table_source(descriptor));
+        close(descriptor);
+    }
+    printf("\n");
 }
 
 static unsigned port_of(int descriptor) {
@@ -1209,6 +1249,7 @@ int main(int argc, char **argv) {
     }
     else if (!strcmp(argv[1], "range") || !strcmp(argv[1], "cloexec") || !strcmp(argv[1], "closefrom"))
         close_range_test(argv[1]);
+    else if (!strcmp(argv[1], "route_tables")) route_tables_test();
     else if (!strcmp(argv[1], "proc_net")) proc_net_test(argc > 2 && strcmp(argv[2], "allowed"), argc > 2 && !strcmp(argv[2], "sealed"));
     else if (!strcmp(argv[1], "route")) {
         require(argc >= 3, "route destination");
@@ -1217,6 +1258,21 @@ int main(int argc, char **argv) {
     return 0;
 }
 """
+
+ROUTE_HEADER = "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n"
+ZERO_V6 = "0" * 32
+
+ANDROID_ROUTE_TABLES = {
+    "route": ROUTE_HEADER + "wlan0\t0001A8C0\t00000000\t0001\t0\t0\t0\t00FFFFFF\t0\t0\t0\n",
+    "ipv6_route": f"fe800000000000000000000000000000 40 {ZERO_V6} 00 {ZERO_V6} 00000100 00000001 00000000 00000001    wlan0\n"
+                  f"{ZERO_V6} 00 {ZERO_V6} 00 {ZERO_V6} ffffffff 00000001 00000000 00200200       lo\n",
+}
+
+DEFAULT_ROUTE_TABLES = {
+    "route": ANDROID_ROUTE_TABLES["route"] + "wlan0\t00000000\t0101A8C0\t0003\t0\t0\t600\t00000000\t0\t0\t0\n",
+    "ipv6_route": ANDROID_ROUTE_TABLES["ipv6_route"]
+                  + f"{ZERO_V6} 00 {ZERO_V6} 00 fe800000000000000000000000000001 00000400 00000001 00000000 00450003    wlan0\n",
+}
 
 SNAPSHOT = """if wlan0 2 1500
 mac 02:11:22:33:44:55
@@ -1257,12 +1313,14 @@ class NetlinkPreloadTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.temp.cleanup()
 
-    def run_program(self, mode, *arguments, snapshot=None, denied=None):
+    def run_program(self, mode, *arguments, snapshot=None, denied=None, tables=None):
         env = dict(os.environ, LD_PRELOAD=f"{self.preload}:{self.shim}",
                    NETLINK_TEST_SNAPSHOT=str(snapshot or self.snapshot),
                    DD_SYSV_DIR=str(self.directory / "sysv"))
         if denied:
             env["NETLINK_TEST_DENIED"] = denied
+        if tables:
+            env["NETLINK_TEST_TABLES"] = str(tables)
         result = subprocess.run([str(self.program), mode, *arguments], env=env,
                                 capture_output=True, text=True, timeout=5)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
@@ -1390,6 +1448,25 @@ class NetlinkPreloadTest(unittest.TestCase):
 
     def test_readable_socket_tables_stay_real(self):
         self.run_program("proc_net")
+
+    def route_tables(self, name, contents):
+        directory = self.directory / name
+        directory.mkdir(exist_ok=True)
+        for table, text in contents.items():
+            (directory / table).write_text(text)
+        return directory
+
+    def test_route_tables_without_a_default_route_answer_from_the_link(self):
+        tables = self.route_tables("android-routes", ANDROID_ROUTE_TABLES)
+        self.assertEqual(["link"] * 4, self.run_program("route_tables", tables=tables))
+
+    def test_route_tables_with_a_default_route_stay_real(self):
+        tables = self.route_tables("default-routes", DEFAULT_ROUTE_TABLES)
+        self.assertEqual(["real"] * 4, self.run_program("route_tables", tables=tables))
+
+    def test_route_tables_stay_real_when_the_link_has_no_gateway(self):
+        tables = self.route_tables("android-routes", ANDROID_ROUTE_TABLES)
+        self.assertEqual(["real"] * 4, self.run_program("route_tables", tables=tables, snapshot=self.direct))
 
     def test_loopback_and_own_addresses_are_local_routes(self):
         for destination, source in (("127.0.0.2", "127.0.0.1"), ("::1", "::1"),
