@@ -158,7 +158,9 @@ def ask(channel, request, timeout=TIMEOUT, claim=False):
 
 def windows_path(unix):
     tool = bionic_tool(os.environ.get("DD_STORE_PROTON", ""))
-    return (tool and bionic_path(tool, unix)) or "Z:" + guest_path(unix).replace("/", "\\")
+    if tool:
+        return bionic_path(tool, unix) or "Z:" + unix.replace("/", "\\")
+    return "Z:" + guest_path(unix).replace("/", "\\")
 
 
 def guest_path(unix):

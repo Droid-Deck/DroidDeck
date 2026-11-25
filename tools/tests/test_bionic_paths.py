@@ -190,6 +190,8 @@ class StorePaths(unittest.TestCase):
         (self.tool / 'proton').write_text('#!/bin/sh\nexit 1\n')
         with self.env():
             self.assertEqual('Z:\\home\\games\\c.reg', store.windows_path('/home/games/c.reg'))
+            self.assertEqual('Z:\\data\\user\\0\\com.droiddeck.launcher\\files\\linuxfs\\tmp\\c.reg',
+                             store.windows_path(ANDROID + '/tmp/c.reg'))
 
 
 if __name__ == '__main__':
