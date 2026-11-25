@@ -23,7 +23,7 @@ DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linu
   <a href="https://trendshift.io/repositories/267852"><img src="https://trendshift.io/api/badge/trendshift/repositories/267852/daily?language=Kotlin" alt="Droid-Deck%2FDroidDeck | Trendshift" width="250" height="55"></a>
 </p>
 
-<p align="center"><a href="https://youtu.be/JUu_U_ayXMs"><img src="https://img.youtube.com/vi/JUu_U_ayXMs/maxresdefault.jpg" width="100%" alt="Watch on YouTube: AYN Odin 3 Portal, testing games you asked for via DroidDeck, by CD's Retro Corner"></a></p>
+<p align="center"><a href="https://www.youtube.com/watch?v=ruaTSm_7a2c"><img src="docs/media/droiddeck-showcase.gif" width="60%" alt="DroidDeck waking instantly to the Steam menu, the AYN Thor's bottom screen used as a touchpad, and scrolling through the GOG, Epic, Amazon, Xbox and itch.io store tabs. Footage from Cyber Dopamine's video, linked."></a></p>
 
 > The official website is [droid-deck.dev](https://droid-deck.dev). Only download DroidDeck from this repository's [Releases](https://github.com/Droid-Deck/DroidDeck/releases).
 
