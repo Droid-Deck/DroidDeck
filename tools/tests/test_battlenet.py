@@ -376,6 +376,38 @@ class DriveTest(Temp):
         self.assertEqual(os.readlink(self.devices / "d:"), str(self.card))
         self.assertFalse(BNET["move_installs"](self.root))
 
+    def test_the_volume_holding_the_native_rootfs_gets_no_drive(self):
+        rootfs = self.card / "files/linuxfs"
+        library = rootfs / "root/Games/Stores/Battle.net"
+        library.mkdir(parents=True)
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(rootfs)}):
+            self.assertEqual(BNET["install_path"](self.root, str(library)), "Z:/root/Games/Stores/Battle.net")
+            self.assertEqual(BNET["install_path"](self.root, str(self.library)), "Z:" + str(self.library))
+        self.assertFalse(self.devices.exists())
+        self.assertEqual(BNET["install_path"](self.root, str(self.library)), "D:\\Games\\Battle.net")
+
+    def test_games_moved_to_a_drive_holding_the_native_rootfs_go_back_to_the_root_drive(self):
+        rootfs = self.card / "files/linuxfs"
+        game = rootfs / "root/Games/Stores/Battle.net/World of Warcraft"
+        game.mkdir(parents=True)
+        card = self.tmp / "sd"
+        (card / "Diablo").mkdir(parents=True)
+        self.devices.mkdir(parents=True)
+        os.symlink(str(self.card), self.devices / "d:")
+        os.symlink(str(card), self.devices / "e:")
+        client = self.product("battle.net", "C:/Program Files (x86)/Battle.net")
+        sd = self.product("d3", "E:/Diablo")
+        gone = self.product("gone", "D:/files/linuxfs/root/Games/Missing")
+        path = self.database(client, self.product("wowf", "D:/files/linuxfs/root/Games/Stores/Battle.net/World of Warcraft"), sd, gone)
+        before = path.read_bytes()
+        self.assertFalse(BNET["move_installs"](self.root))
+        self.assertEqual(path.read_bytes(), before)
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(rootfs)}):
+            self.assertTrue(BNET["move_installs"](self.root))
+            self.assertEqual(path.read_bytes(), client + self.product("wowf", "Z:/root/Games/Stores/Battle.net/World of Warcraft")
+                             + sd + gone + self.field(7, b"tail"))
+            self.assertFalse(BNET["move_installs"](self.root))
+
     def test_registrations_stay_while_the_prefix_runs_or_the_database_is_unreadable(self):
         game = self.library / "World of Warcraft"
         game.mkdir()
