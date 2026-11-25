@@ -26,13 +26,21 @@ internal object DeveloperTools {
 
 internal object NavTabs {
     const val MORE = "more"
-    val ALL = listOf("steam", "desktop", "games", "downloads", "setup", "updates", "stores", "soundtracks", "components", "storage", "sync", "decky", "boot-movies", "android-apps", "agent")
+    val ALL = listOf("steam", "desktop", "games", "downloads", "android-apps", "setup", "updates", "stores", "soundtracks", "components", "storage", "sync", "decky", "boot-movies", "agent")
     val DEFAULT_SHELVED = setOf("soundtracks", "components", "storage", "sync", "decky", "boot-movies", "android-apps", "agent")
     val DEFAULT_HIDDEN = setOf("android-apps", "agent")
     private val SHELVED_WHEN_NEW = setOf("storage", "sync", "decky", "boot-movies", "android-apps", "agent")
     private val OLD_ORDER = listOf("steam", "games", "soundtracks", "stores", "downloads", "desktop", "agent", "components", "android-apps", "storage", "sync", "setup", "updates")
     private val OLD_SHELVED = setOf("soundtracks", "agent", "storage", "sync")
     private const val LAYOUT_VERSION = 2
+
+    // While DroidDeck is the Home app, Apps is its app drawer, so it starts on the bar, as it did before tabs decided what shows.
+    private var homeApp = false
+    private fun defaultShelved() = if (homeApp) DEFAULT_SHELVED - "android-apps" else DEFAULT_SHELVED
+    private fun defaultHidden() = if (homeApp) DEFAULT_HIDDEN - "android-apps" else DEFAULT_HIDDEN
+    private fun readHomeApp(context: Context) {
+        homeApp = com.droiddeck.launcher.HomeApp.isHomeScreenEnabled(context) && com.droiddeck.launcher.HomeApp.isDefault(context)
+    }
 
     var order by mutableStateOf(ALL)
         private set
@@ -43,23 +51,32 @@ internal object NavTabs {
 
     fun load(context: Context) {
         migrate(context)
+        readHomeApp(context)
         val saved = SessionPrefs.navTabOrder(context)
         order = arrange(saved)
-        shelved = (SessionPrefs.navTabShelved(context) ?: DEFAULT_SHELVED).intersect(ALL.toSet()) +
+        shelved = (SessionPrefs.navTabShelved(context) ?: defaultShelved()).intersect(ALL.toSet()) +
             if (saved.isEmpty()) emptySet() else SHELVED_WHEN_NEW - saved.toSet()
-        hidden = (SessionPrefs.navTabHidden(context) ?: DEFAULT_HIDDEN).intersect(ALL.toSet()) - "setup"
+        hidden = (SessionPrefs.navTabHidden(context) ?: defaultHidden()).intersect(ALL.toSet()) - "setup"
     }
 
     fun reset(context: Context) {
+        readHomeApp(context)
         order = ALL
-        shelved = DEFAULT_SHELVED
-        hidden = DEFAULT_HIDDEN
+        shelved = defaultShelved()
+        hidden = defaultHidden()
         SessionPrefs.setNavTabOrder(context, order)
         SessionPrefs.setNavTabShelved(context, shelved)
         SessionPrefs.setNavTabHidden(context, hidden)
     }
 
-    fun isDefault(): Boolean = order == ALL && shelved == DEFAULT_SHELVED && hidden == DEFAULT_HIDDEN
+    fun isDefault(): Boolean = order == ALL && shelved == defaultShelved() && hidden == defaultHidden()
+
+    /** Follows DroidDeck becoming or leaving the Home app while it runs: only places nobody saved take the new default. */
+    fun refreshHomeApp(context: Context) {
+        val was = homeApp
+        readHomeApp(context)
+        if (homeApp != was) load(context)
+    }
 
     // Before layout 2, switches for game stores, soundtracks and the agent tab, and the home-screen requirement for Apps,
     // decided which tabs existed. A layout someone had already touched keeps showing what it showed then.
