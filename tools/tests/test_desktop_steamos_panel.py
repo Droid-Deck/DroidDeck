@@ -22,7 +22,7 @@ def block(first, last):
 def run(script, home):
     environment = {key: value for key, value in os.environ.items() if key != 'XDG_CONFIG_HOME'}
     environment['HOME'] = str(home)
-    result = subprocess.run(['bash', '-c', script], env=environment, capture_output=True, text=True, timeout=5)
+    result = subprocess.run(['bash', '-c', 'dd_layout_installed=1\n' + script], env=environment, capture_output=True, text=True, timeout=5)
     if result.returncode != 0:
         raise AssertionError(result.stderr)
 
@@ -100,6 +100,12 @@ class DesktopSteamosPanelTest(unittest.TestCase):
         self.assertIn('org.kde.plasma.kimpanel', OVERLAY_LAYOUT)
         for language in ('ja', 'ko', 'th', 'zh_CN', 'zh_TW', 'hi'):
             self.assertIn('"' + language + '"', OVERLAY_LAYOUT)
+
+    def test_panel_migration_requires_a_successfully_installed_layout(self):
+        self.assertIn('dd_layout_installed=0', DESKTOP)
+        self.assertIn('if cat > "$dd_layout/org.kde.plasma.desktop-layout.js" <<\'LAYOUT\'', DESKTOP)
+        self.assertIn('dd_layout_installed=1', DESKTOP)
+        self.assertIn('if [ "$dd_layout_installed" -eq 1 ] &&', DESKTOP)
 
     def test_the_panel_is_prepared_before_plasma_starts(self):
         for marker in ('dd_layout=', 'dd_panel_rc='):
