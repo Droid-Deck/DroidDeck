@@ -45,8 +45,9 @@ object OnScreenLayout {
         if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
         if (dock?.portrait == true && !dock.grips && !matched && layout.aspect > 0f && layout.aspect < 1f && stored.any(::isGamepad))
             return scaleDocked(cluster(stored.filterNot { it.alwaysShown || isGamepad(it) && (it.id == KEYBOARD_ID || it.control in BAR) }, layout.aspect, width, height, safe), ControllerPrefs.read(context).size / 100f, width, height, safe)
-        val generated = matched || PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) &&
-            (dock != null || layout.aspect >= 1f || layout.aspect > 0f && layout.aspect < 1f)
+        // Only regenerate unmatched layouts when dock geometry is explicitly requested.
+        // For floating overlays, reference() already recognizes built-in layouts saved at any supported size.
+        val generated = matched || dock != null && PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad)
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
         val others = fit(stored.filterNot { generated && isGamepad(it) || dock != null && it.alwaysShown }, reference.first, reference.second, width, height, safe)
         val regenerated = when {
@@ -100,8 +101,8 @@ object OnScreenLayout {
         if (scale != 1f) {
             val gap = 4f * (width.toFloat() / width) / width
             fun spacePair(leftControl: InputControl, rightControl: InputControl) {
-                val li = scaled.indexOfFirst { it.control == leftControl }
-                val ri = scaled.indexOfFirst { it.control == rightControl }
+                val li = scaled.indexOfFirst { isGamepad(it) && it.control == leftControl }
+                val ri = scaled.indexOfFirst { isGamepad(it) && it.control == rightControl }
                 if (li < 0 || ri < 0) return
                 var left = scaled[li]
                 var right = scaled[ri]
@@ -121,31 +122,66 @@ object OnScreenLayout {
             spacePair(InputControl.LT, InputControl.LB)
             spacePair(InputControl.RB, InputControl.RT)
         }
-        // Keep enlarged hit rectangles from stealing input from neighboring controls.
-        repeat(scaled.size) {
-            for (i in scaled.indices) {
-                if (!isGamepad(scaled[i])) continue
-                for (j in i + 1 until scaled.size) {
-                    if (!isGamepad(scaled[j])) continue
-                    val a = scaled[i]
-                    val b = scaled[j]
-                    val overlapX = min(a.x + a.width, b.x + b.width) - max(a.x, b.x)
-                    val overlapY = min(a.y + a.height, b.y + b.height) - max(a.y, b.y)
-                    if (overlapX <= 0f || overlapY <= 0f) continue
-                    val centerAX = a.x + a.width / 2f
-                    val centerBX = b.x + b.width / 2f
-                    val centerAY = a.y + a.height / 2f
-                    val centerBY = b.y + b.height / 2f
-                    if (overlapX / min(a.width, b.width) <= overlapY / min(a.height, b.height)) {
-                        val allowed = (abs(centerBX - centerAX) - 2f / width).coerceAtLeast(0f)
-                        val factor = (allowed / (a.width + b.width)).coerceIn(0f, 1f)
-                        scaled[i] = a.copy(x = centerAX - a.width * factor / 2f, width = a.width * factor)
-                        scaled[j] = b.copy(x = centerBX - b.width * factor / 2f, width = b.width * factor)
-                    } else {
-                        val allowed = (abs(centerBY - centerAY) - 2f / height).coerceAtLeast(0f)
-                        val factor = (allowed / (a.height + b.height)).coerceIn(0f, 1f)
-                        scaled[i] = a.copy(y = centerAY - a.height * factor / 2f, height = a.height * factor)
-                        scaled[j] = b.copy(y = centerBY - b.height * factor / 2f, height = b.height * factor)
+        // Only correct collisions caused by enlargement. At 100% (and below), preserve
+        // the stored geometry, including intentionally coincident edited controls.
+        if (scale > 1f) {
+            repeat(scaled.size) {
+                for (i in scaled.indices) {
+                    if (!isGamepad(scaled[i])) continue
+                    for (j in i + 1 until scaled.size) {
+                        if (!isGamepad(scaled[j])) continue
+                        val a = scaled[i]
+                        val b = scaled[j]
+                        val overlapX = min(a.x + a.width, b.x + b.width) - max(a.x, b.x)
+                        val overlapY = min(a.y + a.height, b.y + b.height) - max(a.y, b.y)
+                        if (overlapX <= 0f || overlapY <= 0f) continue
+
+                        val centerAX = a.x + a.width / 2f
+                        val centerBX = b.x + b.width / 2f
+                        val centerAY = a.y + a.height / 2f
+                        val centerBY = b.y + b.height / 2f
+                        if (overlapX / min(a.width, b.width) <= overlapY / min(a.height, b.height)) {
+                            val gapX = 2f / width
+                            val separation = abs(centerBX - centerAX)
+                            val allowed = (separation - gapX).coerceAtLeast(0f)
+                            var factor = (2f * allowed / (a.width + b.width)).coerceIn(0f, 1f)
+                            if (allowed <= 0f) {
+                                val available = (rightBound - leftBound).coerceAtLeast(.001f)
+                                factor = ((available - gapX).coerceAtLeast(0f) / (a.width + b.width)).coerceIn(0f, 1f)
+                                val aw = a.width * factor
+                                val bw = b.width * factor
+                                val total = aw + gapX + bw
+                                val center = ((centerAX + centerBX) / 2f).coerceIn(leftBound + total / 2f, rightBound - total / 2f)
+                                val leftFirst = centerAX <= centerBX
+                                scaled[i] = a.copy(x = if (leftFirst) center - total / 2f else center + total / 2f - aw)
+                                scaled[j] = b.copy(x = if (leftFirst) center - total / 2f + aw + gapX else center - total / 2f)
+                            } else {
+                                scaled[i] = a.copy(x = centerAX - a.width * factor / 2f, width = a.width * factor)
+                                scaled[j] = b.copy(x = centerBX - b.width * factor / 2f, width = b.width * factor)
+                            }
+                        } else {
+                            val gapY = 2f / height
+                            val separation = abs(centerBY - centerAY)
+                            val allowed = (separation - gapY).coerceAtLeast(0f)
+                            val factor = if (allowed > 0f) {
+                                (2f * allowed / (a.height + b.height)).coerceIn(0f, 1f)
+                            } else {
+                                val available = (bottomBound - topBound).coerceAtLeast(.001f)
+                                ((available - gapY).coerceAtLeast(0f) / (a.height + b.height)).coerceIn(0f, 1f)
+                            }
+                            if (allowed <= 0f) {
+                                val ah = a.height * factor
+                                val bh = b.height * factor
+                                val total = ah + gapY + bh
+                                val center = ((centerAY + centerBY) / 2f).coerceIn(topBound + total / 2f, bottomBound - total / 2f)
+                                val topFirst = centerAY <= centerBY
+                                scaled[i] = a.copy(y = if (topFirst) center - total / 2f else center + total / 2f - ah)
+                                scaled[j] = b.copy(y = if (topFirst) center - total / 2f + ah + gapY else center - total / 2f)
+                            } else {
+                                scaled[i] = a.copy(y = centerAY - a.height * factor / 2f, height = a.height * factor)
+                                scaled[j] = b.copy(y = centerBY - b.height * factor / 2f, height = b.height * factor)
+                            }
+                        }
                     }
                 }
             }
