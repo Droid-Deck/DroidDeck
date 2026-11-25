@@ -1351,7 +1351,7 @@
     <string name="gate_title">需要變更的一項 Android 設定</string>
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android 會停止那些啟動大量背景處理程序的應用程式，而 Steam 會啟動數十個處理程序。在變更此設定前，遊戲可能會在沒有錯誤提示的情況下關閉。</string>
-    <string name="gate_notifications_toast">配對碼會顯示在通知中。請為 DroidDeck 開啟通知後再試一次。</string>
+    <string name="gate_notifications_toast">將配對碼輸入通知中。請為 DroidDeck 開啟通知後再試一次。</string>
     <string name="gate_fix_for_me">幫我修復</string>
     <string name="gate_toggle_steps">開啟「停止限制子程序」，然後返回。請保持開發人員選項開啟，否則該開關會再次關閉。</string>
     <string name="gate_open_dev">開啟開發人員選項</string>
