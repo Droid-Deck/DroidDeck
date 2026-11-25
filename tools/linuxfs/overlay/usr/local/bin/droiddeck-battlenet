@@ -677,6 +677,18 @@ def install_folders(root):
     return folders
 
 
+def json_strings(value):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield key
+            yield from json_strings(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from json_strings(item)
+
+
 def escapes(tail):
     depth = 0
     for part in re.split(rb"[\\/]+", tail):
@@ -716,13 +728,20 @@ def drop_rootfs_drives(root):
     for path, data in changed.items():
         if data != texts[path]:
             write_bytes(path, data)
+    seen = list(changed.values())
+    config = os.path.join(drive_c(root), *CONFIG)
+    if config in changed:
+        try:
+            seen += [text.encode("utf-8", "replace") for text in json_strings(json.loads(changed[config].decode("utf-8-sig")))]
+        except ValueError:
+            return []
     dropped = []
     for letter in sorted(drives):
         drive = letter.encode() + letter.upper().encode()
         used = rb"(?<![A-Za-z0-9])[" + drive + rb"]:[\\/]"
         if any(re.match(rb"[" + drive + rb"]:[\\/]", folder.lstrip()) for folder in folders):
             continue
-        if not any(re.search(used, data) for data in changed.values()):
+        if not any(re.search(used, data) for data in seen):
             os.unlink(os.path.join(dosdevices(root), letter + ":"))
             dropped.append(letter)
     return dropped

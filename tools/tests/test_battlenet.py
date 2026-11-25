@@ -483,14 +483,18 @@ class DriveTest(Temp):
         self.assertIn(up, system.read_text())
         self.assertIn('"InstallLocation"="Z:\\\\root\\\\Games', system.read_text())
 
-    def test_a_config_path_with_escaped_slashes_keeps_its_drive(self):
+    def test_a_config_path_with_escaped_characters_keeps_its_drive(self):
         rootfs, _, config = self.rootfs_prefix()
-        config.write_text(config.read_text()[:-1] + ', "Other": "D:\\/Other\\/Game"}')
         with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(rootfs)}):
             BNET["move_installs"](self.root)
-            self.assertEqual(BNET["drop_rootfs_drives"](self.root), [])
-        self.assertTrue(os.path.islink(self.devices / "d:"))
-        self.assertEqual(json.loads(config.read_text())["Other"], "D:/Other/Game")
+            settings = config.read_text()
+            for text in (settings[:-1] + ', "Other": "D:\\/Other\\/Game"}', settings[:-1] + ', "Other": "D\\u003a/Other/Game"}', '{"Client": '):
+                with self.subTest(text=text):
+                    config.write_text(text)
+                    self.assertEqual(BNET["drop_rootfs_drives"](self.root), [])
+                    self.assertTrue(os.path.islink(self.devices / "d:"))
+            config.write_text(settings)
+            self.assertEqual(BNET["drop_rootfs_drives"](self.root), ["d"])
 
     def test_an_unreadable_database_keeps_the_drive(self):
         rootfs, _, _ = self.rootfs_prefix()
