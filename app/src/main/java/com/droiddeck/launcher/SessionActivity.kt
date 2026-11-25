@@ -2834,6 +2834,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun installProton(): String? {
         uiHandler.post { loading.percent = -1; loading.say(getString(PROTON_LINES.downloading), PROTON_LINES.topic, readable = true) }
+        if (com.droiddeck.launcher.session.SessionPrefs.ownProtonFirst(this)) return installOwnProton()
         val catalog = com.droiddeck.launcher.runtime.DesktopCatalog
         val cancellation = com.droiddeck.launcher.core.Downloader.Cancellation { SessionState.stopRequested }
         SessionState.installCancellation = cancellation
@@ -2841,6 +2842,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             val entry = catalog.fetch(catalog.STEAM_SEED_URL, cancellation)?.firstOrNull { it.id == catalog.PROTON_SEED_ID }
                 ?: return if (cancellation.asBoolean) "cancelled" else "catalog unreachable"
             catalog.install(this, entry, cancellation, progressFor(PROTON_LINES, entry.size / 1_000_000))
+        } finally {
+            if (SessionState.installCancellation === cancellation) SessionState.installCancellation = null
+        }
+    }
+
+    private fun installOwnProton(): String? {
+        val extras = com.droiddeck.launcher.session.ProtonExtras
+        while ((extras.prefetching || extras.installInProgress) && !SessionState.stopRequested) {
+            try { Thread.sleep(250) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); return "interrupted" }
+        }
+        if (SessionState.stopRequested) return "cancelled"
+        if (!com.droiddeck.launcher.runtime.DesktopCatalog.ownProtonMissing(this)) return null
+        val cancellation = com.droiddeck.launcher.core.Downloader.Cancellation { SessionState.stopRequested }
+        SessionState.installCancellation = cancellation
+        return try {
+            extras.install(this, extras.tools.first { it.id == extras.OWN }, cancellation) { label, percent ->
+                uiHandler.post { loading.percent = percent; loading.say(label, PROTON_LINES.topic, readable = true) }
+            }.also { if (it == null) com.droiddeck.launcher.session.Onboarding.recheck(this) }
         } finally {
             if (SessionState.installCancellation === cancellation) SessionState.installCancellation = null
         }

@@ -49,7 +49,7 @@ internal class ProtonMenu(
     @VisibleForTesting internal var latestCheck: (Boolean) -> Boolean = { force -> ProtonExtras.checkLatest(activity, force) }
     @VisibleForTesting internal var experimentalRefresh: () -> List<ExperimentalProtons.Release>? = { ExperimentalProtons.refresh(activity) }
     @VisibleForTesting internal var installer: (ProtonExtras.Tool, (String, Int) -> Unit) -> String? =
-        { tool, progress -> ProtonExtras.install(activity, tool, progress) }
+        { tool, progress -> ProtonExtras.install(activity, tool, onProgress = progress) }
 
     fun installProton(id: String, automatic: Boolean = false) {
         val tool = ProtonExtras.tools.firstOrNull { it.id == id } ?: return
