@@ -29,6 +29,9 @@ object SessionPrefs {
     private const val SLOW_USB_WARNING_OFF = "slowUsbWarningOff"
     private const val SLOW_USB_DISMISSED = "slowUsbDismissed"
 
+    const val LOG_LEVEL_STANDARD = 0
+    const val LOG_LEVEL_DETAILED = 1
+
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
     const val CONTROLLER_STEAM = "steamcontroller"
@@ -1314,6 +1317,13 @@ object SessionPrefs {
     fun setMemoryHud(context: Context, value: String) {
         require(value == MEMORY_HUD_OFF || value == MEMORY_HUD_SIMPLE || value == MEMORY_HUD_ADVANCED)
         prefs(context).edit().putString("memoryHud", value).apply()
+    }
+
+    fun sessionLogLevel(context: Context): Int =
+        prefs(context).getInt("sessionLogLevel", LOG_LEVEL_STANDARD)
+
+    fun setSessionLogLevel(context: Context, level: Int) {
+        prefs(context).edit().putInt("sessionLogLevel", level).apply()
     }
 
     fun storageDiagnosticsEnabled(context: Context): Boolean =

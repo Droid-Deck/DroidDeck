@@ -968,6 +968,9 @@
     <string name="setup_game_debug_logs_hint">Include Proton, Wine and graphics diagnostics on the next game launch. Can reduce performance and use more storage.</string>
     <string name="setup_game_debug_logs_restart">Restart this session to save game debug logs</string>
     <string name="setup_logging_update_failed">Couldn\'t update logging. Check the switch and try again.</string>
+    <string name="setup_log_level">Log level</string>
+    <string name="setup_log_level_standard">Standard</string>
+    <string name="setup_log_level_detailed">Detailed</string>
     <string name="setup_agent_commands">Debugging tools</string>
     <string name="setup_graphics_logs">Detailed graphics logs</string>
     <string name="setup_steam_gpu_drawing">Steam interface: GPU drawing</string>

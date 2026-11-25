@@ -899,6 +899,9 @@
     <string name="setup_game_debug_logs_hint">تضمين بيانات تشخيص Proton وWine والرسومات عند تشغيل اللعبة التالية. قد يقلّل الأداء ويستهلك مساحة تخزين أكبر.</string>
     <string name="setup_game_debug_logs_restart">أعِد تشغيل هذه الجلسة لحفظ سجلات تصحيح الألعاب</string>
     <string name="setup_logging_update_failed">تعذّر تحديث التسجيل. تحقّق من المفتاح وحاول مرة أخرى.</string>
+    <string name="setup_log_level">مستوى السجل</string>
+    <string name="setup_log_level_standard">قياسي</string>
+    <string name="setup_log_level_detailed">مفصّل</string>
     <string name="setup_agent_commands">أدوات تصحيح الأخطاء</string>
     <string name="setup_graphics_logs">سجلات رسوميات مفصلة</string>
     <string name="setup_steam_gpu_drawing">واجهة Steam: الرسم عبر GPU</string>

@@ -893,6 +893,9 @@
     <string name="setup_game_debug_logs_hint">Додавати діагностику Proton, Wine і графіки під час наступного запуску гри. Може знизити продуктивність і зайняти більше місця.</string>
     <string name="setup_game_debug_logs_restart">Перезапустіть цей сеанс, щоб зберігати журнали налагодження ігор</string>
     <string name="setup_logging_update_failed">Не вдалося оновити журналювання. Перевірте перемикач і спробуйте ще раз.</string>
+    <string name="setup_log_level">Рівень журналу</string>
+    <string name="setup_log_level_standard">Стандартний</string>
+    <string name="setup_log_level_detailed">Докладний</string>
     <string name="setup_agent_commands">Засоби діагностики</string>
     <string name="setup_graphics_logs">Детальні журнали графіки</string>
     <string name="setup_steam_gpu_drawing">Інтерфейс Steam: малювання на GPU</string>

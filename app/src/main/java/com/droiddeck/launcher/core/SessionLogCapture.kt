@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 object SessionLogCapture {
     private const val TAG = "SessionLogCapture"
+    private const val CAP = 64L * 1024 * 1024
 
     private var pid = -1
     private var writer: BufferedWriter? = null
@@ -19,22 +20,40 @@ object SessionLogCapture {
     private var syncer: Thread? = null
 
     @Synchronized
-    fun start(target: File, sinceMillis: Long) {
+    fun start(target: File, sinceMillis: Long, wholeSystem: Boolean = false) {
         stop()
         try {
             val out = target.bufferedWriter()
-            out.write("The app's own log for this session (logcat, this process only).\n")
-            out.write("Lines the app wrote before the session folder existed are in logcat only.\n\n")
+            if (wholeSystem) {
+                out.write("The whole system's log for this session (logcat, every process).\n")
+                out.write("Lines the app wrote before the session folder existed are in here too.\n\n")
+            } else {
+                out.write("The app's own log for this session (logcat, this process only).\n")
+                out.write("Lines the app wrote before the session folder existed are in logcat only.\n\n")
+            }
             out.flush()
             writer = out
             this.target = target
+            var written = 0L
+            var capped = false
             pid = HostProcess.start(
-                command(Process.myPid(), sinceMillis),
+                command(Process.myPid(), sinceMillis, wholeSystem),
                 null, target.parentFile, null,
             ) { line ->
                 synchronized(this) {
                     try {
-                        writer?.apply { write(line); newLine(); flush() }
+                        val w = writer ?: return@synchronized
+                        if (wholeSystem) {
+                            if (capped) return@synchronized
+                            if (written > CAP) {
+                                w.write("== log capped at 64 MiB\n")
+                                w.flush()
+                                capped = true
+                                return@synchronized
+                            }
+                            written += line.length + 1
+                        }
+                        w.write(line); w.newLine(); w.flush()
                     } catch (e: Exception) {
                     }
                 }
@@ -44,15 +63,15 @@ object SessionLogCapture {
                 out.flush()
             }
             target.parentFile?.let { syncer = startSyncing(it) }
-            Log.i(TAG, "app log -> $target (logcat pid $pid)")
+            Log.i(TAG, "app log -> $target (logcat pid $pid" + (if (wholeSystem) ", every process" else "") + ")")
         } catch (e: Exception) {
             Log.w(TAG, "could not start the app log", e)
         }
     }
 
-    internal fun command(pid: Int, sinceMillis: Long): String {
+    internal fun command(pid: Int, sinceMillis: Long, wholeSystem: Boolean = false): String {
         val since = if (sinceMillis > 0) "%d.%03d".format(java.util.Locale.US, sinceMillis / 1000, sinceMillis % 1000) else "1"
-        return "/system/bin/logcat -v threadtime -T $since --pid=$pid"
+        return "/system/bin/logcat -v threadtime -T $since" + if (wholeSystem) "" else " --pid=$pid"
     }
 
     @Synchronized

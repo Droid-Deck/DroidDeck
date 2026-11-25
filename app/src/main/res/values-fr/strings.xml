@@ -890,6 +890,9 @@
     <string name="setup_game_debug_logs_hint">Inclure les diagnostics Proton, Wine et graphiques au prochain lancement d\'un jeu. Peut réduire les performances et utiliser plus de stockage.</string>
     <string name="setup_game_debug_logs_restart">Redémarrez cette session pour enregistrer les journaux de débogage des jeux</string>
     <string name="setup_logging_update_failed">Impossible de modifier la journalisation. Vérifiez l\'interrupteur et réessayez.</string>
+    <string name="setup_log_level">Niveau de journal</string>
+    <string name="setup_log_level_standard">Standard</string>
+    <string name="setup_log_level_detailed">Détaillé</string>
     <string name="setup_agent_commands">Outils de débogage</string>
     <string name="setup_graphics_logs">Journaux graphiques détaillés</string>
     <string name="setup_steam_gpu_drawing">Interface Steam : rendu GPU</string>

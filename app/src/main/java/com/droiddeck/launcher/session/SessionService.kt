@@ -506,6 +506,18 @@ class SessionService : Service() {
                 Log.w(TAG, "venus: off for this session - the phone's driver reports Vulkan $it and gamescope needs 1.2 or newer; the session uses the PanVK pair or the bridge")
             }
         }
+        val detailed = SessionPrefs.logsEnabled(this) &&
+            SessionPrefs.sessionLogLevel(this) == SessionPrefs.LOG_LEVEL_DETAILED
+        var prepMark = SystemClock.elapsedRealtime()
+        var capturing = false
+        val pendingPrep = ArrayList<String>()
+        fun prep(step: String) {
+            if (!detailed) return
+            val now = SystemClock.elapsedRealtime()
+            val line = "prep: $step ${now - prepMark}ms"
+            prepMark = now
+            if (capturing) Log.i(TAG, line) else pendingPrep.add(line)
+        }
         SessionTerminal.clear()
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)
         try {
@@ -515,11 +527,13 @@ class SessionService : Service() {
             stopSession(-1, gen)
             return
         }
+        prep("terminal and accounts")
 
         val root = LinuxRuntime.rootDir(this)
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
+        prep("stray processes")
         val stillStarting = { gen == sessionGen && SessionState.running }
         val prootPack = LinuxRuntime.patchedProot(this) || AddonPack.PROOT.await(this, stillStarting)
         val directAudioPack = AddonPack.DIRECTAUDIO.await(this, stillStarting)
@@ -576,16 +590,19 @@ class SessionService : Service() {
             Log.i(TAG, "session stopped while its files were staging")
             return
         }
+        prep("runtime files")
         SessionArtifacts.awaitCollections()
         if (!stillStarting()) {
             Log.i(TAG, "session stopped while earlier session logs were being collected")
             return
         }
         SessionArtifacts.finishAbandoned(this, beforeGuestStart = true)
+        prep("earlier reports")
         VacDiagnostics.arm(this)
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         com.droiddeck.launcher.stores.gog.GogComet.begin()
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
+        prep("store hooks")
 
         val sessionDir = openSessionFolder()
         try {
@@ -606,8 +623,14 @@ class SessionService : Service() {
         runCatching { sessionLog.appendText(prootLine + "\n") }
             .onFailure { Log.w(TAG, "could not write the proot line to ${sessionLog.path}", it) }
 
+        capturing = true
+        pendingPrep.forEach { Log.i(TAG, it) }
+        pendingPrep.clear()
+        prep("report and log capture")
+
         Log.i(TAG, SessionEvents.step("gpu-clock-pin") { GpuClockPin.start(this) })
         Log.i(TAG, SessionEvents.step("thread-hints") { GameThreadHints.start(this) })
+        prep("clock and thread hints")
 
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
@@ -631,8 +654,10 @@ class SessionService : Service() {
         }
         if (steamHere) guest.add("DD_EPIC_APP_ID=" + com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId)
         val fastPathAt = guest.size
+        prep("client environment")
 
         val pulse = SessionEvents.step("audio") { startAudio(guest, sessionDir, directAudioPack) }
+        prep("audio")
         SessionEvents.step("vk-bridge") { startVkBridge(guest, sessionDir) }
         if (VenusComponent.wanted(this)) {
             components.add(VenusComponent(File(sessionDir, "venus.log")).also { it.attach(this) })
@@ -670,6 +695,7 @@ class SessionService : Service() {
         guest.add("WINE_OFFSCREEN_CHECK_MS=100")
         guest.add("DD_REFRESH=" + Math.round(SessionState.refreshHz))
         guest.add("DD_LOG=" + sessionLog.path)
+        if (detailed) guest.add("DD_LOG_LEVEL=detailed")
         guest.add("DD_DEBUG_DIR=" + sessionDir.path)
         if (EnhancedDiagnostics.isActive(this, sessionDir)) guest.add("DROIDDECK_ENHANCED_DIAGNOSTICS=1")
 
@@ -682,6 +708,7 @@ class SessionService : Service() {
             SessionEvents.step("controller-environment") { addControllerEnvironment(guest, fakeInputDir, sessionDir) }
             SessionEvents.step("controller-sync") { SessionState.padBridge?.syncConnectedControllers() }
         }
+        prep("controllers")
         val noSteamGame = noSteamGame()
         if (noSteamGame) guest.add("DD_PIN_CORES=0")
         if ((steamHere || SessionState.program == NoSteamLaunch.EPIC) && com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed) {
@@ -690,6 +717,7 @@ class SessionService : Service() {
             runCatching { SessionEvents.step("epic-install-dir") { com.droiddeck.launcher.stores.epic.EpicClient.prepareInstallDir(this) } }
                 .onFailure { Log.w(TAG, "Epic install directory setup failed", it) }
         }
+        prep("epic library")
         if (steamHere || noSteamGame) {
             val added = SessionEvents.step("added-games-scan") { com.droiddeck.launcher.frontend.AddedGames.scan(this) }
             val listing = SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added) }
@@ -698,6 +726,7 @@ class SessionService : Service() {
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("DD_LOSSLESS_OWNED=1")
             if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
+        prep("added games")
         guest.add("DD_LAUNCH_DIR=" + sessionRoot.path)
         // Proton builds up to 11.12 report X11 text fields under this name.
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
@@ -742,6 +771,7 @@ class SessionService : Service() {
         synchronized(stopLock) {
             if (gen == sessionGen && SessionState.running) com.droiddeck.launcher.runtime.NativeGuest.sessionMode = nativeUserland
         }
+        prep("binds")
         val fastPathKey = if (ProotFastPath.enabled(this)) {
             val prootBinds = LinuxRuntime.binds(
                 this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds,
@@ -844,6 +874,7 @@ class SessionService : Service() {
             abandonStart(gen, sessionDir, started)
             return
         }
+        prep("components")
 
         val line = command.joinToString(" ") {
             it.replace("\\", "\\\\").replace(" ", "\\ ")
@@ -861,6 +892,7 @@ class SessionService : Service() {
             stopSession(program ?: status ?: -1, gen)
         }, null, sessionLog.takeIf { "PROOT_PROFILE=1" in hostEnv.asArray() }) }
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
+        prep("proot spawn")
         if (gen != sessionGen || !SessionState.running) {
             Log.i(TAG, "session stopped while its guest was starting; taking it down")
             if (gen == sessionGen) {
@@ -970,7 +1002,8 @@ class SessionService : Service() {
         if (EnhancedDiagnostics.isActive(this, sessionDir)) SessionEvents.record("diagnostics.enhanced", mapOf("schema" to 1))
         DeviceReport.write(this, File(sessionDir, "device.txt"), SessionState.mode)
         NetworkReport.write(this, File(sessionDir, "network.txt"))
-        SessionLogCapture.start(File(sessionDir, "app.log"), SessionPaths.startedAt(sessionDir))
+        SessionLogCapture.start(File(sessionDir, "app.log"), SessionPaths.startedAt(sessionDir),
+            SessionPrefs.sessionLogLevel(this) == SessionPrefs.LOG_LEVEL_DETAILED)
         MemoryLog.start()
         return sessionDir
     }
