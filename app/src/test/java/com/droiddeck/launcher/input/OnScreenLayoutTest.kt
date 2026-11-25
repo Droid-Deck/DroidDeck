@@ -764,4 +764,24 @@ class OnScreenLayoutTest {
             assertFalse(kit.artwork(layout.elements.first { it.control == InputControl.A }.copy(image = "picture")))
         }
     }
+
+    @Test fun dockedSizeAppliesWithoutAKitAndToThePortraitCluster() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
+        val stock = gamepad()
+        ControllerPrefs.setSize(context, 100)
+        val defaultNormal = OnScreenLayout.elements(context, stock, 1200, 540, Rect(), dock = OnScreenLayout.Dock(false, false))
+        ControllerPrefs.setSize(context, 125)
+        val defaultLarge = OnScreenLayout.elements(context, stock, 1200, 540, Rect(), dock = OnScreenLayout.Dock(false, false))
+        assertTrue(defaultLarge.at(InputControl.A).width > defaultNormal.at(InputControl.A).width)
+
+        val portraitEdited = stock.copy(
+            elements = stock.elements.map { if (it.control == InputControl.A) it.copy(x = it.x + .07f) else it },
+            aspect = .5f,
+        )
+        ControllerPrefs.setSize(context, 100)
+        val clusterNormal = OnScreenLayout.elements(context, portraitEdited, 540, 1200, Rect(), dock = OnScreenLayout.Dock(true, false))
+        ControllerPrefs.setSize(context, 125)
+        val clusterLarge = OnScreenLayout.elements(context, portraitEdited, 540, 1200, Rect(), dock = OnScreenLayout.Dock(true, false))
+        assertTrue(clusterLarge.at(InputControl.A).width > clusterNormal.at(InputControl.A).width)
+    }
 }
