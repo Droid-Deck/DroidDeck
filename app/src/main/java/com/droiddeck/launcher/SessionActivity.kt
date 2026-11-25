@@ -1757,6 +1757,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             wowChat = wowChat.remembered,
             onWowChat = wowChat::choose,
             controller = controllerSettings,
+            onControllerSize = { percent -> updateControllerPrefs { ControllerPrefs.setSize(this@SessionActivity, percent) } },
             onRumble = { on -> updateControllerPrefs { ControllerPrefs.setRumble(this@SessionActivity, on) } },
             onSteamMenu = if (SessionState.mode == SessionService.MODE_STEAM) ({ sendSteamGuide() }) else null,
             onQam = if (SessionState.mode == SessionService.MODE_STEAM) ({ triggerSteamQam() }) else null,
