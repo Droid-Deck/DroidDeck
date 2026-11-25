@@ -143,6 +143,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-proton-extra" to "usr/local/bin/droiddeck-proton-extra",
             "usr/local/bin/droiddeck-netmanager" to "usr/local/bin/droiddeck-netmanager",
             "usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1",
+            "usr/local/bin/droiddeck-documents" to "usr/local/bin/droiddeck-documents",
             "usr/local/bin/droiddeck-steam-launch" to "usr/local/bin/droiddeck-steam-launch",
             "usr/local/bin/droiddeck-desktop-games" to "usr/local/bin/droiddeck-desktop-games",
             "usr/local/bin/droiddeck-desktop-programs" to "usr/local/bin/droiddeck-desktop-programs",

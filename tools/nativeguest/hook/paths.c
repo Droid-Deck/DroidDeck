@@ -171,6 +171,11 @@ static int is_android_host_path(const char *path) {
 }
 
 static const char *rewrite_path_in_root(const char *path, char *buffer, size_t bufsize);
+#ifndef DDNATV_HOST_TEST
+static const char *proc_root_host(const char *path, char *buf, size_t size, int bare, int follow);
+static const char *rewrite_path_follow(const char *path, char *buffer, size_t bufsize);
+static const char *proc_root_at(int dirfd, const char *rel, char *buf, size_t size);
+#endif
 
 #if defined(__aarch64__)
 static long raw_readlinkat(int dirfd, const char *path, char *buf, size_t size) {
@@ -370,6 +375,13 @@ static const char *rewrite_path_in_root(const char *path, char *buffer, size_t b
         ddnatv_append(buffer, bufsize, 0, g_ddnatv_root, g_ddnatv_root_len);
         return buffer;
     }
+
+#ifndef DDNATV_HOST_TEST
+    if (path[1] == 'p' && strncmp(path, "/proc/", 6) == 0 && path[6] >= '1' && path[6] <= '9') {
+        const char *other = proc_root_host(path, buffer, bufsize, 0, 0);
+        if (other) return other;
+    }
+#endif
 
     for (int i = 0; i < g_nbinds; i++) {
         const struct ddnatv_bind *b = &g_binds[i];
@@ -839,6 +851,10 @@ static const char *map_parent_walk(int dirfd, const char *rel, char *buf, size_t
 static const char *map_at(int dirfd, const char *rel, char *buf, size_t size) {
 #if defined(__aarch64__)
     if (!rel || rel[0] == '\0' || rel[0] == '/') return NULL;
+#ifndef DDNATV_HOST_TEST
+    const char *other = proc_root_at(dirfd, rel, buf, size);
+    if (other) return other;
+#endif
     if (strstr(rel, "..")) {
         const char *walked = map_parent_walk(dirfd, rel, buf, size);
         if (walked || dirfd == AT_FDCWD) return walked;

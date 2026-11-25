@@ -66,6 +66,14 @@ ensure_machine_id() {
 } 2>/dev/null
 ensure_machine_id
 
+write_document_store_service() {
+  [ -x /usr/local/bin/droiddeck-documents ] || return 0
+  mkdir -p /usr/local/share/dbus-1/services &&
+    printf '[D-BUS Service]\nName=org.freedesktop.portal.Documents\nExec=/usr/local/bin/droiddeck-documents\n' \
+      > /usr/local/share/dbus-1/services/org.freedesktop.portal.Documents.service
+} 2>/dev/null
+write_document_store_service
+
 write_system_bus_config() {
   mkdir -p /run/dbus /usr/local/share/droiddeck
   cat > /usr/local/share/droiddeck/system-bus.conf <<'BUSCONF'
