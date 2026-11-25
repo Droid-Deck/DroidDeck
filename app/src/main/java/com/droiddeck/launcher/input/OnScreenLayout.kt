@@ -69,9 +69,26 @@ object OnScreenLayout {
             return ControllerOverlayGeometry(width, height, safe, context.resources.displayMetrics, controllerScale)
                 .place(ordered, kit, rearButtons == true, trackpads == true)
         }
-        if (dock != null || !kit.steam) return ordered
+        if (dock != null || !kit.steam) {
+            if (dock == null) return ordered
+            return scaleDocked(ordered, ControllerPrefs.read(context).size / 100f, width, height, safe)
+        }
         return FloatingSteamOverlay(width, height, safe, context.resources.displayMetrics.density)
             .place(ordered, lowerShortcuts = generated, rearButtons = rearButtons, trackpads = trackpads)
+    }
+
+    private fun scaleDocked(elements: List<InputSurfaceElement>, scale: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {
+        if (scale == 1f) return elements
+        return elements.map { element ->
+            if (!isGamepad(element)) return@map element
+            val w = (element.width * scale).coerceIn(.001f, 1f)
+            val h = (element.height * scale).coerceIn(.001f, 1f)
+            val x = (element.x + element.width / 2f - w / 2f)
+                .coerceIn(safe.left / width.toFloat(), (width - safe.right).toFloat() / width - w)
+            val y = (element.y + element.height / 2f - h / 2f)
+                .coerceIn(safe.top / height.toFloat(), (height - safe.bottom).toFloat() / height - h)
+            element.copy(x = x, y = y, width = w, height = h).bounded()
+        }
     }
 
     fun oriented(layout: SavedInputLayout, width: Int, height: Int): SavedInputLayout = oriented(layout, height > width)
