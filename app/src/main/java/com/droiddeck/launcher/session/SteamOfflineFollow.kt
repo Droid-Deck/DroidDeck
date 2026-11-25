@@ -11,7 +11,7 @@ import com.droiddeck.launcher.frontend.AutoComponents
 
 class SteamOfflineFollow : SessionPart() {
     private var thread: HandlerThread? = null
-    private var handler: Handler? = null
+    @Volatile private var handler: Handler? = null
     private var callback: ConnectivityManager.NetworkCallback? = null
     private var online: Boolean? = null
     private var retries = 0
@@ -19,6 +19,10 @@ class SteamOfflineFollow : SessionPart() {
     private val check = object : Runnable {
         override fun run() {
             val handler = handler ?: return
+            if (SessionState.running && SessionState.suspended) {
+                handler.postDelayed(this, SUSPENDED_POLL_MS)
+                return
+            }
             if (OfflineMode.follow(app()) == null && retries < MAX_RETRIES) {
                 retries++
                 handler.postDelayed(this, RETRY_MS)
@@ -32,17 +36,19 @@ class SteamOfflineFollow : SessionPart() {
         thread = started
         this.handler = handler
         val registered = object : ConnectivityManager.NetworkCallback() {
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) = changed()
-            override fun onLost(network: Network) = changed()
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) =
+                changed(capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED))
+            override fun onLost(network: Network) = changed(false)
         }
         callback = registered
+        active = this
         online = AutoComponents.isOnline(app())
         app().getSystemService(ConnectivityManager::class.java).registerDefaultNetworkCallback(registered, handler)
     }
 
-    private fun changed() {
+    private fun changed(now: Boolean) {
         val handler = handler ?: return
-        val now = AutoComponents.isOnline(app())
         if (now == online) return
         online = now
         handler.removeCallbacks(check)
@@ -50,7 +56,17 @@ class SteamOfflineFollow : SessionPart() {
         handler.postDelayed(check, if (now) ONLINE_DELAY_MS else OFFLINE_DELAY_MS)
     }
 
+    private fun sync() {
+        handler?.post {
+            val handler = handler ?: return@post
+            handler.removeCallbacks(check)
+            retries = 0
+            handler.post(check)
+        }
+    }
+
     override fun stop() {
+        if (active === this) active = null
         val registered = callback
         callback = null
         if (registered != null) {
@@ -68,9 +84,15 @@ class SteamOfflineFollow : SessionPart() {
 
     companion object {
         private const val TAG = "SteamOfflineFollow"
+        @Volatile private var active: SteamOfflineFollow? = null
         const val ONLINE_DELAY_MS = 2_000L
         const val OFFLINE_DELAY_MS = 10_000L
         const val RETRY_MS = 15_000L
         const val MAX_RETRIES = 8
+        const val SUSPENDED_POLL_MS = 1_000L
+
+        fun request() {
+            active?.sync()
+        }
     }
 }

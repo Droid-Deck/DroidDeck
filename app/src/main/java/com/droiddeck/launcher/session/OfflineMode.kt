@@ -62,11 +62,8 @@ object OfflineMode {
         offline(enabled(context), com.droiddeck.launcher.frontend.AutoComponents.isOnline(context))
 
     fun setEnabled(context: Context, on: Boolean) {
-        val offline = write(context, LinuxRuntime.rootDir(context), on)
-        if (SessionState.running && (SessionState.mode == SessionService.MODE_STEAM || SessionState.mode == SessionService.MODE_DESKTOP)) {
-            val app = context.applicationContext
-            Thread({ switchLive(app, offline) }, "steam-offline").start()
-        }
+        write(context, LinuxRuntime.rootDir(context), on)
+        SteamOfflineFollow.request()
     }
 
     fun apply(context: Context, root: File): Boolean = write(context, root, saved(context, root))
@@ -163,13 +160,18 @@ object OfflineMode {
     private val SWITCH = """(async want => {
           const user = globalThis.SteamClient?.User;
           if (typeof user?.GoOffline !== 'function' || typeof user?.GoOnline !== 'function') return "missing";
-          const current = await new Promise(done => {
-            let handle = null, value;
-            const finish = v => { clearTimeout(timer); try { handle?.unregister(); } catch (e) {} done(v); };
-            const timer = setTimeout(() => finish(null), 4000);
-            handle = user.RegisterForCurrentUserChanges(u => { value = !!u?.bIsOfflineMode; if (handle) finish(value); });
-            if (value !== undefined) finish(value);
-          });
+          const seen = globalThis.__droiddeckSteamOffline ??= { value: null };
+          seen.want = want;
+          if (!seen.registered) {
+            seen.registered = true;
+            user.RegisterForCurrentUserChanges(u => { seen.value = !!u?.bIsOfflineMode; });
+            globalThis.SteamClient.GameSessions?.RegisterForAppLifetimeNotifications?.(n => {
+              if (n?.bRunning) return;
+              setTimeout(() => { if (seen.want === true && seen.value === false) user.GoOffline(); }, 2000);
+            });
+          }
+          for (let waited = 0; seen.value === null && waited < 4000; waited += 100) await new Promise(done => setTimeout(done, 100));
+          const current = seen.value;
           if (current === null) return "unknown";
           if (current === want) return "same";
           if (want) user.GoOffline(); else user.GoOnline();
