@@ -719,7 +719,7 @@ def drop_rootfs_drives(root):
     dropped = []
     for letter in sorted(drives):
         drive = letter.encode() + letter.upper().encode()
-        used = rb"(?<![A-Za-z0-9])[" + drive + rb"]:" + sep
+        used = rb"(?<![A-Za-z0-9])[" + drive + rb"]:[\\/]"
         if any(re.match(rb"[" + drive + rb"]:[\\/]", folder.lstrip()) for folder in folders):
             continue
         if not any(re.search(used, data) for data in changed.values()):
