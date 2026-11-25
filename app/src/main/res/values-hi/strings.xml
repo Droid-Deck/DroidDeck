@@ -1459,6 +1459,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">%1$s फिर से शुरू करें</string>
     <string name="roms_text">हर सेशन में /root/ROMs के रूप में दिखता है। इंटरनल स्टोरेज /root/Storage पर है।</string>
+    <string name="roms_text_unmounted">हर सेशन में /root/ROMs के रूप में दिखता है।</string>
     <string name="roms_none">कोई फ़ोल्डर नहीं चुना गया</string>
     <string name="roms_applies">अगले सेशन से लागू होता है। SD कार्ड काम करते हैं।</string>
     <string name="roms_choose">फ़ोल्डर चुनें</string>
@@ -3159,7 +3160,7 @@
     <string name="storage_default_title">डिफ़ॉल्ट स्टोरेज</string>
     <string name="storage_default_hint">स्टोर से नए इंस्टॉल चुनी गई जगह पर जाते हैं। मौजूदा गेम जहां हैं वहीं रहते हैं। Steam लाइब्रेरी अपनी सेटिंग रखती हैं।</string>
     <string name="storage_shared_mount">Linux में फ़ोन स्टोरेज</string>
-    <string name="storage_shared_mount_hint">आपके फ़ोन का स्टोरेज /root/Storage पर माउंट करता है। बंद होने पर Linux को केवल वे फ़ोल्डर दिखते हैं जो आपने DroidDeck में जोड़े हैं। अगले सत्र से लागू होता है।</string>
+    <string name="storage_shared_mount_hint">आपके फ़ोन का इंटरनल स्टोरेज /root/Storage पर माउंट करता है। बंद होने पर केवल वही गेम फ़ोल्डर माउंट होते हैं जो आपने उसमें से जोड़े हैं। SD कार्ड पर असर नहीं पड़ता। अगले सत्र से लागू होता है।</string>
     <string name="storage_default_ask">हर बार पूछें</string>
     <string name="storage_default_ask_detail">हर इंस्टॉल के लिए जगह चुनें</string>
     <string name="storage_default_internal">इंटरनल स्टोरेज</string>

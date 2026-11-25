@@ -1452,6 +1452,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Sambung %1$s</string>
     <string name="roms_text">Muncul sebagai /root/ROMs dalam setiap sesi. Storan dalaman berada di /root/Storage.</string>
+    <string name="roms_text_unmounted">Muncul sebagai /root/ROMs dalam setiap sesi.</string>
     <string name="roms_none">Tiada folder dipilih</string>
     <string name="roms_applies">Berkuat kuasa pada sesi seterusnya. Kad SD berfungsi.</string>
     <string name="roms_choose">Pilih folder</string>
@@ -3130,7 +3131,7 @@
     <string name="storage_default_title">Storan lalai</string>
     <string name="storage_default_hint">Pemasangan kedai baharu pergi ke lokasi yang dipilih. Permainan sedia ada kekal di tempatnya. Pustaka Steam mengekalkan tetapan sendiri.</string>
     <string name="storage_shared_mount">Storan telefon dalam Linux</string>
-    <string name="storage_shared_mount_hint">Melekapkan storan telefon anda di /root/Storage. Apabila dimatikan, Linux hanya melihat folder yang telah anda tambah ke DroidDeck. Berkuat kuasa pada sesi seterusnya.</string>
+    <string name="storage_shared_mount_hint">Melekapkan storan dalaman telefon anda di /root/Storage. Apabila dimatikan, hanya folder permainan yang anda tambah dari situ dilekapkan. Kad SD tidak terjejas. Berkuat kuasa pada sesi seterusnya.</string>
     <string name="storage_default_ask">Tanya setiap kali</string>
     <string name="storage_default_ask_detail">Pilih destinasi bagi setiap pemasangan</string>
     <string name="storage_default_internal">Storan dalaman</string>

@@ -1452,6 +1452,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Lanjutkan %1$s</string>
     <string name="roms_text">Muncul sebagai /root/ROMs di setiap sesi. Penyimpanan internal berada di /root/Storage.</string>
+    <string name="roms_text_unmounted">Muncul sebagai /root/ROMs di setiap sesi.</string>
     <string name="roms_none">Belum ada folder yang dipilih</string>
     <string name="roms_applies">Berlaku pada sesi berikutnya. Kartu SD juga bisa.</string>
     <string name="roms_choose">Pilih folder</string>
@@ -3130,7 +3131,7 @@
     <string name="storage_default_title">Penyimpanan default</string>
     <string name="storage_default_hint">Instalasi toko baru akan disimpan di lokasi yang dipilih. Game yang sudah ada tetap di lokasinya. Library Steam memakai pengaturannya sendiri.</string>
     <string name="storage_shared_mount">Penyimpanan ponsel di Linux</string>
-    <string name="storage_shared_mount_hint">Memasang penyimpanan ponsel Anda di /root/Storage. Jika nonaktif, Linux hanya melihat folder yang telah Anda tambahkan ke DroidDeck. Berlaku pada sesi berikutnya.</string>
+    <string name="storage_shared_mount_hint">Memasang penyimpanan internal ponsel Anda di /root/Storage. Jika nonaktif, hanya folder game yang Anda tambahkan dari sana yang dipasang. Kartu SD tidak terpengaruh. Berlaku pada sesi berikutnya.</string>
     <string name="storage_default_ask">Tanyakan setiap kali</string>
     <string name="storage_default_ask_detail">Pilih target untuk setiap instalasi</string>
     <string name="storage_default_internal">Penyimpanan internal</string>

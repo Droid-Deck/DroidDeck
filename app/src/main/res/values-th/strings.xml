@@ -1452,6 +1452,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">ดำเนินการต่อ %1$s</string>
     <string name="roms_text">แสดงเป็น /root/ROMs ในแต่ละเซสชัน พื้นที่จัดเก็บภายในอยู่ที่ /root/Storage</string>
+    <string name="roms_text_unmounted">แสดงเป็น /root/ROMs ในแต่ละเซสชัน</string>
     <string name="roms_none">ยังไม่เลือกโฟลเดอร์</string>
     <string name="roms_applies">มีผลในเซสชันถัดไป ใช้การ์ด SD ได้</string>
     <string name="roms_choose">เลือกโฟลเดอร์</string>
@@ -3130,7 +3131,7 @@
     <string name="storage_default_title">พื้นที่จัดเก็บเริ่มต้น</string>
     <string name="storage_default_hint">การติดตั้งใหม่จากสโตร์จะไปยังตำแหน่งที่เลือก เกมที่มีอยู่จะอยู่ที่เดิม ไลบรารี Steam ใช้การตั้งค่าของตัวเอง</string>
     <string name="storage_shared_mount">ที่เก็บข้อมูลโทรศัพท์ใน Linux</string>
-    <string name="storage_shared_mount_hint">เมานต์ที่เก็บข้อมูลของโทรศัพท์ไว้ที่ /root/Storage เมื่อปิด Linux จะเห็นเฉพาะโฟลเดอร์ที่คุณเพิ่มใน DroidDeck มีผลในเซสชันถัดไป</string>
+    <string name="storage_shared_mount_hint">เมานต์ที่เก็บข้อมูลภายในของโทรศัพท์ไว้ที่ /root/Storage เมื่อปิด จะเมานต์เฉพาะโฟลเดอร์เกมที่คุณเพิ่มจากที่นั่น ไม่มีผลกับการ์ด SD มีผลในเซสชันถัดไป</string>
     <string name="storage_default_ask">ถามทุกครั้ง</string>
     <string name="storage_default_ask_detail">เลือกปลายทางสำหรับการติดตั้งแต่ละครั้ง</string>
     <string name="storage_default_internal">พื้นที่จัดเก็บภายใน</string>

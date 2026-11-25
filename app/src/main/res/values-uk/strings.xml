@@ -1475,6 +1475,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Продовжити %1$s</string>
     <string name="roms_text">У кожному сеансі з’являється як /root/ROMs. Внутрішня пам’ять доступна в /root/Storage.</string>
+    <string name="roms_text_unmounted">У кожному сеансі з’являється як /root/ROMs.</string>
     <string name="roms_none">Папку не вибрано</string>
     <string name="roms_applies">Діє з наступного сеансу. SD-карти підтримуються.</string>
     <string name="roms_choose">Вибрати папку</string>
@@ -3219,7 +3220,7 @@
     <string name="storage_default_title">Сховище за замовчуванням</string>
     <string name="storage_default_hint">Нові встановлення з магазинів потрапляють у вибране місце. Наявні ігри залишаються на місці. Бібліотеки Steam мають власне налаштування.</string>
     <string name="storage_shared_mount">Пам\'ять телефона в Linux</string>
-    <string name="storage_shared_mount_hint">Підключає пам\'ять телефона в /root/Storage. Якщо вимкнено, Linux бачить лише папки, додані до DroidDeck. Застосовується з наступного сеансу.</string>
+    <string name="storage_shared_mount_hint">Підключає внутрішню пам\'ять телефона в /root/Storage. Якщо вимкнено, підключаються лише додані з неї папки з іграми. На SD-картки не впливає. Застосовується з наступного сеансу.</string>
     <string name="storage_default_ask">Питати щоразу</string>
     <string name="storage_default_ask_detail">Вибирати місце для кожного встановлення</string>
     <string name="storage_default_internal">Внутрішнє сховище</string>

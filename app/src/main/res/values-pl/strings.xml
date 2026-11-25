@@ -1475,6 +1475,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Wznów %1$s</string>
     <string name="roms_text">W każdej sesji widoczny jako /root/ROMs. Pamięć wewnętrzna jest w /root/Storage.</string>
+    <string name="roms_text_unmounted">W każdej sesji widoczny jako /root/ROMs.</string>
     <string name="roms_none">Nie wybrano folderu</string>
     <string name="roms_applies">Zadziała od następnej sesji. Karty SD są obsługiwane.</string>
     <string name="roms_choose">Wybierz folder</string>
@@ -3219,7 +3220,7 @@
     <string name="storage_default_title">Domyślna pamięć</string>
     <string name="storage_default_hint">Nowe instalacje ze sklepów trafiają do wybranego miejsca. Istniejące gry zostają, gdzie są. Biblioteki Steam mają własne ustawienie.</string>
     <string name="storage_shared_mount">Pamięć telefonu w Linuksie</string>
-    <string name="storage_shared_mount_hint">Montuje pamięć telefonu w /root/Storage. Po wyłączeniu Linux widzi tylko foldery dodane do DroidDeck. Działa od następnej sesji.</string>
+    <string name="storage_shared_mount_hint">Montuje pamięć wewnętrzną telefonu w /root/Storage. Po wyłączeniu montowane są tylko dodane z niej foldery gier. Nie dotyczy kart SD. Działa od następnej sesji.</string>
     <string name="storage_default_ask">Pytaj za każdym razem</string>
     <string name="storage_default_ask_detail">Wybieraj miejsce przy każdej instalacji</string>
     <string name="storage_default_internal">Pamięć wewnętrzna</string>

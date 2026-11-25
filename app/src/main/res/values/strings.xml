@@ -1675,6 +1675,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Resume %1$s</string>
     <string name="roms_text">Shows up as /root/ROMs in each session. Internal storage is at /root/Storage.</string>
+    <string name="roms_text_unmounted">Shows up as /root/ROMs in each session.</string>
     <string name="roms_none">No folder chosen</string>
     <string name="roms_applies">Applies next session. SD cards work.</string>
     <string name="roms_choose">Choose folder</string>
@@ -3487,7 +3488,7 @@
     <string name="storage_default_title">Default storage</string>
     <string name="storage_default_hint">New store installs go to the selected location. Existing games stay where they are. Steam libraries keep their own setting.</string>
     <string name="storage_shared_mount">Phone storage in Linux</string>
-    <string name="storage_shared_mount_hint">Mounts your phone\'s storage at /root/Storage. When off, Linux only sees folders you\'ve added to DroidDeck. Applies to the next session.</string>
+    <string name="storage_shared_mount_hint">Mounts your phone\'s internal storage at /root/Storage. When off, only game folders you\'ve added from it are mounted. SD cards are not affected. Applies to the next session.</string>
     <string name="storage_default_ask">Ask every time</string>
     <string name="storage_default_ask_detail">Choose a target for each install</string>
     <string name="storage_default_internal">Internal storage</string>

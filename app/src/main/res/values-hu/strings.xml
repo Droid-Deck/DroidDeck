@@ -1459,6 +1459,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">%1$s folytatása</string>
     <string name="roms_text">Minden munkamenetben /root/ROMs néven jelenik meg. A belső tárhely itt található: /root/Storage.</string>
+    <string name="roms_text_unmounted">Minden munkamenetben /root/ROMs néven jelenik meg.</string>
     <string name="roms_none">Nincs mappa kiválasztva</string>
     <string name="roms_applies">A következő munkamenettől érvényes. SD-kártyák is működnek.</string>
     <string name="roms_choose">Mappa kiválasztása</string>
@@ -3159,7 +3160,7 @@
     <string name="storage_default_title">Alapértelmezett tárhely</string>
     <string name="storage_default_hint">Az új áruházi telepítések a kiválasztott helyre kerülnek. A meglévő játékok a helyükön maradnak. A Steam-könyvtárak megtartják saját beállításukat.</string>
     <string name="storage_shared_mount">Telefontárhely a Linuxban</string>
-    <string name="storage_shared_mount_hint">Csatolja a telefon tárhelyét a /root/Storage helyre. Kikapcsolva a Linux csak a DroidDeckhez hozzáadott mappákat látja. A következő munkamenettől érvényes.</string>
+    <string name="storage_shared_mount_hint">Csatolja a telefon belső tárhelyét a /root/Storage helyre. Kikapcsolva csak az onnan hozzáadott játékmappák lesznek csatolva. Az SD-kártyákat nem érinti. A következő munkamenettől érvényes.</string>
     <string name="storage_default_ask">Kérdezzen rá minden alkalommal</string>
     <string name="storage_default_ask_detail">Célhely választása minden telepítésnél</string>
     <string name="storage_default_internal">Belső tárhely</string>

@@ -1459,6 +1459,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Gjenoppta %1$s</string>
     <string name="roms_text">Vises som /root/ROMs i hver sesjon. Intern lagring er på /root/Storage.</string>
+    <string name="roms_text_unmounted">Vises som /root/ROMs i hver sesjon.</string>
     <string name="roms_none">Ingen mappe valgt</string>
     <string name="roms_applies">Gjelder fra neste sesjon. SD-kort fungerer.</string>
     <string name="roms_choose">Velg mappe</string>
@@ -3159,7 +3160,7 @@
     <string name="storage_default_title">Standard lagring</string>
     <string name="storage_default_hint">Nye butikkinstallasjoner havner på valgt plassering. Eksisterende spill blir der de er. Steam-biblioteker beholder sin egen innstilling.</string>
     <string name="storage_shared_mount">Telefonlagring i Linux</string>
-    <string name="storage_shared_mount_hint">Monterer telefonens lagring på /root/Storage. Når det er av, ser Linux bare mapper du har lagt til i DroidDeck. Gjelder fra neste økt.</string>
+    <string name="storage_shared_mount_hint">Monterer telefonens interne lagring på /root/Storage. Når det er av, monteres bare spillmapper du har lagt til derfra. SD-kort påvirkes ikke. Gjelder fra neste økt.</string>
     <string name="storage_default_ask">Spør hver gang</string>
     <string name="storage_default_ask_detail">Velg et mål for hver installasjon</string>
     <string name="storage_default_internal">Intern lagring</string>

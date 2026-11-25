@@ -1459,6 +1459,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Συνέχιση %1$s</string>
     <string name="roms_text">Εμφανίζεται ως /root/ROMs σε κάθε συνεδρία. Ο εσωτερικός χώρος αποθήκευσης βρίσκεται στο /root/Storage.</string>
+    <string name="roms_text_unmounted">Εμφανίζεται ως /root/ROMs σε κάθε συνεδρία.</string>
     <string name="roms_none">Δεν έχει επιλεγεί φάκελος</string>
     <string name="roms_applies">Ισχύει από την επόμενη συνεδρία. Οι κάρτες SD λειτουργούν.</string>
     <string name="roms_choose">Επιλογή φακέλου</string>
@@ -3159,7 +3160,7 @@
     <string name="storage_default_title">Προεπιλεγμένος αποθηκευτικός χώρος</string>
     <string name="storage_default_hint">Οι νέες εγκαταστάσεις από καταστήματα πηγαίνουν στην επιλεγμένη τοποθεσία. Τα υπάρχοντα παιχνίδια μένουν όπου είναι. Οι βιβλιοθήκες Steam διατηρούν τη δική τους ρύθμιση.</string>
     <string name="storage_shared_mount">Αποθηκευτικός χώρος τηλεφώνου στο Linux</string>
-    <string name="storage_shared_mount_hint">Προσαρτά τον αποθηκευτικό χώρο του τηλεφώνου σας στο /root/Storage. Όταν είναι απενεργοποιημένο, το Linux βλέπει μόνο τους φακέλους που προσθέσατε στο DroidDeck. Ισχύει από την επόμενη συνεδρία.</string>
+    <string name="storage_shared_mount_hint">Προσαρτά τον εσωτερικό χώρο αποθήκευσης του τηλεφώνου σας στο /root/Storage. Όταν είναι απενεργοποιημένο, προσαρτώνται μόνο οι φάκελοι παιχνιδιών που προσθέσατε από αυτόν. Οι κάρτες SD δεν επηρεάζονται. Ισχύει από την επόμενη συνεδρία.</string>
     <string name="storage_default_ask">Ερώτηση κάθε φορά</string>
     <string name="storage_default_ask_detail">Επιλογή προορισμού για κάθε εγκατάσταση</string>
     <string name="storage_default_internal">Εσωτερικός αποθηκευτικός χώρος</string>

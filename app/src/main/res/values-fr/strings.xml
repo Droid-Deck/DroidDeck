@@ -1466,6 +1466,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Reprendre %1$s</string>
     <string name="roms_text">Affiché comme /root/ROMs dans chaque session. Le stockage interne se trouve dans /root/Storage.</string>
+    <string name="roms_text_unmounted">Affiché comme /root/ROMs dans chaque session.</string>
     <string name="roms_none">Aucun dossier sélectionné</string>
     <string name="roms_applies">Prendra effet à la prochaine session. Prend en charge les cartes SD.</string>
     <string name="roms_choose">Choisir un dossier</string>
@@ -3188,7 +3189,7 @@
     <string name="storage_default_title">Stockage par défaut</string>
     <string name="storage_default_hint">Les nouvelles installations depuis les boutiques vont à l\'emplacement sélectionné. Les jeux existants restent où ils sont. Les bibliothèques Steam gardent leur propre réglage.</string>
     <string name="storage_shared_mount">Stockage du téléphone dans Linux</string>
-    <string name="storage_shared_mount_hint">Monte le stockage de votre téléphone dans /root/Storage. Désactivé, Linux ne voit que les dossiers que vous avez ajoutés à DroidDeck. S\'applique à la prochaine session.</string>
+    <string name="storage_shared_mount_hint">Monte le stockage interne de votre téléphone dans /root/Storage. Désactivé, seuls les dossiers de jeux que vous y avez ajoutés sont montés. Les cartes SD ne sont pas concernées. S\'applique à la prochaine session.</string>
     <string name="storage_default_ask">Toujours demander</string>
     <string name="storage_default_ask_detail">Choisir une destination pour chaque installation</string>
     <string name="storage_default_internal">Stockage interne</string>
