@@ -32,4 +32,9 @@ class SocNamesTest {
         assertNull(SocNames.name("SM8975-PRO", ""))
         assertNull(SocNames.name("Qualcomm SM8975", ""))
     }
+    @Test fun plainNameNeverGuessesFromThePlatform() {
+        assertEquals("Snapdragon 8 Gen 2 (SM8550)", SocNames.plainName("SM8550", "QTI"))
+        assertEquals("Moorechip CQ7790S", SocNames.plainName("CQ7790S", "Moorechip"))
+        assertEquals("CQ7790S", SocNames.plainName("CQ7790S", ""))
+    }
 }

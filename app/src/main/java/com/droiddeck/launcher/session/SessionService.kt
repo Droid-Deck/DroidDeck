@@ -669,6 +669,8 @@ class SessionService : Service() {
         guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=100")
         guest.add("WINE_OFFSCREEN_CHECK_MS=100")
         guest.add("DD_REFRESH=" + Math.round(SessionState.refreshHz))
+        guest.add("DD_DEVICE_NAME=" + android.os.Build.MODEL)
+        com.droiddeck.launcher.gpu.SocNames.plainName().takeIf { it.isNotEmpty() }?.let { guest.add("DD_SOC_NAME=$it") }
         guest.add("DD_LOG=" + sessionLog.path)
         guest.add("DD_DEBUG_DIR=" + sessionDir.path)
         if (EnhancedDiagnostics.isActive(this, sessionDir)) guest.add("DROIDDECK_ENHANCED_DIAGNOSTICS=1")
