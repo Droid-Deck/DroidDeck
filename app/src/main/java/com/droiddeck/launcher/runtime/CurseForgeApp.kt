@@ -90,13 +90,16 @@ object CurseForgeApp {
   return out;
 })()"""
 
-    internal fun expression(service: String, method: String, args: JSONArray?, pick: String = "r => r"): String {
+    private val CORE = JSONObject.quote("CoreService")
+
+    internal fun expression(service: String, method: String, args: JSONArray?, pick: String = "r => r", connect: Boolean = true): String {
         val name = JSONObject.quote(method)
         val run = if (args == null) "true" else "($pick)(await s[$name](...$args))"
         val key = JSONObject.quote(service)
+        val link = if (connect && args != null) "const c = m[$CORE]; if (!c || typeof c.connect !== 'function') return { missing: true }; await c.connect(); " else ""
         val inner = "(async () => { let m = globalThis.$CACHE; if (!m || !m[$key]) m = globalThis.$CACHE = $SERVICES; const s = m[$key]; " +
             "if (!s || typeof s[$name] !== 'function') return { missing: true }; " +
-            "return { value: $run }; })()"
+            link + "return { value: $run }; })()"
         return "(() => { const w = require('electron').BrowserWindow.getAllWindows()" +
             ".find(w => !w.isDestroyed() && w.webContents.getURL().includes('desktop.html')); " +
             "if (!w) return JSON.stringify({ missing: true }); " +
@@ -173,7 +176,6 @@ object CurseForgeApp {
     }
 
     private val holds = ConcurrentHashMap<String, AtomicBoolean>()
-    private val connected = ConcurrentHashMap.newKeySet<String>()
 
     private fun lines(context: Context, argv: List<String>): List<String> {
         val out = ArrayList<String>()
@@ -181,8 +183,8 @@ object CurseForgeApp {
         return out
     }
 
-    private fun call(context: Context, inspector: String, service: String, method: String, args: JSONArray?, timeoutMs: Long, pick: String = "r => r"): Any? =
-        unwrap(lastJson(lines(context, evalArgv(inspector, expression(service, method, args, pick), timeoutMs))) ?: throw Failure("CurseForge gave no answer"))
+    private fun call(context: Context, inspector: String, service: String, method: String, args: JSONArray?, timeoutMs: Long, pick: String = "r => r", connect: Boolean = true): Any? =
+        unwrap(lastJson(lines(context, evalArgv(inspector, expression(service, method, args, pick, connect), timeoutMs))) ?: throw Failure("CurseForge gave no answer"))
 
     private sealed class Launch {
         class Url(val inspector: String) : Launch()
@@ -234,24 +236,16 @@ object CurseForgeApp {
             hold.set(true)
             return
         }
-        if (inspector != null) runCatching { call(context, inspector, "CoreService", "shutdown", JSONArray(), 30_000, "r => true") }
+        if (inspector != null) runCatching { call(context, inspector, "CoreService", "shutdown", JSONArray(), 30_000, "r => true", connect = false) }
         hold.set(true)
-        inspector?.let(connected::remove)
         if (holds.remove(dir, hold)) runCatching { lines(context, helperArgv("stop", dir)) }
     }
 
-    private fun connect(context: Context, inspector: String) {
-        if (inspector in connected) return
-        call(context, inspector, "CoreService", "connect", JSONArray(), 120_000, "r => true")
-        connected += inspector
-    }
-
     private fun instances(context: Context, inspector: String): Any? =
-        call(context, inspector, "GameAppService", "getGameInstances", JSONArray().put(WOW), 30_000,
+        call(context, inspector, "GameAppService", "getGameInstances", JSONArray().put(WOW), 120_000,
             "r => (r || []).map(i => ({ guid: i.guid, installPath: i.installPath }))")
 
     fun instance(context: Context, inspector: String, root: String, flavorDir: String): String {
-        connect(context, inspector)
         instanceFor(instances(context, inspector), flavorDir, null)?.let { return it }
         val detected = call(context, inspector, "GameDetectionAppService", "detectGameFromPath", JSONArray().put(root).put(WOW), 60_000) as? JSONObject
         return instanceFor(instances(context, inspector), flavorDir, detected?.optString("gameInstanceGuid")) ?: throw Failure("CurseForge did not find $flavorDir")
@@ -261,7 +255,6 @@ object CurseForgeApp {
         parseSearch(call(context, inspector, "ProjectAppService", "search", JSONArray().put(searchRequest(guid, text, sort, page)), 60_000))
 
     fun projects(context: Context, inspector: String, guid: String, rescan: Boolean = false): List<Project> {
-        connect(context, inspector)
         if (rescan) call(context, inspector, "GameDetectionAppService", "scanGameInstance", JSONArray().put(guid), 120_000)
         return parseProjects(call(context, inspector, "InstalledProjectsAppService", "getProjects", JSONArray().put(guid), 30_000, PROJECTS))
     }
@@ -283,19 +276,16 @@ object CurseForgeApp {
     }
 
     fun install(context: Context, inspector: String, guid: String, projectId: String): List<Project>? {
-        connect(context, inspector)
         if (call(context, inspector, "InstalledProjectsAppService", "installAddon", JSONArray().put(installRequest(guid, projectId)), 300_000) != true) return null
         return settle(context, inspector, guid) { list -> list.any { it.id == projectId } }
     }
 
     fun update(context: Context, inspector: String, guid: String, projectId: String): List<Project>? {
-        connect(context, inspector)
         if (call(context, inspector, "InstalledProjectsAppService", "updateMod", JSONArray().put(guid).put(projectId.toLong()), 300_000) != true) return null
         return settle(context, inspector, guid) { list -> list.any { it.id == projectId && !it.update } }
     }
 
     fun uninstall(context: Context, inspector: String, guid: String, project: Project): List<Project>? {
-        connect(context, inspector)
         val failed = call(context, inspector, "InstalledProjectsAppService", "deleteMods", JSONArray().put(guid).put(JSONArray().put(project.installedModId)), 120_000) as? JSONArray
         if (failed == null || failed.length() > 0) return null
         return settle(context, inspector, guid) { list -> list.none { it.id == project.id } }
