@@ -667,9 +667,17 @@ object SessionArtifacts {
             val am = context.getSystemService(android.app.ActivityManager::class.java) ?: return false
             am.getHistoricalProcessExitReasons(context.packageName, 0, 3)
                 .firstOrNull { it.processName == context.packageName }
-                ?.reason == android.app.ApplicationExitInfo.REASON_LOW_MEMORY
+                ?.let { memoryKill(it.reason, it.description) } == true
         }.getOrDefault(false)
     }
+
+    // ApplicationExitInfo.REASON_MEMORY_LIMITER (API 37.2), newer than compileSdk.
+    private const val REASON_MEMORY_LIMITER = 17
+
+    // The Android 17 behavior changes page instead documents REASON_OTHER with the limiter named in the description.
+    internal fun memoryKill(reason: Int, description: String?): Boolean =
+        reason == android.app.ApplicationExitInfo.REASON_LOW_MEMORY || reason == REASON_MEMORY_LIMITER ||
+            reason == android.app.ApplicationExitInfo.REASON_OTHER && description?.contains("MemoryLimiter") == true
 
     private fun exitReasons(context: Context): String {
         if (android.os.Build.VERSION.SDK_INT < 30) return ""
@@ -691,6 +699,7 @@ object SessionArtifacts {
 
     private fun reasonName(reason: Int): String = when (reason) {
         android.app.ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY (killed for memory)"
+        REASON_MEMORY_LIMITER -> "MEMORY_LIMITER (over the app memory limit)"
         android.app.ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED"
         android.app.ApplicationExitInfo.REASON_CRASH -> "CRASH"
         android.app.ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH_NATIVE"

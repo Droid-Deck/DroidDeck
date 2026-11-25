@@ -62,6 +62,7 @@ object DeviceReport {
         14 -> "FREEZER"
         15 -> "PACKAGE_STATE_CHANGE"
         16 -> "PACKAGE_UPDATED"
+        17 -> "MEMORY_LIMITER"
         else -> "REASON_$reason"
     }
 

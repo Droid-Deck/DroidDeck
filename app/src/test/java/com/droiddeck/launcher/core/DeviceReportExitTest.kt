@@ -11,6 +11,7 @@ class DeviceReportExitTest {
         assertEquals("CRASH_NATIVE", DeviceReport.exitReasonName(5))
         assertEquals("EXCESSIVE_RESOURCE_USAGE", DeviceReport.exitReasonName(9))
         assertEquals("FREEZER", DeviceReport.exitReasonName(14))
+        assertEquals("MEMORY_LIMITER", DeviceReport.exitReasonName(17))
     }
 
     @Test fun anUnknownCodeStillShowsItsNumber() {
