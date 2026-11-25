@@ -677,6 +677,18 @@ def install_folders(root):
     return folders
 
 
+def escapes(tail):
+    depth = 0
+    for part in re.split(rb"[\\/]+", tail):
+        if part == b"..":
+            depth -= 1
+            if depth < 0:
+                return True
+        elif part and part != b".":
+            depth += 1
+    return False
+
+
 def drop_rootfs_drives(root):
     pfx = os.path.join(prefix(root), "pfx")
     drives = rootfs_drives(root)
@@ -699,7 +711,8 @@ def drop_rootfs_drives(root):
         head = rb"(?<![A-Za-z0-9])[" + letter.encode() + letter.upper().encode() + rb"]:"
         inner = b"".join(sep + re.escape(part.encode()) for part in rest.split("/") if part)
         for path in changed:
-            changed[path] = re.sub(head + inner + rb"(?=" + sep + rb")", b"Z:", changed[path])
+            changed[path] = re.sub(head + inner + rb"(?=(" + sep + rb"[^\"\r\n]*))",
+                                   lambda m: m.group(0) if escapes(m.group(1)) else b"Z:", changed[path])
     for path, data in changed.items():
         if data != texts[path]:
             write_bytes(path, data)
@@ -707,7 +720,7 @@ def drop_rootfs_drives(root):
     for letter in sorted(drives):
         drive = letter.encode() + letter.upper().encode()
         used = rb"(?<![A-Za-z0-9])[" + drive + rb"]:" + sep
-        if any(re.match(rb"[" + drive + rb"]:[\\/]", folder) for folder in folders):
+        if any(re.match(rb"[" + drive + rb"]:[\\/]", folder.lstrip()) for folder in folders):
             continue
         if not any(re.search(used, data) for data in changed.values()):
             os.unlink(os.path.join(dosdevices(root), letter + ":"))

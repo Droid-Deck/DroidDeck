@@ -463,7 +463,7 @@ class DriveTest(Temp):
 
     def test_a_drive_holding_the_native_rootfs_stays_while_a_game_outside_the_runtime_is_installed_on_it(self):
         rootfs, _, _ = self.rootfs_prefix()
-        for folder in ("D:/Other/" + "x" * 40, "D:\\Other\\" + "x" * 39):
+        for folder in ("D:/Other/" + "x" * 40, "D:\\Other\\" + "x" * 39, " D:/Other/" + "x" * 39):
             with self.subTest(folder=folder):
                 self.database(self.product("wowf", "D:/files/linuxfs/root/Games/Stores/Battle.net/World of Warcraft"),
                               self.product("other", folder))
@@ -471,6 +471,17 @@ class DriveTest(Temp):
                     BNET["move_installs"](self.root)
                     self.assertEqual(BNET["drop_rootfs_drives"](self.root), [])
                 self.assertTrue(os.path.islink(self.devices / "d:"))
+
+    def test_a_path_that_climbs_out_of_the_runtime_keeps_its_drive(self):
+        rootfs, system, _ = self.rootfs_prefix()
+        up = '"Up"="D:\\\\files\\\\linuxfs\\\\root\\\\..\\\\..\\\\Other"\n'
+        system.write_text(system.read_text() + up)
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(rootfs)}):
+            BNET["move_installs"](self.root)
+            self.assertEqual(BNET["drop_rootfs_drives"](self.root), [])
+        self.assertTrue(os.path.islink(self.devices / "d:"))
+        self.assertIn(up, system.read_text())
+        self.assertIn('"InstallLocation"="Z:\\\\root\\\\Games', system.read_text())
 
     def test_an_unreadable_database_keeps_the_drive(self):
         rootfs, _, _ = self.rootfs_prefix()
