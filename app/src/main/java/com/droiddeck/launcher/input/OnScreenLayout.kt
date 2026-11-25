@@ -86,8 +86,8 @@ object OnScreenLayout {
         val bottomBound = (height - safe.bottom).toFloat() / height
         val scaled = elements.map { element ->
             if (!isGamepad(element)) return@map element
-            val w = (element.width * scale).coerceIn(.001f, usableWidth)
-            val h = (element.height * scale).coerceIn(.001f, usableHeight)
+            val w = (element.width * scale).coerceIn(min(.001f, usableWidth), usableWidth)
+            val h = (element.height * scale).coerceIn(min(.001f, usableHeight), usableHeight)
             val x = (element.x + element.width / 2f - w / 2f)
                 .coerceIn(leftBound, (rightBound - w).coerceAtLeast(leftBound))
             val y = (element.y + element.height / 2f - h / 2f)
