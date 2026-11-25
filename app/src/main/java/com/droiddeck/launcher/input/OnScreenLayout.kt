@@ -181,7 +181,11 @@ object OnScreenLayout {
                 ?.let { (it * height).roundToInt().coerceAtLeast(1) to height }
             for ((w, h) in listOfNotNull(named, width to height, aspectSize, long to short, short to long).distinct()) {
                 val generator = LegacyGamepadLayout(display, w, h, scale = layout.scale)
-                if (matches(gamepad, generator.elements()) || matches(gamepad, generator.elements(previousStickGeometry = true))) return (w.toFloat() to h.toFloat()) to true
+                if (matches(gamepad, generator.elements()) || matches(gamepad, generator.elements(previousStickGeometry = true)) ||
+                    ControllerPrefs.sizes.any { size ->
+                        val sizedGenerator = LegacyGamepadLayout(display, w, h, scale = layout.scale, sizeOverride = size)
+                        matches(gamepad, sizedGenerator.elements()) || matches(gamepad, sizedGenerator.elements(previousStickGeometry = true))
+                    }) return (w.toFloat() to h.toFloat()) to true
             }
         }
         val aspect = layout.aspect.takeIf { it > 0f } ?: (long.toFloat() / short)
