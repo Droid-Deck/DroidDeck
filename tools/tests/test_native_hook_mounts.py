@@ -174,10 +174,15 @@ class NativeHookMountTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_probe(self, *args, binds=None):
+    def run_probe(self, *args, binds=None, mounts=None):
         if binds is None:
             binds = f"{self.library}:/mnt/library|{self.private}:/mnt/private|{self.eqlen_src}:{self.eqlen_dst}"
         hook_env = {"DDNATV_ROOT": str(self.root), "DDNATV_BINDS": binds, "LD_PRELOAD": str(self.hook)}
+        if mounts is not None:
+            table = Path(self.tmp.name) / f"mountinfo-{len(list(Path(self.tmp.name).glob('mountinfo-*')))}"
+            table.write_text("".join(f"{i + 20} 1 0:{i + 40} / {point} rw - {kind} {source} rw\n"
+                                     for i, (point, kind, source) in enumerate(mounts)))
+            hook_env["DDNATV_MOUNTINFO"] = str(table)
         env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "LOCPATH", "GCONV_PATH")}
         if self.prefix:
             cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
@@ -377,6 +382,51 @@ class NativeHookMountTest(unittest.TestCase):
         result = self.run_probe(*paths, binds=binds)
         for path in paths:
             self.assertEqual(result[path], ["0", "-"], path)
+
+    def links_volume(self):
+        real = os.path.realpath(self.links)
+        return real, os.path.dirname(real), os.path.basename(real)
+
+    def test_links_in_a_mount_on_a_link_capable_filesystem_are_followed(self):
+        real, parent, _ = self.links_volume()
+        binds = f"{self.links}:/mnt/links"
+        paths = {"/mnt/links/guest": ["1", "rootfs"], "/mnt/links/real/up/sub/file.txt": ["1", "deep"],
+                 "/mnt/links/dir/sub/file.txt": ["1", "deep"]}
+        tables = [[("/", "ext4", "/dev/root")],
+                  [("/", "ext4", "/dev/root"), (parent, "vfat", "/dev/sdb1"), (real, "f2fs", "/dev/sda2")],
+                  [("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1"), (f"{real}/real", "ext4", "/dev/sda3")],
+                  [("/", "ext4", "/dev/root"), (real, "fuse", "/dev/fuse")],
+                  [("/", "ext4", "/dev/root"), ("/mnt/media_rw/other", "exfat", "/dev/sdb1"), (real, "fuse", "/dev/fuse")],
+                  [("/", "ext4", "/dev/root"), ("/mnt/media_rw/" + os.path.basename(real), "exfat", "/dev/sdb1"),
+                   (real, "fuse", "/dev/sdb9")]]
+        for table in tables:
+            result = self.run_probe(*paths, binds=binds, mounts=table)
+            for path, want in paths.items():
+                self.assertEqual(result[path], want, (path, table))
+
+    def test_mounts_on_filesystems_without_links_skip_the_link_walk(self):
+        real, parent, name = self.links_volume()
+        binds = f"{self.links}:/mnt/links"
+        tables = [[("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1")],
+                  [("/", "ext4", "/dev/root"), (parent, "vfat", "/dev/sdb1")],
+                  [("/", "ext4", "/dev/root"), (real, "vfat", "/dev/sdb1"), (f"{real}/real", "exfat", "/dev/sdc1")],
+                  [("/", "ext4", "/dev/root"), (f"/mnt/media_rw/{name}", "exfat", "/dev/sdb1"), (real, "fuse", "/dev/fuse")]]
+        for table in tables:
+            result = self.run_probe("/mnt/links/guest", "/mnt/links/real/up/sub/file.txt",
+                                    "/mnt/links/real/sub/file.txt", "/mnt/links/real/missing",
+                                    "lstat:/mnt/links/real/sub", binds=binds, mounts=table)
+            self.assertNotEqual(result["/mnt/links/guest"], ["1", "rootfs"], table)
+            self.assertEqual(result["/mnt/links/real/up/sub/file.txt"], ["0", "-"], table)
+            self.assertEqual(result["/mnt/links/real/sub/file.txt"], ["1", "deep"], table)
+            self.assertEqual(result["/mnt/links/real/missing"], ["0", "-"], table)
+            self.assertEqual(result["lstat:/mnt/links/real/sub"], ["1", "0"], table)
+
+    def test_a_mount_table_without_the_mount_keeps_the_link_walk(self):
+        binds = f"{self.links}:/mnt/links"
+        paths = {"/mnt/links/guest": ["1", "rootfs"], "/mnt/links/real/up/sub/file.txt": ["1", "deep"]}
+        result = self.run_probe(*paths, binds=binds, mounts=[])
+        for path, want in paths.items():
+            self.assertEqual(result[path], want, path)
 
 
 if __name__ == "__main__":

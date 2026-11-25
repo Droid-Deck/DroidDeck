@@ -44,6 +44,7 @@ struct ddnatv_bind {
     char *src, *dst;
     size_t src_len, dst_len;
     int identity;
+    int links;
     int order; // position in DDNATV_BINDS: the earlier of two mounts of one folder is its guest path
 };
 // as many as the session has: a fixed table dropped what came after its 128th entry
@@ -56,6 +57,7 @@ static char g_hostname[65];
 // link targets as paths in it, as the kernel follows them there; in the sandbox they are guest paths
 static char g_link_root[PATH_MAX];
 static size_t g_link_root_len = 0;
+static char g_mount_table[PATH_MAX] = "/proc/self/mountinfo";
 
 static int ddnatv_bind_longer_first(const void *a, const void *b) {
     const struct ddnatv_bind *x = a, *y = b;
@@ -378,6 +380,130 @@ static int known_plain(const char *host) {
     t_plain_host = NULL;
     return plain;
 }
+
+static int fs_type_holds_no_links(const char *type) {
+    return strcmp(type, "vfat") == 0 || strcmp(type, "exfat") == 0 || strcmp(type, "msdos") == 0 ||
+           strcmp(type, "sdfat") == 0;
+}
+
+struct mount_scan {
+    const char *src;
+    size_t src_len;
+    size_t best_len;
+    int best_plain;
+    int best_fuse;
+    char best_name[256];
+    int nested_links;
+    int lower_count;
+    char lower[16][256];
+};
+
+static void mount_scan_line(struct mount_scan *scan, char *line) {
+    char *field[5];
+    char *p = line;
+    for (int i = 0; i < 5; i++) {
+        while (*p == ' ') p++;
+        field[i] = p;
+        while (*p && *p != ' ') p++;
+        if (!*p) return;
+        *p++ = '\0';
+    }
+    char *sep = strstr(p, " - ");
+    if (!sep) return;
+    char *type = sep + 3;
+    char *source = strchr(type, ' ');
+    if (!source) return;
+    *source++ = '\0';
+    char *end = strchr(source, ' ');
+    if (end) *end = '\0';
+    const char *point = field[4];
+    size_t point_len = strlen(point);
+    int plain = fs_type_holds_no_links(type);
+    const char *name = strrchr(point, '/');
+    name = name ? name + 1 : point;
+    if (plain && strncmp(point, "/mnt/media_rw/", 14) == 0 && !strchr(point + 14, '/') && name[0] &&
+        strlen(name) < sizeof(scan->lower[0]) && scan->lower_count < 16)
+        ddnatv_copy_cstr(scan->lower[scan->lower_count++], sizeof(scan->lower[0]), name);
+    if (point_len > scan->src_len && is_path_prefix(point, scan->src, scan->src_len)) {
+        if (!plain) scan->nested_links = 1;
+        return;
+    }
+    int covers = point_len == 1 ? point[0] == '/' : is_path_prefix(scan->src, point, point_len);
+    if (!covers || (point_len < scan->best_len && scan->best_len != 0)) return;
+    scan->best_len = point_len;
+    scan->best_plain = plain;
+    scan->best_fuse = strcmp(type, "fuse") == 0 && strcmp(source, "/dev/fuse") == 0;
+    ddnatv_copy_cstr(scan->best_name, sizeof(scan->best_name), strlen(name) < sizeof(scan->best_name) ? name : "");
+}
+
+static long raw_open_read(const char *path) {
+    register long x8 __asm__("x8") = 56;
+    register long x0 __asm__("x0") = AT_FDCWD;
+    register long x1 __asm__("x1") = (long)path;
+    register long x2 __asm__("x2") = O_RDONLY | O_CLOEXEC;
+    register long x3 __asm__("x3") = 0;
+    __asm__ volatile("svc #0" : "+r"(x0) : "r"(x8), "r"(x1), "r"(x2), "r"(x3) : "memory");
+    return x0;
+}
+
+static long raw_read_fd(long fd, char *buf, size_t size) {
+    register long x8 __asm__("x8") = 63;
+    register long x0 __asm__("x0") = fd;
+    register long x1 __asm__("x1") = (long)buf;
+    register long x2 __asm__("x2") = (long)size;
+    __asm__ volatile("svc #0" : "+r"(x0) : "r"(x8), "r"(x1), "r"(x2) : "memory");
+    return x0;
+}
+
+static int mount_holds_no_links(const char *src, size_t src_len) {
+    if (src_len == 0 || src_len >= PATH_MAX || strpbrk(src, " \t\n\\")) return 0;
+    long fd = raw_open_read(g_mount_table);
+    if (fd < 0) return 0;
+    struct mount_scan *scan = calloc(1, sizeof(*scan));
+    if (!scan) { raw_close_fd(fd); return 0; }
+    scan->src = src;
+    scan->src_len = src_len;
+    char line[4096];
+    size_t used = 0;
+    int skipping = 0;
+    char chunk[4096];
+    long n;
+    while ((n = raw_read_fd(fd, chunk, sizeof(chunk))) > 0 || n == -EINTR) {
+        for (long i = 0; i < n; i++) {
+            char c = chunk[i];
+            if (c == '\n') {
+                if (!skipping) {
+                    line[used] = '\0';
+                    mount_scan_line(scan, line);
+                }
+                used = 0;
+                skipping = 0;
+            } else if (used + 1 < sizeof(line)) {
+                line[used++] = c;
+            } else {
+                skipping = 1;
+            }
+        }
+    }
+    raw_close_fd(fd);
+    int none = 0;
+    if (n == 0 && scan->best_len && !scan->nested_links) {
+        if (scan->best_plain) none = 1;
+        else if (scan->best_fuse && scan->best_name[0])
+            for (int i = 0; i < scan->lower_count && !none; i++) none = strcmp(scan->lower[i], scan->best_name) == 0;
+    }
+    free(scan);
+    return none;
+}
+
+static int bind_holds_no_links(struct ddnatv_bind *b) {
+    int state = __atomic_load_n(&b->links, __ATOMIC_RELAXED);
+    if (state == 0) {
+        state = mount_holds_no_links(b->src, b->src_len) ? 2 : 1;
+        __atomic_store_n(&b->links, state, __ATOMIC_RELAXED);
+    }
+    return state == 2;
+}
 #endif
 
 static const char *resolve_links_after(const char *host, size_t src_len, char *buffer, size_t bufsize, int check_plain) {
@@ -480,7 +606,14 @@ static const char *rewrite_path_in_root(const char *path, char *buffer, size_t b
             if (strstr(path + b->dst_len, "/..") && climbs_past_root("", path + b->dst_len))
                 return rewrite_normalized_in_root(path, buffer, bufsize);
             size_t n = ddnatv_append(buffer, bufsize, 0, b->src, b->src_len);
-            ddnatv_append(buffer, bufsize, n, path + b->dst_len, strlen(path + b->dst_len));
+            n = ddnatv_append(buffer, bufsize, n, path + b->dst_len, strlen(path + b->dst_len));
+#if defined(__aarch64__)
+            if (bind_holds_no_links(&g_binds[i])) {
+                t_plain_host = buffer;
+                t_plain_len = n;
+                return buffer;
+            }
+#endif
             return resolve_bind_links(buffer, b->src_len, buffer, bufsize);
         }
     }
