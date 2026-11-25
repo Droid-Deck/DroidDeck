@@ -58,8 +58,19 @@ def digest(path):
     return result.hexdigest()
 
 
+def copied(root):
+    # Helper scripts are staged verbatim on every Gradle build and checked against the APK by
+    # check_session_assets.py, so they are neither preparation inputs nor prepared outputs.
+    if str(Path(__file__).resolve().parent) not in sys.path:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from check_session_assets import OVERLAY, source_assets
+    found = source_assets() if root == ROOT else source_assets(root / OVERLAY.relative_to(ROOT))
+    return {source.relative_to(root).as_posix(): 'app/src/main/' + asset for source, asset in found.items()}
+
+
 def sources(root):
     files, builds = [], set()
+    skipped = set(copied(root))
     for name in SOURCE_PATHS:
         path = root / name
         files.extend(path.rglob('*') if path.is_dir() else [path])
@@ -67,14 +78,18 @@ def sources(root):
             builds.update(manifest.parent / 'target' for manifest in path.rglob('Cargo.toml'))
     return {path.relative_to(root).as_posix(): digest(path) for path in sorted(set(files))
             if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc'
+            and path.relative_to(root).as_posix() not in skipped
             and not any(build in path.parents for build in builds)}
 
 
 def outputs(root):
     result = {}
+    skipped = set(copied(root).values())
     for tree in ['linuxfs', 'directaudio', 'droiddeck-esync', 'desktop-removal', 'hybris']:
         base = root / 'app/src/main/assets' / tree
         for path in base.rglob('*'):
+            if path.relative_to(root).as_posix() in skipped:
+                continue
             if path.is_file() and not any(part.startswith('.') for part in path.relative_to(base).parts) and \
                     '/rendermodels/droiddeck_pico_' not in '/' + path.relative_to(base).as_posix():
                 result['assets/' + tree + '/' + path.relative_to(base).as_posix()] = path.relative_to(root).as_posix()
@@ -100,8 +115,7 @@ def required():
               for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
     paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libddsession.so',
              'libddfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
-             'usr/local/bin/droiddeck-gog-maintenance',
-             'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime',
+             'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime', 'usr/local/lib/droiddeck/dwarfsextract',
              'usr/local/lib/droiddeck-pipewire.tzst']]
     for arch in ['x86_64', 'i386']:
         paths += ['assets/linuxfs/' + arch + '/' + lib for lib in ['libfakeinput.so', 'libddsession.so']]
@@ -194,6 +208,10 @@ def verify(root=ROOT, stale_sources_ok=False):
         raise ValueError('Runtime inputs have not been prepared. Run tools/build_local.sh.')
     if data.get('version') != 1:
         raise ValueError('Runtime sources changed since preparation. Run tools/build_local.sh.')
+    copies = copied(root)
+    data['sources'] = {name: value for name, value in (data.get('sources') or {}).items() if name not in copies}
+    data['outputs'] = {name: output for name, output in (data.get('outputs') or {}).items()
+                       if output.get('path') not in copies.values()}
     current = sources(root)
     if data.get('sources') != current:
         if not stale_sources_ok:
@@ -211,6 +229,11 @@ def verify(root=ROOT, stale_sources_ok=False):
             raise ValueError('Missing or changed runtime input: ' + name + '. Run tools/build_local.sh.')
     if outputs(root) != {name: output['path'] for name, output in data['outputs'].items()}:
         raise ValueError('Runtime file set changed. Run tools/build_local.sh.')
+    for source, asset in copies.items():
+        path = root / asset
+        if not path.is_file() or path.read_bytes() != (root / source).read_bytes():
+            raise ValueError(asset + ' is not a current copy of ' + source
+                             + '. Run python3 tools/release/check_session_assets.py --stage.')
     return data
 
 

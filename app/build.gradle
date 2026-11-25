@@ -126,14 +126,15 @@ def variantSuffixes = rootProject.file('tools/release/variants.txt').readLines()
 android {
     namespace 'com.droiddeck.launcher'
     compileSdk 34
-    ndkVersion project.findProperty('ndkVersion') ?: '27.3.13750724'
+    ndkVersion project.findProperty('ndkVersion') ?: providers.fileContents(rootProject.layout.projectDirectory.file('tools/ci/toolchains.env'))
+        .asText.get().readLines().find { it.startsWith('CI_ANDROID_NDK_VERSION=') }.split('=', 2)[1].trim()
 
     defaultConfig {
         applicationId "com.droiddeck.launcher"
         minSdkVersion 26
         targetSdkVersion 34
-        versionCode 19
-        versionName "0.7.1"
+        versionCode 20
+        versionName "0.7.11"
         buildConfigField "String", "BUILD_LABEL", "\"${escapedBuildLabel}\""
         buildConfigField "String", "SOURCE_COMMIT", "\"${sourceCommit}\""
         buildConfigField "int", "PR_NUMBER", "${prNumber}"
@@ -234,6 +235,9 @@ android {
             }
             maxHeapSize = '2g'
             maxParallelForks = 2
+            def jvmTemp = new File(temporaryDir, 'jvm')
+            systemProperty 'java.io.tmpdir', jvmTemp.absolutePath
+            doFirst { jvmTemp.mkdirs() }
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
         }
@@ -263,11 +267,9 @@ if (vitureSdkDir) {
     tasks.named('preBuild').configure { dependsOn(stageVitureNotices) }
 }
 
-def stageSessionScripts = tasks.register('stageSessionScripts', Copy) {
-    from(rootProject.file('tools/linuxfs/overlay')) {
-        include 'usr/local/bin/droiddeck-*', 'usr/local/bin/steam-compatibility', 'usr/bin/**'
-    }
-    into(layout.projectDirectory.dir('src/main/assets/linuxfs'))
+def stageSessionScripts = tasks.register('stageSessionScripts', Exec) {
+    workingDir rootProject.projectDir
+    commandLine pythonExecutable, 'tools/release/check_session_assets.py', '--stage'
 }
 tasks.named('preBuild').configure { dependsOn(stageSessionScripts) }
 

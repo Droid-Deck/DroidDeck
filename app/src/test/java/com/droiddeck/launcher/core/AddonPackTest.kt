@@ -21,6 +21,7 @@ class AddonPackTest {
 
     @Before fun clean() {
         root.deleteRecursively()
+        File(context.filesDir, "addons/xr-model-tests").deleteRecursively()
     }
 
     private fun installed(version: String, complete: Boolean = true, modified: Long = 1_000L): File =
@@ -98,6 +99,88 @@ class AddonPackTest {
 
         assertFalse(pack.bundled(context, copy))
         assertFalse(copy.exists())
+    }
+
+    @Test fun aCompletionMarkerDoesNotHideMissingRequiredFiles() {
+        val version = "a".repeat(64)
+        val directory = installed(version)
+        File(directory, "tool").delete()
+        assertFalse(AddonPack("sample", version, 1L, listOf("tool")).installed(context))
+    }
+
+    @Test fun aVerifiedArchiveStillNeedsValidModelResourcesBeforePublication() {
+        val archive = tarZst("tool" to "x")
+        val pack = AddonPack("sample", Hashes.sha256(archive), archive.length(), listOf("tool"),
+            bundle = { archive.inputStream() }, validateFiles = { false }, detailedState = true)
+        assertFalse(pack.await(context))
+        assertFalse(pack.installed(context))
+        assertFalse(File(pack.dir(context), AddonPack.COMPLETE).exists())
+        assertTrue(pack.failure.orEmpty().contains("invalid resources"))
+    }
+
+    @Test fun invalidCachedResourcesAreNotReadyDespiteTheCompletionMarker() {
+        val version = "a".repeat(64)
+        installed(version)
+        assertFalse(AddonPack("sample", version, 1L, listOf("tool"), validateFiles = { false }).installed(context))
+    }
+
+    @Test fun isolatedNetworkDownloadDoesNotReuseOrReplaceTheProductionCache() {
+        val archive = tarZst("tool" to "network")
+        val sha = Hashes.sha256(archive)
+        val original = installed(sha)
+        serve(archive.readBytes()) { url ->
+            val pack = AddonPack("sample", sha, archive.length(), listOf("tool"),
+                reuseDeviceCopy = false, labBuild = false, bundle = { throw java.io.FileNotFoundException() },
+                downloadUrls = listOf(url), storageName = "xr-model-tests/round/sample", detailedState = true)
+            val deadline = System.nanoTime() + 5_000_000_000
+            assertTrue(pack.await(context, running = { System.nanoTime() < deadline }))
+            assertEquals("network", pack.file(context, "tool").readText())
+            assertEquals("x", File(original, "tool").readText())
+            assertTrue(pack.dir(context).path.contains("xr-model-tests/round/sample"))
+        }
+    }
+
+    @Test fun corruptedNetworkDownloadCannotPublishACompleteTestCache() {
+        val archive = tarZst("tool" to "network")
+        val bytes = archive.readBytes().also { it[0] = (it[0].toInt() xor 1).toByte() }
+        serve(bytes) { url ->
+            val pack = AddonPack("sample", Hashes.sha256(archive), archive.length(), listOf("tool"),
+                reuseDeviceCopy = false, labBuild = false, bundle = { throw java.io.FileNotFoundException() },
+                downloadUrls = listOf(url), storageName = "xr-model-tests/corrupt/sample")
+            val deadline = System.nanoTime() + 5_000_000_000
+            assertFalse(pack.await(context, running = { System.nanoTime() < deadline }))
+            assertEquals(AddonPack.State.Failed, pack.state.value)
+            assertFalse(pack.installed(context))
+            assertFalse(File(pack.dir(context), AddonPack.COMPLETE).exists())
+        }
+    }
+
+    private fun serve(bytes: ByteArray, run: (String) -> Unit) {
+        java.net.ServerSocket(0, 1, java.net.InetAddress.getByName("127.0.0.1")).use { server ->
+            server.soTimeout = 5000
+            val requests = java.util.concurrent.atomic.AtomicInteger()
+            val worker = Thread {
+                runCatching {
+                    server.accept().use { socket ->
+                        socket.soTimeout = 5000
+                        val reader = socket.getInputStream().bufferedReader()
+                        while (!reader.readLine().isNullOrEmpty()) {}
+                        requests.incrementAndGet()
+                        socket.getOutputStream().use { output ->
+                            output.write("HTTP/1.1 200 OK\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                            output.write(bytes)
+                        }
+                    }
+                }
+            }.apply { isDaemon = true; start() }
+            try {
+                run("http://127.0.0.1:${server.localPort}/sample.tar.zst")
+                assertEquals(1, requests.get())
+            } finally {
+                server.close()
+                worker.join(1000)
+            }
+        }
     }
 
     private fun tarZst(vararg files: Pair<String, String>): File =

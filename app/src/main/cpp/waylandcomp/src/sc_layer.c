@@ -175,6 +175,7 @@ struct layer {
     ARect geo_src, geo_dst;
     int geo_valid;
     int alloc_tier;
+    unsigned import_failed_fmts;
     uint64_t pool_modifier;
     int first_logged;
     int64_t drop_logged_ns;
@@ -583,7 +584,8 @@ static const char *tier_name(int tier) {
 
 static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fmt) {
     g_alloc_failed = 0;
-    while (l->alloc_tier <= TIER_LINEAR) {
+    const unsigned fmt_bit = fmt == AHB_RGB10A2 ? 2u : 1u;
+    while (l->alloc_tier <= TIER_LINEAR && !(l->import_failed_fmts & fmt_bit)) {
         if (l->alloc_tier == TIER_UBWC && !strstr(vkp_gpu_name(), "Adreno")) l->alloc_tier = TIER_LINEAR;
         const int tier = l->alloc_tier;
         AHardwareBuffer_Desc d = {
@@ -623,14 +625,19 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
             const int sized = fd >= 0 && fstat(fd, &identity) == 0 && identity.st_size > 0 &&
                 (mod != MOD_LINEAR || (uint64_t)identity.st_size >= (uint64_t)need);
             if (sized) {
+                /* A driver with no explicit modifier layouts cannot import the padded linear buffer
+                 * as an image; the compositor stages it at its row pitch instead (zero-copy layer
+                 * output on Android 10 gralloc). */
                 uint64_t supported[64];
                 const int count = vkp_dmabuf_modifiers(drm, supported, 64);
+                int staged = count == 0 && mod == MOD_LINEAR && got.stride != (uint32_t)w;
+                int listed = 0;
                 for (int i = 0; i < count; ++i)
-                    if (supported[i] == mod) {
-                        img = vkp_image_import_dmabuf(fd, drm, mod, w, h, got.stride * 4, 0, 1);
-                        path = "verified dma-buf";
-                        break;
-                    }
+                    if (supported[i] == mod) { listed = 1; break; }
+                if (listed || staged) {
+                    img = vkp_image_import_dmabuf(fd, drm, mod, w, h, got.stride * 4, 0, 1);
+                    path = listed ? "verified dma-buf" : "staged linear dma-buf";
+                }
             }
         }
         if (!img) {
@@ -642,6 +649,7 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
                        nh ? nh->numFds : -1, nh ? nh->numInts : -1, hd);
             AHardwareBuffer_release(ahb);
             if (tier < TIER_LINEAR) { l->alloc_tier = tier + 1; continue; }
+            l->import_failed_fmts |= fmt_bit;
             g_alloc_failed = 1;
             return -1;
         }
@@ -1036,7 +1044,7 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
 
     int wait_fd;
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
-    if (idx < 0) { log_drop(l); return 0; }
+    if (idx < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, r, color, 0) != 0) return -1;
     if (color && color->dataspace) droiddeck_color_frame_shown(color, DROIDDECK_HDR_LAYER_COPY, AHB_RGBA8);
@@ -1245,7 +1253,7 @@ int sc_layer_present_overlay(struct vkp_image *src, const int geo[8], int transl
     if (sw <= 0 || sh <= 0) return -1;
     int wait_fd;
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
-    if (idx < 0) { log_drop(l); return 0; }
+    if (idx < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, geo, NULL, translucent) != 0) return -1;
     if (!l->first_logged) {

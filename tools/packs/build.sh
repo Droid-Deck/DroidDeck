@@ -106,3 +106,4 @@ fetch "https://broth.itch.zone/butler/linux-arm64/${BUTLER_VERSION}/archive/defa
 unzip -q -j "$work/butler.zip" butler 7z.so libc7zip.so -d "$work/butler"
 printf '%s\n' "$BUTLER_VERSION" > "$work/butler/version"
 pack butler "$work/butler" version butler 7z.so libc7zip.so
+python3 "$repo/tools/vr/make_pico_models.py" --out "$repo/build/pico-models" --packs "$out" --zstd "$zstd"

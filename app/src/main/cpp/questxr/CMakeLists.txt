@@ -9,6 +9,6 @@ target_compile_definitions(droiddeckxr PRIVATE XR_USE_PLATFORM_ANDROID XR_USE_GR
 target_compile_options(droiddeckxr PRIVATE -Wall -Wextra -Wno-missing-field-initializers -Werror=return-type)
 target_link_options(droiddeckxr PRIVATE -Wl,-z,max-page-size=16384 -uANativeActivity_onCreate)
 target_include_directories(droiddeckxr PRIVATE $<TARGET_PROPERTY:OpenXR::openxr_loader,INTERFACE_INCLUDE_DIRECTORIES>)
-target_link_libraries(droiddeckxr PRIVATE droiddeckxr_glue EGL GLESv3 android log dl)
+target_link_libraries(droiddeckxr PRIVATE droiddeckxr_glue EGL GLESv3 android jnigraphics log dl)
 
 target_include_directories(droiddeckxr PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tools/vr/src)

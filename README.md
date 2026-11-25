@@ -75,6 +75,8 @@ Windows runtime preparation rebuilds the patched ARM64 KWin in Docker. Use
 
 DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. VITURE, RayNeo, XREAL, Rokid, REDMAGIC, Nintendo Switch and Joy-Con are trademarks of their owners. This project is not affiliated with any of them.
 
+PICO controller models and their input animations are generated from [WebXR Input Profiles](https://github.com/immersive-web/webxr-input-profiles/tree/f4992299601614adbfefd398dc8e281556bb7444) (MIT, Copyright © 2019 Amazon). Models are downloaded as separate add-on packs; each pack includes the full licence and source provenance. The driver ships the same licence for its generated animation data.
+
 <details>
 <summary><b>Runtime, Wine and Proton</b></summary>
 

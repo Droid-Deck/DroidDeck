@@ -101,7 +101,7 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativePointerGesture(
     if (type < 0 || type > 10) return;
     const char *name = key ? (*env)->GetStringUTFChars(env, key, NULL) : NULL;
     if (key && !name) return;
-    droiddeck_wayland_send_gesture(name, generation, type, a, b, c, d, (uint32_t)time);
+    droiddeck_wayland_send_gesture(name, generation, type, a, b, c, d, droiddeck_clock_domain_adjust_ms(time));
     if (key) (*env)->ReleaseStringUTFChars(env, key, name);
 }
 

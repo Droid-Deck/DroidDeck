@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s SteamVR コントローラーモデル</string>
+    <string name="load_xr_preparing_steamvr">SteamVR を準備中</string>
+    <string name="load_xr_steam_ready">Steam の準備ができました</string>
+    <string name="load_xr_models_downloading">ダウンロード中</string>
+    <string name="load_xr_models_checking">検証中</string>
+    <string name="load_xr_models_installing">インストール中</string>
+    <string name="load_xr_models_ready">準備完了</string>
+    <string name="load_xr_models_native">ネイティブモデルを使用</string>
+    <string name="load_xr_models_failed_fallback">準備に失敗しました。既定のモデルを使用します</string>
+</resources>

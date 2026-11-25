@@ -32,6 +32,8 @@ class KeyboardHost(
     var onComposingText: ((String, Int) -> Boolean)? = null
     var editorInputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
         InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+    val hideMeansDismissal: Boolean
+        get() = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || (shown && imeShowing)
 
     init {
         isFocusable = false

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 import json
 import os
 import runpy
@@ -255,8 +255,8 @@ def text_requests(conn, directory, current, contexts, accessibility=None, ibus=N
 
 
 def main():
-    launch = os.environ.get("BL_LAUNCH_DIR", "")
-    report = Report(os.environ.get("BL_IME_DIR") or (os.path.join(launch, "agent") if launch else ""))
+    launch = os.environ.get("DD_LAUNCH_DIR", "")
+    report = Report(os.environ.get("DD_IME_DIR") or (os.path.join(launch, "agent") if launch else ""))
     ibus = None
     if os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
         try:

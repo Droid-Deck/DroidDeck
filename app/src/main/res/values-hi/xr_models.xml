@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s SteamVR कंट्रोलर मॉडल</string>
+    <string name="load_xr_preparing_steamvr">SteamVR तैयार किया जा रहा है</string>
+    <string name="load_xr_steam_ready">Steam तैयार है</string>
+    <string name="load_xr_models_downloading">डाउनलोड हो रहा है</string>
+    <string name="load_xr_models_checking">सत्यापन हो रहा है</string>
+    <string name="load_xr_models_installing">इंस्टॉल हो रहा है</string>
+    <string name="load_xr_models_ready">तैयार</string>
+    <string name="load_xr_models_native">नेटिव मॉडल उपयोग में हैं</string>
+    <string name="load_xr_models_failed_fallback">तैयारी विफल; डिफ़ॉल्ट मॉडल उपयोग में हैं</string>
+</resources>

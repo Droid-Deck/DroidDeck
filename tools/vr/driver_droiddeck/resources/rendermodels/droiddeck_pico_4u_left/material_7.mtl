@@ -1,6 +1,0 @@
-newmtl material_7
-Ka 1 1 1
-Kd 1 1 1
-Ks 0 0 0
-d 1
-map_Kd material_7.png

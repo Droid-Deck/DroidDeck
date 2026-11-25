@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s SteamVR kontrolcü modelleri</string>
+    <string name="load_xr_preparing_steamvr">SteamVR hazırlanıyor</string>
+    <string name="load_xr_steam_ready">Steam hazır</string>
+    <string name="load_xr_models_downloading">İndiriliyor</string>
+    <string name="load_xr_models_checking">Doğrulanıyor</string>
+    <string name="load_xr_models_installing">Yükleniyor</string>
+    <string name="load_xr_models_ready">Hazır</string>
+    <string name="load_xr_models_native">Çalışma zamanı modelleri kullanılıyor</string>
+    <string name="load_xr_models_failed_fallback">Hazırlık başarısız; varsayılan modeller kullanılıyor</string>
+</resources>

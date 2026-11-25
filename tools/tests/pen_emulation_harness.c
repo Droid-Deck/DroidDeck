@@ -44,7 +44,7 @@ static void pen_log_target(void) { logs++; }
 #include "pen.inc"
 
 static void pen(int flags, double x, double y) {
-    struct input_msg m = {13, flags, (int)(x * 256), (int)(y * 256), 0};
+    struct input_msg m = {30, flags, (int)(x * 256), (int)(y * 256), 0, 0};
     nevents = 0;
     deliver_pen(&m);
 }

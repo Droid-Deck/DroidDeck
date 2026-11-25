@@ -5,7 +5,7 @@
 #include "droiddeck_ext.h"
 #include "sc_layer.h"
 #include "vk_present.h"
-#include "banner-ahb-v1-server-protocol.h"
+#include "droiddeck-ahb-v1-server-protocol.h"
 #include <android/hardware_buffer.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -26,6 +26,7 @@ struct droiddeck_dma_buf_sync_file { uint32_t flags; int32_t fd; };
 #define DROIDDECK_DMA_BUF_IOCTL_IMPORT_SYNC_FILE _IOW('b', 3, struct droiddeck_dma_buf_sync_file)
 
 extern volatile int g_zero_copy;
+void droiddeck_dmabuf_formats_stale(void);
 
 struct ahb_buf {
     uint64_t id;
@@ -38,6 +39,7 @@ struct ahb_buf {
     struct wl_client *client;
     struct wl_resource *resource;
     struct wl_listener resource_destroy;
+    int display;
     int on_layer;
     int release_pending;
     int64_t deferred_ns;
@@ -143,11 +145,11 @@ static void handle_released(uint64_t id, int fd, int completed) {
     if (fd >= 0) {
         struct droiddeck_dma_buf_sync_file imp = {.flags = DROIDDECK_DMA_BUF_SYNC_READ, .fd = fd};
         int dmabuf_fd = droiddeck_dmabuf_fd(ab->b);
-        if (!ab->brokered && dmabuf_fd >= 0 &&
+        if (!ab->brokered && !ab->display && dmabuf_fd >= 0 &&
             ioctl(dmabuf_fd, DROIDDECK_DMA_BUF_IOCTL_IMPORT_SYNC_FILE, &imp) == 0) {
             close(fd);
         } else {
-            if (!ab->brokered && !g_import_failed_logged) {
+            if (!ab->brokered && !ab->display && !g_import_failed_logged) {
                 g_import_failed_logged = 1;
                 droiddeck_log("layer", "zero-copy: DMA_BUF_IOCTL_IMPORT_SYNC_FILE failed (%s): releases wait for the display's fence here instead",
                            strerror(errno));
@@ -203,7 +205,7 @@ int ahb_swapchain_has_ahb(const struct dmabuf_buffer *b) {
     return b && *droiddeck_dmabuf_ahb_slot((struct dmabuf_buffer *)b) != NULL;
 }
 
-int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_w, int scene_h) {
+int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_w, int scene_h, const struct vkp_draw *draw) {
     struct ahb_buf *ab = b ? *droiddeck_dmabuf_ahb_slot(b) : NULL;
     if (!ab) return -1;
     int dmabuf_fd = droiddeck_dmabuf_fd(b);
@@ -221,7 +223,7 @@ int ahb_swapchain_present(struct dmabuf_buffer *b, struct surface *s, int scene_
         int r;
         do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
     }
-    int r = sc_layer_present_ahb(ab->ahb, ab->w, ab->h, acquire, (void *)(uintptr_t)ab->id, scene_w, scene_h,
+    int r = sc_layer_present_ahb(ab->ahb, ab->w, ab->h, acquire, (void *)(uintptr_t)ab->id, scene_w, scene_h, draw,
                                  s ? droiddeck_surface_color(s) : NULL, ab->format);
     if (r < 0) return -1;
     if (r == 1) return 0;
@@ -330,6 +332,58 @@ uint32_t ahb_swapchain_ahb_format(const struct dmabuf_buffer *b) {
 }
 
 
+static int adopt(struct wl_client *c, struct wl_resource *buffer, struct dmabuf_buffer *b, AHardwareBuffer *ahb,
+                 uint32_t stride, uint32_t image_count, uint64_t modifier) {
+    AHardwareBuffer_Desc d;
+    AHardwareBuffer_describe(ahb, &d);
+    int bw, bh;
+    droiddeck_dmabuf_size(b, &bw, &bh);
+    struct ahb_buf *ab = calloc(1, sizeof(*ab));
+    if (!ab) return -1;
+    ab->id = g_next_id++;
+    ab->b = b;
+    droiddeck_dmabuf_ref(b);
+    ab->ahb = ahb;
+    ab->w = bw; ab->h = bh;
+    ab->stride = d.stride ? d.stride : stride;
+    ab->image_count = image_count;
+    ab->format = d.format;
+    ab->modifier = modifier;
+    ab->client = c;
+    ab->resource = buffer;
+    ab->resource_destroy.notify = on_buffer_resource_destroyed;
+    wl_resource_add_destroy_listener(buffer, &ab->resource_destroy);
+    ab->fence_fd = -1;
+    wl_list_insert(g_bufs.prev, &ab->link);
+    *droiddeck_dmabuf_ahb_slot(b) = ab;
+
+    if (g_last_chain.client != c || g_last_chain.w != bw || g_last_chain.h != bh ||
+        g_last_chain.image_count != image_count || g_last_chain.modifier != modifier || g_last_chain.format != d.format) {
+        char count[32] = "";
+        if (image_count) snprintf(count, sizeof(count), "%u images, ", image_count);
+        g_last_chain = (struct chain_seen){c, bw, bh, image_count, modifier, d.format};
+        droiddeck_log("layer", "zero-copy: %s from %s (%s%dx%d, %s, %s, stride %u px)",
+                   image_count ? "AHB swapchain" : "display buffers", droiddeck_client_name(c), count, bw, bh,
+                   droiddeck_ahb_format_name(d.format), modifier == MOD_QCOM_COMPRESSED ? "UBWC (QCOM_COMPRESSED)"
+                                       : modifier == 0 ? "linear" : "unknown modifier", ab->stride);
+    }
+    return 0;
+}
+
+int ahb_swapchain_adopt(struct wl_client *c, struct wl_resource *buffer, struct dmabuf_buffer *b, AHardwareBuffer *ahb,
+                        uint64_t modifier) {
+    if (!g_advertised || *droiddeck_dmabuf_ahb_slot(b)) return -1;
+    AHardwareBuffer_acquire(ahb);
+    if (adopt(c, buffer, b, ahb, 0, 0, modifier) != 0) { AHardwareBuffer_release(ahb); return -1; }
+    ((struct ahb_buf *)*droiddeck_dmabuf_ahb_slot(b))->display = 1;
+    return 0;
+}
+
+AHardwareBuffer *ahb_swapchain_display_buffer(const struct dmabuf_buffer *b) {
+    struct ahb_buf *ab = b ? *droiddeck_dmabuf_ahb_slot((struct dmabuf_buffer *)b) : NULL;
+    return ab && ab->display ? ab->ahb : NULL;
+}
+
 static void ahb_destroy(struct wl_client *c, struct wl_resource *r) { wl_resource_destroy(r); }
 
 static void ahb_attach(struct wl_client *c, struct wl_resource *r, struct wl_resource *buffer, int32_t sock,
@@ -366,36 +420,13 @@ static void ahb_attach(struct wl_client *c, struct wl_resource *r, struct wl_res
         AHardwareBuffer_release(ahb);
         return;
     }
-
-    struct ahb_buf *ab = calloc(1, sizeof(*ab));
-    if (!ab) { AHardwareBuffer_release(ahb); wl_client_post_no_memory(c); return; }
-    ab->id = g_next_id++;
-    ab->b = b;
-    droiddeck_dmabuf_ref(b);
-    ab->ahb = ahb;
-    ab->w = bw; ab->h = bh;
-    ab->stride = d.stride ? d.stride : stride;
-    ab->image_count = image_count;
-    ab->format = d.format;
-    ab->modifier = modifier;
-    ab->client = c;
-    ab->resource = buffer;
-    ab->resource_destroy.notify = on_buffer_resource_destroyed;
-    wl_resource_add_destroy_listener(buffer, &ab->resource_destroy);
-    ab->fence_fd = -1;
-    wl_list_insert(g_bufs.prev, &ab->link);
-    *slot = ab;
-
-    if (g_last_chain.client != c || g_last_chain.w != bw || g_last_chain.h != bh ||
-        g_last_chain.image_count != image_count || g_last_chain.modifier != modifier || g_last_chain.format != d.format) {
-        g_last_chain = (struct chain_seen){c, bw, bh, image_count, modifier, d.format};
-        droiddeck_log("layer", "zero-copy: AHB swapchain from %s (%u images, %dx%d, %s, %s, stride %u px)", droiddeck_client_name(c),
-                   image_count, bw, bh, droiddeck_ahb_format_name(d.format), modifier == MOD_QCOM_COMPRESSED ? "UBWC (QCOM_COMPRESSED)"
-                                       : modifier == 0 ? "linear" : "unknown modifier", ab->stride);
+    if (adopt(c, buffer, b, ahb, stride, image_count, modifier) != 0) {
+        AHardwareBuffer_release(ahb);
+        wl_client_post_no_memory(c);
     }
 }
 
-static const struct banner_ahb_v1_interface ahb_impl = {
+static const struct droiddeck_ahb_v1_interface ahb_impl = {
     .destroy = ahb_destroy,
     .attach = ahb_attach,
 };
@@ -407,20 +438,21 @@ static void on_client_resource_destroyed(struct wl_resource *r) {
 static void bind_ahb(struct wl_client *c, void *data, uint32_t ver, uint32_t id) {
     static struct wl_client *last_named;
     if (ver > 2) ver = 2;
-    struct wl_resource *r = wl_resource_create(c, &banner_ahb_v1_interface, (int)ver, id);
+    struct wl_resource *r = wl_resource_create(c, &droiddeck_ahb_v1_interface, (int)ver, id);
     if (!r) { wl_client_post_no_memory(c); return; }
     wl_resource_set_implementation(r, &ahb_impl, NULL, on_client_resource_destroyed);
     wl_list_insert(&g_clients, wl_resource_get_link(r));
-    if (ver >= BANNER_AHB_V1_MODE_SINCE_VERSION) banner_ahb_v1_send_mode(r, g_zero_copy ? 1u : 0u);
+    if (ver >= DROIDDECK_AHB_V1_MODE_SINCE_VERSION) droiddeck_ahb_v1_send_mode(r, g_zero_copy ? 1u : 0u);
     if (last_named != c) {
         last_named = c;
-        droiddeck_log("layer", "zero-copy: %s bound banner_ahb_v1 version %u (%s)", droiddeck_client_name(c), ver,
+        droiddeck_log("layer", "zero-copy: %s bound droiddeck_ahb_v1 version %u (%s)", droiddeck_client_name(c), ver,
                    ver >= 2 ? "follows the live switch" : "version 1: decides from its launch environment only");
     }
 }
 
 void ahb_swapchain_set_mode(int on, int live) {
     on = on ? 1 : 0;
+    if (g_zero_copy != on) droiddeck_dmabuf_formats_stale();
     g_zero_copy = on;
     if (!g_advertised) {
         if (live) droiddeck_log("layer", "zero-copy switched %s from the drawer, but no display layer is available on this device: no change",
@@ -432,8 +464,8 @@ void ahb_swapchain_set_mode(int on, int live) {
     int told = 0;
     struct wl_resource *r;
     wl_resource_for_each(r, &g_clients) {
-        if (wl_resource_get_version(r) >= BANNER_AHB_V1_MODE_SINCE_VERSION) {
-            banner_ahb_v1_send_mode(r, (uint32_t)on);
+        if (wl_resource_get_version(r) >= DROIDDECK_AHB_V1_MODE_SINCE_VERSION) {
+            droiddeck_ahb_v1_send_mode(r, (uint32_t)on);
             told++;
         }
     }
@@ -456,7 +488,7 @@ void ahb_swapchain_init(struct wl_display *display) {
     wl_list_init(&g_bufs);
     wl_list_init(&g_clients);
     if (!sc_layer_available()) {
-        droiddeck_log("layer", "zero-copy: no display layer on this device (see the line above): banner_ahb_v1 not advertised");
+        droiddeck_log("layer", "zero-copy: no display layer on this device (see the line above): droiddeck_ahb_v1 not advertised");
         return;
     }
     g_loop = wl_display_get_event_loop(display);
@@ -466,11 +498,11 @@ void ahb_swapchain_init(struct wl_display *display) {
         return;
     }
     wl_event_loop_add_fd(g_loop, g_rel_pipe[0], WL_EVENT_READABLE, on_release_pipe, NULL);
-    if (!wl_global_create(display, &banner_ahb_v1_interface, 2, NULL, bind_ahb)) {
-        droiddeck_log("error", "zero-copy: banner_ahb_v1 global creation failed");
+    if (!wl_global_create(display, &droiddeck_ahb_v1_interface, 2, NULL, bind_ahb)) {
+        droiddeck_log("error", "zero-copy: droiddeck_ahb_v1 global creation failed");
         return;
     }
     g_advertised = 1;
-    droiddeck_log("layer", "zero-copy: banner_ahb_v1 version 2 advertised (games built for it present their own gralloc buffers while the switch is on)");
+    droiddeck_log("layer", "zero-copy: droiddeck_ahb_v1 version 2 advertised (games built for it present their own gralloc buffers while the switch is on)");
     ahb_swapchain_set_mode(g_zero_copy, 0);
 }

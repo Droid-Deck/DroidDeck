@@ -330,8 +330,13 @@ int main() {
     const auto property = [&](int id, ETrackedDeviceProperty prop) {
         return context.properties.strings.at({id + 1, prop});
     };
+    const auto fallbackModel = [](uint32_t profile, bool right) {
+        return XrModel(XrPicoController(profile) ? DROIDDECK_XR_CONTROLLER_UNKNOWN : profile, right).renderModel;
+    };
+    const auto packModels = std::filesystem::path(std::string(filename) + ".models");
+    std::filesystem::create_directory(packModels);
     for (bool right : {false, true}) {
-        CardboardController xr(right, filename);
+        CardboardController xr(right, filename, packModels.c_str());
         assert(xr.Activate(3) == VRInitError_None && xr.XrMode());
         assert(property(3, Prop_RenderModelName_String).find("droiddeck_hand_") != std::string::npos);
         assert(property(3, Prop_ControllerType_String) == "oculus_touch");
@@ -342,11 +347,27 @@ int main() {
         xr.UpdateXr(hand, 0);
         const auto grip = context.input.handles.at("/pose/grip"), tip = context.input.handles.at("/pose/tip");
         assert(property(3, Prop_ModelNumber_String) == "PICO 4 Ultra Controller");
-        assert(property(3, Prop_RenderModelName_String) ==
-               std::string("{droiddeck}droiddeck_pico_4u_") + (right ? "right" : "left"));
+        assert(property(3, Prop_RenderModelName_String) == fallbackModel(hand.profile, right));
         assert(property(3, Prop_ManufacturerName_String) == "PICO");
         assert(xr.GetPose().vecPosition[0] == 1 && xr.GetPose().vecPosition[1] == 2);
         assert(xr.GetPose().vecPosition[2] == 3 && xr.GetPose().qRotation.w == 1);
+        const auto packName = std::string("droiddeck_pico_4u_") + (right ? "right" : "left");
+        const auto packDirectory = packModels / packName;
+        std::filesystem::create_directory(packDirectory);
+        FILE *packDescriptor = fopen((packDirectory / (packName + ".json")).c_str(), "w");
+        assert(packDescriptor); fputs("{}", packDescriptor); fclose(packDescriptor);
+        xr.UpdateXr(hand, 0);
+        assert(property(3, Prop_RenderModelName_String) == fallbackModel(hand.profile, right));
+        FILE *complete = fopen((packDirectory / ".complete").c_str(), "w");
+        assert(complete); fputs("verified", complete); fclose(complete);
+        xr.UpdateXr(hand, 0);
+        assert(property(3, Prop_RenderModelName_String) == "{droiddeck}" + packName);
+        std::filesystem::remove(packDirectory / ".complete");
+        xr.UpdateXr(hand, 0);
+        assert(property(3, Prop_RenderModelName_String) == fallbackModel(hand.profile, right));
+        complete = fopen((packDirectory / ".complete").c_str(), "w");
+        assert(complete); fputs("verified", complete); fclose(complete);
+        xr.UpdateXr(hand, 0);
         const auto writes = context.properties.writes;
         const auto assertAim = [&] {
             const auto &raw = xr.GetPose();
@@ -430,6 +451,7 @@ int main() {
         assert(!xr.GetPose().poseIsValid);
     }
     char modelFolder[] = "/tmp/droiddeck-xr-model-space-XXXXXX";
+    std::filesystem::remove_all(packModels);
     assert(mkdtemp(modelFolder));
     const auto root = std::filesystem::path(modelFolder);
     std::filesystem::create_directory(root / "installed");
@@ -574,7 +596,7 @@ int main() {
         assert(xr.GetPose().poseIsValid);
         assert(xr.GetPose().vecPosition[0] == (stableOrigin ? hand.aim.position[0] : 1));
         assert(property(3, Prop_RenderModelName_String) ==
-               (stableOrigin ? "{droiddeck}" + name : XrModel(profile, right).renderModel));
+               (stableOrigin ? "{droiddeck}" + name : fallbackModel(profile, right)));
         hand.model.flags = 15;
         xr.UpdateXr(hand, 0);
         assert(property(3, Prop_RenderModelName_String) == "{droiddeck}" + name);
@@ -586,7 +608,13 @@ int main() {
         hand.model_key[0] = 77;
         xr.UpdateXr(hand, 0);
         assert(xr.GetPose().poseIsValid && xr.GetPose().vecPosition[0] == 1);
-        assert(property(3, Prop_RenderModelName_String) == XrModel(profile, right).renderModel);
+        assert(property(3, Prop_RenderModelName_String) == fallbackModel(profile, right));
+        const auto lateModel = XrRuntimeModelName(hand.model_key, right);
+        std::filesystem::create_directories(root / "xr-models" / lateModel);
+        FILE *lateDescriptor = fopen((root / "xr-models" / lateModel / (lateModel + ".json")).c_str(), "w");
+        assert(lateDescriptor); fputs("{}", lateDescriptor); fclose(lateDescriptor);
+        xr.UpdateXr(hand, 0);
+        assert(property(3, Prop_RenderModelName_String) == "{droiddeck}" + lateModel);
         if (stableOrigin) {
             hand.model_key[0] = 99;
             const auto replacement = XrRuntimeModelName(hand.model_key, right);
@@ -600,9 +628,12 @@ int main() {
             assert(xr.GetPose().vecPosition[2] == hand.model.position[2]);
             assert(property(3, Prop_RenderModelName_String) == "{droiddeck}" + replacement);
         }
+        std::filesystem::remove_all(root / "xr-models" / lateModel);
+        std::filesystem::remove(root / "installed" / lateModel);
     }
     std::filesystem::remove_all(root);
     close(fd); unlink(filename);
     puts("PASS: PICO4S native position origin, preserved rotation/animation/input, other profiles, reconstructed grip/aim and tracking recovery");
     puts("PASS: PICO4S origin continuity across moving pose disagreement, missing Aim/Grip/Model, complete loss, recovery and asset reset");
+    puts("PASS: missing and partial model packs stay visible; late verified packs and same-key native models replace the fallback");
 }

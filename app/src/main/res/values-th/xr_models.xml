@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s โมเดลคอนโทรลเลอร์ SteamVR</string>
+    <string name="load_xr_preparing_steamvr">กำลังเตรียม SteamVR</string>
+    <string name="load_xr_steam_ready">Steam พร้อมแล้ว</string>
+    <string name="load_xr_models_downloading">กำลังดาวน์โหลด</string>
+    <string name="load_xr_models_checking">กำลังตรวจสอบ</string>
+    <string name="load_xr_models_installing">กำลังติดตั้ง</string>
+    <string name="load_xr_models_ready">พร้อมแล้ว</string>
+    <string name="load_xr_models_native">ใช้โมเดลจากรันไทม์</string>
+    <string name="load_xr_models_failed_fallback">เตรียมไม่สำเร็จ ใช้โมเดลเริ่มต้นแทน</string>
+</resources>

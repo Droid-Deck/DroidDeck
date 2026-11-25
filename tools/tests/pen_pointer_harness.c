@@ -35,6 +35,7 @@ static int g_nptrs = 2;
 static struct wl_display *g_display;
 static struct constraint *g_active_constraint;
 static struct surface *g_desktop, *g_grab, *g_key_target, *g_ime_click;
+static struct surface *g_independent_pointer;
 static double g_ptr_x, g_ptr_y, g_raw_x, g_raw_y;
 static int g_ptr_known, g_raw_valid;
 static atomic_int g_cursor_composite;
@@ -79,6 +80,9 @@ static uint32_t now_ms(void) { return 0; }
 static uint32_t wl_display_next_serial(struct wl_display *display) { (void)display; return 0; }
 static int wl_resource_get_version(struct wl_resource *r) { (void)r; return 7; }
 static struct wl_client *wl_resource_get_client(struct wl_resource *r) { return r->client; }
+static void *wl_resource_get_user_data(struct wl_resource *r) { return r == &surface_a ? &a : &b; }
+static void finger_end(struct surface *s, uint32_t t, int cancelled) { (void)s; (void)t; (void)cancelled; }
+static void droiddeck_pointer_gestures_cancel(struct wl_resource *r, uint32_t t) { (void)r; (void)t; }
 static wl_fixed_t wl_fixed_from_double(double d) { return (wl_fixed_t)(d * 256); }
 static int send_relative_motion(struct wl_client *client, double dx, double dy) {
     (void)client; (void)dx; (void)dy;
@@ -106,7 +110,7 @@ static void wl_pointer_send_button(struct wl_resource *p, uint32_t serial, uint3
 #include "pen.inc"
 
 static void pen(int flags, double x) {
-    struct input_msg m = {13, flags, (int)(x * INPUT_SPACE_W / 2000 * 256), 100 * 256, 0};
+    struct input_msg m = {30, flags, (int)(x * INPUT_SPACE_W / 2000 * 256), 100 * 256, 0, 0};
     nevents = 0;
     deliver_pen(&m);
 }

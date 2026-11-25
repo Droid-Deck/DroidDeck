@@ -1257,7 +1257,18 @@ public:
 
     void UpdateXrModel(uint32_t profile, bool force = false, const uint8_t *key = nullptr) {
         const auto native = key ? XrRuntimeModelName(key, right_) : std::string{};
-        if (!force && xrProfile_ == profile && native == attemptedModel_) return;
+        auto model = XrModel(profile, right_);
+        std::error_code resourceError;
+        const auto profileName = model.renderModel.substr(std::strlen("{droiddeck}"));
+        const auto profileDirectory = std::filesystem::path(modelsPath_) / profileName;
+        const bool profileReady = !XrPicoController(profile) ||
+            (std::filesystem::is_regular_file(profileDirectory / ".complete", resourceError) &&
+             std::filesystem::is_regular_file(profileDirectory / (profileName + ".json"), resourceError));
+        const auto source = std::filesystem::path(trackingPath_).parent_path() / "xr-models" / native;
+        const bool nativeReady = !native.empty() &&
+            std::filesystem::is_regular_file(source / (native + ".json"), resourceError);
+        if (!force && xrProfile_ == profile && native == attemptedModel_ &&
+            profileReady == profileModelAvailable_ && nativeReady == nativeModelAvailable_) return;
         if (force || xrProfile_ != profile || (key && std::memcmp(xrOriginKey_, key, sizeof(xrOriginKey_)))) {
             xrNativeGripOrigin_ = false;
             xrGripModelBinding_ = xrAimModelBinding_ = {};
@@ -1266,12 +1277,13 @@ public:
             if (key) std::memcpy(xrOriginKey_, key, sizeof(xrOriginKey_));
         }
         attemptedModel_ = native;
+        profileModelAvailable_ = profileReady;
+        nativeModelAvailable_ = nativeReady;
         runtimeModel_ = false;
         xrProfile_ = profile;
-        auto model = XrModel(profile, right_);
-        if (!native.empty()) {
+        if (!profileReady) model.renderModel = XrModel(DROIDDECK_XR_CONTROLLER_UNKNOWN, right_).renderModel;
+        if (nativeReady) {
             std::error_code error;
-            const auto source = std::filesystem::path(trackingPath_).parent_path() / "xr-models" / native;
             const auto destination = std::filesystem::path(modelsPath_) / native;
             if (std::filesystem::is_regular_file(source / (native + ".json"), error)) {
                 if (!std::filesystem::exists(destination, error)) std::filesystem::create_directory_symlink(source, destination, error);
@@ -1488,6 +1500,7 @@ private:
     Vec3 xrModelAimOffset_{};
     uint32_t xrProfile_ = DROIDDECK_XR_CONTROLLER_UNKNOWN;
     std::string trackingPath_, modelsPath_, attemptedModel_;
+    bool profileModelAvailable_ = false, nativeModelAvailable_ = false;
     XrModelStateFile modelStateFile_;
     DroidDeckXrModelState modelStatePacket_{};
     XrProfileAnimation profileAnimation_;

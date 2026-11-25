@@ -691,6 +691,7 @@ jobs:
           restore-keys: pack-inputs-v2-
       - name: Build the add-on packs
         run: |
+          bash tools/ci/install-ubuntu-packages.sh python3-numpy python3-pil zstd
           python3 tools/powervr/fetch.py
           bash tools/packs/build.sh app/build/packs
 
