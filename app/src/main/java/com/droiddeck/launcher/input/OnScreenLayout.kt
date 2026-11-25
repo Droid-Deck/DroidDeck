@@ -58,14 +58,15 @@ object OnScreenLayout {
         val byId = (placed + others).associateBy { it.id }
         val ordered = stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
         val kit = PadKit.forOverlay(context, layout) ?: return ordered
+        val controllerScale = layout.scale * ControllerPrefs.read(context).size / 100f
         if (generated &&
             ControllerPrefs.layout(context, reference.first.toInt(), reference.second.toInt()).isEmpty() &&
             ControllerPrefs.layout(context, width, height).isEmpty()) {
             if (dock != null || height > width) {
                 return ControllerPortraitGeometry(width.toFloat(), height.toFloat(), safe, context.resources.displayMetrics.density)
-                    .place(ordered, kit, dock != null, layout.scale, rearButtons == true, trackpads == true)
+                    .place(ordered, kit, dock != null, controllerScale, rearButtons == true, trackpads == true)
             }
-            return ControllerOverlayGeometry(width, height, safe, context.resources.displayMetrics, layout.scale)
+            return ControllerOverlayGeometry(width, height, safe, context.resources.displayMetrics, controllerScale)
                 .place(ordered, kit, rearButtons == true, trackpads == true)
         }
         if (dock != null || !kit.steam) return ordered
