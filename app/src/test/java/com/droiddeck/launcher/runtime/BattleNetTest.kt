@@ -236,6 +236,21 @@ class BattleNetTest {
         assertNull(BattleNet.hostFolder(context, "D:\\..\\etc"))
     }
 
+    @Test fun aDriveAtAnAliasOfTheAppDataFolderListsTheGameUnderTheRuntimePath() {
+        val root = LinuxRuntime.rootDir(context)
+        val data = context.filesDir.parentFile!!
+        val alias = File(data.parentFile, "alias-" + data.name)
+        java.nio.file.Files.createSymbolicLink(alias.toPath(), data.absoluteFile.toPath())
+        try {
+            val devices = File(BattleNet.prefix(context), "pfx/dosdevices").apply { mkdirs() }
+            java.nio.file.Files.createSymbolicLink(File(devices, "d:").toPath(), alias.absoluteFile.toPath())
+            val game = File(root, "root/Games/Stores/Battle.net/StarCraft").apply { mkdirs() }
+            val drive = "D:\\" + data.absoluteFile.toPath().relativize(game.absoluteFile.toPath()).joinToString("\\")
+            assertEquals(game.path, BattleNet.hostFolder(context, drive)?.path)
+        } finally {
+            java.nio.file.Files.delete(alias.toPath())
+        }
+    }
 
     @Test fun wowForeverIsListedBesideRetailInTheSharedWorldOfWarcraftFolder() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }

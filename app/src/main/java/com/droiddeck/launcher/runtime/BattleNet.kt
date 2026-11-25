@@ -245,9 +245,12 @@ object BattleNet {
             }
         }.trimEnd('/')
         if (mapped?.startsWith("/") == true) {
-            val host = File("$target/$relative")
             val rootfs = LinuxRuntime.rootDir(context)
-            if (runCatching { host.canonicalFile.startsWith(rootfs.canonicalFile) }.getOrDefault(false)) return host
+            runCatching {
+                val home = rootfs.canonicalFile.toPath()
+                val host = File(target).canonicalFile.toPath().resolve(relative).normalize()
+                if (host.startsWith(home)) File(rootfs, home.relativize(host).toString()) else null
+            }.getOrNull()?.let { return it }
         }
         return com.droiddeck.launcher.frontend.AddedGames.hostPath(context, "$target/$relative")
     }

@@ -636,11 +636,68 @@ def move_installs(root):
                 return False
     except (OSError, ValueError):
         return False
+    write_bytes(path, moved)
+    return True
+
+
+def rootfs_drives(root):
+    host = rootfs()
+    folder = dosdevices(root)
+    if not host:
+        return {}
+    try:
+        names = sorted(os.listdir(folder))
+    except OSError:
+        return {}
+    drives = {}
+    for name in names:
+        link = os.path.join(folder, name)
+        if len(name) == 2 and name[0].lower() in DRIVES and name[1] == ":" and os.path.islink(link):
+            target = os.path.realpath(link)
+            if inside(host, target):
+                drives[name[0].lower()] = host[len(target):].strip("/")
+    return drives
+
+
+def write_bytes(path, data):
     with open(path + ".tmp", "wb") as f:
-        f.write(moved)
+        f.write(data)
     shutil.copymode(path, path + ".tmp")
     os.replace(path + ".tmp", path)
-    return True
+
+
+def drop_rootfs_drives(root):
+    pfx = os.path.join(prefix(root), "pfx")
+    drives = rootfs_drives(root)
+    if not drives or wine_processes(pfx):
+        return []
+    product = os.path.join(drive_c(root), *PRODUCT_DB)
+    paths = [os.path.join(pfx, "system.reg"), os.path.join(pfx, "user.reg"), os.path.join(drive_c(root), *CONFIG), product]
+    texts = {}
+    for path in paths:
+        try:
+            with open(path, "rb") as f:
+                texts[path] = f.read()
+        except FileNotFoundError:
+            pass
+    sep = rb"(?:\\\\|/)"
+    changed = dict(texts)
+    for letter, rest in drives.items():
+        head = rb"(?<![A-Za-z0-9])[" + letter.encode() + letter.upper().encode() + rb"]:"
+        inner = b"".join(sep + re.escape(part.encode()) for part in rest.split("/") if part)
+        for path in changed:
+            if path != product:
+                changed[path] = re.sub(head + inner + rb"(?=" + sep + rb")", b"Z:", changed[path])
+    for path, data in changed.items():
+        if data != texts[path]:
+            write_bytes(path, data)
+    dropped = []
+    for letter in sorted(drives):
+        used = rb"(?<![A-Za-z0-9])[" + letter.encode() + letter.upper().encode() + rb"]:" + sep
+        if not any(re.search(used, data) for data in changed.values()):
+            os.unlink(os.path.join(dosdevices(root), letter + ":"))
+            dropped.append(letter)
+    return dropped
 
 
 def wow_folders(root):
@@ -756,6 +813,11 @@ def configure(root, library=None):
             say("Battle.net's installed games now use the Wine drive of their volume")
     except OSError as error:
         say("Battle.net's installed games not moved to their Wine drive: %s" % error)
+    try:
+        for letter in drop_rootfs_drives(root):
+            say("Wine drive %s: held the runtime and is no longer used; removed" % letter.upper())
+    except OSError as error:
+        say("Battle.net's unused runtime drive not removed: %s" % error)
     try:
         wallpaper(root)
     except OSError as error:

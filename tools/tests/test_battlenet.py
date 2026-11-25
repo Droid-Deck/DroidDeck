@@ -408,6 +408,59 @@ class DriveTest(Temp):
                              + sd + gone + self.field(7, b"tail"))
             self.assertFalse(BNET["move_installs"](self.root))
 
+    def rootfs_prefix(self):
+        rootfs = self.card / "files/linuxfs"
+        game = rootfs / "root/Games/Stores/Battle.net/World of Warcraft"
+        game.mkdir(parents=True)
+        card = self.tmp / "sd"
+        card.mkdir()
+        self.devices.mkdir(parents=True)
+        for letter, target in (("d", self.card), ("e", card), ("s", self.card)):
+            os.symlink(str(target), self.devices / (letter + ":"))
+        pfx = self.devices.parent
+        system = pfx / "system.reg"
+        system.write_text('[Software\\\\Uninstall\\\\wow] 1\n'
+                          '"InstallLocation"="D:\\\\files\\\\linuxfs\\\\root\\\\Games\\\\Stores\\\\Battle.net\\\\World of Warcraft"\n'
+                          '"DisplayIcon"="\\"d:\\\\files\\\\linuxfs\\\\root\\\\Games\\\\Wow.exe\\""\n'
+                          '"Card"="E:\\\\Diablo"\n"Other"="AD:\\\\files\\\\linuxfs\\\\x"\n')
+        system.chmod(0o640)
+        config = Path(BNET["drive_c"](self.root)).joinpath(*BNET["CONFIG"])
+        config.parent.mkdir(parents=True)
+        config.write_text(json.dumps({"Client": {"Install": {"DefaultInstallPath": "D:\\files\\linuxfs\\root\\Games\\Stores\\Battle.net"}}}))
+        self.database(self.product("wowf", "D:/files/linuxfs/root/Games/Stores/Battle.net/World of Warcraft"))
+        return rootfs, system, config
+
+    def test_an_unused_drive_holding_the_native_rootfs_is_removed_once_its_paths_use_the_root_drive(self):
+        rootfs, system, config = self.rootfs_prefix()
+        before = system.read_text()
+        self.assertEqual(BNET["drop_rootfs_drives"](self.root), [])
+        self.assertEqual(system.read_text(), before)
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(rootfs)}):
+            self.running = [(5, ["C:\\ProgramData\\Battle.net\\Agent\\Agent.exe"])]
+            self.assertEqual(BNET["drop_rootfs_drives"](self.root), [])
+            self.running = []
+            self.assertEqual(BNET["drop_rootfs_drives"](self.root), [])
+            self.assertTrue(os.path.islink(self.devices / "d:"))
+            self.assertTrue(BNET["move_installs"](self.root))
+            self.assertEqual(BNET["drop_rootfs_drives"](self.root), ["d"])
+        self.assertEqual(sorted(os.listdir(self.devices)), ["e:", "s:"])
+        self.assertEqual(system.read_text(), before.replace("D:\\\\files\\\\linuxfs\\\\root", "Z:\\\\root")
+                         .replace("d:\\\\files\\\\linuxfs\\\\root", "Z:\\\\root"))
+        self.assertEqual(system.stat().st_mode & 0o777, 0o640)
+        self.assertEqual(json.loads(config.read_text())["Client"]["Install"]["DefaultInstallPath"], "Z:\\root\\Games\\Stores\\Battle.net")
+        self.assertTrue(self.card.is_dir())
+        self.assertTrue((rootfs / "root/Games/Stores/Battle.net/World of Warcraft").is_dir())
+
+    def test_a_drive_holding_the_native_rootfs_stays_while_a_path_outside_the_runtime_uses_it(self):
+        rootfs, system, _ = self.rootfs_prefix()
+        system.write_text(system.read_text() + '"Elsewhere"="D:\\\\Other\\\\Game"\n')
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(rootfs)}):
+            self.assertTrue(BNET["move_installs"](self.root))
+            self.assertEqual(BNET["drop_rootfs_drives"](self.root), [])
+        self.assertTrue(os.path.islink(self.devices / "d:"))
+        self.assertIn('"InstallLocation"="Z:\\\\root\\\\Games', system.read_text())
+        self.assertIn('"Elsewhere"="D:\\\\Other\\\\Game"', system.read_text())
+
     def test_registrations_stay_while_the_prefix_runs_or_the_database_is_unreadable(self):
         game = self.library / "World of Warcraft"
         game.mkdir()
