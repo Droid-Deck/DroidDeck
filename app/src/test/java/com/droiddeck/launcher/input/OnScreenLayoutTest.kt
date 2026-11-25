@@ -96,6 +96,19 @@ class OnScreenLayoutTest {
         }
     }
 
+    @Test fun changingControllerSizeRegeneratesAnUneditedBuiltInLandscapeOverlay() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val layout = gamepad()
+        val w = 1200
+        val h = 540
+        ControllerPrefs.setSize(context, 100)
+        val original = OnScreenLayout.elements(context, layout, w, h, Rect())
+        ControllerPrefs.setSize(context, 115)
+        val resized = OnScreenLayout.elements(context, layout, w, h, Rect())
+        assertNotEquals(original.single { it.id == "legacy:a" }.width, resized.single { it.id == "legacy:a" }.width, .0001f)
+        assertNotEquals(original.single { it.id == "legacy:ls" }.height, resized.single { it.id == "legacy:ls" }.height, .0001f)
+    }
+
     @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
     fun aBuiltInGamepadSavedAtTheDisplaySizeRegeneratesForTheMeasuredSurface() {
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
