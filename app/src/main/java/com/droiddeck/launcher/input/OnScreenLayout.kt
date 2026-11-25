@@ -63,8 +63,11 @@ object OnScreenLayout {
             ControllerPrefs.layout(context, reference.first.toInt(), reference.second.toInt()).isEmpty() &&
             ControllerPrefs.layout(context, width, height).isEmpty()) {
             if (dock != null || height > width) {
-                return ControllerPortraitGeometry(width.toFloat(), height.toFloat(), safe, context.resources.displayMetrics.density)
+                val placed = ControllerPortraitGeometry(width.toFloat(), height.toFloat(), safe, context.resources.displayMetrics.density)
                     .place(ordered, kit, dock != null, controllerScale, rearButtons == true, trackpads == true)
+                return if (dock != null) {
+                    scaleDocked(placed, ControllerPrefs.read(context).size / 100f, width, height, safe)
+                } else placed
             }
             return ControllerOverlayGeometry(width, height, safe, context.resources.displayMetrics, controllerScale)
                 .place(ordered, kit, rearButtons == true, trackpads == true)
@@ -105,7 +108,7 @@ object OnScreenLayout {
                 val available = (rightBound - leftBound).coerceAtLeast(.001f)
                 var gapSize = gap.coerceAtMost(available / 4f)
                 if (left.width + right.width + gapSize > available) {
-                    val factor = ((available - gapSize).coerceAtLeast(.002f) / (left.width + right.width)).coerceAtMost(1f)
+                    val factor = ((available - gapSize).coerceAtLeast(0f) / (left.width + right.width)).coerceAtMost(1f)
                     left = left.copy(width = left.width * factor)
                     right = right.copy(width = right.width * factor)
                 }
