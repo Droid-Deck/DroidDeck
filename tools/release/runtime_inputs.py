@@ -99,7 +99,7 @@ def required():
               for name in ['turnip26.3.0-a6xx', 'turnip26.3.0-quest2']]
     paths += ['assets/linuxfs/' + name for name in ['libfakeinput.so', 'libddsession.so',
              'libddfastpath.so', 'libddnatv-hook.so', 'libssbs.so', 'usr/local/bin/droiddeck-clipboard',
-             'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime',
+             'usr/local/bin/gamescope', 'usr/local/lib/droiddeck/uruntime', 'usr/local/lib/droiddeck/dwarfsextract',
              'usr/local/lib/droiddeck-pipewire.tzst']]
     for arch in ['x86_64', 'i386']:
         paths += ['assets/linuxfs/' + arch + '/' + lib for lib in ['libfakeinput.so', 'libddsession.so']]

@@ -98,6 +98,22 @@ class EnhancedSessionLogShareTest {
         SessionLogShare.clear(app)
     }
 
+    @Test fun aBionicGameLogIsSharedWithTheGamesUnderItsName() {
+        val session = tmp.newFolder("2026-11-22-09-steam")
+        session.resolve("session.log").writeText("startup ok\n")
+        val launch = session.resolve("games/2026-11-22-201105-bionic-341940").apply { mkdirs() }
+        launch.resolve("droiddeck-bionic.log").writeText("20:11:05 waitforexitandrun Hatred.exe\n")
+
+        val games = EnhancedSessionLogShare.create(app, session).single { it.name.endsWith("-games.zip") }
+
+        ZipFile(games).use { archive ->
+            val entry = archive.getEntry("${session.name}/games/2026-11-22-201105-bionic-341940/droiddeck-bionic.log")
+            assertTrue(entry != null)
+            assertEquals("20:11:05 waitforexitandrun Hatred.exe\n", archive.getInputStream(entry).bufferedReader().readText())
+        }
+        SessionLogShare.clear(app)
+    }
+
     @Test fun oversizedFilesKeepBoundedBeginningAndTailAndDeclareTruncation() {
         val session = tmp.newFolder("2026-11-04-02-game")
         session.resolve("steam-7.log").writeText("begin\n" + "middle\n".repeat(100) + "tail\n")
@@ -400,6 +416,23 @@ class EnhancedSessionLogShareTest {
         assertTrue(graphicsEntries.contains("${session.name}/wayland.log"))
         assertFalse(gameEntries.contains("${session.name}/session.log"))
         assertFalse(gameEntries.contains("${session.name}/wayland.log"))
+        SessionLogShare.clear(app)
+    }
+
+    @Test fun rpcs3LogIsSharedByNameWithTheGameLogs() {
+        val session = tmp.newFolder("2026-11-24-05-rpcs3")
+        session.resolve("session.log").writeText("session\n")
+        session.resolve("rpcs3").mkdirs()
+        session.resolve("rpcs3/RPCS3.log").writeText("PPU: compiling\n")
+
+        val zips = EnhancedSessionLogShare.create(app, session)
+        fun entries(suffix: String) = ZipFile(zips.single { it.name.endsWith("-$suffix.zip") }).use { archive ->
+            archive.entries().toList().map { it.name }
+        }
+
+        assertTrue(entries("games").contains("${session.name}/rpcs3/RPCS3.log"))
+        assertTrue(entries("session").contains("${session.name}/session.log"))
+        assertFalse(entries("games").contains("${session.name}/session.log"))
         SessionLogShare.clear(app)
     }
 

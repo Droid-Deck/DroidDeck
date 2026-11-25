@@ -11,6 +11,7 @@ class SocNamesTest {
         assertEquals("SG8350P", SocNames.model(props("ro.vendor.qti.soc_model" to "SG8350P", "ro.fota.platform" to "MSM_13.0")))
         assertEquals("QCS8550", SocNames.model(props("ro.soc.model" to "QCS8550", "ro.vendor.qti.soc_model" to "other")))
         assertEquals("", SocNames.model(props("ro.fota.platform" to "MSM_13.0")))
+        assertEquals("QTI SM8750P", SocNames.model(props("ro.soc.model" to "unknown", "ro.vendor.qti.soc_model" to "QTI SM8750P")))
     }
 
     @Test fun knownModelsAndPlatformsGetTheirNames() {
@@ -26,6 +27,7 @@ class SocNamesTest {
         assertEquals("Snapdragon 8 Elite Extreme Gen 6", SocNames.name("QTI SM8975", ""))
         assertEquals("Snapdragon 8 Elite Extreme Gen 6", SocNames.name(" qti sm8975 ", ""))
         assertEquals("Snapdragon 8 Elite Extreme Gen 6 (QTI SM8975)", SocNames.label("QTI SM8975", ""))
+        assertEquals("Snapdragon 8 Elite", SocNames.name("QTI SM8750P", ""))
         assertNull(SocNames.name("SM89750", ""))
         assertNull(SocNames.name("SM8975-PRO", ""))
         assertNull(SocNames.name("Qualcomm SM8975", ""))

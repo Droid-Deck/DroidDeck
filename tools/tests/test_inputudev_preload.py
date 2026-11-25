@@ -223,6 +223,9 @@ PROGRAM = r"""
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <link.h>
+#include <stdint.h>
+#include <sys/mman.h>
 #include <sys/sysmacros.h>
 #include <unistd.h>
 
@@ -466,6 +469,36 @@ static void run_probe(void) {
   printf("pad %d\n", new_device(&udev, PAD) != NULL);
 }
 
+static int loaded_span(struct dl_phdr_info *info, size_t size, void *data) {
+  uintptr_t *span = data;
+  int i;
+
+  (void)size;
+  if (info->dlpi_addr != span[0]) return 0;
+  for (i = 0; i < info->dlpi_phnum; i++)
+    if (info->dlpi_phdr[i].p_type == PT_LOAD && info->dlpi_phdr[i].p_vaddr + info->dlpi_phdr[i].p_memsz > span[1])
+      span[1] = info->dlpi_phdr[i].p_vaddr + info->dlpi_phdr[i].p_memsz;
+  return 1;
+}
+
+static void run_reload(const char *path) {
+  struct link_map *map = NULL;
+  uintptr_t span[2] = {0, 0};
+  void *first = enumerate_new(NULL);
+  void *second;
+
+  dlinfo(lib, RTLD_DI_LINKMAP, &map);
+  span[0] = map->l_addr;
+  dl_iterate_phdr(loaded_span, span);
+  dlclose(lib);
+  mmap((void *)span[0], span[1], PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE, -1, 0);
+  lib = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+  enumerate_new = sym("udev_enumerate_new");
+  list = sym("udev_enumerate_get_list_entry");
+  second = enumerate_new(NULL);
+  printf("reload %s %s\n", entry_name(list(first)), entry_name(list(second)));
+}
+
 int main(int argc, char **argv) {
   char link[4096];
 
@@ -510,6 +543,7 @@ int main(int argc, char **argv) {
   else if (strcmp(argv[1], "every") == 0) run_every(argc - 3, argv + 3);
   else if (strcmp(argv[1], "stable") == 0) run_stable();
   else if (strcmp(argv[1], "enumerate") == 0) run_enumerate();
+  else if (strcmp(argv[1], "reload") == 0) run_reload(argv[2]);
   else run_udev();
   fflush(stdout);
   return 0;
@@ -650,9 +684,14 @@ class InputUdevPreloadTest(unittest.TestCase):
             "nothing added scan -1",
         ])
 
-    def test_only_the_steam_client_runtime_path_gets_the_real_libudev(self):
-        for path, pad in (("steamrt64/steam", 0), ("steamrtarm64/steam", 0), ("steamrt64/steam-probe", 1),
-                          ("xsteamrt64/steam", 1), ("steamrt64/xsteam", 1), ("steamrt/steam", 1)):
+    def test_a_program_that_closes_and_reopens_libudev_keeps_working(self):
+        self.assertEqual(self.run_program("reload"), ["reload real0 real1"])
+
+    def test_only_the_steam_client_and_its_remote_play_client_get_the_real_libudev(self):
+        for path, pad in (("steamrt64/steam", 0), ("steamrtarm64/steam", 0), ("steamrt64/streaming_client", 0),
+                          ("steamrtarm64/streaming_client", 0), ("steamrt64/steam-probe", 1),
+                          ("steamrt64/streaming_client2", 1), ("xsteamrt64/steam", 1), ("steamrt64/xsteam", 1),
+                          ("steamrt/steam", 1), ("steamrt/streaming_client", 1)):
             with self.subTest(path=path):
                 client = self.dir / "clients" / path
                 client.parent.mkdir(parents=True, exist_ok=True)

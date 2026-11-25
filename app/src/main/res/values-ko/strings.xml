@@ -2689,6 +2689,7 @@
     <string name="stores_login_error_ssl">로그인 페이지 연결이 안전하지 않습니다.</string>
     <string name="stores_login_error_verification">로그인을 확인할 수 없습니다. 다시 시도하세요.</string>
     <string name="stores_login_error_generic">로그인에 실패했습니다. 다시 시도하세요.</string>
+    <string name="stores_login_continue_in_browser">%1$s에서 한 단계가 더 필요합니다. 열린 브라우저에서 완료한 다음 다시 시도하세요.</string>
     <string name="common_close">닫기</string>
     <string name="common_back">뒤로</string>
     <string name="common_edit">편집</string>
@@ -3069,7 +3070,7 @@
     <string name="hand_camera_done">완료</string>
     <string name="glasses_xreal_network_missing">안경의 USB Ethernet 연결을 기다리는 중입니다. 이 휴대폰은 앱에 이 연결을 제공하지 않을 수 있습니다.</string>
     <string name="glasses_xreal_connection_failed">XREAL 연결이 중단되었거나 지원되지 않는 응답을 받았습니다. 다시 시도하는 중…</string>
-    <string name="glasses_xreal_experimental">1S 지원은 실험 단계입니다. 안경 메뉴에서 Follow 모드를 사용하고 안정화를 끄세요. 트래킹 방향과 디스플레이 모드는 아직 기기에서 테스트가 필요합니다.</string>
+    <string name="glasses_xreal_experimental">XREAL 1S, One, One Pro, One Pro+ 및 Aura의 실험적 지원입니다. 안경 메뉴에서 Follow 모드를 사용하고 안정화를 끄세요. Aura에서는 Spatial Anchor도 끄세요. 헤드 트래킹과 2D/3D 전환은 Aura와 One Pro+에서 테스트되었습니다.</string>
     <string name="glasses_pro2_experimental">Pro 2 헤드 트래킹은 실험 단계입니다. 밝기와 음량 조절 및 디스플레이 모드 전환은 아직 지원되지 않습니다.</string>
     <string name="stores_fact_developer">개발사</string>
     <string name="stores_fact_publisher">배급사</string>
@@ -4047,4 +4048,6 @@
     <string name="theme_custom_signal">강조 표시</string>
     <string name="theme_custom_good">성공</string>
     <string name="theme_custom_error">오류</string>
+    <string name="hud_only_during_game">게임 중에만 HUD 표시</string>
+    <string name="hud_only_during_game_hint">게임 프레임이 감지되지 않으면 HUD 숨기기.</string>
 </resources>

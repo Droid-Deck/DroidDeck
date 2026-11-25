@@ -109,8 +109,14 @@ object DesktopCatalog {
         FileUtils.readString(marker(context, id))?.trim()?.takeIf { it.isNotEmpty() }
 
     fun protonSeedNeeded(context: Context): Boolean =
-        installed(context, PROTON_SEED_ID) == null &&
+        if (com.droiddeck.launcher.session.SessionPrefs.ownProtonFirst(context)) ownProtonMissing(context)
+        else installed(context, PROTON_SEED_ID) == null &&
             !File(LinuxRuntime.rootDir(context), "root/.local/share/Steam/steamapps/appmanifest_4427310.acf").isFile
+
+    fun ownProtonMissing(context: Context): Boolean {
+        val extras = com.droiddeck.launcher.session.ProtonExtras
+        return extras.installedAll(context, extras.tools.first { it.id == extras.OWN }).isEmpty()
+    }
 
     const val DESKTOP_ID = "desktop-kde"
     const val EMULATORS_ID = "emulators"

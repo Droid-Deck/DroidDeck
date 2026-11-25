@@ -78,6 +78,7 @@ class ModeSettings(
     val mic: Boolean?,
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
+    val storageFat32: Boolean = false,
     val steamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Entry> = emptyList(),
     val foundSteamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Found> = emptyList(),
     val allFilesAccessMissing: Boolean = false,
@@ -92,6 +93,7 @@ class ModeSettings(
     val steamClientArch: String? = null,
     val returnAfterGame: Boolean? = null,
     val shaderPrecache: Boolean? = null,
+    val valveProtonOnDemand: Boolean? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
@@ -157,6 +159,7 @@ class ModeSettingsActions(
     val onMangoapp: (Boolean) -> Unit = {},
     val onReturnAfterGame: (Boolean) -> Unit = {},
     val onShaderPrecache: (Boolean) -> Unit = {},
+    val onValveProtonOnDemand: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
@@ -455,7 +458,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     ValueChip(options.firstOrNull { it.path == s.gameStorage }?.chip ?: "-", open) { host.open = if (open) null else "storage" }
                     AnchoredMenu(
                         open, onDismiss = { if (host.open == "storage") host.open = null }, title = stringResource(R.string.mode_second_library),
-                        note = stringResource(R.string.mode_storage_note),
+                        note = stringResource(R.string.mode_storage_note).let { if (s.storageFat32) stringResource(R.string.main_storage_fat32) + "\n" + it else it },
                     ) { firstItemFocus ->
                         options.forEachIndexed { index, choice ->
                             MenuItem(choice.label, checked = choice.path == s.gameStorage, focusRequester = if (index == 0) firstItemFocus else null) {
@@ -532,6 +535,10 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 host, "shaderprecache", stringResource(R.string.mode_shader_precache),
                 stringResource(R.string.mode_shader_precache_hint),
                 s.shaderPrecache, onChange = a.onShaderPrecache,
+            )
+            if (s.valveProtonOnDemand != null) ToggleRow(
+                host, "valveprotonondemand", stringResource(R.string.mode_valve_proton_on_demand), null,
+                s.valveProtonOnDemand, onChange = a.onValveProtonOnDemand,
             )
             SettingsRow(
                 stringResource(R.string.mode_steam_repair),

@@ -215,6 +215,15 @@ Still to check by hand: pasting Android text into a game.
 Force fullscreen is still unsafe without a matching Game Resolution: with the default (native),
 a game drawing at another size fights it as in run 4. It stays off by default.
 
+## Stretch 16:9 with two Xwayland servers
+
+With "Stretch 16:9 to panel" the games' server starts at the 16:9 nested size, but the client sets it
+to the output size at every launch (run 7), so games saw a near-square screen and letterboxed
+themselves. While stretching, the session script rewrites a `GAMESCOPE_XWAYLAND_MODE_CONTROL` that
+sizes the game server (`1`) to exactly the output into the nested size with `allow_super_res` set,
+since gamescope otherwise clamps it to the output. A Game Resolution chosen in Steam is a different
+size and is kept.
+
 ## Force fullscreen removed (`feat/remove-force-fullscreen`)
 
 With games on their own Xwayland server, FlatOut 2 no longer shrinks under the QAM, which was the

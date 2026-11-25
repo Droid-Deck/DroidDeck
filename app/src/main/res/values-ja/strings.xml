@@ -2689,6 +2689,7 @@
     <string name="stores_login_error_ssl">ログインページへの接続は安全ではありません。</string>
     <string name="stores_login_error_verification">ログインを確認できませんでした。もう一度お試しください。</string>
     <string name="stores_login_error_generic">ログインに失敗しました。もう一度お試しください。</string>
+    <string name="stores_login_continue_in_browser">%1$s で追加の手順が必要です。開いたブラウザーで完了してから、もう一度お試しください。</string>
     <string name="common_close">閉じる</string>
     <string name="common_back">戻る</string>
     <string name="common_edit">編集</string>
@@ -3069,7 +3070,7 @@
     <string name="hand_camera_done">完了</string>
     <string name="glasses_xreal_network_missing">グラスの USB Ethernet 接続を待っています。このスマートフォンでは、アプリがこの接続を利用できない場合があります。</string>
     <string name="glasses_xreal_connection_failed">XREAL との接続が中断されたか、サポートされていない応答が返されました。再試行しています…</string>
-    <string name="glasses_xreal_experimental">1S のサポートは試験運用中です。グラスのメニューで Follow モードを使い、安定化をオフにしてください。トラッキングの方向と表示モードは、まだ実機でのテストが必要です。</string>
+    <string name="glasses_xreal_experimental">XREAL 1S、One、One Pro、One Pro+、Auraの試験的なサポートです。グラスのメニューでFollowモードを使用し、安定化をオフにしてください。AuraではSpatial Anchorもオフにしてください。ヘッドトラッキングと2D/3D切り替えは、AuraとOne Pro+でテスト済みです。</string>
     <string name="glasses_pro2_experimental">Pro 2 のヘッドトラッキングは試験運用中です。明るさと音量の調整、および表示モードの切り替えにはまだ対応していません。</string>
     <string name="stores_fact_developer">開発元</string>
     <string name="stores_fact_publisher">パブリッシャー</string>
@@ -4047,4 +4048,6 @@
     <string name="theme_custom_signal">強調表示</string>
     <string name="theme_custom_good">成功</string>
     <string name="theme_custom_error">エラー</string>
+    <string name="hud_only_during_game">ゲーム中のみHUDを表示</string>
+    <string name="hud_only_during_game_hint">ゲームのフレームが検出されないときはHUDを非表示にする。</string>
 </resources>

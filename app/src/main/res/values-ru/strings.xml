@@ -1648,6 +1648,7 @@
     <string name="main_pick_game_storage">Выберите папку хранилища игр</string>
     <string name="main_pick_decky_zip">Выберите ZIP-файл плагина Decky</string>
     <string name="main_storage_not_usable">Нельзя использовать: %1$s</string>
+    <string name="main_storage_fat32">FAT32 не поддерживает файлы больше 4 ГБ, поэтому часть игр не установится. Отформатируйте в exFAT.</string>
     <string name="main_running_program">Программа</string>
     <string name="main_removing_runtime">Удаление среды выполнения Linux</string>
     <string name="main_settings_main_screen">Не удалось открыть настройки на нижнем экране; они открыты на главном экране.</string>
@@ -2763,6 +2764,7 @@
     <string name="stores_login_error_ssl">Подключение к странице входа не защищено.</string>
     <string name="stores_login_error_verification">Не удалось подтвердить вход. Повторите попытку.</string>
     <string name="stores_login_error_generic">Ошибка входа. Повторите попытку.</string>
+    <string name="stores_login_continue_in_browser">%1$s требует ещё один шаг. Завершите его в открывшемся браузере и попробуйте снова.</string>
     <string name="common_close">Закрыть</string>
     <string name="common_back">Назад</string>
     <string name="common_edit">Изменить</string>
@@ -3155,7 +3157,7 @@
     <string name="hand_camera_done">Готово</string>
     <string name="glasses_xreal_network_missing">Ожидание подключения очков по USB Ethernet. Этот телефон может не предоставлять его приложениям.</string>
     <string name="glasses_xreal_connection_failed">Подключение к XREAL прервано или получен неподдерживаемый ответ. Повторная попытка…</string>
-    <string name="glasses_xreal_experimental">Экспериментальная поддержка 1S. Включите режим Follow и отключите стабилизацию в меню очков. Направления отслеживания и режимы отображения ещё нужно проверить на устройстве.</string>
+    <string name="glasses_xreal_experimental">Экспериментальная поддержка XREAL 1S, One, One Pro, One Pro+ и Aura. Используйте режим Follow и отключите стабилизацию в меню очков; на Aura также отключите Spatial Anchor. Отслеживание головы и переключение между 2D/3D проверены на Aura и One Pro+.</string>
     <string name="glasses_pro2_experimental">Экспериментальное отслеживание движений головы для Pro 2. Настройка яркости и громкости и переключение режимов отображения пока не поддерживаются.</string>
     <string name="stores_fact_developer">Разработчик</string>
     <string name="stores_fact_publisher">Издатель</string>
@@ -4157,4 +4159,6 @@
     <string name="theme_custom_signal">Выделения</string>
     <string name="theme_custom_good">Успех</string>
     <string name="theme_custom_error">Ошибка</string>
+    <string name="hud_only_during_game">Показывать HUD только во время игры</string>
+    <string name="hud_only_during_game_hint">Скрывать HUD, когда кадры игры не обнаруживаются.</string>
 </resources>

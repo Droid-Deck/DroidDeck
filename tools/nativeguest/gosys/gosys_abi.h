@@ -15,7 +15,7 @@
 #include <stdint.h>
 
 #ifndef GOSYS_VERSION
-#define GOSYS_VERSION 3u  // raised when the code or its header changes: patched programs are patched again
+#define GOSYS_VERSION 4u  // raised when the code or its header changes: patched programs are patched again
 #endif
 
 // The scratch memory for rewritten paths: a small state area and 64 slots, in zero-filled memory the

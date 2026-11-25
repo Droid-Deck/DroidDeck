@@ -1090,6 +1090,61 @@ class ExtractTest(FexTestCase):
         self.assertNotIn("no unsquashfs", said)
         self.assertFalse(os.path.lexists("squashfs-root"))
 
+    def runtime_elf(self):
+        head = bytearray(elf(183))
+        struct.pack_into("<Q", head, 0x28, len(head))
+        return bytes(head)
+
+    def dwarfs(self, body):
+        self.write(self.image, self.runtime_elf() + b"DWARFS\x02\x05payload", 0o755)
+        self.ran = self.tmp / "dwarfsextract-ran"
+        return str(self.write(self.tmp / "dwarfsextract", "#!/bin/sh\ntouch %s\n%s" % (self.ran, body), 0o755))
+
+    def test_a_dwarfs_image_the_runtime_cannot_unpack_is_read_through_its_open_descriptor(self):
+        reader = self.dwarfs(
+            '[ "$1 $3 $4 $5" = "--input --image-offset=64 --output squashfs-root" ] || exit 9\n'
+            'case $2 in /proc/self/fd/*) ;; *) exit 8 ;; esac\n'
+            'cmp -s "$2" "%s" || exit 7\ntouch squashfs-root/AppRun\n' % self.image)
+        tool = self.uruntime("echo 'Failed to execute dwarfsextract: EACCES: Permission denied' >&2\nexit 1\n")
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(self.tmp / "rootfs")}), \
+                mock.patch.dict(G, {"URUNTIME": tool, "DWARFSEXTRACT": reader}), \
+                mock.patch("shutil.which", return_value=None):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual(status, 0)
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertNotIn("dwarfsextract could not", said)
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+        self.assertFalse((self.home / ".config/droiddeck/fex-wanted").exists())
+
+    def test_a_dwarfs_image_the_runtime_unpacks_never_runs_dwarfsextract(self):
+        reader = self.dwarfs("touch squashfs-root/AppRun\n")
+        tool = self.uruntime("mkdir -p AppDir && touch AppDir/AppRun\n")
+        with mock.patch.dict(G, {"URUNTIME": tool, "DWARFSEXTRACT": reader}):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual((status, said), (0, ""))
+        self.assertFalse(self.ran.exists())
+
+    def test_a_dwarfsextract_failure_leaves_nothing_unpacked(self):
+        reader = self.dwarfs("mkdir -p squashfs-root/usr\nexit 3\n")
+        tool = self.uruntime("exit 1\n")
+        with mock.patch.dict(G, {"URUNTIME": tool, "DWARFSEXTRACT": reader}), \
+                mock.patch("shutil.which", return_value=None):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual(status, 1)
+        self.assertTrue(self.ran.exists())
+        self.assertIn("dwarfsextract could not extract it (status 3)", said)
+        self.assertFalse(os.path.lexists("squashfs-root"))
+
+    def test_a_squashfs_image_still_goes_to_unsquashfs(self):
+        reader = self.dwarfs("exit 0\n")
+        self.write(self.image, self.runtime_elf() + b"hsqs" + b"payload", 0o755)
+        tool = self.uruntime("exit 1\n")
+        with mock.patch.dict(G, {"DWARFSEXTRACT": reader}):
+            status, said, commands = self.seven_zip(tool, {"unsquashfs": "/usr/bin/unsquashfs", "7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertNotIn("dwarfsextract", said)
+        self.assertEqual(["/usr/bin/unsquashfs", "/usr/bin/7z"], [c[0] for c in commands])
+
 
 class LaunchTest(FexTestCase):
     def test_the_guest_environment(self):
@@ -1374,6 +1429,43 @@ class AppInfoTest(unittest.TestCase):
             for app in ("4427310", "3127680", "4183110"):
                 self.manifest(steam, app)
             self.assertEqual(downloads(str(steam)), [])
+
+    def test_valve_proton_on_demand_waits_for_a_title_that_uses_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp)
+            for app in ("3127680", "1628350", "4183110"):
+                self.manifest(steam, app)
+            downloads, needed, tool = self.COMPAT["tool_downloads"], self.COMPAT["valve_proton_needed"], self.COMPAT["TOOL"]
+            own = steam / "compatibilitytools.d/DroidDeck-Proton 11-14.1"
+            with mock.patch.dict(os.environ, {"DD_VALVE_PROTON": "0"}):
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                ge = steam / "compatibilitytools.d/GE-Proton10-25"
+                ge.mkdir(parents=True)
+                (ge / "droiddeck-proton-wrap").write_text("")
+                (ge / "compatibilitytool.vdf").write_text(
+                    '"compatibilitytools" { "compat_tools" { "GE-Proton10-25" { "install_path" "." } } }')
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                own.mkdir(parents=True)
+                (own / "droiddeck-proton-wrap").write_text("")
+                (own / "compatibilitytool.vdf").write_text(
+                    '"compatibilitytools" { "compat_tools" { "DroidDeck-Proton-11-14.1" { "install_path" "." } } }')
+                self.assertEqual(downloads(str(steam)), [])
+                self.assertFalse(needed(str(steam), {"DroidDeck-Proton-11-14.1", None}))
+                self.assertTrue(needed(str(steam), {"DroidDeck-Proton-11-14.1", tool}))
+                self.assertTrue(needed(str(steam), {"proton-experimental-arm64"}))
+                self.assertEqual(downloads(str(steam), True), [("4427310", "install")])
+                config = steam / "config/config.vdf"
+                config.parent.mkdir()
+                config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { '
+                                  '"0" { "name" "DroidDeck-Proton-11-14.1" "config" "" "priority" "75" } '
+                                  '"10" { "name" "%s" "config" "" "priority" "250" } } } } } }' % tool)
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                config.unlink()
+                self.manifest(steam, "4427310", flags="6")
+                self.assertEqual(downloads(str(steam), False), [("4427310", "update")])
+            with mock.patch.dict(os.environ, {"DD_VALVE_PROTON": "1"}):
+                (steam / "steamapps/appmanifest_4427310.acf").unlink()
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
 
     def test_titles_with_a_valve_pick_are_found_installed_or_not(self):
         def deck(oslist, runtime, kind="game"):

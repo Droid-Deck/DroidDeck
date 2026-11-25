@@ -27,13 +27,26 @@ def droiddeck_release(ver, prerelease=False, draft=False):
 
 class ProtonExtraTest(unittest.TestCase):
     def test_sources_and_their_arm64_assets(self):
-        self.assertEqual(list(EXTRA["SOURCES"]), ["ge", "cachyos", "droiddeck"])
+        self.assertEqual(list(EXTRA["SOURCES"]), ["ge", "cachyos", "droiddeck", "bionic"])
         repo, pattern = EXTRA["SOURCES"]["droiddeck"]
         self.assertEqual(repo, "Droid-Deck/DroidDeck-Proton")
         self.assertTrue(pattern.search("DroidDeck-Proton-11-7.5-aarch64.tar.gz"))
         self.assertTrue(pattern.search("DroidDeck-Proton-11-8-aarch64.tar.xz"))
         self.assertFalse(pattern.search("DroidDeck-Proton-11-7.5-aarch64.sha512sum"))
         self.assertFalse(pattern.search("DroidDeck-Proton-11-7.5-aarch64.build-info.json"))
+        self.assertFalse(pattern.search("DroidDeck-Bionic-12.8-r3-aarch64.tar.xz"))
+        repo, pattern = EXTRA["SOURCES"]["bionic"]
+        self.assertEqual(repo, "Droid-Deck/DroidDeck-Proton")
+        self.assertTrue(pattern.search("DroidDeck-Bionic-12.8-r3-aarch64.tar.xz"))
+        self.assertFalse(pattern.search("DroidDeck-Proton-11-7.5-aarch64.tar.gz"))
+
+    def test_bionic_takes_its_prerelease(self):
+        stem = "DroidDeck-Bionic-12.8-r3-aarch64"
+        releases = [{"tag_name": "DroidDeck-Bionic-12.8-r3", "prerelease": True, "draft": False,
+                     "assets": [asset(stem + ".sha512sum"), asset(stem + ".tar.xz")]}, droiddeck_release("11-7.5")]
+        with mock.patch.dict(GLOBALS, {"fetch_json": lambda url: releases}):
+            self.assertEqual(EXTRA["pick_asset"]("bionic")[0], "DroidDeck-Bionic-12.8-r3")
+            self.assertEqual(EXTRA["pick_asset"]("droiddeck")[0], "DroidDeck-Proton-11-7.5")
 
     def test_the_newest_full_release_with_its_sha512_file(self):
         releases = [droiddeck_release("11-8", prerelease=True), droiddeck_release("11-7.9", draft=True), droiddeck_release("11-7.5")]
