@@ -448,6 +448,13 @@ object SessionPrefs {
         prefs(context).edit().putString("navTabHidden", keys.joinToString(",")).apply()
     }
 
+    fun appsTabHomeSeen(context: Context): Boolean? =
+        prefs(context).takeIf { it.contains("appsTabHomeSeen") }?.getBoolean("appsTabHomeSeen", false)
+
+    fun setAppsTabHomeSeen(context: Context, seen: Boolean) {
+        prefs(context).edit().putBoolean("appsTabHomeSeen", seen).apply()
+    }
+
     private fun idList(raw: String?): List<String> = raw.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
     val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
