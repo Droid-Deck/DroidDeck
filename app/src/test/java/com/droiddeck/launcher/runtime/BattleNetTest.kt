@@ -231,7 +231,7 @@ class BattleNetTest {
             field(1, message(field(1, "wowf"), field(2, "wowf"), field(3, message(field(1, drive))))),
         ))
         assertEquals(wow, BattleNet.hostFolder(context, drive))
-        assertEquals(File(wow, "_forever_"), BattleNet.games(context).single().folder)
+        assertEquals(wow, BattleNet.games(context).single().folder)
         assertEquals(File(root, "root/Games/Card/Battle.net/X"), BattleNet.hostFolder(context, "E:\\Battle.net\\X"))
         assertNull(BattleNet.hostFolder(context, "D:\\..\\etc"))
     }
