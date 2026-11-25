@@ -1022,7 +1022,7 @@ def uses_valve_proton(names):
 def valve_proton_needed(steam_root, names=None):
     if not valve_proton_on_demand():
         return True
-    if not any(not tool["valve"] for tool in tool_catalog(steam_root)):
+    if not own_builds(tool_catalog(steam_root)):
         return True
     if names is None:
         names = set((read_config_mapping(os.path.join(steam_root, "config", "config.vdf")) or {}).values())

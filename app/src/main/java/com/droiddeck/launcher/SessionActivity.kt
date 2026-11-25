@@ -2854,9 +2854,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         if (SessionState.stopRequested) return "cancelled"
         if (!com.droiddeck.launcher.runtime.DesktopCatalog.ownProtonMissing(this)) return null
-        return extras.install(this, extras.tools.first { it.id == extras.OWN }) { label, percent ->
-            uiHandler.post { loading.percent = percent; loading.say(label, PROTON_LINES.topic, readable = true) }
-        }.also { if (it == null) com.droiddeck.launcher.session.Onboarding.recheck(this) }
+        val cancellation = com.droiddeck.launcher.core.Downloader.Cancellation { SessionState.stopRequested }
+        SessionState.installCancellation = cancellation
+        return try {
+            extras.install(this, extras.tools.first { it.id == extras.OWN }, cancellation) { label, percent ->
+                uiHandler.post { loading.percent = percent; loading.say(label, PROTON_LINES.topic, readable = true) }
+            }.also { if (it == null) com.droiddeck.launcher.session.Onboarding.recheck(this) }
+        } finally {
+            if (SessionState.installCancellation === cancellation) SessionState.installCancellation = null
+        }
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {

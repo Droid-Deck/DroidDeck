@@ -1439,6 +1439,12 @@ class AppInfoTest(unittest.TestCase):
             own = steam / "compatibilitytools.d/DroidDeck-Proton 11-14.1"
             with mock.patch.dict(os.environ, {"DD_VALVE_PROTON": "0"}):
                 self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                ge = steam / "compatibilitytools.d/GE-Proton10-25"
+                ge.mkdir(parents=True)
+                (ge / "droiddeck-proton-wrap").write_text("")
+                (ge / "compatibilitytool.vdf").write_text(
+                    '"compatibilitytools" { "compat_tools" { "GE-Proton10-25" { "install_path" "." } } }')
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
                 own.mkdir(parents=True)
                 (own / "droiddeck-proton-wrap").write_text("")
                 (own / "compatibilitytool.vdf").write_text(

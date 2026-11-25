@@ -1208,10 +1208,6 @@ class Helper:
             asked = [app for app, request in COMPAT["game_requests"]().items() if COMPAT["valid_game_request"](app, request)]
             apps = sorted(set(apps) | set(asked), key=COMPAT["app_order"])
             current = dict(page.compat("many(%s)" % json.dumps(apps)) or {})
-            names = set(current.values()) | {default}
-            if COMPAT["uses_valve_proton"](names) and not COMPAT["uses_valve_proton"](self.valve_names or ()):
-                self.tools_checked = None
-            self.valve_names = names
             refused = set(apps) - set(current)
             refused_native = native_choices & refused
             if refused:
@@ -1261,6 +1257,10 @@ class Helper:
                 page.compat("set(%d, %s)" % (int(app), json.dumps(tool if tool is not None else "")))
                 say("%s -> %s" % ("default" if app == "0" else "app %s" % app,
                                    tool if tool is not None else "Steam native default"))
+            names = set(dict(current, **changes).values()) | {default}
+            if COMPAT["uses_valve_proton"](names) and not COMPAT["uses_valve_proton"](self.valve_names or ()):
+                self.tools_checked = None
+            self.valve_names = names
             state.update(
                 auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
                 native_choices=sorted(refused_native | {app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]}),
