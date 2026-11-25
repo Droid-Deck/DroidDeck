@@ -502,6 +502,13 @@ object SessionPrefs {
 
     fun hudEnabled(context: Context): Boolean = prefs(context).getBoolean(hudKey(context), false)
 
+    fun hudOnlyDuringGame(context: Context): Boolean =
+        prefs(context).getBoolean("hudOnlyDuringGame", false)
+
+    fun setHudOnlyDuringGame(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("hudOnlyDuringGame", on).apply()
+    }
+
     fun setHudEnabled(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean(hudKey(context), on).apply()
     }
@@ -807,6 +814,11 @@ object SessionPrefs {
         prefs(context).edit().putStringSet("gpuAutoInstalled", ids.toSet()).apply()
     }
 
+    fun displayDriverFromAuto(context: Context): Boolean {
+        val id = androidDriver(context)
+        return id.isEmpty() || (gpuDriverMode(context) == GPU_DRIVERS_AUTO && id in gpuAutoInstalled(context))
+    }
+
 
     fun picturePosition(context: Context): String =
         prefs(context).getString("picturePosition", "center")
@@ -1030,7 +1042,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootFastPath", on).apply()
     }
 
-    fun cursorComposite(context: Context): Boolean = prefs(context).getBoolean("cursorComposite", false)
+    fun cursorComposite(context: Context): Boolean = prefs(context).getBoolean("cursorComposite", true)
 
     fun setCursorComposite(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("cursorComposite", on).apply()
@@ -1336,6 +1348,10 @@ object SessionPrefs {
         SessionDisplay.effectiveChoice(
             resolutionStored(context, mode, panel, false), resolutionStored(context, mode, panel, true), portrait)
 
+    fun followScales(context: Context, mode: String, panel: Pair<Int, Int>): Pair<Float?, Float?> =
+        SessionDisplay.followScale(resolutionChoice(context, mode, panel, false)) to
+            SessionDisplay.followScale(resolutionChoice(context, mode, panel, true))
+
     fun resolutionStored(context: Context, mode: String, panel: Pair<Int, Int>, portrait: Boolean): String {
         if (!portrait) return landscapeResolutionStored(context, mode, panel)
         val value = prefs(context).getString("displayResolution.portrait.$mode", null) ?: return SessionDisplay.LINK_LANDSCAPE
@@ -1546,7 +1562,7 @@ object SessionPrefs {
     fun adoptAddedGameExe(context: Context, folderPath: String, expected: String, path: String, seen: Int): Boolean =
         synchronized(addedGameLock) {
             val unchanged = addedGameExe(context, folderPath) == expected
-            if (unchanged) prefs(context).edit().putString("addedExe:$folderPath", path).putInt("addedExeSeen:$folderPath", seen).apply()
+            if (unchanged) prefs(context).edit().putString("addedExe:$folderPath", path).putString("addedAdopted:Exe:$folderPath", path).putInt("addedExeSeen:$folderPath", seen).apply()
             unchanged
         }
 

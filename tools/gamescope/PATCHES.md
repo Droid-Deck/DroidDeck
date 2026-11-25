@@ -416,3 +416,12 @@ changed focus. In a nested session with no other window the SDL window stayed hi
 on screen. Focus is now chosen again whenever a window's opacity crosses zero in either direction; a change between
 two visible opacities leaves focus alone. `tools/tests/test_gamescope_focus_opacity.py` compiles the rule from this
 patch and checks the property handler applies it.
+
+## 0141 wlserver: the nested mouse moves the pointer while touch is Disabled
+
+The nested Wayland pointer reaches wlserver as touch 0 (`bAlwaysWarpCursor`, see 0111), and in the Disabled touch click
+mode `wlserver_touchmotion` returned before anything moved. Buttons take `wlserver_mousebutton`, so they still arrived,
+at a pointer that never left the top-left corner. Steam picks Disabled for some games (Don't Starve Together): the drawn
+cursor followed the mouse while every click landed at (0,0). In Disabled the nested pointer now warps the X pointer as
+in the other modes; real fingers are still ignored. `tools/tests/test_gamescope_disabled_touch_mouse.py` compiles the
+branch from this patch.

@@ -38,8 +38,10 @@ import com.droiddeck.launcher.input.InputButtonShape
 import com.droiddeck.launcher.input.InputButtonImages
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PadKit
+import com.droiddeck.launcher.input.ThrottledRedraw
 import com.droiddeck.launcher.input.pcKeyLabel
 import com.droiddeck.launcher.session.SessionPrefs
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.min
@@ -581,6 +583,10 @@ class InputSurfaceView(
         private var originY = 0f
         private var knobX = 0f
         private var knobY = 0f
+        private var drawnX = 0f
+        private var drawnY = 0f
+        private var atRim = false
+        private val redraw = ThrottledRedraw(this, STICK_REDRAW_MS)
         private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val knob = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -663,6 +669,7 @@ class InputSurfaceView(
                 MotionEvent.ACTION_MOVE -> follow(event.getX(0), event.getY(0), r)
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     touching = false
+                    atRim = false
                     val cancelled = event.actionMasked == MotionEvent.ACTION_CANCEL || event.flags and MotionEvent.FLAG_CANCELED != 0
                     travel = maxOf(travel, hypot(event.x - downX, event.y - downY))
                     lastUp = if (!clicking && !cancelled && event.eventTime - downAt <= STICK_TAP_MS && travel <= tapSlop) event.eventTime else 0L
@@ -678,15 +685,27 @@ class InputSurfaceView(
             var dx = x - originX
             var dy = y - originY
             val length = hypot(dx, dy)
-            if (length > r) { dx *= r / length; dy *= r / length }
-            if (force || dx != knobX || dy != knobY) move(dx, dy, r)
+            val rim = length > r
+            if (rim) { dx *= r / length; dy *= r / length }
+            val reachedRim = rim && !atRim
+            atRim = rim
+            if (force || dx != knobX || dy != knobY) move(dx, dy, r, throttled = !force && !reachedRim, rim = rim)
         }
 
-        private fun move(dx: Float, dy: Float, r: Float) {
+        private fun move(dx: Float, dy: Float, r: Float, throttled: Boolean = false, rim: Boolean = false) {
             knobX = dx
             knobY = dy
             source?.update(dx / r, dy / r)
-            invalidate()
+            if (!throttled) {
+                redraw.cancel()
+                drawnX = dx
+                drawnY = dy
+                invalidate()
+            } else if (rim || abs(dx - drawnX) >= MIN_STICK_MOVE_PX || abs(dy - drawnY) >= MIN_STICK_MOVE_PX) {
+                drawnX = dx
+                drawnY = dy
+                redraw.request()
+            }
         }
 
         private fun setClick(down: Boolean) {
@@ -699,6 +718,7 @@ class InputSurfaceView(
         override fun onDetachedFromWindow() {
             setClick(false)
             if (knobX != 0f || knobY != 0f) move(0f, 0f, 1f)
+            redraw.cancel()
             super.onDetachedFromWindow()
         }
     }
@@ -766,6 +786,8 @@ class InputSurfaceView(
     companion object {
         private const val CLICK_MS = 300L
         private const val STICK_TAP_MS = 200L
+        private const val STICK_REDRAW_MS = 33L
+        private const val MIN_STICK_MOVE_PX = 1f
         private const val CLASSIC_REACH = 0.5f
         private const val PANEL_REACH = 0.30f
         private const val HIT_SLACK = 0.25f

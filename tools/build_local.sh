@@ -312,6 +312,12 @@ else
     mkdir -p "${linuxfs_dir}/usr/local/lib/droiddeck" "${linuxfs_dir}/usr/local/share/licenses/uruntime"
     install -m644 "${uruntime_binary}" "${linuxfs_dir}/usr/local/lib/droiddeck/uruntime"
     install -m644 "${repo_root}/tools/linuxfs/licenses/uruntime-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/uruntime/LICENSE"
+    dwarfs_wrapper=$(cached "${DWARFS_SHA256}" "${DWARFS_ASSET}" \
+        bash -c 'curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o "$out" "$0"' "https://github.com/mhx/dwarfs/releases/download/${DWARFS_VERSION}/${DWARFS_ASSET}")
+    mkdir -p "${linuxfs_dir}/usr/local/share/licenses/dwarfs"
+    bash "${repo_root}/tools/linuxfs/unwrap-dwarfs.sh" "${dwarfs_wrapper}" "${linuxfs_dir}/usr/local/lib/droiddeck/dwarfsextract"
+    printf '%s  %s\n' "${DWARFS_PAYLOAD_SHA256}" "${linuxfs_dir}/usr/local/lib/droiddeck/dwarfsextract" | shasum -a 256 -c - >&2
+    install -m644 "${repo_root}/tools/linuxfs/licenses/dwarfs-LICENSE" "${linuxfs_dir}/usr/local/share/licenses/dwarfs/LICENSE"
 
     sync_assets="${repo_root}/app/src/main/assets/droiddeck-esync"
     if [[ -f "${repo_root}/tools/droiddeck-esync/release.env" ]]; then

@@ -2766,6 +2766,7 @@
     <string name="stores_login_error_ssl">Połączenie ze stroną logowania nie jest bezpieczne.</string>
     <string name="stores_login_error_verification">Nie udało się zweryfikować logowania. Spróbuj ponownie.</string>
     <string name="stores_login_error_generic">Logowanie nie powiodło się. Spróbuj ponownie.</string>
+    <string name="stores_login_continue_in_browser">%1$s wymaga jeszcze jednego kroku. Dokończ go w otwartej przeglądarce, a potem spróbuj ponownie.</string>
     <string name="common_close">Zamknij</string>
     <string name="common_back">Wstecz</string>
     <string name="common_edit">Edytuj</string>
@@ -3158,7 +3159,7 @@
     <string name="hand_camera_done">Gotowe</string>
     <string name="glasses_xreal_network_missing">Oczekiwanie na połączenie USB Ethernet okularów. Ten telefon może nie udostępniać go aplikacjom.</string>
     <string name="glasses_xreal_connection_failed">Połączenie z XREAL zostało przerwane lub zwróciło nieobsługiwaną odpowiedź. Ponawianie…</string>
-    <string name="glasses_xreal_experimental">Eksperymentalna obsługa 1S. Użyj trybu Follow i wyłącz stabilizację w menu okularów. Kierunki śledzenia i tryby wyświetlania wymagają jeszcze testów na urządzeniu.</string>
+    <string name="glasses_xreal_experimental">Eksperymentalna obsługa XREAL 1S, One, One Pro, One Pro+ i Aura. Użyj trybu Follow i wyłącz stabilizację w menu okularów; na Aura wyłącz też Spatial Anchor. Śledzenie głowy i przełączanie między 2D/3D przetestowano na Aura i One Pro+.</string>
     <string name="glasses_pro2_experimental">Eksperymentalne śledzenie ruchów głowy dla Pro 2. Regulacja jasności i głośności oraz przełączanie trybu wyświetlania nie są jeszcze obsługiwane.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Tryb Cardboard</string>
@@ -4157,4 +4158,6 @@
     <string name="theme_custom_signal">Wyróżnienia</string>
     <string name="theme_custom_good">Sukces</string>
     <string name="theme_custom_error">Błąd</string>
+    <string name="hud_only_during_game">Pokazuj HUD tylko podczas gry</string>
+    <string name="hud_only_during_game_hint">Ukryj HUD, gdy nie wykryto klatek gry.</string>
 </resources>

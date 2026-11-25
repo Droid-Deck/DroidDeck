@@ -20,6 +20,12 @@ object SteamRedists {
     val SCRIPTED = mapOf(
         72850 to listOf("xact" to "DirectX XACT audio"),
         489830 to listOf("xact_x64" to "DirectX XACT audio (64-bit)"),
+        // Warband compiles its postFX .fx effects at launch through d3dx9_42; Wine's own d3dcompiler_42 stops with E5017/E5033 on fx_2_0.
+        48700 to listOf("d3dx9" to "DirectX 9 (d3dx9)", "d3dcompiler_42" to "D3DCompiler 42"),
+        // DST's bundled ANGLE compiles SM3 shaders through d3dcompiler_43; DXVK's SM3 parser asserts on what Wine's own one emits.
+        322330 to listOf("d3dcompiler_43" to "D3DCompiler 43"),
+        // EU4 builds its map effects through native d3dx9_43, which calls d3dcompiler_43; Wine's own one fails them with E5005, so the map draws black.
+        236850 to listOf("d3dx9" to "DirectX 9 (d3dx9)", "d3dcompiler_43" to "D3DCompiler 43"),
     )
     private val BLOCK = Regex("\"SharedDepots\"\\s*\\{([^}]*)\\}", RegexOption.IGNORE_CASE)
     private val ENTRY = Regex("\"(\\d+)\"\\s+\"\\d+\"")

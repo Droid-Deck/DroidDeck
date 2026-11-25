@@ -13,7 +13,7 @@ object ComponentUpdates {
     const val BOOTED_SECONDS = 60L
     const val FAILED_BOOTS_BEFORE_ROLLBACK = 2
 
-    data class Line(val key: String, val comp: String, val prefix: String)
+    data class Line(val key: String, val comp: String, val prefix: String, val release: String = ComponentsManager.DD_NIGHTLY)
 
     val LINES = listOf(
         Line("dxvk", "dxvk", "DD-dxvk-"),
@@ -21,11 +21,18 @@ object ComponentUpdates {
         Line("vkd3d", "vkd3d", "DD-vkd3d-proton-"),
         Line("vkd3d-arm64ec", "vkd3d", "DD-vkd3d-proton-arm64ec-"),
         Line("fex", "fex", "DD-FEXCore-"),
+        Line("fex-bionic", "fex", "FEXCore-", ComponentsManager.DD_BIONIC),
     )
 
     private val OWN_PREFIX = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }.prefix
 
     fun follows(p: ComponentsManager.Proton): Boolean = !p.valve && p.dir.name.startsWith(OWN_PREFIX)
+
+    fun autoFollows(p: ComponentsManager.Proton, comp: String): Boolean =
+        follows(p) || (comp == "fex" && !p.valve && ComponentsManager.bionicTool(p.dir.name))
+
+    fun fexLine(p: ComponentsManager.Proton): Line =
+        if (ComponentsManager.bionicTool(p.dir.name)) LINES.first { it.release == ComponentsManager.DD_BIONIC } else line("fex", false)
 
     fun ownId(protonId: String): Boolean = protonId.startsWith(ComponentsManager.safeName(OWN_PREFIX))
 
@@ -34,8 +41,8 @@ object ComponentUpdates {
         choices: Map<String, Map<String, ComponentsManager.Choice>>,
         placed: Set<String>,
     ): List<Pair<ComponentsManager.Proton, String>> =
-        protons.filterNot(::follows).flatMap { p ->
-            choices[p.id].orEmpty().filter { (_, c) -> !c.auto && c.protonVersion == p.version && c.file in placed }.keys.map { p to it }
+        protons.flatMap { p ->
+            choices[p.id].orEmpty().filter { (comp, c) -> !autoFollows(p, comp) && !c.auto && c.protonVersion == p.version && c.file in placed }.keys.map { p to it }
         }
 
     fun unseen(
@@ -53,13 +60,14 @@ object ComponentUpdates {
 
     fun pick(items: List<ComponentsManager.CatalogItem>, line: Line, bad: Set<String>): ComponentsManager.CatalogItem? {
         val newestBad = bad.filter { belongs(it, line) }.maxWithOrNull { a, b -> ProtonExtras.compareVersions(a, b) }
-        return items.filter { it.release == ComponentsManager.DD_NIGHTLY && it.comp == line.comp && belongs(it.file, line) }
+        return items.filter { it.release == line.release && it.comp == line.comp && belongs(it.file, line) }
             .filter { newestBad == null || ProtonExtras.compareVersions(it.file, newestBad) > 0 }
             .maxWithOrNull { a, b -> ProtonExtras.compareVersions(a.file, b.file) }
     }
 
     fun belongs(file: String, line: Line): Boolean =
-        file.startsWith(line.prefix) && file.removePrefix(line.prefix).firstOrNull()?.isDigit() == true
+        file.startsWith(line.prefix) && file.removePrefix(line.prefix).firstOrNull()?.isDigit() == true &&
+            (line.comp != "fex" || ComponentsManager.bionicFex(file) == (line.release == ComponentsManager.DD_BIONIC))
 
     fun arm64ec(pe: ByteArray): Boolean? = runCatching {
         val b = ByteBuffer.wrap(pe).order(ByteOrder.LITTLE_ENDIAN)
@@ -161,7 +169,7 @@ object ComponentUpdates {
     fun stale(line: Line?, owned: Set<String>, stored: List<String>, keep: Set<String>, current: String, bad: Set<String> = emptySet()): List<String> {
         val ranked = line?.takeIf { belongs(current, it) }
         fun newer(file: String) = ranked != null && belongs(file, ranked) && ProtonExtras.compareVersions(file, current) > 0
-        return (owned + stored.filter { ranked != null && belongs(it, ranked) })
+        return (owned + stored.filter { ranked != null && ranked.release == ComponentsManager.DD_NIGHTLY && belongs(it, ranked) })
             .filter { it !in keep && ((it in bad && it in owned) || !newer(it)) }.distinct()
     }
 }

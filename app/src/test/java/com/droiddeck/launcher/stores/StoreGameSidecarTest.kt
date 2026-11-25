@@ -168,8 +168,8 @@ class StoreGameSidecarTest {
         "if \"%DD_EPIC_PARENT%\"==\"1\" set \"DD_P=1\"",
         "if \"%DD_EPIC_PARENT%\"==\"0\" set \"DD_P=\"",
         "if defined DD_P set \"SteamAppId=\"",
-        "if defined DD_P if not exist \"Z:\\usr\\local\\lib\\droiddeck-epic\\EpicGamesLauncher.exe\" set \"DD_P=\"",
-        "if defined DD_P set DD_P=\"Z:\\usr\\local\\lib\\droiddeck-epic\\EpicGamesLauncher.exe\"",
+        "if defined DD_P if not exist \"%DD_R%\\usr\\local\\lib\\droiddeck-epic\\EpicGamesLauncher.exe\" set \"DD_P=\"",
+        "if defined DD_P set DD_P=\"%DD_R%\\usr\\local\\lib\\droiddeck-epic\\EpicGamesLauncher.exe\"",
     )
 
     @Test fun epicTitlesThatCheckTheirParentStartUnderTheStandIn() {

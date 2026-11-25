@@ -60,7 +60,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.session.GameStorage
+import com.droiddeck.launcher.files.StorageRoot
+import com.droiddeck.launcher.files.StorageRoots
 import com.droiddeck.launcher.stores.formatBytes
 import java.io.File
 
@@ -74,10 +75,16 @@ internal class PickVolume(val root: File, val label: String, val removable: Bool
 }
 
 internal fun pickVolumes(context: Context): List<PickVolume> =
-    listOf(PickVolume(Environment.getExternalStorageDirectory(), context.getString(R.string.games_internal), removable = false)) +
-        GameStorage.options(context).mapNotNull { o ->
-            File(o.path.substringBefore("/Android/")).takeIf { it.isDirectory }?.let { PickVolume(it, o.name, removable = true) }
-        }.distinctBy { it.root.absolutePath }
+    pickVolumes(Environment.getExternalStorageDirectory(), context.getString(R.string.games_internal), StorageRoots.list(context))
+
+internal fun pickVolumes(internal: File, internalLabel: String, roots: List<StorageRoot>): List<PickVolume> {
+    val internalPath = internal.absolutePath.trimEnd('/')
+    fun overlapsInternal(path: String) = path == internalPath || path.startsWith("$internalPath/") || internalPath.startsWith("$path/")
+    return listOf(PickVolume(internal, internalLabel, removable = false)) +
+        roots.filter { it.readable && !overlapsInternal(it.dir.absolutePath.trimEnd('/')) }
+            .map { PickVolume(it.dir, it.label, removable = true) }
+            .distinctBy { it.root.absolutePath }
+}
 
 internal class PickFolder(val dir: File, val readable: Boolean)
 

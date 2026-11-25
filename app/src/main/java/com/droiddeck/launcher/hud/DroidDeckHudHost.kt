@@ -44,6 +44,35 @@ class DroidDeckHudHost(context: Context) {
     private var protonPid = 0
     private var proton = ""
     @Volatile private var lastWindow: String? = null
+    @Volatile private var lastCompositorFrameNanos = 0L
+    @Volatile private var lastVisibilityGameActive = false
+    private var candidateGameActive = false
+    private var candidateGameActiveSinceNs = 0L
+    private var stableGameActive = false
+
+    private fun isGameActive(): Boolean {
+        val now = System.nanoTime()
+        val compositorLive = lastCompositorFrameNanos > 0L &&
+            now - lastCompositorFrameNanos <= 1_000_000_000L
+        val detected = if (feed.live) {
+            feed.steamFocusKnown && !feed.steamFocused
+        } else {
+            compositorLive
+        }
+
+        if (detected != candidateGameActive) {
+            candidateGameActive = detected
+            candidateGameActiveSinceNs = now
+        }
+
+        if (detected != stableGameActive &&
+            now - candidateGameActiveSinceNs >= GAME_ACTIVITY_STABLE_NS
+        ) {
+            stableGameActive = detected
+        }
+
+        return stableGameActive
+    }
 
     var onPresentingWindowChanged: (() -> Unit)? = null
 
@@ -66,6 +95,12 @@ class DroidDeckHudHost(context: Context) {
         }
 
         override fun onGameFrame() {
+            if (feed.live && (!feed.steamFocusKnown || feed.steamFocused)) return
+            lastCompositorFrameNanos = System.nanoTime()
+            feed.onCompositorFrame(lastCompositorFrameNanos)
+        }
+
+        override fun onCompositorFrame() {
             feed.onCompositorFrame(System.nanoTime())
         }
     }
@@ -73,7 +108,9 @@ class DroidDeckHudHost(context: Context) {
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!running || !polling) return
+            reconcileGameActivity()
             if (feed.poll(System.nanoTime())) view?.onFrames()
+            reconcileGameActivity()
             Choreographer.getInstance().postFrameCallback(this)
         }
     }
@@ -151,7 +188,7 @@ class DroidDeckHudHost(context: Context) {
 
     fun refresh() {
         applyConfig()
-        if (!enabled) stop() else if (!running) start()
+        if (!enabled) stop() else if (!running) start() else applyShown()
     }
 
     fun start() {
@@ -181,14 +218,26 @@ class DroidDeckHudHost(context: Context) {
         applyShown()
     }
 
+    private fun reconcileGameActivity() {
+        if (!SessionPrefs.hudOnlyDuringGame(context)) {
+            lastVisibilityGameActive = isGameActive()
+            return
+        }
+        if (isGameActive() != lastVisibilityGameActive) applyShown()
+    }
+
     private fun applyShown() {
         if (!running) return
-        val show = !hidden && !backgrounded
+        val onlyDuringGame = SessionPrefs.hudOnlyDuringGame(context)
+        val gameActive = isGameActive()
+        val show = !hidden && !backgrounded && (!onlyDuringGame || gameActive)
         view?.visibility = if (show) View.VISIBLE else View.GONE
         showing = show
-        if (show != polling) {
-            polling = show
-            if (show) Choreographer.getInstance().postFrameCallback(frameCallback)
+        lastVisibilityGameActive = gameActive
+        val shouldPoll = !hidden && !backgrounded && (show || onlyDuringGame)
+        if (shouldPoll != polling) {
+            polling = shouldPoll
+            if (shouldPoll) Choreographer.getInstance().postFrameCallback(frameCallback)
             else Choreographer.getInstance().removeFrameCallback(frameCallback)
         }
     }
@@ -532,6 +581,7 @@ class DroidDeckHudHost(context: Context) {
     }
 
     companion object {
+        private const val GAME_ACTIVITY_STABLE_NS = 350_000_000L
         private const val DOCK_OVERHANG = 0.4f
         private const val PREVIEW_FROM = 0.55f
         private const val STRIP_PULL_ACROSS_DP = 360f

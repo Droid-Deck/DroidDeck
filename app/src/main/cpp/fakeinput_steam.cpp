@@ -58,6 +58,59 @@
 
 #define EXPORT extern "C" __attribute__((visibility("default")))
 
+struct SymbolSlot {
+  std::atomic<void *> fn{nullptr};
+  std::atomic<bool> resolved{false};
+};
+
+template <typename Fn> static Fn resolved_symbol(SymbolSlot &slot, void *handle, const char *name) {
+  if (!slot.resolved.load(std::memory_order_acquire)) {
+    slot.fn.store(dlsym(handle, name), std::memory_order_relaxed);
+    slot.resolved.store(true, std::memory_order_release);
+  }
+  return reinterpret_cast<Fn>(slot.fn.load(std::memory_order_relaxed));
+}
+
+enum class Next : size_t {
+  open,
+  openat,
+  close,
+  write,
+  ioctl,
+  poll,
+  ppoll,
+  select,
+  stat,
+  stat64,
+  fstat,
+  fstat64,
+  xstat,
+  xstat64,
+  fxstat,
+  fxstat64,
+  statx,
+  statfs,
+  fstatfs,
+  access,
+  faccessat,
+  opendir,
+  scandir,
+  inotify_add_watch,
+  count
+};
+
+static const char *const next_names[] = {"open", "openat", "close", "write", "ioctl", "poll", "ppoll", "select", "stat", "stat64", "fstat", "fstat64", "__xstat", "__xstat64", "__fxstat", "__fxstat64", "statx", "statfs", "fstatfs", "access", "faccessat", "opendir", "scandir", "inotify_add_watch"};
+static_assert(sizeof(next_names) / sizeof(next_names[0]) == static_cast<size_t>(Next::count), "next_names");
+static SymbolSlot next_slots[static_cast<size_t>(Next::count)];
+
+template <typename Fn> static Fn next_symbol(Next which) {
+  return resolved_symbol<Fn>(next_slots[static_cast<size_t>(which)], RTLD_NEXT, next_names[static_cast<size_t>(which)]);
+}
+
+static void resolve_next_symbols() {
+  for (size_t i = 0; i < static_cast<size_t>(Next::count); i++) next_symbol<void *>(static_cast<Next>(i));
+}
+
 #ifdef __GLIBC__
 typedef unsigned long ioctl_request_t;
 #else
@@ -205,6 +258,11 @@ static void controller_fork_prepare();
 static void controller_fork_parent();
 static void controller_fork_child();
 
+// bionic: libc's own start-up calls hooked functions (access) before environ is set. Settings read
+// then would be empty and cached for good, so until environ exists hooks see defaults, uncached.
+extern "C" char **environ;
+static bool env_ready() { return environ != nullptr; }
+
 struct FakeConfig {
   const char *hook_dir;
   const char *udev_data_dir;
@@ -218,6 +276,10 @@ struct FakeConfig {
 // would throw a recursive-init error there, so the fields are filled without allocating, and a
 // reentry on the initializing thread gets them while other threads wait for the fork handlers.
 static FakeConfig &config() {
+  if (!env_ready()) {
+    static FakeConfig early = {"/data/data/com.termux/files/home/fake-input", nullptr, false, false, false};
+    return early;
+  }
   static FakeConfig cfg;
   static std::atomic<int> state{0};
   static __thread bool initializing __attribute__((tls_model("initial-exec")));
@@ -433,6 +495,7 @@ void log(const char *message, ...) {
 }
 
 __attribute__((constructor)) static void library_init() {
+  resolve_next_symbols();
   config();
   controller_mutex();
   controller_map();
@@ -587,7 +650,7 @@ get_fake_input_rdev(const char *event) {
 
 __attribute__((visibility("hidden"))) static void load_ring_paths() {
   std::lock_guard<std::recursive_mutex> guard(controller_mutex());
-  if (ring_paths_loaded)
+  if (ring_paths_loaded || !env_ready())
     return;
 
   const char *spec = getenv("FAKE_EVDEV_MEMFD_PATHS");
@@ -724,7 +787,7 @@ open_fake_input_ring(const char *event, int flags) {
     return -1;
   }
 
-  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  const auto my_open = next_symbol<int (*)(const char *, int, ...)>(Next::open);
 
   int fd = my_open(ring_path.c_str(), O_RDWR | (flags & (O_NONBLOCK | O_CLOEXEC)));
   if (fd < 0)
@@ -807,8 +870,21 @@ __attribute__((visibility("hidden"))) static bool is_steam_client() {
 __attribute__((visibility("hidden"))) static bool presents_steam_virtual() {
   static int known;
   if (known == 0) {
+    if (!env_ready()) return false;
     const char *enabled = getenv("FAKE_EVDEV_STEAM_VIRTUAL");
     known = enabled && atoi(enabled) && !is_steam_client() ? 1 : -1;
+  }
+  return known == 1;
+}
+
+// The bionic Proton layer's winebus has no udev bus, and its SDL bus skips 28de:11ff (Proton reads Steam's virtual
+// pad through udev/evdev), so with FAKE_EVDEV_STEAM_PAD_AS_X360=1 other processes see that pad as a plain Xbox 360 pad.
+__attribute__((visibility("hidden"))) static bool steam_pad_as_x360() {
+  static int known;
+  if (known == 0) {
+    if (!env_ready()) return false;
+    const char *v = getenv("FAKE_EVDEV_STEAM_PAD_AS_X360");
+    known = v && atoi(v) && !is_steam_client() ? 1 : -1;
   }
   return known == 1;
 }
@@ -978,7 +1054,7 @@ __attribute__((visibility("hidden"))) static void unpublish_uinput(UinputWriter 
 }
 
 __attribute__((visibility("hidden"))) static int claim_uinput_node(int *fd_out) {
-  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  const auto my_open = next_symbol<int (*)(const char *, int, ...)>(Next::open);
   for (int node = UINPUT_EVENT_BASE; node < UINPUT_EVENT_LIMIT; node++) {
     std::string path = uinput_ring_path(node);
     int fd = my_open(path.c_str(), O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC, 0644);
@@ -1005,7 +1081,7 @@ __attribute__((visibility("hidden"))) static int claim_uinput_node(int *fd_out) 
 }
 
 __attribute__((visibility("hidden"))) static int publish_uinput(UinputWriter &w) {
-  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  const auto my_open = next_symbol<int (*)(const char *, int, ...)>(Next::open);
   int fd = -1;
   int node = claim_uinput_node(&fd);
   if (node < 0) return -1;
@@ -1391,6 +1467,7 @@ static std::unordered_map<int, std::shared_ptr<DeckHidraw>> &deck_map() {
 
 static bool fake_deck_enabled() {
   static int enabled = -1;
+  if (enabled < 0 && !env_ready()) return false;
   if (enabled < 0) enabled = getenv("FAKE_EVDEV_DECK") && atoi(getenv("FAKE_EVDEV_DECK")) ? 1 : 0;
   return enabled == 1;
 }
@@ -1398,6 +1475,7 @@ static bool fake_deck_enabled() {
 __attribute__((visibility("hidden"))) static uint32_t session_pad_type() {
   static int type = -1;
   if (type < 0) {
+    if (!env_ready()) return PAD_TYPE_DECK;
     const char *env = getenv("FAKE_EVDEV_PAD_TYPE");
     type = env && !strcmp(env, "steamcontroller") ? PAD_TYPE_STEAM
          : env && !strcmp(env, "xbox360") ? PAD_TYPE_XBOX
@@ -1416,7 +1494,7 @@ __attribute__((visibility("hidden"))) static const uint8_t *ring_blocks() {
   std::lock_guard<std::mutex> guard(lock);
   if ((mapped = block.load(std::memory_order_acquire))) return mapped;
   tries.fetch_add(1, std::memory_order_relaxed);
-  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  const auto my_open = next_symbol<int (*)(const char *, int, ...)>(Next::open);
   std::string path = get_ring_path_for_slot(0);
   int fd = path.empty() ? -1 : my_open(path.c_str(), O_RDONLY | O_CLOEXEC);
   if (fd < 0) return nullptr;
@@ -1470,6 +1548,7 @@ __attribute__((visibility("hidden"))) static uint64_t monotonic_us() {
 
 static bool fake_triton_enabled() {
   static int enabled = -1;
+  if (enabled < 0 && !env_ready()) return false;
   if (enabled < 0)
     enabled = fake_deck_enabled() && getenv("FAKE_EVDEV_TRITON") && atoi(getenv("FAKE_EVDEV_TRITON")) ? 1 : 0;
   return enabled == 1;
@@ -1768,7 +1847,7 @@ __attribute__((visibility("hidden"))) static void *sony_report_thread(void *arg)
 
 __attribute__((visibility("hidden"))) static int open_deck_hidraw(int flags, uint8_t sony = 0) {
   const char *path = sony == 4 ? DS4_HIDRAW_PATH : sony == 5 ? DUALSENSE_HIDRAW_PATH : DECK_HIDRAW_PATH;
-  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  const auto my_open = next_symbol<int (*)(const char *, int, ...)>(Next::open);
   if (!process_reads_pads()) {
     Logger::log("deck: %s refused: not the Steam client\n", path);
     errno = ENOENT;
@@ -1977,7 +2056,7 @@ __attribute__((visibility("hidden"))) static void *triton_pad_thread(void *arg) 
 }
 
 __attribute__((visibility("hidden"))) static int open_triton_hidraw(int flags, bool emulated) {
-  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  const auto my_open = next_symbol<int (*)(const char *, int, ...)>(Next::open);
   if (!process_reads_pads()) {
     errno = ENOENT;
     return -1;
@@ -2091,11 +2170,12 @@ static_assert(sizeof(TouchRingFile) <= TOUCH_RING_SIZE, "TouchRingFile layout");
 
 __attribute__((visibility("hidden"))) static TouchRingFile *touch_ring() {
   static TouchRingFile *ring = nullptr;
+  if (!env_ready()) return nullptr;
   static std::once_flag once;
   std::call_once(once, [] {
     const char *path = getenv("FAKE_TOUCHCTL_RING");
     if (!path || !*path || !fake_deck_enabled()) return;
-    static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+    const auto my_open = next_symbol<int (*)(const char *, int, ...)>(Next::open);
     int fd = my_open(path, O_RDWR | O_CLOEXEC);
     if (fd < 0) {
       Logger::log("touch: %s not openable (%s)\n", path, strerror(errno));
@@ -2312,7 +2392,8 @@ __attribute__((visibility("hidden"))) static int inject_uevent(const char *actio
                                                                const char *subsystem, const char *devname,
                                                                unsigned major, unsigned minor) {
   using inject_fn = int (*)(const char *, const char *, const char *, const char *, unsigned, unsigned);
-  static auto inject = reinterpret_cast<inject_fn>(dlsym(RTLD_DEFAULT, "dd_udevmon_inject"));
+  static SymbolSlot inject_slot;
+  const auto inject = resolved_symbol<inject_fn>(inject_slot, RTLD_DEFAULT, "dd_udevmon_inject");
   return inject ? inject(action, devpath, subsystem, devname, major, minor) : -1;
 }
 
@@ -2434,6 +2515,7 @@ __attribute__((constructor)) static void start_touch_controller() {
 static constexpr long SYSFS_FS_MAGIC = 0x62656572;
 
 __attribute__((visibility("hidden"))) static const char *deck_listing_dir() {
+  if (!env_ready()) return nullptr;
   static const char *dir = getenv("FAKE_DECK_SYSFS_LISTING");
   return dir && *dir ? dir : nullptr;
 }
@@ -2469,7 +2551,7 @@ __attribute__((visibility("hidden"))) static void note_deck_sysfs(const char *ho
 }
 
 EXPORT int fstatfs(int fd, struct statfs *buf) {
-  static auto real = reinterpret_cast<int (*)(int, struct statfs *)>(dlsym(RTLD_NEXT, "fstatfs"));
+  const auto real = next_symbol<int (*)(int, struct statfs *)>(Next::fstatfs);
   int result = real(fd, buf);
   if (fake_deck_enabled() && is_deck_sysfs_fd(fd)) {
     note_deck_sysfs("fstatfs", result);
@@ -2479,7 +2561,7 @@ EXPORT int fstatfs(int fd, struct statfs *buf) {
 }
 
 EXPORT int statfs(const char *path, struct statfs *buf) {
-  static auto real = reinterpret_cast<int (*)(const char *, struct statfs *)>(dlsym(RTLD_NEXT, "statfs"));
+  const auto real = next_symbol<int (*)(const char *, struct statfs *)>(Next::statfs);
   int result = real(path, buf);
   if (fake_deck_enabled() && is_deck_sysfs_path(path)) {
     note_deck_sysfs(path, result);
@@ -2528,7 +2610,7 @@ __attribute__((visibility("hidden"))) static int deck_imu_mode_change(const uint
 }
 
 __attribute__((visibility("hidden"))) static void publish_imu_mode(const DeckHidraw &deck, int mode) {
-  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  const auto my_open = next_symbol<int (*)(const char *, int, ...)>(Next::open);
   if (deck.mapping_size < FAKE_INPUT_RING_SIZE + DECK_IMU_BLOCK_SIZE) return;
   std::string path = get_ring_path_for_slot(0);
   int fd = path.empty() ? -1 : my_open(path.c_str(), O_WRONLY | O_CLOEXEC);
@@ -3037,7 +3119,7 @@ static int real_fstat(int fd, struct stat *buf);
 
 __attribute__((visibility("hidden"))) static bool deck_mount_id_from_fdinfo(
     int dirfd, const char *path, int flags, struct statx *buf) {
-  static auto real_openat = reinterpret_cast<decltype(&::openat)>(dlsym(RTLD_NEXT, "openat"));
+  const auto real_openat = next_symbol<decltype(&::openat)>(Next::openat);
   int target;
   if (!path || !*path) {
     if (!(flags & AT_EMPTY_PATH)) return false;
@@ -3075,7 +3157,7 @@ __attribute__((visibility("hidden"))) static bool deck_mount_id_from_fdinfo(
 }
 
 EXPORT int statx(int dirfd, const char *path, int flags, unsigned mask, struct statx *buf) {
-  static auto real = reinterpret_cast<decltype(&::statx)>(dlsym(RTLD_NEXT, "statx"));
+  const auto real = next_symbol<decltype(&::statx)>(Next::statx);
   int result = real(dirfd, path, flags, mask, buf);
   int saved_errno = errno;
   constexpr unsigned unique_mount_id = 0x4000;
@@ -3096,7 +3178,7 @@ EXPORT int statx(int dirfd, const char *path, int flags, unsigned mask, struct s
 #endif
 
 EXPORT DIR *opendir(const char *name) {
-  static auto real = reinterpret_cast<DIR *(*)(const char *)>(dlsym(RTLD_NEXT, "opendir"));
+  const auto real = next_symbol<DIR *(*)(const char *)>(Next::opendir);
   DIR *dir = real(name);
   if (!dir) {
     note_sys_failure(AT_FDCWD, name);
@@ -3126,7 +3208,7 @@ EXPORT int open(const char *pathname, int flags, ...) {
 
   va_end(va);
 
-  static auto my_open = reinterpret_cast<int (*)(const char *, int, ...)>(dlsym(RTLD_NEXT, "open"));
+  const auto my_open = next_symbol<int (*)(const char *, int, ...)>(Next::open);
 
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return open_uinput(flags);
   if (is_deck_hidraw_path(pathname)) return open_deck_hidraw(flags);
@@ -3204,7 +3286,7 @@ EXPORT int openat(int dirfd, const char *pathname, int flags, ...) {
 
   va_end(va);
 
-  static auto my_openat = reinterpret_cast<int (*)(int, const char *, int, ...)>(dlsym(RTLD_NEXT, "openat"));
+  const auto my_openat = next_symbol<int (*)(int, const char *, int, ...)>(Next::openat);
 
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return open_uinput(flags);
   if (is_deck_hidraw_path(pathname)) return open_deck_hidraw(flags);
@@ -3363,10 +3445,10 @@ static int fake_stat_fd(int fd, S *buf, Real real) {
 }
 
 static int real_stat(const char *pathname, struct stat *statbuf) {
-  static auto fn = reinterpret_cast<int (*)(const char *, struct stat *)>(dlsym(RTLD_NEXT, "stat"));
+  const auto fn = next_symbol<int (*)(const char *, struct stat *)>(Next::stat);
   if (fn) return fn(pathname, statbuf);
 #ifdef _STAT_VER
-  static auto xfn = reinterpret_cast<int (*)(int, const char *, struct stat *)>(dlsym(RTLD_NEXT, "__xstat"));
+  const auto xfn = next_symbol<int (*)(int, const char *, struct stat *)>(Next::xstat);
   if (xfn) return xfn(_STAT_VER, pathname, statbuf);
 #endif
   errno = ENOSYS;
@@ -3374,10 +3456,10 @@ static int real_stat(const char *pathname, struct stat *statbuf) {
 }
 
 static int real_fstat(int fd, struct stat *buf) {
-  static auto fn = reinterpret_cast<int (*)(int, struct stat *)>(dlsym(RTLD_NEXT, "fstat"));
+  const auto fn = next_symbol<int (*)(int, struct stat *)>(Next::fstat);
   if (fn) return fn(fd, buf);
 #ifdef _STAT_VER
-  static auto xfn = reinterpret_cast<int (*)(int, int, struct stat *)>(dlsym(RTLD_NEXT, "__fxstat"));
+  const auto xfn = next_symbol<int (*)(int, int, struct stat *)>(Next::fxstat);
   if (xfn) return xfn(_STAT_VER, fd, buf);
 #endif
   errno = ENOSYS;
@@ -3393,7 +3475,7 @@ EXPORT int fstat(int fd, struct stat *buf) {
 }
 
 EXPORT int access(const char *pathname, int mode) {
-  static auto my_access = reinterpret_cast<decltype(&::access)>(dlsym(RTLD_NEXT, "access"));
+  const auto my_access = next_symbol<decltype(&::access)>(Next::access);
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
   if (is_deck_hidraw_path(pathname) && process_reads_pads()) return 0;
   if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname) || sony_pad_path(pathname)) &&
@@ -3434,7 +3516,7 @@ EXPORT int access(const char *pathname, int mode) {
 }
 
 EXPORT int faccessat(int dirfd, const char *pathname, int mode, int flags) {
-  static auto my_faccessat = reinterpret_cast<decltype(&::faccessat)>(dlsym(RTLD_NEXT, "faccessat"));
+  const auto my_faccessat = next_symbol<decltype(&::faccessat)>(Next::faccessat);
   if (fake_uinput_enabled() && is_uinput_path(pathname)) return 0;
   if (is_deck_hidraw_path(pathname) && process_reads_pads()) return 0;
   if ((is_triton_hidraw_path(pathname) || is_triton_pad_path(pathname) || sony_pad_path(pathname)) &&
@@ -3478,7 +3560,7 @@ EXPORT int scandir(const char *dirp, struct dirent ***namelist,
                    int (*filter)(const struct dirent *),
                    int (*compar)(const struct dirent **,
                                  const struct dirent **)) {
-  static auto my_scandir = reinterpret_cast<decltype(&::scandir)>(dlsym(RTLD_NEXT, "scandir"));
+  const auto my_scandir = next_symbol<decltype(&::scandir)>(Next::scandir);
 
   if (dirp) {
     if (!strcmp(dirp, "/dev/input")) {
@@ -3492,7 +3574,7 @@ EXPORT int scandir(const char *dirp, struct dirent ***namelist,
 }
 
 EXPORT int inotify_add_watch(int fd, const char *pathname, uint32_t mask) {
-  static auto my_inotify_add_watch = reinterpret_cast<decltype(&::inotify_add_watch)>(dlsym(RTLD_NEXT, "inotify_add_watch"));
+  const auto my_inotify_add_watch = next_symbol<decltype(&::inotify_add_watch)>(Next::inotify_add_watch);
 
   char *fake_path = nullptr;
   if (pathname) {
@@ -3631,7 +3713,7 @@ static bool wait_snapshot(std::shared_ptr<FakeController> fake,
 
 static int forward_ioctl(int fd, ioctl_request_t op, void *argp) {
   using ioctl_fn = int (*)(int, ioctl_request_t, ...);
-  static const auto next = reinterpret_cast<ioctl_fn>(dlsym(RTLD_NEXT, "ioctl"));
+  const auto next = next_symbol<ioctl_fn>(Next::ioctl);
   return next ? next(fd, op, argp) : static_cast<int>(syscall(SYS_ioctl, fd, op, argp));
 }
 
@@ -3689,6 +3771,10 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
     id.bustype = 0x03;
     if (made) {
       id = made->id;
+      if (steam_pad_as_x360() && id.vendor == STEAM_VIRTUAL_VENDOR_ID && id.product == STEAM_VIRTUAL_PRODUCT_ID) {
+        id.vendor = X360_VENDOR_ID;
+        id.product = X360_PRODUCT_ID;
+      }
     } else if (presents_steam_virtual()) {
       id.vendor = STEAM_VIRTUAL_VENDOR_ID;
       id.product = STEAM_VIRTUAL_PRODUCT_ID;
@@ -3866,7 +3952,7 @@ EXPORT int ioctl(int fd, ioctl_request_t op, ...) {
 }
 
 EXPORT int close(int fd) {
-  static auto my_close = reinterpret_cast<decltype(&::close)>(dlsym(RTLD_NEXT, "close"));
+  const auto my_close = next_symbol<decltype(&::close)>(Next::close);
 
   if (!watched(fd)) return my_close(fd);
   close_uinput(fd);
@@ -4054,7 +4140,7 @@ EXPORT ssize_t readv(int fd, const struct iovec *iov, int iovcnt) {
 }
 
 EXPORT ssize_t write(int fd, const void *buf, size_t count) {
-  static auto my_write = reinterpret_cast<decltype(&::write)>(dlsym(RTLD_NEXT, "write"));
+  const auto my_write = next_symbol<decltype(&::write)>(Next::write);
 
   if (!watched(fd)) return my_write(fd, buf, count);
   std::unique_lock<std::recursive_mutex> guard(controller_mutex());
@@ -4129,8 +4215,8 @@ EXPORT ssize_t writev(int fd, const struct iovec *iov, int iovcnt) {
 
 static int poll_fake(struct pollfd *fds, nfds_t nfds, int timeout,
                      const sigset_t *sigmask) {
-  static auto my_poll = reinterpret_cast<decltype(&::poll)>(dlsym(RTLD_NEXT, "poll"));
-  static auto my_ppoll = reinterpret_cast<decltype(&::ppoll)>(dlsym(RTLD_NEXT, "ppoll"));
+  const auto my_poll = next_symbol<decltype(&::poll)>(Next::poll);
+  const auto my_ppoll = next_symbol<decltype(&::ppoll)>(Next::ppoll);
 
   nfds_t first = 0;
   while (first < nfds && !watched(fds[first].fd)) first++;
@@ -4234,7 +4320,7 @@ EXPORT int poll(struct pollfd *fds, nfds_t nfds, int timeout) {
 
 EXPORT int ppoll(struct pollfd *fds, nfds_t nfds,
                  const struct timespec *timeout, const sigset_t *sigmask) {
-  static auto my_ppoll = reinterpret_cast<decltype(&::ppoll)>(dlsym(RTLD_NEXT, "ppoll"));
+  const auto my_ppoll = next_symbol<decltype(&::ppoll)>(Next::ppoll);
   if (timeout && (timeout->tv_sec < 0 || timeout->tv_nsec < 0 || timeout->tv_nsec >= 1000000000L)) {
     errno = EINVAL;
     return -1;
@@ -4261,7 +4347,7 @@ EXPORT int ppoll(struct pollfd *fds, nfds_t nfds,
 
 EXPORT int select(int nfds, fd_set *readfds, fd_set *writefds,
                   fd_set *exceptfds, struct timeval *timeout) {
-  static auto my_select = reinterpret_cast<decltype(&::select)>(dlsym(RTLD_NEXT, "select"));
+  const auto my_select = next_symbol<decltype(&::select)>(Next::select);
 
   fd_set original_readfds;
   fd_set original_writefds;
@@ -4423,10 +4509,10 @@ EXPORT int openat64(int dirfd, const char *pathname, int flags, ...) {
 }
 
 static int real_stat64(const char *pathname, struct stat64 *statbuf) {
-  static auto fn = reinterpret_cast<int (*)(const char *, struct stat64 *)>(dlsym(RTLD_NEXT, "stat64"));
+  const auto fn = next_symbol<int (*)(const char *, struct stat64 *)>(Next::stat64);
   if (fn) return fn(pathname, statbuf);
 #ifdef _STAT_VER
-  static auto xfn = reinterpret_cast<int (*)(int, const char *, struct stat64 *)>(dlsym(RTLD_NEXT, "__xstat64"));
+  const auto xfn = next_symbol<int (*)(int, const char *, struct stat64 *)>(Next::xstat64);
   if (xfn) return xfn(_STAT_VER, pathname, statbuf);
 #endif
   errno = ENOSYS;
@@ -4434,10 +4520,10 @@ static int real_stat64(const char *pathname, struct stat64 *statbuf) {
 }
 
 static int real_fstat64(int fd, struct stat64 *buf) {
-  static auto fn = reinterpret_cast<int (*)(int, struct stat64 *)>(dlsym(RTLD_NEXT, "fstat64"));
+  const auto fn = next_symbol<int (*)(int, struct stat64 *)>(Next::fstat64);
   if (fn) return fn(fd, buf);
 #ifdef _STAT_VER
-  static auto xfn = reinterpret_cast<int (*)(int, int, struct stat64 *)>(dlsym(RTLD_NEXT, "__fxstat64"));
+  const auto xfn = next_symbol<int (*)(int, int, struct stat64 *)>(Next::fxstat64);
   if (xfn) return xfn(_STAT_VER, fd, buf);
 #endif
   errno = ENOSYS;
@@ -4453,27 +4539,27 @@ EXPORT int fstat64(int fd, struct stat64 *buf) {
 }
 
 EXPORT int __xstat(int version, const char *pathname, struct stat *statbuf) {
-  static auto real = reinterpret_cast<int (*)(int, const char *, struct stat *)>(dlsym(RTLD_NEXT, "__xstat"));
+  const auto real = next_symbol<int (*)(int, const char *, struct stat *)>(Next::xstat);
   if (!real) return stat(pathname, statbuf);
-  return fake_stat_path(pathname, statbuf, [version](const char *path, struct stat *buf) { return real(version, path, buf); });
+  return fake_stat_path(pathname, statbuf, [version, real](const char *path, struct stat *buf) { return real(version, path, buf); });
 }
 
 EXPORT int __xstat64(int version, const char *pathname, struct stat64 *statbuf) {
-  static auto real = reinterpret_cast<int (*)(int, const char *, struct stat64 *)>(dlsym(RTLD_NEXT, "__xstat64"));
+  const auto real = next_symbol<int (*)(int, const char *, struct stat64 *)>(Next::xstat64);
   if (!real) return stat64(pathname, statbuf);
-  return fake_stat_path(pathname, statbuf, [version](const char *path, struct stat64 *buf) { return real(version, path, buf); });
+  return fake_stat_path(pathname, statbuf, [version, real](const char *path, struct stat64 *buf) { return real(version, path, buf); });
 }
 
 EXPORT int __fxstat(int version, int fd, struct stat *buf) {
-  static auto real = reinterpret_cast<int (*)(int, int, struct stat *)>(dlsym(RTLD_NEXT, "__fxstat"));
+  const auto real = next_symbol<int (*)(int, int, struct stat *)>(Next::fxstat);
   if (!real) return fstat(fd, buf);
-  return fake_stat_fd(fd, buf, [version](int f, struct stat *b) { return real(version, f, b); });
+  return fake_stat_fd(fd, buf, [version, real](int f, struct stat *b) { return real(version, f, b); });
 }
 
 EXPORT int __fxstat64(int version, int fd, struct stat64 *buf) {
-  static auto real = reinterpret_cast<int (*)(int, int, struct stat64 *)>(dlsym(RTLD_NEXT, "__fxstat64"));
+  const auto real = next_symbol<int (*)(int, int, struct stat64 *)>(Next::fxstat64);
   if (!real) return fstat64(fd, buf);
-  return fake_stat_fd(fd, buf, [version](int f, struct stat64 *b) { return real(version, f, b); });
+  return fake_stat_fd(fd, buf, [version, real](int f, struct stat64 *b) { return real(version, f, b); });
 }
 
 #if defined(__x86_64__) || defined(__i386__)
@@ -4487,18 +4573,37 @@ static const char *const interposed_names[] = {
 };
 
 static dlsym_fn next_dlsym() {
-  static const dlsym_fn fn = [] {
+  static std::atomic<dlsym_fn> fn{nullptr};
+  static std::atomic<bool> resolved{false};
+  if (!resolved.load(std::memory_order_acquire)) {
 #ifdef __x86_64__
     const char *base = "GLIBC_2.2.5";
 #else
     const char *base = "GLIBC_2.0";
 #endif
+    dlsym_fn found{};
     for (const char *version : {base, "GLIBC_2.34"}) {
-      if (auto found = reinterpret_cast<dlsym_fn>(dlvsym(RTLD_NEXT, "dlsym", version))) return found;
+      if ((found = reinterpret_cast<dlsym_fn>(dlvsym(RTLD_NEXT, "dlsym", version)))) break;
     }
-    return dlsym_fn{};
-  }();
-  return fn;
+    fn.store(found, std::memory_order_relaxed);
+    resolved.store(true, std::memory_order_release);
+  }
+  return fn.load(std::memory_order_relaxed);
+}
+
+static void *libc_handle() {
+  static std::atomic<void *> handle{nullptr};
+  static std::atomic<bool> resolved{false};
+  if (!resolved.load(std::memory_order_acquire)) {
+    handle.store(dlopen(LIBC_SO, RTLD_LAZY | RTLD_NOLOAD), std::memory_order_relaxed);
+    resolved.store(true, std::memory_order_release);
+  }
+  return handle.load(std::memory_order_relaxed);
+}
+
+__attribute__((constructor)) static void resolve_dlsym_targets() {
+  next_dlsym();
+  libc_handle();
 }
 
 static void *global_dlsym(void *, const char *name) { return next_dlsym()(RTLD_DEFAULT, name); }
@@ -4516,8 +4621,7 @@ extern "C" __attribute__((visibility("hidden"), used)) void *fakeinput_dlsym_tar
   dlsym_fn next = next_dlsym();
   if (!next) return reinterpret_cast<void *>(missing_dlsym);
   if (handle == RTLD_DEFAULT || handle == RTLD_NEXT || name == nullptr) return reinterpret_cast<void *>(next);
-  static void *const libc = dlopen(LIBC_SO, RTLD_LAZY | RTLD_NOLOAD);
-  if (handle != libc || !interposed(name)) return reinterpret_cast<void *>(next);
+  if (handle != libc_handle() || !interposed(name)) return reinterpret_cast<void *>(next);
   return reinterpret_cast<void *>(global_dlsym);
 }
 

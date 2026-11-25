@@ -2714,6 +2714,7 @@
     <string name="stores_login_error_ssl">Yhteys kirjautumissivulle ei ole suojattu.</string>
     <string name="stores_login_error_verification">Kirjautumista ei voitu vahvistaa. Yritä uudelleen.</string>
     <string name="stores_login_error_generic">Kirjautuminen epäonnistui. Yritä uudelleen.</string>
+    <string name="stores_login_continue_in_browser">%1$s vaatii vielä yhden vaiheen. Viimeistele se avautuneessa selaimessa ja yritä sitten uudelleen.</string>
     <string name="common_close">Sulje</string>
     <string name="common_back">Takaisin</string>
     <string name="common_edit">Muokkaa</string>
@@ -3098,7 +3099,7 @@
     <string name="hand_camera_done">Valmis</string>
     <string name="glasses_xreal_network_missing">Odotetaan lasien USB-Ethernet-yhteyttä. Tämä puhelin ei ehkä tarjoa sitä sovelluksille.</string>
     <string name="glasses_xreal_connection_failed">XREAL-yhteys katkesi tai palautti vastauksen, jota ei tueta. Yritetään uudelleen…</string>
-    <string name="glasses_xreal_experimental">Kokeellinen 1S-tuki. Käytä Follow-tilaa ja poista vakautus käytöstä lasien valikosta. Seurannan suunnat ja näyttötilat vaativat vielä testausta laitteella.</string>
+    <string name="glasses_xreal_experimental">Kokeellinen tuki XREAL 1S-, One-, One Pro-, One Pro+- ja Aura-laseille. Käytä Follow-tilaa ja poista vakautus käytöstä lasien valikosta. Poista Aura-laseissa myös Spatial Anchor käytöstä. Päänseuranta ja 2D/3D-vaihto on testattu Aura- ja One Pro+ -laseilla.</string>
     <string name="glasses_pro2_experimental">Kokeellinen päänliikkeiden seuranta Pro 2:lle. Kirkkauden ja äänenvoimakkuuden säätöä sekä näyttötilan vaihtamista ei vielä tueta.</string>
     <string name="cardboard_title">Cardboard VR</string>
     <string name="cardboard_mode">Cardboard-tila</string>
@@ -4077,4 +4078,6 @@
     <string name="theme_custom_signal">Korostukset</string>
     <string name="theme_custom_good">Onnistuminen</string>
     <string name="theme_custom_error">Virhe</string>
+    <string name="hud_only_during_game">Näytä HUD vain pelin aikana</string>
+    <string name="hud_only_during_game_hint">Piilota HUD, kun pelin ruutuja ei havaita.</string>
 </resources>

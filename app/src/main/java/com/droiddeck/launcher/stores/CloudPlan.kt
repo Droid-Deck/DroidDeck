@@ -36,13 +36,14 @@ object CloudPlan {
         return Plan(transfer, conflicts, same)
     }
 
-    fun up(local: Map<String, Local>, remote: Map<String, Remote>, baseline: Map<String, Entry>?): Plan {
+    fun up(local: Map<String, Local>, remote: Map<String, Remote>, baseline: Map<String, Entry>?, deleted: Set<String> = emptySet()): Plan {
         if (baseline == null) return Plan(emptyList(), emptyList(), emptyList(), refused = "no-baseline")
         val transfer = ArrayList<String>(); val conflicts = ArrayList<String>(); val same = ArrayList<String>()
         for ((name, l) in local) {
             val r = remote[name]
             val b = baseline[name]
             when {
+                r == null && name in deleted && !localChanged(l, b) -> Unit
                 r == null -> transfer += name
                 same(l, r) -> same += name
                 localChanged(l, b) && cloudChanged(r, b) -> conflicts += name
