@@ -129,6 +129,23 @@ class OnScreenLayoutTest {
         assertEquals(mapOf("ls" to (.12f to .7f)), ControllerPrefs.layout(context, w, h))
     }
 
+    @Test fun enlargedDockedControlsStayInsideSafeAreaAndKeepShoulderGaps() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val w = 1080
+        val h = 200
+        val safe = Rect(20, 0, 20, 24)
+        ControllerPrefs.setLayout(context, w, h, mapOf("ls" to (.12f to .7f)))
+        ControllerPrefs.setSize(context, 125)
+        val placed = OnScreenLayout.elements(context, gamepad(), w, h, safe, dock = OnScreenLayout.Dock(false, false))
+        assertInside(placed, w, h, safe)
+        for ((left, right) in listOf(InputControl.LT to InputControl.LB, InputControl.RB to InputControl.RT)) {
+            val a = placed.single { it.control == left }
+            val b = placed.single { it.control == right }
+            assertTrue("$left should remain left of $right", a.x + a.width <= b.x)
+            assertTrue("$left and $right should retain a gap", (b.x - a.x - a.width) * w >= 3.5f)
+        }
+    }
+
     @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
     fun aBuiltInGamepadSavedAtTheDisplaySizeRegeneratesForTheMeasuredSurface() {
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
