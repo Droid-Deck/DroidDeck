@@ -27,9 +27,9 @@ internal object DeveloperTools {
 internal object NavTabs {
     const val MORE = "more"
     val ALL = listOf("steam", "desktop", "games", "downloads", "setup", "updates", "stores", "soundtracks", "components", "storage", "sync", "decky", "boot-movies", "android-apps", "agent")
-    val DEFAULT_SHELVED = setOf("soundtracks", "components", "storage", "sync", "decky", "boot-movies", "android-apps", "agent")
+    val DEFAULT_SHELVED = setOf("soundtracks", "components", "storage", "sync", "decky", "boot-movies", "agent")
     val DEFAULT_HIDDEN = setOf("android-apps", "agent")
-    private val SHELVED_WHEN_NEW = setOf("storage", "sync", "decky", "boot-movies", "android-apps", "agent")
+    private val SHELVED_WHEN_NEW = setOf("storage", "sync", "decky", "boot-movies", "agent")
     private val OLD_ORDER = listOf("steam", "games", "soundtracks", "stores", "downloads", "desktop", "agent", "components", "android-apps", "storage", "sync", "setup", "updates")
     private val OLD_SHELVED = setOf("soundtracks", "agent", "storage", "sync")
     private const val LAYOUT_VERSION = 2
@@ -93,6 +93,15 @@ internal object NavTabs {
     fun available(s: FrontEndState, key: String): Boolean = when (key) {
         "agent" -> AgentHost.available
         else -> true
+    }
+
+    // Apps only has content when DroidDeck is the home app, so it follows that state on each change and
+    // otherwise stays wherever the user put it.
+    fun syncHomeApps(context: Context, homeSelected: Boolean) {
+        val seen = SessionPrefs.appsTabHomeSeen(context)
+        SessionPrefs.setAppsTabHomeSeen(context, homeSelected)
+        if (seen == homeSelected || (seen == null && !homeSelected)) return
+        setHidden(context, "android-apps", !homeSelected)
     }
 
     fun hideable(key: String) = key != "setup"

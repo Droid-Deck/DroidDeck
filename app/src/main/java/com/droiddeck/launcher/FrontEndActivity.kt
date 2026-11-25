@@ -2384,6 +2384,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         homeScreenEnabled = HomeApp.isHomeScreenEnabled(this)
         homeAppSelected = homeScreenEnabled && HomeApp.isDefault(this)
         defaultHomeLabel = HomeApp.defaultLabel(this)
+        com.droiddeck.launcher.ui.NavTabs.syncHomeApps(this, homeAppSelected)
         refreshAndroidApps()
         integrationState = readIntegration()
     }
