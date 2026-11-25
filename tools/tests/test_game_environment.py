@@ -1,4 +1,5 @@
 import contextlib
+import fcntl
 import hashlib
 import io
 import json
@@ -11,6 +12,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 from unittest import mock
 import unittest
 from unittest.mock import patch
@@ -3840,6 +3842,24 @@ class SharedDataHealTest(unittest.TestCase):
         self.assertEqual(([".", "Vendor"], [".", "Vendor"]), self.heal())
         self.assertEqual(0o700, self.mode(self.root))
         self.assertEqual(0o700, self.mode(self.root / "Vendor"))
+
+    def test_a_heal_waits_while_another_launch_heals_the_same_prefix(self):
+        (self.root / "Vendor").mkdir()
+        self.own(self.root / "Vendor", self.STALE)
+        (self.root / "Vendor").chmod(0)
+        results = []
+        lock = os.open(self.compat / "pfx", os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            worker = threading.Thread(target=lambda: results.append(self.heal()))
+            worker.start()
+            worker.join(0.3)
+            self.assertTrue(worker.is_alive())
+            self.assertEqual(0, self.mode(self.root / "Vendor"))
+        finally:
+            os.close(lock)
+        worker.join(10)
+        self.assertEqual([(["Vendor"], ["Vendor"])], results)
 
     def test_user_sid_follows_wine_for_a_missing_or_short_machine_id(self):
         sid = MODULE["wine_user_sid"]

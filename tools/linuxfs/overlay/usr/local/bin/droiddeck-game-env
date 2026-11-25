@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import fcntl
 import hashlib
 import json
 import os
@@ -1221,6 +1222,18 @@ def heal_shared_data(prefix):
     root = Path(prefix) / SHARED_DATA
     if root.is_symlink() or not root.is_dir():
         return [], []
+    try:
+        lock = os.open(root.parent.parent, os.O_RDONLY | os.O_DIRECTORY)
+    except OSError:
+        return [], []
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return heal_shared_data_locked(root)
+    finally:
+        os.close(lock)
+
+
+def heal_shared_data_locked(root):
     user = wine_user_sid()
     unlocked = []
     cleared = []
