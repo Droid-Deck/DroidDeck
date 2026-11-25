@@ -297,10 +297,87 @@ static int relative_link_into_bind(const char *link, const char *target, const c
 // /sys/devices/droiddeck/...): proot follows them inside the guest, the kernel on Android's own /sys.
 // A link met on the way to a deeper path is replaced by its target, mapped again; the last component is
 // left as it is (lstat() and readlink() must see the link).
-static const char *resolve_bind_links(const char *host, size_t src_len, char *buffer, size_t bufsize) {
+#if defined(__aarch64__)
+static long raw_open_path(const char *path, long flags) {
+    register long x8 __asm__("x8") = 56;
+    register long x0 __asm__("x0") = AT_FDCWD;
+    register long x1 __asm__("x1") = (long)path;
+    register long x2 __asm__("x2") = flags | O_PATH | O_CLOEXEC;
+    register long x3 __asm__("x3") = 0;
+    __asm__ volatile("svc #0" : "+r"(x0) : "r"(x8), "r"(x1), "r"(x2), "r"(x3) : "memory");
+    return x0;
+}
+
+static void raw_close_fd(long fd) {
+    register long x8 __asm__("x8") = 57;
+    register long x0 __asm__("x0") = fd;
+    __asm__ volatile("svc #0" : "+r"(x0) : "r"(x8) : "memory");
+}
+
+static __thread const char *t_plain_host = NULL;
+static __thread size_t t_plain_len = 0;
+
+static int fd_is_at(long fd, const char *path, size_t len) {
+    char link[32] = "/proc/self/fd/";
+    char digits[24];
+    int nd = 0;
+    for (long v = fd; nd == 0 || v > 0; v /= 10) digits[nd++] = (char)('0' + v % 10);
+    size_t at = 14;
+    while (nd > 0) link[at++] = digits[--nd];
+    link[at] = '\0';
+    char real[PATH_MAX];
+    long n = raw_readlinkat(AT_FDCWD, link, real, sizeof(real));
+    return n == (long)len && memcmp(real, path, len) == 0;
+}
+
+static int dir_has_no_links(const char *host, size_t dir_len) {
+    char dir[PATH_MAX];
+    if (dir_len == 0 || dir_len >= sizeof(dir)) return 0;
+    memcpy(dir, host, dir_len);
+    dir[dir_len] = '\0';
+    long fd = raw_open_path(dir, O_DIRECTORY);
+    if (fd < 0) return 0;
+    int plain = fd_is_at(fd, dir, dir_len);
+    raw_close_fd(fd);
+    return plain;
+}
+
+static int path_has_no_links(const char *host, size_t len, size_t dir_len) {
+    t_plain_host = NULL;
+    long fd = raw_open_path(host, O_NOFOLLOW);
+    if (fd >= 0) {
+        char target[2];
+        int plain = fd_is_at(fd, host, len) && raw_readlinkat((int)fd, "", target, sizeof(target)) < 0;
+        raw_close_fd(fd);
+        if (plain) {
+            t_plain_host = host;
+            t_plain_len = len;
+            return 1;
+        }
+        return dir_has_no_links(host, dir_len);
+    }
+    if (!dir_has_no_links(host, dir_len)) return 0;
+    if (fd == -ENOENT) {
+        t_plain_host = host;
+        t_plain_len = len;
+    }
+    return 1;
+}
+
+static int known_plain(const char *host) {
+    int plain = t_plain_host == host && strlen(host) == t_plain_len;
+    t_plain_host = NULL;
+    return plain;
+}
+#endif
+
+static const char *resolve_links_after(const char *host, size_t src_len, char *buffer, size_t bufsize, int check_plain) {
 #if defined(__aarch64__)
     size_t len = strlen(host);
     if (len >= PATH_MAX || t_bind_link_depth >= 8) return host;
+    const char *last = strrchr(host, '/');
+    size_t dir_len = last ? (size_t)(last - host) : 0;
+    if (check_plain && dir_len > src_len && path_has_no_links(host, len, dir_len)) return host == buffer ? buffer : host;
     for (size_t i = src_len + 1; i < len; i++) {
         if (host[i] != '/') continue;
         char prefix[PATH_MAX];
@@ -324,9 +401,13 @@ static const char *resolve_bind_links(const char *host, size_t src_len, char *bu
         return buffer;
     }
 #else
-    (void)src_len; (void)bufsize;
+    (void)src_len; (void)bufsize; (void)check_plain;
 #endif
     return host == buffer ? buffer : host;
+}
+
+static const char *resolve_bind_links(const char *host, size_t src_len, char *buffer, size_t bufsize) {
+    return resolve_links_after(host, src_len, buffer, bufsize, 1);
 }
 
 // Wine opens every file through its prefix's drive link (dosdevices/z: -> /), so the link must be
@@ -335,7 +416,7 @@ static const char *resolve_bind_links(const char *host, size_t src_len, char *bu
 static const char *resolve_drive_links(const char *host, char *buffer, size_t bufsize) {
     const char *devices = strstr(host, "/dosdevices/");
     if (!devices) return host;
-    return resolve_bind_links(host, (size_t)(devices - host) + 11, buffer, bufsize);
+    return resolve_links_after(host, (size_t)(devices - host) + 11, buffer, bufsize, 0);
 }
 
 // Maps an absolute Ubuntu path into the rootfs. Returns `path` (possibly advanced past
@@ -455,17 +536,21 @@ static size_t link_root_guest_target(char *target, size_t len) {
 // view: the kernel resolves a relative target next to the link's real place, and in a mount that is
 // elsewhere (Flatpak's /run/user/0/wayland-0 -> ../../flatpak/wayland-0, where /run/flatpak/wayland-0
 // is another mount). Returns `path` when it is no link.
-static const char *follow_guest_link(const char *path, char *out, size_t outsz) {
+static const char *follow_guest_link_host(const char *path, char *out, size_t outsz, char *host_out, size_t host_outsz) {
 #if defined(__aarch64__)
     const char *cur = path;
     for (int depth = 0; depth < 8; depth++) {
         char host_buf[PATH_MAX];
+        t_plain_host = NULL;
         const char *host = rewrite_path_in_root(cur, host_buf, sizeof(host_buf));
         // /dev/stdin and /dev/fd are mounts of /proc/self/fd, whose links ("pipe:[123]") only the kernel opens
         if (strncmp(host, "/proc/", 6) == 0) return cur;
         char target[PATH_MAX];
-        long n = raw_readlinkat(AT_FDCWD, host, target, sizeof(target) - 1);
-        if (n <= 0) return cur;
+        long n = known_plain(host) ? -EINVAL : raw_readlinkat(AT_FDCWD, host, target, sizeof(target) - 1);
+        if (n <= 0) {
+            if (host_out && cur == path) ddnatv_copy_cstr(host_out, host_outsz, host);
+            return cur;
+        }
         target[n] = '\0';
         n = (long)link_root_guest_target(target, (size_t)n);
         char joined[PATH_MAX];
@@ -504,9 +589,13 @@ static const char *follow_guest_link(const char *path, char *out, size_t outsz) 
     }
     return cur;
 #else
-    (void)out; (void)outsz;
+    (void)out; (void)outsz; (void)host_out; (void)host_outsz;
     return path;
 #endif
+}
+
+static const char *follow_guest_link(const char *path, char *out, size_t outsz) {
+    return follow_guest_link_host(path, out, outsz, NULL, 0);
 }
 
 // On ENOENT, stat()/lstat()/readlink() retry /usr/bin <-> /bin and /usr/sbin <-> /sbin, for

@@ -805,7 +805,9 @@ static const char *rewrite_path_follow(const char *path, char *buffer, size_t bu
         path = from_source;
     }
     char guest[PATH_MAX];
-    const char *followed = follow_guest_link(path, guest, sizeof(guest));
+    buffer[0] = '\0';
+    const char *followed = follow_guest_link_host(path, guest, sizeof(guest), buffer, bufsize);
+    if (followed == path && buffer[0]) return buffer;
     char mapped[PATH_MAX];
     const char *host = rewrite_path_in_root(followed, mapped, sizeof(mapped));
     // the result may be `followed` or `path` itself, which can live here
