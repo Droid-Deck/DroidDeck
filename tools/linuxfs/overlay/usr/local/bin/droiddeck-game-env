@@ -1183,59 +1183,73 @@ def is_stale_owner(owner, user):
         and subs != user
 
 
+def heal_wine_entry(path, is_dir, user):
+    try:
+        mode = stat.S_IMODE(os.lstat(path).st_mode)
+    except OSError:
+        return None, False
+    readable = mode
+    if not mode & stat.S_IRUSR:
+        readable = mode | stat.S_IRUSR
+        try:
+            os.chmod(path, readable)
+        except OSError:
+            return None, False
+    final = mode
+    stale = is_stale_owner(wine_sd_owner(path), user)
+    cleared = False
+    if stale and (not mode & stat.S_IRUSR or is_dir and not mode & stat.S_IXUSR):
+        final = mode | (stat.S_IRWXU if is_dir else stat.S_IRUSR | stat.S_IWUSR)
+    try:
+        if stale:
+            os.chmod(path, final | stat.S_IWUSR)
+            try:
+                os.removexattr(path, WINE_SD, follow_symlinks=False)
+                cleared = True
+            except OSError:
+                pass
+            if not final & stat.S_IWUSR:
+                os.chmod(path, final)
+        elif final != readable:
+            os.chmod(path, final)
+    except OSError:
+        return None, cleared
+    return (mode, final), cleared
+
+
 def heal_shared_data(prefix):
     root = Path(prefix) / SHARED_DATA
+    if root.is_symlink() or not root.is_dir():
+        return [], []
     user = wine_user_sid()
     unlocked = []
     cleared = []
-    folders = [root]
-    while folders:
-        folder = folders.pop()
+    pending = [(str(root), True)]
+    while pending:
+        path, is_dir = pending.pop()
+        modes, was_cleared = heal_wine_entry(path, is_dir, user)
+        name = os.path.relpath(path, root)
+        if was_cleared:
+            cleared.append(name)
+        if modes is None:
+            continue
+        mode, final = modes
+        if final != mode:
+            unlocked.append(name)
+        if not is_dir or final & (stat.S_IRUSR | stat.S_IXUSR) != stat.S_IRUSR | stat.S_IXUSR:
+            continue
         try:
-            with os.scandir(folder) as entries:
-                children = list(entries)
+            with os.scandir(path) as entries:
+                for entry in entries:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            pending.append((entry.path, True))
+                        elif entry.is_file(follow_symlinks=False):
+                            pending.append((entry.path, False))
+                    except OSError:
+                        continue
         except OSError:
             continue
-        for entry in children:
-            try:
-                is_dir = entry.is_dir(follow_symlinks=False)
-                if not is_dir and not entry.is_file(follow_symlinks=False):
-                    continue
-                mode = stat.S_IMODE(entry.stat(follow_symlinks=False).st_mode)
-            except OSError:
-                continue
-            readable = mode
-            if not mode & stat.S_IRUSR:
-                readable = mode | stat.S_IRUSR
-                try:
-                    os.chmod(entry.path, readable)
-                except OSError:
-                    continue
-            final = mode
-            stale = is_stale_owner(wine_sd_owner(entry.path), user)
-            if stale:
-                if is_dir:
-                    final = mode | stat.S_IRWXU
-                elif not mode & stat.S_IRUSR:
-                    final = mode | stat.S_IRUSR | stat.S_IWUSR
-            try:
-                if stale:
-                    os.chmod(entry.path, final | stat.S_IWUSR)
-                    try:
-                        os.removexattr(entry.path, WINE_SD, follow_symlinks=False)
-                        cleared.append(os.path.relpath(entry.path, root))
-                    except OSError:
-                        pass
-                    if not final & stat.S_IWUSR:
-                        os.chmod(entry.path, final)
-                elif final != readable:
-                    os.chmod(entry.path, final)
-            except OSError:
-                continue
-            if final != mode:
-                unlocked.append(os.path.relpath(entry.path, root))
-            if is_dir and final & (stat.S_IRUSR | stat.S_IXUSR) == stat.S_IRUSR | stat.S_IXUSR:
-                folders.append(entry.path)
     return sorted(unlocked), sorted(cleared)
 
 

@@ -3776,22 +3776,25 @@ class SharedDataHealTest(unittest.TestCase):
         (agent / "Logs").mkdir(parents=True)
         (agent / "Agent.dat").write_text("1")
         (agent / "Tools.exe").write_text("x")
-        for path in (agent.parent, agent, agent / "Logs", agent / "Agent.dat", agent / "Tools.exe"):
+        (agent / "Icons").mkdir()
+        for path in (agent.parent, agent, agent / "Logs", agent / "Agent.dat", agent / "Tools.exe", agent / "Icons"):
             self.own(path, self.STALE)
         (agent / "Tools.exe").chmod(0o550)
+        (agent / "Icons").chmod(0o500)
         (agent / "Agent.dat").chmod(0)
         (agent / "Logs").chmod(0)
         agent.chmod(0)
         self.assertEqual((["Vendor/Agent", "Vendor/Agent/Agent.dat", "Vendor/Agent/Logs"],
-                          ["Vendor", "Vendor/Agent", "Vendor/Agent/Agent.dat", "Vendor/Agent/Logs",
-                           "Vendor/Agent/Tools.exe"]), self.heal())
+                          ["Vendor", "Vendor/Agent", "Vendor/Agent/Agent.dat", "Vendor/Agent/Icons",
+                           "Vendor/Agent/Logs", "Vendor/Agent/Tools.exe"]), self.heal())
+        self.assertEqual(0o500, self.mode(agent / "Icons"))
         self.assertEqual(0o700, self.mode(agent))
         self.assertEqual(0o700, self.mode(agent / "Logs"))
         self.assertEqual(0o600, self.mode(agent / "Agent.dat"))
         self.assertEqual(0o550, self.mode(agent / "Tools.exe"))
         self.assertEqual("1", (agent / "Agent.dat").read_text())
         (agent / "Logs/new").mkdir()
-        for path in (agent.parent, agent, agent / "Logs", agent / "Agent.dat", agent / "Tools.exe"):
+        for path in (agent.parent, agent, agent / "Logs", agent / "Agent.dat", agent / "Tools.exe", agent / "Icons"):
             self.assertNotIn("user.wine.sd", os.listxattr(path))
         self.assertEqual(([], []), self.heal())
 
@@ -3827,6 +3830,16 @@ class SharedDataHealTest(unittest.TestCase):
         self.assertEqual(0o500, self.mode(outside))
         for path in (mine, mine / "settings.ini", admins, outside):
             self.assertIn("user.wine.sd", os.listxattr(path))
+
+    def test_a_locked_program_data_folder_is_healed_before_its_entries(self):
+        (self.root / "Vendor").mkdir()
+        self.own(self.root / "Vendor", self.STALE)
+        (self.root / "Vendor").chmod(0)
+        self.own(self.root, self.STALE)
+        self.root.chmod(0)
+        self.assertEqual(([".", "Vendor"], [".", "Vendor"]), self.heal())
+        self.assertEqual(0o700, self.mode(self.root))
+        self.assertEqual(0o700, self.mode(self.root / "Vendor"))
 
     def test_user_sid_follows_wine_for_a_missing_or_short_machine_id(self):
         sid = MODULE["wine_user_sid"]
