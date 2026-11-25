@@ -78,17 +78,50 @@ object OnScreenLayout {
     }
 
     private fun scaleDocked(elements: List<InputSurfaceElement>, scale: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {
-        if (scale == 1f) return elements
-        return elements.map { element ->
+        val usableWidth = (width - safe.left - safe.right).coerceAtLeast(1).toFloat() / width
+        val usableHeight = (height - safe.top - safe.bottom).coerceAtLeast(1).toFloat() / height
+        val leftBound = safe.left.toFloat() / width
+        val rightBound = (width - safe.right).toFloat() / width
+        val topBound = safe.top.toFloat() / height
+        val bottomBound = (height - safe.bottom).toFloat() / height
+        val scaled = elements.map { element ->
             if (!isGamepad(element)) return@map element
-            val w = (element.width * scale).coerceIn(.001f, 1f)
-            val h = (element.height * scale).coerceIn(.001f, 1f)
+            val w = (element.width * scale).coerceIn(.001f, usableWidth)
+            val h = (element.height * scale).coerceIn(.001f, usableHeight)
             val x = (element.x + element.width / 2f - w / 2f)
-                .coerceIn(safe.left / width.toFloat(), (width - safe.right).toFloat() / width - w)
+                .coerceIn(leftBound, (rightBound - w).coerceAtLeast(leftBound))
             val y = (element.y + element.height / 2f - h / 2f)
-                .coerceIn(safe.top / height.toFloat(), (height - safe.bottom).toFloat() / height - h)
+                .coerceIn(topBound, (bottomBound - h).coerceAtLeast(topBound))
             element.copy(x = x, y = y, width = w, height = h).bounded()
+        }.toMutableList()
+        if (scale != 1f) {
+            val gap = 4f * (width.toFloat() / width) / width
+            fun spacePair(leftControl: InputControl, rightControl: InputControl) {
+                val li = scaled.indexOfFirst { it.control == leftControl }
+                val ri = scaled.indexOfFirst { it.control == rightControl }
+                if (li < 0 || ri < 0) return
+                var left = scaled[li]
+                var right = scaled[ri]
+                val available = (rightBound - leftBound).coerceAtLeast(.001f)
+                var gapSize = gap.coerceAtMost(available / 4f)
+                if (left.width + right.width + gapSize > available) {
+                    val factor = ((available - gapSize).coerceAtLeast(.002f) / (left.width + right.width)).coerceAtMost(1f)
+                    left = left.copy(width = left.width * factor)
+                    right = right.copy(width = right.width * factor)
+                }
+                val total = left.width + gapSize + right.width
+                val center = ((left.x + left.width / 2f) + (right.x + right.width / 2f)) / 2f
+                val start = (center - total / 2f).coerceIn(leftBound, (rightBound - total).coerceAtLeast(leftBound))
+                val leftIsFirst = leftControl == InputControl.LT
+                val first = left.copy(x = start)
+                val second = right.copy(x = start + left.width + gapSize)
+                scaled[li] = if (leftIsFirst) first else second
+                scaled[ri] = if (leftIsFirst) second else first
+            }
+            spacePair(InputControl.LT, InputControl.LB)
+            spacePair(InputControl.RB, InputControl.RT)
         }
+        return scaled
     }
 
     fun oriented(layout: SavedInputLayout, width: Int, height: Int): SavedInputLayout = oriented(layout, height > width)
