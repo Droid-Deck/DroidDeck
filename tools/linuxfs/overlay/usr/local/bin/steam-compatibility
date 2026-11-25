@@ -1800,6 +1800,7 @@ def main():
         build_tool(os.path.join(tools, name), depot, sources, name)
         print("steam-compatibility: registered %s (%s)" % (
             name, "depot %s present" % os.path.basename(depot) if depot else
+            "no ARM64 Proton depot yet; fetched when a title needs it" if valve_proton_on_demand() else
             "no ARM64 Proton depot yet; the session asks the client to fetch it"))
     build_fex_tool(os.path.join(tools, FEX_TOOL))
     print("steam-compatibility: registered %s" % FEX_TOOL)
