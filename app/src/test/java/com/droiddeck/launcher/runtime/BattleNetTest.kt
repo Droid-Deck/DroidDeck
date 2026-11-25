@@ -236,6 +236,21 @@ class BattleNetTest {
         assertNull(BattleNet.hostFolder(context, "D:\\..\\etc"))
     }
 
+    @Test fun aDriveAtAnAliasOfTheAppDataFolderListsTheGameUnderTheRuntimePath() {
+        val root = LinuxRuntime.rootDir(context)
+        val data = context.filesDir.parentFile!!
+        val alias = File(data.parentFile, "alias-" + data.name)
+        java.nio.file.Files.createSymbolicLink(alias.toPath(), data.absoluteFile.toPath())
+        try {
+            val devices = File(BattleNet.prefix(context), "pfx/dosdevices").apply { mkdirs() }
+            java.nio.file.Files.createSymbolicLink(File(devices, "d:").toPath(), alias.absoluteFile.toPath())
+            val game = File(root, "root/Games/Stores/Battle.net/StarCraft").apply { mkdirs() }
+            val drive = "D:\\" + data.absoluteFile.toPath().relativize(game.absoluteFile.toPath()).joinToString("\\")
+            assertEquals(game.path, BattleNet.hostFolder(context, drive)?.path)
+        } finally {
+            java.nio.file.Files.delete(alias.toPath())
+        }
+    }
 
     @Test fun wowForeverIsListedBesideRetailInTheSharedWorldOfWarcraftFolder() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
@@ -292,6 +307,21 @@ class BattleNetTest {
         assertEquals(mapOf("WoW" to root, "WoWC" to root),
             BattleNet.ownFolders(linkedMapOf("WoW" to (wow to root), "WoWC" to (classic to root)), mapOf("WoW" to null, "WoWC" to null)))
         assertEquals(mapOf("WoWF" to root), BattleNet.ownFolders(mapOf("WoWF" to (forever to root)), mapOf("WoWF" to "/elsewhere")))
+    }
+
+    @Test fun aFolderSavedThroughAnAliasOfTheAppDataFolderIsKept() {
+        val data = context.filesDir.parentFile!!
+        val root = File(context.filesDir, "World of Warcraft").apply { mkdirs() }
+        val foreverDir = File(root, "_forever_").apply { mkdirs() }
+        val forever = BattleNet.title("wow_forever")!!
+        val alias = File(data.parentFile, "alias-" + data.name)
+        java.nio.file.Files.createSymbolicLink(alias.toPath(), data.absoluteFile.toPath())
+        try {
+            val saved = File(alias, data.absoluteFile.toPath().relativize(foreverDir.absoluteFile.toPath()).toString()).path
+            assertEquals(mapOf("WoWF" to foreverDir), BattleNet.ownFolders(mapOf("WoWF" to (forever to root)), mapOf("WoWF" to saved)))
+        } finally {
+            java.nio.file.Files.delete(alias.toPath())
+        }
     }
 
     @Test fun theListedFolderIsRememberedAcrossScans() {

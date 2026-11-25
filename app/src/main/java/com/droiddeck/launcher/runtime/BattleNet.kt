@@ -207,7 +207,8 @@ object BattleNet {
         val taken = HashSet<File>()
         fun options(title: Title, folder: File) = listOfNotNull(folder, title.flavor?.let { File(folder, it) }?.takeIf { it.isDirectory })
         for ((code, game) in games) {
-            val keep = saved[code]?.let(::File)?.takeIf { it in options(game.first, game.second) && it !in taken } ?: continue
+            val want = saved[code]?.let { runCatching { File(it).canonicalFile }.getOrNull() } ?: continue
+            val keep = options(game.first, game.second).firstOrNull { runCatching { it.canonicalFile }.getOrNull() == want }?.takeIf { it !in taken } ?: continue
             out[code] = keep
             taken.add(keep)
         }
@@ -245,9 +246,12 @@ object BattleNet {
             }
         }.trimEnd('/')
         if (mapped?.startsWith("/") == true) {
-            val host = File("$target/$relative")
             val rootfs = LinuxRuntime.rootDir(context)
-            if (runCatching { host.canonicalFile.startsWith(rootfs.canonicalFile) }.getOrDefault(false)) return host
+            runCatching {
+                val home = rootfs.canonicalFile.toPath()
+                val host = File("$target/$relative").canonicalFile.toPath()
+                if (host.startsWith(home)) File(rootfs, home.relativize(host).toString()) else null
+            }.getOrNull()?.let { return it }
         }
         return com.droiddeck.launcher.frontend.AddedGames.hostPath(context, "$target/$relative")
     }
