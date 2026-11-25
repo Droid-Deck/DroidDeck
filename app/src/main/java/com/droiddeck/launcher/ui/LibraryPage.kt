@@ -578,7 +578,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         else GameDetail(key, s, a, lead, backLabel, hopRail = "games", onBack = back)
     }
     if (savedDialog) SavedDialog(emptyList(), onOpen = { id -> onSelect("sound:$id") }) { savedDialog = false }
-    if (addingSoundtrack) SyncFolderPicker(stringResource(R.string.soundtracks_add_title), null, onDismiss = { addingSoundtrack = false }) { dir ->
+    if (addingSoundtrack) SyncFolderPicker(stringResource(R.string.soundtracks_add_title), null, sharedStorage = true, onDismiss = { addingSoundtrack = false }) { dir ->
         addingSoundtrack = false
         a.onSoundtrackAdded(dir)
     }

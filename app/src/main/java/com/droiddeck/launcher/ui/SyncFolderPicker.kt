@@ -48,8 +48,11 @@ internal class SyncLocation(val root: File, val label: String, val icon: ImageVe
 
 internal fun containerHome(context: Context) = File(LinuxRuntime.rootDir(context), "root")
 
-internal fun syncLocations(context: Context): List<SyncLocation> {
+internal fun syncLocations(context: Context, sharedStorage: Boolean = false): List<SyncLocation> {
     val volumes = pickVolumes(context)
+    val storage = if (!sharedStorage) emptyList() else volumes.map {
+        SyncLocation(it.root, it.label, if (it.removable) Icons.Outlined.SdCard else Icons.Outlined.Smartphone)
+    }
     val roots = Syncthing.storageRoots(context)
     val shared = roots.drop(1).mapIndexed { i, root ->
         val volume = volumes.firstOrNull { root.path.startsWith(it.root.path + "/") }
@@ -58,18 +61,23 @@ internal fun syncLocations(context: Context): List<SyncLocation> {
     }
     val home = containerHome(context).takeIf { it.isDirectory }?.let { SyncLocation(it, context.getString(R.string.sync_location_home), Icons.Outlined.Home) }
     return listOfNotNull(home, SyncLocation(Syncthing.folderRoot(context), context.getString(R.string.sync_location_sync), Icons.Outlined.FolderSpecial)) +
-        shared + SyncLocation(roots.first(), context.getString(R.string.sync_location_app), Icons.Outlined.Folder)
+        storage + shared + SyncLocation(roots.first(), context.getString(R.string.sync_location_app), Icons.Outlined.Folder)
 }
 
+internal fun syncPickerGuard(context: Context, locations: List<SyncLocation>, sharedStorage: Boolean) =
+    Syncthing.guard(context, if (sharedStorage) locations.map { it.root } else emptyList())
+
 @Composable
-internal fun SyncFolderPicker(title: String, suggestedName: String?, onDismiss: () -> Unit, onPick: (File) -> Unit) {
+internal fun SyncFolderPicker(
+    title: String, suggestedName: String?, sharedStorage: Boolean = false, onDismiss: () -> Unit, onPick: (File) -> Unit,
+) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val density = LocalDensity.current
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
-    val locations = remember { syncLocations(ctx) }
-    val guard = remember { Syncthing.guard(ctx) }
+    val locations = remember { syncLocations(ctx, sharedStorage) }
+    val guard = remember { syncPickerGuard(ctx, locations, sharedStorage) }
     fun locationOf(d: File) = locations.filter { d.path == it.root.path || d.path.startsWith(it.root.path + "/") }.maxByOrNull { it.root.path.length }
     var dir by remember { mutableStateOf<File?>(containerHome(ctx).takeIf { it.isDirectory } ?: Syncthing.folderRoot(ctx).also { it.mkdirs() }) }
     var refresh by remember { mutableIntStateOf(0) }
