@@ -61,7 +61,19 @@ object GameEnvironment {
     }
 
     fun effective(config: Config, preset: String, scope: String, forceSsbs: Boolean = false): Map<String, String?> =
-        defaults(preset, forceSsbs) + config.shared + if (scope.isEmpty()) emptyMap() else config.games[scope].orEmpty()
+        defaults(preset, forceSsbs) + config.shared + if (scope.isEmpty()) emptyMap() else knownGames[scope].orEmpty() + config.games[scope].orEmpty()
+
+    /**
+     * What some Steam games need here whatever the shared settings say; the game's own settings still win.
+     * GTA III dies at 0042A703 when a new game starts with FEX's reduced x87 precision, as the Rockstar store copy does.
+     */
+    val knownGames: Map<String, Map<String, String?>> = mapOf(
+        "12100" to mapOf("FEX_X87REDUCEDPRECISION" to "0"),
+    )
+
+    /** [config] with [knownGames] folded under each game's own settings, for the guest to read. */
+    fun withKnownGames(config: Config): Config =
+        config.copy(games = config.games + knownGames.mapValues { (scope, known) -> known + config.games[scope].orEmpty() })
 
     fun hasOverride(config: Config, scope: String, name: String): Boolean =
         scope.isNotEmpty() && config.entries(scope).containsKey(name)
@@ -78,7 +90,7 @@ object GameEnvironment {
         val entries = config.games[scope].orEmpty()
         if (FexPreset.environmentKeys.none(entries::containsKey)) return null
         return FexPreset.all.firstOrNull { preset ->
-            val expected = FexPreset.environment(preset.id)
+            val expected = presetFor(scope, preset.id)
             FexPreset.environmentKeys.all { key -> entries.containsKey(key) && entries[key] == expected[key] }
         }?.id ?: CUSTOM_FEX_PRESET
     }
@@ -88,11 +100,15 @@ object GameEnvironment {
         require(preset == null || FexPreset.all.any { it.id == preset })
         val entries = config.entries(scope).filterKeys { it !in FexPreset.environmentKeys }.toMutableMap()
         if (preset != null) {
-            val values = FexPreset.environment(preset)
+            val values = presetFor(scope, preset)
             FexPreset.environmentKeys.forEach { key -> entries[key] = values[key] }
         }
         return config.withEntries(scope, entries)
     }
+
+    /** A FEX preset as a game gets it: picking one never undoes a fix the game is known to need. */
+    private fun presetFor(scope: String, preset: String): Map<String, String?> =
+        FexPreset.environment(preset) + knownGames[scope].orEmpty().filterKeys { it in FexPreset.environmentKeys }
 
     const val CUSTOM_FEX_PRESET = "__custom__"
 

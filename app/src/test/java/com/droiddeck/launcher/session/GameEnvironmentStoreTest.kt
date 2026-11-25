@@ -166,9 +166,17 @@ class GameEnvironmentStoreTest {
         assertEquals("false", published.shared["MESA_SHADER_CACHE_DISABLE"])
         assertFalse(published.shared.containsKey("VKD3D_FEATURE_LEVEL"))
         assertFalse(published.shared.containsKey("VKD3D_SHADER_MODEL"))
-        assertEquals(config.games, published.games)
+        assertEquals(config.games + GameEnvironment.knownGames, published.games)
         assertEquals(config.shared["LITERAL"], published.shared["LITERAL"])
         assertEquals("", published.shared["EMPTY"])
+    }
+
+    @Test fun aKnownGamesFixReachesTheGuestWithoutBeingSavedAsTheUsersSetting() {
+        GameEnvironmentStore.save(context, GameEnvironment.Config())
+        assertEquals(emptyMap<String, Map<String, String?>>(), GameEnvironmentStore.read(context).games)
+        val published = GameEnvironmentStore.decode(JSONObject(guest.readText()))
+        assertEquals(GameEnvironment.knownGames, published.games)
+        assertEquals("0", published.entries("12100")["FEX_X87REDUCEDPRECISION"])
     }
 
     @Test fun publishingPreservesExplicitSharedGraphicsCapabilities() {
@@ -230,7 +238,7 @@ class GameEnvironmentStoreTest {
         assertEquals(original.entries("43"), saved.entries("43"))
         assertEquals("PERFORMANCE_TSO", SessionPrefs.fexPreset(context))
         val published = GameEnvironmentStore.decode(JSONObject(guest.readText()))
-        assertEquals(saved.games, published.games)
+        assertEquals(saved.games + GameEnvironment.knownGames, published.games)
         assertEquals("0", published.shared["FEX_HALFBARRIERTSOENABLED"])
         assertEquals("1", published.entries("42")["FEX_HALFBARRIERTSOENABLED"])
     }
