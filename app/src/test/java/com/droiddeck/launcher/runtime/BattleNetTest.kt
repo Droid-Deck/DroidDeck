@@ -291,6 +291,25 @@ class BattleNetTest {
                 .map { Triple(it.uid, it.path, it.product) })
     }
 
+    @Test fun aTitleBattleNetAlreadyInstalledIsFoundWithItsOwnUidAndFolder() {
+        val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
+        val wow = File(pfx, "drive_c/Games/World of Warcraft").apply { mkdirs() }
+        File(pfx, "drive_c/Games/StarCraft").mkdirs()
+        val db = File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").apply { parentFile!!.mkdirs() }
+        db.writeBytes(message(
+            field(1, message(field(1, "wowf_live"), field(2, "wowf"), field(3, message(field(1, "C:/Games/World of Warcraft"))))),
+            field(1, message(field(1, "s1"), field(2, "s1"), field(3, message(field(1, "C:/Games/StarCraft"))),
+                field(4, message(field(1, message(varintField(1, 0))))))),
+        ))
+        val forever = com.droiddeck.launcher.stores.battlenet.BattleNetInstall.registered(context, "wow_forever")!!
+        assertEquals("wowf_live", forever.installUid)
+        assertEquals(wow, forever.folder)
+        assertNull(com.droiddeck.launcher.stores.battlenet.BattleNetInstall.registered(context, "s1"))
+        assertNull(com.droiddeck.launcher.stores.battlenet.BattleNetInstall.registered(context, "wow"))
+        db.delete()
+        assertNull(com.droiddeck.launcher.stores.battlenet.BattleNetInstall.registered(context, "wow_forever"))
+    }
+
     @Test fun aGameKeepsTheFolderItWasListedWithWhenAnotherVersionComesOrGoes() {
         val root = File(context.filesDir, "World of Warcraft").apply { mkdirs() }
         val retailDir = File(root, "_retail_").apply { mkdirs() }
