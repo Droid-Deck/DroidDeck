@@ -455,8 +455,11 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(VkDevice device, VkPipeli
         rewrite_pipeline(dev, &copies[i], &rewrites[i]);
     }
     VkResult result = dev->CreateGraphicsPipelines(device, cache, count, copies, allocator, pipelines);
-    for (uint32_t i = 0; i < count; i++)
+    for (uint32_t i = 0; i < count; i++) {
         undo_rewrite(dev, &rewrites[i]);
+        if ((dev->emulated & GAP_DEPTH_OP) && pipelines[i] != VK_NULL_HANDLE)
+            depth_pipeline_record(dev, pipelines[i], &infos[i]);
+    }
     free(rewrites);
     free(copies);
     return result;
