@@ -818,9 +818,9 @@ index 0000000..d43c5fc
 +    let mut names: Vec<String> = Vec::new();
 +    loop {
 +        match reader.read_event() {
-+            Ok(Event::Start(tag)) | Ok(Event::Empty(tag)) if tag.local_name().as_ref() == b"PackageDependency" => {
++            Ok(Event::Start(tag)) | Ok(Event::Empty(tag)) if tag.local_name().as_ref() == "PackageDependency" => {
 +                for attribute in tag.attributes().flatten() {
-+                    if attribute.key.local_name().as_ref() != b"Name" { continue; }
++                    if attribute.key.local_name().as_ref() != "Name" { continue; }
 +                    let Ok(name) = attribute.unescape_value() else { continue };
 +                    let name = name.trim();
 +                    if !name.is_empty() && !names.iter().any(|seen| seen == name) {
@@ -1026,9 +1026,9 @@ index 0000000..d43c5fc
 +    let mut reader = quick_xml::Reader::from_str(text);
 +    loop {
 +        match reader.read_event() {
-+            Ok(Event::Start(tag)) | Ok(Event::Empty(tag)) if tag.local_name().as_ref() == b"Identity" => {
++            Ok(Event::Start(tag)) | Ok(Event::Empty(tag)) if tag.local_name().as_ref() == "Identity" => {
 +                return tag.attributes().flatten().any(|attribute| {
-+                    attribute.key.local_name().as_ref() == b"ProcessorArchitecture"
++                    attribute.key.local_name().as_ref() == "ProcessorArchitecture"
 +                        && attribute.unescape_value().is_ok_and(|value| value.eq_ignore_ascii_case("x64"))
 +                });
 +            }
@@ -1183,26 +1183,40 @@ index 0000000..d43c5fc
 +        if !existing.is_empty() && !updating && !metadata {
 +            return Err(format!("Extraction would overwrite {}", target.display()));
 +        }
-+        let mut installed = false;
++        let mut backups: Vec<(PathBuf, PathBuf)> = Vec::new();
 +        for (index, old) in existing.iter().enumerate() {
 +            let backup = destination.join(format!(".droiddeck-replace-backup-{}-{}", std::process::id(), index));
-+            std::fs::rename(old, &backup)
-+                .map_err(|error| format!("Could not preserve the installed entry: {error}"))?;
-+            if let Err(error) = std::fs::rename(entry.path(), &target) {
-+                let restore = std::fs::rename(&backup, old);
-+                if let Err(restore_error) = restore {
-+                    return Err(format!("Could not move extracted file ({error}); restoring backup also failed ({restore_error})"));
++            if let Err(error) = std::fs::rename(old, &backup) {
++                let mut restore_error = None;
++                for (original, saved) in backups.iter().rev() {
++                    if let Err(error) = std::fs::rename(saved, original) {
++                        restore_error = Some(error);
++                        break;
++                    }
 +                }
-+                return Err(format!("Could not move an extracted file: {error}"));
++                if let Some(restore_error) = restore_error {
++                    return Err(format!("Could not preserve the installed entry ({error}); restoring a backup also failed ({restore_error})"));
++                }
++                return Err(format!("Could not preserve the installed entry: {error}"));
 +            }
++            backups.push((old.clone(), backup));
++        }
++        if let Err(error) = std::fs::rename(entry.path(), &target) {
++            let mut restore_error = None;
++            for (original, saved) in backups.iter().rev() {
++                if let Err(error) = std::fs::rename(saved, original) {
++                    restore_error = Some(error);
++                    break;
++                }
++            }
++            if let Some(restore_error) = restore_error {
++                return Err(format!("Could not move extracted file ({error}); restoring a backup also failed ({restore_error})"));
++            }
++            return Err(format!("Could not move an extracted file: {error}"));
++        }
++        for (_, backup) in backups {
 +            let removed = if backup.is_dir() { std::fs::remove_dir_all(&backup) } else { std::fs::remove_file(&backup) };
 +            removed.map_err(|error| format!("Could not remove replaced backup: {error}"))?;
-+            installed = true;
-+            break;
-+        }
-+        if !installed {
-+            std::fs::rename(entry.path(), &target)
-+                .map_err(|error| format!("Could not move an extracted file: {error}"))?;
 +        }
 +    }
 +    std::fs::remove_dir(&inner).map_err(|error| format!("Could not remove the package folder: {error}"))?;
@@ -1218,7 +1232,7 @@ index 0000000..d43c5fc
 +        let x64: Vec<PathBuf> = applications
 +            .iter()
 +            .filter(|folder| {
-+                identity_is_x64(&manifest_text(folder))
++                identity_is_x64(&manifest_text_original(folder))
 +            })
 +            .cloned()
 +            .collect();
@@ -1230,16 +1244,18 @@ index 0000000..d43c5fc
 +}
 +
 +fn manifest_text(folder: &Path) -> String {
++    manifest_text_original(folder).to_ascii_lowercase()
++}
++
++fn manifest_text_original(folder: &Path) -> String {
 +    [LEGACY_MANIFEST, MANIFEST]
 +        .iter()
 +        .filter_map(|name| std::fs::read_to_string(folder.join(name)).ok())
 +        .collect::<Vec<_>>()
-+        .join("
-+")
-+        .to_ascii_lowercase()
++        .join("\n")
 +}
 +
-+fn declares_application(folder: &Path) -> bool {
+++fn declares_application(folder: &Path) -> bool {
 +    let text = manifest_text(folder);
 +    opens_element(&text, "<application") || opens_element(&text, "<executable")
 +}
