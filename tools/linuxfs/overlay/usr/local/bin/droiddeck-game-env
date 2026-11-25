@@ -1608,7 +1608,11 @@ def main():
         except OSError as error:
             restored = fixed = []
             print("droiddeck-game-env: prefix system DLL check skipped (%s)" % error, file=sys.stderr)
-        unlocked, cleared = heal_shared_data(prefix_path)
+        try:
+            unlocked, cleared = heal_shared_data(prefix_path)
+        except OSError as error:
+            unlocked = cleared = []
+            print("droiddeck-game-env: ProgramData owner check skipped (%s)" % error, file=sys.stderr)
         if cleared:
             print("droiddeck-game-env: cleared %d stale Windows owners in ProgramData; unlocked: %s"
                   % (len(cleared), ", ".join(unlocked) or "none"), file=sys.stderr)
