@@ -442,7 +442,7 @@ static const char *proc_view_host(const char *root, const char *binds, const cha
 static const char *proc_root_host(const char *path, char *buf, size_t size, int bare, int follow) {
     const char *rest = NULL;
     pid_t pid = proc_root_pid(path, &rest);
-    if (pid <= 0 || (!bare && rest[strspn(rest, "/")] == '\0')) return NULL;
+    if (pid <= 0 || (!bare && rest[0] == '\0')) return NULL;
     char *root, *binds;
     if (!proc_view_of(pid, &root, &binds)) return NULL;
     size_t root_len = strlen(root);
@@ -536,7 +536,7 @@ static void remember_proc_root_fd(int fd, const char *path) {
     pid_t pid = proc_root_pid(path, &rest);
     struct stat st;
     if (fd < 0) return;
-    if (pid <= 0 || rest[strspn(rest, "/")] != '\0' || syscall(SYS_fstat, fd, &st) != 0) {
+    if (pid <= 0 || rest[strspn(rest, "/")] != '\0' || syscall(SYS_fstat, fd, &st) != 0 || !S_ISDIR(st.st_mode)) {
         forget_proc_root_fd(fd);
         return;
     }

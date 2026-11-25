@@ -9,6 +9,7 @@ from tools.tests.test_usr2_preload import runner
 HOOK_BUILD = Path(__file__).resolve().parents[1] / "nativeguest/build.sh"
 
 PROBE = r"""
+#define _GNU_SOURCE
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -51,6 +52,15 @@ int main(int argc, char **argv) {
       name[-1] = '/';
       show(argv[i], fd);
       if (copy >= 0) close(copy);
+    } else if (strncmp(argv[i], "nfat:", 5) == 0 || strncmp(argv[i], "link:", 5) == 0) {
+      char *name = strrchr(argv[i], '/');
+      *name++ = 0;
+      int how = argv[i][0] == 'l' ? O_PATH : O_RDONLY | O_DIRECTORY;
+      int root = open(argv[i] + 5, how | O_NOFOLLOW | O_CLOEXEC);
+      int fd = root >= 0 ? openat(root, name, O_RDONLY | O_CLOEXEC) : -1;
+      name[-1] = '/';
+      show(argv[i], fd);
+      if (root >= 0) close(root);
     } else if (strncmp(argv[i], "nofollow:", 9) == 0) {
       int fd = open(argv[i] + 9, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
       printf("%s\t%s\n", argv[i], fd >= 0 ? "6f70656e" : "-");
@@ -199,6 +209,16 @@ class NativeHookProcRootTest(unittest.TestCase):
         got = self.probe(bare, below)
         self.assertEqual("-", got[bare])
         self.assertEqual("open", got[below])
+
+    def test_a_root_with_a_trailing_slash_keeps_the_sandbox_view_with_nofollow(self):
+        pid = self.sandboxed()
+        path = f"nfat:/proc/{pid}/root//.flatpak-info"
+        self.assertEqual("app", self.probe(path)[path])
+
+    def test_a_descriptor_for_the_root_link_itself_is_not_a_directory(self):
+        pid = self.sandboxed()
+        path = f"link:/proc/{pid}/root/.flatpak-info"
+        self.assertEqual("-", self.probe(path)[path])
 
     def test_a_sandbox_cannot_be_climbed_out_of(self):
         pid = self.sandboxed()
