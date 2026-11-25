@@ -6,6 +6,8 @@ import platform
 import re
 import runpy
 import signal
+import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -1046,6 +1048,9 @@ WINE_DLL_DIRS = ("/lib/wine/i386-windows", "/lib/wine/x86_64-windows", "/lib/win
 
 
 FOREIGN_SUFFIX = ".foreign-arch"
+WINE_SD = "user.wine.sd"
+SHARED_DATA = "pfx/drive_c/ProgramData"
+MACHINE_ID = "/etc/machine-id"
 PE = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wine-pe"))
 pe_machine = PE["pe_machine"]
 
@@ -1142,6 +1147,96 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
             continue
         repaired.append("%s/%s (machine 0x%x)" % (folder, name, machine))
     return repaired
+
+
+def wine_user_sid():
+    try:
+        with open(MACHINE_ID) as handle:
+            text = handle.read(16)
+    except OSError:
+        return (21, 0, 0, 0, 1000)
+    if len(text) != 16:
+        return (21, 0, 0, 0, 1000)
+    digits = re.match(r"\s*(?:0[xX])?([0-9a-fA-F]*)", text).group(1)
+    machine = int(digits, 16) if digits else 0
+    return (21, machine >> 32, machine & 0xffffffff, os.getuid(), 1000)
+
+
+def wine_sd_owner(path):
+    try:
+        data = os.getxattr(path, WINE_SD, follow_symlinks=False)
+    except OSError:
+        return None
+    if len(data) < 22:
+        return None
+    sid = data[22:22 + struct.unpack_from("<I", data, 6)[0]]
+    if len(sid) < 8 or len(sid) < 8 + 4 * sid[1]:
+        return None
+    return sid[0], int.from_bytes(sid[2:8], "big"), struct.unpack_from("<%dI" % sid[1], sid, 8)
+
+
+def is_stale_owner(owner, user):
+    if owner is None:
+        return False
+    revision, authority, subs = owner
+    return revision == 1 and authority == 5 and len(subs) == 5 and subs[0] == 21 and subs[4] == 1000 \
+        and subs != user
+
+
+def heal_shared_data(prefix):
+    root = Path(prefix) / SHARED_DATA
+    user = wine_user_sid()
+    unlocked = []
+    cleared = []
+    folders = [root]
+    while folders:
+        folder = folders.pop()
+        try:
+            with os.scandir(folder) as entries:
+                children = list(entries)
+        except OSError:
+            continue
+        for entry in children:
+            try:
+                is_dir = entry.is_dir(follow_symlinks=False)
+                if not is_dir and not entry.is_file(follow_symlinks=False):
+                    continue
+                mode = stat.S_IMODE(entry.stat(follow_symlinks=False).st_mode)
+            except OSError:
+                continue
+            readable = mode
+            if not mode & stat.S_IRUSR:
+                readable = mode | stat.S_IRUSR
+                try:
+                    os.chmod(entry.path, readable)
+                except OSError:
+                    continue
+            final = mode
+            stale = is_stale_owner(wine_sd_owner(entry.path), user)
+            if stale:
+                if is_dir:
+                    final = mode | stat.S_IRWXU
+                elif not mode & stat.S_IRUSR:
+                    final = mode | stat.S_IRUSR | stat.S_IWUSR
+            try:
+                if stale:
+                    os.chmod(entry.path, final | stat.S_IWUSR)
+                    try:
+                        os.removexattr(entry.path, WINE_SD, follow_symlinks=False)
+                        cleared.append(os.path.relpath(entry.path, root))
+                    except OSError:
+                        pass
+                    if not final & stat.S_IWUSR:
+                        os.chmod(entry.path, final)
+                elif final != readable:
+                    os.chmod(entry.path, final)
+            except OSError:
+                continue
+            if final != mode:
+                unlocked.append(os.path.relpath(entry.path, root))
+            if is_dir and final & (stat.S_IRUSR | stat.S_IXUSR) == stat.S_IRUSR | stat.S_IXUSR:
+                folders.append(entry.path)
+    return sorted(unlocked), sorted(cleared)
 
 
 def is_wine_dll_link(path):
@@ -1486,6 +1581,10 @@ def main():
         except OSError as error:
             restored = fixed = []
             print("droiddeck-game-env: prefix system DLL check skipped (%s)" % error, file=sys.stderr)
+        unlocked, cleared = heal_shared_data(prefix_path)
+        if cleared:
+            print("droiddeck-game-env: cleared %d stale Windows owners in ProgramData; unlocked: %s"
+                  % (len(cleared), ", ".join(unlocked) or "none"), file=sys.stderr)
         if restored:
             print("droiddeck-game-env: restored system DLLs this Proton's own programs do not load: %s" % ", ".join(restored),
                   file=sys.stderr)

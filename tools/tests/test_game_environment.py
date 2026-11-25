@@ -7,6 +7,7 @@ import shutil
 from pathlib import Path
 import runpy
 import shlex
+import struct
 import subprocess
 import sys
 import tempfile
@@ -3725,6 +3726,120 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertEqual([], self.run_repair(compat, proton))
             self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
             self.assertEqual([], self.run_repair(Path(tmp) / "missing", proton))
+
+
+class SharedDataHealTest(unittest.TestCase):
+    CURRENT = (21, 0x1234abcd, 0x5678ef01, os.getuid(), 1000)
+    STALE = (21, 0x0badf00d, 0x0ddba11, 10122, 1000)
+
+    def setUp(self):
+        self.globals = MODULE["heal_shared_data"].__globals__
+        self.old_machine_id = self.globals["MACHINE_ID"]
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.cleanup)
+        machine_id = Path(self.tmp.name) / "machine-id"
+        machine_id.write_text("1234abcd5678ef01%s\n" % ("0" * 16))
+        self.globals["MACHINE_ID"] = str(machine_id)
+        self.compat = Path(self.tmp.name) / "compat"
+        self.root = self.compat / "pfx/drive_c/ProgramData"
+        self.root.mkdir(parents=True)
+        probe = self.root / "probe"
+        probe.write_text("")
+        try:
+            os.setxattr(probe, "user.wine.sd", b"x")
+        except OSError:
+            self.skipTest("needs user xattrs")
+        probe.unlink()
+
+    def cleanup(self):
+        self.globals["MACHINE_ID"] = self.old_machine_id
+        for folder, dirs, files in os.walk(self.tmp.name):
+            for name in dirs + files:
+                path = os.path.join(folder, name)
+                if not os.path.islink(path):
+                    os.chmod(path, 0o700)
+        self.tmp.cleanup()
+
+    def own(self, path, subs, authority=5):
+        sid = bytes([1, len(subs)]) + authority.to_bytes(6, "big") + struct.pack("<%dI" % len(subs), *subs)
+        header = struct.pack("<BBHIIII", 1, 0, 0x8004, len(sid), 0, 0, 0)
+        os.setxattr(path, "user.wine.sd", b"\x01\x00" + header + sid, follow_symlinks=False)
+
+    def heal(self):
+        return MODULE["heal_shared_data"](str(self.compat))
+
+    def mode(self, path):
+        return path.stat().st_mode & 0o777
+
+    def test_entries_a_stale_owner_locked_are_unlocked_and_every_stale_owner_is_cleared(self):
+        agent = self.root / "Vendor/Agent"
+        (agent / "Logs").mkdir(parents=True)
+        (agent / "Agent.dat").write_text("1")
+        (agent / "Tools.exe").write_text("x")
+        for path in (agent.parent, agent, agent / "Logs", agent / "Agent.dat", agent / "Tools.exe"):
+            self.own(path, self.STALE)
+        (agent / "Tools.exe").chmod(0o550)
+        (agent / "Agent.dat").chmod(0)
+        (agent / "Logs").chmod(0)
+        agent.chmod(0)
+        self.assertEqual((["Vendor/Agent", "Vendor/Agent/Agent.dat", "Vendor/Agent/Logs"],
+                          ["Vendor", "Vendor/Agent", "Vendor/Agent/Agent.dat", "Vendor/Agent/Logs",
+                           "Vendor/Agent/Tools.exe"]), self.heal())
+        self.assertEqual(0o700, self.mode(agent))
+        self.assertEqual(0o700, self.mode(agent / "Logs"))
+        self.assertEqual(0o600, self.mode(agent / "Agent.dat"))
+        self.assertEqual(0o550, self.mode(agent / "Tools.exe"))
+        self.assertEqual("1", (agent / "Agent.dat").read_text())
+        (agent / "Logs/new").mkdir()
+        for path in (agent.parent, agent, agent / "Logs", agent / "Agent.dat", agent / "Tools.exe"):
+            self.assertNotIn("user.wine.sd", os.listxattr(path))
+        self.assertEqual(([], []), self.heal())
+
+    def test_current_and_well_known_owners_untagged_entries_and_links_are_left_alone(self):
+        mine = self.root / "Mine"
+        mine.mkdir(mode=0o755)
+        self.own(mine, self.CURRENT)
+        (mine / "settings.ini").write_text("x")
+        self.own(mine / "settings.ini", self.CURRENT)
+        (mine / "settings.ini").chmod(0o444)
+        denied = self.root / "Denied"
+        denied.mkdir()
+        self.own(denied, self.CURRENT)
+        denied.chmod(0)
+        admins = self.root / "Admins"
+        admins.mkdir()
+        self.own(admins, (32, 544))
+        admins.chmod(0o500)
+        plain = self.root / "Plain"
+        plain.mkdir()
+        plain.chmod(0)
+        outside = Path(self.tmp.name) / "outside"
+        outside.mkdir()
+        self.own(outside, self.STALE)
+        outside.chmod(0o500)
+        (self.root / "Link").symlink_to(outside)
+        self.assertEqual(([], []), self.heal())
+        self.assertEqual(0o755, self.mode(mine))
+        self.assertEqual(0o444, self.mode(mine / "settings.ini"))
+        self.assertEqual(0, self.mode(denied))
+        self.assertEqual(0o500, self.mode(admins))
+        self.assertEqual(0, self.mode(plain))
+        self.assertEqual(0o500, self.mode(outside))
+        for path in (mine, mine / "settings.ini", admins, outside):
+            self.assertIn("user.wine.sd", os.listxattr(path))
+
+    def test_user_sid_follows_wine_for_a_missing_or_short_machine_id(self):
+        sid = MODULE["wine_user_sid"]
+        self.assertEqual(self.CURRENT, sid())
+        self.globals["MACHINE_ID"] = str(Path(self.tmp.name) / "missing")
+        self.assertEqual((21, 0, 0, 0, 1000), sid())
+        short = Path(self.tmp.name) / "short"
+        short.write_text("1234\n")
+        self.globals["MACHINE_ID"] = str(short)
+        self.assertEqual((21, 0, 0, 0, 1000), sid())
+
+    def test_prefix_without_shared_data_is_skipped(self):
+        self.assertEqual(([], []), MODULE["heal_shared_data"](str(Path(self.tmp.name) / "missing")))
 
 
 if __name__ == "__main__":
