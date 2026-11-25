@@ -154,7 +154,7 @@ new file mode 100755
 index 0000000..d43c5fc
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1411 @@
+@@ -0,0 +1,1446 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -813,15 +813,24 @@ index 0000000..d43c5fc
 +    let Ok(text) = std::fs::read_to_string(manifest) else {
 +        return Vec::new();
 +    };
++    use quick_xml::events::Event;
++    let mut reader = quick_xml::Reader::from_str(&text);
 +    let mut names: Vec<String> = Vec::new();
-+    for chunk in text.split("<PackageDependency").skip(1) {
-+        let Some(tag) = chunk.split('>').next() else { continue };
-+        let Some(start) = tag.find("Name=\"") else { continue };
-+        let rest = &tag[start + "Name=\"".len()..];
-+        let Some(end) = rest.find('"') else { continue };
-+        let name = rest[..end].trim();
-+        if !name.is_empty() && !names.iter().any(|seen| seen == name) {
-+            names.push(name.to_string());
++    loop {
++        match reader.read_event() {
++            Ok(Event::Start(tag)) | Ok(Event::Empty(tag)) if tag.local_name().as_ref() == b"PackageDependency" => {
++                for attribute in tag.attributes().flatten() {
++                    if attribute.key.local_name().as_ref() != b"Name" { continue; }
++                    let Ok(name) = attribute.unescape_value() else { continue };
++                    let name = name.trim();
++                    if !name.is_empty() && !names.iter().any(|seen| seen == name) {
++                        names.push(name.to_string());
++                    }
++                }
++            }
++            Ok(Event::Eof) => break,
++            Ok(_) => {}
++            Err(_) => return Vec::new(),
 +        }
 +    }
 +    names
@@ -994,9 +1003,8 @@ index 0000000..d43c5fc
 +        for folder in level {
 +            let manifest = folder.join(LEGACY_MANIFEST);
 +            if manifest.is_file() {
-+                let text = std::fs::read_to_string(&manifest).unwrap_or_default().to_ascii_lowercase();
-+                let compact: String = text.chars().filter(|ch| !ch.is_ascii_whitespace()).collect();
-+                if compact.contains("processorarchitecture=\"x64\"") || compact.contains("processorarchitecture='x64'") {
++                let text = std::fs::read_to_string(&manifest).unwrap_or_default();
++                if identity_is_x64(&text) {
 +                    return Some(folder);
 +                }
 +            }
@@ -1010,6 +1018,24 @@ index 0000000..d43c5fc
 +        level = next;
 +    }
 +    None
++}
++
++/// Reads ProcessorArchitecture only from an Identity element, ignoring comments and text.
++fn identity_is_x64(text: &str) -> bool {
++    use quick_xml::events::Event;
++    let mut reader = quick_xml::Reader::from_str(text);
++    loop {
++        match reader.read_event() {
++            Ok(Event::Start(tag)) | Ok(Event::Empty(tag)) if tag.local_name().as_ref() == b"Identity" => {
++                return tag.attributes().flatten().any(|attribute| {
++                    attribute.key.local_name().as_ref() == b"ProcessorArchitecture"
++                        && attribute.unescape_value().is_ok_and(|value| value.eq_ignore_ascii_case("x64"))
++                });
++            }
++            Ok(Event::Eof) | Err(_) => return false,
++            Ok(_) => {}
++        }
++    }
 +}
 +
 +/// The Windows Update category of the framework's x64 package, or of whichever
@@ -1143,16 +1169,27 @@ index 0000000..d43c5fc
 +        if !existing.is_empty() && !updating && !metadata {
 +            return Err(format!("Extraction would overwrite {}", target.display()));
 +        }
-+        for old in existing {
-+            let replaced = if old.is_dir() {
-+                std::fs::remove_dir_all(&old)
-+            } else {
-+                std::fs::remove_file(&old)
-+            };
-+            replaced.map_err(|error| format!("Could not replace an installed file: {error}"))?;
++        let mut installed = false;
++        for (index, old) in existing.iter().enumerate() {
++            let backup = destination.join(format!(".droiddeck-replace-backup-{}-{}", std::process::id(), index));
++            std::fs::rename(old, &backup)
++                .map_err(|error| format!("Could not preserve the installed entry: {error}"))?;
++            if let Err(error) = std::fs::rename(entry.path(), &target) {
++                let restore = std::fs::rename(&backup, old);
++                if let Err(restore_error) = restore {
++                    return Err(format!("Could not move extracted file ({error}); restoring backup also failed ({restore_error})"));
++                }
++                return Err(format!("Could not move an extracted file: {error}"));
++            }
++            let removed = if backup.is_dir() { std::fs::remove_dir_all(&backup) } else { std::fs::remove_file(&backup) };
++            removed.map_err(|error| format!("Could not remove replaced backup: {error}"))?;
++            installed = true;
++            break;
 +        }
-+        std::fs::rename(entry.path(), &target)
-+            .map_err(|error| format!("Could not move an extracted file: {error}"))?;
++        if !installed {
++            std::fs::rename(entry.path(), &target)
++                .map_err(|error| format!("Could not move an extracted file: {error}"))?;
++        }
 +    }
 +    std::fs::remove_dir(&inner).map_err(|error| format!("Could not remove the package folder: {error}"))?;
 +    Ok(())
@@ -1167,9 +1204,7 @@ index 0000000..d43c5fc
 +        let x64: Vec<PathBuf> = applications
 +            .iter()
 +            .filter(|folder| {
-+                let text = manifest_text(folder);
-+                let compact: String = text.chars().filter(|ch| !ch.is_ascii_whitespace()).collect();
-+                compact.contains("processorarchitecture=\"x64\"") || compact.contains("processorarchitecture='x64'")
++                identity_is_x64(&manifest_text(folder))
 +            })
 +            .cloned()
 +            .collect();
