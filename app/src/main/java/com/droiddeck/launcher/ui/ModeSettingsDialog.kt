@@ -93,6 +93,7 @@ class ModeSettings(
     val steamClientArch: String? = null,
     val returnAfterGame: Boolean? = null,
     val shaderPrecache: Boolean? = null,
+    val valveProtonOnDemand: Boolean? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
@@ -158,6 +159,7 @@ class ModeSettingsActions(
     val onMangoapp: (Boolean) -> Unit = {},
     val onReturnAfterGame: (Boolean) -> Unit = {},
     val onShaderPrecache: (Boolean) -> Unit = {},
+    val onValveProtonOnDemand: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
@@ -533,6 +535,10 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 host, "shaderprecache", stringResource(R.string.mode_shader_precache),
                 stringResource(R.string.mode_shader_precache_hint),
                 s.shaderPrecache, onChange = a.onShaderPrecache,
+            )
+            if (s.valveProtonOnDemand != null) ToggleRow(
+                host, "valveprotonondemand", stringResource(R.string.mode_valve_proton_on_demand), null,
+                s.valveProtonOnDemand, onChange = a.onValveProtonOnDemand,
             )
             SettingsRow(
                 stringResource(R.string.mode_steam_repair),
