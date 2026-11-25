@@ -20,24 +20,44 @@ def files():
 
 
 def built_libs(block):
-    out, gated, depth = set(), False, 0
+    out, base, stack = set(), False, []
     for line in block.splitlines():
         if line.startswith("@@"):
-            gated, depth = "BITNESS EQUAL 64" in line, 0
+            base, stack = "BITNESS EQUAL 64" in line, []
             continue
         if line[:1] == "-":
             continue
         text = line[1:].strip()
-        if text.startswith("if (") and "BITNESS EQUAL 64" in text:
-            depth += 1
-        elif text == "endif()" and depth:
-            depth -= 1
+        if text.startswith("if ("):
+            stack.append("gate" if "BITNESS EQUAL 64" in text else "other")
+        elif text.startswith("else"):
+            if stack:
+                stack[-1] = {"gate": "inverted", "inverted": "gate"}.get(stack[-1], stack[-1])
+            else:
+                base = False
         elif text == "endif()":
-            gated = False
+            if stack:
+                stack.pop()
+            else:
+                base = False
         found = re.match(r"add_(?:guest|host)_lib\(([\w-]+)", text)
         if found and line[:1] == "+":
-            out.add((found.group(1), gated or depth > 0))
+            out.add((found.group(1), "inverted" not in stack and (base or "gate" in stack)))
     return out
+
+
+def database():
+    entries, name = {}, None
+    for line in blocks()["Data/ThunksDB.json"].splitlines():
+        if line[:1] == "-":
+            continue
+        found = re.match(r'[ +]\s*"(\w+)": \{', line)
+        if found:
+            name = found.group(1)
+        found = re.search(r'"Library" : "([^"]+)"', line)
+        if found and name:
+            entries[name] = found.group(1)
+    return entries
 
 
 class FexWaylandEglThunksTest(unittest.TestCase):
@@ -46,15 +66,29 @@ class FexWaylandEglThunksTest(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertTrue(name == "Data/ThunksDB.json" or name.startswith("ThunkLibs/"))
 
-    def test_the_database_names_every_thunk_the_launcher_enables(self):
-        added = "\n".join(files()["Data/ThunksDB.json"])
-        launcher = runpy.run_path(str(LAUNCHER), run_name="droiddeck_fex")
-        for name, guest in launcher["WAYLAND_THUNKS"].items():
+    def test_each_enabled_thunk_maps_to_the_guest_library_the_build_ships(self):
+        launcher = runpy.run_path(str(LAUNCHER), run_name="droiddeck_fex")["WAYLAND_THUNKS"]
+        self.assertEqual(set(THUNKS), set(launcher))
+        built = {name for name, _ in built_libs(blocks()["ThunkLibs/GuestLibs/CMakeLists.txt"])}
+        entries = database()
+        for name, lib in THUNKS.items():
             with self.subTest(name=name):
-                self.assertIn(name, THUNKS)
-                self.assertIn(f"lib{THUNKS[name]}-guest.so", guest)
-        for name in ("EGL", "WaylandEGL"):
-            self.assertIn(f'"{name}"', added)
+                self.assertIn(lib, built)
+                self.assertEqual(f"lib{lib}-guest.so", launcher[name])
+                if name in entries:
+                    self.assertEqual(launcher[name], entries[name])
+        self.assertEqual({"EGL", "WaylandEGL"}, set(entries) & set(THUNKS))
+
+    def test_gles_is_overlaid_only_by_the_64_bit_egl_thunk(self):
+        overlays, name = {}, None
+        for line in blocks()["Data/ThunksDB.json"].splitlines():
+            found = re.match(r'[ +]\s*"(\w+)": \{', line)
+            if found:
+                name = found.group(1)
+            if "libGLESv2" in line:
+                overlays.setdefault(line[:1], set()).add(name)
+        self.assertEqual({"EGL"}, overlays.get("+"))
+        self.assertNotIn("-", overlays)
 
     def test_guest_and_host_libraries_are_built_for_64_bit_guests_only(self):
         changed = blocks()
@@ -75,6 +109,10 @@ class FexWaylandEglThunksTest(unittest.TestCase):
                      "wl_list_insert_list", "wl_array_init", "wl_array_release", "wl_array_add", "wl_array_copy"):
             with self.subTest(name=name):
                 self.assertRegex(guest, rf"\b{name}\(")
+
+    def test_the_inverse_branch_of_the_bitness_gate_is_not_64_bit_only(self):
+        block = "@@ -1 +1 @@\n+if (GUEST_BITNESS EQUAL 64)\n+else()\n+  add_host_lib(EGL ${GUEST_BITNESS})\n+endif()\n"
+        self.assertEqual({("EGL", False)}, built_libs(block))
 
     def test_no_comments_are_added(self):
         for name, lines in files().items():

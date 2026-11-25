@@ -29,14 +29,19 @@ fex_install() {
     return 1
   fi
   (cd "$tmp/root" && find . ! -type d) > "$tmp/files"
+  for d in usr/local/share/fex-emu/GuestThunks usr/local/share/fex-emu/GuestThunks_32 usr/local/lib/fex-emu/HostThunks usr/local/lib/fex-emu/HostThunks_32; do
+    [ -d "$tmp/root/$d" ] && [ -d "$dst$d" ] || continue
+    (cd "$dst" && find "$d" ! -type d) | while IFS= read -r f; do grep -qxF "./$f" "$tmp/files" || echo "$f"; done
+  done > "$tmp/stale"
   mkdir "$tmp/old"
   while IFS= read -r f; do
     f=${f#./}
     if [ -e "$dst$f" ] || [ -L "$dst$f" ]; then
       cp -a --parents "$dst$f" "$tmp/old" || { echo "== FEX $tag: could not keep $dst$f aside" >&2; rm -rf "$tmp"; return 1; }
     fi
-  done < "$tmp/files"
-  if tar -C "$tmp/root" -c . | tar -C "$dst" -x && fex_loads "$dst" &&
+  done < <(cat "$tmp/files" "$tmp/stale")
+  if tar -C "$tmp/root" -c . | tar -C "$dst" -x &&
+     ( while IFS= read -r f; do rm -f "$dst$f" || exit 1; done < "$tmp/stale" ) && fex_loads "$dst" &&
      mkdir -p "${dst}usr/local/share/fex-emu" && echo "$tag" > "${dst}usr/local/share/fex-emu/.droiddeck-tag"; then
     rm -rf "$tmp"
     return 0

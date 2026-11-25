@@ -1,19 +1,8 @@
 diff --git a/Data/ThunksDB.json b/Data/ThunksDB.json
-index 886379a..892ca51 100644
+index 886379a..7844b27 100644
 --- a/Data/ThunksDB.json
 +++ b/Data/ThunksDB.json
-@@ -8,7 +8,9 @@
-         "@PREFIX_LIB@/libGL.so.1.2.0",
-         "@PREFIX_LIB@/libGL.so.1.7.0",
-         "@PREFIX_LIB@/libOpenGL.so.0",
--        "@PREFIX_LIB@/libOpenGL.so.0.0.0"
-+        "@PREFIX_LIB@/libOpenGL.so.0.0.0",
-+        "@PREFIX_LIB@/libGLESv2.so.2",
-+        "@PREFIX_LIB@/libGLESv2.so.2.1.0"
-       ]
-     },
-     "Vulkan": {
-@@ -49,6 +51,22 @@
+@@ -49,6 +49,24 @@
          "@PREFIX_LIB@/libwayland-client.so.0.20.0"
        ]
      },
@@ -22,7 +11,9 @@ index 886379a..892ca51 100644
 +      "Overlay": [
 +        "@PREFIX_LIB@/libEGL.so",
 +        "@PREFIX_LIB@/libEGL.so.1",
-+        "@PREFIX_LIB@/libEGL.so.1.1.0"
++        "@PREFIX_LIB@/libEGL.so.1.1.0",
++        "@PREFIX_LIB@/libGLESv2.so.2",
++        "@PREFIX_LIB@/libGLESv2.so.2.1.0"
 +      ]
 +    },
 +    "WaylandEGL": {
@@ -117,10 +108,10 @@ index 8d18d0e..c10066f 100644
    generate(libGL ${CMAKE_CURRENT_SOURCE_DIR}/../libGL/libGL_interface.cpp ${GUEST_BITNESS})
    target_include_directories_from_pkgconfig(libGL-${GUEST_BITNESS}-deps gl)
 diff --git a/ThunkLibs/libEGL/libEGL_Guest.cpp b/ThunkLibs/libEGL/libEGL_Guest.cpp
-index c157f00..8cef10d 100644
+index c157f00..45e49bf 100644
 --- a/ThunkLibs/libEGL/libEGL_Guest.cpp
 +++ b/ThunkLibs/libEGL/libEGL_Guest.cpp
-@@ -5,9 +5,16 @@ desc: Depends on glXGetProcAddress thunk
+@@ -5,11 +5,22 @@ desc: Depends on glXGetProcAddress thunk
  $end_info$
  */
  
@@ -136,39 +127,119 @@ index c157f00..8cef10d 100644
 +#include <dlfcn.h>
  #include <stdio.h>
  #include <cstring>
++#include <mutex>
++#include <set>
++#include <string>
++#include <string_view>
  
-@@ -17,12 +24,22 @@ $end_info$
+ #include "common/Guest.h"
+ 
+@@ -17,12 +28,94 @@ $end_info$
  
  typedef void voidFunc();
  
--
++static void* Self() {
++  static void* self = [] {
++    Dl_info info {};
++    return dladdr(reinterpret_cast<void*>(&Self), &info) && info.dli_fname ? dlopen(info.dli_fname, RTLD_LAZY | RTLD_NOLOAD) : nullptr;
++  }();
++  return self;
++}
++
++static constexpr std::pair<std::string_view, const char*> ExtensionEntrypoints[] = {
++  {"EGL_ANDROID_blob_cache", "eglSetBlobCacheFuncsANDROID"},
++  {"EGL_ANDROID_get_frame_timestamps", "eglGetFrameTimestampsANDROID"},
++  {"EGL_ANDROID_get_native_client_buffer", "eglGetNativeClientBufferANDROID"},
++  {"EGL_ANDROID_presentation_time", "eglPresentationTimeANDROID"},
++  {"EGL_EXT_compositor", "eglCompositorSetContextListEXT"},
++  {"EGL_EXT_output_base", "eglGetOutputLayersEXT"},
++  {"EGL_EXT_stream_consumer_egloutput", "eglStreamConsumerOutputEXT"},
++  {"EGL_EXT_surface_compression", "eglQuerySupportedCompressionRatesEXT"},
++  {"EGL_EXT_sync_reuse", "eglUnsignalSyncEXT"},
++  {"EGL_HI_clientpixmap", "eglCreatePixmapSurfaceHI"},
++  {"EGL_KHR_cl_event2", "eglCreateSync64KHR"},
++  {"EGL_KHR_debug", "eglDebugMessageControlKHR"},
++  {"EGL_KHR_display_reference", "eglQueryDisplayAttribKHR"},
++  {"EGL_KHR_lock_surface", "eglLockSurfaceKHR"},
++  {"EGL_KHR_lock_surface3", "eglQuerySurface64KHR"},
++  {"EGL_KHR_partial_update", "eglSetDamageRegionKHR"},
++  {"EGL_KHR_reusable_sync", "eglSignalSyncKHR"},
++  {"EGL_KHR_stream", "eglCreateStreamKHR"},
++  {"EGL_KHR_swap_buffers_with_damage", "eglSwapBuffersWithDamageKHR"},
++  {"EGL_MESA_drm_image", "eglCreateDRMImageMESA"},
++  {"EGL_MESA_gl_interop", "eglGLInteropExportObjectMESA"},
++  {"EGL_MESA_image_dma_buf_export", "eglExportDMABUFImageMESA"},
++  {"EGL_MESA_query_driver", "eglGetDisplayDriverName"},
++  {"EGL_NOK_swap_region2", "eglSwapBuffersRegion2NOK"},
++  {"EGL_NV_post_sub_buffer", "eglPostSubBufferNV"},
++  {"EGL_NV_stream_consumer_gltexture_yuv", "eglStreamConsumerGLTextureExternalAttribsNV"},
++  {"EGL_NV_stream_metadata", "eglSetStreamMetadataNV"},
++  {"EGL_NV_stream_sync", "eglCreateStreamSyncNV"},
++  {"EGL_NV_sync", "eglCreateFenceSyncNV"},
++  {"EGL_NV_system_time", "eglGetSystemTimeNV"},
++  {"EGL_WL_bind_wayland_display", "eglBindWaylandDisplayWL"},
++  {"EGL_WL_create_wayland_buffer_from_image", "eglCreateWaylandBufferFromImageWL"},
++};
++
++static bool GuestHasEntrypoints(std::string_view extension) {
++  for (const auto& [name, entrypoint] : ExtensionEntrypoints) {
++    if (name == extension) {
++      return Self() && dlsym(Self(), entrypoint);
++    }
++  }
++  return true;
++}
+ 
  extern "C" {
  voidFunc* eglGetProcAddress(const char* procname) {
 -  // TODO: Fix this HACK
 +  if (strncmp(procname, "egl", 3) == 0) {
-+    static void* self = [] {
-+      Dl_info info {};
-+      return dladdr(reinterpret_cast<void*>(&eglGetProcAddress), &info) && info.dli_fname ? dlopen(info.dli_fname, RTLD_LAZY | RTLD_NOLOAD) : nullptr;
-+    }();
-+    return self ? reinterpret_cast<voidFunc*>(dlsym(self, procname)) : nullptr;
++    return Self() ? reinterpret_cast<voidFunc*>(dlsym(Self(), procname)) : nullptr;
 +  }
    return glXGetProcAddress((const GLubyte*)procname);
  }
- }
- 
--LOAD_LIB(libEGL)
++
++const char* eglQueryString(EGLDisplay display, EGLint name) {
++  const char* result = fexfn_pack_eglQueryString(display, name);
++  if (!result || name != EGL_EXTENSIONS) {
++    return result;
++  }
++  std::string filtered;
++  std::string_view all {result};
++  while (!all.empty()) {
++    auto end = all.find(' ');
++    auto extension = all.substr(0, end);
++    if (!extension.empty() && GuestHasEntrypoints(extension)) {
++      if (!filtered.empty()) {
++        filtered += ' ';
++      }
++      filtered += extension;
++    }
++    all = end == std::string_view::npos ? std::string_view {} : all.substr(end + 1);
++  }
++  static std::mutex mutex;
++  static std::set<std::string> strings;
++  std::lock_guard lock(mutex);
++  return strings.insert(std::move(filtered)).first->c_str();
++}
++}
++
 +static void OnInit() {
 +  fexfn_pack_EGL_SetGuestXSync((uintptr_t)XSync, (uintptr_t)CallbackUnpack<decltype(XSync)>::Unpack);
 +  fexfn_pack_EGL_SetGuestXDisplayString((uintptr_t)XDisplayString, (uintptr_t)CallbackUnpack<decltype(XDisplayString)>::Unpack);
-+}
-+
+ }
+ 
+-LOAD_LIB(libEGL)
 +LOAD_LIB_INIT(libEGL, OnInit)
 diff --git a/ThunkLibs/libEGL/libEGL_Host.cpp b/ThunkLibs/libEGL/libEGL_Host.cpp
-index ac8a87e..25892cb 100644
+index ac8a87e..7db6ed2 100644
 --- a/ThunkLibs/libEGL/libEGL_Host.cpp
 +++ b/ThunkLibs/libEGL/libEGL_Host.cpp
-@@ -6,12 +6,138 @@ $end_info$
+@@ -4,14 +4,158 @@ tags: thunklibs|EGL
+ $end_info$
+ */
  
++#include <atomic>
  #include <cstdio>
  #include <dlfcn.h>
 +#include <mutex>
@@ -203,13 +274,30 @@ index ac8a87e..25892cb 100644
  #include "thunkgen_host_libEGL.inl"
  
 +static bool IsWaylandDisplay(void* native) {
-+  static void* wl_display_interface = nullptr;
++  static std::atomic<void*> cached_interface {nullptr};
++  void* wl_display_interface = cached_interface.load(std::memory_order_acquire);
 +  if (!wl_display_interface) {
 +    if (void* so = dlopen("libwayland-client.so.0", RTLD_LAZY | RTLD_NOLOAD)) {
 +      wl_display_interface = dlsym(so, "wl_display_interface");
++      dlclose(so);
++      cached_interface.store(wl_display_interface, std::memory_order_release);
 +    }
 +  }
 +  return wl_display_interface && *reinterpret_cast<void**>(native) == wl_display_interface;
++}
++
++static bool IsHostDevice(void* native) {
++  EGLDeviceEXT devices[16];
++  EGLint count = 0;
++  if (!fexldr_ptr_libEGL_eglQueryDevicesEXT || !fexldr_ptr_libEGL_eglQueryDevicesEXT(16, devices, &count)) {
++    return false;
++  }
++  for (EGLint i = 0; i < count; ++i) {
++    if (devices[i] == native) {
++      return true;
++    }
++  }
++  return false;
 +}
 +
 +static void* HostNativeDisplay(EGLenum platform, void* native, _XDisplay** guest_x11) {
@@ -222,7 +310,7 @@ index ac8a87e..25892cb 100644
 +  case EGL_PLATFORM_XCB_EXT: return x11_manager.GuestToHostConnection(static_cast<xcb_connection_t*>(native));
 +#endif
 +  case 0:
-+    if (IsWaylandDisplay(native)) {
++    if (IsHostDevice(native) || IsWaylandDisplay(native)) {
 +      return native;
 +    }
 +    break;
@@ -308,7 +396,7 @@ index ac8a87e..25892cb 100644
 +
  EXPORTS(libEGL)
 diff --git a/ThunkLibs/libEGL/libEGL_interface.cpp b/ThunkLibs/libEGL/libEGL_interface.cpp
-index 27de16d..163b151 100644
+index 27de16d..19f8b86 100644
 --- a/ThunkLibs/libEGL/libEGL_interface.cpp
 +++ b/ThunkLibs/libEGL/libEGL_interface.cpp
 @@ -1,51 +1,170 @@
@@ -392,7 +480,7 @@ index 27de16d..163b151 100644
 +template<>
 +struct fex_gen_config<eglQueryContext> {};
 +template<>
-+struct fex_gen_config<eglQueryString> {};
++struct fex_gen_config<eglQueryString> : fexgen::custom_guest_entrypoint {};
 +template<>
  struct fex_gen_config<eglQuerySurface> {};
  template<>
@@ -493,13 +581,14 @@ index 27de16d..163b151 100644
 +struct fex_gen_config<eglCreatePlatformPixmapSurfaceEXT> : fexgen::custom_host_impl {};
 +}
 diff --git a/ThunkLibs/libwayland-client/Guest.cpp b/ThunkLibs/libwayland-client/Guest.cpp
-index 2f887a6..fbd2dd4 100644
+index 2f887a6..8fa6476 100644
 --- a/ThunkLibs/libwayland-client/Guest.cpp
 +++ b/ThunkLibs/libwayland-client/Guest.cpp
-@@ -42,8 +42,10 @@ extern "C" const wl_interface wl_subsurface_interface {};
+@@ -42,8 +42,11 @@ extern "C" const wl_interface wl_subsurface_interface {};
  #include <charconv>
  #include <cstdio>
  #include <cstdarg>
++#include <cstdint>
 +#include <cstdlib>
  #include <cstring>
  #include <string>
@@ -507,7 +596,7 @@ index 2f887a6..fbd2dd4 100644
  
  #include "common/Guest.h"
  
-@@ -92,6 +94,21 @@ static uint64_t WaylandAllocateHostTrampolineForGuestListener(void (*callback)()
+@@ -92,18 +95,39 @@ static uint64_t WaylandAllocateHostTrampolineForGuestListener(void (*callback)()
  }
  
  #define WL_CLOSURE_MAX_ARGS 20
@@ -529,16 +618,29 @@ index 2f887a6..fbd2dd4 100644
  
  extern "C" int wl_proxy_add_listener(wl_proxy* proxy, void (**callback)(void), void* data) {
    // Replace guest-provided callback table with host-callable function pointers
-@@ -99,7 +116,7 @@ extern "C" int wl_proxy_add_listener(wl_proxy* proxy, void (**callback)(void), v
+   // NOTE: A reference to this table is stored in the wl_proxy, so the data
    //       must remain valid until the proxy is destroyed (or another listener
    //       is added)
-   delete[] (uint64_t*)wl_proxy_get_listener(proxy); // Delete previous substitute, if any
+-  delete[] (uint64_t*)wl_proxy_get_listener(proxy); // Delete previous substitute, if any
 -  auto host_callbacks = new uint64_t[WL_CLOSURE_MAX_ARGS];
++  if (wl_proxy_get_listener(proxy)) {
++    fprintf(stderr, "proxy %p already has listener\n", proxy);
++    return -1;
++  }
 +  auto host_callbacks = new uint64_t[std::max(fex_wl_get_interface_event_count(proxy), WL_CLOSURE_MAX_ARGS)];
  
    for (int i = 0; i < fex_wl_get_interface_event_count(proxy); ++i) {
-     char event_signature[16];
-@@ -227,6 +244,8 @@ extern "C" int wl_proxy_add_listener(wl_proxy* proxy, void (**callback)(void), v
+-    char event_signature[16];
+-    fex_wl_get_interface_event_signature(proxy, i, event_signature);
++    char event_signature[64];
++    if (fex_wl_get_interface_event_signature(proxy, i, event_signature, sizeof(event_signature)) >= sizeof(event_signature)) {
++      fprintf(stderr, "TODO: Unknown wayland event signature descriptor %s\n", event_signature);
++      std::abort();
++    }
+     auto signature2 = std::string_view {event_signature};
+ 
+     // A leading number indicates the minimum protocol version
+@@ -227,13 +251,19 @@ extern "C" int wl_proxy_add_listener(wl_proxy* proxy, void (**callback)(void), v
      } else if (signature == "sii") {
        // E.g. zwp_text_input_v3::preedit_string
        host_callbacks[i] = WaylandAllocateHostTrampolineForGuestListener<'s', 'i', 'i'>(callback[i]);
@@ -547,7 +649,19 @@ index 2f887a6..fbd2dd4 100644
      } else {
        fprintf(stderr, "TODO: Unknown wayland event signature descriptor %s\n", signature.data());
        std::abort();
-@@ -353,6 +372,88 @@ extern "C" void wl_log_set_handler_client(wl_log_func_t handler) {
+     }
+   }
+ 
+-  return fexfn_pack_wl_proxy_add_listener(proxy, (void (**)())host_callbacks, data);
++  int result = fexfn_pack_wl_proxy_add_listener(proxy, (void (**)())host_callbacks, data);
++  if (result != 0) {
++    delete[] host_callbacks;
++  }
++  return result;
+ }
+ 
+ extern "C" void wl_proxy_destroy(wl_proxy* proxy) {
+@@ -353,6 +383,92 @@ extern "C" void wl_log_set_handler_client(wl_log_func_t handler) {
    // Ignore
  }
  
@@ -602,9 +716,13 @@ index 2f887a6..fbd2dd4 100644
 +}
 +
 +extern "C" void* wl_array_add(wl_array* array, size_t size) {
++  if (size > SIZE_MAX - array->size) {
++    return nullptr;
++  }
++  size_t needed = array->size + size;
 +  size_t alloc = array->alloc > 0 ? array->alloc : 16;
-+  while (alloc < array->size + size) {
-+    alloc *= 2;
++  while (alloc < needed) {
++    alloc = alloc > SIZE_MAX / 2 ? needed : alloc * 2;
 +  }
 +  if (array->alloc < alloc) {
 +    void* data = array->alloc > 0 ? realloc(array->data, alloc) : malloc(alloc);
@@ -637,7 +755,7 @@ index 2f887a6..fbd2dd4 100644
  void OnInit() {
    fex_wl_exchange_interface_pointer(const_cast<wl_interface*>(&wl_output_interface), "wl_output_interface");
 diff --git a/ThunkLibs/libwayland-client/Host.cpp b/ThunkLibs/libwayland-client/Host.cpp
-index 68c2ded..bf8a7aa 100644
+index 68c2ded..25f964c 100644
 --- a/ThunkLibs/libwayland-client/Host.cpp
 +++ b/ThunkLibs/libwayland-client/Host.cpp
 @@ -22,6 +22,7 @@ $end_info$
@@ -687,10 +805,23 @@ index 68c2ded..bf8a7aa 100644
      } else {
        fprintf(stderr, "TODO: Unknown wayland event signature descriptor %s\n", signature.data());
        std::abort();
-@@ -518,4 +537,24 @@ void fexfn_impl_libwayland_client_fex_wl_get_interface_event_signature(wl_proxy*
-   strcpy(out, get_proxy_interface(proxy)->events[i].signature);
+@@ -514,8 +533,35 @@ void fexfn_impl_libwayland_client_fex_wl_get_interface_event_name(wl_proxy* prox
+   strcpy(out, get_proxy_interface(proxy)->events[i].name);
  }
  
+-void fexfn_impl_libwayland_client_fex_wl_get_interface_event_signature(wl_proxy* proxy, int i, char* out) {
+-  strcpy(out, get_proxy_interface(proxy)->events[i].signature);
++size_t fexfn_impl_libwayland_client_fex_wl_get_interface_event_signature(wl_proxy* proxy, int i, char* out, size_t size) {
++  const char* signature = get_proxy_interface(proxy)->events[i].signature;
++  size_t length = strlen(signature);
++  if (size > 0) {
++    size_t copied = std::min(length, size - 1);
++    memcpy(out, signature, copied);
++    out[copied] = '\0';
++  }
++  return length;
++}
++
 +uint32_t fexfn_impl_libwayland_client_wl_display_get_protocol_error(wl_display* display, guest_layout<const wl_interface**> guest_interface,
 +                                                                      uint32_t* id) {
 +  const wl_interface* host_interface = nullptr;
@@ -709,11 +840,11 @@ index 68c2ded..bf8a7aa 100644
 +  }
 +  guest_interface.get_pointer()->data = result;
 +  return code;
-+}
-+
+ }
+ 
  EXPORTS(libwayland_client)
 diff --git a/ThunkLibs/libwayland-client/libwayland-client_interface.cpp b/ThunkLibs/libwayland-client/libwayland-client_interface.cpp
-index 575d2e1..2427068 100644
+index 575d2e1..9723a3c 100644
 --- a/ThunkLibs/libwayland-client/libwayland-client_interface.cpp
 +++ b/ThunkLibs/libwayland-client/libwayland-client_interface.cpp
 @@ -83,6 +83,16 @@ struct fex_gen_config<wl_display_get_fd> {};
@@ -744,6 +875,14 @@ index 575d2e1..2427068 100644
  struct fex_gen_config<wl_proxy_get_id> {};
  template<>
  struct fex_gen_config<wl_proxy_get_listener> {};
+@@ -164,6 +178,6 @@ struct fex_gen_config<fex_wl_get_interface_event_count> : fexgen::custom_host_im
+ void fex_wl_get_interface_event_name(wl_proxy*, int, char*);
+ template<>
+ struct fex_gen_config<fex_wl_get_interface_event_name> : fexgen::custom_host_impl {};
+-void fex_wl_get_interface_event_signature(wl_proxy*, int, char*);
++size_t fex_wl_get_interface_event_signature(wl_proxy*, int, char*, size_t);
+ template<>
+ struct fex_gen_config<fex_wl_get_interface_event_signature> : fexgen::custom_host_impl {};
 diff --git a/ThunkLibs/libwayland-egl/Guest.cpp b/ThunkLibs/libwayland-egl/Guest.cpp
 new file mode 100644
 index 0000000..300a8fc
