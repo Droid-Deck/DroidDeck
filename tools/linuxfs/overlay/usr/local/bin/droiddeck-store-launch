@@ -158,7 +158,15 @@ def ask(channel, request, timeout=TIMEOUT, claim=False):
 
 def windows_path(unix):
     tool = bionic_tool(os.environ.get("DD_STORE_PROTON", ""))
-    return (tool and bionic_path(tool, unix)) or "Z:" + unix.replace("/", "\\")
+    return (tool and bionic_path(tool, unix)) or "Z:" + guest_path(unix).replace("/", "\\")
+
+
+def guest_path(unix):
+    root = os.environ.get("DDNATV_ROOT", "").rstrip("/")
+    for host in dict.fromkeys(filter(None, (root, root and os.path.realpath(root)))):
+        if unix == host or unix.startswith(host + "/"):
+            return unix[len(host):] or "/"
+    return unix
 
 
 def bionic_tool(proton):
