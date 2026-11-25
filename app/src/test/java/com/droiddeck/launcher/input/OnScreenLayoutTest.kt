@@ -109,6 +109,24 @@ class OnScreenLayoutTest {
         assertNotEquals(original.single { it.id == "legacy:ls" }.height, resized.single { it.id == "legacy:ls" }.height, .0001f)
     }
 
+    @Test fun unchangedSizeDoesNotCollapseCoincidentEditedPortraitControls() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val stock = gamepad()
+        val coincident = stock.elements.map { element ->
+            if (element.id == "legacy:a" || element.id == "legacy:b") {
+                element.copy(x = .2f, y = .2f, width = .1f, height = .1f)
+            } else element
+        }
+        val edited = stock.copy(elements = coincident, aspect = .5f)
+        ControllerPrefs.setSize(context, 100)
+        val placed = OnScreenLayout.elements(
+            context, edited, 540, 1080, Rect(),
+            dock = OnScreenLayout.Dock(true, false),
+        )
+        assertTrue(placed.at(InputControl.A).width > 0f)
+        assertTrue(placed.at(InputControl.B).width > 0f)
+    }
+
     @Test fun changingControllerSizeResizesDefaultDockedControlsWithoutASavedLayout() {
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
         val layout = gamepad()
