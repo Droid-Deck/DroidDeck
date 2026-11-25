@@ -278,7 +278,7 @@ if [ "${DD_VKBRIDGE:-0}" = 1 ]; then
   if [ -z "$dd_vkb_missing" ]; then
     export VK_DRIVER_FILES=$dd_vkb_icd VK_ICD_FILENAMES=$dd_vkb_icd
     export VKBRIDGE_SOCKET VKBRIDGE_CLIENT_LOG
-    export VKBRIDGE_ASYNC_ACQUIRE=${VKBRIDGE_ASYNC_ACQUIRE:-1} VKBRIDGE_AQ_LOCKED_WRITES=${VKBRIDGE_AQ_LOCKED_WRITES:-0}
+    export VKBRIDGE_AQ_LOCKED_WRITES=${VKBRIDGE_AQ_LOCKED_WRITES:-0}
     if [ -r /root/.vkbridge-env ]; then
       while IFS='=' read -r _k _v; do
         case "$_k" in VKBRIDGE_*|DD_VKBRIDGE_*) export "$_k=$_v" ;; esac
