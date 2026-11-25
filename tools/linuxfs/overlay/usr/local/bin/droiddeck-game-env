@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import fcntl
 import hashlib
 import json
 import os
@@ -365,6 +366,136 @@ def ubisoft_composition_off(proton, env):
         print("droiddeck-game-env: Ubisoft Connect uses CEF without DirectComposition", file=sys.stderr)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print("droiddeck-game-env: Ubisoft Connect composition configuration failed (%s)" % error, file=sys.stderr)
+
+
+C_LOCALES = ("", "C", "POSIX", "C.UTF-8", "C.utf8")
+
+UI_SECTION = "[Control Panel\\\\Desktop\\\\MuiCached]"
+PROFILE_SECTION = "[Control Panel\\\\International\\\\User Profile]"
+TRADITIONAL = ("TW", "HK", "MO")
+
+
+def win_locale(name):
+    base = name.split("@", 1)[0].split(".", 1)[0]
+    language, _, region = base.partition("_")
+    if not region:
+        return ""
+    if language == "zh":
+        return "zh-%s-%s" % ("Hant" if region.upper() in TRADITIONAL else "Hans", region.upper())
+    return "%s-%s" % (language.lower(), region.upper())
+
+
+def registry_quote(value):
+    return '"%s"' % value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def registry_multi_sz(values):
+    data = bytearray()
+    for value in values:
+        data += value.encode("utf-16-le") + b"\x00\x00"
+    data += b"\x00\x00"
+    return "hex(7):" + ",".join("%02x" % byte for byte in data)
+
+
+def upsert_registry(text, values, section):
+    lines = text.splitlines()
+    header = next((index for index, line in enumerate(lines) if line.startswith(section)), None)
+    if header is None:
+        if text and not text.endswith("\n"):
+            lines.append("")
+        lines.append(section + " 1")
+        header = len(lines) - 1
+    end = next((index for index in range(header + 1, len(lines)) if lines[index].startswith("[")), len(lines))
+    body = lines[header + 1:end]
+    for name, value in values.items():
+        entry = "%s=%s" % (registry_quote(name), value)
+        for index, line in enumerate(body):
+            if line.startswith(registry_quote(name) + "="):
+                body[index] = entry
+                break
+        else:
+            body.append(entry)
+    return "\n".join(lines[:header + 1] + body + lines[end:]) + "\n"
+
+
+def wineserver_running(prefix):
+    target = os.path.realpath(str(prefix))
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            if b"wineserver" not in (entry / "cmdline").read_bytes():
+                continue
+            environment = (entry / "environ").read_bytes()
+        except OSError:
+            continue
+        for item in environment.split(b"\x00"):
+            if item.startswith(b"WINEPREFIX=") and os.path.realpath(os.fsdecode(item[11:])) == target:
+                return True
+    return False
+
+
+def prefix_locale(env, busy=None):
+    name = env.get("LANG", "")
+    if name in C_LOCALES:
+        return
+    windows_name = win_locale(name)
+    if not windows_name:
+        return
+    prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
+    if not prefix.is_dir():
+        return
+    try:
+        lock = open(prefix / ".droiddeck-locale.lock", "w")
+    except OSError:
+        return
+    with lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            write_prefix_locale(prefix, name, windows_name, busy)
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def write_prefix_locale(prefix, name, windows_name, busy):
+    marker = prefix / ".droiddeck-locale"
+    try:
+        if marker.read_text(encoding="utf-8").strip() == name:
+            return
+    except OSError:
+        pass
+    if (busy or wineserver_running)(prefix):
+        print("droiddeck-game-env: the prefix is in use, the language is written on the next launch", file=sys.stderr)
+        return
+    registry = prefix / "user.reg"
+    if not registry.is_file():
+        print("droiddeck-game-env: prefix has no registry yet, the session language is written on the next launch",
+              file=sys.stderr)
+        return
+    try:
+        text = registry.read_text(encoding="utf-8", errors="surrogateescape")
+        updated = upsert_registry(text, {"MachinePreferredUILanguages": registry_multi_sz([windows_name])}, UI_SECTION)
+        updated = upsert_registry(updated, {"Languages": registry_multi_sz([windows_name])}, PROFILE_SECTION)
+        if updated != text:
+            marker.unlink(missing_ok=True)
+            handle, staged = tempfile.mkstemp(prefix=".user-", dir=prefix)
+            try:
+                with os.fdopen(handle, "w", encoding="utf-8", errors="surrogateescape", newline="\n") as target:
+                    target.write(updated)
+                if registry.exists():
+                    os.chmod(staged, registry.stat().st_mode & 0o7777)
+                os.replace(staged, registry)
+            except BaseException:
+                os.unlink(staged)
+                raise
+        if updated != text and (busy or wineserver_running)(prefix):
+            print("droiddeck-game-env: the prefix started while the language was written; it is written again on "
+                  "the next launch", file=sys.stderr)
+            return
+        marker.write_text(name + "\n", encoding="utf-8")
+        print("droiddeck-game-env: prefix language %s" % windows_name, file=sys.stderr)
+    except (OSError, UnicodeDecodeError) as error:
+        print("droiddeck-game-env: prefix language left as is (%s)" % error, file=sys.stderr)
 
 
 PZ_JVM_FLAGS = ("-XX:+UseG1GC", "-XX:TieredStopAtLevel=1")
@@ -1313,6 +1444,7 @@ def start(launch, launch_env, digest, after=None, diagnostic_app_id=None):
 def start_process(launch, launch_env, digest, after=None, diagnostic_app_id=None, output=None):
     if len(launch) > 1 and launch[1] == "waitforexitandrun":
         ubisoft_composition_off(launch[0], launch_env)
+    prefix_locale(launch_env)
     launch, launch_env = system_graphics_launch(launch, launch_env)
     if after or diagnostic_app_id is not None or output is not None:
         process = subprocess.Popen(launch, env=launch_env, stderr=output)

@@ -10,6 +10,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import threading
 from unittest import mock
 import unittest
 from unittest.mock import patch
@@ -3725,6 +3726,118 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertEqual([], self.run_repair(compat, proton))
             self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
             self.assertEqual([], self.run_repair(Path(tmp) / "missing", proton))
+
+
+class PrefixRegionTest(unittest.TestCase):
+    def setUp(self):
+        self.section = MODULE["UI_SECTION"]
+
+    def test_the_windows_name_comes_from_the_posix_locale(self):
+        self.assertEqual(MODULE["win_locale"]("ko_KR.UTF-8"), "ko-KR")
+        self.assertEqual(MODULE["win_locale"]("zh_TW.UTF-8"), "zh-Hant-TW")
+        self.assertEqual(MODULE["win_locale"]("zh_CN.UTF-8"), "zh-Hans-CN")
+        self.assertEqual(MODULE["win_locale"]("ja_JP.UTF-8@mod"), "ja-JP")
+        self.assertEqual(MODULE["win_locale"]("C.UTF-8"), "")
+
+    def test_the_ui_languages_are_written_as_a_multi_sz(self):
+        data = MODULE["registry_multi_sz"](["zh-Hant-TW"])
+        self.assertTrue(data.startswith("hex(7):"))
+        self.assertTrue(data.endswith("00,00,00,00"))
+
+    def test_a_section_is_added_without_touching_the_others(self):
+        text = chr(10).join(["WINE REGISTRY Version 2", r"[Software\Game] 1700000000", '"Name"="kept"', ""])
+        updated = MODULE["upsert_registry"](text, {"MachinePreferredUILanguages": "hex(7):00"}, self.section)
+        self.assertIn(self.section + " 1", updated)
+        self.assertIn('"MachinePreferredUILanguages"=hex(7):00', updated)
+        self.assertIn('"Name"="kept"', updated)
+
+    def test_the_wine_stamp_on_the_section_is_kept(self):
+        text = chr(10).join(["WINE REGISTRY Version 2", self.section + " 1699999999", '"a"="b"', ""])
+        updated = MODULE["upsert_registry"](text, {"MachinePreferredUILanguages": "hex(7):00"}, self.section)
+        self.assertIn(self.section + " 1699999999" + chr(10), updated)
+        self.assertIn('"MachinePreferredUILanguages"=hex(7):00', updated)
+
+    def test_the_prefix_language_is_written_once_per_locale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "pfx"
+            prefix.mkdir()
+            registry = prefix / "user.reg"
+            registry.write_text("WINE REGISTRY Version 2" + chr(10), encoding="utf-8")
+            env = {"LANG": "C.UTF-8", "STEAM_COMPAT_DATA_PATH": tmp}
+            MODULE["prefix_locale"](env)
+            self.assertFalse((prefix / ".droiddeck-locale").exists())
+            MODULE["prefix_locale"](dict(env, LANG="ko_KR.UTF-8"))
+            self.assertEqual((prefix / ".droiddeck-locale").read_text(encoding="utf-8").strip(), "ko_KR.UTF-8")
+            written = registry.read_text(encoding="utf-8")
+            MODULE["prefix_locale"](dict(env, LANG="ko_KR.UTF-8"))
+            self.assertEqual(registry.read_text(encoding="utf-8"), written)
+
+    def test_the_region_formats_are_left_to_wine(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "pfx"
+            prefix.mkdir()
+            registry = prefix / "user.reg"
+            international = chr(10).join(["[Control Panel\International] 1", '"LocaleName"="ko-KR"',
+                                          '"sShortDate"="yyyy-MM-dd"', ""])
+            registry.write_text("WINE REGISTRY Version 2" + chr(10) + international, encoding="utf-8")
+            MODULE["prefix_locale"]({"LANG": "ja_JP.UTF-8", "STEAM_COMPAT_DATA_PATH": tmp})
+            text = registry.read_text(encoding="utf-8")
+            self.assertIn('"LocaleName"="ko-KR"', text)
+            self.assertIn('"sShortDate"="yyyy-MM-dd"', text)
+            self.assertIn('"MachinePreferredUILanguages"=hex(7):6a,00,61,00,2d,00,4a,00,50,00,00,00,00,00', text)
+            self.assertIn('"Languages"=hex(7):6a,00,61,00,2d,00,4a,00,50,00,00,00,00,00', text)
+
+    def test_a_prefix_another_wine_server_holds_is_left_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "pfx"
+            prefix.mkdir()
+            registry = prefix / "user.reg"
+            registry.write_text("WINE REGISTRY Version 2" + chr(10), encoding="utf-8")
+            before = registry.read_text(encoding="utf-8")
+            MODULE["prefix_locale"]({"LANG": "ja_JP.UTF-8", "STEAM_COMPAT_DATA_PATH": tmp},
+                                    busy=lambda prefix: True)
+            self.assertFalse((prefix / ".droiddeck-locale").exists())
+            self.assertEqual(registry.read_text(encoding="utf-8"), before)
+
+    def test_a_prefix_that_starts_while_the_language_is_written_is_written_again_next_time(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "pfx"
+            prefix.mkdir()
+            registry = prefix / "user.reg"
+            registry.write_text("WINE REGISTRY Version 2" + chr(10), encoding="utf-8")
+            calls = []
+
+            def busy(prefix):
+                calls.append(1)
+                return len(calls) > 1
+
+            MODULE["prefix_locale"]({"LANG": "ja_JP.UTF-8", "STEAM_COMPAT_DATA_PATH": tmp}, busy=busy)
+            self.assertEqual(len(calls), 2)
+            self.assertFalse((prefix / ".droiddeck-locale").exists())
+
+    def test_launches_at_the_same_time_leave_one_prefix_language(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "pfx"
+            prefix.mkdir()
+            registry = prefix / "user.reg"
+            registry.write_text("WINE REGISTRY Version 2" + chr(10), encoding="utf-8")
+            env = {"LANG": "ko_KR.UTF-8", "STEAM_COMPAT_DATA_PATH": tmp}
+            threads = [threading.Thread(target=MODULE["prefix_locale"], args=(env,)) for _ in range(4)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+            text = registry.read_text(encoding="utf-8")
+            self.assertEqual(text.count('"MachinePreferredUILanguages"'), 1)
+            self.assertEqual(text.count('"Languages"'), 1)
+            self.assertEqual((prefix / ".droiddeck-locale").read_text(encoding="utf-8").strip(), "ko_KR.UTF-8")
+
+    def test_a_prefix_without_a_registry_is_left_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            prefix = Path(tmp) / "pfx"
+            prefix.mkdir()
+            MODULE["prefix_locale"]({"LANG": "ja_JP.UTF-8", "STEAM_COMPAT_DATA_PATH": tmp})
+            self.assertFalse((prefix / ".droiddeck-locale").exists())
 
 
 if __name__ == "__main__":
