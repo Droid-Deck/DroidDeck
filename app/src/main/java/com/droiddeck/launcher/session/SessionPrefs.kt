@@ -1042,7 +1042,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootFastPath", on).apply()
     }
 
-    fun cursorComposite(context: Context): Boolean = prefs(context).getBoolean("cursorComposite", false)
+    fun cursorComposite(context: Context): Boolean = prefs(context).getBoolean("cursorComposite", true)
 
     fun setCursorComposite(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("cursorComposite", on).apply()
