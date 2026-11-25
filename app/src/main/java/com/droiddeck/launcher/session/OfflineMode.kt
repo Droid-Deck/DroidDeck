@@ -8,6 +8,7 @@ import java.io.File
 object OfflineMode {
     private const val TAG = "OfflineMode"
     private const val KEY = "steam_offline"
+    private const val AUTO_KEY = "steam_offline_auto"
     private val WANTS = Regex("""^(\s*"WantsOfflineMode"\s*")([01])(".*)$""")
     private val SKIP = Regex("""^(\s*"SkipOfflineModeWarning"\s*")([01])(".*)$""")
     private val REMEMBER = Regex(""""RememberPassword"\s*"1"""")
@@ -19,10 +20,12 @@ object OfflineMode {
 
     private fun x64LoginUsers(root: File) = File(root, "root/.droiddeck-x64/.local/share/Steam/config/loginusers.vdf")
 
-    fun account(context: Context): String? {
-        val root = LinuxRuntime.rootDir(context)
-        val file = x64LoginUsers(root).takeIf { SessionPrefs.activeSteamClientArch(context) == "x86_64" && it.isFile }
+    private fun activeLoginUsers(context: Context, root: File) =
+        x64LoginUsers(root).takeIf { SessionPrefs.activeSteamClientArch(context) == "x86_64" && it.isFile }
             ?: loginUsers(root)
+
+    fun account(context: Context): String? {
+        val file = activeLoginUsers(context, LinuxRuntime.rootDir(context))
         val text = try {
             if (file.isFile) file.readText() else return null
         } catch (e: Exception) {
@@ -32,21 +35,52 @@ object OfflineMode {
         return PERSONA.find(text)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }.orEmpty()
     }
 
-    fun enabled(context: Context): Boolean = prefs(context).getBoolean(KEY, false)
+    private fun steamWants(context: Context, root: File): Boolean? {
+        val file = activeLoginUsers(context, root)
+        val lines = try {
+            if (file.isFile) file.readLines() else return null
+        } catch (e: Exception) {
+            Log.w(TAG, "could not read loginusers.vdf", e); return null
+        }
+        val values = lines.mapNotNull { WANTS.matchEntire(it)?.groupValues?.get(2) }
+        return if (values.isEmpty()) null else "1" in values
+    }
+
+    internal fun manual(steamWants: Boolean?, automatic: Boolean, saved: Boolean): Boolean =
+        if (steamWants == null) saved else steamWants && !automatic
+
+    internal fun offline(manual: Boolean, online: Boolean): Boolean = manual || !online
+
+    fun enabled(context: Context): Boolean {
+        val prefs = prefs(context)
+        return manual(steamWants(context, LinuxRuntime.rootDir(context)), prefs.getBoolean(AUTO_KEY, false), prefs.getBoolean(KEY, false))
+    }
+
+    fun active(context: Context): Boolean =
+        offline(enabled(context), com.droiddeck.launcher.frontend.AutoComponents.isOnline(context))
 
     fun setEnabled(context: Context, on: Boolean) {
-        prefs(context).edit().putBoolean(KEY, on).apply()
-        apply(context, LinuxRuntime.rootDir(context))
+        write(context, LinuxRuntime.rootDir(context), on)
     }
 
-    fun apply(context: Context, root: File) {
-        applyTo(context, loginUsers(root))
-        applyTo(context, x64LoginUsers(root))
+    fun apply(context: Context, root: File): Boolean {
+        val prefs = prefs(context)
+        return write(context, root, manual(steamWants(context, root), prefs.getBoolean(AUTO_KEY, false), prefs.getBoolean(KEY, false)))
     }
 
-    private fun applyTo(context: Context, file: File) {
+    private fun write(context: Context, root: File, manual: Boolean): Boolean {
+        val online = com.droiddeck.launcher.frontend.AutoComponents.isOnline(context)
+        val offline = offline(manual, online)
+        prefs(context).edit().putBoolean(KEY, manual).putBoolean(AUTO_KEY, offline && !manual).apply()
+        Log.i(TAG, "manual=$manual online=$online offline=$offline")
+        applyTo(loginUsers(root), offline)
+        applyTo(x64LoginUsers(root), offline)
+        return offline
+    }
+
+    private fun applyTo(file: File, offline: Boolean) {
         if (!file.isFile) return
-        val want = if (enabled(context)) "1" else "0"
+        val want = if (offline) "1" else "0"
         try {
             val lines = file.readLines()
             val out = ArrayList<String>(lines.size + 4)
