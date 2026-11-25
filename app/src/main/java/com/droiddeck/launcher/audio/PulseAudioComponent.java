@@ -4,6 +4,7 @@ import android.content.Context;
 import android.os.Process;
 import android.util.Log;
 
+import com.droiddeck.launcher.core.CappedLogWriter;
 import com.droiddeck.launcher.core.FileUtils;
 import com.droiddeck.launcher.core.SessionPart;
 import com.droiddeck.launcher.core.HostProcess;
@@ -32,6 +33,7 @@ public class PulseAudioComponent extends SessionPart {
     private final File workingDir;
     private final File deviceControls;
     private File logFile;
+    private CappedLogWriter log;
     private final String micFifoPath;
     private final HostLifecycle host = new HostLifecycle(Process::killProcess);
 
@@ -191,7 +193,7 @@ public class PulseAudioComponent extends SessionPart {
                 + " --system=false --disable-shm=true --fail=false"
                 + " -n --file=default.pa --daemonize=false --use-pid-file=false --exit-idle-time=-1"
                 + " --log-level=info";
-        final java.io.PrintWriter out = openLog();
+        final CappedLogWriter out = openLog();
         if (!host.launch(generation, () -> HostProcess.start(command, env.toArray(new String[0]), workingDir, status -> {
                     if (host.exited(generation)) {
                         Log.w(TAG, "audio host exited with status " + status + "; restarting");
@@ -199,8 +201,7 @@ public class PulseAudioComponent extends SessionPart {
                     }
                 },
                 line -> {
-                    Log.i(TAG, line);
-                    if (out != null) synchronized (out) { out.println(line); out.flush(); }
+                    if (out == null || out.line(line)) Log.i(TAG, line);
                 }))) return;
         long token = host.token();
         Thread guard = new Thread(() -> ensureClientSink(out, token), "pulse-sink-guard");
@@ -208,7 +209,7 @@ public class PulseAudioComponent extends SessionPart {
         guard.start();
     }
 
-    private void ensureClientSink(java.io.PrintWriter out, long token) {
+    private void ensureClientSink(CappedLogWriter out, long token) {
         try {
             // Nothing that may block (a sink whose AAudio open hangs: a Galaxy S24 FE (US) hung the
             // daemon's start-up loading one from default.pa) is loaded by the daemon itself; the
@@ -253,17 +254,17 @@ public class PulseAudioComponent extends SessionPart {
                 Log.w(TAG, line);
             }
             Log.i(TAG, line);
-            if (out != null) synchronized (out) { out.println(line); out.flush(); }
+            if (out != null) out.line(line);
         } catch (Throwable t) {
             Log.w(TAG, "ensureClientSink failed", t);
         }
     }
 
     /** A timestamped line in the session's audio log. */
-    private void note(java.io.PrintWriter out, String what) {
+    private void note(CappedLogWriter out, String what) {
         String line = "== " + new java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US).format(new java.util.Date()) + " " + what;
         Log.i(TAG, line);
-        if (out != null) synchronized (out) { out.println(line); out.flush(); }
+        if (out != null) out.line(line);
     }
 
     private String pactlFor(long token, String... args) {
@@ -330,6 +331,7 @@ public class PulseAudioComponent extends SessionPart {
     @Override
     public void stop() {
         host.stop();
+        closeLog();
     }
 
     public boolean setSinkSuspended(boolean suspended) {
@@ -380,17 +382,22 @@ public class PulseAudioComponent extends SessionPart {
         }
     }
 
-    private java.io.PrintWriter openLog() {
+    private synchronized CappedLogWriter openLog() {
+        closeLog();
         if (logFile == null) return null;
         try {
-            java.io.PrintWriter w = new java.io.PrintWriter(new java.io.FileWriter(logFile, true));
-            w.println("== PulseAudio daemon starting" + (micFifoPath != null ? " with a microphone source" : ""));
-            w.flush();
-            return w;
+            log = new CappedLogWriter(logFile, true);
+            log.line("== PulseAudio daemon starting" + (micFifoPath != null ? " with a microphone source" : ""));
+            return log;
         } catch (Exception e) {
             Log.w(TAG, "could not open " + logFile, e);
             return null;
         }
+    }
+
+    private synchronized void closeLog() {
+        if (log != null) log.close();
+        log = null;
     }
 
     private void copyFromLibraryDir() {
