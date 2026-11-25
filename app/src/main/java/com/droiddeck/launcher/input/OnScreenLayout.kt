@@ -121,6 +121,35 @@ object OnScreenLayout {
             spacePair(InputControl.LT, InputControl.LB)
             spacePair(InputControl.RB, InputControl.RT)
         }
+        // Keep enlarged hit rectangles from stealing input from neighboring controls.
+        repeat(scaled.size) {
+            for (i in scaled.indices) {
+                if (!isGamepad(scaled[i])) continue
+                for (j in i + 1 until scaled.size) {
+                    if (!isGamepad(scaled[j])) continue
+                    val a = scaled[i]
+                    val b = scaled[j]
+                    val overlapX = min(a.x + a.width, b.x + b.width) - max(a.x, b.x)
+                    val overlapY = min(a.y + a.height, b.y + b.height) - max(a.y, b.y)
+                    if (overlapX <= 0f || overlapY <= 0f) continue
+                    val centerAX = a.x + a.width / 2f
+                    val centerBX = b.x + b.width / 2f
+                    val centerAY = a.y + a.height / 2f
+                    val centerBY = b.y + b.height / 2f
+                    if (overlapX / min(a.width, b.width) <= overlapY / min(a.height, b.height)) {
+                        val allowed = (abs(centerBX - centerAX) - 2f / width).coerceAtLeast(0f)
+                        val factor = (allowed / (a.width + b.width)).coerceIn(0f, 1f)
+                        scaled[i] = a.copy(x = centerAX - a.width * factor / 2f, width = a.width * factor)
+                        scaled[j] = b.copy(x = centerBX - b.width * factor / 2f, width = b.width * factor)
+                    } else {
+                        val allowed = (abs(centerBY - centerAY) - 2f / height).coerceAtLeast(0f)
+                        val factor = (allowed / (a.height + b.height)).coerceIn(0f, 1f)
+                        scaled[i] = a.copy(y = centerAY - a.height * factor / 2f, height = a.height * factor)
+                        scaled[j] = b.copy(y = centerBY - b.height * factor / 2f, height = b.height * factor)
+                    }
+                }
+            }
+        }
         return scaled
     }
 
