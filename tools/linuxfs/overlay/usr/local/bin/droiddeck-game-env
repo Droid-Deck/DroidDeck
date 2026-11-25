@@ -1158,8 +1158,10 @@ def wine_user_sid():
         return (21, 0, 0, 0, 1000)
     if len(text) != 16:
         return (21, 0, 0, 0, 1000)
-    digits = re.match(rb"\s*(?:0[xX])?([0-9a-fA-F]*)", text).group(1)
+    sign, digits = re.match(rb"\s*([+-]?)(?:0[xX])?([0-9a-fA-F]*)", text).groups()
     machine = int(digits, 16) if digits else 0
+    if sign == b"-":
+        machine = -machine % (1 << 64)
     return (21, machine >> 32, machine & 0xffffffff, os.getuid(), 1000)
 
 

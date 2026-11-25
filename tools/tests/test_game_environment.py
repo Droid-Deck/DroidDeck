@@ -3874,6 +3874,12 @@ class SharedDataHealTest(unittest.TestCase):
         binary.write_bytes(b"\xff\xfe" + b"0" * 15)
         self.globals["MACHINE_ID"] = str(binary)
         self.assertEqual((21, 0, 0, os.getuid(), 1000), sid())
+        signed = Path(self.tmp.name) / "signed"
+        signed.write_text("+234abcd5678ef01\n")
+        self.globals["MACHINE_ID"] = str(signed)
+        self.assertEqual((21, 0x234abcd, 0x5678ef01, os.getuid(), 1000), sid())
+        signed.write_text("-000000000000001\n")
+        self.assertEqual((21, 0xffffffff, 0xffffffff, os.getuid(), 1000), sid())
 
     def test_prefix_without_shared_data_is_skipped(self):
         self.assertEqual(([], []), MODULE["heal_shared_data"](str(Path(self.tmp.name) / "missing")))
