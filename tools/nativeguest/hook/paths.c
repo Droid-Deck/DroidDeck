@@ -150,6 +150,13 @@ static int is_mapped_guest_path(const char *path) {
     return 0;
 }
 
+static int is_identity_bound_path(const char *path) {
+    if (!path || path[0] != '/') return 0;
+    for (int i = 0; i < g_nbinds; i++)
+        if (g_binds[i].identity && is_path_prefix(path, g_binds[i].dst, g_binds[i].dst_len)) return 1;
+    return 0;
+}
+
 // Android's own mounts and files, which must never be redirected into the rootfs.
 // `path` starts with '/'; a prefix can only match when its second character does.
 static int is_android_host_path(const char *path) {

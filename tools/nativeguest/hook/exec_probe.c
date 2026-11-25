@@ -983,6 +983,14 @@ static int is_host_interpreter(const char *interp, const char *rewritten) {
     return probe.android_interp;
 }
 
+static int is_bound_guest_program(const char *path) {
+    if (g_ddnatv_root[0] == '\0' || !is_identity_bound_path(path)) return 0;
+    struct exec_probe probe;
+    probe_exec_file(path, &probe);
+    if (probe.is_elf) return probe.is_dynamic && !probe.android_interp;
+    return probe.n >= 2 && probe.hdr[0] == '#' && probe.hdr[1] == '!';
+}
+
 // argv for running `script` with its interpreter: interp [arg] script args... (the script's own
 // argv[0] is dropped, as the kernel does). free() the result.
 static char **build_script_argv(const char *interp, const char *interp_arg, const char *script, char *const argv[]) {
