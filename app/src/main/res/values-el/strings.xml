@@ -922,6 +922,7 @@
     <string name="setup_reset_settings_session_running">Σταμάτησε τη συνεδρία πριν κάνεις επαναφορά ρυθμίσεων.</string>
     <string name="setup_reset_settings_partial">Οι ρυθμίσεις επαναφέρθηκαν, αλλά όχι όλες. Οι λεπτομέρειες είναι στα αρχεία καταγραφής.</string>
     <string name="setup_offline">Λειτουργία εκτός σύνδεσης</string>
+    <string name="setup_offline_auto">Αυτόματη λειτουργία εκτός σύνδεσης</string>
     <string name="setup_sign_in_first">Συνδεθείτε πρώτα στο Steam</string>
     <string name="setup_launcher">Εκκινητής</string>
     <string name="setup_language">Γλώσσα</string>

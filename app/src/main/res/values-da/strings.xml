@@ -922,6 +922,7 @@
     <string name="setup_reset_settings_session_running">Stop sessionen, før du nulstiller indstillinger.</string>
     <string name="setup_reset_settings_partial">Indstillingerne blev nulstillet, men ikke alle. Detaljerne står i loggen.</string>
     <string name="setup_offline">Offlinetilstand</string>
+    <string name="setup_offline_auto">Automatisk offlinetilstand</string>
     <string name="setup_sign_in_first">Log ind på Steam først</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Sprog</string>

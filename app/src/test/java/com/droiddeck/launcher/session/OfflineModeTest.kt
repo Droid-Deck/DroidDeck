@@ -142,7 +142,33 @@ class OfflineModeTest {
     }
 
     @Test
-    fun chosenOfflineSurvivesANetworkDropAndReturn() {
+    fun autoGoesOnlineWhenTheNetworkReturnsEvenAfterChoosingOfflineInSteam() {
+        writeSteam("1")
+        assertTrue(OfflineMode.enabled(context))
+        network(online = false)
+        OfflineMode.follow(context)
+        assertEquals("1", steamWants())
+        network(online = true)
+        OfflineMode.follow(context)
+        assertEquals("0", steamWants())
+        assertFalse(OfflineMode.enabled(context))
+    }
+
+    @Test
+    fun autoIsOnByDefaultAndManualModeIgnoresTheNetwork() {
+        assertTrue(OfflineMode.auto(context))
+        OfflineMode.setAuto(context, false)
+        assertFalse(OfflineMode.auto(context))
+        network(online = false)
+        assertFalse(OfflineMode.apply(context, root))
+        assertFalse(OfflineMode.active(context))
+        assertEquals(false, OfflineMode.follow(context))
+        assertEquals("0", steamWants())
+    }
+
+    @Test
+    fun chosenOfflineInManualModeSurvivesANetworkDropAndReturn() {
+        OfflineMode.setAuto(context, false)
         OfflineMode.setEnabled(context, true)
         network(online = false)
         OfflineMode.follow(context)
@@ -151,5 +177,28 @@ class OfflineModeTest {
         assertTrue(OfflineMode.enabled(context))
         assertTrue(OfflineMode.apply(context, root))
         assertEquals("1", steamWants())
+    }
+
+    @Test
+    fun turningAutoOffKeepsTheCurrentStateAsTheChoice() {
+        network(online = false)
+        assertTrue(OfflineMode.apply(context, root))
+        OfflineMode.setAuto(context, false)
+        assertTrue(OfflineMode.enabled(context))
+        network(online = true)
+        assertTrue(OfflineMode.apply(context, root))
+        assertEquals("1", steamWants())
+    }
+
+    @Test
+    fun turningAutoOnFollowsTheNetworkAgain() {
+        OfflineMode.setAuto(context, false)
+        OfflineMode.setEnabled(context, true)
+        OfflineMode.setAuto(context, true)
+        assertFalse(OfflineMode.enabled(context))
+        assertEquals("0", steamWants())
+        network(online = false)
+        assertTrue(OfflineMode.apply(context, root))
+        assertFalse(OfflineMode.enabled(context))
     }
 }

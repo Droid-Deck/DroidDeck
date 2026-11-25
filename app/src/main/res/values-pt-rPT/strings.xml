@@ -917,6 +917,7 @@
     <string name="setup_log_export_failed">Não foi possível guardar os registos de sessão.</string>
     <string name="setup_log_delete_failed">Não foi possível eliminar os registos de sessão.</string>
     <string name="setup_offline">Modo offline</string>
+    <string name="setup_offline_auto">Modo offline automático</string>
     <string name="setup_sign_in_first">Inicie sessão no Steam primeiro</string>
     <string name="setup_launcher">Iniciador</string>
     <string name="setup_language">Idioma</string>

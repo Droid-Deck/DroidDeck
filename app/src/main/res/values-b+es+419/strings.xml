@@ -952,6 +952,7 @@
     <string name="setup_reset_settings_session_running">Detén la sesión antes de restablecer los ajustes.</string>
     <string name="setup_reset_settings_partial">Los ajustes se restablecieron, pero algunas partes no se pudieron restablecer. Los registros tienen los detalles.</string>
     <string name="setup_offline">Modo sin conexión</string>
+    <string name="setup_offline_auto">Modo sin conexión automático</string>
     <string name="setup_sign_in_first">Inicia sesión en Steam primero</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Idioma</string>

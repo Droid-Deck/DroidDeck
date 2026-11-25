@@ -914,6 +914,7 @@
     <string name="setup_log_export_failed">Sitzungsprotokolle konnten nicht gespeichert werden.</string>
     <string name="setup_log_delete_failed">Sitzungsprotokolle konnten nicht gelöscht werden.</string>
     <string name="setup_offline">Offlinemodus</string>
+    <string name="setup_offline_auto">Automatischer Offlinemodus</string>
     <string name="setup_sign_in_first">Melde dich zuerst bei Steam an</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Sprache</string>

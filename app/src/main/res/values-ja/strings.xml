@@ -919,6 +919,7 @@
     <string name="setup_reset_settings_session_running">設定をリセットする前にセッションを停止してください。</string>
     <string name="setup_reset_settings_partial">設定はリセットされましたが、一部をリセットできませんでした。詳細はログを確認してください。</string>
     <string name="setup_offline">オフラインモード</string>
+    <string name="setup_offline_auto">自動オフラインモード</string>
     <string name="setup_sign_in_first">先にSteamにログインしてください</string>
     <string name="setup_launcher">ランチャー</string>
     <string name="setup_language">言語</string>

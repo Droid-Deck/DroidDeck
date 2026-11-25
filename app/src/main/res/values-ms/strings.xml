@@ -919,6 +919,7 @@
     <string name="setup_reset_settings_session_running">Hentikan sesi sebelum menetap semula tetapan.</string>
     <string name="setup_reset_settings_partial">Tetapan telah ditetap semula, tetapi bukan semuanya. Butirannya ada dalam log.</string>
     <string name="setup_offline">Mod luar talian</string>
+    <string name="setup_offline_auto">Mod luar talian automatik</string>
     <string name="setup_sign_in_first">Log masuk ke Steam dahulu</string>
     <string name="setup_launcher">Pelancar</string>
     <string name="setup_language">Bahasa</string>

@@ -15,6 +15,7 @@ class SteamOfflineFollow : SessionPart() {
     private var callback: ConnectivityManager.NetworkCallback? = null
     private var online: Boolean? = null
     private var retries = 0
+    private var requested = false
 
     private val check = object : Runnable {
         override fun run() {
@@ -23,7 +24,9 @@ class SteamOfflineFollow : SessionPart() {
                 handler.postDelayed(this, SUSPENDED_POLL_MS)
                 return
             }
-            if (OfflineMode.follow(app()) == null && retries < MAX_RETRIES) {
+            val result = if (requested) OfflineMode.sync(app()) else OfflineMode.follow(app())
+            if (result != null) requested = false
+            if (result == null && retries < MAX_RETRIES) {
                 retries++
                 handler.postDelayed(this, RETRY_MS)
             }
@@ -53,6 +56,7 @@ class SteamOfflineFollow : SessionPart() {
         online = now
         handler.removeCallbacks(check)
         retries = 0
+        if (OfflineMode.auto(app())) requested = false
         handler.postDelayed(check, if (now) ONLINE_DELAY_MS else OFFLINE_DELAY_MS)
     }
 
@@ -61,6 +65,7 @@ class SteamOfflineFollow : SessionPart() {
             val handler = handler ?: return@post
             handler.removeCallbacks(check)
             retries = 0
+            requested = true
             handler.post(check)
         }
     }

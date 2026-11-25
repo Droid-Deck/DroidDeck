@@ -925,6 +925,7 @@
     <string name="setup_reset_settings_session_running">Oprește sesiunea înainte de a reseta setările.</string>
     <string name="setup_reset_settings_partial">Setările au fost resetate, dar nu toate. Detaliile sunt în jurnale.</string>
     <string name="setup_offline">Mod offline</string>
+    <string name="setup_offline_auto">Mod offline automat</string>
     <string name="setup_sign_in_first">Autentifică-te mai întâi în Steam</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Limbă</string>

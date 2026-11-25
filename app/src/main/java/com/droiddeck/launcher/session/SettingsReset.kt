@@ -25,7 +25,7 @@ object SettingsReset {
         "noXalia", "fastSync", "fsyncFirst", "syncFallback", "prootNoSeccomp", "prootFastPath", "nativeUserland", "cursorComposite",
         "guestHostname", "fexPreset", "forceSsbs", "logs", "gameDebugLogsEnabled", "enhancedDiagnosticsNext", "storageDiagnostics", "buildWatermark",
         "upscaler", "upscaleSharpness", "screenEffects", "blackFrameInsertion", "textureAnisotropy", "textureLodBias",
-        "steamDownloadsInBackground", "steam_offline", "steam_offline_auto", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds", "skipBootMovie",
+        "steamDownloadsInBackground", "steam_offline", "steam_offline_auto", "steam_offline_by_network", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds", "skipBootMovie",
         "bootMovieApplyNext", "bootMovieSteamSeen", "bootMovieShuffle",
         "questDefaultsV1", "telemetryAuto", "telemetryOff", "statsStrip", "statsHud", "bottomHud", "bottomStripMetrics", "bottomStripTabs", "statsDash", "statsSpeedUnit",
     )

@@ -168,6 +168,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var battleNetInstalled by mutableStateOf(false)
     private var offlineAccount by mutableStateOf<String?>(null)
     private var offline by mutableStateOf(false)
+    private var offlineAuto by mutableStateOf(true)
     private var showPerformance by mutableStateOf(false)
     private var clientOverride by mutableStateOf(false)
     private var clientCores by mutableStateOf<Set<Int>>(emptySet())
@@ -1415,7 +1416,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         gameSyncFolder = gameSyncFolder,
                         busy = busy, stage = stage, percent = percent,
                         desktopInstalled = desktopInstalled, desktopPresent = desktopPresent,
-                        offlineAccount = offlineAccount, offline = offline,
+                        offlineAccount = offlineAccount, offline = offline, offlineAuto = offlineAuto,
                         frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled,
                         enhancedDiagnosticsArmed = enhancedDiagnosticsArmed,
                         gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart,
@@ -1751,6 +1752,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         },
                         onOffline = {
                             OfflineMode.setEnabled(this, !OfflineMode.enabled(this))
+                            offline = OfflineMode.enabled(this)
+                        },
+                        onOfflineAuto = {
+                            OfflineMode.setAuto(this, !OfflineMode.auto(this))
+                            offlineAuto = OfflineMode.auto(this)
                             offline = OfflineMode.enabled(this)
                         },
                         onPageBack = { showPerformance = false; showComponents = false; showMapping = false },
@@ -3315,6 +3321,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         battleNetInstalled = com.droiddeck.launcher.runtime.BattleNet.installed(this)
         offlineAccount = OfflineMode.account(this)
         offline = OfflineMode.enabled(this)
+        offlineAuto = OfflineMode.auto(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
         vkBridge = SessionPrefs.vkBridge(this)

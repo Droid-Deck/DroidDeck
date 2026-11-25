@@ -922,6 +922,7 @@
     <string name="setup_reset_settings_session_running">Stop de sessie voordat je instellingen reset.</string>
     <string name="setup_reset_settings_partial">De instellingen zijn gereset, maar niet alles. De details staan in de logs.</string>
     <string name="setup_offline">Offlinemodus</string>
+    <string name="setup_offline_auto">Automatische offlinemodus</string>
     <string name="setup_sign_in_first">Meld je eerst aan bij Steam</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Taal</string>

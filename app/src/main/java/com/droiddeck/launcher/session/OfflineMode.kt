@@ -10,6 +10,7 @@ object OfflineMode {
     private const val TAG = "OfflineMode"
     private const val KEY = "steam_offline"
     private const val AUTO_KEY = "steam_offline_auto"
+    private const val NETWORK_KEY = "steam_offline_by_network"
     private val WANTS = Regex("""^(\s*"WantsOfflineMode"\s*")([01])(".*)$""")
     private val SKIP = Regex("""^(\s*"SkipOfflineModeWarning"\s*")([01])(".*)$""")
     private val REMEMBER = Regex(""""RememberPassword"\s*"1"""")
@@ -51,35 +52,54 @@ object OfflineMode {
     internal fun manual(steamWants: Boolean?, automatic: Boolean, saved: Boolean): Boolean =
         if (steamWants == null) saved else steamWants && !automatic
 
-    internal fun offline(manual: Boolean, online: Boolean): Boolean = manual || !online
+    internal fun offline(manual: Boolean, online: Boolean, auto: Boolean = true): Boolean = manual || (auto && !online)
 
-    fun enabled(context: Context): Boolean {
-        val prefs = prefs(context)
-        return manual(steamWants(context, LinuxRuntime.rootDir(context)), prefs.getBoolean(AUTO_KEY, false), prefs.getBoolean(KEY, false))
-    }
+    internal fun afterNetworkChange(manual: Boolean, online: Boolean): Boolean = manual && !online
+
+    fun auto(context: Context): Boolean = prefs(context).getBoolean(AUTO_KEY, true)
+
+    fun enabled(context: Context): Boolean = saved(context, LinuxRuntime.rootDir(context))
 
     fun active(context: Context): Boolean =
-        offline(enabled(context), com.droiddeck.launcher.frontend.AutoComponents.isOnline(context))
+        offline(enabled(context), isOnline(context), auto(context))
 
     fun setEnabled(context: Context, on: Boolean) {
         write(context, LinuxRuntime.rootDir(context), on)
         SteamOfflineFollow.request()
     }
 
+    fun setAuto(context: Context, on: Boolean) {
+        val manual = if (on) false else active(context)
+        prefs(context).edit().putBoolean(AUTO_KEY, on).commit()
+        setEnabled(context, manual)
+    }
+
     fun apply(context: Context, root: File): Boolean = write(context, root, saved(context, root))
 
-    fun follow(context: Context): Boolean? = switchLive(context, remember(context, saved(context, LinuxRuntime.rootDir(context))))
+    fun sync(context: Context): Boolean? {
+        val root = LinuxRuntime.rootDir(context)
+        return switchLive(context, write(context, root, saved(context, root)))
+    }
+
+    fun follow(context: Context): Boolean? {
+        if (!auto(context)) return false
+        val root = LinuxRuntime.rootDir(context)
+        return switchLive(context, write(context, root, afterNetworkChange(saved(context, root), isOnline(context))))
+    }
+
+    private fun isOnline(context: Context) = com.droiddeck.launcher.frontend.AutoComponents.isOnline(context)
 
     private fun saved(context: Context, root: File): Boolean {
         val prefs = prefs(context)
-        return manual(steamWants(context, root), prefs.getBoolean(AUTO_KEY, false), prefs.getBoolean(KEY, false))
+        return manual(steamWants(context, root), prefs.getBoolean(NETWORK_KEY, false), prefs.getBoolean(KEY, false))
     }
 
     private fun remember(context: Context, manual: Boolean): Boolean {
-        val online = com.droiddeck.launcher.frontend.AutoComponents.isOnline(context)
-        val offline = offline(manual, online)
-        prefs(context).edit().putBoolean(KEY, manual).putBoolean(AUTO_KEY, offline && !manual).apply()
-        Log.i(TAG, "manual=$manual online=$online offline=$offline")
+        val online = isOnline(context)
+        val auto = auto(context)
+        val offline = offline(manual, online, auto)
+        prefs(context).edit().putBoolean(KEY, manual).putBoolean(NETWORK_KEY, offline && !manual).apply()
+        Log.i(TAG, "auto=$auto manual=$manual online=$online offline=$offline")
         return offline
     }
 

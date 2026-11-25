@@ -928,6 +928,7 @@
     <string name="setup_reset_settings_session_running">Zatrzymaj sesję, zanim zresetujesz ustawienia.</string>
     <string name="setup_reset_settings_partial">Ustawienia zostały zresetowane, ale nie wszystkie. Szczegóły są w logach.</string>
     <string name="setup_offline">Tryb offline</string>
+    <string name="setup_offline_auto">Automatyczny tryb offline</string>
     <string name="setup_sign_in_first">Najpierw zaloguj się do Steam</string>
     <string name="setup_launcher">Aplikacja</string>
     <string name="setup_language">Język</string>

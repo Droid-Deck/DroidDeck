@@ -918,6 +918,7 @@
     <string name="setup_reset_settings_session_running">請先停止會話再重設設定。</string>
     <string name="setup_reset_settings_partial">設定已重設，但部分項目未能重設。詳情請查看記錄。</string>
     <string name="setup_offline">離線模式</string>
+    <string name="setup_offline_auto">自動離線模式</string>
     <string name="setup_sign_in_first">請先登入 Steam</string>
     <string name="setup_launcher">啟動器</string>
     <string name="setup_language">語言</string>

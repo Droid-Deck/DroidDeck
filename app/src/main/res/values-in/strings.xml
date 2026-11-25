@@ -919,6 +919,7 @@
     <string name="setup_reset_settings_session_running">Hentikan sesi sebelum menyetel ulang setelan.</string>
     <string name="setup_reset_settings_partial">Setelan disetel ulang, tetapi tidak semuanya. Rinciannya ada di log.</string>
     <string name="setup_offline">Mode luring</string>
+    <string name="setup_offline_auto">Mode luring otomatis</string>
     <string name="setup_sign_in_first">Masuk ke Steam terlebih dahulu</string>
     <string name="setup_launcher">Peluncur</string>
     <string name="setup_language">Bahasa</string>
