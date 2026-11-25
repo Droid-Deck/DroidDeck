@@ -153,8 +153,8 @@ object OnScreenLayout {
                                 val total = aw + gapX + bw
                                 val center = ((centerAX + centerBX) / 2f).coerceIn(leftBound + total / 2f, rightBound - total / 2f)
                                 val leftFirst = centerAX <= centerBX
-                                scaled[i] = a.copy(x = if (leftFirst) center - total / 2f else center + total / 2f - aw)
-                                scaled[j] = b.copy(x = if (leftFirst) center - total / 2f + aw + gapX else center - total / 2f)
+                                scaled[i] = a.copy(x = if (leftFirst) center - total / 2f else center + total / 2f - aw, width = aw)
+                                scaled[j] = b.copy(x = if (leftFirst) center - total / 2f + aw + gapX else center - total / 2f, width = bw)
                             } else {
                                 scaled[i] = a.copy(x = centerAX - a.width * factor / 2f, width = a.width * factor)
                                 scaled[j] = b.copy(x = centerBX - b.width * factor / 2f, width = b.width * factor)
@@ -175,8 +175,8 @@ object OnScreenLayout {
                                 val total = ah + gapY + bh
                                 val center = ((centerAY + centerBY) / 2f).coerceIn(topBound + total / 2f, bottomBound - total / 2f)
                                 val topFirst = centerAY <= centerBY
-                                scaled[i] = a.copy(y = if (topFirst) center - total / 2f else center + total / 2f - ah)
-                                scaled[j] = b.copy(y = if (topFirst) center - total / 2f + ah + gapY else center - total / 2f)
+                                scaled[i] = a.copy(y = if (topFirst) center - total / 2f else center + total / 2f - ah, height = ah)
+                                scaled[j] = b.copy(y = if (topFirst) center - total / 2f + ah + gapY else center - total / 2f, height = bh)
                             } else {
                                 scaled[i] = a.copy(y = centerAY - a.height * factor / 2f, height = a.height * factor)
                                 scaled[j] = b.copy(y = centerBY - b.height * factor / 2f, height = b.height * factor)
