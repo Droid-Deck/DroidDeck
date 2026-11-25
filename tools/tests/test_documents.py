@@ -34,8 +34,10 @@ class DocumentStoreTest(unittest.TestCase):
         (self.sandbox / self.dir.relative_to("/")).mkdir(parents=True)
         (self.sandbox / ".flatpak-info").write_text("[Application]\nname=org.example.App\n")
         (self.proc / "1234/root").symlink_to(self.sandbox)
-        self.visible = self.sandbox / self.dir.relative_to("/") / "picked.iso"
-        self.visible.write_text("data")
+        self.visible = self.share(self.file)
+        self.saves = self.dir / "saves"
+        self.saves.mkdir()
+        (self.sandbox / self.saves.relative_to("/")).symlink_to(self.saves)
         self.bus = Gio.DBusConnection.new_for_address_sync(
             os.environ["DBUS_SESSION_BUS_ADDRESS"],
             Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
@@ -44,22 +46,20 @@ class DocumentStoreTest(unittest.TestCase):
         self.shared = self.dir / "shared"
         self.alias.mkdir()
         (self.alias / "game.iso").write_text("data")
-        (self.sandbox / self.shared.relative_to("/")).mkdir(parents=True)
-        (self.sandbox / self.shared.relative_to("/") / "game.iso").write_text("data")
-        (self.sandbox / self.alias.relative_to("/")).mkdir(parents=True)
-        (self.sandbox / self.alias.relative_to("/") / "inside.iso").write_text("data")
+        self.share(self.alias / "game.iso", self.shared / "game.iso")
         (self.alias / "inside.iso").write_text("data")
+        self.share(self.alias / "inside.iso")
         (self.alias / "private.iso").write_text("data")
         (self.dir / "rootfs").mkdir()
-        (self.sandbox / self.dir.relative_to("/") / "rootfs/alias").mkdir(parents=True)
-        (self.sandbox / self.dir.relative_to("/") / "rootfs/alias/private.iso").write_text("data")
+        self.share(self.alias / "private.iso", self.dir / "rootfs/alias/private.iso")
         env = dict(os.environ, DDNATV_ROOT=str(self.dir / "rootfs"),
                    DDNATV_BINDS="%s:%s|%s/rootfs/alias:%s" % (self.shared, self.alias, self.dir, self.alias))
         self.process = subprocess.Popen(["/usr/bin/python3", str(SCRIPT), str(self.proc)], stdout=subprocess.DEVNULL,
                                         env=env)
         self.session = self.dir / "session"
         (self.session / self.dir.relative_to("/")).mkdir(parents=True)
-        (self.session / self.dir.relative_to("/") / "hidden.iso").write_text("data")
+        (self.dir / "hidden.iso").write_text("data")
+        os.link(self.dir / "hidden.iso", self.session / self.dir.relative_to("/") / "hidden.iso")
         (self.session / ".flatpak-info").write_text("[Application]\nname=org.example.App\n")
         for pid in (self.process.pid, 99):
             (self.proc / str(pid)).mkdir()
@@ -69,6 +69,12 @@ class DocumentStoreTest(unittest.TestCase):
             self.assertIsNone(self.process.poll())
             self.assertLess(time.monotonic(), deadline)
             time.sleep(0.05)
+
+    def share(self, source, name=None):
+        seen = self.sandbox / (name or source).relative_to("/")
+        seen.parent.mkdir(parents=True, exist_ok=True)
+        os.link(source, seen)
+        return seen
 
     def tearDown(self):
         self.process.terminate()
@@ -108,7 +114,7 @@ class DocumentStoreTest(unittest.TestCase):
 
     def test_a_saved_file_name_is_handed_back_in_place(self):
         got = self.call("AddNamedFull", "(hayusas)", (0, b"new.txt\0", AS_NEEDED_BY_APP, "org.example.App", ["read"]),
-                        [self.dir])
+                        [self.saves])
         self.assertEqual(("", {}), got)
 
     def test_a_picked_folder_needs_the_directory_flag(self):
@@ -122,7 +128,6 @@ class DocumentStoreTest(unittest.TestCase):
     def test_a_file_the_application_cannot_reach_is_refused(self):
         flags = REUSE_EXISTING | PERSISTENT | AS_NEEDED_BY_APP
         hidden = self.dir / "hidden.iso"
-        hidden.write_text("data")
         self.assertTrue((self.proc / "99/root" / hidden.relative_to("/")).exists())
         self.assertEqual("org.freedesktop.portal.Error.NotAllowed",
                          self.error_of("AddFull", "(ahusas)", ([0], flags, "org.example.App", ["read"]), [hidden]))
@@ -148,11 +153,19 @@ class DocumentStoreTest(unittest.TestCase):
         flags = REUSE_EXISTING | PERSISTENT | AS_NEEDED_BY_APP
         home = self.dir / "rootfs/home.iso"
         home.write_text("data")
-        (self.sandbox / home.relative_to("/")).write_text("data")
+        self.share(home)
         self.assertEqual("org.freedesktop.portal.Error.NotAllowed",
                          self.error_of("AddFull", "(ahusas)", ([0], flags, "org.example.App", ["read"]), [home]))
-        (self.sandbox / "home.iso").write_text("data")
+        os.link(home, self.sandbox / "home.iso")
         self.assertEqual(([""], {}), self.call("AddFull", "(ahusas)", ([0], flags, "org.example.App", ["read"]), [home]))
+
+    def test_a_different_file_at_the_same_name_is_refused(self):
+        flags = REUSE_EXISTING | PERSISTENT | AS_NEEDED_BY_APP
+        other = self.dir / "other.iso"
+        other.write_text("data")
+        (self.sandbox / other.relative_to("/")).write_text("data")
+        self.assertEqual("org.freedesktop.portal.Error.NotAllowed",
+                         self.error_of("AddFull", "(ahusas)", ([0], flags, "org.example.App", ["read"]), [other]))
 
     @unittest.skipIf(os.getuid() == 0, "root reads every file")
     def test_a_location_the_application_cannot_use_as_asked_is_refused(self):
@@ -160,14 +173,14 @@ class DocumentStoreTest(unittest.TestCase):
         self.visible.chmod(0)
         self.assertEqual("org.freedesktop.portal.Error.NotAllowed",
                          self.error_of("AddFull", "(ahusas)", ([0], flags, "org.example.App", ["read"]), [self.file]))
-        self.visible.parent.chmod(0o500)
+        self.saves.chmod(0o500)
         try:
             self.assertEqual("org.freedesktop.portal.Error.NotAllowed",
                              self.error_of("AddNamedFull", "(hayusas)",
                                            (0, b"new.txt\0", AS_NEEDED_BY_APP, "org.example.App", ["read", "write"]),
-                                           [self.dir]))
+                                           [self.saves]))
         finally:
-            self.visible.parent.chmod(0o700)
+            self.saves.chmod(0o700)
 
     def test_documents_that_would_need_the_store_mount_are_refused(self):
         self.assertEqual("org.freedesktop.portal.Error.NotAllowed",

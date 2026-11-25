@@ -51,6 +51,10 @@ int main(int argc, char **argv) {
       name[-1] = '/';
       show(argv[i], fd);
       if (copy >= 0) close(copy);
+    } else if (strncmp(argv[i], "nofollow:", 9) == 0) {
+      int fd = open(argv[i] + 9, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+      printf("%s\t%s\n", argv[i], fd >= 0 ? "6f70656e" : "-");
+      if (fd >= 0) close(fd);
     } else {
       show(argv[i], open(argv[i], O_RDONLY | O_CLOEXEC));
     }
@@ -188,6 +192,13 @@ class NativeHookProcRootTest(unittest.TestCase):
         pid = self.sandboxed()
         dup = f"dup:/proc/{pid}/root/.flatpak-info"
         self.assertEqual("app", self.probe(dup)[dup])
+
+    def test_a_bare_root_is_not_followed_with_nofollow(self):
+        pid = self.sandboxed()
+        bare, below = f"nofollow:/proc/{pid}/root", f"nofollow:/proc/{pid}/root/etc"
+        got = self.probe(bare, below)
+        self.assertEqual("-", got[bare])
+        self.assertEqual("open", got[below])
 
     def test_a_sandbox_cannot_be_climbed_out_of(self):
         pid = self.sandboxed()

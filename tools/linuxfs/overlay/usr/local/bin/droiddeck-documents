@@ -91,10 +91,10 @@ def root_of(pid):
 
 
 def app_pids(app_id):
-    matches = [pid for pid in os.listdir(PROC) if pid.isdigit() and app_name(pid) == app_id]
+    roots = {pid: root_of(pid) for pid in os.listdir(PROC) if pid.isdigit() and app_name(pid) == app_id}
     own = root_of(os.getpid())
-    apart = [pid for pid in matches if not (own and root_of(pid) and os.path.samestat(own, root_of(pid)))]
-    return apart or matches
+    apart = [pid for pid, root in roots.items() if not (own and root and os.path.samestat(own, root))]
+    return apart or list(roots)
 
 
 def access_mode(permissions):
@@ -120,12 +120,20 @@ def spellings(path):
     return names
 
 
-def app_reaches(app_id, path, permissions):
+def same_file(path, picked):
+    try:
+        return os.path.samestat(os.stat(path), picked)
+    except OSError:
+        return False
+
+
+def app_reaches(app_id, path, picked, permissions):
     if not app_id:
         return True
     mode = access_mode(permissions) or os.F_OK
     roots = [os.path.join(PROC, pid, "root") for pid in app_pids(app_id)]
-    return any(os.access(root + name, mode) for root in roots for name in spellings(path))
+    return any(same_file(root + name, picked) and os.access(root + name, mode)
+               for root in roots for name in spellings(path))
 
 
 def fd_path(fd):
@@ -144,8 +152,7 @@ def reachable_in_place(invocation, flags, handles, directories, app_id, permissi
     if not all(fd >= 0 and usable(fd, DIRECTORY if directories else flags) for fd in fds):
         invocation.return_dbus_error(INVALID, "Invalid fd passed")
         return False
-    paths = [fd_path(fd) for fd in fds]
-    if not all(path and app_reaches(app_id, path, permissions) for path in paths):
+    if not all(fd_path(fd) and app_reaches(app_id, fd_path(fd), os.fstat(fd), permissions) for fd in fds):
         invocation.return_dbus_error(NOT_ALLOWED, "The application can't reach this location without the document store")
         return False
     return True
