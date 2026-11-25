@@ -57,7 +57,7 @@ index 088a6d0..825c24e 100644
  pub mod social;
  pub mod game_activity;
 diff --git a/crates/xodus-cli/src/commands/extract_eappx.rs b/crates/xodus-cli/src/commands/extract_eappx.rs
-index 5ea43da..847c850 100644
+index 5ea43da..e236002 100644
 --- a/crates/xodus-cli/src/commands/extract_eappx.rs
 +++ b/crates/xodus-cli/src/commands/extract_eappx.rs
 @@ -1,3 +1,4 @@
@@ -140,7 +140,7 @@ index 5ea43da..847c850 100644
      }
  }
  
-@@ -197,17 +223,271 @@ fn is_eappx(path: &Path) -> bool {
+@@ -197,17 +223,285 @@ fn is_eappx(path: &Path) -> bool {
      matches!(&magic, b"EXPH" | b"EXSH" | b"EXBH")
  }
  
@@ -241,7 +241,9 @@ index 5ea43da..847c850 100644
 +enum Spent {
 +    Intact,
 +    Moved,
-+    Stopped,
++    Punched,
++    Kept,
++    Spoiled,
 +}
 +
 +struct Release {
@@ -257,7 +259,7 @@ index 5ea43da..847c850 100644
 +        let mut spent = origin.as_os_str().to_owned();
 +        spent.push(SPENT_SUFFIX);
 +        let file = std::fs::OpenOptions::new().write(true).open(origin).ok();
-+        let state = if file.is_some() { Spent::Intact } else { Spent::Stopped };
++        let state = if file.is_some() { Spent::Intact } else { Spent::Kept };
 +        Self {
 +            origin: origin.to_path_buf(),
 +            spent: PathBuf::from(spent),
@@ -282,15 +284,21 @@ index 5ea43da..847c850 100644
 +        let Some(file) = &self.file else { return };
 +        let mut state = self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
 +        if *state == Spent::Intact {
-+            *state = if std::fs::rename(&self.origin, &self.spent).is_ok() { Spent::Moved } else { Spent::Stopped };
++            *state = if std::fs::rename(&self.origin, &self.spent).is_ok() { Spent::Moved } else { Spent::Kept };
 +        }
-+        if *state != Spent::Moved {
++        if !matches!(*state, Spent::Moved | Spent::Punched) {
 +            return;
 +        }
 +        let mode = rustix::fs::FallocateFlags::PUNCH_HOLE | rustix::fs::FallocateFlags::KEEP_SIZE;
-+        if rustix::fs::fallocate(file, mode, from, to - from).is_err() {
-+            *state = Spent::Stopped;
-+        }
++        *state = match (rustix::fs::fallocate(file, mode, from, to - from).is_ok(), *state) {
++            (true, _) => Spent::Punched,
++            (false, Spent::Moved) => self.restore(),
++            (false, _) => Spent::Spoiled,
++        };
++    }
++
++    fn restore(&self) -> Spent {
++        if std::fs::rename(&self.spent, &self.origin).is_ok() { Spent::Kept } else { Spent::Spoiled }
 +    }
 +
 +    fn finish(&self) {
@@ -299,7 +307,13 @@ index 5ea43da..847c850 100644
 +    }
 +
 +    fn abandon(&self) {
-+        std::fs::remove_file(&self.spent).ok();
++        let mut state = self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
++        if *state == Spent::Moved {
++            *state = self.restore();
++        }
++        if matches!(*state, Spent::Punched | Spent::Spoiled) {
++            std::fs::remove_file(&self.spent).ok();
++        }
 +    }
 +}
 +
@@ -417,7 +431,7 @@ index 5ea43da..847c850 100644
  
      let mut eappx = EAppxFile::from_stream(&mut reader)
          .map_err(|e| Failure::at("header", infile, &e.to_string()))?;
-@@ -236,8 +516,16 @@ fn derive(
+@@ -236,8 +530,16 @@ fn derive(
      std::fs::create_dir_all(outdir)
          .map_err(|e| Failure::at("create-dir", outdir, &e.to_string()))?;
  
@@ -436,7 +450,7 @@ index 5ea43da..847c850 100644
      drop(reader);
  
      println!("Extracted {}", infile.file_name().unwrap_or_default().to_string_lossy());
-@@ -248,33 +536,189 @@ fn derive(
+@@ -248,33 +550,189 @@ fn derive(
          // The container being unpacked may itself sit in the destination, which is
          // what `extract-eappx ./title.eappx .` asks for. Re-entering it would
          // recurse into the same bytes and then delete the caller's file.
@@ -635,7 +649,7 @@ index 5ea43da..847c850 100644
  /// Bytes currently on disk under `dir`.
  ///
  /// A bundle member is written as one file, so a per-file counter says nothing
-@@ -319,48 +763,33 @@ fn workers() -> usize {
+@@ -319,48 +777,33 @@ fn workers() -> usize {
  /// goes. The blockmap already totals every file's uncompressed length, so the
  /// end point is known before the first byte is written.
  fn unpack(
@@ -691,7 +705,7 @@ index 5ea43da..847c850 100644
                  for (index, package) in eappx.blockmap.files.iter().enumerate() {
                      if index % count != shard {
                          continue;
-@@ -387,7 +816,7 @@ fn unpack(
+@@ -387,7 +830,7 @@ fn unpack(
                          }
                          return;
                      }
@@ -700,21 +714,21 @@ index 5ea43da..847c850 100644
                          if let Ok(mut slot) = failure.lock() {
                              *slot = Some(error.to_string());
                          }
-@@ -406,11 +835,168 @@ fn unpack(
+@@ -406,11 +849,190 @@ fn unpack(
      if let Some(reason) = failure.into_inner().unwrap_or(None) {
          return Err(Failure::at("extract", infile, &reason));
      }
 +    Ok(())
 +}
++
++#[cfg(test)]
++mod meter_tests {
++    use super::Meter;
  
 -    if release {
 -        // The files are on disk; the container is not read again unless the
 -        // install is retried from scratch.
 -        std::fs::remove_file(infile).ok();
-+#[cfg(test)]
-+mod meter_tests {
-+    use super::Meter;
-+
 +    #[test]
 +    fn announced_packages_keep_the_total_from_growing() {
 +        let meter = Meter::default();
@@ -851,6 +865,28 @@ index 5ea43da..847c850 100644
 +    }
 +
 +    #[test]
++    fn a_container_that_cannot_give_bytes_back_is_kept_for_a_retry() {
++        let root = scratch("unpunchable");
++        let path = root.join("game.eappx");
++        std::fs::write(&path, pattern(1 << 20)).unwrap();
++        let file = std::fs::File::open(&path).unwrap();
++        let mut release = Release::open(&path, &file);
++        release.file = Some(std::fs::File::open(&path).unwrap());
++        let block = release.block;
++        let source = Source { file: &file, origin: &path, name: path.clone(), start: 0, len: 1 << 20 };
++        let mut window = Window::open(&source, Some(&release)).unwrap();
++        window.spend(0, 3 * block);
++        let mut consumed = vec![0u8; usize::try_from(3 * block).unwrap()];
++        window.read_exact(&mut consumed).unwrap();
++        window.settle();
++
++        assert!(!release.spent.exists());
++        release.abandon();
++        assert_eq!(std::fs::read(&path).unwrap(), pattern(1 << 20));
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
 +    fn reading_without_a_release_leaves_the_container_alone() {
 +        let root = scratch("plain");
 +        let path = root.join("game.eappx");
@@ -876,7 +912,7 @@ index 5ea43da..847c850 100644
  }
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100755
-index 0000000..62334b6
+index 0000000..143dafa
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
 @@ -0,0 +1,1482 @@
@@ -1453,7 +1489,7 @@ index 0000000..62334b6
 +            return fail(
 +                "insufficient-space",
 +                &format!(
-+                    "Unpacking needs about {} GB more free space, and {} GB is available; the download is kept for a retry",
++                    "Unpacking needs about {} GB free, and {} GB is available; the download is kept for a retry",
 +                    needed.div_ceil(1_000_000_000),
 +                    free / 1_000_000_000
 +                ),
@@ -1485,7 +1521,7 @@ index 0000000..62334b6
 +                    Some(&meter),
 +                    // A full title is tens of gigabytes. Holding the container
 +                    // while its members are decrypted can fill the device.
-+                    true,
++                    releases,
 +                )
 +            }
 +        });
