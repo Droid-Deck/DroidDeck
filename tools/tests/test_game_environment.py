@@ -2203,7 +2203,7 @@ class GameEnvironmentTest(unittest.TestCase):
         game_logs = MODULE["game_logs"]
         command = ["/proton", "waitforexitandrun", "/games/Hades/Hades.exe"]
         with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen"):
-            on = {"BL_GAME_LOGS": "1", "BL_DEBUG_DIR": tmp}
+            on = {"DD_GAME_LOGS": "1", "DD_DEBUG_DIR": tmp}
             for given in ({}, {"PROTON_LOG": "0"}, {"PROTON_LOG": ""}):
                 with self.subTest(given=given):
                     result = game_logs(command, {**on, **given}, "42", now=0)
@@ -2231,7 +2231,7 @@ class GameEnvironmentTest(unittest.TestCase):
                              "print(json.dumps({k: os.environ.get(k) for k in ('PROTON_LOG', 'WINEDEBUG')}))\n")
             probe.chmod(0o755)
             env = {**os.environ, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata/599140"),
-                   "BL_DEBUG_DIR": tmp, "BL_GAME_LOGS": "1"}
+                   "DD_DEBUG_DIR": tmp, "DD_GAME_LOGS": "1"}
             for name in ("PROTON_LOG", "WINEDEBUG"):
                 env.pop(name, None)
             for enabled in (True, False, True):
