@@ -46,7 +46,7 @@ object OnScreenLayout {
         if (dock?.portrait == true && !dock.grips && !matched && layout.aspect > 0f && layout.aspect < 1f && stored.any(::isGamepad))
             return scaleDocked(cluster(stored.filterNot { it.alwaysShown || isGamepad(it) && (it.id == KEYBOARD_ID || it.control in BAR) }, layout.aspect, width, height, safe), ControllerPrefs.read(context).size / 100f, width, height, safe)
         val generated = matched || PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) &&
-            (dock != null || height > width && layout.aspect >= 1f || height <= width && layout.aspect > 0f && layout.aspect < 1f)
+            (dock != null || layout.aspect >= 1f || layout.aspect > 0f && layout.aspect < 1f)
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
         val others = fit(stored.filterNot { generated && isGamepad(it) || dock != null && it.alwaysShown }, reference.first, reference.second, width, height, safe)
         val regenerated = when {
