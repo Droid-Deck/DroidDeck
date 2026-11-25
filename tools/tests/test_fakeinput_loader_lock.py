@@ -9,14 +9,15 @@ import unittest
 SOURCE = Path(__file__).resolve().parents[2] / "app/src/main/cpp/fakeinput_steam.cpp"
 
 LIBRARY = r"""
+#include <stdatomic.h>
 #include <sys/statfs.h>
 #include <unistd.h>
 
-extern volatile int loading;
+extern _Atomic int loading;
 
 __attribute__((constructor)) static void start(void) {
     struct statfs buf;
-    loading = 1;
+    atomic_store_explicit(&loading, 1, memory_order_release);
     usleep(300000);
     statfs("/", &buf);
 }
@@ -27,10 +28,11 @@ PROGRAM = r"""
 #include <dlfcn.h>
 #include <pthread.h>
 #include <sched.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <sys/statfs.h>
 
-volatile int loading;
+_Atomic int loading;
 
 static void *load(void *path) {
     return dlopen(path, RTLD_NOW);
@@ -40,7 +42,7 @@ int main(int argc, char **argv) {
     pthread_t loader;
     struct statfs buf;
     pthread_create(&loader, NULL, load, argv[1]);
-    while (!loading) sched_yield();
+    while (!atomic_load_explicit(&loading, memory_order_acquire)) sched_yield();
     statfs("/", &buf);
     void *handle = NULL;
     pthread_join(loader, &handle);
