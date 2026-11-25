@@ -15,11 +15,20 @@ PROBE = r"""
 #include <unistd.h>
 
 static void show(const char *what, int fd) {
-  char buf[256];
-  ssize_t n = fd >= 0 ? read(fd, buf, sizeof(buf) - 1) : -1;
-  buf[n > 0 ? n : 0] = 0;
-  printf("%s\t%s\n", what, n > 0 ? buf : "-");
-  if (fd >= 0) close(fd);
+  printf("%s\t", what);
+  if (fd < 0) {
+    printf("-\n");
+    return;
+  }
+  unsigned char buf[256];
+  ssize_t n;
+  int any = 0;
+  while ((n = read(fd, buf, sizeof(buf))) > 0) {
+    for (ssize_t i = 0; i < n; i++) printf("%02x", buf[i]);
+    any = 1;
+  }
+  printf("%s\n", any ? "" : "-");
+  close(fd);
 }
 
 int main(int argc, char **argv) {
@@ -32,6 +41,16 @@ int main(int argc, char **argv) {
       name[-1] = '/';
       show(argv[i], fd);
       if (root >= 0) close(root);
+    } else if (strncmp(argv[i], "dup:", 4) == 0) {
+      char *name = strrchr(argv[i], '/');
+      *name++ = 0;
+      int root = open(argv[i] + 4, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+      int copy = root >= 0 ? dup2(root, 50) : -1;
+      if (root >= 0) close(root);
+      int fd = copy >= 0 ? openat(copy, name, O_RDONLY | O_CLOEXEC) : -1;
+      name[-1] = '/';
+      show(argv[i], fd);
+      if (copy >= 0) close(copy);
     } else {
       show(argv[i], open(argv[i], O_RDONLY | O_CLOEXEC));
     }
@@ -77,6 +96,8 @@ class NativeHookProcRootTest(unittest.TestCase):
         cls.app = tmp / "app"
         cls.app.mkdir()
         (cls.app / "manifest.json").write_text("bound")
+        cls.view = tmp / "view"
+        (cls.app / "link").symlink_to(cls.view / "manifest.json")
         cls.info = tmp / "proxy-info"
         cls.info.write_text("proxy")
 
@@ -106,7 +127,8 @@ class NativeHookProcRootTest(unittest.TestCase):
         out = subprocess.run(cmd + [str(Path(self.tmp.name) / "probe"), *paths], env=env, capture_output=True,
                              text=True, timeout=120)
         self.assertEqual(out.returncode, 0, out.stderr)
-        return {line.split("\t")[0]: line.split("\t")[1] for line in out.stdout.splitlines()}
+        return {name: value if value == "-" else bytes.fromhex(value).decode()
+                for name, value in (line.split("\t") for line in out.stdout.splitlines())}
 
     def sandboxed(self):
         return self.start({"DDNATV_ROOT": str(self.sandbox), "DDNATV_BINDS": f"/proc:/proc|{self.app}:/app"})
@@ -155,6 +177,17 @@ class NativeHookProcRootTest(unittest.TestCase):
         got = self.probe(path, at)
         self.assertEqual("sandbox", got[path])
         self.assertEqual(Path("/.flatpak-info").read_text() if Path("/.flatpak-info").exists() else "-", got[at])
+
+    def test_a_link_is_followed_in_the_sandbox_view(self):
+        pid = self.start({"DDNATV_ROOT": str(self.sandbox),
+                          "DDNATV_BINDS": f"/proc:/proc|{self.app}:/app|{self.app}:{self.view}"})
+        path = f"/proc/{pid}/root/app/link"
+        self.assertEqual("bound", self.probe(path)[path])
+
+    def test_a_duplicated_root_descriptor_keeps_the_sandbox_view(self):
+        pid = self.sandboxed()
+        dup = f"dup:/proc/{pid}/root/.flatpak-info"
+        self.assertEqual("app", self.probe(dup)[dup])
 
     def test_a_sandbox_cannot_be_climbed_out_of(self):
         pid = self.sandboxed()

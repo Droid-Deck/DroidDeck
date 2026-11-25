@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import resource
 import secrets
 import socket
 import struct
@@ -129,6 +130,21 @@ class BwrapForwardsFdsTest(unittest.TestCase):
         self.run_shim(launch, [], (forwarded,))
         self.assertEqual(["refused"], second)
 
+    def test_more_descriptors_than_can_be_passed_stop_the_launch(self):
+        fds = [pipe_holding(b"x") for _ in range(254)]
+        for fd in fds:
+            self.addCleanup(os.close, fd)
+        app = FakeApp(self, lambda request: (b"", 0))
+        env = {k: v for k, v in os.environ.items() if not k.startswith("DDNATV_")}
+        env["DROIDDECK_BWRAP_SOCKET"] = app.name
+        work = tempfile.TemporaryDirectory()
+        self.addCleanup(work.cleanup)
+        out = subprocess.run([sys.executable, str(BWRAP), "--bind", work.name, "/mnt/elsewhere", "--",
+                              "/nonexistent/program"], env=env, pass_fds=fds, capture_output=True, timeout=30)
+        self.assertNotEqual(0, out.returncode)
+        self.assertIn(b"Too many inherited file descriptors", out.stderr)
+        self.assertIsNone(app.request)
+
     def test_nothing_is_offered_without_inherited_fds(self):
         request, _ = self.run_shim(lambda request: (b"", 0), [], ())
         self.assertNotIn("DROIDDECK_FDS", request["env"])
@@ -162,7 +178,7 @@ class NativeHookAdoptsFdsTest(unittest.TestCase):
         self.addCleanup(listener.close)
         return name
 
-    def run_probe(self, name, *wanted):
+    def run_probe(self, name, *wanted, fd_limit=None):
         hook_env = {"DROIDDECK_FDS": name, "LD_PRELOAD": str(self.hook)}
         env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD" and not k.startswith("DDNATV_")}
         if self.prefix:
@@ -170,8 +186,9 @@ class NativeHookAdoptsFdsTest(unittest.TestCase):
         else:
             cmd = []
             env.update(hook_env)
+        limit = (lambda: resource.setrlimit(resource.RLIMIT_NOFILE, (fd_limit, fd_limit))) if fd_limit else None
         out = subprocess.run(cmd + [str(self.probe_path), *map(str, wanted)], env=env, capture_output=True,
-                             text=True, timeout=120)
+                             text=True, timeout=120, preexec_fn=limit)
         self.assertEqual(0, out.returncode, out.stderr)
         return {line.split("\t")[0]: line.split("\t")[1:] for line in out.stdout.splitlines()}
 
@@ -193,6 +210,11 @@ class NativeHookAdoptsFdsTest(unittest.TestCase):
         got = self.run_probe(self.offer(fds, [4, 3]), 4, 3)
         self.assertEqual("first", got["4"][0])
         self.assertEqual("second", got["3"][0])
+
+    def test_a_target_at_the_descriptor_limit_is_installed(self):
+        fds = self.held(b"edge")
+        got = self.run_probe(self.offer(fds, [255]), 255, fd_limit=256)
+        self.assertEqual(["edge", "kept"], got["255"])
 
     def test_a_missing_offer_changes_nothing(self):
         got = self.run_probe("droiddeck-test-gone-" + secrets.token_hex(4), 22)

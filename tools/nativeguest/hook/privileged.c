@@ -446,6 +446,7 @@ static int close_range_part(unsigned int first, unsigned int last, void *flags) 
 }
 
 int close_range(unsigned int first, unsigned int last, int flags) {
+    if (!(flags & CLOSE_RANGE_CLOEXEC)) forget_proc_root_range(first, last);
     // Close-on-exec only (CLOSE_RANGE_CLOEXEC) leaves the translator's files open
     if (g_kept_fd_count > 0 && !(flags & CLOSE_RANGE_CLOEXEC)) {
         return for_each_range_without(first, last, g_kept_fds, g_kept_fd_count, close_range_part, &flags);

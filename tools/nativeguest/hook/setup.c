@@ -136,7 +136,7 @@ static void init_ddnatv_hook(void) {
 // time it was read.
 static void compact_loader_args(int argc, char **argv);
 
-#define DDNATV_MAX_FORWARDED_FDS 64
+#define DDNATV_MAX_FORWARDED_FDS 253
 
 static int forwarded_targets(char *text, int *targets, int max) {
     int count = 0;
@@ -148,6 +148,13 @@ static int forwarded_targets(char *text, int *targets, int max) {
         p = *end == ',' ? end + 1 : end;
     }
     return count;
+}
+
+static int is_forwarded_target(int fd, const int *targets, int wanted) {
+    for (int i = 0; i < wanted; i++) {
+        if (targets[i] == fd) return 1;
+    }
+    return 0;
 }
 
 static void adopt_forwarded_fds(void) {
@@ -163,13 +170,14 @@ static void adopt_forwarded_fds(void) {
     if (!usable) return;
     int sock = (int)syscall(SYS_socket, AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
     if (sock < 0) return;
-    char text[1024];
-    int got[DDNATV_MAX_FORWARDED_FDS];
+    static char text[4096];
+    static int got[DDNATV_MAX_FORWARDED_FDS];
     int count = 0;
+    int truncated = 0;
     ssize_t n = -1;
     socklen_t addr_len = (socklen_t)(offsetof(struct sockaddr_un, sun_path) + 1 + len);
     if (syscall(SYS_connect, sock, &addr, addr_len) == 0) {
-        union {
+        static union {
             struct cmsghdr header;
             char buf[CMSG_SPACE(sizeof(got))];
         } control;
@@ -183,6 +191,7 @@ static void adopt_forwarded_fds(void) {
         do {
             n = syscall(SYS_recvmsg, sock, &msg, MSG_CMSG_CLOEXEC);
         } while (n < 0 && errno == EINTR);
+        truncated = n >= 0 && (msg.msg_flags & (MSG_CTRUNC | MSG_TRUNC)) != 0;
         for (struct cmsghdr *c = n >= 0 ? CMSG_FIRSTHDR(&msg) : NULL; c; c = CMSG_NXTHDR(&msg, c)) {
             if (c->cmsg_level != SOL_SOCKET || c->cmsg_type != SCM_RIGHTS) continue;
             size_t k = (c->cmsg_len - CMSG_LEN(0)) / sizeof(int);
@@ -193,21 +202,24 @@ static void adopt_forwarded_fds(void) {
     }
     syscall(SYS_close, sock);
     text[n > 0 ? n : 0] = '\0';
-    int targets[DDNATV_MAX_FORWARDED_FDS];
-    int wanted = forwarded_targets(text, targets, DDNATV_MAX_FORWARDED_FDS);
-    int above = 3;
-    for (int i = 0; i < wanted; i++) {
-        if (targets[i] >= above) above = targets[i] + 1;
-    }
-    int high[DDNATV_MAX_FORWARDED_FDS];
+    static int targets[DDNATV_MAX_FORWARDED_FDS];
+    int wanted = truncated ? 0 : forwarded_targets(text, targets, DDNATV_MAX_FORWARDED_FDS);
+    if (wanted != count) wanted = 0;
+    static int parked[DDNATV_MAX_FORWARDED_FDS];
+    int n_parked = 0;
     for (int i = 0; i < count; i++) {
-        high[i] = (int)syscall(SYS_fcntl, got[i], F_DUPFD_CLOEXEC, above);
+        int fd = got[i];
+        while (fd >= 0 && is_forwarded_target(fd, targets, wanted) && n_parked < DDNATV_MAX_FORWARDED_FDS) {
+            parked[n_parked++] = fd;
+            fd = (int)syscall(SYS_fcntl, fd, F_DUPFD_CLOEXEC, 3);
+        }
+        got[i] = is_forwarded_target(fd, targets, wanted) ? -1 : fd;
+    }
+    for (int i = 0; i < n_parked; i++) syscall(SYS_close, parked[i]);
+    for (int i = 0; i < count; i++) {
+        if (got[i] < 0) continue;
+        if (i < wanted && targets[i] > 2) syscall(SYS_dup3, got[i], targets[i], 0);
         syscall(SYS_close, got[i]);
-    }
-    for (int i = 0; i < count; i++) {
-        if (high[i] < 0) continue;
-        if (i < wanted && targets[i] > 2) syscall(SYS_dup3, high[i], targets[i], 0);
-        syscall(SYS_close, high[i]);
     }
 }
 
@@ -420,7 +432,14 @@ static const char *proc_view_path(const char *root, char *binds, const char *gue
     return buf;
 }
 
-static const char *proc_root_host(const char *path, char *buf, size_t size, int bare) {
+static const char *proc_view_host(const char *root, const char *binds, const char *guest, char *buf, size_t size) {
+    char *copy = binds ? strdup(binds) : NULL;
+    proc_view_path(root, copy, guest, buf, size);
+    free(copy);
+    return buf;
+}
+
+static const char *proc_root_host(const char *path, char *buf, size_t size, int bare, int follow) {
     const char *rest = NULL;
     pid_t pid = proc_root_pid(path, &rest);
     if (pid <= 0 || (!bare && rest[strspn(rest, "/")] == '\0')) return NULL;
@@ -433,10 +452,30 @@ static const char *proc_root_host(const char *path, char *buf, size_t size, int 
     ddnatv_copy_cstr(guest, sizeof(guest), rest[0] ? rest : "/");
     normalize_path(guest);
     if (strcmp(root_k, g_ddnatv_root) == 0 && strcmp(binds ? binds : "", g_binds_raw ? g_binds_raw : "") == 0) {
-        const char *own = rewrite_path_in_root(guest, buf, size);
+        const char *own = (follow ? rewrite_path_follow : rewrite_path_in_root)(guest, buf, size);
         if (own != buf) ddnatv_copy_cstr(buf, size, own);
     } else {
-        proc_view_path(root_k, binds, guest, buf, size);
+        proc_view_host(root_k, binds, guest, buf, size);
+#if defined(__aarch64__)
+        for (int depth = 0; follow && depth < 8 && strncmp(buf, "/proc/", 6) != 0; depth++) {
+            char target[PATH_MAX];
+            long n = raw_readlinkat(AT_FDCWD, buf, target, sizeof(target) - 1);
+            if (n <= 0) break;
+            target[n] = '\0';
+            char joined[PATH_MAX];
+            if (target[0] == '/') {
+                ddnatv_copy_cstr(joined, sizeof(joined), target);
+            } else {
+                const char *slash = strrchr(guest, '/');
+                size_t used = ddnatv_append(joined, sizeof(joined), 0, guest, slash ? (size_t)(slash - guest) : 0);
+                used = ddnatv_append(joined, sizeof(joined), used, "/", 1);
+                ddnatv_append(joined, sizeof(joined), used, target, strlen(target));
+            }
+            normalize_path(joined);
+            ddnatv_copy_cstr(guest, sizeof(guest), joined);
+            proc_view_host(root_k, binds, guest, buf, size);
+        }
+#endif
     }
     free(root);
     free(binds);
@@ -452,28 +491,56 @@ static struct ddnatv_proc_root_fd g_proc_root_fds[32];
 static int g_n_proc_root_fds = 0;
 static pthread_mutex_t g_proc_root_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static void forget_proc_root_fd(int fd) {
-    if (fd < 0 || __atomic_load_n(&g_n_proc_root_fds, __ATOMIC_ACQUIRE) == 0) return;
+static void forget_proc_root_range(unsigned int first, unsigned int last) {
+    if (__atomic_load_n(&g_n_proc_root_fds, __ATOMIC_ACQUIRE) == 0) return;
     pthread_mutex_lock(&g_proc_root_mutex);
-    for (int i = 0; i < g_n_proc_root_fds; i++) {
-        if (g_proc_root_fds[i].fd != fd) continue;
-        g_proc_root_fds[i] = g_proc_root_fds[--g_n_proc_root_fds];
-        break;
+    for (int i = 0; i < g_n_proc_root_fds;) {
+        unsigned int fd = (unsigned int)g_proc_root_fds[i].fd;
+        if (fd >= first && fd <= last) g_proc_root_fds[i] = g_proc_root_fds[--g_n_proc_root_fds];
+        else i++;
     }
     pthread_mutex_unlock(&g_proc_root_mutex);
+}
+
+static void forget_proc_root_fd(int fd) {
+    if (fd >= 0) forget_proc_root_range((unsigned int)fd, (unsigned int)fd);
+}
+
+static void store_proc_root_fd(struct ddnatv_proc_root_fd entry) {
+    pthread_mutex_lock(&g_proc_root_mutex);
+    int slot = 0;
+    while (slot < g_n_proc_root_fds && g_proc_root_fds[slot].fd != entry.fd) slot++;
+    if (slot == g_n_proc_root_fds && slot == (int)(sizeof(g_proc_root_fds) / sizeof(g_proc_root_fds[0]))) slot = 0;
+    g_proc_root_fds[slot] = entry;
+    if (slot == g_n_proc_root_fds) __atomic_store_n(&g_n_proc_root_fds, g_n_proc_root_fds + 1, __ATOMIC_RELEASE);
+    pthread_mutex_unlock(&g_proc_root_mutex);
+}
+
+static void copy_proc_root_fd(int oldfd, int newfd) {
+    if (newfd < 0 || oldfd == newfd) return;
+    forget_proc_root_fd(newfd);
+    if (oldfd < 0 || __atomic_load_n(&g_n_proc_root_fds, __ATOMIC_ACQUIRE) == 0) return;
+    struct ddnatv_proc_root_fd entry = {-1, 0, 0, 0};
+    pthread_mutex_lock(&g_proc_root_mutex);
+    for (int i = 0; i < g_n_proc_root_fds; i++) {
+        if (g_proc_root_fds[i].fd == oldfd) entry = g_proc_root_fds[i];
+    }
+    pthread_mutex_unlock(&g_proc_root_mutex);
+    if (entry.fd < 0) return;
+    entry.fd = newfd;
+    store_proc_root_fd(entry);
 }
 
 static void remember_proc_root_fd(int fd, const char *path) {
     const char *rest = NULL;
     pid_t pid = proc_root_pid(path, &rest);
     struct stat st;
-    if (fd < 0 || pid <= 0 || rest[strspn(rest, "/")] != '\0' || syscall(SYS_fstat, fd, &st) != 0) return;
-    forget_proc_root_fd(fd);
-    pthread_mutex_lock(&g_proc_root_mutex);
-    int slot = g_n_proc_root_fds < (int)(sizeof(g_proc_root_fds) / sizeof(g_proc_root_fds[0])) ? g_n_proc_root_fds : 0;
-    g_proc_root_fds[slot] = (struct ddnatv_proc_root_fd){fd, pid, (unsigned long)st.st_dev, (unsigned long)st.st_ino};
-    if (slot == g_n_proc_root_fds) __atomic_store_n(&g_n_proc_root_fds, g_n_proc_root_fds + 1, __ATOMIC_RELEASE);
-    pthread_mutex_unlock(&g_proc_root_mutex);
+    if (fd < 0) return;
+    if (pid <= 0 || rest[strspn(rest, "/")] != '\0' || syscall(SYS_fstat, fd, &st) != 0) {
+        forget_proc_root_fd(fd);
+        return;
+    }
+    store_proc_root_fd((struct ddnatv_proc_root_fd){fd, pid, (unsigned long)st.st_dev, (unsigned long)st.st_ino});
 }
 
 static const char *proc_root_at(int dirfd, const char *rel, char *buf, size_t size) {
@@ -690,6 +757,10 @@ static const char *rewrite_path_follow(const char *path, char *buffer, size_t bu
     if (!path) return NULL;
     if (path[0] != '/') return rewrite_path(path, buffer, bufsize);
     init_ddnatv_hook();
+    if (path[1] == 'p' && strncmp(path, "/proc/", 6) == 0 && path[6] >= '1' && path[6] <= '9') {
+        const char *other = proc_root_host(path, buffer, bufsize, 0, 1);
+        if (other) return other;
+    }
     int moved = 0;
     for (int i = 0; i < g_nbinds; i++) {
         const struct ddnatv_bind *b = &g_binds[i];

@@ -12,6 +12,7 @@ import sys
 import threading
 
 SOCKET_FILE = "/etc/droiddeck/bwrap-socket"
+MAX_FORWARDED_FDS = 253
 
 
 def socket_name():
@@ -454,7 +455,9 @@ def hand_over(listener, fds):
         conn, _ = listener.accept()
     except OSError:
         return
-    with conn, listener:
+    finally:
+        listener.close()
+    with conn:
         creds = conn.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i"))
         if struct.unpack("3i", creds)[1] != os.getuid():
             return
@@ -466,6 +469,9 @@ def offer_fds(s):
     fds = inherited_fds(s)
     if not fds:
         return
+    if len(fds) > MAX_FORWARDED_FDS:
+        sys.stderr.write("bwrap: Too many inherited file descriptors: %d\n" % len(fds))
+        sys.exit(1)
     name = "droiddeck-fds-" + secrets.token_hex(16)
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     listener.bind("\0" + name)

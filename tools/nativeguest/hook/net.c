@@ -254,9 +254,10 @@ int dup2(int oldfd, int newfd) {
     if (oldfd != newfd) {
         clear_dns_redirect(newfd);
         set_chosen_port_fd(newfd, is_chosen_port_fd(oldfd));
-        forget_proc_root_fd(newfd);
     }
-    return orig_dup2 ? orig_dup2(oldfd, newfd) : -1;
+    int ret = orig_dup2 ? orig_dup2(oldfd, newfd) : -1;
+    if (ret >= 0) copy_proc_root_fd(oldfd, ret);
+    return ret;
 }
 
 int dup3(int oldfd, int newfd, int flags) {
@@ -265,9 +266,10 @@ int dup3(int oldfd, int newfd, int flags) {
     if (oldfd != newfd) {
         clear_dns_redirect(newfd);
         set_chosen_port_fd(newfd, is_chosen_port_fd(oldfd));
-        forget_proc_root_fd(newfd);
     }
-    return orig_dup3 ? orig_dup3(oldfd, newfd, flags) : -1;
+    int ret = orig_dup3 ? orig_dup3(oldfd, newfd, flags) : -1;
+    if (ret >= 0) copy_proc_root_fd(oldfd, ret);
+    return ret;
 }
 
 static int get_dns_redirect(int fd, struct sockaddr_storage *orig, socklen_t *orig_len) {
