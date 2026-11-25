@@ -109,6 +109,21 @@ class OnScreenLayoutTest {
         assertNotEquals(original.single { it.id == "legacy:ls" }.height, resized.single { it.id == "legacy:ls" }.height, .0001f)
     }
 
+    @Test fun changingControllerSizeResizesDefaultDockedControlsWithoutASavedLayout() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val layout = gamepad()
+        val w = 1200
+        val h = 540
+        val dock = OnScreenLayout.Dock(false, false)
+        ControllerPrefs.setSize(context, 100)
+        val original = OnScreenLayout.elements(context, layout, w, h, Rect(), dock = dock)
+        ControllerPrefs.setSize(context, 125)
+        val resized = OnScreenLayout.elements(context, layout, w, h, Rect(), dock = dock)
+        assertNotEquals(original.at(InputControl.LS).width, resized.at(InputControl.LS).width, .0001f)
+        assertNotEquals(original.at(InputControl.A).height, resized.at(InputControl.A).height, .0001f)
+        assertInside(resized, w, h)
+    }
+
     @Test fun changingControllerSizeResizesDockedControlsWithASavedLayout() {
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
         val layout = gamepad()
