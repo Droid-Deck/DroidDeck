@@ -233,7 +233,8 @@ class XboxNativePlayerActivity : ComponentActivity() {
         val active = (shared ?: XboxCloudSession.get(applicationContext, account)).forStream(settings.region, settings.osName)
         regionNames = active.regionList.map { it.name }
         serverName = active.regionList.firstOrNull { it.baseUri == active.baseUri }?.name
-        val title = XboxCloudSession.titles(active)[product] ?: error("This game can't be streamed with this account here.")
+        val title = XboxCloudSession.titleFor(active, product, cached?.title ?: intent.getStringExtra("title").orEmpty()) { log(it) }
+            ?: error("This game can't be streamed with this account here.")
         val signals = XboxCloudSignalling(active, title, settings).also { signalling = it }
         log("$product -> $title, region ${java.net.URI(active.baseUri).host}, frame gen ${settings.frameGen}")
 

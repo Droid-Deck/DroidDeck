@@ -74,9 +74,11 @@ class XboxCloudPlayerActivity : ComponentActivity() {
                 val account = StoreAccounts.signedInAs(applicationContext, Store.XBOX) ?: error("Sign in to the Xbox store first.")
                 val cached = XboxLibraryCache.read(applicationContext, account, Xodus.market())?.games?.firstOrNull { it.id == requested }
                 val product = cached?.extra?.get("cloudId")?.takeIf { it.isNotEmpty() } ?: requested
-                webUrl = XboxCatalog.cloudUrl(requested, cached?.title ?: intent.getStringExtra("title").orEmpty(), product)
+                val name = cached?.title ?: intent.getStringExtra("title").orEmpty()
+                webUrl = XboxCatalog.cloudUrl(requested, name, product)
                 val active = XboxCloudSession.get(applicationContext, account)
-                val title = XboxCloudSession.titles(active)[product] ?: error("This game can't be streamed with this account here.")
+                val title = XboxCloudSession.titleFor(active, product, name) { diag("cloud player: $it") }
+                    ?: error("This game can't be streamed with this account here.")
                 settings = XboxCloudSettings.load(applicationContext)
                 startedWith = settings
                 session = active.forStream(settings.region, settings.osName); titleId = title

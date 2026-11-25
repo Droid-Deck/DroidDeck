@@ -208,4 +208,22 @@ class XboxCatalogTest {
         val merged = mergeEditions(listOf(pc, console)).single()
         assertEquals(game, merged.id); assertTrue(merged.xboxPc); assertTrue(merged.xboxCloud); assertEquals(parent, merged.xboxCloudId)
     }
+
+    @Test fun anOwnedCloudEditionMakesTheGamePassPcCardOwned() {
+        val cloud = XboxCloudCatalog(gamePass = setOf(game), all = setOf(game, parent))
+        val pc = XboxCatalog.product(product(game, "Windows.Desktop"), mapOf(game to "gamepass"), cloud)!!
+        val console = XboxCatalog.product(product(parent, "Xbox.One"), mapOf(parent to "owned"), cloud)!!
+        val merged = mergeEditions(listOf(pc, console)).single()
+        assertEquals(game, merged.id); assertTrue(merged.owned); assertFalse(merged.subscription); assertEquals("owned", merged.extra["access"])
+        assertTrue(merged.xboxCloud); assertEquals(game, merged.xboxCloudId)
+    }
+
+    @Test fun cloudOnlyEditionsWithTheSameTitleBecomeOneOwnedCard() {
+        val third = "9CCCCCCCCCCC"
+        val cloud = XboxCloudCatalog(gamePass = setOf(game), all = setOf(game, third))
+        val pass = XboxCatalog.product(product(game, "Xbox.One"), mapOf(game to "gamepass"), cloud)!!
+        val owned = XboxCatalog.product(product(third, "Xbox.One"), mapOf(third to "owned"), cloud)!!
+        val merged = mergeEditions(listOf(pass, owned)).single()
+        assertEquals(third, merged.id); assertTrue(merged.owned)
+    }
 }
