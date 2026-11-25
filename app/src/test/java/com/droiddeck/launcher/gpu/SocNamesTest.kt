@@ -16,12 +16,20 @@ class SocNamesTest {
 
     @Test fun knownModelsAndPlatformsGetTheirNames() {
         assertEquals("Snapdragon 8 Gen 2", SocNames.name("QCS8550", ""))
-        assertEquals("Snapdragon 8 Gen 3 family", SocNames.name("SG8350P", "pineapple"))
+        assertEquals("Snapdragon G3 Gen 3", SocNames.name("SG8350P", "pineapple"))
         assertNull(SocNames.name("XYZ123", "nowhere"))
         assertEquals("Snapdragon 8 Gen 2 (QCS8550)", SocNames.label("QCS8550", ""))
-        assertEquals("Snapdragon 8 Gen 3 family (SG8350P)", SocNames.label("SG8350P", "pineapple"))
+        assertEquals("Snapdragon G3 Gen 3 (SG8350P)", SocNames.label("SG8350P", "pineapple"))
         assertEquals("XYZ123", SocNames.label("XYZ123", ""))
     }
+    @Test fun platformFamilyOnlyForPhonePartsOrNoModel() {
+        assertEquals("Dragonwing Q-7790", SocNames.name("CQ7790S", "sun"))
+        assertNull(SocNames.name("CQ1234X", "sun"))
+        assertEquals("Snapdragon 8 Elite family", SocNames.name("SM9999", "sun"))
+        assertEquals("Snapdragon 8 Elite family", SocNames.name("", "sun"))
+        assertEquals("Snapdragon 8 Elite Gen 5 family", SocNames.name("", "canoe"))
+    }
+
     @Test fun qtiPrefixIsNormalizedWithoutGuessingOtherModelVariants() {
         assertEquals("Snapdragon 8 Elite Extreme Gen 6", SocNames.name("SM8975", ""))
         assertEquals("Snapdragon 8 Elite Extreme Gen 6", SocNames.name("QTI SM8975", ""))
