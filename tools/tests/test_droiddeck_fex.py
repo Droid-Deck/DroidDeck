@@ -1161,9 +1161,11 @@ class LaunchTest(FexTestCase):
         self.assertTrue(guest["FEX_APP_CONFIG_LOCATION"].endswith("/config/"))
         self.assertEqual((guest["FEX_SILENTLOG"], guest["FEX_OUTPUTLOG"]), ("0", "stderr"))
         self.assertEqual(guest["GC_DISABLE_INCREMENTAL"], "1")
+        self.assertEqual(guest["DOTNET_INTERNAL_ThreadSuspendInjection"], "0")
         guest = FEX["guest_environment"]({"portable": False}, {"LD_PRELOAD": str(arm), "FEX_PORTABLE": "1", "FEX_OUTPUTLOG": "/tmp/fex.log",
-                                                               "GC_DISABLE_INCREMENTAL": "0"})
+                                                               "GC_DISABLE_INCREMENTAL": "0", "DOTNET_INTERNAL_ThreadSuspendInjection": "1"})
         self.assertEqual((guest["FEX_OUTPUTLOG"], guest["GC_DISABLE_INCREMENTAL"]), ("/tmp/fex.log", "0"))
+        self.assertEqual(guest["DOTNET_INTERNAL_ThreadSuspendInjection"], "1")
         self.assertNotIn("LD_PRELOAD", guest)
         self.assertNotIn("FEX_PORTABLE", guest)
 
