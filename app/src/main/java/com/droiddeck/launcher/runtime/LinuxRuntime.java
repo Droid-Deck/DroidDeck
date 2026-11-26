@@ -569,14 +569,16 @@ public final class LinuxRuntime {
         java.util.Map<String, File> byType = new java.util.HashMap<>();
         File[] zones = new File("/sys/class/thermal").listFiles((dir, n) -> n.startsWith("thermal_zone"));
         if (zones == null) return java.util.Collections.emptySortedMap();
+        boolean complete = true;
         for (File zone : zones) {
             try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(new File(zone, "type")))) {
                 byType.putIfAbsent(String.valueOf(r.readLine()).trim().toLowerCase(java.util.Locale.ROOT), zone);
-            } catch (IOException ignored) {
+            } catch (IOException e) {
+                complete = false;
             }
         }
         java.util.SortedMap<String, File> sorted = java.util.Collections.unmodifiableSortedMap(new java.util.TreeMap<>(byType));
-        if (!sorted.isEmpty()) thermalZoneTypes = sorted;
+        if (complete && !sorted.isEmpty()) thermalZoneTypes = sorted;
         return sorted;
     }
 
