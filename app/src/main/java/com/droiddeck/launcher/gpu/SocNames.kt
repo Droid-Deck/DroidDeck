@@ -7,17 +7,21 @@ object SocNames {
         "SM8150" to "Snapdragon 855", "SM8250" to "Snapdragon 865", "SM8250-AC" to "Snapdragon 870",
         "SM8350" to "Snapdragon 888", "SM8450" to "Snapdragon 8 Gen 1", "SM8475" to "Snapdragon 8+ Gen 1",
         "SM8550" to "Snapdragon 8 Gen 2", "QCS8550" to "Snapdragon 8 Gen 2", "SM8650" to "Snapdragon 8 Gen 3",
+        "SM8635" to "Snapdragon 8s Gen 3", "SM8735" to "Snapdragon 8s Gen 4",
         "SM8750" to "Snapdragon 8 Elite", "SM8750P" to "Snapdragon 8 Elite",
         "SM8850" to "Snapdragon 8 Elite Gen 5",
         "SM8975" to "Snapdragon 8 Elite Extreme Gen 6",
         "SM7325" to "Snapdragon 778G", "SM7450" to "Snapdragon 7 Gen 1", "SM7550" to "Snapdragon 7 Gen 3",
+        "SM7675" to "Snapdragon 7+ Gen 3",
         "SM6375" to "Snapdragon 695",
+        // Handheld parts: AYANEO Pocket FIT (SG8350P), Retroid Pocket Duo (CQ7790S).
+        "SG8350P" to "Snapdragon G3 Gen 3", "CQ7790S" to "Dragonwing Q-7790",
     )
 
     private val PLATFORMS = mapOf(
         "msmnile" to "Snapdragon 855/860", "kona" to "Snapdragon 865/870", "lahaina" to "Snapdragon 888",
         "taro" to "Snapdragon 8 Gen 1", "cape" to "Snapdragon 8+ Gen 1", "kalama" to "Snapdragon 8 Gen 2",
-        "pineapple" to "Snapdragon 8 Gen 3", "sun" to "Snapdragon 8 Elite",
+        "pineapple" to "Snapdragon 8 Gen 3", "sun" to "Snapdragon 8 Elite", "canoe" to "Snapdragon 8 Elite Gen 5",
     )
 
     fun model(prop: (String) -> String = GpuInfo::systemProperty): String {
@@ -30,8 +34,16 @@ object SocNames {
 
     internal fun normalizedModel(model: String): String = model.trim().uppercase().removePrefix("QTI ").trim()
 
-    fun name(model: String, platform: String = GpuInfo.systemProperty("ro.board.platform")): String? =
-        MODELS[normalizedModel(model)] ?: PLATFORMS[platform.lowercase()]?.let { "$it family" }
+    /**
+     * The exact model's name; the board platform's family only for an empty model or a phone "SM" part, since
+     * different chips share a platform (the Retroid Pocket Duo's CQ7790S and the Snapdragon 8 Elite are both "sun").
+     */
+    fun name(model: String, platform: String = GpuInfo.systemProperty("ro.board.platform")): String? {
+        val m = normalizedModel(model)
+        MODELS[m]?.let { return it }
+        if (m.isNotEmpty() && !m.startsWith("SM")) return null
+        return PLATFORMS[platform.lowercase()]?.let { "$it family" }
+    }
 
     // Without label's platform-family guess: a rebadged chip such as the Duo's CQ7790S reports a platform it is not.
     fun plainName(model: String = model(), maker: String = manufacturer()): String =
