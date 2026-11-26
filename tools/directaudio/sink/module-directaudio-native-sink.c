@@ -107,7 +107,7 @@ struct userdata {
     uint64_t last_cb_ns, last_xrun_ns, last_decay_ns, wd_last_tick_ns;
     int32_t base_buf_frames, decay_floor;
     unsigned int decay_backoff, cb_count, wd_last_cb;
-    uint64_t stall_state;
+    uint64_t stall_state, cb_seen_ns, cb_streak_ns;
     int reopen_running, reopen_redo;
     int consuming, primed, starved;
     int suspended;
@@ -157,8 +157,13 @@ static void limit(float *p, uint32_t samples) {
 }
 
 static void record_callback(struct userdata *u) {
-    uint64_t state = __atomic_load_n(&u->stall_state, __ATOMIC_SEQ_CST);
+    uint64_t now = now_ns(), state;
 
+    if (!u->cb_seen_ns || now - u->cb_seen_ns > DA_FREEZE_GAP_NS) u->cb_streak_ns = now;
+    u->cb_seen_ns = now;
+    if (now - u->cb_streak_ns < DA_CB_STALL_NS) return;
+
+    state = __atomic_load_n(&u->stall_state, __ATOMIC_SEQ_CST);
     while (!__atomic_compare_exchange_n(&u->stall_state, &state,
             ((state >> 32) + 1) << 32, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {}
 }
