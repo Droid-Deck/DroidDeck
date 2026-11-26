@@ -513,7 +513,7 @@ class NativeHookMountTest(unittest.TestCase):
                        for kind in ("ext4", "exfat")]
             self.assertEqual(results[0], results[1], order)
 
-    def test_relative_parent_walks_honour_identity_binds_and_the_rootfs_under_a_plain_bind(self):
+    def test_relative_parent_walks_honour_identity_binds_shared_guest_paths_and_the_rootfs(self):
         real, _, _ = self.links_volume()
         tmp = os.path.realpath(self.tmp.name)
         card = f"{tmp}/identity-card"
@@ -525,6 +525,18 @@ class NativeHookMountTest(unittest.TestCase):
                                   mounts=[("/", "ext4", "/dev/root"), (real, kind, "/dev/sdb1")])[walk]
                    for kind in ("ext4", "exfat")]
         self.assertEqual(results[0], results[1])
+        twins = (f"{tmp}/twin-a", f"{tmp}/twin-b")
+        for twin in twins:
+            os.makedirs(f"{twin}/only/sub/deeper", exist_ok=True)
+            Path(f"{twin}/only/sub/file.txt").write_text(os.path.basename(twin))
+        for order in (twins, twins[::-1]):
+            shared = "|".join(f"{src}:/mnt/twin" for src in order)
+            result, log = self.run_probe("cd:/mnt/twin/only", walk, binds=shared, syscalls=True,
+                                         mounts=[("/", "ext4", "/dev/root")] +
+                                                [(twin, "exfat", f"/dev/sd{i}1") for i, twin in zip("bc", twins)])
+            stats = [m.group(1) for m in re.finditer(r'(?:fstatat|statx)\([^,"]*,\s*"([^"]*)"', log)]
+            self.assertEqual(result[walk], ["1", os.path.basename(order[0])], order)
+            self.assertNotIn(walk, stats, order)
         climb = "../../etc/hostname"
         for kind in ("ext4", "exfat"):
             result = self.run_probe("cd:/etc", climb, binds=f"{tmp}:/mnt/card",

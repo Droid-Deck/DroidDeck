@@ -1095,7 +1095,7 @@ static int stays_in_plain_bind(const char *host, const char *rel) {
         if (cover->identity || !is_path_prefix(host, cover->src, cover->src_len)) continue;
         for (int j = 0; j < g_nbinds; j++) {
             struct ddnatv_bind *b = &g_binds[j];
-            if (j != i && b->dst_len > cover->dst_len && is_path_prefix(b->dst, cover->dst, cover->dst_len))
+            if (j != i && b->dst_len >= cover->dst_len && is_path_prefix(b->dst, cover->dst, cover->dst_len))
                 return 0;
         }
     }
