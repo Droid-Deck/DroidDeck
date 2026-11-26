@@ -59,7 +59,7 @@ On Windows, see `tools/run_windows.ps1` and `tools/prepare_windows_runtime.py`.
 
 ## Windows launcher
 
-`windows-launcher/` is a native Rust game launcher for Windows. It does not use Android, Linux runtimes or emulation. Import `DroidDeck-library.json` from the Android app to bring owned games from signed-in stores—including uninstalled Steam titles—into one catalogue. It checks local Steam and Epic installations, launches store clients and can open shortcuts or executables. See [the Windows launcher guide](windows-launcher/README.md).
+`windows-launcher/` is a native Rust game launcher for Windows. It does not use Android, Linux runtimes or emulation. Sign in to Steam, Epic, EA, GOG, Ubisoft, Amazon Games, Rockstar Games or Game Jolt from its store accounts page; itch.io connects with an API key. The launcher syncs owned games—including titles that are not installed—and checks local Steam and Epic installations. Xbox and Battle.net do not yet have full account-library integration in the Windows launcher. See [the Windows launcher guide](windows-launcher/README.md).
 
 
 ## Credits and licence

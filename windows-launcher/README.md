@@ -1,23 +1,28 @@
 # DroidDeck Launcher para Windows
 
-Launcher nativo de Windows escrito en Rust. Reúne bibliotecas de distintas tiendas y abre los clientes correspondientes. No incluye emulación ni runtimes de Android. La interfaz usa eframe/egui; la aplicación no necesita Node.js ni Electron.
+Launcher nativo escrito en Rust para reunir juegos de PC de las tiendas conectadas. No emula Android ni instala un runtime de Linux.
 
-## Biblioteca
+## Conectar tiendas
 
-1. En DroidDeck para Android, abrí **Biblioteca** y elegí **Compartir** para guardar `DroidDeck-library.json`.
-2. Transferí el archivo a la PC.
-3. En DroidDeck Launcher, seleccioná **Importar DroidDeck**.
+Abrí **Cuentas de tiendas**, elegí **Conectar cuenta** y completá el login en la ventana integrada. El catálogo se sincroniza al terminar y vuelve a actualizarse al iniciar el launcher o con **Actualizar todas**.
 
-El catálogo de DroidDeck incluye juegos de Steam vinculados a la cuenta aunque no estén instalados. El launcher conserva esos títulos y actualiza el estado local al revisar Steam, Epic Games y los accesos directos del menú Inicio. Volvé a importar el JSON para actualizar los catálogos de las tiendas. La exportación no contiene cookies, tokens ni contraseñas, y el launcher no lee credenciales de Steam.
+La integración de bibliotecas de cuenta está disponible para:
 
-La vista **No instalados** aparece primero para que puedas revisar tu colección antes de comprar. **Instalar** abre el flujo de instalación de Steam o la página de la tienda. Se pueden agregar ejecutables o accesos directos locales desde **Agregar juego**.
+- Steam, Epic Games, EA app, GOG, Ubisoft Connect, Amazon Games, Rockstar Games y Game Jolt.
+- itch.io mediante una clave API personal.
+
+Xbox todavía usa el helper Linux que DroidDeck distribuye para Android, así que no se reutiliza en Windows. Battle.net en DroidDeck sincroniza los juegos instalados desde su cliente y no ofrece su biblioteca de compras no instaladas. Estas dos tiendas se muestran en la lista, pero no como cuentas conectables completas.
+
+Las sesiones se guardan por tienda en `%LOCALAPPDATA%\DroidDeckLauncher\accounts` cifradas con AES-256-GCM. La clave de cifrado queda en el Administrador de credenciales de Windows. Los perfiles del navegador integrado son independientes por tienda y se eliminan al desconectarla. El catálogo local está en `%LOCALAPPDATA%\DroidDeckLauncher\library.json` y no contiene tokens.
+
+Los juegos no instalados aparecen primero y los instalados se detectan con los manifiestos locales de Steam y Epic, además de accesos directos reconocidos. En tiendas sin instalador local expuesto, el botón abre la página del juego o su protocolo de tienda cuando está disponible. **Agregar juego** admite ejecutables y accesos directos.
 
 ## Compilar
 
-Instalá Rust estable para Windows y compilá desde esta carpeta:
+Instalá Rust estable, el WebView2 Runtime de Windows y compilá desde esta carpeta:
 
 ```powershell
 cargo run --release
 ```
 
-El ejecutable portable queda en `target/release/droideck-launcher.exe`. Los datos se guardan en `%LOCALAPPDATA%\DroidDeckLauncher\`; en el primer inicio se importa la biblioteca de la versión Electron anterior si está en `%APPDATA%\droideck-windows-launcher\library.json`.
+El ejecutable portable queda en `target/release/droideck-launcher.exe`.

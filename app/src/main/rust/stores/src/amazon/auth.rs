@@ -1,5 +1,3 @@
-use std::io::Read;
-
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -27,9 +25,7 @@ const DEFAULT_EXPIRES_IN: i64 = 3600;
 
 fn random_bytes(n: usize) -> Result<Vec<u8>, String> {
     let mut out = vec![0u8; n];
-    std::fs::File::open("/dev/urandom")
-        .and_then(|mut f| f.read_exact(&mut out))
-        .map_err(|e| format!("no randomness: {e}"))?;
+    getrandom::fill(&mut out).map_err(|e| format!("no randomness: {e}"))?;
     Ok(out)
 }
 

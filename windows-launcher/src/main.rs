@@ -1,13 +1,22 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod accounts;
 mod model;
 mod scanner;
+mod store_api;
+#[cfg(windows)]
+mod store_login;
+
+mod stores_jni {
+    pub const VERSION: &str = "0.7.11";
+}
 
 use eframe::egui::{
     self, Align, Color32, FontId, Frame, Layout, Margin, RichText, Sense, Stroke, TextureHandle,
     TextureOptions, UiBuilder, Vec2,
 };
 use model::{Game, normalize_title};
+use std::process::Command;
 use std::{
     collections::{HashMap, HashSet},
     fs,
@@ -26,7 +35,22 @@ const BLUE: Color32 = Color32::from_rgb(38, 164, 245);
 const CARD_W: f32 = 166.0;
 const CARD_H: f32 = 326.0;
 
-fn main() -> eframe::Result<()> {
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() >= 3 && args[1] == "--connect-store" {
+        let result = store_login::run(&args[2]);
+        if let Err(error) = result {
+            println!("{}", serde_json::json!({"error": error}));
+            std::process::exit(1);
+        }
+        return;
+    }
+    if let Err(error) = run_launcher() {
+        eprintln!("DroidDeck Launcher could not start: {error}");
+    }
+}
+
+fn run_launcher() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("DroidDeck Launcher")
@@ -37,7 +61,11 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "DroidDeck Launcher",
         options,
-        Box::new(|cc| Ok(Box::new(Launcher::new(cc)))),
+        Box::new(|cc| {
+            let mut launcher = Launcher::new(cc);
+            launcher.sync_noninteractive_connected();
+            Ok(Box::new(launcher))
+        }),
     )
 }
 
@@ -46,6 +74,12 @@ enum LibraryFilter {
     All,
     Installed,
     Uninstalled,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Page {
+    Library,
+    Stores,
 }
 
 struct Paths {
@@ -81,6 +115,12 @@ struct Launcher {
     workers: ThreadPool,
     toast: Option<(String, f64)>,
     notice: Option<String>,
+    page: Page,
+    accounts: Vec<accounts::AccountStatus>,
+    account_tx: Sender<(String, Result<store_api::ConnectedStore, String>)>,
+    account_rx: Receiver<(String, Result<store_api::ConnectedStore, String>)>,
+    account_busy: HashSet<String>,
+    itch_key: String,
 }
 
 impl Launcher {
@@ -90,6 +130,7 @@ impl Launcher {
         let games =
             scanner::merge_local(read_database(&paths.db).unwrap_or_else(load_legacy_database));
         let (cover_tx, cover_rx) = mpsc::channel();
+        let (account_tx, account_rx) = mpsc::channel();
         Self {
             games,
             query: String::new(),
@@ -103,14 +144,211 @@ impl Launcher {
             workers: ThreadPool::new(4),
             toast: None,
             notice: None,
+            page: Page::Library,
+            accounts: accounts::list(),
+            account_tx,
+            account_rx,
+            account_busy: HashSet::new(),
+            itch_key: String::new(),
         }
     }
 
     fn refresh(&mut self) {
         let saved = read_database(&self.paths.db).unwrap_or_else(load_legacy_database);
         self.games = scanner::merge_local(saved);
-        self.notice = Some("Biblioteca actualizada".into());
+        self.sync_connected();
+        self.notice = Some("Buscando cambios en las tiendas conectadas…".into());
         self.persist();
+    }
+
+    fn connect_store(&mut self, store: &str) {
+        if self.account_busy.contains(store) {
+            return;
+        }
+        let ready = matches!(
+            store,
+            "steam"
+                | "epic"
+                | "ea"
+                | "gog"
+                | "ubisoft"
+                | "amazon"
+                | "rockstar"
+                | "itch"
+                | "gamejolt"
+        );
+        if !ready {
+            self.notice = Some(format!(
+                "El acceso de cuenta de {} todavía no está implementado en Windows.",
+                model::store_label(store)
+            ));
+            return;
+        }
+        self.account_busy.insert(store.to_owned());
+        let tx = self.account_tx.clone();
+        if store == "itch" {
+            let key = self.itch_key.trim().to_owned();
+            if key.is_empty() {
+                self.account_busy.remove(store);
+                self.notice = Some("Pegá primero tu clave API de itch.io.".into());
+                return;
+            }
+            self.workers.execute(move || {
+                let capture = store_api::LoginCapture {
+                    store: "itch".into(),
+                    ..Default::default()
+                };
+                let result = store_api::connect(capture, &key);
+                let _ = tx.send(("itch".into(), result));
+            });
+        } else {
+            let executable = std::env::current_exe();
+            let store_id = store.to_owned();
+            self.workers.execute(move || {
+                let result = executable
+                    .map_err(|e| format!("No se encontró el ejecutable: {e}"))
+                    .and_then(|exe| {
+                        Command::new(exe)
+                            .arg("--connect-store")
+                            .arg(&store_id)
+                            .output()
+                            .map_err(|e| format!("No se pudo abrir el login: {e}"))
+                    })
+                    .and_then(|output| {
+                        if !output.status.success() {
+                            let value: serde_json::Value =
+                                serde_json::from_slice(&output.stdout).unwrap_or_default();
+                            return Err(value
+                                .get("error")
+                                .and_then(serde_json::Value::as_str)
+                                .map(str::to_owned)
+                                .unwrap_or_else(|| {
+                                    String::from_utf8_lossy(&output.stderr).trim().to_owned()
+                                }));
+                        }
+                        serde_json::from_slice(&output.stdout)
+                            .map_err(|e| format!("La tienda devolvió una respuesta ilegible: {e}"))
+                    });
+                let _ = tx.send((store_id, result));
+            });
+        }
+        self.notice = Some(format!("Conectando {}…", model::store_label(store)));
+    }
+
+    fn sync_store(&mut self, store: &str) {
+        if self.account_busy.contains(store) {
+            return;
+        }
+        if matches!(store, "steam" | "gamejolt") {
+            self.connect_store(store);
+            return;
+        }
+        let saved = match accounts::load(store) {
+            Ok(Some(saved)) => saved,
+            Ok(None) => {
+                self.notice = Some(format!("Conectá {} primero.", model::store_label(store)));
+                return;
+            }
+            Err(error) => {
+                self.notice = Some(error);
+                return;
+            }
+        };
+        self.account_busy.insert(store.to_owned());
+        let tx = self.account_tx.clone();
+        let store_id = store.to_owned();
+        self.workers.execute(move || {
+            let result = store_api::sync(&store_id, &saved);
+            let _ = tx.send((store_id, result));
+        });
+        self.notice = Some(format!("Sincronizando {}…", model::store_label(store)));
+    }
+
+    fn sync_connected(&mut self) {
+        let stores: Vec<String> = self
+            .accounts
+            .iter()
+            .filter(|account| account.connected)
+            .map(|account| account.store.clone())
+            .collect();
+        for store in stores {
+            self.sync_store(&store);
+        }
+    }
+
+    fn sync_noninteractive_connected(&mut self) {
+        let stores: Vec<String> = self
+            .accounts
+            .iter()
+            .filter(|account| {
+                account.connected && !matches!(account.store.as_str(), "steam" | "gamejolt")
+            })
+            .map(|account| account.store.clone())
+            .collect();
+        for store in stores {
+            self.sync_store(&store);
+        }
+    }
+
+    fn disconnect_store(&mut self, store: &str) {
+        match accounts::remove(store) {
+            Ok(()) => {
+                self.notice = None;
+                self.games.retain(|game| {
+                    !(game.store == store && game.imported_from == "connected-store")
+                });
+                self.games =
+                    scanner::merge_local(model::merge_games(std::mem::take(&mut self.games)));
+                self.accounts = accounts::list();
+                self.persist();
+                #[cfg(windows)]
+                if let Err(error) = store_login::clear_webview_profile(store) {
+                    self.notice = Some(error);
+                }
+                if self.notice.is_none() {
+                    self.notice = Some(format!("Se desconectó {}.", model::store_label(store)));
+                }
+            }
+            Err(error) => self.notice = Some(error),
+        }
+    }
+
+    fn poll_accounts(&mut self, ctx: &egui::Context) {
+        while let Ok((store, result)) = self.account_rx.try_recv() {
+            self.account_busy.remove(&store);
+            match result {
+                Ok(connected) => {
+                    let count = connected.games.len();
+                    let display = connected.account.display_name.clone();
+                    let save_result = accounts::save(&connected.account);
+                    self.games.retain(|game| {
+                        !(game.store == store && game.imported_from == "connected-store")
+                    });
+                    self.games.extend(connected.games);
+                    self.games =
+                        scanner::merge_local(model::merge_games(std::mem::take(&mut self.games)));
+                    self.accounts = accounts::list();
+                    self.persist();
+                    self.notice = Some(match save_result {
+                        Ok(()) if display.is_empty() => format!(
+                            "{}: {count} juegos sincronizados.",
+                            model::store_label(&store)
+                        ),
+                        Ok(()) => format!(
+                            "{} conectado como {display}: {count} juegos sincronizados.",
+                            model::store_label(&store)
+                        ),
+                        Err(error) => format!(
+                            "Se leyó la biblioteca ({count} juegos), pero no se pudo guardar la cuenta: {error}"
+                        ),
+                    });
+                }
+                Err(error) => self.notice = Some(error),
+            }
+        }
+        if !self.account_busy.is_empty() {
+            ctx.request_repaint_after(Duration::from_millis(120));
+        }
     }
 
     fn persist(&self) {
@@ -123,46 +361,6 @@ impl Launcher {
             if fs::write(&temp, contents).is_ok() {
                 let _ = fs::rename(temp, &self.paths.db);
             }
-        }
-    }
-
-    fn import(&mut self) {
-        let Some(path) = rfd::FileDialog::new()
-            .set_title("Importar biblioteca de DroidDeck")
-            .add_filter("Biblioteca DroidDeck", &["json"])
-            .pick_file()
-        else {
-            return;
-        };
-        match fs::read_to_string(&path)
-            .ok()
-            .and_then(|json| serde_json::from_str::<model::Catalog>(&json).ok())
-        {
-            Some(catalog) if catalog.schema_version == 1 => {
-                let existing: HashMap<_, _> = self
-                    .games
-                    .drain(..)
-                    .map(|game| (game.key.clone(), game))
-                    .collect();
-                let mut merged = existing;
-                let count = catalog.games.len();
-                for mut game in catalog.games {
-                    game.normalize();
-                    if let Some(old) = merged.get(&game.key) {
-                        if game.launch_target.is_empty() {
-                            game.launch_target.clone_from(&old.launch_target);
-                        }
-                        if game.cover_url.is_empty() {
-                            game.cover_url.clone_from(&old.cover_url);
-                        }
-                    }
-                    merged.insert(game.key.clone(), game);
-                }
-                self.games = scanner::merge_local(merged.into_values().collect());
-                self.persist();
-                self.notice = Some(format!("Se importaron {count} juegos de DroidDeck"));
-            }
-            _ => self.notice = Some("El JSON no es una exportación compatible de DroidDeck".into()),
         }
     }
 
@@ -304,28 +502,202 @@ impl Launcher {
 
     fn header(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.add_sized(
-                [320.0, 38.0],
-                egui::TextEdit::singleline(&mut self.query).hint_text("Buscar en tu biblioteca"),
-            );
-            ui.add_space((ui.available_width() - 390.0).max(12.0));
-            if ui.button("Actualizar").clicked() {
-                self.refresh();
+            if self.page == Page::Library {
+                ui.add_sized(
+                    [320.0, 38.0],
+                    egui::TextEdit::singleline(&mut self.query)
+                        .hint_text("Buscar en tu biblioteca"),
+                );
+            } else {
+                ui.label(
+                    RichText::new("Conectá tus tiendas para sincronizar los juegos que compraste.")
+                        .color(MUTED),
+                );
             }
-            if ui.button("Importar DroidDeck").clicked() {
-                self.import();
+            ui.add_space((ui.available_width() - 450.0).max(12.0));
+            if ui.button("Actualizar todas").clicked() {
+                if self.page == Page::Library {
+                    self.refresh();
+                } else {
+                    self.sync_connected();
+                }
             }
-            if ui
-                .button(
-                    RichText::new("+  Agregar juego")
-                        .strong()
-                        .color(Color32::WHITE),
-                )
-                .clicked()
+            if ui.button("Cuentas").clicked() {
+                self.page = Page::Stores;
+            }
+            if self.page == Page::Library
+                && ui
+                    .button(
+                        RichText::new("+  Agregar juego")
+                            .strong()
+                            .color(Color32::WHITE),
+                    )
+                    .clicked()
             {
                 self.add_game();
             }
         });
+    }
+
+    fn accounts_panel(&mut self, ui: &mut egui::Ui) {
+        ui.label(
+            RichText::new("TIENDAS COMPATIBLES")
+                .size(10.0)
+                .strong()
+                .color(BLUE),
+        );
+        ui.add_space(4.0);
+        ui.heading(RichText::new("Tus cuentas").size(27.0).strong());
+        ui.add_space(4.0);
+        ui.label(RichText::new("Iniciá sesión desde acá. Al abrir el launcher, las cuentas con token se sincronizan. Para Steam y Game Jolt usá Actualizar todas; sus sesiones se verifican en la ventana web aislada.").color(MUTED));
+        ui.add_space(18.0);
+        let rows = accounts::stores().to_vec();
+        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            let card_width = ((ui.available_width() - 18.0) / 2.0).max(250.0);
+            for row in rows.chunks(2) {
+                ui.horizontal(|ui| {
+                    for (id, label, description) in row {
+                        ui.add_space(6.0);
+                        self.account_card(ui, id, label, description, card_width);
+                    }
+                });
+                ui.add_space(10.0);
+            }
+            ui.add_space(10.0);
+            ui.label(RichText::new("Steam, Epic, EA, GOG, Ubisoft, Amazon, Rockstar y Game Jolt sincronizan bibliotecas de cuenta; itch.io usa su clave API. Xbox todavía depende del helper Linux de DroidDeck y Battle.net solo expone los juegos instalados en la app Android, por eso esas dos integraciones no figuran como conexión completa en Windows.").size(11.0).color(MUTED));
+        });
+    }
+
+    fn account_card(
+        &mut self,
+        ui: &mut egui::Ui,
+        id: &str,
+        label: &str,
+        description: &str,
+        card_width: f32,
+    ) {
+        let connected = self
+            .accounts
+            .iter()
+            .find(|account| account.store == id)
+            .cloned()
+            .unwrap_or_default();
+        let ready = matches!(
+            id,
+            "steam"
+                | "epic"
+                | "ea"
+                | "gog"
+                | "ubisoft"
+                | "amazon"
+                | "rockstar"
+                | "itch"
+                | "gamejolt"
+        );
+        let busy = self.account_busy.contains(id);
+        Frame::new()
+            .fill(CARD)
+            .stroke(Stroke::new(1.0, LINE))
+            .corner_radius(12.0)
+            .inner_margin(Margin::same(14))
+            .show(ui, |ui| {
+                ui.set_min_width((card_width - 28.0).max(180.0));
+                ui.set_max_width((card_width - 28.0).max(180.0));
+                ui.horizontal(|ui| {
+                    let store = model::STORES.iter().find(|store| store.id == id);
+                    let color = store.map(|store| store.color).unwrap_or(BLUE);
+                    let (dot, _) = ui.allocate_exact_size(Vec2::splat(12.0), Sense::hover());
+                    ui.painter().circle_filled(dot.center(), 5.0, color);
+                    ui.label(RichText::new(label).strong().size(16.0));
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.label(
+                            RichText::new(if busy {
+                                "CONECTANDO"
+                            } else if connected.connected {
+                                "CONECTADA"
+                            } else if ready {
+                                "DISPONIBLE"
+                            } else {
+                                "EN DESARROLLO"
+                            })
+                            .size(9.0)
+                            .strong()
+                            .color(if connected.connected {
+                                Color32::from_rgb(113, 203, 149)
+                            } else if ready {
+                                BLUE
+                            } else {
+                                MUTED
+                            }),
+                        );
+                    });
+                });
+                ui.add_space(4.0);
+                ui.label(RichText::new(description).size(11.0).color(MUTED));
+                if connected.connected {
+                    ui.add_space(7.0);
+                    ui.label(
+                        RichText::new(format!("Sesión: {}", connected.display_name))
+                            .size(11.0)
+                            .color(Color32::from_rgb(113, 203, 149)),
+                    );
+                }
+                if id == "itch" && !connected.connected {
+                    ui.add_space(7.0);
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.itch_key)
+                            .password(true)
+                            .hint_text("Clave API de itch.io")
+                            .desired_width(ui.available_width()),
+                    );
+                }
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if connected.connected {
+                        if ui
+                            .add_enabled(
+                                !busy,
+                                egui::Button::new("Sincronizar")
+                                    .fill(BLUE)
+                                    .corner_radius(7.0),
+                            )
+                            .clicked()
+                        {
+                            self.sync_store(id);
+                        }
+                        if ui
+                            .add_enabled(!busy, egui::Button::new("Desconectar").corner_radius(7.0))
+                            .clicked()
+                        {
+                            self.disconnect_store(id);
+                        }
+                    } else if ready {
+                        if ui
+                            .add_enabled(
+                                !busy,
+                                egui::Button::new(if busy {
+                                    "Conectando…"
+                                } else {
+                                    "Conectar cuenta"
+                                })
+                                .fill(BLUE)
+                                .corner_radius(7.0),
+                            )
+                            .clicked()
+                        {
+                            self.connect_store(id);
+                        }
+                    } else {
+                        ui.label(
+                            RichText::new(
+                                "El login y la biblioteca completa no están listos en Windows.",
+                            )
+                            .size(10.0)
+                            .color(MUTED),
+                        );
+                    }
+                });
+            });
     }
 
     fn draw_card(&mut self, ui: &mut egui::Ui, game: &Game) {
@@ -499,6 +871,34 @@ impl Launcher {
                 self.nav_item(ui, "Todos", all, LibraryFilter::All);
                 self.nav_item(ui, "Instalados", installed, LibraryFilter::Installed);
                 self.nav_item(ui, "No instalados", uninstalled, LibraryFilter::Uninstalled);
+                let connected = self
+                    .accounts
+                    .iter()
+                    .filter(|account| account.connected)
+                    .count();
+                let selected = self.page == Page::Stores;
+                let response = ui.add(
+                    egui::Button::new(
+                        RichText::new(format!("Cuentas de tiendas    {connected}/11"))
+                            .size(12.0)
+                            .color(if selected { Color32::WHITE } else { MUTED }),
+                    )
+                    .fill(if selected {
+                        Color32::from_rgb(16, 48, 70)
+                    } else {
+                        Color32::TRANSPARENT
+                    })
+                    .stroke(if selected {
+                        Stroke::new(1.0, Color32::from_rgb(29, 111, 162))
+                    } else {
+                        Stroke::NONE
+                    })
+                    .corner_radius(8.0)
+                    .min_size(Vec2::new(ui.available_width(), 34.0)),
+                );
+                if response.clicked() {
+                    self.page = Page::Stores;
+                }
                 ui.add_space(28.0);
                 ui.label(RichText::new("TIENDAS").size(10.0).strong().color(MUTED));
                 ui.add_space(8.0);
@@ -553,6 +953,7 @@ impl Launcher {
         {
             self.filter = filter;
             self.store_filter = "all".into();
+            self.page = Page::Library;
         }
         ui.add_space(3.0);
     }
@@ -577,6 +978,7 @@ impl Launcher {
         if response.clicked() {
             self.store_filter = id.to_owned();
             self.filter = LibraryFilter::All;
+            self.page = Page::Library;
         }
     }
 }
@@ -585,23 +987,10 @@ impl eframe::App for Launcher {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.poll_covers(&ctx);
+        self.poll_accounts(&ctx);
         self.sidebar(ui);
         egui::CentralPanel::default().frame(Frame::new().fill(BG).inner_margin(Margin::same(22))).show(ui, |ui| {
             self.header(ui);
-            ui.add_space(20.0);
-            let installed = self.games.iter().filter(|game| game.installed).count();
-            let uninstalled = self.games.len().saturating_sub(installed);
-            ui.horizontal(|ui| {
-                ui.vertical(|ui| {
-                    ui.label(RichText::new("TU COLECCIÓN, EN UN SOLO LUGAR").size(10.0).strong().color(BLUE));
-                    ui.add_space(4.0);
-                    ui.heading(RichText::new("Biblioteca").size(27.0).strong());
-                });
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(RichText::new(format!("{} juegos   ·   {} instalados   ·   {} por instalar", self.games.len(), installed, uninstalled)).size(12.0).color(MUTED));
-                });
-            });
-            ui.add_space(14.0);
             if let Some(message) = self.notice.take() { self.toast = Some((message, ctx.input(|i| i.time) + 3.5)); }
             if let Some((message, until)) = &self.toast {
                     if ctx.input(|i| i.time) < *until {
@@ -610,36 +999,50 @@ impl eframe::App for Launcher {
                 } else { self.toast = None; }
             }
             ui.separator();
-            let visible = self.visible_games();
-            if visible.is_empty() {
-                ui.add_space(70.0);
-                ui.vertical_centered(|ui| {
-                    ui.label(RichText::new(if self.games.is_empty() { "Tu biblioteca está vacía" } else { "No hay juegos que coincidan" }).size(24.0).strong());
-                    ui.add_space(8.0);
-                    ui.label(RichText::new(if self.games.is_empty() { "En DroidDeck para Android, abrí Biblioteca → Compartir y exportá todas las tiendas. Ese catálogo incluye juegos de Steam aunque todavía no estén instalados." } else { "Probá otro nombre o filtro." }).color(MUTED));
-                    ui.add_space(18.0);
-                    if ui.add(egui::Button::new("Importar biblioteca DroidDeck").fill(BLUE).corner_radius(8.0)).clicked() { self.import(); }
-                });
+            if self.page == Page::Stores {
+                self.accounts_panel(ui);
             } else {
-                let no_installed: Vec<_> = visible.iter().filter(|game| !game.installed).cloned().collect();
-                let installed_games: Vec<_> = visible.iter().filter(|game| game.installed).cloned().collect();
-                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                    if !no_installed.is_empty() {
-                        section_header(ui, "NO INSTALADOS", no_installed.len(), Color32::from_rgb(153, 185, 210));
-                        ui.add_space(9.0);
-                        self.draw_grid(ui, &no_installed);
-                        ui.add_space(22.0);
-                    }
-                    if !installed_games.is_empty() {
-                        section_header(ui, "INSTALADOS", installed_games.len(), Color32::from_rgb(113, 203, 149));
-                        ui.add_space(9.0);
-                        self.draw_grid(ui, &installed_games);
-                    }
-                    if no_installed.is_empty() && self.filter != LibraryFilter::Installed && !self.games.is_empty() {
-                        ui.add_space(10.0);
-                        ui.label(RichText::new("Todavía no hay juegos sin instalar en este catálogo. Volvé a exportar la biblioteca desde DroidDeck en Android para incluir los juegos de Steam de tu cuenta.").color(MUTED));
-                    }
+                ui.add_space(16.0);
+                let installed = self.games.iter().filter(|game| game.installed).count();
+                let uninstalled = self.games.len().saturating_sub(installed);
+                ui.horizontal(|ui| {
+                    ui.vertical(|ui| {
+                        ui.label(RichText::new("TU COLECCIÓN, EN UN SOLO LUGAR").size(10.0).strong().color(BLUE));
+                        ui.add_space(4.0);
+                        ui.heading(RichText::new("Biblioteca").size(27.0).strong());
+                    });
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.label(RichText::new(format!("{} juegos   ·   {} instalados   ·   {} no instalados", self.games.len(), installed, uninstalled)).size(12.0).color(MUTED));
+                    });
                 });
+                ui.add_space(14.0);
+                let visible = self.visible_games();
+                if visible.is_empty() {
+                    ui.add_space(70.0);
+                    ui.vertical_centered(|ui| {
+                        ui.label(RichText::new(if self.games.is_empty() { "Conectá tus tiendas" } else { "No hay juegos que coincidan" }).size(24.0).strong());
+                        ui.add_space(8.0);
+                        ui.label(RichText::new(if self.games.is_empty() { "Iniciá sesión en Steam, Epic, EA, GOG, Ubisoft, Amazon, itch.io o Game Jolt para ver tu colección completa." } else { "Probá otro nombre o filtro." }).color(MUTED));
+                        ui.add_space(18.0);
+                        if self.games.is_empty() && ui.add(egui::Button::new("Conectar tiendas").fill(BLUE).corner_radius(8.0)).clicked() { self.page = Page::Stores; }
+                    });
+                } else {
+                    let no_installed: Vec<_> = visible.iter().filter(|game| !game.installed).cloned().collect();
+                    let installed_games: Vec<_> = visible.iter().filter(|game| game.installed).cloned().collect();
+                    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                        if !no_installed.is_empty() {
+                            section_header(ui, "NO INSTALADOS", no_installed.len(), Color32::from_rgb(153, 185, 210));
+                            ui.add_space(9.0);
+                            self.draw_grid(ui, &no_installed);
+                            ui.add_space(22.0);
+                        }
+                        if !installed_games.is_empty() {
+                            section_header(ui, "INSTALADOS", installed_games.len(), Color32::from_rgb(113, 203, 149));
+                            ui.add_space(9.0);
+                            self.draw_grid(ui, &installed_games);
+                        }
+                    });
+                }
             }
         });
     }
