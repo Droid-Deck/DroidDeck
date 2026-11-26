@@ -53,8 +53,8 @@ internal class XboxNativeVideo(private val context: Context, eglBase: EglBase, p
     @Volatile private var fpsTarget = 0
     private var nextDueNs = 0L
     @Volatile var frames = 0L
-    @Volatile var onFirstFrame: (() -> Unit)? = null
         private set
+    @Volatile var onFirstFrame: (() -> Unit)? = null
 
     fun setSurface(target: Surface?, width: Int, height: Int, displayRefreshHz: Float) = synchronized(lock) {
         refreshHz = displayRefreshHz
