@@ -1078,13 +1078,22 @@ private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, ses
             if (outdated.size > 1 && !SessionState.running) MenuItem(
                 stringResource(R.string.store_update_all, outdated.size), checked = false, enabled = progress.isEmpty(),
             ) {
-                val plan = outdated.map { Triple(it.name, updates[it.name], curseOf(it)) }
-                plan.forEach { progress[it.first] = 0 }
+                val plan = outdated.groupBy { item -> curseOf(item)?.first?.id ?: item.name }.values.map { group ->
+                    Triple(group.map { it.name }, updates[group.first().name], curseOf(group.first()))
+                }
+                plan.forEach { (folders) -> folders.forEach { progress[it] = 0 } }
                 scope.launch {
-                    plan.forEach { (name, wowi, curse) ->
-                        val (message, ok) = updateAddon(context, name, wowi.takeIf { curse == null }, target, curse) { pct -> scope.launch { progress[name] = pct } }
-                        progress.remove(name)
-                        if (!ok && message != null) android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                    try {
+                        plan.forEach { (folders, wowi, curse) ->
+                            val name = folders.first()
+                            val (message, ok) = updateAddon(context, name, wowi.takeIf { curse == null }, target, curse) { pct ->
+                                scope.launch { folders.forEach { progress[it] = pct } }
+                            }
+                            folders.forEach { progress.remove(it) }
+                            if (!ok && message != null) android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    } finally {
+                        plan.forEach { (folders) -> folders.forEach { progress.remove(it) } }
                     }
                 }
             }
@@ -1172,18 +1181,21 @@ internal fun AddonRow(item: WowAddons.Installed, wowiUpdate: WowAddonCatalog.Add
         if (outdated && !SessionState.running) IconAction(Icons.Outlined.Download, stringResource(R.string.common_update), "addon:update:${target.flavor}:$name", enabled = progress == null) {
             progresses[name] = 0
             scope.launch {
-                val message = updateAddon(context, name, update, target, curse) { pct -> scope.launch { progresses[name] = pct } }.first
-                progresses.remove(name)
-                if (message != null) android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                try {
+                    val message = updateAddon(context, name, update, target, curse) { pct -> scope.launch { progresses[name] = pct } }.first
+                    if (message != null) android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                } finally {
+                    progresses.remove(name)
+                }
             }
         }
-        if (!SessionState.running) IconAction(Icons.Outlined.Delete, if (curse != null) stringResource(R.string.common_uninstall) else delete, "addon:delete:${target.flavor}:$name", danger = true) { asking = true }
+        if (!SessionState.running) IconAction(Icons.Outlined.Delete, if (curse != null) stringResource(R.string.common_uninstall) else delete, "addon:delete:${target.flavor}:$name", danger = true, enabled = progress == null) { asking = true }
     }
     if (asking) ConfirmDialog(
         title = if (curse != null) stringResource(R.string.stores_uninstall_title, name) else stringResource(R.string.games_delete_addon_title, name),
         text = stringResource(R.string.games_delete_addon_body),
         confirm = if (curse != null) stringResource(R.string.common_uninstall) else delete,
-        onConfirm = { a.onAddonDelete(target, name) },
+        onConfirm = { asking = false; if (progresses[name] == null) a.onAddonDelete(target, name) },
         onDismiss = { asking = false },
     )
 }

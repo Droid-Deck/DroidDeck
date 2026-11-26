@@ -273,7 +273,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     var text by remember { mutableStateOf("") }
     var category by remember { mutableStateOf<WowAddonCatalog.Category?>(null) }
     var sort by remember { mutableStateOf(WowAddonCatalog.Sort.POPULAR) }
-    var source by remember { mutableStateOf(if (curseForge != null) AddonSource.CURSE else AddonSource.WOWI) }
+    var source by remember(curseForge != null) { mutableStateOf(if (curseForge != null) AddonSource.CURSE else AddonSource.WOWI) }
     val curse = if (source == AddonSource.CURSE && link != null) curseForge else null
     LaunchedEffect(link) { link?.refresh() }
     var notice by remember { mutableStateOf<Int?>(null) }
