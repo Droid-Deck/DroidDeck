@@ -411,14 +411,16 @@ int main(int argc, char **argv) {
     else if (!strcmp(op, "sleep")) { usleep(atoi(a) * 1000); i++; }
     else if (!strcmp(op, "await")) {
       const char *log = getenv("PREFETCH_DONE");
-      for (int tries = 0; tries < 2000; tries++) {
+      int lines = 0;
+      for (int tries = 0; tries < 2000 && lines < atoi(a); tries++) {
         FILE *f = log ? fopen(log, "r") : NULL;
-        int lines = 0, c;
+        int c;
+        lines = 0;
         while (f && (c = fgetc(f)) != EOF) lines += c == '\n';
         if (f) fclose(f);
-        if (lines >= atoi(a)) break;
-        usleep(5000);
+        if (lines < atoi(a)) usleep(5000);
       }
+      if (lines < atoi(a)) return 3;
       i++;
     }
     else if (!strcmp(op, "threads")) {
