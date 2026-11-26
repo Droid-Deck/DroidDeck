@@ -263,6 +263,9 @@ object HomeApp {
         SessionState.running && SessionState.mode == SessionService.MODE_STEAM
 
     fun showFrontEnd(context: Context, intent: Intent = Intent(context, FrontEndActivity::class.java)) {
+        // As the Home app the front end lives in the Home task; bring that forward instead of opening a second front end.
+        if (HomeRoute.isHomeApp(context) &&
+            runCatching { context.startActivity(HomeRoute.forward(context, intent)) }.isSuccess) return
         val frontEnd = FrontEndActivity::class.java.name
         val tasks = runCatching { context.getSystemService(android.app.ActivityManager::class.java)?.appTasks }.getOrNull().orEmpty()
         val own = tasks.firstOrNull { task ->

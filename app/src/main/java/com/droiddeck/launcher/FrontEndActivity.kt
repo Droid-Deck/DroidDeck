@@ -89,7 +89,7 @@ import com.droiddeck.launcher.session.SteamLibraries
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenDisplays
 
-class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPetHost {
+open class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPetHost {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)
         com.droiddeck.launcher.core.AppLanguage.applyTo(this, newBase)
@@ -150,7 +150,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var focusComponentsContent by mutableStateOf(true)
     private var componentsGameKey by mutableStateOf<String?>(null)
     private var showMapping by mutableStateOf(false)
-    private var saveBusy: String? = null
     private var onSavePicked: ((File) -> Unit)? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private var catalog by mutableStateOf<List<DesktopCatalog.Entry>?>(null)
@@ -925,7 +924,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         val before = LauncherIcon.current(this)
         LauncherIcon.set(this, style)
         launcherIcon = LauncherIcon.current(this)
-        if (launcherIcon == before) return false
+        // The Home task was not started from a launcher icon, so switching icons leaves it running.
+        if (launcherIcon == before || inHomeTask) return false
         restartLauncher()
         return true
     }
@@ -1332,8 +1332,51 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         finish()
     }
 
+    /** True for the instance in the Home task ([HomeActivity]). */
+    protected open val inHomeTask: Boolean get() = false
+
+    /**
+     * Runs first in onCreate; true means this instance finished itself and must not set up. While DroidDeck is the Home app,
+     * the Home task holds the one front end, so a launch that would open a second one hands its intent there.
+     */
+    protected open fun handOff(savedInstanceState: Bundle?): Boolean {
+        // A plain front end restored while DroidDeck is Home (one left from before it became Home) would be a second one as
+        // well: it only brings the Home front end forward, without replaying the request it was first opened with.
+        val request = if (savedInstanceState == null) intent
+            else if (HomeRoute.forwards(intent)) Intent(this, FrontEndActivity::class.java) else return false
+        if (!forwardToHome(request)) return false
+        closeHandedOff()
+        return true
+    }
+
+    /** Closes this instance once its launch went to the Home front end, so that one stays the only front end running. */
+    private fun closeHandedOff() {
+        // A plain finish() leaves the emptied task behind as a card on the recents screen.
+        if (isTaskRoot) finishAndRemoveTask() else finish()
+        @Suppress("DEPRECATION") overridePendingTransition(0, 0)
+    }
+
+    /** Whether this instance hands itself on instead of taking a new intent: the Home front end once DroidDeck is not Home. */
+    protected open fun leaveHome(): Boolean = false
+
+    private fun forwardToHome(request: Intent): Boolean {
+        // Only the shortcut picker answers its caller, and forwards() keeps it here; any other launch for a result is handed
+        // on too, so no second front end (and no second save guard) runs beside the Home one.
+        if (inHomeTask || !HomeRoute.forwards(request) || !HomeRoute.isHomeApp(this)) return false
+        return try {
+            startActivityPlain(HomeRoute.forward(this, request))
+            true
+        } catch (_: android.content.ActivityNotFoundException) {
+            false
+        }
+    }
+
+    /** Starts [intent] without the session launch checks of [startActivity]. */
+    protected fun startActivityPlain(intent: Intent) = super.startActivity(intent)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (handOff(savedInstanceState)) return
         drivers.restartBlocked = ::runtimeChangesBlocked
         drivers.loadTpUbwcMode()
         val handoff = if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_RESTARTED, false)) LauncherHandoff.take() else null
@@ -2035,6 +2078,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (leaveHome()) return
+        // A plain front end left running from before DroidDeck became Home hands the launch on and closes, as at create.
+        if (forwardToHome(intent)) {
+            closeHandedOff()
+            return
+        }
         setIntent(intent)
         supersedeUncommittedLaunch()
         if (intent.action == SteamIntegration.ACTION_SETUP) {
@@ -3684,6 +3733,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     companion object {
+        /**
+         * The save import or export running, if any. Shared by every front end (the Home one and the shortcut picker, which also
+         * opens a game's Saves tab), so two of them never work on the same saves at once. Read and written on the main thread.
+         */
+        private var saveBusy: String? = null
         private const val REQUEST_NOTIFICATIONS = 7103
         private const val EXTRA_RESTARTED = "com.droiddeck.launcher.extra.RESTARTED"
         private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
