@@ -337,6 +337,36 @@ int main(int argc, char **argv) {
       printf("held %ld\n", status("VmSwap:"));
       unlink(hold);
       return 0;
+    } else if (!strcmp(argv[4], "scoped")) {
+      stop = 1;
+      for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
+      request('1');
+      printf("out %ld\n", status("VmSwap:"));
+      char hold[256], own[256];
+      snprintf(hold, sizeof(hold), "%s.hold", ctl);
+      snprintf(own, sizeof(own), "%s.hold.%d", ctl, getpid());
+      FILE *f = fopen(ctl, "w");
+      if (!f) exit(3);
+      fputs("0", f);
+      fclose(f);
+      f = fopen(hold, "w");
+      if (!f) exit(3);
+      fputs("2 0", f);
+      fclose(f);
+      kill(getpid(), SIGURG);
+      usleep(1000000);
+      printf("shared %ld\n", status("VmSwap:"));
+      f = fopen(own, "w");
+      if (!f) exit(3);
+      fputs("0", f);
+      fclose(f);
+      kill(getpid(), SIGURG);
+      usleep(1000000);
+      printf("own %ld\n", status("VmSwap:"));
+      unlink(own);
+      unlink(hold);
+      printf("intact %d\n", sum(data, size) == before);
+      return 0;
     } else if (!strcmp(argv[4], "trim-fork")) {
       stop = 1;
       for (int i = 0; i < 2; i++) pthread_join(t[i], NULL);
@@ -508,6 +538,8 @@ class ZramPreloadTest(unittest.TestCase):
         for ack in [*self.dir.glob("ctl.ack.*"), *self.dir.glob("ctl.trim.*")]:
             ack.unlink()
         (self.dir / "ctl.hold").unlink(missing_ok=True)
+        for hold in self.dir.glob("ctl.hold.*"):
+            hold.unlink()
 
     def run_program(self, program=None, mb=48, cycles=1, *extra):
         environment = dict(os.environ, LD_PRELOAD=str(self.lib))
@@ -644,6 +676,14 @@ class ZramPreloadTest(unittest.TestCase):
         out = self.run_program(None, 32, 0, "hold")
         self.assertTrue(0 < out["empty"][0] <= 512, out)
         self.assertGreater(out["held"][0], 40 * 1024, out)
+
+    @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
+    def test_a_read_back_reaches_only_the_process_it_names(self):
+        out = self.run_program(None, 48, 0, "scoped")
+        self.assertGreater(out["out"][0], 32 * 1024, out)
+        self.assertGreater(out["shared"][0], out["out"][0] * 3 // 4, out)
+        self.assertLess(out["own"][0], out["out"][0] // 4, out)
+        self.assertEqual([1], out["intact"])
 
     @unittest.skipUnless(swap_total_kb() > 256 * 1024, "needs swap")
     def test_process_without_a_worker_trims_in_small_steps(self):

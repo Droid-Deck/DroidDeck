@@ -140,7 +140,7 @@ clear_stale_tmp() {
 [ -z "${DD_INSIDE:-}" ] && clear_stale_tmp
 if [ -z "${DD_INSIDE:-}" ]; then
   if [ "${DD_ZRAM:-0}" = 1 ]; then printf 0 > /tmp/.dd-zram; else rm -f /tmp/.dd-zram; fi
-  rm -f /tmp/.dd-zram.hold
+  rm -f /tmp/.dd-zram.hold /tmp/.dd-zram.hold.*
   dd if=/dev/zero of=/tmp/.dd-clock bs=8 count=1 conv=notrunc status=none
 fi
 
