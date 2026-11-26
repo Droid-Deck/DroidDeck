@@ -606,7 +606,7 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
     dev->key = dispatch_key(*device);
     dev->handle = *device;
     dev->gdpa = gdpa;
-    dev->emulated = requested | (gaps ? GAP_DEPTH_OP : 0);
+    dev->emulated = requested | (gaps ? GAP_DEPTH_OP | GAP_EMPTY_PASS : 0);
     pthread_mutex_init(&dev->lock, NULL);
 #define LOAD(name) \
     dev->name = (PFN_vk##name)gdpa(*device, "vk" #name); \
@@ -644,6 +644,8 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
     }
     if (dev->emulated & GAP_DEPTH_OP)
         layer_log("depthCompareOp becomes ALWAYS while the depth test is off");
+    if (dev->emulated & GAP_EMPTY_PASS)
+        layer_log("render passes without attachments get at most 4096x4096 and one layer");
     return VK_SUCCESS;
 }
 
@@ -740,6 +742,8 @@ static const struct hook device_hooks[] = {
     HOOK(DestroyCommandPool, GAP_BC),
     HOOK(CmdDrawIndirect, GAP_MULTI_DRAW),
     HOOK(CmdDrawIndexedIndirect, GAP_MULTI_DRAW),
+    HOOK(CmdBeginRendering, GAP_EMPTY_PASS),
+    HOOK_ALIAS(CmdBeginRendering, CmdBeginRenderingKHR, GAP_EMPTY_PASS),
     HOOK(UpdateDescriptorSets, GAP_NULL_DESCRIPTOR),
     HOOK(CmdPushDescriptorSet, GAP_NULL_DESCRIPTOR),
     HOOK_ALIAS(CmdPushDescriptorSet, CmdPushDescriptorSetKHR, GAP_NULL_DESCRIPTOR),

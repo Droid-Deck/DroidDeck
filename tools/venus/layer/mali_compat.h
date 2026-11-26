@@ -34,6 +34,10 @@ enum gap {
      * with the depth test off, so Zink's NEVER discards every fragment. On for every device with
      * gaps; ALWAYS for a disabled test changes nothing on a driver that follows the spec. */
     GAP_DEPTH_OP = 1u << 10,
+    /* A trait of the Mali tiler, not a missing feature: DXVK begins render passes without attachments
+     * at the largest framebuffer size (32768x32768 with 256 layers on a Mali-G610), and the tiler heap
+     * grows until the kernel ends the context. Such passes get at most 4096x4096 and one layer. */
+    GAP_EMPTY_PASS = 1u << 11,
 };
 
 #define GAPS_SHADER (GAP_CLIP_DISTANCE | GAP_CULL_DISTANCE)
@@ -129,6 +133,7 @@ struct instance {
     X(DestroyCommandPool) \
     X(CmdDrawIndirect) \
     X(CmdDrawIndexedIndirect) \
+    X(CmdBeginRendering) \
     X(GetImageMemoryRequirements) \
     X(BindImageMemory) \
     X(DestroyImageView) \
@@ -309,6 +314,7 @@ void trace_extension_names(const VkExtensionProperties *ext, uint32_t n);
 /* draw.c */
 VKAPI_ATTR void VKAPI_CALL CmdDrawIndirect(VkCommandBuffer cmd, VkBuffer buffer, VkDeviceSize offset, uint32_t draw_count, uint32_t stride);
 VKAPI_ATTR void VKAPI_CALL CmdDrawIndexedIndirect(VkCommandBuffer cmd, VkBuffer buffer, VkDeviceSize offset, uint32_t draw_count, uint32_t stride);
+VKAPI_ATTR void VKAPI_CALL CmdBeginRendering(VkCommandBuffer cmd, const VkRenderingInfo *info);
 VKAPI_ATTR void VKAPI_CALL UpdateDescriptorSets(VkDevice device, uint32_t write_count, const VkWriteDescriptorSet *writes, uint32_t copy_count, const VkCopyDescriptorSet *copies);
 VKAPI_ATTR void VKAPI_CALL CmdPushDescriptorSet(VkCommandBuffer cmd, VkPipelineBindPoint bind_point, VkPipelineLayout layout, uint32_t set, uint32_t write_count, const VkWriteDescriptorSet *writes);
 VKAPI_ATTR VkResult VKAPI_CALL CreateDescriptorUpdateTemplate(VkDevice device, const VkDescriptorUpdateTemplateCreateInfo *info, const VkAllocationCallbacks *allocator, VkDescriptorUpdateTemplate *tmpl);

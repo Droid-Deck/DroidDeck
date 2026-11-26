@@ -3,6 +3,7 @@
  *
  * - multiDrawIndirect: an indirect draw with drawCount > 1 is recorded as drawCount single draws
  *   at offset + i * stride. Mali-G57 (Bifrost/Valhall v9) has none, and DXVK refuses the device.
+ * - render passes without attachments (GAP_EMPTY_PASS): at most 4096x4096 and one layer.
  * - robustness2's nullDescriptor: VK_NULL_HANDLE buffers, image views and vertex buffers in
  *   descriptor writes (plain, template and push) and vertex-buffer binds are replaced with small
  *   stand-ins the layer owns. robustBufferAccess2 itself maps to robustBufferAccess (layer.c).
@@ -40,6 +41,46 @@ VKAPI_ATTR void VKAPI_CALL CmdDrawIndexedIndirect(VkCommandBuffer cmd, VkBuffer 
     }
     for (uint32_t i = 0; i < draw_count; i++)
         dev->CmdDrawIndexedIndirect(cmd, buffer, offset + (VkDeviceSize)i * stride, 1, stride);
+}
+
+/* --- render passes without attachments --- */
+
+#define EMPTY_PASS_SIZE 4096u
+
+static bool has_attachments(const VkRenderingInfo *info)
+{
+    for (uint32_t i = 0; i < info->colorAttachmentCount; i++) {
+        if (info->pColorAttachments[i].imageView != VK_NULL_HANDLE)
+            return true;
+    }
+    return (info->pDepthAttachment && info->pDepthAttachment->imageView != VK_NULL_HANDLE) ||
+           (info->pStencilAttachment && info->pStencilAttachment->imageView != VK_NULL_HANDLE);
+}
+
+/* Such a pass only has side effects (occlusion queries, storage writes). 4096x4096 holds any phone
+ * screen's viewport; a draw outside it loses those fragments. */
+VKAPI_ATTR void VKAPI_CALL CmdBeginRendering(VkCommandBuffer cmd, const VkRenderingInfo *info)
+{
+    struct device *dev = device_from_handle(cmd);
+    const VkExtent2D *extent = &info->renderArea.extent;
+    bool large = extent->width > EMPTY_PASS_SIZE || extent->height > EMPTY_PASS_SIZE ||
+                 (!info->viewMask && info->layerCount > 1);
+    if (!large || has_attachments(info)) {
+        dev->CmdBeginRendering(cmd, info);
+        return;
+    }
+    static bool told;
+    if (!__atomic_exchange_n(&told, true, __ATOMIC_RELAXED))
+        layer_log("a render pass without attachments of %ux%u with %u layers becomes at most %ux%u with one",
+                  extent->width, extent->height, info->layerCount, EMPTY_PASS_SIZE, EMPTY_PASS_SIZE);
+    VkRenderingInfo smaller = *info;
+    if (smaller.renderArea.extent.width > EMPTY_PASS_SIZE)
+        smaller.renderArea.extent.width = EMPTY_PASS_SIZE;
+    if (smaller.renderArea.extent.height > EMPTY_PASS_SIZE)
+        smaller.renderArea.extent.height = EMPTY_PASS_SIZE;
+    if (!smaller.viewMask)
+        smaller.layerCount = 1;
+    dev->CmdBeginRendering(cmd, &smaller);
 }
 
 /* --- nullDescriptor stand-ins --- */
