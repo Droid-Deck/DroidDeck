@@ -67,7 +67,11 @@ class Holder:
         cpufreq = self.cpufreq / "cpufreq"
         if not cpufreq.is_dir():
             return speeds
-        for policy in cpufreq.iterdir():
+        try:
+            policies = list(cpufreq.iterdir())
+        except OSError:
+            return speeds
+        for policy in policies:
             if not policy.name.startswith("policy") or not policy.name[6:].isdigit():
                 continue
             try:

@@ -256,7 +256,7 @@ data class GpuInfo(
             "exynos990" to "Mali-G77", "s5e9830" to "Mali-G77", "exynos 990" to "Mali-G77",
             "exynos9825" to "Mali-G76", "s5e9825" to "Mali-G76", "exynos 9825" to "Mali-G76",
             "exynos9820" to "Mali-G76", "s5e9820" to "Mali-G76", "exynos 9820" to "Mali-G76",
-            "s5e8535" to "Mali-G615",
+            "s5e8535" to "Mali-G68",
             "s5e8835" to "Mali-G68", "exynos1380" to "Mali-G68", "exynos 1380" to "Mali-G68",
             "s5e8825" to "Mali-G68", "exynos1280" to "Mali-G68", "exynos 1280" to "Mali-G68",
             "s5e3830" to "Mali-G52", "exynos850" to "Mali-G52", "exynos 850" to "Mali-G52",
