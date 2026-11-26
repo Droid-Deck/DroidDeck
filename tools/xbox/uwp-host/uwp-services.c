@@ -608,6 +608,11 @@ static HRESULT async_u32_operation_iid(const GUID *op_iid, HRESULT error, UINT32
     return S_OK;
 }
 
+HRESULT svc_u32_op(const GUID *op_iid, HRESULT error, UINT32 value, void **out)
+{
+    return async_u32_operation_iid(op_iid, error, value, out);
+}
+
 /* ------------------------------------------------------------ IBuffer */
 
 static const GUID svc_iid_buffer = {0x905a0fe0, 0xbc53, 0x11df,
@@ -4296,7 +4301,6 @@ static HRESULT mr_PrivateCommitUsage(svc_object *self, unsigned long long *out)
     (void)self;
     if (!out) return E_POINTER;
     *out = (unsigned long long)memory_counters().pagefile;
-    svc_trace_u64("memory report private", *out);
     return S_OK;
 }
 
@@ -4305,7 +4309,6 @@ static HRESULT mr_PeakPrivateCommitUsage(svc_object *self, unsigned long long *o
     (void)self;
     if (!out) return E_POINTER;
     *out = (unsigned long long)memory_counters().peak_pagefile;
-    svc_trace_u64("memory report peak private", *out);
     return S_OK;
 }
 
@@ -4320,7 +4323,6 @@ static HRESULT mr_TotalCommitUsage(svc_object *self, unsigned long long *out)
         return S_OK;
     }
     *out = (unsigned long long)(status.ullTotalPageFile - status.ullAvailPageFile);
-    svc_trace_u64("memory report total usage", *out);
     return S_OK;
 }
 
@@ -4331,7 +4333,6 @@ static HRESULT mr_TotalCommitLimit(svc_object *self, unsigned long long *out)
     if (!out) return E_POINTER;
     status.dwLength = sizeof status;
     *out = GlobalMemoryStatusEx(&status) ? status.ullTotalPageFile : 0;
-    svc_trace_u64("memory report limit", *out);
     return S_OK;
 }
 
@@ -4375,7 +4376,6 @@ static HRESULT ms2_QI(void *self, const GUID *id, void **out)
 static HRESULT ms2_GetAppMemoryReport(svc_object *self, void **out)
 {
     (void)self;
-    svc_trace("memory: get app report");
     if (!out) return E_POINTER;
     *out = &memory_report;
     svc_AddRef(&memory_report);
@@ -8101,16 +8101,49 @@ static HRESULT __stdcall dlt_StartActivity_notimpl(diag_logging_subface *sub, vo
     (void)sub; (void)a; (void)b; (void)c; (void)d;
     return E_NOTIMPL;
 }
+static HRESULT __stdcall dlt_LogEvent(diag_logging_subface *sub, hstring_t event_name)
+{
+    const WCHAR *txt = svc_string_text(event_name);
+    (void)sub;
+    if (txt && txt[0]) svc_trace_w("LoggingTarget::LogEvent", txt);
+    return S_OK;
+}
+static HRESULT __stdcall dlt_LogEventWithFields(diag_logging_subface *sub, hstring_t event_name,
+                                                void *fields)
+{
+    const WCHAR *txt = svc_string_text(event_name);
+    (void)sub; (void)fields;
+    if (txt && txt[0]) svc_trace_w("LoggingTarget::LogEventWithFields", txt);
+    return S_OK;
+}
+static HRESULT __stdcall dlt_LogEventWithFieldsAndLevel(diag_logging_subface *sub, hstring_t event_name,
+                                                        void *fields, int level)
+{
+    const WCHAR *txt = svc_string_text(event_name);
+    (void)sub; (void)fields; (void)level;
+    if (txt && txt[0]) svc_trace_w("LoggingTarget::LogEventWithFieldsAndLevel", txt);
+    return S_OK;
+}
+static HRESULT __stdcall dlt_LogEventWithFieldsAndLevelAndOptions(diag_logging_subface *sub,
+                                                                  hstring_t event_name,
+                                                                  void *fields, int level,
+                                                                  void *options)
+{
+    const WCHAR *txt = svc_string_text(event_name);
+    (void)sub; (void)fields; (void)level; (void)options;
+    if (txt && txt[0]) svc_trace_w("LoggingTarget::LogEventWithFieldsAndLevelAndOptions", txt);
+    return S_OK;
+}
 static const void *diag_logging_target_vtable[] = {
     (const void *)dlc_sub_QI, (const void *)dlc_sub_AddRef, (const void *)dlc_sub_Release,
     (const void *)dlc_get_iids, (const void *)dlc_get_name, (const void *)dlc_get_trust,
     (const void *)dlt_IsEnabled,
     (const void *)dlt_IsEnabledWithLevel,
     (const void *)dlt_IsEnabledWithLevelAndKeywords,
-    (const void *)dlc_noop_ok, /* LogEvent */
-    (const void *)dlc_noop_ok, /* LogEventWithFields */
-    (const void *)dlc_noop_ok, /* LogEventWithFieldsAndLevel */
-    (const void *)dlc_noop_ok, /* LogEventWithFieldsAndLevelAndOptions */
+    (const void *)dlt_LogEvent, /* LogEvent */
+    (const void *)dlt_LogEventWithFields, /* LogEventWithFields */
+    (const void *)dlt_LogEventWithFieldsAndLevel, /* LogEventWithFieldsAndLevel */
+    (const void *)dlt_LogEventWithFieldsAndLevelAndOptions, /* LogEventWithFieldsAndLevelAndOptions */
     (const void *)dlt_StartActivity_notimpl,
     (const void *)dlt_StartActivity_notimpl,
     (const void *)dlt_StartActivity_notimpl,
@@ -8386,6 +8419,7 @@ static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBase64(xbl_devaddr_object *sel
     WCHAR wide[1400];
     unsigned len, i;
     if (!out) return E_POINTER;
+    svc_tracef("xbl_devaddr GetSnapshotAsBase64 len=%u valid=%d", self->snapshot_len, (int)self->is_valid);
     if (!self->snapshot_len) {
         *out = svc_string(L"");
         return S_OK;
@@ -8401,6 +8435,7 @@ static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBuffer(xbl_devaddr_object *sel
 {
     winrt_buffer *buf;
     if (!out) return E_POINTER;
+    svc_tracef("xbl_devaddr GetSnapshotAsBuffer len=%u valid=%d", self->snapshot_len, (int)self->is_valid);
     buf = buffer_from_bytes(self->snapshot, self->snapshot_len);
     if (!buf) return E_OUTOFMEMORY;
     *out = buf;
@@ -8410,6 +8445,7 @@ static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBuffer(xbl_devaddr_object *sel
 static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBytes(xbl_devaddr_object *self, UINT32 cap,
                                                         unsigned char *buf, UINT32 *written)
 {
+    svc_tracef("xbl_devaddr GetSnapshotAsBytes cap=%u len=%u valid=%d", cap, self->snapshot_len, (int)self->is_valid);
     if (written) *written = self->snapshot_len;
     if (buf && cap > 0 && self->snapshot_len > 0) {
         UINT32 n = cap < self->snapshot_len ? cap : self->snapshot_len;
@@ -8543,6 +8579,7 @@ static HRESULT __stdcall xbl_devaddr_GetLocal(svc_object *self, void **out)
 {
     (void)self;
     if (!out) return E_POINTER;
+    svc_trace("xbl_devaddr GetLocal");
     svc_AddRef(&xbl_devaddr_local.base);
     *out = &xbl_devaddr_local;
     return S_OK;
@@ -8564,6 +8601,409 @@ static const void *xbl_devaddr_statics_vtable[] = {
     (const void *)xbl_devaddr_CreateFromSnapshotBytes,
     (const void *)xbl_devaddr_GetLocal,
     (const void *)xbl_devaddr_get_MaxSnapshotBytesSize,
+};
+
+/* ---------------- Windows.Networking.XboxLive.XboxLiveEndpointPairTemplate */
+
+static const GUID svc_iid_xbl_ept_statics = {
+    0x1e13137b, 0x737b, 0x4a23, {0xbc, 0x64, 0x08, 0x70, 0xf7, 0x56, 0x55, 0xba}};
+static const GUID svc_iid_xbl_ept = {
+    0x6b286ecf, 0x3457, 0x40ce, {0xb9, 0xa1, 0xc0, 0xcf, 0xe0, 0x21, 0x3e, 0xa7}};
+static const GUID svc_iid_xbl_ep_result = {
+    0xd9a8bb95, 0x2aab, 0x4d1e, {0x97, 0x94, 0x33, 0xec, 0xc0, 0xdc, 0xf0, 0xfe}};
+static const GUID svc_iid_xbl_ep = {
+    0x1e9a839b, 0x813e, 0x44e0, {0xb8, 0x7f, 0xc8, 0x7a, 0x09, 0x34, 0x75, 0xe4}};
+static const GUID svc_iid_async_op_xbl_ep_result = {
+    0xa4b9d41e, 0x4b2c, 0x5bf9, {0xa1, 0x9d, 0xed, 0x39, 0x5b, 0x23, 0x82, 0x3c}};
+
+typedef struct {
+    svc_object base;
+    WCHAR name[128];
+} xbl_ept_object;
+
+typedef struct {
+    svc_object base;
+    xbl_ept_object *tmpl;
+    xbl_devaddr_object *remote;
+    WCHAR local_port[16];
+    WCHAR remote_port[16];
+    INT32 state;
+} xbl_ep_object;
+
+typedef struct {
+    svc_object base;
+    xbl_devaddr_object *device_addr;
+    xbl_ep_object *pair;
+    INT32 status;
+} xbl_ep_result_object;
+
+static svc_object xbl_ept_static;
+static const void *xbl_ept_vtable[];
+static const void *xbl_ep_vtable[];
+static const void *xbl_ep_result_vtable[];
+
+static ULONG __stdcall xbl_ep_Release(xbl_ep_object *self)
+{
+    LONG left = InterlockedDecrement(&self->base.refs);
+    if (left <= 0 && !self->base.permanent) {
+        if (self->tmpl) svc_Release(&self->tmpl->base);
+        if (self->remote) svc_Release(&self->remote->base);
+        free(self);
+    }
+    return left > 0 ? (ULONG)left : 0;
+}
+
+static HRESULT __stdcall xbl_ep_QI(xbl_ep_object *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_xbl_ep) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
+        *out = self;
+        svc_AddRef(&self->base);
+        return S_OK;
+    }
+    svc_trace_iid("xbl_ep QI miss", id);
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall xbl_ep_add_StateChanged(xbl_ep_object *self, void *h, long long *tok)
+{
+    (void)self; (void)h;
+    if (tok) *tok = 1;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_remove_StateChanged(xbl_ep_object *self, long long tok)
+{
+    (void)self; (void)tok;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_DeleteAsync(xbl_ep_object *self, void **out)
+{
+    self->state = 6; /* Deleted */
+    return async_action(S_OK, out);
+}
+static HRESULT __stdcall xbl_ep_GetRemoteSocketAddressBytes(xbl_ep_object *self, UINT32 len, unsigned char *buf)
+{
+    (void)self;
+    if (buf && len) memset(buf, 0, len);
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_GetLocalSocketAddressBytes(xbl_ep_object *self, UINT32 len, unsigned char *buf)
+{
+    (void)self;
+    if (buf && len) memset(buf, 0, len);
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_get_State(xbl_ep_object *self, INT32 *out)
+{
+    if (!out) return E_POINTER;
+    *out = self->state; /* 4 = Ready */
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_get_Template(xbl_ep_object *self, void **out)
+{
+    if (!out) return E_POINTER;
+    if (self->tmpl) svc_AddRef(&self->tmpl->base);
+    *out = self->tmpl;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_get_RemoteDeviceAddress(xbl_ep_object *self, void **out)
+{
+    if (!out) return E_POINTER;
+    if (self->remote) svc_AddRef(&self->remote->base);
+    *out = self->remote;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_get_RemoteHostName(xbl_ep_object *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = NULL;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_get_RemotePort(xbl_ep_object *self, hstring_t *out)
+{
+    if (!out) return E_POINTER;
+    *out = svc_string(self->remote_port[0] ? self->remote_port : L"3074");
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_get_LocalHostName(xbl_ep_object *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = NULL;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_get_LocalPort(xbl_ep_object *self, hstring_t *out)
+{
+    if (!out) return E_POINTER;
+    *out = svc_string(self->local_port[0] ? self->local_port : L"3074");
+    return S_OK;
+}
+
+static const void *xbl_ep_vtable[] = {
+    (const void *)xbl_ep_QI, (const void *)svc_AddRef, (const void *)xbl_ep_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)xbl_ep_add_StateChanged,
+    (const void *)xbl_ep_remove_StateChanged,
+    (const void *)xbl_ep_DeleteAsync,
+    (const void *)xbl_ep_GetRemoteSocketAddressBytes,
+    (const void *)xbl_ep_GetLocalSocketAddressBytes,
+    (const void *)xbl_ep_get_State,
+    (const void *)xbl_ep_get_Template,
+    (const void *)xbl_ep_get_RemoteDeviceAddress,
+    (const void *)xbl_ep_get_RemoteHostName,
+    (const void *)xbl_ep_get_RemotePort,
+    (const void *)xbl_ep_get_LocalHostName,
+    (const void *)xbl_ep_get_LocalPort,
+};
+
+static ULONG __stdcall xbl_ep_result_Release(xbl_ep_result_object *self)
+{
+    LONG left = InterlockedDecrement(&self->base.refs);
+    if (left <= 0 && !self->base.permanent) {
+        if (self->device_addr) svc_Release(&self->device_addr->base);
+        if (self->pair) xbl_ep_Release(self->pair);
+        free(self);
+    }
+    return left > 0 ? (ULONG)left : 0;
+}
+static HRESULT __stdcall xbl_ep_result_QI(xbl_ep_result_object *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_xbl_ep_result) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
+        *out = self;
+        svc_AddRef(&self->base);
+        return S_OK;
+    }
+    svc_trace_iid("xbl_ep_result QI miss", id);
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+static HRESULT __stdcall xbl_ep_result_get_DeviceAddress(xbl_ep_result_object *self, void **out)
+{
+    if (!out) return E_POINTER;
+    if (self->device_addr) svc_AddRef(&self->device_addr->base);
+    *out = self->device_addr;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_result_get_Status(xbl_ep_result_object *self, INT32 *out)
+{
+    if (!out) return E_POINTER;
+    *out = self->status; /* 0 = Succeeded */
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_result_get_IsExistingPathEvaluation(xbl_ep_result_object *self, BOOLEAN *out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = FALSE;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ep_result_get_EndpointPair(xbl_ep_result_object *self, void **out)
+{
+    if (!out) return E_POINTER;
+    if (self->pair) svc_AddRef(&self->pair->base);
+    *out = self->pair;
+    return S_OK;
+}
+
+static const void *xbl_ep_result_vtable[] = {
+    (const void *)xbl_ep_result_QI, (const void *)svc_AddRef, (const void *)xbl_ep_result_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)xbl_ep_result_get_DeviceAddress,
+    (const void *)xbl_ep_result_get_Status,
+    (const void *)xbl_ep_result_get_IsExistingPathEvaluation,
+    (const void *)xbl_ep_result_get_EndpointPair,
+};
+
+static HRESULT __stdcall xbl_ept_QI(xbl_ept_object *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_xbl_ept) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
+        *out = self;
+        svc_AddRef(&self->base);
+        return S_OK;
+    }
+    svc_trace_iid("xbl_ept QI miss", id);
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+static HRESULT __stdcall xbl_ept_add_Inbound(xbl_ept_object *self, void *h, long long *tok)
+{
+    (void)self; (void)h;
+    if (tok) *tok = 1;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ept_remove_Inbound(xbl_ept_object *self, long long tok)
+{
+    (void)self; (void)tok;
+    return S_OK;
+}
+static HRESULT xbl_ept_create_pair_impl(xbl_ept_object *self, void *dev_addr,
+                                        hstring_t init_port, hstring_t acc_port, void **out)
+{
+    xbl_ep_result_object *res;
+    xbl_ep_object *pair;
+    const WCHAR *ip = svc_string_text(init_port);
+    const WCHAR *ap = svc_string_text(acc_port);
+    if (!out) return E_POINTER;
+    svc_trace("xbl_ept CreateEndpointPairAsync");
+    res = (xbl_ep_result_object *)calloc(1, sizeof(*res));
+    pair = (xbl_ep_object *)calloc(1, sizeof(*pair));
+    if (!res || !pair) {
+        free(res);
+        free(pair);
+        return E_OUTOFMEMORY;
+    }
+    pair->base.vtbl = xbl_ep_vtable;
+    pair->base.refs = 1;
+    pair->base.name = "Windows.Networking.XboxLive.XboxLiveEndpointPair";
+    pair->tmpl = self;
+    svc_AddRef(&self->base);
+    pair->remote = (xbl_devaddr_object *)dev_addr;
+    if (pair->remote) svc_AddRef(&pair->remote->base);
+    if (ip && ip[0]) wcsncpy(pair->local_port, ip, 15);
+    if (ap && ap[0]) wcsncpy(pair->remote_port, ap, 15);
+    pair->state = 4; /* XboxLiveEndpointPairState_Ready */
+
+    res->base.vtbl = xbl_ep_result_vtable;
+    res->base.refs = 1;
+    res->base.name = "Windows.Networking.XboxLive.XboxLiveEndpointPairCreationResult";
+    res->device_addr = (xbl_devaddr_object *)dev_addr;
+    if (res->device_addr) svc_AddRef(&res->device_addr->base);
+    res->pair = pair;
+    res->status = 0; /* XboxLiveEndpointPairCreationStatus_Succeeded */
+    return async_operation_iid(&svc_iid_async_op_xbl_ep_result, S_OK, res, out);
+}
+static HRESULT __stdcall xbl_ept_CreateEndpointPairAsync(xbl_ept_object *self, void *dev_addr, void **out)
+{
+    return xbl_ept_create_pair_impl(self, dev_addr, NULL, NULL, out);
+}
+static HRESULT __stdcall xbl_ept_CreateEndpointPairWithBehaviorsAsync(xbl_ept_object *self, void *dev_addr,
+                                                                      UINT32 behaviors, void **out)
+{
+    (void)behaviors;
+    return xbl_ept_create_pair_impl(self, dev_addr, NULL, NULL, out);
+}
+static HRESULT __stdcall xbl_ept_CreateEndpointPairForPortsAsync(xbl_ept_object *self, void *dev_addr,
+                                                                 hstring_t init_port, hstring_t acc_port,
+                                                                 void **out)
+{
+    return xbl_ept_create_pair_impl(self, dev_addr, init_port, acc_port, out);
+}
+static HRESULT __stdcall xbl_ept_CreateEndpointPairForPortsWithBehaviorsAsync(xbl_ept_object *self, void *dev_addr,
+                                                                              hstring_t init_port, hstring_t acc_port,
+                                                                              UINT32 behaviors, void **out)
+{
+    (void)behaviors;
+    return xbl_ept_create_pair_impl(self, dev_addr, init_port, acc_port, out);
+}
+static HRESULT __stdcall xbl_ept_get_Name(xbl_ept_object *self, hstring_t *out)
+{
+    if (!out) return E_POINTER;
+    *out = svc_string(self->name);
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ept_get_SocketKind(xbl_ept_object *self, INT32 *out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = 0; /* Datagram */
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ept_get_InitiatorLower(xbl_ept_object *self, UINT16 *out)
+{
+    (void)self; if (!out) return E_POINTER; *out = 0; return S_OK;
+}
+static HRESULT __stdcall xbl_ept_get_InitiatorUpper(xbl_ept_object *self, UINT16 *out)
+{
+    (void)self; if (!out) return E_POINTER; *out = 0; return S_OK;
+}
+static HRESULT __stdcall xbl_ept_get_AcceptorLower(xbl_ept_object *self, UINT16 *out)
+{
+    (void)self; if (!out) return E_POINTER; *out = 3074; return S_OK;
+}
+static HRESULT __stdcall xbl_ept_get_AcceptorUpper(xbl_ept_object *self, UINT16 *out)
+{
+    (void)self; if (!out) return E_POINTER; *out = 3074; return S_OK;
+}
+static HRESULT __stdcall xbl_ept_get_EndpointPairs(xbl_ept_object *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = &package_deps;
+    svc_AddRef(&package_deps);
+    return S_OK;
+}
+
+static const void *xbl_ept_vtable[] = {
+    (const void *)xbl_ept_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)xbl_ept_add_Inbound,
+    (const void *)xbl_ept_remove_Inbound,
+    (const void *)xbl_ept_CreateEndpointPairAsync,
+    (const void *)xbl_ept_CreateEndpointPairWithBehaviorsAsync,
+    (const void *)xbl_ept_CreateEndpointPairForPortsAsync,
+    (const void *)xbl_ept_CreateEndpointPairForPortsWithBehaviorsAsync,
+    (const void *)xbl_ept_get_Name,
+    (const void *)xbl_ept_get_SocketKind,
+    (const void *)xbl_ept_get_InitiatorLower,
+    (const void *)xbl_ept_get_InitiatorUpper,
+    (const void *)xbl_ept_get_AcceptorLower,
+    (const void *)xbl_ept_get_AcceptorUpper,
+    (const void *)xbl_ept_get_EndpointPairs,
+};
+
+static HRESULT __stdcall xbl_ept_statics_QI(svc_object *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_xbl_ept_statics) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
+        *out = self;
+        svc_AddRef(self);
+        return S_OK;
+    }
+    svc_trace_iid("xbl_ept_statics QI miss", id);
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall xbl_ept_GetTemplateByName(svc_object *self, hstring_t name, void **out)
+{
+    xbl_ept_object *obj;
+    const WCHAR *w = svc_string_text(name);
+    (void)self;
+    if (!out) return E_POINTER;
+    svc_trace_w("xbl_ept GetTemplateByName", w ? w : L"(null)");
+    obj = (xbl_ept_object *)calloc(1, sizeof(*obj));
+    if (!obj) return E_OUTOFMEMORY;
+    obj->base.vtbl = xbl_ept_vtable;
+    obj->base.refs = 1;
+    obj->base.name = "Windows.Networking.XboxLive.XboxLiveEndpointPairTemplate";
+    if (w) wcsncpy(obj->name, w, 127);
+    *out = obj;
+    return S_OK;
+}
+
+static HRESULT __stdcall xbl_ept_get_Templates(svc_object *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    svc_trace("xbl_ept get_Templates");
+    *out = &package_deps;
+    svc_AddRef(&package_deps);
+    return S_OK;
+}
+
+static const void *xbl_ept_statics_vtable[] = {
+    (const void *)xbl_ept_statics_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)xbl_ept_GetTemplateByName,
+    (const void *)xbl_ept_get_Templates,
 };
 
 
@@ -9261,6 +9701,1152 @@ static const GUID svc_iid_msg_ws_ctrl = {
     0x8118388a, 0xc629, 0x4f0a, {0x80, 0xfb, 0x81, 0xfc, 0x05, 0x53, 0x88, 0x62}};
 static const GUID svc_iid_ws_ctrl = {
     0x2ec4bdc3, 0xd9a5, 0x455a, {0x98, 0x11, 0xde, 0x24, 0xd4, 0x53, 0x37, 0xe9}};
+static const GUID svc_iid_ws_info = {
+    0x5e01e316, 0xc92a, 0x47a5, {0xb2, 0x5f, 0x07, 0x84, 0x76, 0x39, 0xd1, 0x81}};
+static const GUID svc_iid_msg_ws_recv_args = {
+    0x478c22ac, 0x4c4b, 0x42ed, {0x9e, 0xd7, 0x1e, 0xf9, 0xf9, 0x4f, 0xa3, 0xd5}};
+static const GUID svc_iid_ws_closed_args = {
+    0xceb78d07, 0xd0a8, 0x4703, {0xa0, 0x91, 0xc8, 0xc2, 0xc0, 0x91, 0x5b, 0xc3}};
+static const GUID svc_iid_output_stream = {
+    0x905a0fe6, 0xbc53, 0x11df, {0x8c, 0x49, 0x00, 0x1e, 0x4f, 0xc6, 0x86, 0xda}};
+static const GUID svc_iid_input_stream = {
+    0x905a0fe2, 0xbc53, 0x11df, {0x8c, 0x49, 0x00, 0x1e, 0x4f, 0xc6, 0x86, 0xda}};
+static const GUID svc_iid_data_reader = {
+    0xe2b50029, 0xb4c1, 0x4314, {0xa4, 0xb8, 0xfb, 0x81, 0x3a, 0x2f, 0x27, 0x5e}};
+static const GUID svc_iid_async_op_prog_u32 = {
+    0xeccb574a, 0xc684, 0x5572, {0xa6, 0x79, 0x6b, 0x08, 0x42, 0xcf, 0xb5, 0x7f}};
+static const GUID svc_iid_async_op_prog_buf = {
+    0xd26b2819, 0x897f, 0x5c7d, {0x84, 0xd6, 0x56, 0xd7, 0x96, 0x56, 0x14, 0x31}};
+static const GUID svc_iid_async_op_bool = {
+    0xcdb5efb3, 0x5788, 0x509d, {0x9b, 0xe1, 0x71, 0xcc, 0xb8, 0xa3, 0x36, 0x2a}};
+static const GUID svc_iid_async_op_u32 = {
+    0xef60385f, 0xbe78, 0x584b, {0xaa, 0xef, 0x78, 0x29, 0xad, 0xa2, 0xb0, 0xde}};
+static const GUID svc_iid_uri_rt = {
+    0x9e365e57, 0x48b2, 0x4160, {0x95, 0x6f, 0xc7, 0x38, 0x51, 0x20, 0xbb, 0xfc}};
+static const GUID svc_iid_ivector_hstring = {
+    0x98b9acc1, 0x4b56, 0x532e, {0xac, 0x73, 0x03, 0xd5, 0x29, 0x1c, 0xca, 0x90}};
+static const GUID svc_iid_ivectorview_hstring = {
+    0x2f13c006, 0xa03a, 0x5f69, {0xb0, 0x90, 0x75, 0xa4, 0x3e, 0x33, 0x42, 0x3e}};
+
+/* Dynamic WinHTTP WebSocket API table (loaded on demand from winhttp.dll). */
+typedef void *ws_hinternet;
+typedef ws_hinternet(WINAPI *fn_WinHttpOpen)(const WCHAR *, DWORD, const WCHAR *, const WCHAR *, DWORD);
+typedef ws_hinternet(WINAPI *fn_WinHttpConnect)(ws_hinternet, const WCHAR *, WORD, DWORD);
+typedef ws_hinternet(WINAPI *fn_WinHttpOpenRequest)(ws_hinternet, const WCHAR *, const WCHAR *,
+                                                    const WCHAR *, const WCHAR *, const WCHAR **, DWORD);
+typedef BOOL(WINAPI *fn_WinHttpAddRequestHeaders)(ws_hinternet, const WCHAR *, DWORD, DWORD);
+typedef BOOL(WINAPI *fn_WinHttpSetOption)(ws_hinternet, DWORD, void *, DWORD);
+typedef BOOL(WINAPI *fn_WinHttpSendRequest)(ws_hinternet, const WCHAR *, DWORD, void *, DWORD, DWORD, DWORD_PTR);
+typedef BOOL(WINAPI *fn_WinHttpReceiveResponse)(ws_hinternet, void *);
+typedef BOOL(WINAPI *fn_WinHttpQueryHeaders)(ws_hinternet, DWORD, const WCHAR *, void *, DWORD *, DWORD *);
+typedef ws_hinternet(WINAPI *fn_WinHttpWebSocketCompleteUpgrade)(ws_hinternet, DWORD_PTR);
+typedef DWORD(WINAPI *fn_WinHttpWebSocketSend)(ws_hinternet, DWORD, void *, DWORD);
+typedef DWORD(WINAPI *fn_WinHttpWebSocketReceive)(ws_hinternet, void *, DWORD, DWORD *, DWORD *);
+typedef DWORD(WINAPI *fn_WinHttpWebSocketClose)(ws_hinternet, USHORT, void *, DWORD);
+typedef DWORD(WINAPI *fn_WinHttpWebSocketQueryCloseStatus)(ws_hinternet, USHORT *, void *, DWORD, DWORD *);
+typedef BOOL(WINAPI *fn_WinHttpCloseHandle)(ws_hinternet);
+
+static struct {
+    INIT_ONCE once;
+    int ready;
+    fn_WinHttpOpen open;
+    fn_WinHttpConnect connect;
+    fn_WinHttpOpenRequest open_req;
+    fn_WinHttpAddRequestHeaders add_hdrs;
+    fn_WinHttpSetOption set_opt;
+    fn_WinHttpSendRequest send_req;
+    fn_WinHttpReceiveResponse recv_resp;
+    fn_WinHttpQueryHeaders query_hdrs;
+    fn_WinHttpWebSocketCompleteUpgrade ws_upgrade;
+    fn_WinHttpWebSocketSend ws_send;
+    fn_WinHttpWebSocketReceive ws_recv;
+    fn_WinHttpWebSocketClose ws_close;
+    fn_WinHttpWebSocketQueryCloseStatus ws_query_close;
+    fn_WinHttpCloseHandle close_handle;
+} ws_http = {INIT_ONCE_STATIC_INIT, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+
+static BOOL CALLBACK ws_http_init_cb(PINIT_ONCE once, PVOID param, PVOID *ctx)
+{
+    HMODULE m;
+    (void)once;
+    (void)param;
+    (void)ctx;
+    m = LoadLibraryW(L"winhttp.dll");
+    if (!m) {
+        svc_trace("msg_ws: LoadLibrary(winhttp.dll) failed");
+        return TRUE;
+    }
+    ws_http.open = (fn_WinHttpOpen)(void *)GetProcAddress(m, "WinHttpOpen");
+    ws_http.connect = (fn_WinHttpConnect)(void *)GetProcAddress(m, "WinHttpConnect");
+    ws_http.open_req = (fn_WinHttpOpenRequest)(void *)GetProcAddress(m, "WinHttpOpenRequest");
+    ws_http.add_hdrs = (fn_WinHttpAddRequestHeaders)(void *)GetProcAddress(m, "WinHttpAddRequestHeaders");
+    ws_http.set_opt = (fn_WinHttpSetOption)(void *)GetProcAddress(m, "WinHttpSetOption");
+    ws_http.send_req = (fn_WinHttpSendRequest)(void *)GetProcAddress(m, "WinHttpSendRequest");
+    ws_http.recv_resp = (fn_WinHttpReceiveResponse)(void *)GetProcAddress(m, "WinHttpReceiveResponse");
+    ws_http.query_hdrs = (fn_WinHttpQueryHeaders)(void *)GetProcAddress(m, "WinHttpQueryHeaders");
+    ws_http.ws_upgrade = (fn_WinHttpWebSocketCompleteUpgrade)(void *)GetProcAddress(m, "WinHttpWebSocketCompleteUpgrade");
+    ws_http.ws_send = (fn_WinHttpWebSocketSend)(void *)GetProcAddress(m, "WinHttpWebSocketSend");
+    ws_http.ws_recv = (fn_WinHttpWebSocketReceive)(void *)GetProcAddress(m, "WinHttpWebSocketReceive");
+    ws_http.ws_close = (fn_WinHttpWebSocketClose)(void *)GetProcAddress(m, "WinHttpWebSocketClose");
+    ws_http.ws_query_close = (fn_WinHttpWebSocketQueryCloseStatus)(void *)GetProcAddress(m, "WinHttpWebSocketQueryCloseStatus");
+    ws_http.close_handle = (fn_WinHttpCloseHandle)(void *)GetProcAddress(m, "WinHttpCloseHandle");
+    ws_http.ready = (ws_http.open && ws_http.connect && ws_http.open_req && ws_http.set_opt &&
+                     ws_http.send_req && ws_http.recv_resp && ws_http.ws_upgrade &&
+                     ws_http.ws_send && ws_http.ws_recv && ws_http.ws_close && ws_http.close_handle);
+    svc_tracef("msg_ws: winhttp init ready=%d", ws_http.ready);
+    return TRUE;
+}
+
+static int ws_http_ensure(void)
+{
+    InitOnceExecuteOnce(&ws_http.once, ws_http_init_cb, NULL, NULL);
+    return ws_http.ready;
+}
+
+/* Per-instance IVector<HSTRING> for IWebSocketControl::SupportedProtocols */
+#define WS_MAX_PROTOS 16
+#define WS_MAX_HEADERS 32
+#define WS_MAX_HANDLERS 8
+
+typedef struct {
+    svc_object base;
+    svc_object view;
+    CRITICAL_SECTION lock;
+    WCHAR *items[WS_MAX_PROTOS];
+    UINT32 count;
+} ws_proto_vec_object;
+
+static const void *ws_proto_vec_vtable[];
+static const void *ws_proto_view_vtable[];
+
+static ws_proto_vec_object *ws_proto_from(void *self)
+{
+    svc_object *hdr = (svc_object *)self;
+    if (hdr && hdr->vtbl == ws_proto_view_vtable)
+        return (ws_proto_vec_object *)((char *)self - offsetof(ws_proto_vec_object, view));
+    return (ws_proto_vec_object *)self;
+}
+
+static ULONG __stdcall ws_proto_AddRef(void *self)
+{
+    return svc_AddRef(&ws_proto_from(self)->base);
+}
+
+static ULONG __stdcall ws_proto_Release(void *self)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    LONG left = InterlockedDecrement(&obj->base.refs);
+    if (left <= 0) {
+        UINT32 i;
+        for (i = 0; i < obj->count; i++) free(obj->items[i]);
+        DeleteCriticalSection(&obj->lock);
+        free(obj);
+    }
+    return (ULONG)left;
+}
+
+static HRESULT __stdcall ws_proto_vec_QI(void *self, const GUID *id, void **out)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_ivectorview_hstring)) {
+        *out = &obj->view;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_ivector_hstring) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &obj->base;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall ws_proto_view_QI(void *self, const GUID *id, void **out)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_ivectorview_hstring) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &obj->view;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall ws_proto_vec_GetAt(void *self, UINT32 index, hstring_t *out)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    HRESULT hr = E_BOUNDS;
+    if (!out) return E_POINTER;
+    *out = NULL;
+    EnterCriticalSection(&obj->lock);
+    if (index < obj->count && obj->items[index]) {
+        *out = svc_string(obj->items[index]);
+        hr = S_OK;
+    }
+    LeaveCriticalSection(&obj->lock);
+    return hr;
+}
+
+static HRESULT __stdcall ws_proto_vec_get_Size(void *self, UINT32 *out)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    if (!out) return E_POINTER;
+    EnterCriticalSection(&obj->lock);
+    *out = obj->count;
+    LeaveCriticalSection(&obj->lock);
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_proto_vec_GetView(void *self, void **out)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    if (!out) return E_POINTER;
+    svc_AddRef(&obj->base);
+    *out = &obj->view;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_proto_vec_IndexOf(void *self, hstring_t val, UINT32 *idx, BOOLEAN *found)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    const WCHAR *raw = NULL;
+    UINT32 len = 0, i;
+    if (idx) *idx = 0;
+    if (found) *found = 0;
+    svc_load_hstring();
+    if (svc_hstring_buffer && val) raw = svc_hstring_buffer(val, &len);
+    if (!raw) return S_OK;
+    EnterCriticalSection(&obj->lock);
+    for (i = 0; i < obj->count; i++) {
+        if (obj->items[i] && wcscmp(obj->items[i], raw) == 0) {
+            if (idx) *idx = i;
+            if (found) *found = 1;
+            break;
+        }
+    }
+    LeaveCriticalSection(&obj->lock);
+    return S_OK;
+}
+
+static WCHAR *ws_dup_hstring(hstring_t hs)
+{
+    const WCHAR *raw = NULL;
+    UINT32 len = 0;
+    WCHAR *copy;
+    svc_load_hstring();
+    if (svc_hstring_buffer && hs) raw = svc_hstring_buffer(hs, &len);
+    copy = (WCHAR *)malloc(((size_t)len + 1) * sizeof(WCHAR));
+    if (!copy) return NULL;
+    if (len && raw) memcpy(copy, raw, (size_t)len * sizeof(WCHAR));
+    copy[len] = 0;
+    return copy;
+}
+
+static HRESULT __stdcall ws_proto_vec_SetAt(void *self, UINT32 index, hstring_t val)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    HRESULT hr = E_BOUNDS;
+    EnterCriticalSection(&obj->lock);
+    if (index < obj->count) {
+        WCHAR *s = ws_dup_hstring(val);
+        if (!s) hr = E_OUTOFMEMORY;
+        else {
+            free(obj->items[index]);
+            obj->items[index] = s;
+            hr = S_OK;
+        }
+    }
+    LeaveCriticalSection(&obj->lock);
+    return hr;
+}
+
+static HRESULT __stdcall ws_proto_vec_InsertAt(void *self, UINT32 index, hstring_t val)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    HRESULT hr = S_OK;
+    EnterCriticalSection(&obj->lock);
+    if (index > obj->count || obj->count >= WS_MAX_PROTOS) {
+        hr = E_BOUNDS;
+    } else {
+        WCHAR *s = ws_dup_hstring(val);
+        if (!s) hr = E_OUTOFMEMORY;
+        else {
+            UINT32 i;
+            for (i = obj->count; i > index; i--) obj->items[i] = obj->items[i - 1];
+            obj->items[index] = s;
+            obj->count++;
+        }
+    }
+    LeaveCriticalSection(&obj->lock);
+    return hr;
+}
+
+static HRESULT __stdcall ws_proto_vec_RemoveAt(void *self, UINT32 index)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    HRESULT hr = E_BOUNDS;
+    EnterCriticalSection(&obj->lock);
+    if (index < obj->count) {
+        UINT32 i;
+        free(obj->items[index]);
+        for (i = index; i + 1 < obj->count; i++) obj->items[i] = obj->items[i + 1];
+        obj->count--;
+        obj->items[obj->count] = NULL;
+        hr = S_OK;
+    }
+    LeaveCriticalSection(&obj->lock);
+    return hr;
+}
+
+static HRESULT __stdcall ws_proto_vec_Append(void *self, hstring_t val)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    HRESULT hr = S_OK;
+    EnterCriticalSection(&obj->lock);
+    if (obj->count < WS_MAX_PROTOS) {
+        WCHAR *s = ws_dup_hstring(val);
+        if (!s) hr = E_OUTOFMEMORY;
+        else obj->items[obj->count++] = s;
+    }
+    LeaveCriticalSection(&obj->lock);
+    return hr;
+}
+
+static HRESULT __stdcall ws_proto_vec_RemoveAtEnd(void *self)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    EnterCriticalSection(&obj->lock);
+    if (obj->count > 0) {
+        obj->count--;
+        free(obj->items[obj->count]);
+        obj->items[obj->count] = NULL;
+    }
+    LeaveCriticalSection(&obj->lock);
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_proto_vec_Clear(void *self)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    UINT32 i;
+    EnterCriticalSection(&obj->lock);
+    for (i = 0; i < obj->count; i++) {
+        free(obj->items[i]);
+        obj->items[i] = NULL;
+    }
+    obj->count = 0;
+    LeaveCriticalSection(&obj->lock);
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_proto_vec_GetMany(void *self, UINT32 start, UINT32 cap, hstring_t *items, UINT32 *actual)
+{
+    ws_proto_vec_object *obj = ws_proto_from(self);
+    UINT32 n = 0;
+    if (actual) *actual = 0;
+    EnterCriticalSection(&obj->lock);
+    while (start + n < obj->count && n < cap && items) {
+        items[n] = svc_string(obj->items[start + n]);
+        n++;
+    }
+    LeaveCriticalSection(&obj->lock);
+    if (actual) *actual = n;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_proto_vec_ReplaceAll(void *self, UINT32 count, hstring_t *items)
+{
+    UINT32 i;
+    ws_proto_vec_Clear(self);
+    for (i = 0; i < count && items; i++) ws_proto_vec_Append(self, items[i]);
+    return S_OK;
+}
+
+static const void *ws_proto_view_vtable[] = {
+    (const void *)ws_proto_view_QI, (const void *)ws_proto_AddRef, (const void *)ws_proto_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ws_proto_vec_GetAt, (const void *)ws_proto_vec_get_Size,
+    (const void *)ws_proto_vec_IndexOf, (const void *)ws_proto_vec_GetMany,
+};
+
+static const void *ws_proto_vec_vtable[] = {
+    (const void *)ws_proto_vec_QI, (const void *)ws_proto_AddRef, (const void *)ws_proto_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ws_proto_vec_GetAt, (const void *)ws_proto_vec_get_Size,
+    (const void *)ws_proto_vec_GetView, (const void *)ws_proto_vec_IndexOf,
+    (const void *)ws_proto_vec_SetAt, (const void *)ws_proto_vec_InsertAt,
+    (const void *)ws_proto_vec_RemoveAt, (const void *)ws_proto_vec_Append,
+    (const void *)ws_proto_vec_RemoveAtEnd, (const void *)ws_proto_vec_Clear,
+    (const void *)ws_proto_vec_GetMany, (const void *)ws_proto_vec_ReplaceAll,
+};
+
+static ws_proto_vec_object *ws_proto_vec_new(void)
+{
+    ws_proto_vec_object *obj = (ws_proto_vec_object *)calloc(1, sizeof(*obj));
+    if (!obj) return NULL;
+    InitializeCriticalSection(&obj->lock);
+    obj->base.vtbl = ws_proto_vec_vtable;
+    obj->base.refs = 1;
+    obj->base.name = "Windows.Foundation.Collections.IVector`1<String>";
+    obj->view.vtbl = ws_proto_view_vtable;
+    obj->view.refs = 1;
+    obj->view.permanent = 1;
+    obj->view.name = "Windows.Foundation.Collections.IVectorView`1<String>";
+    return obj;
+}
+
+/* Completed IAsyncOperationWithProgress<UINT32, UINT32> / <IBuffer*, UINT32> and IAsyncOperation<boolean> */
+typedef struct {
+    svc_object base;
+    svc_object info;
+    const GUID *op_iid;
+    HRESULT error;
+    UINT32 u32_result;
+    BOOLEAN bool_result;
+    void *obj_result;
+    void *completed_handler;
+    void *progress_handler;
+    LONG fired;
+} ws_async_op;
+
+static const void *ws_async_info_vtable[];
+static const void *ws_async_prog_u32_vtable[];
+static const void *ws_async_prog_buf_vtable[];
+static const void *ws_async_bool_vtable[];
+
+static ws_async_op *ws_async_from(void *self)
+{
+    svc_object *hdr = (svc_object *)self;
+    if (hdr && hdr->vtbl == ws_async_info_vtable)
+        return (ws_async_op *)((char *)self - offsetof(ws_async_op, info));
+    return (ws_async_op *)self;
+}
+
+static ULONG __stdcall ws_async_AddRef(void *self) { return svc_AddRef(&ws_async_from(self)->base); }
+
+static ULONG __stdcall ws_async_Release(void *self)
+{
+    ws_async_op *op = ws_async_from(self);
+    LONG left = InterlockedDecrement(&op->base.refs);
+    if (left <= 0) {
+        if (op->completed_handler) svc_unref(op->completed_handler);
+        if (op->progress_handler) svc_unref(op->progress_handler);
+        if (op->obj_result) svc_unref(op->obj_result);
+        free(op);
+    }
+    return (ULONG)left;
+}
+
+static HRESULT __stdcall ws_async_QI(void *self, const GUID *id, void **out)
+{
+    ws_async_op *op = ws_async_from(self);
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_async_info)) {
+        *out = &op->info;
+        svc_AddRef(&op->base);
+        return S_OK;
+    }
+    if ((op->op_iid && IsEqualIID(id, op->op_iid)) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &op->base;
+        svc_AddRef(&op->base);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall ws_async_get_Id(void *self, UINT32 *out)
+{
+    (void)self;
+    if (out) *out = 1;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_async_get_Status(void *self, INT32 *out)
+{
+    ws_async_op *op = ws_async_from(self);
+    if (!out) return E_POINTER;
+    *out = FAILED(op->error) ? ASYNC_ERROR : ASYNC_COMPLETED;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_async_get_ErrorCode(void *self, HRESULT *out)
+{
+    if (!out) return E_POINTER;
+    *out = ws_async_from(self)->error;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_async_nop(void *self)
+{
+    (void)self;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_async_put_Progress(void *self, void *handler)
+{
+    ws_async_op *op = ws_async_from(self);
+    if (op->progress_handler) svc_unref(op->progress_handler);
+    op->progress_handler = handler;
+    if (handler) svc_ref(handler);
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_async_get_Progress(void *self, void **out)
+{
+    ws_async_op *op = ws_async_from(self);
+    if (!out) return E_POINTER;
+    *out = op->progress_handler;
+    if (*out) svc_ref(*out);
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_async_put_Completed(void *self, void *handler)
+{
+    typedef HRESULT(__stdcall * invoke_fn)(void *, void *, INT32);
+    ws_async_op *op = ws_async_from(self);
+    if (!handler) return E_INVALIDARG;
+    svc_ref(handler);
+    if (InterlockedCompareExchangePointer((PVOID volatile *)&op->completed_handler, handler, NULL) != NULL) {
+        svc_unref(handler);
+        return E_ILLEGAL_DELEGATE_ASSIGNMENT;
+    }
+    if (!InterlockedExchange(&op->fired, 1)) {
+        invoke_fn *slots = *(invoke_fn **)handler;
+        if (slots && slots[3])
+            slots[3](handler, &op->base, FAILED(op->error) ? ASYNC_ERROR : ASYNC_COMPLETED);
+    }
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_async_get_Completed(void *self, void **out)
+{
+    ws_async_op *op = ws_async_from(self);
+    if (!out) return E_POINTER;
+    *out = op->completed_handler;
+    if (*out) svc_ref(*out);
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_async_get_u32(void *self, UINT32 *out)
+{
+    ws_async_op *op = ws_async_from(self);
+    if (!out) return E_POINTER;
+    *out = op->u32_result;
+    return op->error;
+}
+
+static HRESULT __stdcall ws_async_get_bool(void *self, BOOLEAN *out)
+{
+    ws_async_op *op = ws_async_from(self);
+    if (!out) return E_POINTER;
+    *out = op->bool_result;
+    return op->error;
+}
+
+static HRESULT __stdcall ws_async_get_obj(void *self, void **out)
+{
+    ws_async_op *op = ws_async_from(self);
+    if (!out) return E_POINTER;
+    *out = op->obj_result;
+    if (*out) svc_ref(*out);
+    return op->error;
+}
+
+static const void *ws_async_info_vtable[] = {
+    (const void *)ws_async_QI, (const void *)ws_async_AddRef, (const void *)ws_async_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ws_async_get_Id, (const void *)ws_async_get_Status,
+    (const void *)ws_async_get_ErrorCode, (const void *)ws_async_nop, (const void *)ws_async_nop,
+};
+
+static const void *ws_async_prog_u32_vtable[] = {
+    (const void *)ws_async_QI, (const void *)ws_async_AddRef, (const void *)ws_async_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ws_async_put_Progress, (const void *)ws_async_get_Progress,
+    (const void *)ws_async_put_Completed, (const void *)ws_async_get_Completed,
+    (const void *)ws_async_get_u32,
+};
+
+static const void *ws_async_prog_buf_vtable[] = {
+    (const void *)ws_async_QI, (const void *)ws_async_AddRef, (const void *)ws_async_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ws_async_put_Progress, (const void *)ws_async_get_Progress,
+    (const void *)ws_async_put_Completed, (const void *)ws_async_get_Completed,
+    (const void *)ws_async_get_obj,
+};
+
+static const void *ws_async_bool_vtable[] = {
+    (const void *)ws_async_QI, (const void *)ws_async_AddRef, (const void *)ws_async_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ws_async_put_Completed, (const void *)ws_async_get_Completed,
+    (const void *)ws_async_get_bool,
+};
+
+static ws_async_op *ws_async_new(const void **vtbl, const GUID *iid, HRESULT err)
+{
+    ws_async_op *op = (ws_async_op *)calloc(1, sizeof(*op));
+    if (!op) return NULL;
+    op->base.vtbl = vtbl;
+    op->base.refs = 1;
+    op->base.name = "Windows.Foundation.IAsyncOperation";
+    op->info.vtbl = ws_async_info_vtable;
+    op->info.refs = 1;
+    op->info.permanent = 1;
+    op->info.name = "Windows.Foundation.IAsyncInfo";
+    op->op_iid = iid;
+    op->error = err;
+    return op;
+}
+
+/* IDataReader + IInputStream over a received WebSocket message payload */
+typedef struct {
+    svc_object base;
+    svc_object closable;
+    unsigned char *data;
+    UINT32 len;
+    UINT32 pos;
+    INT32 encoding;  /* 0=Utf8, 1=Utf16LE, 2=Utf16BE */
+    INT32 byte_order; /* 0=LittleEndian, 1=BigEndian */
+    INT32 stream_opts;
+} ws_data_reader;
+
+static const void *ws_dr_vtable[];
+static const void *ws_dr_closable_vtable[];
+
+static ws_data_reader *ws_dr_from(void *self)
+{
+    svc_object *hdr = (svc_object *)self;
+    if (hdr && hdr->vtbl == ws_dr_closable_vtable)
+        return (ws_data_reader *)((char *)self - offsetof(ws_data_reader, closable));
+    return (ws_data_reader *)self;
+}
+
+static ULONG __stdcall ws_dr_AddRef(void *self) { return svc_AddRef(&ws_dr_from(self)->base); }
+
+static ULONG __stdcall ws_dr_Release(void *self)
+{
+    ws_data_reader *r = ws_dr_from(self);
+    LONG left = InterlockedDecrement(&r->base.refs);
+    if (left <= 0) {
+        free(r->data);
+        free(r);
+    }
+    return (ULONG)left;
+}
+
+static HRESULT __stdcall ws_dr_QI(void *self, const GUID *id, void **out)
+{
+    ws_data_reader *r = ws_dr_from(self);
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_closable)) {
+        *out = &r->closable;
+        svc_AddRef(&r->base);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_data_reader) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &r->base;
+        svc_AddRef(&r->base);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall ws_dr_get_UnconsumedBufferLength(void *self, UINT32 *out)
+{
+    ws_data_reader *r = ws_dr_from(self);
+    if (!out) return E_POINTER;
+    *out = r->pos <= r->len ? (r->len - r->pos) : 0;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_dr_get_UnicodeEncoding(void *self, INT32 *out)
+{
+    if (!out) return E_POINTER;
+    *out = ws_dr_from(self)->encoding;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_dr_put_UnicodeEncoding(void *self, INT32 val)
+{
+    ws_dr_from(self)->encoding = val;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_dr_get_ByteOrder(void *self, INT32 *out)
+{
+    if (!out) return E_POINTER;
+    *out = ws_dr_from(self)->byte_order;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_dr_put_ByteOrder(void *self, INT32 val)
+{
+    ws_dr_from(self)->byte_order = val;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_dr_get_InputStreamOptions(void *self, INT32 *out)
+{
+    if (!out) return E_POINTER;
+    *out = ws_dr_from(self)->stream_opts;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_dr_put_InputStreamOptions(void *self, INT32 val)
+{
+    ws_dr_from(self)->stream_opts = val;
+    return S_OK;
+}
+
+static HRESULT ws_dr_take(ws_data_reader *r, UINT32 n, unsigned char *dst)
+{
+    if (r->len - r->pos < n) return E_BOUNDS;
+    if (n && dst) memcpy(dst, r->data + r->pos, n);
+    r->pos += n;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_dr_ReadByte(void *self, BYTE *out)
+{
+    if (!out) return E_POINTER;
+    return ws_dr_take(ws_dr_from(self), 1, out);
+}
+
+static HRESULT __stdcall ws_dr_ReadBytes(void *self, UINT32 len, BYTE *buf)
+{
+    return ws_dr_take(ws_dr_from(self), len, buf);
+}
+
+static HRESULT __stdcall ws_dr_ReadBuffer(void *self, UINT32 len, void **out)
+{
+    ws_data_reader *r = ws_dr_from(self);
+    winrt_buffer *b;
+    if (!out) return E_POINTER;
+    if (r->len - r->pos < len) return E_BOUNDS;
+    b = buffer_from_bytes(r->data + r->pos, len);
+    if (!b) return E_OUTOFMEMORY;
+    r->pos += len;
+    *out = b;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_dr_ReadBoolean(void *self, BOOLEAN *out)
+{
+    BYTE b = 0;
+    HRESULT hr;
+    if (!out) return E_POINTER;
+    hr = ws_dr_take(ws_dr_from(self), 1, &b);
+    if (SUCCEEDED(hr)) *out = b ? 1 : 0;
+    return hr;
+}
+
+static HRESULT __stdcall ws_dr_ReadGuid(void *self, GUID *out)
+{
+    if (!out) return E_POINTER;
+    return ws_dr_take(ws_dr_from(self), sizeof(GUID), (unsigned char *)out);
+}
+
+static HRESULT __stdcall ws_dr_ReadInt16(void *self, INT16 *out)
+{
+    if (!out) return E_POINTER;
+    return ws_dr_take(ws_dr_from(self), 2, (unsigned char *)out);
+}
+
+static HRESULT __stdcall ws_dr_ReadInt32(void *self, INT32 *out)
+{
+    if (!out) return E_POINTER;
+    return ws_dr_take(ws_dr_from(self), 4, (unsigned char *)out);
+}
+
+static HRESULT __stdcall ws_dr_ReadInt64(void *self, INT64 *out)
+{
+    if (!out) return E_POINTER;
+    return ws_dr_take(ws_dr_from(self), 8, (unsigned char *)out);
+}
+
+static HRESULT __stdcall ws_dr_ReadUInt16(void *self, UINT16 *out)
+{
+    if (!out) return E_POINTER;
+    return ws_dr_take(ws_dr_from(self), 2, (unsigned char *)out);
+}
+
+static HRESULT __stdcall ws_dr_ReadUInt32(void *self, UINT32 *out)
+{
+    if (!out) return E_POINTER;
+    return ws_dr_take(ws_dr_from(self), 4, (unsigned char *)out);
+}
+
+static HRESULT __stdcall ws_dr_ReadUInt64(void *self, UINT64 *out)
+{
+    if (!out) return E_POINTER;
+    return ws_dr_take(ws_dr_from(self), 8, (unsigned char *)out);
+}
+
+static HRESULT __stdcall ws_dr_ReadSingle(void *self, float *out)
+{
+    if (!out) return E_POINTER;
+    return ws_dr_take(ws_dr_from(self), 4, (unsigned char *)out);
+}
+
+static HRESULT __stdcall ws_dr_ReadDouble(void *self, double *out)
+{
+    if (!out) return E_POINTER;
+    return ws_dr_take(ws_dr_from(self), 8, (unsigned char *)out);
+}
+
+static HRESULT __stdcall ws_dr_ReadString(void *self, UINT32 code_units, hstring_t *out)
+{
+    ws_data_reader *r = ws_dr_from(self);
+    if (!out) return E_POINTER;
+    *out = NULL;
+    if (code_units == 0) return S_OK;
+    if (r->encoding == 0) { /* Utf8 */
+        UINT32 avail = r->len - r->pos;
+        UINT32 bytes = code_units < avail ? code_units : avail;
+        int wlen;
+        WCHAR *wbuf;
+        if (bytes == 0) return S_OK;
+        wlen = MultiByteToWideChar(CP_UTF8, 0, (const char *)(r->data + r->pos), (int)bytes, NULL, 0);
+        if (wlen <= 0) return E_FAIL;
+        wbuf = (WCHAR *)malloc(((size_t)wlen + 1) * sizeof(WCHAR));
+        if (!wbuf) return E_OUTOFMEMORY;
+        MultiByteToWideChar(CP_UTF8, 0, (const char *)(r->data + r->pos), (int)bytes, wbuf, wlen);
+        wbuf[wlen] = 0;
+        r->pos += bytes;
+        *out = svc_string_len(wbuf, (UINT32)wlen);
+        free(wbuf);
+        return S_OK;
+    } else { /* Utf16LE / BE */
+        UINT32 bytes = code_units * 2;
+        if (r->len - r->pos < bytes) return E_BOUNDS;
+        *out = svc_string_len((const WCHAR *)(r->data + r->pos), code_units);
+        r->pos += bytes;
+        return S_OK;
+    }
+}
+
+static HRESULT __stdcall ws_dr_LoadAsync(void *self, UINT32 count, void **out)
+{
+    ws_data_reader *r = ws_dr_from(self);
+    UINT32 avail = r->pos <= r->len ? (r->len - r->pos) : 0;
+    (void)count;
+    if (!out) return E_POINTER;
+    return async_u32_operation_iid(&svc_iid_async_op_u32, S_OK, avail, out);
+}
+
+static HRESULT __stdcall ws_dr_DetachBuffer(void *self, void **out)
+{
+    ws_data_reader *r = ws_dr_from(self);
+    UINT32 avail = r->pos <= r->len ? (r->len - r->pos) : 0;
+    return ws_dr_ReadBuffer(self, avail, out);
+}
+
+static HRESULT __stdcall ws_dr_DetachStream(void *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = NULL;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_dr_Close(void *self)
+{
+    ws_data_reader *r = ws_dr_from(self);
+    r->pos = r->len;
+    return S_OK;
+}
+
+static const void *ws_dr_vtable[] = {
+    (const void *)ws_dr_QI, (const void *)ws_dr_AddRef, (const void *)ws_dr_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ws_dr_get_UnconsumedBufferLength,
+    (const void *)ws_dr_get_UnicodeEncoding, (const void *)ws_dr_put_UnicodeEncoding,
+    (const void *)ws_dr_get_ByteOrder, (const void *)ws_dr_put_ByteOrder,
+    (const void *)ws_dr_get_InputStreamOptions, (const void *)ws_dr_put_InputStreamOptions,
+    (const void *)ws_dr_ReadByte, (const void *)ws_dr_ReadBytes, (const void *)ws_dr_ReadBuffer,
+    (const void *)ws_dr_ReadBoolean, (const void *)ws_dr_ReadGuid,
+    (const void *)ws_dr_ReadInt16, (const void *)ws_dr_ReadInt32, (const void *)ws_dr_ReadInt64,
+    (const void *)ws_dr_ReadUInt16, (const void *)ws_dr_ReadUInt32, (const void *)ws_dr_ReadUInt64,
+    (const void *)ws_dr_ReadSingle, (const void *)ws_dr_ReadDouble, (const void *)ws_dr_ReadString,
+    (const void *)ws_dr_ReadInt64, (const void *)ws_dr_ReadInt64, /* DateTime, TimeSpan */
+    (const void *)ws_dr_LoadAsync, (const void *)ws_dr_DetachBuffer, (const void *)ws_dr_DetachStream,
+};
+
+static const void *ws_dr_closable_vtable[] = {
+    (const void *)ws_dr_QI, (const void *)ws_dr_AddRef, (const void *)ws_dr_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ws_dr_Close,
+};
+
+static ws_data_reader *ws_dr_new(const unsigned char *data, UINT32 len)
+{
+    ws_data_reader *r = (ws_data_reader *)calloc(1, sizeof(*r));
+    if (!r) return NULL;
+    r->base.vtbl = ws_dr_vtable;
+    r->base.refs = 1;
+    r->base.name = "Windows.Storage.Streams.DataReader";
+    r->closable.vtbl = ws_dr_closable_vtable;
+    r->closable.refs = 1;
+    r->closable.permanent = 1;
+    r->closable.name = r->base.name;
+    if (len > 0 && data) {
+        r->data = (unsigned char *)malloc(len);
+        if (!r->data) {
+            free(r);
+            return NULL;
+        }
+        memcpy(r->data, data, len);
+        r->len = len;
+    }
+    return r;
+}
+
+typedef struct {
+    svc_object base;
+    svc_object closable;
+    unsigned char *data;
+    UINT32 len;
+    UINT32 pos;
+} ws_in_stream;
+
+static const void *ws_in_vtable[];
+static const void *ws_in_closable_vtable[];
+
+static ws_in_stream *ws_in_from(void *self)
+{
+    svc_object *hdr = (svc_object *)self;
+    if (hdr && hdr->vtbl == ws_in_closable_vtable)
+        return (ws_in_stream *)((char *)self - offsetof(ws_in_stream, closable));
+    return (ws_in_stream *)self;
+}
+
+static ULONG __stdcall ws_in_AddRef(void *self) { return svc_AddRef(&ws_in_from(self)->base); }
+
+static ULONG __stdcall ws_in_Release(void *self)
+{
+    ws_in_stream *s = ws_in_from(self);
+    LONG left = InterlockedDecrement(&s->base.refs);
+    if (left <= 0) {
+        free(s->data);
+        free(s);
+    }
+    return (ULONG)left;
+}
+
+static HRESULT __stdcall ws_in_QI(void *self, const GUID *id, void **out)
+{
+    ws_in_stream *s = ws_in_from(self);
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_closable)) {
+        *out = &s->closable;
+        svc_AddRef(&s->base);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_input_stream) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &s->base;
+        svc_AddRef(&s->base);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall ws_in_ReadAsync(void *self, void *buf, UINT32 count, INT32 opts, void **out)
+{
+    ws_in_stream *s = ws_in_from(self);
+    UINT32 avail = s->pos <= s->len ? (s->len - s->pos) : 0;
+    UINT32 take = count < avail ? count : avail;
+    ws_async_op *op;
+    (void)opts;
+    if (!out) return E_POINTER;
+    if (buf && take > 0) {
+        typedef HRESULT(WINAPI * put_len_fn)(void *, UINT32);
+        const unsigned char *dst = buffer_bytes(buf);
+        if (dst) memcpy((unsigned char *)dst, s->data + s->pos, take);
+        ((put_len_fn)(*(const void *const *const *)buf)[8])(buf, take);
+        s->pos += take;
+    }
+    op = ws_async_new(ws_async_prog_buf_vtable, &svc_iid_async_op_prog_buf, S_OK);
+    if (!op) return E_OUTOFMEMORY;
+    op->obj_result = buf;
+    if (buf) svc_ref(buf);
+    *out = &op->base;
+    return S_OK;
+}
+
+static HRESULT __stdcall ws_in_Close(void *self)
+{
+    ws_in_stream *s = ws_in_from(self);
+    s->pos = s->len;
+    return S_OK;
+}
+
+static const void *ws_in_vtable[] = {
+    (const void *)ws_in_QI, (const void *)ws_in_AddRef, (const void *)ws_in_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ws_in_ReadAsync,
+};
+
+static const void *ws_in_closable_vtable[] = {
+    (const void *)ws_in_QI, (const void *)ws_in_AddRef, (const void *)ws_in_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)ws_in_Close,
+};
+
+static ws_in_stream *ws_in_new(const unsigned char *data, UINT32 len)
+{
+    ws_in_stream *s = (ws_in_stream *)calloc(1, sizeof(*s));
+    if (!s) return NULL;
+    s->base.vtbl = ws_in_vtable;
+    s->base.refs = 1;
+    s->base.name = "Windows.Storage.Streams.IInputStream";
+    s->closable.vtbl = ws_in_closable_vtable;
+    s->closable.refs = 1;
+    s->closable.permanent = 1;
+    s->closable.name = s->base.name;
+    if (len > 0 && data) {
+        s->data = (unsigned char *)malloc(len);
+        if (!s->data) {
+            free(s);
+            return NULL;
+        }
+        memcpy(s->data, data, len);
+        s->len = len;
+    }
+    return s;
+}
+
+/* MessageWebSocketMessageReceivedEventArgs & WebSocketClosedEventArgs */
+typedef struct {
+    svc_object base;
+    INT32 msg_type; /* 0=Binary, 1=Utf8 */
+    unsigned char *data;
+    UINT32 len;
+} msg_ws_recv_args;
+
+static ULONG __stdcall msg_ws_recv_args_Release(void *self)
+{
+    msg_ws_recv_args *a = (msg_ws_recv_args *)self;
+    LONG left = InterlockedDecrement(&a->base.refs);
+    if (left <= 0) {
+        free(a->data);
+        free(a);
+    }
+    return (ULONG)left;
+}
+
+static HRESULT __stdcall msg_ws_recv_args_QI(void *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_msg_ws_recv_args) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = self;
+        svc_AddRef((svc_object *)self);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall msg_ws_recv_args_get_MessageType(void *self, INT32 *out)
+{
+    if (!out) return E_POINTER;
+    *out = ((msg_ws_recv_args *)self)->msg_type;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_recv_args_GetDataReader(void *self, void **out)
+{
+    msg_ws_recv_args *a = (msg_ws_recv_args *)self;
+    ws_data_reader *r;
+    if (!out) return E_POINTER;
+    r = ws_dr_new(a->data, a->len);
+    if (!r) return E_OUTOFMEMORY;
+    *out = &r->base;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_recv_args_GetDataStream(void *self, void **out)
+{
+    msg_ws_recv_args *a = (msg_ws_recv_args *)self;
+    ws_in_stream *s;
+    if (!out) return E_POINTER;
+    s = ws_in_new(a->data, a->len);
+    if (!s) return E_OUTOFMEMORY;
+    *out = &s->base;
+    return S_OK;
+}
+
+static const void *msg_ws_recv_args_vtable[] = {
+    (const void *)msg_ws_recv_args_QI, (const void *)svc_AddRef, (const void *)msg_ws_recv_args_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)msg_ws_recv_args_get_MessageType,
+    (const void *)msg_ws_recv_args_GetDataReader,
+    (const void *)msg_ws_recv_args_GetDataStream,
+};
+
+typedef struct {
+    svc_object base;
+    UINT16 code;
+    WCHAR *reason;
+} msg_ws_closed_args;
+
+static ULONG __stdcall msg_ws_closed_args_Release(void *self)
+{
+    msg_ws_closed_args *a = (msg_ws_closed_args *)self;
+    LONG left = InterlockedDecrement(&a->base.refs);
+    if (left <= 0) {
+        free(a->reason);
+        free(a);
+    }
+    return (ULONG)left;
+}
+
+static HRESULT __stdcall msg_ws_closed_args_QI(void *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_ws_closed_args) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = self;
+        svc_AddRef((svc_object *)self);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall msg_ws_closed_args_get_Code(void *self, UINT16 *out)
+{
+    if (!out) return E_POINTER;
+    *out = ((msg_ws_closed_args *)self)->code;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_closed_args_get_Reason(void *self, hstring_t *out)
+{
+    msg_ws_closed_args *a = (msg_ws_closed_args *)self;
+    if (!out) return E_POINTER;
+    *out = a->reason ? svc_string(a->reason) : NULL;
+    return S_OK;
+}
+
+static const void *msg_ws_closed_args_vtable[] = {
+    (const void *)msg_ws_closed_args_QI, (const void *)svc_AddRef, (const void *)msg_ws_closed_args_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)msg_ws_closed_args_get_Code,
+    (const void *)msg_ws_closed_args_get_Reason,
+};
 
 typedef struct {
     svc_object base;
@@ -9268,6 +10854,7 @@ typedef struct {
     UINT32 max_msg_size;
     INT32 msg_type;
     UINT32 outbound_buf_size;
+    ws_proto_vec_object *protos;
 } msg_ws_ctrl_object;
 
 static const void *msg_ws_ctrl_base_vtable[];
@@ -9287,7 +10874,13 @@ static ULONG __stdcall msg_ws_ctrl_AddRef(void *self)
 
 static ULONG __stdcall msg_ws_ctrl_Release(void *self)
 {
-    return svc_Release(&msg_ws_ctrl_from(self)->base);
+    msg_ws_ctrl_object *obj = msg_ws_ctrl_from(self);
+    LONG left = InterlockedDecrement(&obj->base.refs);
+    if (left <= 0) {
+        if (obj->protos) ws_proto_Release(&obj->protos->base);
+        free(obj);
+    }
+    return (ULONG)left;
 }
 
 static HRESULT __stdcall msg_ws_ctrl_QI(void *self, const GUID *id, void **out)
@@ -9363,160 +10956,16 @@ static HRESULT __stdcall msg_ws_ctrl_put_Nop(void *self, void *val)
     return S_OK;
 }
 
-/* Minimal IVector<HSTRING> for IWebSocketControl::SupportedProtocols */
-static const GUID svc_iid_ivector_hstring = {
-    0x98b9acc1, 0x4b56, 0x532e, {0xac, 0x73, 0x03, 0xd5, 0x29, 0x1c, 0xca, 0x90}};
-
-static HRESULT __stdcall ws_proto_vec_QI(void *self, const GUID *id, void **out)
-{
-    if (!out) return E_POINTER;
-    if (IsEqualIID(id, &svc_iid_ivector_hstring) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
-        *out = self;
-        svc_AddRef((svc_object *)self);
-        return S_OK;
-    }
-    *out = NULL;
-    return E_NOINTERFACE;
-}
-
-static HRESULT __stdcall ws_proto_vec_GetAt(void *self, UINT32 index, hstring_t *out)
-{
-    (void)self;
-    (void)index;
-    if (out) *out = NULL;
-    return E_BOUNDS;
-}
-
-static HRESULT __stdcall ws_proto_vec_get_Size(void *self, UINT32 *out)
-{
-    (void)self;
-    if (!out) return E_POINTER;
-    *out = 0;
-    return S_OK;
-}
-
-static const GUID svc_iid_ivectorview_hstring = {
-    0x2f13c006, 0xa03a, 0x5f69, {0xb0, 0x90, 0x75, 0xa4, 0x3e, 0x33, 0x42, 0x3e}};
-
-static HRESULT __stdcall ws_proto_view_QI(void *self, const GUID *id, void **out)
-{
-    if (!out) return E_POINTER;
-    if (IsEqualIID(id, &svc_iid_ivectorview_hstring) || IsEqualIID(id, &svc_iid_unknown) ||
-        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
-        *out = self;
-        svc_AddRef((svc_object *)self);
-        return S_OK;
-    }
-    *out = NULL;
-    return E_NOINTERFACE;
-}
-
-static HRESULT __stdcall ws_proto_vec_IndexOf(void *self, hstring_t val, UINT32 *idx, BOOLEAN *found);
-static HRESULT __stdcall ws_proto_vec_GetMany(void *self, UINT32 start, UINT32 cap, hstring_t *items, UINT32 *actual);
-
-static const void *ws_proto_view_vtable[] = {
-    (const void *)ws_proto_view_QI, (const void *)svc_AddRef, (const void *)svc_Release,
-    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
-    (const void *)ws_proto_vec_GetAt, (const void *)ws_proto_vec_get_Size,
-    (const void *)ws_proto_vec_IndexOf, (const void *)ws_proto_vec_GetMany,
-};
-
-static svc_object ws_proto_view_singleton = {
-    ws_proto_view_vtable, 1, "Windows.Foundation.Collections.IVectorView`1<String>", 1};
-
-static HRESULT __stdcall ws_proto_vec_GetView(void *self, void **out)
-{
-    (void)self;
-    if (!out) return E_POINTER;
-    svc_AddRef(&ws_proto_view_singleton);
-    *out = &ws_proto_view_singleton;
-    return S_OK;
-}
-
-static HRESULT __stdcall ws_proto_vec_IndexOf(void *self, hstring_t val, UINT32 *idx, BOOLEAN *found)
-{
-    (void)self;
-    (void)val;
-    if (idx) *idx = 0;
-    if (found) *found = 0;
-    return S_OK;
-}
-
-static HRESULT __stdcall ws_proto_vec_SetAt(void *self, UINT32 index, hstring_t val)
-{
-    (void)self;
-    (void)index;
-    (void)val;
-    return E_BOUNDS;
-}
-
-static HRESULT __stdcall ws_proto_vec_InsertAt(void *self, UINT32 index, hstring_t val)
-{
-    (void)self;
-    (void)index;
-    (void)val;
-    return S_OK;
-}
-
-static HRESULT __stdcall ws_proto_vec_RemoveAt(void *self, UINT32 index)
-{
-    (void)self;
-    (void)index;
-    return E_BOUNDS;
-}
-
-static HRESULT __stdcall ws_proto_vec_Append(void *self, hstring_t val)
-{
-    (void)self;
-    (void)val;
-    return S_OK;
-}
-
-static HRESULT __stdcall ws_proto_vec_Nop(void *self)
-{
-    (void)self;
-    return S_OK;
-}
-
-static HRESULT __stdcall ws_proto_vec_GetMany(void *self, UINT32 start, UINT32 cap, hstring_t *items, UINT32 *actual)
-{
-    (void)self;
-    (void)start;
-    (void)cap;
-    (void)items;
-    if (actual) *actual = 0;
-    return S_OK;
-}
-
-static HRESULT __stdcall ws_proto_vec_ReplaceAll(void *self, UINT32 count, hstring_t *items)
-{
-    (void)self;
-    (void)count;
-    (void)items;
-    return S_OK;
-}
-
-static const void *ws_proto_vec_vtable[] = {
-    (const void *)ws_proto_vec_QI, (const void *)svc_AddRef, (const void *)svc_Release,
-    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
-    (const void *)ws_proto_vec_GetAt, (const void *)ws_proto_vec_get_Size,
-    (const void *)ws_proto_vec_GetView, (const void *)ws_proto_vec_IndexOf,
-    (const void *)ws_proto_vec_SetAt, (const void *)ws_proto_vec_InsertAt,
-    (const void *)ws_proto_vec_RemoveAt, (const void *)ws_proto_vec_Append,
-    (const void *)ws_proto_vec_Nop, (const void *)ws_proto_vec_Nop,
-    (const void *)ws_proto_vec_GetMany, (const void *)ws_proto_vec_ReplaceAll,
-};
-
-static svc_object ws_proto_vec_singleton = {
-    ws_proto_vec_vtable, 1, "Windows.Foundation.Collections.IVector`1<String>", 1};
-
 static HRESULT __stdcall msg_ws_ctrl_get_SupportedProtocols(void *self, void **out)
 {
-    (void)self;
+    msg_ws_ctrl_object *obj = msg_ws_ctrl_from(self);
     if (!out) return E_POINTER;
-    svc_AddRef(&ws_proto_vec_singleton);
-    *out = &ws_proto_vec_singleton;
+    if (!obj->protos) {
+        obj->protos = ws_proto_vec_new();
+        if (!obj->protos) return E_OUTOFMEMORY;
+    }
+    ws_proto_AddRef(&obj->protos->base);
+    *out = &obj->protos->base;
     return S_OK;
 }
 
@@ -9539,16 +10988,40 @@ static const void *msg_ws_ctrl_base_vtable[] = {
 };
 
 typedef struct {
+    WCHAR *name;
+    WCHAR *val;
+} ws_hdr_pair;
+
+typedef struct {
+    void *handler;
+    long long token;
+} ws_ev_sub;
+
+typedef struct {
     svc_object base;
     svc_object msg_ws2;
     svc_object ws;
     svc_object closable;
+    svc_object info;
+    CRITICAL_SECTION lock;
+    CRITICAL_SECTION send_lock;
     msg_ws_ctrl_object *ctrl;
+    ws_hdr_pair headers[WS_MAX_HEADERS];
+    UINT32 header_count;
+    ws_ev_sub msg_subs[WS_MAX_HANDLERS];
+    ws_ev_sub closed_subs[WS_MAX_HANDLERS];
+    long long next_token;
+    ws_hinternet h_session;
+    ws_hinternet h_connect;
+    ws_hinternet h_ws;
+    WCHAR negotiated_proto[256];
+    LONG closed;
 } msg_ws_object;
 
 static const void *msg_ws2_vtable[];
 static const void *msg_ws_base_vtable[];
 static const void *msg_ws_closable_vtable[];
+static const void *msg_ws_info_vtable[];
 
 static msg_ws_object *msg_ws_from(void *self)
 {
@@ -9559,7 +11032,32 @@ static msg_ws_object *msg_ws_from(void *self)
         return (msg_ws_object *)((char *)self - offsetof(msg_ws_object, ws));
     if (hdr && hdr->vtbl == msg_ws_closable_vtable)
         return (msg_ws_object *)((char *)self - offsetof(msg_ws_object, closable));
+    if (hdr && hdr->vtbl == msg_ws_info_vtable)
+        return (msg_ws_object *)((char *)self - offsetof(msg_ws_object, info));
     return (msg_ws_object *)self;
+}
+
+static void msg_ws_close_handles(msg_ws_object *obj, USHORT code, const char *reason)
+{
+    ws_hinternet hw = NULL, hc = NULL, hs = NULL;
+    EnterCriticalSection(&obj->lock);
+    obj->closed = 1;
+    hw = obj->h_ws;
+    obj->h_ws = NULL;
+    hc = obj->h_connect;
+    obj->h_connect = NULL;
+    hs = obj->h_session;
+    obj->h_session = NULL;
+    LeaveCriticalSection(&obj->lock);
+    if (ws_http.ready) {
+        if (hw) {
+            if (code)
+                ws_http.ws_close(hw, code, (void *)reason, reason ? (DWORD)strlen(reason) : 0);
+            ws_http.close_handle(hw);
+        }
+        if (hc) ws_http.close_handle(hc);
+        if (hs) ws_http.close_handle(hs);
+    }
 }
 
 static ULONG __stdcall msg_ws_AddRef(void *self)
@@ -9572,7 +11070,19 @@ static ULONG __stdcall msg_ws_Release(void *self)
     msg_ws_object *obj = msg_ws_from(self);
     LONG left = InterlockedDecrement(&obj->base.refs);
     if (left <= 0) {
-        if (obj->ctrl) svc_Release(&obj->ctrl->base);
+        UINT32 i;
+        msg_ws_close_handles(obj, 0, NULL);
+        for (i = 0; i < obj->header_count; i++) {
+            free(obj->headers[i].name);
+            free(obj->headers[i].val);
+        }
+        for (i = 0; i < WS_MAX_HANDLERS; i++) {
+            if (obj->msg_subs[i].handler) svc_unref(obj->msg_subs[i].handler);
+            if (obj->closed_subs[i].handler) svc_unref(obj->closed_subs[i].handler);
+        }
+        if (obj->ctrl) msg_ws_ctrl_Release(&obj->ctrl->base);
+        DeleteCriticalSection(&obj->send_lock);
+        DeleteCriticalSection(&obj->lock);
         free(obj);
     }
     return (ULONG)left;
@@ -9597,6 +11107,11 @@ static HRESULT __stdcall msg_ws_QI(void *self, const GUID *id, void **out)
         svc_AddRef(&obj->base);
         return S_OK;
     }
+    if (IsEqualIID(id, &svc_iid_ws_info)) {
+        *out = &obj->info;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
     if (IsEqualIID(id, &svc_iid_msg_ws) || IsEqualIID(id, &svc_iid_unknown) ||
         IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
         *out = &obj->base;
@@ -9608,13 +11123,74 @@ static HRESULT __stdcall msg_ws_QI(void *self, const GUID *id, void **out)
     return E_NOINTERFACE;
 }
 
+static HRESULT __stdcall msg_ws_info_QI(void *self, const GUID *id, void **out)
+{
+    msg_ws_object *obj = msg_ws_from(self);
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_ws_info) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &obj->info;
+        svc_AddRef(&obj->base);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall msg_ws_info_get_LocalAddress(void *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = NULL;
+    return S_OK;
+}
+
+typedef struct {
+    UINT64 outbound_bps;
+    UINT64 inbound_bps;
+    UINT64 outbound_instability;
+    UINT64 inbound_instability;
+    BOOLEAN outbound_peaked;
+    BOOLEAN inbound_peaked;
+} ws_bw_stats;
+
+static HRESULT __stdcall msg_ws_info_get_BandwidthStatistics(void *self, ws_bw_stats *out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    memset(out, 0, sizeof(*out));
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_info_get_Protocol(void *self, hstring_t *out)
+{
+    msg_ws_object *obj = msg_ws_from(self);
+    if (!out) return E_POINTER;
+    EnterCriticalSection(&obj->lock);
+    *out = obj->negotiated_proto[0] ? svc_string(obj->negotiated_proto) : NULL;
+    LeaveCriticalSection(&obj->lock);
+    return S_OK;
+}
+
+static const void *msg_ws_info_vtable[] = {
+    (const void *)msg_ws_info_QI, (const void *)msg_ws_AddRef, (const void *)msg_ws_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)msg_ws_info_get_LocalAddress,
+    (const void *)msg_ws_info_get_BandwidthStatistics,
+    (const void *)msg_ws_info_get_Protocol,
+};
+
 static HRESULT __stdcall msg_ws_get_Control(void *self, void **out)
 {
     msg_ws_object *obj = msg_ws_from(self);
     if (!out) return E_POINTER;
+    EnterCriticalSection(&obj->lock);
     if (!obj->ctrl) {
         obj->ctrl = (msg_ws_ctrl_object *)calloc(1, sizeof(*obj->ctrl));
-        if (!obj->ctrl) return E_OUTOFMEMORY;
+        if (!obj->ctrl) {
+            LeaveCriticalSection(&obj->lock);
+            return E_OUTOFMEMORY;
+        }
         obj->ctrl->base.vtbl = msg_ws_ctrl_vtable;
         obj->ctrl->base.refs = 1;
         obj->ctrl->base.name = "Windows.Networking.Sockets.MessageWebSocketControl";
@@ -9627,18 +11203,80 @@ static HRESULT __stdcall msg_ws_get_Control(void *self, void **out)
     }
     svc_AddRef(&obj->ctrl->base);
     *out = &obj->ctrl->base;
+    LeaveCriticalSection(&obj->lock);
     return S_OK;
 }
 
 static HRESULT __stdcall msg_ws_get_Information(void *self, void **out)
 {
-    (void)self;
+    msg_ws_object *obj = msg_ws_from(self);
     if (!out) return E_POINTER;
-    *out = NULL;
-    return E_NOTIMPL;
+    svc_AddRef(&obj->base);
+    *out = &obj->info;
+    return S_OK;
 }
 
-static HRESULT __stdcall msg_ws_add_Event(void *self, void *handler, long long *token)
+static HRESULT msg_ws_sub_add(msg_ws_object *obj, ws_ev_sub *arr, void *handler, long long *token)
+{
+    UINT32 i;
+    if (!token) return E_POINTER;
+    *token = 0;
+    if (!handler) return E_INVALIDARG;
+    EnterCriticalSection(&obj->lock);
+    for (i = 0; i < WS_MAX_HANDLERS; i++) {
+        if (!arr[i].handler) {
+            svc_ref(handler);
+            obj->next_token++;
+            arr[i].handler = handler;
+            arr[i].token = obj->next_token;
+            *token = arr[i].token;
+            LeaveCriticalSection(&obj->lock);
+            return S_OK;
+        }
+    }
+    LeaveCriticalSection(&obj->lock);
+    return E_OUTOFMEMORY;
+}
+
+static HRESULT msg_ws_sub_remove(msg_ws_object *obj, ws_ev_sub *arr, long long token)
+{
+    UINT32 i;
+    void *drop = NULL;
+    EnterCriticalSection(&obj->lock);
+    for (i = 0; i < WS_MAX_HANDLERS; i++) {
+        if (arr[i].handler && arr[i].token == token) {
+            drop = arr[i].handler;
+            arr[i].handler = NULL;
+            arr[i].token = 0;
+            break;
+        }
+    }
+    LeaveCriticalSection(&obj->lock);
+    if (drop) svc_unref(drop);
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_add_MessageReceived(void *self, void *handler, long long *token)
+{
+    return msg_ws_sub_add(msg_ws_from(self), msg_ws_from(self)->msg_subs, handler, token);
+}
+
+static HRESULT __stdcall msg_ws_remove_MessageReceived(void *self, long long token)
+{
+    return msg_ws_sub_remove(msg_ws_from(self), msg_ws_from(self)->msg_subs, token);
+}
+
+static HRESULT __stdcall msg_ws_add_Closed(void *self, void *handler, long long *token)
+{
+    return msg_ws_sub_add(msg_ws_from(self), msg_ws_from(self)->closed_subs, handler, token);
+}
+
+static HRESULT __stdcall msg_ws_remove_Closed(void *self, long long token)
+{
+    return msg_ws_sub_remove(msg_ws_from(self), msg_ws_from(self)->closed_subs, token);
+}
+
+static HRESULT __stdcall msg_ws_add_Nop(void *self, void *handler, long long *token)
 {
     (void)self;
     (void)handler;
@@ -9646,48 +11284,615 @@ static HRESULT __stdcall msg_ws_add_Event(void *self, void *handler, long long *
     return S_OK;
 }
 
-static HRESULT __stdcall msg_ws_remove_Event(void *self, long long token)
+static HRESULT __stdcall msg_ws_remove_Nop(void *self, long long token)
 {
     (void)self;
     (void)token;
     return S_OK;
 }
 
-static HRESULT __stdcall msg_ws_get_OutputStream(void *self, void **out)
+/* IOutputStream backed by WinHttpWebSocketSend */
+typedef struct {
+    svc_object base;
+    svc_object closable;
+    msg_ws_object *owner;
+} msg_ws_outstream;
+
+static const void *msg_ws_out_vtable[];
+static const void *msg_ws_out_closable_vtable[];
+
+static msg_ws_outstream *msg_ws_out_from(void *self)
 {
+    svc_object *hdr = (svc_object *)self;
+    if (hdr && hdr->vtbl == msg_ws_out_closable_vtable)
+        return (msg_ws_outstream *)((char *)self - offsetof(msg_ws_outstream, closable));
+    return (msg_ws_outstream *)self;
+}
+
+static ULONG __stdcall msg_ws_out_AddRef(void *self) { return svc_AddRef(&msg_ws_out_from(self)->base); }
+
+static ULONG __stdcall msg_ws_out_Release(void *self)
+{
+    msg_ws_outstream *s = msg_ws_out_from(self);
+    LONG left = InterlockedDecrement(&s->base.refs);
+    if (left <= 0) {
+        if (s->owner) msg_ws_Release(&s->owner->base);
+        free(s);
+    }
+    return (ULONG)left;
+}
+
+static HRESULT __stdcall msg_ws_out_QI(void *self, const GUID *id, void **out)
+{
+    msg_ws_outstream *s = msg_ws_out_from(self);
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_closable)) {
+        *out = &s->closable;
+        svc_AddRef(&s->base);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_output_stream) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_device_agile)) {
+        *out = &s->base;
+        svc_AddRef(&s->base);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
+static HRESULT __stdcall msg_ws_out_WriteAsync(void *self, void *buffer, void **out)
+{
+    msg_ws_outstream *s = msg_ws_out_from(self);
+    msg_ws_object *obj = s->owner;
+    const unsigned char *bytes;
+    UINT32 len;
+    DWORD err = ERROR_INVALID_HANDLE;
+    DWORD buf_type = 0; /* WINHTTP_WEB_SOCKET_BINARY_MESSAGE_BUFFER_TYPE */
+    ws_hinternet hw;
+    ws_async_op *op;
+
+    if (!out) return E_POINTER;
+    bytes = buffer_bytes(buffer);
+    len = buffer_length(buffer);
+
+    EnterCriticalSection(&obj->lock);
+    hw = obj->h_ws;
+    if (obj->ctrl && obj->ctrl->msg_type == 1)
+        buf_type = 2; /* WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE */
+    LeaveCriticalSection(&obj->lock);
+
+    if (hw && ws_http.ready) {
+        EnterCriticalSection(&obj->send_lock);
+        err = ws_http.ws_send(hw, buf_type, (void *)bytes, len);
+        LeaveCriticalSection(&obj->send_lock);
+        {
+            char preview[161];
+            unsigned n = len < 160 ? len : 160;
+            if (buf_type == 2 && bytes) {
+                memcpy(preview, bytes, n);
+                preview[n] = 0;
+            } else {
+                preview[0] = 0;
+            }
+            svc_tracef("msg_ws send len=%u type=%lu err=%lu text=%.160s",
+                       len, (unsigned long)buf_type, (unsigned long)err, preview);
+        }
+    }
+
+    op = ws_async_new(ws_async_prog_u32_vtable, &svc_iid_async_op_prog_u32,
+                      err == NO_ERROR ? S_OK : HRESULT_FROM_WIN32(err));
+    if (!op) return E_OUTOFMEMORY;
+    op->u32_result = (err == NO_ERROR) ? len : 0;
+    *out = &op->base;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_out_FlushAsync(void *self, void **out)
+{
+    ws_async_op *op;
     (void)self;
     if (!out) return E_POINTER;
-    *out = NULL;
-    return E_FAIL;
+    op = ws_async_new(ws_async_bool_vtable, &svc_iid_async_op_bool, S_OK);
+    if (!op) return E_OUTOFMEMORY;
+    op->bool_result = 1;
+    *out = &op->base;
+    return S_OK;
+}
+
+static HRESULT __stdcall msg_ws_out_Close(void *self)
+{
+    (void)self;
+    return S_OK;
+}
+
+static const void *msg_ws_out_vtable[] = {
+    (const void *)msg_ws_out_QI, (const void *)msg_ws_out_AddRef, (const void *)msg_ws_out_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)msg_ws_out_WriteAsync, (const void *)msg_ws_out_FlushAsync,
+};
+
+static const void *msg_ws_out_closable_vtable[] = {
+    (const void *)msg_ws_out_QI, (const void *)msg_ws_out_AddRef, (const void *)msg_ws_out_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)msg_ws_out_Close,
+};
+
+static HRESULT __stdcall msg_ws_get_OutputStream(void *self, void **out)
+{
+    msg_ws_object *obj = msg_ws_from(self);
+    msg_ws_outstream *s;
+    if (!out) return E_POINTER;
+    s = (msg_ws_outstream *)calloc(1, sizeof(*s));
+    if (!s) return E_OUTOFMEMORY;
+    s->base.vtbl = msg_ws_out_vtable;
+    s->base.refs = 1;
+    s->base.name = "Windows.Storage.Streams.IOutputStream";
+    s->closable.vtbl = msg_ws_out_closable_vtable;
+    s->closable.refs = 1;
+    s->closable.permanent = 1;
+    s->closable.name = s->base.name;
+    svc_AddRef(&obj->base);
+    s->owner = obj;
+    *out = &s->base;
+    return S_OK;
+}
+
+static void msg_ws_fire_subs(msg_ws_object *obj, ws_ev_sub *arr, void *sender, void *args)
+{
+    typedef HRESULT(__stdcall * invoke_fn)(void *, void *, void *);
+    void *snap[WS_MAX_HANDLERS];
+    UINT32 count = 0, i;
+    EnterCriticalSection(&obj->lock);
+    for (i = 0; i < WS_MAX_HANDLERS; i++) {
+        if (arr[i].handler) {
+            svc_ref(arr[i].handler);
+            snap[count++] = arr[i].handler;
+        }
+    }
+    LeaveCriticalSection(&obj->lock);
+    for (i = 0; i < count; i++) {
+        invoke_fn *slots = *(invoke_fn **)snap[i];
+        if (slots && slots[3]) slots[3](snap[i], sender, args);
+        svc_unref(snap[i]);
+    }
+}
+
+static DWORD WINAPI msg_ws_recv_thread(LPVOID param)
+{
+    msg_ws_object *obj = (msg_ws_object *)param;
+    unsigned char *accum = NULL;
+    UINT32 accum_len = 0, accum_cap = 0;
+    unsigned char chunk[8192];
+    USHORT close_code = 1000;
+    char close_reason[256];
+    close_reason[0] = 0;
+
+    for (;;) {
+        ws_hinternet hw;
+        DWORD nread = 0, btype = 0, err;
+        EnterCriticalSection(&obj->lock);
+        hw = obj->h_ws;
+        LeaveCriticalSection(&obj->lock);
+        if (!hw || obj->closed) break;
+
+        err = ws_http.ws_recv(hw, chunk, sizeof(chunk), &nread, &btype);
+        if (err != NO_ERROR) {
+            svc_tracef("msg_ws recv err=%lu", (unsigned long)err);
+            close_code = 1006;
+            break;
+        }
+        if (btype == 4 /* WINHTTP_WEB_SOCKET_CLOSE_BUFFER_TYPE */) {
+            DWORD rlen = 0;
+            if (ws_http.ws_query_close) {
+                ws_http.ws_query_close(hw, &close_code, close_reason, sizeof(close_reason) - 1, &rlen);
+                if (rlen < sizeof(close_reason)) close_reason[rlen] = 0;
+            }
+            svc_tracef("msg_ws server close code=%u reason=%s", (unsigned)close_code, close_reason);
+            break;
+        }
+        if (nread > 0) {
+            if (accum_len + nread > accum_cap) {
+                UINT32 ncap = accum_cap ? accum_cap * 2 : 8192;
+                unsigned char *nb;
+                while (ncap < accum_len + nread) ncap *= 2;
+                nb = (unsigned char *)realloc(accum, ncap);
+                if (!nb) break;
+                accum = nb;
+                accum_cap = ncap;
+            }
+            memcpy(accum + accum_len, chunk, nread);
+            accum_len += nread;
+        }
+        /* Complete message: 0 = binary complete, 2 = utf8 complete */
+        if (btype == 0 || btype == 2) {
+            msg_ws_recv_args *args = (msg_ws_recv_args *)calloc(1, sizeof(*args));
+            if (args) {
+                args->base.vtbl = msg_ws_recv_args_vtable;
+                args->base.refs = 1;
+                args->base.name = "Windows.Networking.Sockets.MessageWebSocketMessageReceivedEventArgs";
+                args->msg_type = (btype == 2) ? 1 : 0;
+                args->data = accum;
+                args->len = accum_len;
+                accum = NULL;
+                accum_len = 0;
+                accum_cap = 0;
+                {
+                    char preview[161];
+                    unsigned n = args->len < 160 ? args->len : 160;
+                    if (args->msg_type == 1 && args->data) {
+                        memcpy(preview, args->data, n);
+                        preview[n] = 0;
+                    } else {
+                        preview[0] = 0;
+                    }
+                    svc_tracef("msg_ws recv msg len=%u type=%d text=%.160s",
+                               args->len, args->msg_type, preview);
+                }
+                msg_ws_fire_subs(obj, obj->msg_subs, &obj->base, &args->base);
+                msg_ws_recv_args_Release(&args->base);
+            } else {
+                accum_len = 0;
+            }
+        }
+    }
+
+    free(accum);
+
+    if (!obj->closed) {
+        msg_ws_closed_args *cargs = (msg_ws_closed_args *)calloc(1, sizeof(*cargs));
+        if (cargs) {
+            cargs->base.vtbl = msg_ws_closed_args_vtable;
+            cargs->base.refs = 1;
+            cargs->base.name = "Windows.Networking.Sockets.WebSocketClosedEventArgs";
+            cargs->code = close_code;
+            if (close_reason[0]) {
+                int wlen = MultiByteToWideChar(CP_UTF8, 0, close_reason, -1, NULL, 0);
+                if (wlen > 0) {
+                    cargs->reason = (WCHAR *)malloc((size_t)wlen * sizeof(WCHAR));
+                    if (cargs->reason)
+                        MultiByteToWideChar(CP_UTF8, 0, close_reason, -1, cargs->reason, wlen);
+                }
+            }
+            msg_ws_fire_subs(obj, obj->closed_subs, &obj->ws, &cargs->base);
+            msg_ws_closed_args_Release(&cargs->base);
+        }
+    }
+
+    msg_ws_Release(&obj->base);
+    return 0;
+}
+
+typedef struct {
+    msg_ws_object *obj;
+    void *action;
+    WCHAR *uri_w;
+} msg_ws_connect_ctx;
+
+static DWORD WINAPI msg_ws_connect_thread(LPVOID param)
+{
+    msg_ws_connect_ctx *ctx = (msg_ws_connect_ctx *)param;
+    msg_ws_object *obj = ctx->obj;
+    void *action = ctx->action;
+    WCHAR *uri_w = ctx->uri_w;
+    HRESULT hr = E_FAIL;
+    int is_wss = 1;
+    WCHAR host[256];
+    WCHAR path[1024];
+    WORD port = 443;
+    ws_hinternet h_sess = NULL, h_conn = NULL, h_req = NULL, h_ws = NULL;
+    const WCHAR *p, *host_end, *path_start, *colon;
+    char uri_utf8[512];
+
+    free(ctx);
+
+    uri_utf8[0] = 0;
+    if (uri_w) WideCharToMultiByte(CP_UTF8, 0, uri_w, -1, uri_utf8, sizeof(uri_utf8), NULL, NULL);
+    svc_tracef("msg_ws ConnectAsync %s", uri_utf8);
+
+    if (!uri_w || !ws_http_ensure()) goto done;
+
+    p = uri_w;
+    if (_wcsnicmp(p, L"wss://", 6) == 0) {
+        is_wss = 1;
+        port = 443;
+        p += 6;
+    } else if (_wcsnicmp(p, L"ws://", 5) == 0) {
+        is_wss = 0;
+        port = 80;
+        p += 5;
+    } else if (_wcsnicmp(p, L"https://", 8) == 0) {
+        is_wss = 1;
+        port = 443;
+        p += 8;
+    } else if (_wcsnicmp(p, L"http://", 7) == 0) {
+        is_wss = 0;
+        port = 80;
+        p += 7;
+    } else {
+        goto done;
+    }
+
+    path_start = wcschr(p, L'/');
+    host_end = path_start ? path_start : (p + wcslen(p));
+    colon = NULL;
+    {
+        const WCHAR *q;
+        for (q = p; q < host_end; q++) {
+            if (*q == L':') {
+                colon = q;
+                break;
+            }
+        }
+    }
+    if (colon) {
+        size_t hlen = (size_t)(colon - p);
+        if (hlen == 0 || hlen >= 255) goto done;
+        memcpy(host, p, hlen * sizeof(WCHAR));
+        host[hlen] = 0;
+        port = (WORD)_wtoi(colon + 1);
+    } else {
+        size_t hlen = (size_t)(host_end - p);
+        if (hlen == 0 || hlen >= 255) goto done;
+        memcpy(host, p, hlen * sizeof(WCHAR));
+        host[hlen] = 0;
+    }
+    if (path_start && path_start[0]) {
+        wcsncpy(path, path_start, 1023);
+        path[1023] = 0;
+    } else {
+        wcscpy(path, L"/");
+    }
+
+    h_sess = ws_http.open(L"XboxLiveUwp/1.0", 0, NULL, NULL, 0);
+    if (!h_sess) goto done;
+    h_conn = ws_http.connect(h_sess, host, port, 0);
+    if (!h_conn) goto done;
+    h_req = ws_http.open_req(h_conn, L"GET", path, NULL, NULL, NULL,
+                             is_wss ? 0x00800000 /* WINHTTP_FLAG_SECURE */ : 0);
+    if (!h_req) goto done;
+
+    if (!ws_http.set_opt(h_req, 114 /* WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET */, NULL, 0)) {
+        svc_tracef("msg_ws set_opt UPGRADE failed err=%lu", (unsigned long)GetLastError());
+        goto done;
+    }
+
+    /* Add Sec-WebSocket-Protocol from SupportedProtocols */
+    EnterCriticalSection(&obj->lock);
+    if (obj->ctrl && obj->ctrl->protos && obj->ctrl->protos->count > 0) {
+        WCHAR proto_hdr[512];
+        UINT32 i;
+        wcscpy(proto_hdr, L"Sec-WebSocket-Protocol: ");
+        EnterCriticalSection(&obj->ctrl->protos->lock);
+        for (i = 0; i < obj->ctrl->protos->count; i++) {
+            if (i > 0 && wcslen(proto_hdr) + 2 < 510) wcscat(proto_hdr, L", ");
+            if (obj->ctrl->protos->items[i] &&
+                wcslen(proto_hdr) + wcslen(obj->ctrl->protos->items[i]) < 510) {
+                wcscat(proto_hdr, obj->ctrl->protos->items[i]);
+            }
+        }
+        LeaveCriticalSection(&obj->ctrl->protos->lock);
+        if (ws_http.add_hdrs)
+            ws_http.add_hdrs(h_req, proto_hdr, (DWORD)-1, 0xA0000000 /* ADD|REPLACE */);
+    }
+    /* Add custom headers from SetRequestHeader */
+    if (ws_http.add_hdrs) {
+        UINT32 i;
+        for (i = 0; i < obj->header_count; i++) {
+            size_t nlen = wcslen(obj->headers[i].name);
+            size_t vlen = wcslen(obj->headers[i].val);
+            WCHAR *line = (WCHAR *)malloc((nlen + vlen + 4) * sizeof(WCHAR));
+            if (line) {
+                swprintf(line, nlen + vlen + 4, L"%ls: %ls", obj->headers[i].name, obj->headers[i].val);
+                ws_http.add_hdrs(h_req, line, (DWORD)-1, 0xA0000000);
+                free(line);
+            }
+        }
+    }
+    LeaveCriticalSection(&obj->lock);
+
+    if (!ws_http.send_req(h_req, NULL, 0, NULL, 0, 0, 0)) {
+        DWORD e = GetLastError();
+        svc_tracef("msg_ws SendRequest failed err=%lu", (unsigned long)e);
+        hr = HRESULT_FROM_WIN32(e);
+        goto done;
+    }
+    if (!ws_http.recv_resp(h_req, NULL)) {
+        DWORD e = GetLastError();
+        svc_tracef("msg_ws ReceiveResponse failed err=%lu", (unsigned long)e);
+        hr = HRESULT_FROM_WIN32(e);
+        goto done;
+    }
+
+    {
+        DWORD status = 0, ssz = sizeof(status);
+        if (ws_http.query_hdrs)
+            ws_http.query_hdrs(h_req, 19 | 0x20000000 /* STATUS_CODE|NUMBER */, NULL, &status, &ssz, NULL);
+        svc_tracef("msg_ws HTTP status=%lu", (unsigned long)status);
+        if (status != 101) {
+            hr = E_FAIL;
+            goto done;
+        }
+        if (ws_http.query_hdrs) {
+            WCHAR pbuf[256];
+            DWORD psz = sizeof(pbuf);
+            if (ws_http.query_hdrs(h_req, 65535 /* CUSTOM */, L"Sec-WebSocket-Protocol", pbuf, &psz, NULL)) {
+                EnterCriticalSection(&obj->lock);
+                wcsncpy(obj->negotiated_proto, pbuf, 255);
+                obj->negotiated_proto[255] = 0;
+                LeaveCriticalSection(&obj->lock);
+            }
+        }
+    }
+
+    h_ws = ws_http.ws_upgrade(h_req, 0);
+    if (!h_ws) {
+        DWORD e = GetLastError();
+        svc_tracef("msg_ws CompleteUpgrade failed err=%lu", (unsigned long)e);
+        hr = HRESULT_FROM_WIN32(e);
+        goto done;
+    }
+    ws_http.close_handle(h_req);
+    h_req = NULL;
+
+    EnterCriticalSection(&obj->lock);
+    if (obj->closed) {
+        LeaveCriticalSection(&obj->lock);
+        ws_http.close_handle(h_ws);
+        h_ws = NULL;
+        hr = E_ABORT;
+        goto done;
+    }
+    obj->h_session = h_sess;
+    obj->h_connect = h_conn;
+    obj->h_ws = h_ws;
+    h_sess = h_conn = h_ws = NULL;
+    LeaveCriticalSection(&obj->lock);
+
+    svc_tracef("msg_ws connected ok (%s)", uri_utf8);
+    hr = S_OK;
+
+    /* Start background receive loop before finishing ConnectAsync */
+    svc_AddRef(&obj->base);
+    {
+        HANDLE rt = CreateThread(NULL, 0, msg_ws_recv_thread, obj, 0, NULL);
+        if (rt) CloseHandle(rt);
+        else msg_ws_Release(&obj->base);
+    }
+
+done:
+    if (ws_http.ready) {
+        if (h_ws) ws_http.close_handle(h_ws);
+        if (h_req) ws_http.close_handle(h_req);
+        if (h_conn) ws_http.close_handle(h_conn);
+        if (h_sess) ws_http.close_handle(h_sess);
+    }
+    free(uri_w);
+    svc_action_finish(action, hr);
+    svc_Release((svc_object *)action);
+    msg_ws_Release(&obj->base);
+    return 0;
 }
 
 static HRESULT __stdcall msg_ws_ConnectAsync(void *self, void *uri, void **out)
 {
-    (void)self;
-    (void)uri;
+    typedef HRESULT(WINAPI * qi_fn)(void *, const GUID *, void **);
+    typedef HRESULT(WINAPI * get_hstr_fn)(void *, hstring_t *);
+    msg_ws_object *obj = msg_ws_from(self);
+    void *uri_iface = NULL;
+    hstring_t hs = NULL;
+    WCHAR *uri_w = NULL;
+    void *action;
+    msg_ws_connect_ctx *ctx;
+    HANDLE th;
+
     if (!out) return E_POINTER;
-    return async_action(E_FAIL, out);
+    if (!uri) return async_action(E_INVALIDARG, out);
+
+    if (SUCCEEDED(((qi_fn)(*(const void *const *const *)uri)[0])(uri, &svc_iid_uri_rt, &uri_iface)) && uri_iface) {
+        /* IUriRuntimeClass slot 6 = get_AbsoluteUri, slot 17 = get_RawUri */
+        const void *const *vt = *(const void *const *const *)uri_iface;
+        if (FAILED(((get_hstr_fn)vt[6])(uri_iface, &hs)) || !hs)
+            ((get_hstr_fn)vt[17])(uri_iface, &hs);
+        svc_unref(uri_iface);
+    } else {
+        const void *const *vt = *(const void *const *const *)uri;
+        ((get_hstr_fn)vt[6])(uri, &hs);
+    }
+    if (hs) {
+        uri_w = ws_dup_hstring(hs);
+        if (svc_delete_hstring) svc_delete_hstring(hs);
+    }
+    if (!uri_w || !uri_w[0]) {
+        free(uri_w);
+        return async_action(E_INVALIDARG, out);
+    }
+
+    action = svc_action_started();
+    if (!action) {
+        free(uri_w);
+        return E_OUTOFMEMORY;
+    }
+    ctx = (msg_ws_connect_ctx *)calloc(1, sizeof(*ctx));
+    if (!ctx) {
+        free(uri_w);
+        svc_Release((svc_object *)action);
+        return E_OUTOFMEMORY;
+    }
+    svc_AddRef(&obj->base);
+    svc_AddRef((svc_object *)action);
+    ctx->obj = obj;
+    ctx->action = action;
+    ctx->uri_w = uri_w;
+
+    th = CreateThread(NULL, 0, msg_ws_connect_thread, ctx, 0, NULL);
+    if (!th) {
+        free(uri_w);
+        free(ctx);
+        svc_action_finish(action, E_FAIL);
+        svc_Release((svc_object *)action);
+        msg_ws_Release(&obj->base);
+        *out = action;
+        return S_OK;
+    }
+    CloseHandle(th);
+    *out = action;
+    return S_OK;
 }
 
 static HRESULT __stdcall msg_ws_SetRequestHeader(void *self, hstring_t name, hstring_t val)
 {
-    (void)self;
-    (void)name;
-    (void)val;
+    msg_ws_object *obj = msg_ws_from(self);
+    WCHAR *nw = ws_dup_hstring(name);
+    WCHAR *vw = ws_dup_hstring(val);
+    UINT32 i;
+    if (!nw || !vw) {
+        free(nw);
+        free(vw);
+        return E_OUTOFMEMORY;
+    }
+    EnterCriticalSection(&obj->lock);
+    for (i = 0; i < obj->header_count; i++) {
+        if (_wcsicmp(obj->headers[i].name, nw) == 0) {
+            free(obj->headers[i].val);
+            obj->headers[i].val = vw;
+            free(nw);
+            LeaveCriticalSection(&obj->lock);
+            return S_OK;
+        }
+    }
+    if (obj->header_count < WS_MAX_HEADERS) {
+        obj->headers[obj->header_count].name = nw;
+        obj->headers[obj->header_count].val = vw;
+        obj->header_count++;
+    } else {
+        free(nw);
+        free(vw);
+    }
+    LeaveCriticalSection(&obj->lock);
     return S_OK;
 }
 
 static HRESULT __stdcall msg_ws_CloseWithStatus(void *self, UINT16 code, hstring_t reason)
 {
-    (void)self;
-    (void)code;
-    (void)reason;
+    msg_ws_object *obj = msg_ws_from(self);
+    char rbuf[128];
+    rbuf[0] = 0;
+    if (reason) {
+        const WCHAR *raw = NULL;
+        UINT32 len = 0;
+        svc_load_hstring();
+        if (svc_hstring_buffer) raw = svc_hstring_buffer(reason, &len);
+        if (raw && len)
+            WideCharToMultiByte(CP_UTF8, 0, raw, (int)len, rbuf, sizeof(rbuf) - 1, NULL, NULL);
+    }
+    msg_ws_close_handles(obj, code ? code : 1000, rbuf[0] ? rbuf : NULL);
     return S_OK;
 }
 
 static HRESULT __stdcall msg_ws_Close(void *self)
 {
-    (void)self;
+    msg_ws_close_handles(msg_ws_from(self), 1000, NULL);
     return S_OK;
 }
 
@@ -9695,21 +11900,21 @@ static const void *msg_ws_vtable[] = {
     (const void *)msg_ws_QI, (const void *)msg_ws_AddRef, (const void *)msg_ws_Release,
     (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
     (const void *)msg_ws_get_Control, (const void *)msg_ws_get_Information,
-    (const void *)msg_ws_add_Event, (const void *)msg_ws_remove_Event,
+    (const void *)msg_ws_add_MessageReceived, (const void *)msg_ws_remove_MessageReceived,
 };
 
 static const void *msg_ws2_vtable[] = {
     (const void *)msg_ws_QI, (const void *)msg_ws_AddRef, (const void *)msg_ws_Release,
     (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
-    (const void *)msg_ws_add_Event, (const void *)msg_ws_remove_Event,
+    (const void *)msg_ws_add_Nop, (const void *)msg_ws_remove_Nop,
 };
 
 static const void *msg_ws_base_vtable[] = {
     (const void *)msg_ws_QI, (const void *)msg_ws_AddRef, (const void *)msg_ws_Release,
     (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
     (const void *)msg_ws_get_OutputStream, (const void *)msg_ws_ConnectAsync,
-    (const void *)msg_ws_SetRequestHeader, (const void *)msg_ws_add_Event,
-    (const void *)msg_ws_remove_Event, (const void *)msg_ws_CloseWithStatus,
+    (const void *)msg_ws_SetRequestHeader, (const void *)msg_ws_add_Closed,
+    (const void *)msg_ws_remove_Closed, (const void *)msg_ws_CloseWithStatus,
 };
 
 static const void *msg_ws_closable_vtable[] = {
@@ -9724,6 +11929,8 @@ static HRESULT msg_ws_new(void **out)
     if (!out) return E_POINTER;
     obj = (msg_ws_object *)calloc(1, sizeof(*obj));
     if (!obj) return E_OUTOFMEMORY;
+    InitializeCriticalSection(&obj->lock);
+    InitializeCriticalSection(&obj->send_lock);
     obj->base.vtbl = msg_ws_vtable;
     obj->base.refs = 1;
     obj->base.name = "Windows.Networking.Sockets.MessageWebSocket";
@@ -9739,6 +11946,10 @@ static HRESULT msg_ws_new(void **out)
     obj->closable.refs = 1;
     obj->closable.permanent = 1;
     obj->closable.name = obj->base.name;
+    obj->info.vtbl = msg_ws_info_vtable;
+    obj->info.refs = 1;
+    obj->info.permanent = 1;
+    obj->info.name = "Windows.Networking.Sockets.MessageWebSocketInformation";
     *out = &obj->base;
     return S_OK;
 }
@@ -9779,6 +11990,7 @@ static svc_class service_classes[] = {
     {L"Windows.Foundation.Diagnostics.LoggingFields", NULL, diag_logging_fields_vtable, 1, {0}},
     {L"Windows.Networking.PushNotifications.PushNotificationChannelManager", &push_mgr_static, NULL, 0, {0}},
     {L"Windows.Networking.XboxLive.XboxLiveDeviceAddress", &xbl_devaddr_static, NULL, 0, {0}},
+    {L"Windows.Networking.XboxLive.XboxLiveEndpointPairTemplate", &xbl_ept_static, NULL, 0, {0}},
     {L"Windows.ApplicationModel.Resources.Core.ResourceContext", &resctx_static, resctx_vtable, 1, {0}},
     {L"Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionSession", NULL, ext_exec_vtable, 1, {0}},
     {L"Windows.Networking.Sockets.MessageWebSocket", NULL, msg_ws_vtable, 1, {0}},
@@ -9795,7 +12007,6 @@ static HRESULT svc_factory_QI(svc_object *self, const GUID *id, void **out)
         return S_OK;
     }
     if (entry && entry->statics && entry->statics->vtbl && entry->statics->vtbl[0]) {
-        svc_trace_iid("statics QI", id);
         return ((HRESULT(__stdcall *)(void *, const GUID *, void **))entry->statics->vtbl[0])(
             entry->statics, id, out);
     }
@@ -9978,8 +12189,29 @@ void uwp_services_install(void)
             "Windows.Networking.XboxLive.XboxLiveDeviceAddress");
     INSTALL(xbl_devaddr_local.base, xbl_devaddr_vtable,
             "Windows.Networking.XboxLive.XboxLiveDeviceAddress");
-    xbl_devaddr_local.is_local = TRUE;
-    xbl_devaddr_local.is_valid = FALSE;
+    {
+        /* Valid 72-byte Windows 10 XboxLiveDeviceAddress snapshot (version 1 +
+           16-byte host ID + Teredo/IPv6 record + local IPv4 record) so MPSD
+           accepts our local secureDeviceAddress instead of rejecting an empty
+           string. */
+        static const unsigned char default_sda[72] = {
+            0x01, 0x00, 0x0e, 0x44, 0x52, 0x4f, 0x49, 0x44,
+            0x44, 0x45, 0x43, 0x4b, 0x58, 0x42, 0x4c, 0x31,
+            0x04, 0x06, 0x02, 0x20, 0x01, 0x00, 0x00, 0x14,
+            0xc9, 0xc8, 0x4c, 0x2c, 0xf4, 0x3a, 0x96, 0x3f,
+            0x57, 0xcd, 0x1f, 0x02, 0xfd, 0x7a, 0x11, 0x5c,
+            0xa1, 0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0xf3, 0x3a, 0xc7, 0x75, 0x01, 0x64, 0x68, 0xc7,
+            0x75, 0x01, 0xac, 0x1c, 0x90, 0x01, 0x01, 0xc0,
+            0xa8, 0x01, 0x64, 0x01, 0x0a, 0x00, 0x02, 0x0f,
+        };
+        memcpy(xbl_devaddr_local.snapshot, default_sda, sizeof default_sda);
+        xbl_devaddr_local.snapshot_len = sizeof default_sda;
+        xbl_devaddr_local.is_local = TRUE;
+        xbl_devaddr_local.is_valid = TRUE;
+    }
+    INSTALL(xbl_ept_static, xbl_ept_statics_vtable,
+            "Windows.Networking.XboxLive.XboxLiveEndpointPairTemplate");
     INSTALL(resctx_static, resctx_statics_vtable,
             "Windows.ApplicationModel.Resources.Core.ResourceContext");
     INSTALL(resctx_static2, resctx_statics2_vtable,

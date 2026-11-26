@@ -566,3 +566,55 @@ class PlayFabProxyTest(unittest.TestCase):
                                                     {'DD_LAUNCH_DIR': '/launch', 'WINEDLLOVERRIDES': 'd3d11=n'}), 0)
                 self.assertEqual(wine.call_args.args[1]['WINEDLLOVERRIDES'], 'd3d11=n')
             self.assertEqual(staged, [root])
+
+
+class ComClassRegistrationTest(unittest.TestCase):
+    XHR_CLSID = '{88d96a0a-f192-11d4-a65f-0040963251e5}'
+    OTHER_CLSID = '{11111111-2222-3333-4444-555555555555}'
+
+    def test_com_class_paths_parses_inprocserver32_entries(self):
+        registry = (
+            '[Software\\\\Classes\\\\CLSID\\\\{88D96A0A-F192-11D4-A65F-0040963251E5}\\\\InprocServer32] 1700000000\n'
+            '@="C:\\\\windows\\\\system32\\\\uwp-host.dll"\n'
+            '"ThreadingModel"="Both"\n'
+            '[Software\\\\Classes\\\\CLSID\\\\{11111111-2222-3333-4444-555555555555}\\\\ProgID] 1700000000\n'
+            '@="Ignored.ProgID"\n'
+        )
+        self.assertEqual(
+            xbox['com_class_paths'](registry),
+            {self.XHR_CLSID: 'C:\\windows\\system32\\uwp-host.dll'},
+        )
+
+    def test_register_com_classes_imports_only_missing_or_mismatched_clsids(self):
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root)
+            (prefix / 'system.reg').write_text(
+                '[Software\\\\Classes\\\\CLSID\\\\{88d96a0a-f192-11d4-a65f-0040963251e5}\\\\InprocServer32]\n'
+                '@="C:\\\\windows\\\\system32\\\\msxml6.dll"\n',
+                encoding='utf-8',
+            )
+            imported = []
+            def fake_run(cmd, **kwargs):
+                reg_path = Path(cmd[-1][2:].replace('\\', '/'))
+                imported.append(reg_path.read_bytes().decode('utf-16'))
+                return unittest.mock.Mock(returncode=0)
+
+            with patch('subprocess.run', side_effect=fake_run) as run:
+                xbox['register_com_classes']('/proton', prefix, {}, 'uwp-host.dll', [self.XHR_CLSID])
+            self.assertEqual(run.call_count, 1)
+            self.assertIn(self.XHR_CLSID, imported[0])
+            self.assertIn('C:\\\\windows\\\\system32\\\\uwp-host.dll', imported[0])
+            self.assertIn('"ThreadingModel"="Both"', imported[0])
+
+    def test_register_com_classes_skips_when_already_pointing_to_target_dll(self):
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root)
+            (prefix / 'system.reg').write_text(
+                '[Software\\\\Classes\\\\CLSID\\\\{88d96a0a-f192-11d4-a65f-0040963251e5}\\\\InprocServer32]\n'
+                '@="C:\\\\windows\\\\system32\\\\uwp-host.dll"\n',
+                encoding='utf-8',
+            )
+            with patch('subprocess.run') as run:
+                xbox['register_com_classes']('/proton', prefix, {}, 'uwp-host.dll', [self.XHR_CLSID])
+            run.assert_not_called()
+

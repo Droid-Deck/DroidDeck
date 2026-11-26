@@ -65,6 +65,12 @@ static const GUID iid_core_application_use_count = {0x518dc408, 0xc077, 0x475b,
 /* Windows.ApplicationModel.Core.ICoreApplicationExit */
 static const GUID iid_core_application_exit = {0xcf86461d, 0x261e, 0x4b72,
                                                {0x9a, 0xcd, 0x44, 0xed, 0x2a, 0xce, 0x6a, 0x29}};
+/* Windows.ApplicationModel.Core.ICoreApplication3 */
+static const GUID iid_core_application3 = {0xfeec0d39, 0x598b, 0x4507,
+                                           {0x8a, 0x67, 0x77, 0x26, 0x32, 0x58, 0x0a, 0x57}};
+/* IAsyncOperation<AppRestartFailureReason> */
+static const GUID iid_async_restart_reason = {0x00375305, 0x248c, 0x5d94,
+                                              {0xac, 0x50, 0x35, 0x8a, 0x57, 0xa0, 0x22, 0xb5}};
 /* Windows.ApplicationModel.Core.ICoreApplicationUnhandledError */
 static const GUID iid_core_application_unhandled = {0xf0e24ab0, 0xdd09, 0x42e1,
                                                     {0xb0, 0xbc, 0xe0, 0xe1, 0x31, 0xf7, 0x8d, 0x7e}};
@@ -416,7 +422,11 @@ static HRESULT host_null_out(void *self, void *out)
 
 static HWND host_window;
 static int host_quit;
+static LONG host_closed_fired;
+static LONG app_exit_requested;
+static LONG app_restart_started;
 static void run_dispatched(void);
+static void fire_window_closed(void);
 
 static LRESULT CALLBACK host_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
@@ -425,6 +435,7 @@ static LRESULT CALLBACK host_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPA
         run_dispatched();
         return 0;
     case WM_CLOSE:
+        fire_window_closed();
         DestroyWindow(hwnd);
         return 0;
     case WM_DESTROY:
@@ -1359,6 +1370,22 @@ static window_event_args visibility_args = {
     &iid_visibility_args,
 };
 
+static void fire_delegate(void *handler, void *sender, void *args);
+
+static window_event_args closed_args = {
+    {handled_args_vtable, 1, "Windows.UI.Core.CoreWindowEventArgs", 1, NULL},
+    {handled_args_vtable, 1, "Windows.UI.Core.CoreWindowEventArgs", 1, NULL},
+    {0, 0, 0, 0, 0},
+    &iid_core_window_args,
+};
+
+static void fire_window_closed(void)
+{
+    if (InterlockedExchange(&host_closed_fired, 1)) return;
+    trace("window Closed");
+    fire_delegate(cw_event_handler[CW_EV_CLOSED], &window, &closed_args);
+}
+
 /* CoreApplicationView::Activated hands a title IActivatedEventArgs, and for a
    launch that object also offers ILaunchActivatedEventArgs. A handler that
    casts to it and finds nothing treats the activation as one it cannot use,
@@ -1614,28 +1641,121 @@ static HRESULT ca_face_qi(host_object *self, const GUID *id, void **out)
     return ca_query_interface(&application, id, out);
 }
 
+static void *ca_exit_handler;
+static long long ca_exit_token;
+
+HRESULT svc_u32_op(const GUID *op_iid, HRESULT error, UINT32 value, void **out);
+
+static DWORD WINAPI ca_exit_watchdog(LPVOID param)
+{
+    (void)param;
+    Sleep(3000);
+    trace("CoreApplication::Exit watchdog terminating process");
+    ExitProcess(0);
+    return 0;
+}
+
 static HRESULT ca_exit_Exit(host_object *self)
 {
+    HANDLE wd;
     (void)self;
     trace("CoreApplication::Exit");
+    if (!InterlockedExchange(&app_exit_requested, 1)) {
+        if (ca_exit_handler) {
+            trace("CoreApplication::Exiting fire");
+            fire_delegate(ca_exit_handler, NULL, NULL);
+        }
+        /* On Windows UWP, CoreApplication::Exit shuts down the process. If the
+           title's Run loop or background threads stall after window teardown
+           (e.g., applying graphics preset changes that require restart), do not
+           leave a windowless zombie on a black screen. */
+        wd = CreateThread(NULL, 0, ca_exit_watchdog, NULL, 0, NULL);
+        if (wd) CloseHandle(wd);
+    }
     return cw_Close(&window);
 }
 
 static HRESULT ca_exit_add_Exiting(host_object *self, void *handler, long long *token)
 {
     (void)self;
-    (void)handler;
     if (!token) return E_POINTER;
-    *token = 1;
+    com_release(ca_exit_handler);
+    ca_exit_handler = handler;
+    com_add_ref(handler);
+    ca_exit_token++;
+    *token = ca_exit_token;
     return S_OK;
 }
 
 static HRESULT ca_exit_remove_Exiting(host_object *self, long long token)
 {
     (void)self;
-    (void)token;
+    if (token == ca_exit_token) {
+        com_release(ca_exit_handler);
+        ca_exit_handler = NULL;
+    }
     return S_OK;
 }
+
+static HRESULT ca3_request_restart_impl(hstring_t args, void **operation)
+{
+    (void)args;
+    if (!operation) return E_POINTER;
+    trace("CoreApplication::RequestRestartAsync");
+    if (!InterlockedExchange(&app_restart_started, 1)) {
+        WCHAR exe[MAX_PATH];
+        DWORD len = GetModuleFileNameW(NULL, exe, MAX_PATH);
+        if (len > 0 && len < MAX_PATH) {
+            STARTUPINFOW si;
+            PROCESS_INFORMATION pi;
+            WCHAR cmd[2048];
+            const WCHAR *orig = GetCommandLineW();
+            memset(&si, 0, sizeof si);
+            si.cb = sizeof si;
+            memset(&pi, 0, sizeof pi);
+            cmd[0] = 0;
+            if (orig && orig[0]) {
+                wcsncpy(cmd, orig, (sizeof cmd / sizeof cmd[0]) - 1);
+                cmd[(sizeof cmd / sizeof cmd[0]) - 1] = 0;
+            }
+            if (CreateProcessW(exe, cmd[0] ? cmd : NULL, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+                trace("CoreApplication::RequestRestartAsync spawned new process");
+                CloseHandle(pi.hThread);
+                CloseHandle(pi.hProcess);
+                ca_exit_Exit(NULL);
+                return svc_u32_op(&iid_async_restart_reason, S_OK, 0 /* RestartPending */, operation);
+            }
+            trace("CoreApplication::RequestRestartAsync CreateProcessW failed");
+        }
+        return svc_u32_op(&iid_async_restart_reason, S_OK, 3 /* Other */, operation);
+    }
+    return svc_u32_op(&iid_async_restart_reason, S_OK, 0 /* RestartPending */, operation);
+}
+
+static HRESULT ca3_RequestRestartAsync(host_object *self, hstring_t args, void **operation)
+{
+    (void)self;
+    return ca3_request_restart_impl(args, operation);
+}
+
+static HRESULT ca3_RequestRestartForUserAsync(host_object *self, void *user, hstring_t args, void **operation)
+{
+    (void)self;
+    (void)user;
+    return ca3_request_restart_impl(args, operation);
+}
+
+static const void *ca3_vtable[] = {
+    (const void *)ca_face_qi, (const void *)host_add_ref, (const void *)host_release,
+    (const void *)host_get_iids, (const void *)host_get_runtime_class_name,
+    (const void *)host_get_trust_level,
+    (const void *)ca3_RequestRestartAsync,
+    (const void *)ca3_RequestRestartForUserAsync,
+};
+
+static host_object ca3_face = {
+    ca3_vtable, 1000, "Windows.ApplicationModel.Core.CoreApplication", 1, NULL,
+};
 
 static const void *ca_exit_vtable[] = {
     (const void *)ca_face_qi, (const void *)host_add_ref, (const void *)host_release,
@@ -1703,6 +1823,11 @@ static HRESULT ca_query_interface(core_application *self, const GUID *id, void *
     if (IsEqualIID(id, &iid_core_application_exit)) {
         *out = &ca_exit_face;
         host_add_ref(&ca_exit_face);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &iid_core_application3)) {
+        *out = &ca3_face;
+        host_add_ref(&ca3_face);
         return S_OK;
     }
     if (IsEqualIID(id, &iid_core_application_use_count)) {
@@ -2040,6 +2165,10 @@ cleanup:
         if (IsWindow(host_window)) DestroyWindow(host_window);
         host_window = NULL;
     }
+    if (InterlockedCompareExchange(&app_exit_requested, 0, 0)) {
+        trace("drive_view exiting process after CoreApplication::Exit");
+        ExitProcess(0);
+    }
     return hr;
 }
 
@@ -2204,6 +2333,7 @@ extern int uwp_auth_lookup(const WCHAR *class_name, void **factory);
 extern void uwp_gamesave_install(void);
 extern int uwp_gamesave_lookup(const WCHAR *class_name, void **factory);
 extern int uwp_json_lookup(const WCHAR *class_name, void **factory);
+extern HRESULT uwp_xhr2_get_class_object(REFCLSID clsid, REFIID riid, void **out);
 
 static host_object factories[sizeof(classes) / sizeof(classes[0])];
 
@@ -2291,12 +2421,11 @@ __declspec(dllexport) HRESULT __stdcall DllGetActivationFactory(hstring_t class_
         }
     }
     ensure_installed();
-    trace("activation request");
     if (!factory) return E_POINTER;
     *factory = NULL;
     name = hstring_text(class_id);
     if (!name) return E_INVALIDARG;
-    {
+    if (wcsncmp(name, L"Windows.Security.Cryptography.", 30) != 0) {
         char line[300];
         char narrow[256];
         int at;
@@ -2304,8 +2433,8 @@ __declspec(dllexport) HRESULT __stdcall DllGetActivationFactory(hstring_t class_
         narrow[at] = 0;
         snprintf(line, sizeof line, "class: %s", narrow);
         trace_sink(line);
+        trace_text("activate", name);
     }
-    trace_text("activate", name);
     for (i = 0; i < sizeof(classes) / sizeof(classes[0]); i++) {
         if (wcscmp(name, classes[i].class_name) == 0) {
             *factory = &factories[i];
@@ -2318,6 +2447,14 @@ __declspec(dllexport) HRESULT __stdcall DllGetActivationFactory(hstring_t class_
     if (uwp_json_lookup(name, factory)) return S_OK;
     trace_text("no host for class", name);
     return CLASS_E_CLASSNOTAVAILABLE;
+}
+
+__declspec(dllexport) HRESULT __stdcall DllGetClassObject(REFCLSID clsid, REFIID riid, void **out)
+{
+    ensure_installed();
+    if (!out) return E_POINTER;
+    *out = NULL;
+    return uwp_xhr2_get_class_object(clsid, riid, out);
 }
 
 __declspec(dllexport) HRESULT __stdcall DllCanUnloadNow(void)

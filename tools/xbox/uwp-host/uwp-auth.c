@@ -2026,7 +2026,38 @@ static size_t encode_b64(const uint8_t *in, size_t len, char *out, size_t cap, i
         else if (pad) out[w++] = '=';
         i += (rem >= 3) ? 3 : rem;
     }
-    if (cap) out[w] = '\0';
+    if (cap)     out[w] = '\0';
+    return w;
+}
+
+static size_t decode_b64_to_buf(const char *in, uint8_t **out_buf)
+{
+    size_t len, cap, w = 0, i;
+    uint8_t *buf;
+    unsigned int acc = 0;
+    int bits = 0;
+    if (!in || !out_buf) return 0;
+    len = strlen(in);
+    cap = (len * 3) / 4 + 4;
+    buf = (uint8_t *)malloc(cap);
+    if (!buf) return 0;
+    for (i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)in[i];
+        int v = -1;
+        if (c >= 'A' && c <= 'Z') v = c - 'A';
+        else if (c >= 'a' && c <= 'z') v = c - 'a' + 26;
+        else if (c >= '0' && c <= '9') v = c - '0' + 52;
+        else if (c == '+' || c == '-') v = 62;
+        else if (c == '/' || c == '_') v = 63;
+        else continue;
+        acc = (acc << 6) | (unsigned int)v;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            buf[w++] = (uint8_t)((acc >> bits) & 0xff);
+        }
+    }
+    *out_buf = buf;
     return w;
 }
 
@@ -2443,7 +2474,21 @@ done:
 /* Normalize a requested target/URL into an XSTS RelyingParty. */
 static void normalize_relying_party(const char *raw_target, const char *raw_url, char *rp, size_t cap)
 {
-    const char *src = (raw_target && raw_target[0]) ? raw_target : raw_url;
+    /* Prefer the request URL over WAM's generic Target ("user.auth.xboxlive.com") so
+     * title-specific relying parties (e.g. https://gameservices.fh4.forzamotorsport.net/...)
+     * receive an XSTS token issued for their own relying party instead of http://xboxlive.com. */
+    const char *src = NULL;
+    if (raw_url && raw_url[0] && strstr(raw_url, "://") != NULL) {
+        src = raw_url;
+    } else if (raw_target && raw_target[0] &&
+               _stricmp(raw_target, "user.auth.xboxlive.com") != 0 &&
+               _stricmp(raw_target, "xsts.auth.xboxlive.com") != 0) {
+        src = raw_target;
+    } else if (raw_url && raw_url[0]) {
+        src = raw_url;
+    } else {
+        src = raw_target;
+    }
     if (!src || !src[0]) {
         snprintf(rp, cap, "http://xboxlive.com");
         return;
@@ -2527,9 +2572,12 @@ static int acquire_xsts_entry(const char *rp_in, int force_refresh, xsts_entry *
     EnterCriticalSection(&g_auth_lock);
     now = time(NULL);
     if (!force_refresh) {
+        char rp_origin[256] = "";
+        int has_orig = origin_only(rp, rp_origin, sizeof rp_origin);
         for (i = 0; i < g_xsts_count; i++) {
-            if (_stricmp(g_xsts_cache[i].rp, rp) == 0 && g_xsts_cache[i].expires > 0 &&
-                now + 120 < g_xsts_cache[i].expires) {
+            if ((_stricmp(g_xsts_cache[i].rp, rp) == 0 ||
+                 (has_orig && _stricmp(g_xsts_cache[i].rp, rp_origin) == 0)) &&
+                g_xsts_cache[i].expires > 0 && now + 120 < g_xsts_cache[i].expires) {
                 *out = g_xsts_cache[i];
                 LeaveCriticalSection(&g_auth_lock);
                 return 1;
@@ -2598,16 +2646,31 @@ static int acquire_xsts_entry(const char *rp_in, int force_refresh, xsts_entry *
             }
             if (!resp && origin_only(rp, origin, sizeof origin)) {
                 json_escape(esc_rp, sizeof esc_rp, origin);
-                snprintf(body, 32768,
-                         "{\"RelyingParty\":\"%s\",\"TokenType\":\"JWT\","
-                         "\"Properties\":{\"UserTokens\":[\"%s\"],\"SandboxId\":\"RETAIL\"}}",
-                         esc_rp, esc_ut);
-                if (!https_post_json_ex(L"xsts.auth.xboxlive.com", L"/xsts/authorize", body, 1, 0, &status, &resp) ||
-                    status != 200) {
-                    auth_log("xsts/authorize origin retry failed HTTP %lu for origin=%s", (unsigned long)status, origin);
-                    free(resp);
-                    resp = NULL;
-                } else {
+                if (has_dt && has_tt) {
+                    snprintf(body, 32768,
+                             "{\"RelyingParty\":\"%s\",\"TokenType\":\"JWT\","
+                             "\"Properties\":{\"SandboxId\":\"RETAIL\",\"DeviceToken\":\"%s\","
+                             "\"TitleToken\":\"%s\",\"UserTokens\":[\"%s\"]}}",
+                             esc_rp, esc_dt, esc_tt, esc_ut);
+                    if (!https_post_json_ex(L"xsts.auth.xboxlive.com", L"/xsts/authorize", body, 1, use_sig, &status, &resp) ||
+                        status != 200) {
+                        free(resp);
+                        resp = NULL;
+                    }
+                }
+                if (!resp) {
+                    snprintf(body, 32768,
+                             "{\"RelyingParty\":\"%s\",\"TokenType\":\"JWT\","
+                             "\"Properties\":{\"UserTokens\":[\"%s\"],\"SandboxId\":\"RETAIL\"}}",
+                             esc_rp, esc_ut);
+                    if (!https_post_json_ex(L"xsts.auth.xboxlive.com", L"/xsts/authorize", body, 1, 0, &status, &resp) ||
+                        status != 200) {
+                        auth_log("xsts/authorize origin retry failed HTTP %lu for origin=%s", (unsigned long)status, origin);
+                        free(resp);
+                        resp = NULL;
+                    }
+                }
+                if (resp) {
                     snprintf(actual_rp, sizeof actual_rp, "%s", origin);
                 }
             }
@@ -4216,6 +4279,167 @@ static const void *wtres_vtbl[] = {
     (const void *)wtres_get_ResponseError, (const void *)wtres_InvalidateCacheAsync,
 };
 
+/* --------------------------------------------------------------- NSAL endpoint resolver */
+
+typedef struct {
+    char host[128];
+    char rp[256];
+    char sub_rp[256];
+} nsal_endpoint;
+
+static nsal_endpoint g_nsal_eps[64];
+static int g_nsal_count = 0;
+static int g_nsal_loaded = 0;
+
+static int auth_http_once(const WCHAR *method_w, const WCHAR *host_w, INTERNET_PORT port,
+                          const WCHAR *path_w, const WCHAR *headers_w,
+                          const void *body, DWORD body_len,
+                          DWORD *status_out, BYTE **resp_out, DWORD *resp_len_out);
+
+static int extract_url_host(const char *url, char *out, size_t cap)
+{
+    const char *p, *end;
+    size_t len;
+    if (!url || !out || cap == 0) return 0;
+    p = strstr(url, "://");
+    p = p ? (p + 3) : url;
+    end = p;
+    while (*end && *end != '/' && *end != ':' && *end != '?') end++;
+    len = (size_t)(end - p);
+    if (len == 0 || len >= cap) return 0;
+    memcpy(out, p, len);
+    out[len] = '\0';
+    return 1;
+}
+
+static int nsal_host_matches(const char *pattern, const char *host)
+{
+    if (!pattern || !pattern[0] || !host || !host[0]) return 0;
+    if (_stricmp(pattern, host) == 0) return 1;
+    if (pattern[0] == '*' && pattern[1] == '.') {
+        const char *suf = pattern + 1; /* ".domain.com" */
+        size_t slen = strlen(suf);
+        size_t hlen = strlen(host);
+        if (hlen > slen && _stricmp(host + hlen - slen, suf) == 0) return 1;
+        if (_stricmp(host, pattern + 2) == 0) return 1;
+    }
+    return 0;
+}
+
+static void parse_nsal_json_locked(const char *json)
+{
+    const char *p = json;
+    const char *eps = strstr(json, "\"EndPoints\"");
+    if (!eps) eps = strstr(json, "\"Endpoints\"");
+    if (eps) p = eps;
+    while (*p && g_nsal_count < 64) {
+        const char *obj = strchr(p, '{');
+        const char *end;
+        int depth = 0, in_str = 0;
+        size_t olen;
+        char *slice;
+        if (!obj) break;
+        end = obj;
+        while (*end) {
+            char c = *end++;
+            if (c == '"' && (end - 2 < obj || end[-2] != '\\')) in_str = !in_str;
+            if (!in_str) {
+                if (c == '{') depth++;
+                else if (c == '}') {
+                    depth--;
+                    if (depth == 0) break;
+                }
+            }
+        }
+        if (depth != 0) break;
+        olen = (size_t)(end - obj);
+        slice = (char *)malloc(olen + 1);
+        if (slice) {
+            nsal_endpoint ep;
+            memset(&ep, 0, sizeof ep);
+            memcpy(slice, obj, olen);
+            slice[olen] = '\0';
+            if (json_extract_str(slice, "Host", ep.host, sizeof ep.host) && ep.host[0]) {
+                json_extract_str(slice, "RelyingParty", ep.rp, sizeof ep.rp);
+                json_extract_str(slice, "SubRelyingParty", ep.sub_rp, sizeof ep.sub_rp);
+                if (ep.rp[0] || ep.sub_rp[0]) {
+                    auth_log("NSAL ep[%d]: host=%s rp=%s sub=%s", g_nsal_count, ep.host, ep.rp, ep.sub_rp);
+                    g_nsal_eps[g_nsal_count++] = ep;
+                }
+            }
+            free(slice);
+        }
+        p = end;
+    }
+}
+
+static int nsal_resolve_relying_party(const char *url, char *rp_out, size_t cap)
+{
+    char host[128];
+    int i;
+    if (!extract_url_host(url, host, sizeof host)) return 0;
+
+    EnterCriticalSection(&g_auth_lock);
+    if (!g_nsal_loaded) {
+        g_nsal_loaded = 1;
+        LeaveCriticalSection(&g_auth_lock);
+        xsts_entry xbl;
+        memset(&xbl, 0, sizeof xbl);
+        if (acquire_xsts_entry("http://xboxlive.com", 0, &xbl)) {
+            char *auth_hdr = (char *)malloc(8400);
+            char sig[128] = "";
+            char *hdr_a = (char *)malloc(9000);
+            WCHAR *hdr_w = NULL;
+            DWORD status = 0, rlen = 0;
+            BYTE *resp = NULL;
+            if (auth_hdr && hdr_a) {
+                int wlen;
+                snprintf(auth_hdr, 8400, "XBL3.0 x=%s;%s", xbl.uhs, xbl.token);
+                EnterCriticalSection(&g_auth_lock);
+                sign_xbox_request_locked(1, "GET", "/titles/current/endpoints", auth_hdr, NULL, 0, sig);
+                LeaveCriticalSection(&g_auth_lock);
+                snprintf(hdr_a, 9000,
+                         "x-xbl-contract-version: 1\r\nAuthorization: %s\r\n%s%s%s",
+                         auth_hdr, sig[0] ? "Signature: " : "", sig, sig[0] ? "\r\n" : "");
+                wlen = MultiByteToWideChar(CP_UTF8, 0, hdr_a, -1, NULL, 0);
+                if (wlen > 0) {
+                    hdr_w = (WCHAR *)malloc((size_t)wlen * sizeof(WCHAR));
+                    if (hdr_w) MultiByteToWideChar(CP_UTF8, 0, hdr_a, -1, hdr_w, wlen);
+                }
+                if (hdr_w && auth_http_once(L"GET", L"title.mgt.xboxlive.com", INTERNET_DEFAULT_HTTPS_PORT,
+                                            L"/titles/current/endpoints", hdr_w, NULL, 0,
+                                            &status, &resp, &rlen)) {
+                    auth_log("NSAL /titles/current/endpoints HTTP %lu len=%lu",
+                             (unsigned long)status, (unsigned long)rlen);
+                    if (status == 200 && resp && rlen > 0) {
+                        EnterCriticalSection(&g_auth_lock);
+                        parse_nsal_json_locked((const char *)resp);
+                        LeaveCriticalSection(&g_auth_lock);
+                    }
+                }
+                free(resp);
+                free(hdr_w);
+            }
+            free(hdr_a);
+            free(auth_hdr);
+        }
+        EnterCriticalSection(&g_auth_lock);
+    }
+
+    for (i = 0; i < g_nsal_count; i++) {
+        if (nsal_host_matches(g_nsal_eps[i].host, host)) {
+            const char *chosen = g_nsal_eps[i].sub_rp[0] ? g_nsal_eps[i].sub_rp : g_nsal_eps[i].rp;
+            if (chosen[0]) {
+                snprintf(rp_out, cap, "%s", chosen);
+                LeaveCriticalSection(&g_auth_lock);
+                return 1;
+            }
+        }
+    }
+    LeaveCriticalSection(&g_auth_lock);
+    return 0;
+}
+
 /* --------------------------------------------------------------- WebAuthenticationCoreManager */
 
 typedef struct {
@@ -4248,8 +4472,32 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
     }
 
     normalize_relying_party(prop_target, prop_url, rp, sizeof rp);
-    auth_log("WebAuthenticationCoreManager token request rp=%s refresh=%d msa=%d",
-             rp, force_refresh, is_msa_provider);
+    if (!is_msa_provider && !rp_is_xboxlive_equiv(rp) && prop_url && prop_url[0]) {
+        char nsal_rp[256] = "";
+        if (nsal_resolve_relying_party(prop_url, nsal_rp, sizeof nsal_rp) && nsal_rp[0]) {
+            snprintf(rp, sizeof rp, "%s", nsal_rp);
+        } else {
+            /* Endpoint not mapped to a custom RP in NSAL: use canonical Xbox Live RP. */
+            snprintf(rp, sizeof rp, "http://xboxlive.com");
+        }
+    }
+    {
+        char kbuf[256];
+        size_t kw = 0;
+        kbuf[0] = '\0';
+        if (req && req->props) {
+            UINT32 ki;
+            EnterCriticalSection(&req->props->lock);
+            for (ki = 0; ki < req->props->count; ki++) {
+                int n = snprintf(kbuf + kw, sizeof(kbuf) - kw, "%s%s", ki ? "," : "",
+                                 req->props->items[ki].key ? req->props->items[ki].key : "");
+                if (n > 0 && kw + (size_t)n < sizeof(kbuf)) kw += (size_t)n;
+            }
+            LeaveCriticalSection(&req->props->lock);
+        }
+        auth_log("WebAuthenticationCoreManager token request rp=%s url=%s target=%s refresh=%d msa=%d keys=[%s]",
+                 rp, prop_url ? prop_url : "", prop_target ? prop_target : "", force_refresh, is_msa_provider, kbuf);
+    }
 
     if (res) {
         res->base.vtbl = wtres_vtbl;
@@ -4320,12 +4568,50 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
                 resp->base.refs = 1;
                 resp->base.name = "Windows.Security.Authentication.Web.Core.WebTokenResponse";
                 resp->token = strdup(header_tok);
-                free(header_tok);
                 resp->account = wa_new(prov, xsts->xuid, xsts->gamertag);
                 resp->props = str_map_new();
                 if (!resp->token || !resp->account || !resp->props) {
                     prop_ok = 0;
                 } else {
+                    char sig_out[128];
+                    int has_sig = 0;
+                    if (prop_url && prop_url[0]) {
+                        char *prop_method = req ? str_map_get_utf8(req->props, "HttpMethod") : NULL;
+                        char *prop_body_b64 = req ? str_map_get_utf8(req->props, "RequestBodyByteArray") : NULL;
+                        char *prop_body_str = (!prop_body_b64 && req) ? str_map_get_utf8(req->props, "RequestBody") : NULL;
+                        const char *path_q = "/";
+                        const char *scheme = strstr(prop_url, "://");
+                        uint8_t *dec_body = NULL;
+                        const void *body_ptr = NULL;
+                        size_t body_len = 0;
+                        if (scheme) {
+                            const char *slash = strchr(scheme + 3, '/');
+                            if (slash) path_q = slash;
+                        } else if (prop_url[0] == '/') {
+                            path_q = prop_url;
+                        }
+                        if (prop_body_b64 && prop_body_b64[0]) {
+                            body_len = decode_b64_to_buf(prop_body_b64, &dec_body);
+                            body_ptr = dec_body;
+                        } else if (prop_body_str && prop_body_str[0]) {
+                            body_ptr = prop_body_str;
+                            body_len = strlen(prop_body_str);
+                        }
+                        if (!rp_is_xboxlive_equiv(rp)) {
+                            auth_log("custom rp=%s sig body_b64=%d body_len=%zu",
+                                     rp, prop_body_b64 != NULL, body_len);
+                        }
+                        if (body_len > 8192) body_len = 8192;
+                        sig_out[0] = '\0';
+                        EnterCriticalSection(&g_auth_lock);
+                        has_sig = sign_xbox_request_locked(1, prop_method ? prop_method : "GET",
+                                                          path_q, header_tok, body_ptr, body_len, sig_out);
+                        LeaveCriticalSection(&g_auth_lock);
+                        free(dec_body);
+                        free(prop_body_b64);
+                        free(prop_body_str);
+                        free(prop_method);
+                    }
                     if (str_map_set_utf8(resp->props, "XboxUserId", xsts->xuid) < 0 ||
                         str_map_set_utf8(resp->props, "Gamertag", xsts->gamertag) < 0 ||
                         (xsts->age_group[0] &&
@@ -4333,9 +4619,12 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
                         str_map_set_utf8(resp->props, "Environment", "prod") < 0 ||
                         str_map_set_utf8(resp->props, "Sandbox", "RETAIL") < 0 ||
                         str_map_set_utf8(resp->props, "Privileges", xsts->privileges) < 0 ||
-                        str_map_set_utf8(resp->props, "UserHash", xsts->uhs) < 0)
+                        str_map_set_utf8(resp->props, "UserHash", xsts->uhs) < 0 ||
+                        (has_sig && sig_out[0] &&
+                         str_map_set_utf8(resp->props, "Signature", sig_out) < 0))
                         prop_ok = 0;
                 }
+                free(header_tok);
                 if (!prop_ok) {
                     wtresp_Release(resp);
                     wtres_Release(res);
