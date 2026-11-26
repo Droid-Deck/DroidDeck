@@ -345,6 +345,16 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }, "save-droiddeck-library").start()
     }
 
+    private fun exportDroidDeckLibrary() {
+        Thread({
+            val owned = runCatching { SteamOwnedLibrary.sync(this) }.getOrDefault(emptyList())
+            ui.post {
+                if (!shortcutPicker) steamOwnedGames = owned
+                pickLibraryExport.launch("DroidDeck-library.json")
+            }
+        }, "prepare-droiddeck-library").start()
+    }
+
     private fun refreshWifiDiscovery() {
         wifiDiscoveryPermission = WifiDiscovery.permissionGranted(this)
         wifiDiscoveryLocation = WifiDiscovery.locationEnabled(this)
@@ -1528,7 +1538,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                                 if (!shortcutPicker) steamOwnedGames = games
                             }
                         },
-                        onExportLibrary = { pickLibraryExport.launch("DroidDeck-library.json") },
+                        onExportLibrary = { exportDroidDeckLibrary() },
                         onPlayDesktopUi = {
                             startSession(Intent(this, SessionActivity::class.java)
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)

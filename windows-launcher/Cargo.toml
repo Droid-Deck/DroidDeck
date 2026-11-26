@@ -1,0 +1,26 @@
+[package]
+name = "droideck-launcher"
+version = "0.2.0"
+edition = "2024"
+description = "Fast native Windows game library for DroidDeck"
+license = "GPL-3.0-only"
+
+[dependencies]
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "glow"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+open = "5.3"
+regex = "1.11"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+rfd = "0.15"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+threadpool = "1.8"
+dirs = "6"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

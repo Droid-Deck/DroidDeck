@@ -1,30 +1,23 @@
 # DroidDeck Launcher para Windows
 
-Aplicación nativa de Windows para reunir el catálogo de juegos de DroidDeck y abrir juegos con sus clientes de tienda. No incluye emulación ni runtimes de Android.
+Launcher nativo de Windows escrito en Rust. Reúne bibliotecas de distintas tiendas y abre los clientes correspondientes. No incluye emulación ni runtimes de Android. La interfaz usa eframe/egui; la aplicación no necesita Node.js ni Electron.
 
-## Importar tu biblioteca
+## Biblioteca
 
-1. En DroidDeck para Android, abrí **Biblioteca**, elegí **Todas las tiendas** y usá **Compartir** para guardar `DroidDeck-library.json`.
-2. Transferí ese archivo a la PC.
-3. En DroidDeck Launcher, elegí **Importar DroidDeck**.
+1. En DroidDeck para Android, abrí **Biblioteca** y elegí **Compartir** para guardar `DroidDeck-library.json`.
+2. Transferí el archivo a la PC.
+3. En DroidDeck Launcher, seleccioná **Importar DroidDeck**.
 
-La exportación contiene títulos, identificadores de tienda, estado de propiedad y carátulas. No exporta cookies, tokens ni contraseñas. Repetí la importación cuando quieras actualizar el catálogo.
+El catálogo de DroidDeck incluye juegos de Steam vinculados a la cuenta aunque no estén instalados. El launcher conserva esos títulos y actualiza el estado local al revisar Steam, Epic Games y los accesos directos del menú Inicio. Volvé a importar el JSON para actualizar los catálogos de las tiendas. La exportación no contiene cookies, tokens ni contraseñas, y el launcher no lee credenciales de Steam.
 
-El launcher detecta juegos instalados de Steam y Epic Games. También relaciona accesos directos del menú Inicio por nombre; para cualquier otro juego podés asociar un `.exe` o `.lnk` desde **Agregar juego**. Los juegos de Steam se abren con su App ID y los títulos no instalados llevan a la tienda o al flujo de instalación del cliente.
+La vista **No instalados** aparece primero para que puedas revisar tu colección antes de comprar. **Instalar** abre el flujo de instalación de Steam o la página de la tienda. Se pueden agregar ejecutables o accesos directos locales desde **Agregar juego**.
 
-## Ejecutar y empaquetar
+## Compilar
 
-Para ejecutar o empaquetar desde el código necesita Node.js 22.12 o posterior y npm en Windows. El instalador generado funciona sin Node.js.
-
-```powershell
-npm install
-npm start
-```
-
-Para generar el instalador Windows x64:
+Instalá Rust estable para Windows y compilá desde esta carpeta:
 
 ```powershell
-npm run dist
+cargo run --release
 ```
 
-El instalador se genera en `release/`.
+El ejecutable portable queda en `target/release/droideck-launcher.exe`. Los datos se guardan en `%LOCALAPPDATA%\DroidDeckLauncher\`; en el primer inicio se importa la biblioteca de la versión Electron anterior si está en `%APPDATA%\droideck-windows-launcher\library.json`.
