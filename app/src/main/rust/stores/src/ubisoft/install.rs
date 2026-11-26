@@ -64,13 +64,17 @@ impl Done {
 }
 
 pub fn safe_path(root: &Path, name: &str) -> Result<PathBuf, String> {
+    let unsafe_path = || format!("The manifest names an unsafe path: {name}");
     let mut out = root.to_path_buf();
     for component in Path::new(name.trim_start_matches('/')).components() {
         match component {
             Component::Normal(part) => out.push(part),
             Component::CurDir => {}
-            _ => return Err(format!("The manifest names an unsafe path: {name}")),
+            _ => return Err(unsafe_path()),
         }
+    }
+    if out == root {
+        return Err(unsafe_path());
     }
     Ok(out)
 }
@@ -406,7 +410,14 @@ mod tests {
         assert_eq!(safe_path(root, "./alut.dll").unwrap(), root.join("alut.dll"));
         assert_eq!(safe_path(root, "./bin/./game.exe").unwrap(), root.join("bin/game.exe"));
         assert_eq!(safe_path(root, "alut.dll").unwrap(), root.join("alut.dll"));
-        assert_eq!(safe_path(root, "./").unwrap(), root.to_path_buf());
+    }
+
+    #[test]
+    fn refuses_names_without_a_file_name() {
+        let root = Path::new("/games/x");
+        for name in [".", "./", "/./", "", "/"] {
+            assert!(safe_path(root, name).is_err(), "{name:?}");
+        }
     }
 
     #[test]
