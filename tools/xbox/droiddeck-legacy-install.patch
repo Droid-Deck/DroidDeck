@@ -154,7 +154,7 @@ new file mode 100755
 index 0000000..d43c5fc
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1476 @@
+@@ -0,0 +1,1523 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -1090,7 +1090,12 @@ index 0000000..d43c5fc
 +        }
 +        return Err(error);
 +    }
-+    std::fs::write(from.join(COPIED), copied.join("\n")).map_err(|error| format!("framework copy list failed: {error}"))?;
++    if let Err(error) = std::fs::write(from.join(COPIED), copied.join("\n")) {
++        for name in &copied {
++            let _ = std::fs::remove_file(to.join(name));
++        }
++        return Err(format!("framework copy list failed: {error}"));
++    }
 +    Ok(())
 +}
 +
@@ -1160,10 +1165,19 @@ index 0000000..d43c5fc
 +        ));
 +    }
 +    let inner = candidates.remove(0);
-+    for entry in std::fs::read_dir(&inner)
++    let entries: Vec<_> = std::fs::read_dir(&inner)
 +        .map_err(|error| format!("Could not list the package folder: {error}"))?
 +        .filter_map(Result::ok)
-+    {
++        .collect();
++    if !updating {
++        for entry in &entries {
++            let name = entry.file_name();
++            if !is_package_metadata(&name) && destination.join(&name).exists() {
++                return Err(format!("Extraction would overwrite {}", destination.join(name).display()));
++            }
++        }
++    }
++    for entry in entries {
 +        let name = entry.file_name();
 +        let target = destination.join(&name);
 +        let metadata = is_package_metadata(&name);
@@ -1256,8 +1270,23 @@ index 0000000..d43c5fc
 +}
 +
 +fn declares_application(folder: &Path) -> bool {
-+    let text = manifest_text(folder);
-+    opens_element(&text, "<application") || opens_element(&text, "<executable")
++    use quick_xml::events::Event;
++    for name in [LEGACY_MANIFEST, MANIFEST] {
++        let Ok(text) = std::fs::read_to_string(folder.join(name)) else { continue };
++        let mut reader = quick_xml::Reader::from_str(&text);
++        loop {
++            match reader.read_event() {
++                Ok(Event::Start(tag)) | Ok(Event::Empty(tag))
++                    if tag.local_name().as_ref() == "Application" => return true,
++                Ok(Event::Eof) | Err(_) => break,
++                Ok(_) => {}
++            }
++        }
++    }
++    // MicrosoftGame.config uses Executable rather than an Appx Application element.
++    std::fs::read_to_string(folder.join("MicrosoftGame.config"))
++        .ok()
++        .is_some_and(|text| opens_element(&text.to_ascii_lowercase(), "<executable"))
 +}
 +
 +/// Whether [text] opens [tag] as its own element, so `<Application Id=` and an attribute on the next
@@ -1511,6 +1540,21 @@ index 0000000..d43c5fc
 +    }
 +
 +    #[test]
++    fn x64_identity_ignores_architecture_text_in_comments_and_other_elements() {
++        assert!(!identity_is_x64(r#"<Package><!-- ProcessorArchitecture = "x64" --><Identity ProcessorArchitecture="x86"/></Package>"#));
++        assert!(!identity_is_x64(r#"<Package><Other ProcessorArchitecture="x64"/><Identity ProcessorArchitecture="x86"/></Package>"#));
++        assert!(identity_is_x64(r#"<Package><Identity ProcessorArchitecture = 'x64'/></Package>"#));
++    }
++
++    #[test]
++    fn application_scan_ignores_application_elements_inside_comments() {
++        let root = scratch("commented-app");
++        std::fs::write(root.join(LEGACY_MANIFEST), r#"<Package><!-- <Application Id="fake"/> --><Applications/></Package>"#).unwrap();
++        assert!(!declares_application(&root));
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
 +    fn hoist_still_refuses_when_several_packages_declare_an_application() {
 +        let root = scratch("ambiguous-applications");
 +        for name in ["One", "Two"] {
@@ -1535,6 +1579,9 @@ index 0000000..d43c5fc
 +
 +        assert!(hoist(&root).unwrap_err().contains("would overwrite"));
 +        assert_eq!(std::fs::read(root.join("Game.exe")).unwrap(), b"other");
++        assert!(hoist(&root).unwrap_err().contains("would overwrite"));
++        assert_eq!(std::fs::read(root.join("Game.exe")).unwrap(), b"other");
++        assert!(!root.join(LEGACY_MANIFEST).exists(), "failed hoist must not partially publish the manifest");
 +        std::fs::remove_dir_all(&root).ok();
 +    }
 +
