@@ -152,7 +152,7 @@ object OnScreenLayout {
                                 leftBound + total / 2f,
                                 (rightBound - total / 2f).coerceAtLeast(leftBound + total / 2f))
                             val firstX = center - total / 2f
-                            val secondX = firstX + aw + gapX
+                            val secondX = firstX + (if (leftFirst) aw else bw) + gapX
                             scaled[i] = if (leftFirst) {
                                 a.copy(x = firstX, y = centerAY - ah / 2f, width = aw, height = ah)
                             } else {
@@ -177,7 +177,7 @@ object OnScreenLayout {
                                 topBound + total / 2f,
                                 (bottomBound - total / 2f).coerceAtLeast(topBound + total / 2f))
                             val firstY = center - total / 2f
-                            val secondY = firstY + ah + gapY
+                            val secondY = firstY + (if (topFirst) ah else bh) + gapY
                             scaled[i] = if (topFirst) {
                                 a.copy(x = centerAX - aw / 2f, y = firstY, width = aw, height = ah)
                             } else {
