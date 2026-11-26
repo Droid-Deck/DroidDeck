@@ -3617,7 +3617,9 @@ static void deliver_pointer(const struct input_msg *m) {
     } else {
         double ox = (double)m->p2 * ow / INPUT_SPACE_W;
         double oy = (double)m->p3 * oh / INPUT_SPACE_H;
-        if (m->p1 == 1 && moved && vkp_zoom_pan_cursor(ox, oy))
+        if (m->p1 == 1 && !pointer_locked_for_cursor() &&
+                (moved || ox <= 0.0 || oy <= 0.0 || ox >= ow || oy >= oh) &&
+                vkp_zoom_pan_cursor(ox, oy))
             schedule_render();
         if (!vkp_output_to_scene(ox, oy, &x, &y)) {
             schedule_render();
