@@ -1,6 +1,6 @@
 # Bottom screen: guides tab
 
-Part of the [bottom screen research](bottom-screen.md). Researched 2026-11-26 against `main` at `d788afc12`. Not implemented.
+Part of the [bottom screen research](bottom-screen.md). Researched 2026-11-26 against `main` at `d788afc12`. Milestone 1 is built; see the status in the overview.
 
 A dashboard tab that follows the running game and shows its guides, achievements, maps and fixes, reopens where the user left off, and saves pages for offline use.
 

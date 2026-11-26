@@ -1,6 +1,6 @@
 # Bottom screen: companion API for PC games
 
-Part of the [bottom screen research](bottom-screen.md). Researched 2026-11-26 against `main` at `d788afc12`. Not implemented.
+Part of the [bottom screen research](bottom-screen.md). Researched 2026-11-26 against `main` at `d788afc12`. Phase 1 has started (Stardew, Skyrim and Fallout 4 adapters); see the status in the overview.
 
 Let games and mods running in the Linux and Proton session drive pages on DroidDeck's bottom screen: live state (health, money, map position, inventory, quests) and touch commands back into the game.
 

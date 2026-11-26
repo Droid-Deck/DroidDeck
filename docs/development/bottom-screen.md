@@ -98,12 +98,16 @@ Ordered by value for effort. Each is independent unless noted.
 
 ### 1. Idle home page
 
+**Status:** first version built. With no game running, the In-game stats page shows the game selected in Big Picture (read through the agent's `steam-selection` request), or the most recently played installed game, with its hero art, play time and last played from `localconfig.vdf`, and a Play button (`SteamClient.Apps.RunGame`). Downloads and friends are not on it yet. Code: [`ui/BottomIdleHome.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomIdleHome.kt), [`session/SteamLocalConfig.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamLocalConfig.kt).
+
 When no game is focused, replace the Steam-client FPS card with a page about the game highlighted in Steam: art, play time, last played, achievement progress, and Play / Stream buttons. Add downloads in progress and friends online.
 
 - Source: the Big Picture selection and app details through `steamEval`, as ArmadaLive does over the CEF port. Art from the existing `SteamGameArt`.
 - Open question: which `SteamClient` call or store gives the focused library item most reliably across client updates. ArmadaLive lists this as fragile; we need a fallback to the most recent game.
 
 ### 2. Per-game panel memory
+
+**Status:** built. Picking a bottom mode or a dashboard tab while a game is focused saves it for that game (`secondScreenPanel.app.<id>`, `bottomPage.app.<id>`); focusing the game restores it, and returning to Steam restores the global choice. Resetting the game profile clears both. Control layouts already follow the game through input profiles.
 
 Remember the bottom mode, dashboard tab and control layout per Steam app id, and restore them when that game gains focus. Fall back to today's global choice.
 
@@ -112,6 +116,8 @@ Remember the bottom mode, dashboard tab and control layout per Steam app id, and
 
 ### 3. Steam achievements and notifications
 
+**Status:** achievements built; notifications not started. An Achievements tab reads `SteamClient.Apps.GetMyAchievementsForApp` through `steamEval` into the shared `StoreAchievements` model, so it uses the same list, groups and hidden-achievement handling as Epic and GOG, and is cached for offline use. Code: [`stores/SteamAchievements.kt`](../../app/src/main/java/com/droiddeck/launcher/stores/SteamAchievements.kt), [`ui/BottomAchievementsPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomAchievementsPage.kt).
+
 An achievements page for the running game (progress, recent unlocks, locked list with hidden descriptions behind a tap) and a notifications page (friends, invites, downloads finished).
 
 - Source: `steamEval` against Steam's UI stores; the Steam Web API as a fallback for achievements when the client is offline.
@@ -119,11 +125,15 @@ An achievements page for the running game (progress, recent unlocks, locked list
 
 ### 4. Quick tiles and per-game rules
 
+**Status:** first version built. A Quick access tab has tiles for screenshot, frame limit (off, 30, 40, 45, 60), frame generation, the performance HUD, HDR (when available), swap screens and bottom screen off. Tiles call the in-game menu's own actions, so per-game behaviour is the same as in the menu. Rearranging, per-screen brightness, refresh rate and the 15 s revert are not done. Code: [`ui/BottomQuickPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomQuickPage.kt).
+
 Rearrangeable tiles on the dashboard: FPS limit, 60/120 Hz, per-screen brightness, frame generation, screen effects, screenshot, swap screens, bottom screen off. A "Keep for this game" action saves the value into the game profile; settings that can make the device unusable revert after 15 s unless confirmed.
 
 - Most of these are already per-game somewhere (frame generation, screen effects, FPS limit for non-Steam games). This exposes them where the user is looking during play.
 
 ### 5. Bottom screen off and auto-dim
+
+**Status:** built, pending a check on hardware of how far the window brightness override reaches. Every panel's bar has a screen-off button: the panel goes black and asks for the lowest window brightness (`BRIGHTNESS_OVERRIDE_OFF`); a touch wakes it. The dashboard dims after 60 s without touch (pref `bottomAutoDim`, on by default); trackpad and keyboard panels never dim. Hardware buttons are not claimed.
 
 - A real off state for the bottom panel during a game (the backlight off, not a black Presentation), toggled from the bar or a button hold.
 - Dim after a period without touch, wake on touch. Off by default for the trackpad and keyboard modes.
@@ -137,11 +147,15 @@ Details: [bottom-screen-region-mirror.md](bottom-screen-region-mirror.md).
 
 ### 7. Guides tab
 
+**Status:** milestone 1 built. A Guides tab lists the running game's top-rated Steam guides (with the user's Steam web cookies, so their language filter applies), opens one in a non-focusable WebView restricted to Steam hosts, and remembers the guide and scroll position per game ("Continue reading"). Code: [`session/SteamGuides.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamGuides.kt), [`ui/BottomGuidesPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomGuidesPage.kt).
+
 A per-game tab with Steam Community guides for the exact app id, Steam achievements as a spoiler-safe checklist, the game's wiki and fixes (found through Wikidata), saved pages for offline use, and a workspace that reopens at the last section. It must never take focus from the game, and pauses pages it is not showing.
 
 Details: [bottom-screen-guides.md](bottom-screen-guides.md).
 
 ### 8. Companion API for PC games
+
+**Status:** phase 1 started. A Companion tab connects over loopback only while it is shown: Stardew Valley (the dual-screen SMAPI mod on 7786: day, gold, energy, hotbar with tap to select, birthdays, quests), Skyrim SE (SkyrimWebSocket on 8765: vitals, level, carry weight, hotkeys with tap to trigger) and Fallout 4 (Thor Pip-Boy on 8767: HP, AP, caps, rads, favorites with tap to equip or use, radio). GTA, RimWorld and DroidDeck's own protocol are next. Code: [`companion/`](../../app/src/main/java/com/droiddeck/launcher/companion/), [`ui/BottomCompanionPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomCompanionPage.kt).
 
 Let mods running in Proton drive native bottom-screen pages over loopback. Thor Pip-Boy (Fallout 4) and Grand Theft Companion (GTA) already run against DroidDeck as separate apps, and the Stardew, Skyrim and RimWorld ecosystems have servers we can adapt to. Plan: adapters for those first, then DroidDeck's own token-authenticated protocol with declarative pages and normalized state keys, then "run on bottom", then memory profiles only if needed. The existing racing, War Thunder and Elite Dangerous telemetry is the first set of built-in adapters.
 
