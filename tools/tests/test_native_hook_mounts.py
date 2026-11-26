@@ -504,6 +504,14 @@ class NativeHookMountTest(unittest.TestCase):
                                      syscalls=True)
         stats = [m.group(1) for m in re.finditer(r'(?:fstatat|statx)\([^,"]*,\s*"([^"]*)"', log)]
         self.assertNotIn("sub/deeper/../game.txt", stats)
+        walk = "sub/Some Game/../Some Game/game.txt"
+        for order in ((f"{self.links}:/mnt/links", f"{self.links}:/mnt/longer/alias"),
+                      (f"{self.links}:/mnt/longer/alias", f"{self.links}:/mnt/links")):
+            shared = "|".join(order) + f"|{self.library}:/mnt/links/real/sub"
+            results = [self.run_probe("cd:/mnt/links/real", walk, binds=shared,
+                                      mounts=[("/", "ext4", "/dev/root"), (real, kind, "/dev/sdb1")])[walk]
+                       for kind in ("ext4", "exfat")]
+            self.assertEqual(results[0], results[1], order)
 
 
 if __name__ == "__main__":
