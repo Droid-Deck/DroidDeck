@@ -26,14 +26,335 @@ use std::{
 };
 use threadpool::ThreadPool;
 
-const BG: Color32 = Color32::from_rgb(9, 13, 19);
-const PANEL: Color32 = Color32::from_rgb(15, 21, 30);
-const CARD: Color32 = Color32::from_rgb(18, 25, 35);
-const LINE: Color32 = Color32::from_rgb(36, 48, 63);
-const MUTED: Color32 = Color32::from_rgb(145, 163, 183);
-const BLUE: Color32 = Color32::from_rgb(38, 164, 245);
-const CARD_W: f32 = 166.0;
+const BG: Color32 = Color32::from_rgb(7, 11, 17);
+const PANEL: Color32 = Color32::from_rgb(11, 16, 24);
+const SURFACE: Color32 = Color32::from_rgb(15, 22, 32);
+const CARD: Color32 = Color32::from_rgb(17, 25, 36);
+const CARD_HOVER: Color32 = Color32::from_rgb(22, 32, 45);
+const LINE: Color32 = Color32::from_rgb(35, 49, 66);
+const MUTED: Color32 = Color32::from_rgb(143, 162, 183);
+const BLUE: Color32 = Color32::from_rgb(34, 164, 245);
+const BLUE_LIGHT: Color32 = Color32::from_rgb(89, 194, 255);
+const GREEN: Color32 = Color32::from_rgb(113, 203, 149);
+const CARD_W: f32 = 184.0;
 const CARD_H: f32 = 326.0;
+
+#[derive(Clone, Copy)]
+enum UiIcon {
+    Library,
+    Download,
+    Play,
+    Search,
+    Refresh,
+    Add,
+    Store,
+    Accounts,
+    Gamepad,
+    Monitor,
+    Grid,
+    Check,
+}
+
+fn paint_icon(painter: &egui::Painter, rect: egui::Rect, icon: UiIcon, color: Color32) {
+    let center = rect.center();
+    let size = rect.width().min(rect.height());
+    let stroke = Stroke::new((size * 0.09).clamp(1.4, 2.2), color);
+    match icon {
+        UiIcon::Grid => {
+            let gap = size * 0.12;
+            let cell = (size - gap) / 2.0;
+            for y in 0..2 {
+                for x in 0..2 {
+                    let cell_center = egui::pos2(
+                        rect.left() + cell / 2.0 + x as f32 * (cell + gap),
+                        rect.top() + cell / 2.0 + y as f32 * (cell + gap),
+                    );
+                    painter.rect_stroke(
+                        egui::Rect::from_center_size(cell_center, Vec2::splat(cell)),
+                        2.5,
+                        stroke,
+                        egui::StrokeKind::Inside,
+                    );
+                }
+            }
+        }
+        UiIcon::Library => {
+            let book_w = size * 0.22;
+            let book_h = size * 0.62;
+            for x in [-0.27, 0.0, 0.27] {
+                let book = egui::Rect::from_center_size(
+                    center + Vec2::new(size * x, size * 0.02),
+                    Vec2::new(book_w, book_h),
+                );
+                painter.rect_stroke(book, 2.0, stroke, egui::StrokeKind::Inside);
+                painter.line_segment(
+                    [
+                        egui::pos2(book.left() + 3.0, book.top() + 4.0),
+                        egui::pos2(book.left() + 3.0, book.bottom() - 4.0),
+                    ],
+                    stroke,
+                );
+            }
+        }
+        UiIcon::Download => {
+            painter.line_segment(
+                [
+                    egui::pos2(center.x, rect.top() + size * 0.1),
+                    egui::pos2(center.x, center.y + size * 0.12),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(center.x - size * 0.18, center.y),
+                    egui::pos2(center.x, center.y + size * 0.18),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(center.x + size * 0.18, center.y),
+                    egui::pos2(center.x, center.y + size * 0.18),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(rect.left() + size * 0.12, rect.bottom() - size * 0.18),
+                    egui::pos2(rect.right() - size * 0.12, rect.bottom() - size * 0.18),
+                ],
+                stroke,
+            );
+        }
+        UiIcon::Play => {
+            painter.add(egui::Shape::convex_polygon(
+                vec![
+                    egui::pos2(rect.left() + size * 0.3, rect.top() + size * 0.18),
+                    egui::pos2(rect.right() - size * 0.16, center.y),
+                    egui::pos2(rect.left() + size * 0.3, rect.bottom() - size * 0.18),
+                ],
+                color,
+                Stroke::NONE,
+            ));
+        }
+        UiIcon::Search => {
+            painter.circle_stroke(center - Vec2::splat(size * 0.06), size * 0.27, stroke);
+            painter.line_segment(
+                [
+                    center + Vec2::splat(size * 0.16),
+                    center + Vec2::splat(size * 0.39),
+                ],
+                stroke,
+            );
+        }
+        UiIcon::Refresh => {
+            painter.circle_stroke(center, size * 0.32, stroke);
+            painter.line_segment(
+                [
+                    egui::pos2(center.x + size * 0.12, rect.top() + size * 0.12),
+                    egui::pos2(rect.right() - size * 0.08, rect.top() + size * 0.12),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(rect.right() - size * 0.08, rect.top() + size * 0.12),
+                    egui::pos2(rect.right() - size * 0.08, center.y + size * 0.02),
+                ],
+                stroke,
+            );
+        }
+        UiIcon::Add => {
+            painter.line_segment(
+                [
+                    egui::pos2(center.x, rect.top() + size * 0.16),
+                    egui::pos2(center.x, rect.bottom() - size * 0.16),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(rect.left() + size * 0.16, center.y),
+                    egui::pos2(rect.right() - size * 0.16, center.y),
+                ],
+                stroke,
+            );
+        }
+        UiIcon::Store => {
+            let body = egui::Rect::from_min_max(
+                egui::pos2(rect.left() + size * 0.15, center.y - size * 0.03),
+                egui::pos2(rect.right() - size * 0.15, rect.bottom() - size * 0.12),
+            );
+            painter.rect_stroke(body, 3.0, stroke, egui::StrokeKind::Inside);
+            painter.line_segment(
+                [
+                    egui::pos2(body.left() - size * 0.03, center.y - size * 0.08),
+                    egui::pos2(center.x, rect.top() + size * 0.12),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(center.x, rect.top() + size * 0.12),
+                    egui::pos2(body.right() + size * 0.03, center.y - size * 0.08),
+                ],
+                stroke,
+            );
+            painter.rect_stroke(
+                egui::Rect::from_min_max(
+                    egui::pos2(center.x - size * 0.1, center.y + size * 0.08),
+                    egui::pos2(center.x + size * 0.1, body.bottom()),
+                ),
+                1.5,
+                stroke,
+                egui::StrokeKind::Inside,
+            );
+        }
+        UiIcon::Accounts => {
+            painter.circle_stroke(
+                center - Vec2::new(size * 0.14, size * 0.16),
+                size * 0.16,
+                stroke,
+            );
+            painter.circle_stroke(
+                center + Vec2::new(size * 0.18, -size * 0.1),
+                size * 0.13,
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(rect.left() + size * 0.08, rect.bottom() - size * 0.17),
+                    egui::pos2(center.x + size * 0.06, rect.bottom() - size * 0.17),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(center.x + size * 0.1, rect.bottom() - size * 0.17),
+                    egui::pos2(rect.right() - size * 0.06, rect.bottom() - size * 0.17),
+                ],
+                stroke,
+            );
+        }
+        UiIcon::Gamepad => {
+            let body = egui::Rect::from_center_size(center, Vec2::new(size * 0.78, size * 0.48));
+            painter.rect_stroke(body, size * 0.2, stroke, egui::StrokeKind::Inside);
+            painter.line_segment(
+                [
+                    egui::pos2(center.x - size * 0.22, center.y),
+                    egui::pos2(center.x - size * 0.08, center.y),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(center.x - size * 0.15, center.y - size * 0.07),
+                    egui::pos2(center.x - size * 0.15, center.y + size * 0.07),
+                ],
+                stroke,
+            );
+            painter.circle_filled(
+                center + Vec2::new(size * 0.18, -size * 0.04),
+                size * 0.035,
+                color,
+            );
+            painter.circle_filled(
+                center + Vec2::new(size * 0.28, size * 0.06),
+                size * 0.035,
+                color,
+            );
+        }
+        UiIcon::Monitor => {
+            let screen = egui::Rect::from_min_max(
+                egui::pos2(rect.left() + size * 0.1, rect.top() + size * 0.12),
+                egui::pos2(rect.right() - size * 0.1, center.y + size * 0.1),
+            );
+            painter.rect_stroke(screen, 3.0, stroke, egui::StrokeKind::Inside);
+            painter.line_segment(
+                [
+                    egui::pos2(center.x, screen.bottom()),
+                    egui::pos2(center.x, rect.bottom() - size * 0.12),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    egui::pos2(center.x - size * 0.18, rect.bottom() - size * 0.12),
+                    egui::pos2(center.x + size * 0.18, rect.bottom() - size * 0.12),
+                ],
+                stroke,
+            );
+        }
+        UiIcon::Check => {
+            painter.line_segment(
+                [
+                    center + Vec2::new(-size * 0.3, 0.0),
+                    center + Vec2::new(-size * 0.08, size * 0.21),
+                ],
+                stroke,
+            );
+            painter.line_segment(
+                [
+                    center + Vec2::new(-size * 0.08, size * 0.21),
+                    center + Vec2::new(size * 0.32, -size * 0.23),
+                ],
+                stroke,
+            );
+        }
+    }
+}
+
+fn icon_label_button(
+    ui: &mut egui::Ui,
+    label: &str,
+    icon: UiIcon,
+    width: f32,
+    primary: bool,
+    enabled: bool,
+) -> egui::Response {
+    let sense = if enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, 40.0), sense);
+    let fill = if !enabled {
+        SURFACE
+    } else if primary {
+        if response.hovered() { BLUE_LIGHT } else { BLUE }
+    } else if response.hovered() {
+        CARD_HOVER
+    } else {
+        SURFACE
+    };
+    let text_color = if !enabled {
+        MUTED
+    } else if primary {
+        BG
+    } else {
+        Color32::from_rgb(222, 232, 242)
+    };
+    ui.painter().rect_filled(rect, 10.0, fill);
+    ui.painter().rect_stroke(
+        rect,
+        10.0,
+        Stroke::new(1.0, if primary { BLUE_LIGHT } else { LINE }),
+        egui::StrokeKind::Inside,
+    );
+    let icon_rect = egui::Rect::from_center_size(
+        egui::pos2(rect.left() + 22.0, rect.center().y),
+        Vec2::splat(17.0),
+    );
+    paint_icon(ui.painter(), icon_rect, icon, text_color);
+    ui.painter().text(
+        egui::pos2(rect.center().x + 7.0, rect.center().y),
+        egui::Align2::CENTER_CENTER,
+        label,
+        FontId::proportional(13.0),
+        text_color,
+    );
+    response
+}
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -503,68 +824,332 @@ impl Launcher {
     fn header(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             if self.page == Page::Library {
-                ui.add_sized(
-                    [320.0, 38.0],
-                    egui::TextEdit::singleline(&mut self.query)
-                        .hint_text("Buscar en tu biblioteca"),
-                );
+                Frame::new()
+                    .fill(SURFACE)
+                    .stroke(Stroke::new(1.0, LINE))
+                    .corner_radius(11.0)
+                    .inner_margin(Margin::symmetric(12, 4))
+                    .show(ui, |ui| {
+                        ui.set_width(310.0);
+                        ui.horizontal(|ui| {
+                            let (icon_rect, _) =
+                                ui.allocate_exact_size(Vec2::splat(18.0), Sense::hover());
+                            paint_icon(ui.painter(), icon_rect, UiIcon::Search, MUTED);
+                            ui.add_sized(
+                                [270.0, 30.0],
+                                egui::TextEdit::singleline(&mut self.query)
+                                    .hint_text("Buscar en tu biblioteca")
+                                    .frame(egui::Frame::NONE),
+                            );
+                        });
+                    });
             } else {
-                ui.label(
-                    RichText::new("Conectá tus tiendas para sincronizar los juegos que compraste.")
-                        .color(MUTED),
-                );
+                ui.vertical(|ui| {
+                    ui.label(
+                        RichText::new("CUENTAS DE TIENDAS")
+                            .size(10.0)
+                            .strong()
+                            .color(BLUE_LIGHT),
+                    );
+                    ui.label(
+                        RichText::new("Conectá tus bibliotecas")
+                            .size(17.0)
+                            .strong()
+                            .color(Color32::WHITE),
+                    );
+                });
             }
-            ui.add_space((ui.available_width() - 450.0).max(12.0));
-            if ui.button("Actualizar todas").clicked() {
+            ui.add_space((ui.available_width() - 430.0).max(10.0));
+            if icon_label_button(ui, "Actualizar", UiIcon::Refresh, 124.0, false, true).clicked() {
                 if self.page == Page::Library {
                     self.refresh();
                 } else {
                     self.sync_connected();
                 }
             }
-            if ui.button("Cuentas").clicked() {
-                self.page = Page::Stores;
+            if icon_label_button(
+                ui,
+                if self.page == Page::Library {
+                    "Tiendas"
+                } else {
+                    "Biblioteca"
+                },
+                if self.page == Page::Library {
+                    UiIcon::Accounts
+                } else {
+                    UiIcon::Library
+                },
+                116.0,
+                false,
+                true,
+            )
+            .clicked()
+            {
+                self.page = if self.page == Page::Library {
+                    Page::Stores
+                } else {
+                    Page::Library
+                };
             }
             if self.page == Page::Library
-                && ui
-                    .button(
-                        RichText::new("+  Agregar juego")
-                            .strong()
-                            .color(Color32::WHITE),
-                    )
-                    .clicked()
+                && icon_label_button(ui, "Agregar juego", UiIcon::Add, 140.0, true, true).clicked()
             {
                 self.add_game();
             }
         });
     }
 
-    fn accounts_panel(&mut self, ui: &mut egui::Ui) {
-        ui.label(
-            RichText::new("TIENDAS COMPATIBLES")
-                .size(10.0)
-                .strong()
-                .color(BLUE),
+    fn draw_hero(&mut self, ui: &mut egui::Ui, featured: Option<Game>) {
+        let ctx = ui.ctx().clone();
+        if let Some(game) = &featured {
+            self.queue_cover(game, &ctx);
+        }
+        let (rect, _) =
+            ui.allocate_exact_size(Vec2::new(ui.available_width(), 228.0), Sense::hover());
+        let painter = ui.painter().clone();
+        painter.rect_filled(rect, 18.0, Color32::from_rgb(12, 24, 38));
+        painter.rect_stroke(
+            rect,
+            18.0,
+            Stroke::new(1.0, Color32::from_rgb(38, 70, 98)),
+            egui::StrokeKind::Inside,
         );
-        ui.add_space(4.0);
-        ui.heading(RichText::new("Tus cuentas").size(27.0).strong());
-        ui.add_space(4.0);
-        ui.label(RichText::new("Conectá cada tienda desde su ventana web. Steam muestra el QR en el formulario cuando no hay una sesión guardada; si ya ves tu usuario, pulsá Sincronizar biblioteca con DroidDeck.").color(MUTED));
-        ui.add_space(18.0);
+        let art_center = egui::pos2(rect.right() - 238.0, rect.center().y);
+        for i in 0..5 {
+            painter.circle_stroke(
+                art_center,
+                48.0 + i as f32 * 28.0,
+                Stroke::new(
+                    1.0,
+                    Color32::from_rgba_unmultiplied(39, 153, 225, 90 - i as u8 * 12),
+                ),
+            );
+        }
+        let art_clip = painter.with_clip_rect(rect);
+        for i in 0..11 {
+            let x = rect.right() - 410.0 + i as f32 * 32.0;
+            art_clip.line_segment(
+                [
+                    egui::pos2(x, rect.top() + 15.0),
+                    egui::pos2(x + 90.0, rect.bottom() - 10.0),
+                ],
+                Stroke::new(
+                    1.0,
+                    Color32::from_rgba_unmultiplied(43, 144, 220, 18 + (i % 3) as u8 * 8),
+                ),
+            );
+        }
+        if let Some(game) = &featured {
+            if let Some(texture) = self.textures.get(&game.key) {
+                let cover = egui::Rect::from_min_size(
+                    egui::pos2(rect.right() - 343.0, rect.top() + 16.0),
+                    Vec2::new(148.0, 196.0),
+                );
+                art_clip.image(
+                    texture.id(),
+                    cover,
+                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+                art_clip.rect_stroke(
+                    cover,
+                    10.0,
+                    Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 80)),
+                    egui::StrokeKind::Inside,
+                );
+            }
+        }
+        let left_rect = egui::Rect::from_min_max(
+            rect.left_top() + Vec2::new(28.0, 25.0),
+            egui::pos2(rect.right() - 370.0, rect.bottom() - 22.0),
+        );
+        ui.scope_builder(
+            UiBuilder::new()
+                .max_rect(left_rect)
+                .layout(Layout::top_down(Align::Min)),
+            |ui| {
+                ui.label(
+                    RichText::new("TU COLECCIÓN, EN UN SOLO LUGAR")
+                        .size(10.0)
+                        .strong()
+                        .color(BLUE_LIGHT),
+                );
+                ui.add_space(5.0);
+                if let Some(game) = &featured {
+                    ui.label(
+                        RichText::new(&game.title)
+                            .size(30.0)
+                            .strong()
+                            .color(Color32::WHITE),
+                    );
+                    ui.add_space(2.0);
+                    ui.label(
+                        RichText::new(format!(
+                            "{}  ·  {}",
+                            game.store_name,
+                            if game.installed {
+                                "Listo para jugar"
+                            } else {
+                                "En tu colección"
+                            }
+                        ))
+                        .size(12.0)
+                        .color(Color32::from_rgb(192, 211, 228)),
+                    );
+                    ui.add_space(13.0);
+                    if icon_label_button(
+                        ui,
+                        if game.installed {
+                            "Jugar ahora"
+                        } else {
+                            "Ver en tienda"
+                        },
+                        if game.installed {
+                            UiIcon::Play
+                        } else {
+                            UiIcon::Store
+                        },
+                        148.0,
+                        true,
+                        true,
+                    )
+                    .clicked()
+                    {
+                        self.launch(game);
+                    }
+                } else {
+                    ui.label(
+                        RichText::new("Tu biblioteca empieza acá")
+                            .size(27.0)
+                            .strong()
+                            .color(Color32::WHITE),
+                    );
+                    ui.add_space(5.0);
+                    ui.label(
+                        RichText::new("Conectá tus tiendas y reuní todos tus juegos.")
+                            .size(12.0)
+                            .color(Color32::from_rgb(192, 211, 228)),
+                    );
+                    ui.add_space(13.0);
+                    if icon_label_button(
+                        ui,
+                        "Conectar tiendas",
+                        UiIcon::Accounts,
+                        160.0,
+                        true,
+                        true,
+                    )
+                    .clicked()
+                    {
+                        self.page = Page::Stores;
+                    }
+                }
+            },
+        );
+        let total = self.games.len();
+        let installed = self.games.iter().filter(|game| game.installed).count();
+        let count_rect = egui::Rect::from_min_size(
+            egui::pos2(rect.right() - 154.0, rect.bottom() - 72.0),
+            Vec2::new(128.0, 48.0),
+        );
+        painter.text(
+            egui::pos2(count_rect.center().x, count_rect.top() + 2.0),
+            egui::Align2::CENTER_TOP,
+            total.to_string(),
+            FontId::proportional(30.0),
+            Color32::WHITE,
+        );
+        painter.text(
+            egui::pos2(count_rect.center().x, count_rect.bottom() - 2.0),
+            egui::Align2::CENTER_BOTTOM,
+            format!("JUEGOS  ·  {installed} INSTALADOS"),
+            FontId::proportional(9.0),
+            Color32::from_rgb(172, 197, 218),
+        );
+    }
+
+    fn accounts_panel(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(20.0);
+        let connected_count = self
+            .accounts
+            .iter()
+            .filter(|account| account.connected)
+            .count();
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.label(
+                    RichText::new("TU COLECCIÓN, EN UN SOLO LUGAR")
+                        .size(10.0)
+                        .strong()
+                        .color(BLUE_LIGHT),
+                );
+                ui.add_space(4.0);
+                ui.heading(RichText::new("Conectá tus tiendas").size(30.0).strong());
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new(
+                        "Vinculá tus cuentas para reunir juegos instalados y por instalar.",
+                    )
+                    .size(13.0)
+                    .color(MUTED),
+                );
+            });
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                Frame::new()
+                    .fill(SURFACE)
+                    .stroke(Stroke::new(1.0, LINE))
+                    .corner_radius(12.0)
+                    .inner_margin(Margin::symmetric(16, 11))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            let (icon_rect, _) =
+                                ui.allocate_exact_size(Vec2::splat(24.0), Sense::hover());
+                            paint_icon(ui.painter(), icon_rect, UiIcon::Accounts, BLUE_LIGHT);
+                            ui.vertical(|ui| {
+                                ui.label(
+                                    RichText::new(format!("{connected_count} de 11"))
+                                        .size(17.0)
+                                        .strong(),
+                                );
+                                ui.label(
+                                    RichText::new("tiendas conectadas").size(10.0).color(MUTED),
+                                );
+                            });
+                        });
+                    });
+            });
+        });
+        ui.add_space(22.0);
         let rows = accounts::stores().to_vec();
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            let card_width = ((ui.available_width() - 18.0) / 2.0).max(250.0);
+            let card_width = ((ui.available_width() - 12.0) / 2.0).max(260.0);
             for row in rows.chunks(2) {
                 ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 12.0;
                     for (id, label, description) in row {
-                        ui.add_space(6.0);
                         self.account_card(ui, id, label, description, card_width);
                     }
                 });
-                ui.add_space(10.0);
+                ui.add_space(12.0);
             }
             ui.add_space(10.0);
-            ui.label(RichText::new("Steam, Epic, EA, GOG, Ubisoft, Amazon, Rockstar y Game Jolt sincronizan bibliotecas de cuenta; itch.io usa su clave API. Xbox todavía depende del helper Linux de DroidDeck y Battle.net solo expone los juegos instalados en la app Android, por eso esas dos integraciones no figuran como conexión completa en Windows.").size(11.0).color(MUTED));
+            Frame::new()
+                .fill(SURFACE)
+                .stroke(Stroke::new(1.0, LINE))
+                .corner_radius(11.0)
+                .inner_margin(Margin::symmetric(14, 11))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        let (icon_rect, _) =
+                            ui.allocate_exact_size(Vec2::splat(17.0), Sense::hover());
+                        paint_icon(ui.painter(), icon_rect, UiIcon::Monitor, MUTED);
+                        ui.label(
+                            RichText::new("Xbox y Battle.net todavía no ofrecen biblioteca completa en este launcher.")
+                                .size(11.0)
+                                .color(MUTED),
+                        );
+                    });
+                });
         });
     }
 
@@ -598,7 +1183,7 @@ impl Launcher {
         Frame::new()
             .fill(CARD)
             .stroke(Stroke::new(1.0, LINE))
-            .corner_radius(12.0)
+            .corner_radius(15.0)
             .inner_margin(Margin::same(14))
             .show(ui, |ui| {
                 ui.set_min_width((card_width - 28.0).max(180.0));
@@ -606,44 +1191,71 @@ impl Launcher {
                 ui.horizontal(|ui| {
                     let store = model::STORES.iter().find(|store| store.id == id);
                     let color = store.map(|store| store.color).unwrap_or(BLUE);
-                    let (dot, _) = ui.allocate_exact_size(Vec2::splat(12.0), Sense::hover());
-                    ui.painter().circle_filled(dot.center(), 5.0, color);
-                    ui.label(RichText::new(label).strong().size(16.0));
+                    Frame::new()
+                        .fill(Color32::from_rgba_unmultiplied(
+                            color.r(),
+                            color.g(),
+                            color.b(),
+                            28,
+                        ))
+                        .stroke(Stroke::new(
+                            1.0,
+                            Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 90),
+                        ))
+                        .corner_radius(10.0)
+                        .inner_margin(Margin::same(9))
+                        .show(ui, |ui| {
+                            ui.label(
+                                RichText::new(store_initials(id))
+                                    .size(14.0)
+                                    .strong()
+                                    .color(color),
+                            );
+                        });
+                    ui.add_space(3.0);
+                    ui.vertical(|ui| {
+                        ui.label(RichText::new(label).strong().size(16.0));
+                        ui.label(RichText::new(description).size(11.0).color(MUTED));
+                    });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label(
-                            RichText::new(if busy {
-                                "CONECTANDO"
-                            } else if connected.connected {
-                                "CONECTADA"
-                            } else if ready {
-                                "DISPONIBLE"
-                            } else {
-                                "EN DESARROLLO"
-                            })
-                            .size(9.0)
-                            .strong()
-                            .color(if connected.connected {
-                                Color32::from_rgb(113, 203, 149)
-                            } else if ready {
-                                BLUE
-                            } else {
-                                MUTED
-                            }),
-                        );
+                        let state = if busy {
+                            ("CONECTANDO", BLUE_LIGHT)
+                        } else if connected.connected {
+                            ("CONECTADA", GREEN)
+                        } else if ready {
+                            ("DISPONIBLE", MUTED)
+                        } else {
+                            ("PRÓXIMAMENTE", MUTED)
+                        };
+                        Frame::new()
+                            .fill(Color32::from_rgba_unmultiplied(
+                                state.1.r(),
+                                state.1.g(),
+                                state.1.b(),
+                                26,
+                            ))
+                            .corner_radius(8.0)
+                            .inner_margin(Margin::symmetric(8, 5))
+                            .show(ui, |ui| {
+                                ui.label(RichText::new(state.0).size(9.0).strong().color(state.1));
+                            });
                     });
                 });
-                ui.add_space(4.0);
-                ui.label(RichText::new(description).size(11.0).color(MUTED));
                 if connected.connected {
-                    ui.add_space(7.0);
-                    ui.label(
-                        RichText::new(format!("Sesión: {}", connected.display_name))
-                            .size(11.0)
-                            .color(Color32::from_rgb(113, 203, 149)),
-                    );
+                    ui.add_space(10.0);
+                    ui.horizontal(|ui| {
+                        let (icon_rect, _) =
+                            ui.allocate_exact_size(Vec2::splat(14.0), Sense::hover());
+                        paint_icon(ui.painter(), icon_rect, UiIcon::Check, GREEN);
+                        ui.label(
+                            RichText::new(format!("Sesión activa · {}", connected.display_name))
+                                .size(11.0)
+                                .color(GREEN),
+                        );
+                    });
                 }
                 if id == "itch" && !connected.connected {
-                    ui.add_space(7.0);
+                    ui.add_space(10.0);
                     ui.add(
                         egui::TextEdit::singleline(&mut self.itch_key)
                             .password(true)
@@ -651,39 +1263,40 @@ impl Launcher {
                             .desired_width(ui.available_width()),
                     );
                 }
-                ui.add_space(8.0);
+                ui.add_space(12.0);
                 ui.horizontal(|ui| {
                     if connected.connected {
-                        if ui
-                            .add_enabled(
-                                !busy,
-                                egui::Button::new("Sincronizar")
-                                    .fill(BLUE)
-                                    .corner_radius(7.0),
-                            )
+                        if icon_label_button(ui, "Sincronizar", UiIcon::Refresh, 132.0, true, !busy)
                             .clicked()
                         {
                             self.sync_store(id);
                         }
                         if ui
-                            .add_enabled(!busy, egui::Button::new("Desconectar").corner_radius(7.0))
+                            .add_enabled(
+                                !busy,
+                                egui::Button::new("Desconectar")
+                                    .fill(SURFACE)
+                                    .stroke(Stroke::new(1.0, LINE))
+                                    .corner_radius(9.0),
+                            )
                             .clicked()
                         {
                             self.disconnect_store(id);
                         }
                     } else if ready {
-                        if ui
-                            .add_enabled(
-                                !busy,
-                                egui::Button::new(if busy {
-                                    "Conectando…"
-                                } else {
-                                    "Conectar cuenta"
-                                })
-                                .fill(BLUE)
-                                .corner_radius(7.0),
-                            )
-                            .clicked()
+                        if icon_label_button(
+                            ui,
+                            if busy {
+                                "Conectando…"
+                            } else {
+                                "Conectar cuenta"
+                            },
+                            UiIcon::Accounts,
+                            158.0,
+                            true,
+                            !busy,
+                        )
+                        .clicked()
                         {
                             self.connect_store(id);
                         }
@@ -703,10 +1316,18 @@ impl Launcher {
     fn draw_card(&mut self, ui: &mut egui::Ui, game: &Game) {
         let ctx = ui.ctx().clone();
         self.queue_cover(game, &ctx);
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(CARD_W, CARD_H), Sense::hover());
-        ui.painter().rect_filled(rect, 12.0, CARD);
-        ui.painter()
-            .rect_stroke(rect, 12.0, Stroke::new(1.0, LINE), egui::StrokeKind::Inside);
+        let (rect, response) = ui.allocate_exact_size(Vec2::new(CARD_W, CARD_H), Sense::hover());
+        ui.painter().rect_filled(
+            rect,
+            15.0,
+            if response.hovered() { CARD_HOVER } else { CARD },
+        );
+        ui.painter().rect_stroke(
+            rect,
+            15.0,
+            Stroke::new(1.0, if response.hovered() { BLUE } else { LINE }),
+            egui::StrokeKind::Inside,
+        );
         ui.scope_builder(
             UiBuilder::new()
                 .max_rect(rect.shrink(1.0))
@@ -723,7 +1344,7 @@ impl Launcher {
                         sw: 0,
                         se: 0,
                     },
-                    Color32::from_rgb(22, 33, 47),
+                    Color32::from_rgb(22, 34, 49),
                 );
                 if let Some(texture) = self.textures.get(&game.key) {
                     ui.painter().image(
@@ -740,7 +1361,7 @@ impl Launcher {
                             sw: 0,
                             se: 0,
                         },
-                        Color32::from_rgba_unmultiplied(2, 7, 13, 48),
+                        Color32::from_rgba_unmultiplied(3, 8, 15, 46),
                     );
                 } else {
                     ui.painter().text(
@@ -748,67 +1369,87 @@ impl Launcher {
                         egui::Align2::CENTER_CENTER,
                         game.title.chars().next().unwrap_or('D').to_string(),
                         FontId::proportional(62.0),
-                        Color32::from_rgb(60, 104, 144),
+                        Color32::from_rgb(75, 128, 171),
+                    );
+                    ui.painter().circle_stroke(
+                        cover.center(),
+                        54.0,
+                        Stroke::new(1.0, Color32::from_rgba_unmultiplied(75, 177, 242, 100)),
                     );
                 }
+                let badge_width = ((game.store_name.chars().count() as f32 * 6.4) + 31.0)
+                    .clamp(70.0, CARD_W - 22.0);
                 let badge = egui::Rect::from_min_size(
                     cover.left_top() + Vec2::splat(9.0),
-                    Vec2::new(80.0, 25.0),
+                    Vec2::new(badge_width, 25.0),
                 );
                 ui.painter().rect_filled(
                     badge,
-                    7.0,
-                    Color32::from_rgba_unmultiplied(8, 13, 20, 224),
+                    9.0,
+                    Color32::from_rgba_unmultiplied(8, 13, 20, 232),
+                );
+                ui.painter().circle_filled(
+                    egui::pos2(badge.left() + 11.0, badge.center().y),
+                    3.0,
+                    game.store_color(),
                 );
                 ui.painter().text(
-                    badge.center(),
-                    egui::Align2::CENTER_CENTER,
+                    egui::pos2(badge.left() + 21.0, badge.center().y),
+                    egui::Align2::LEFT_CENTER,
                     game.store_name.as_str(),
                     FontId::proportional(11.0),
                     game.store_color(),
+                );
+                let status_color = if game.installed { GREEN } else { BLUE_LIGHT };
+                let status_badge = egui::Rect::from_min_size(
+                    egui::pos2(cover.left() + 9.0, cover.bottom() - 33.0),
+                    Vec2::new(if game.installed { 80.0 } else { 110.0 }, 23.0),
+                );
+                ui.painter().rect_filled(
+                    status_badge,
+                    8.0,
+                    Color32::from_rgba_unmultiplied(8, 13, 20, 220),
+                );
+                ui.painter().circle_filled(
+                    egui::pos2(status_badge.left() + 10.0, status_badge.center().y),
+                    3.0,
+                    status_color,
+                );
+                ui.painter().text(
+                    egui::pos2(status_badge.left() + 19.0, status_badge.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    if game.installed {
+                        "INSTALADO"
+                    } else {
+                        "NO INSTALADO"
+                    },
+                    FontId::proportional(9.0),
+                    status_color,
                 );
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
                     ui.add_space(10.0);
                     ui.add_sized(
-                        [CARD_W - 22.0, 40.0],
+                        [CARD_W - 22.0, 38.0],
                         egui::Label::new(RichText::new(&game.title).strong().size(14.0)).truncate(),
                     );
                 });
-                ui.add_space(2.0);
-                let status = if game.installed {
-                    "Instalado en este equipo"
-                } else if game.owned {
-                    "En tu biblioteca · No instalado"
-                } else {
-                    "Detectado localmente"
-                };
-                ui.horizontal(|ui| {
-                    ui.add_space(10.0);
-                    ui.add_sized(
-                        [CARD_W - 22.0, 14.0],
-                        egui::Label::new(RichText::new(status).size(10.0).color(
-                            if game.installed {
-                                Color32::from_rgb(113, 203, 149)
-                            } else {
-                                MUTED
-                            },
-                        ))
-                        .truncate(),
-                    );
-                });
-                ui.add_space(10.0);
+                ui.add_space(5.0);
                 ui.horizontal(|ui| {
                     ui.add_space(9.0);
-                    let label = if game.installed { "Jugar" } else { "Instalar" };
-                    if ui
-                        .add_sized(
-                            [CARD_W - 20.0, 34.0],
-                            egui::Button::new(RichText::new(label).strong().size(12.0))
-                                .fill(BLUE)
-                                .corner_radius(8.0),
-                        )
-                        .clicked()
+                    if icon_label_button(
+                        ui,
+                        if game.installed { "Jugar" } else { "Instalar" },
+                        if game.installed {
+                            UiIcon::Play
+                        } else {
+                            UiIcon::Download
+                        },
+                        CARD_W - 20.0,
+                        true,
+                        true,
+                    )
+                    .clicked()
                     {
                         self.launch(game);
                     }
@@ -840,142 +1481,163 @@ impl Launcher {
         let installed = self.games.iter().filter(|game| game.installed).count();
         let uninstalled = all - installed;
         egui::Panel::left("navigation")
-            .exact_size(224.0)
+            .exact_size(244.0)
             .resizable(false)
             .frame(
                 Frame::new()
                     .fill(PANEL)
-                    .inner_margin(Margin::same(16))
+                    .inner_margin(Margin::same(18))
                     .stroke(Stroke::new(1.0, LINE)),
             )
             .show(ui, |ui| {
-                ui.add_space(12.0);
+                ui.add_space(7.0);
                 ui.horizontal(|ui| {
                     Frame::new()
                         .fill(BLUE)
-                        .corner_radius(8.0)
-                        .inner_margin(Margin::symmetric(8, 4))
+                        .corner_radius(11.0)
+                        .inner_margin(Margin::symmetric(9, 7))
                         .show(ui, |ui| {
-                            ui.label(RichText::new("D").strong().size(19.0).color(Color32::WHITE));
+                            ui.label(RichText::new("D").strong().size(22.0).color(Color32::WHITE));
                         });
-                    ui.label(
-                        RichText::new("DroidDeck")
-                            .strong()
-                            .size(21.0)
-                            .color(Color32::WHITE),
-                    );
+                    ui.vertical(|ui| {
+                        ui.label(
+                            RichText::new("DroidDeck")
+                                .strong()
+                                .size(20.0)
+                                .color(Color32::WHITE),
+                        );
+                        ui.label(
+                            RichText::new("GAME LAUNCHER")
+                                .size(8.0)
+                                .strong()
+                                .color(MUTED),
+                        );
+                    });
                 });
-                ui.add_space(38.0);
+                ui.add_space(31.0);
                 ui.label(RichText::new("BIBLIOTECA").size(10.0).strong().color(MUTED));
+                ui.add_space(9.0);
+                self.nav_item(
+                    ui,
+                    "Todos los juegos",
+                    all,
+                    LibraryFilter::All,
+                    UiIcon::Grid,
+                );
+                self.nav_item(
+                    ui,
+                    "Instalados",
+                    installed,
+                    LibraryFilter::Installed,
+                    UiIcon::Check,
+                );
+                self.nav_item(
+                    ui,
+                    "No instalados",
+                    uninstalled,
+                    LibraryFilter::Uninstalled,
+                    UiIcon::Download,
+                );
                 ui.add_space(8.0);
-                self.nav_item(ui, "Todos", all, LibraryFilter::All);
-                self.nav_item(ui, "Instalados", installed, LibraryFilter::Installed);
-                self.nav_item(ui, "No instalados", uninstalled, LibraryFilter::Uninstalled);
                 let connected = self
                     .accounts
                     .iter()
                     .filter(|account| account.connected)
                     .count();
-                let selected = self.page == Page::Stores;
-                let response = ui.add(
-                    egui::Button::new(
-                        RichText::new(format!("Cuentas de tiendas    {connected}/11"))
-                            .size(12.0)
-                            .color(if selected { Color32::WHITE } else { MUTED }),
-                    )
-                    .fill(if selected {
-                        Color32::from_rgb(16, 48, 70)
-                    } else {
-                        Color32::TRANSPARENT
-                    })
-                    .stroke(if selected {
-                        Stroke::new(1.0, Color32::from_rgb(29, 111, 162))
-                    } else {
-                        Stroke::NONE
-                    })
-                    .corner_radius(8.0)
-                    .min_size(Vec2::new(ui.available_width(), 34.0)),
-                );
-                if response.clicked() {
+                if sidebar_row(
+                    ui,
+                    "Cuentas de tiendas",
+                    &format!("{connected}/11"),
+                    UiIcon::Accounts,
+                    BLUE_LIGHT,
+                    self.page == Page::Stores,
+                )
+                .clicked()
+                {
                     self.page = Page::Stores;
                 }
-                ui.add_space(28.0);
-                ui.label(RichText::new("TIENDAS").size(10.0).strong().color(MUTED));
-                ui.add_space(8.0);
+                ui.add_space(26.0);
+                ui.label(
+                    RichText::new("TUS TIENDAS")
+                        .size(10.0)
+                        .strong()
+                        .color(MUTED),
+                );
+                ui.add_space(9.0);
                 let stores = model::available_stores(&self.games);
                 self.store_nav(ui, "all", "Todas las tiendas", all);
                 for (id, label, count) in stores {
                     self.store_nav(ui, &id, &label, count);
                 }
                 ui.with_layout(Layout::bottom_up(Align::Min), |ui| {
-                    ui.separator();
-                    ui.label(
-                        RichText::new("Launcher para Windows")
-                            .size(12.0)
-                            .color(Color32::from_rgb(119, 204, 147)),
-                    );
-                    ui.label(
-                        RichText::new("   Solo juegos · Sin emulación")
-                            .size(10.0)
-                            .color(MUTED),
-                    );
+                    Frame::new()
+                        .fill(SURFACE)
+                        .stroke(Stroke::new(1.0, LINE))
+                        .corner_radius(11.0)
+                        .inner_margin(Margin::symmetric(11, 9))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let (icon_rect, _) =
+                                    ui.allocate_exact_size(Vec2::splat(24.0), Sense::hover());
+                                paint_icon(ui.painter(), icon_rect, UiIcon::Gamepad, BLUE_LIGHT);
+                                ui.vertical(|ui| {
+                                    ui.label(
+                                        RichText::new("Windows launcher")
+                                            .size(10.0)
+                                            .strong()
+                                            .color(Color32::WHITE),
+                                    );
+                                    ui.label(
+                                        RichText::new("Solo PC · Sin emulación")
+                                            .size(9.0)
+                                            .color(MUTED),
+                                    );
+                                });
+                            });
+                        });
                 });
             });
     }
 
-    fn nav_item(&mut self, ui: &mut egui::Ui, label: &str, count: usize, filter: LibraryFilter) {
-        let selected = self.filter == filter && self.store_filter == "all";
-        let frame = if selected {
-            Frame::new()
-                .fill(Color32::from_rgb(16, 48, 70))
-                .stroke(Stroke::new(1.0, Color32::from_rgb(29, 111, 162)))
-                .corner_radius(9.0)
-                .inner_margin(Margin::symmetric(10, 9))
-        } else {
-            Frame::new().inner_margin(Margin::symmetric(10, 9))
-        };
-        let response = frame.show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                ui.label(RichText::new(label).color(if selected { Color32::WHITE } else { MUTED }));
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.label(RichText::new(count.to_string()).size(11.0).color(MUTED));
-                });
-            });
-        });
-        if ui
-            .interact(
-                response.response.rect,
-                ui.make_persistent_id(("library-nav", label)),
-                Sense::click(),
-            )
-            .clicked()
-        {
+    fn nav_item(
+        &mut self,
+        ui: &mut egui::Ui,
+        label: &str,
+        count: usize,
+        filter: LibraryFilter,
+        icon: UiIcon,
+    ) {
+        let selected =
+            self.page == Page::Library && self.filter == filter && self.store_filter == "all";
+        if sidebar_row(ui, label, &count.to_string(), icon, BLUE_LIGHT, selected).clicked() {
             self.filter = filter;
             self.store_filter = "all".into();
             self.page = Page::Library;
         }
-        ui.add_space(3.0);
+        ui.add_space(4.0);
     }
 
     fn store_nav(&mut self, ui: &mut egui::Ui, id: &str, label: &str, count: usize) {
-        let selected = self.store_filter == id;
-        let response = ui.add(
-            egui::Button::new(
-                RichText::new(format!("{label}    {count}"))
-                    .size(12.0)
-                    .color(if selected { Color32::WHITE } else { MUTED }),
-            )
-            .fill(if selected {
-                Color32::from_rgb(24, 36, 50)
-            } else {
-                Color32::TRANSPARENT
-            })
-            .stroke(Stroke::NONE)
-            .corner_radius(8.0)
-            .min_size(Vec2::new(ui.available_width(), 34.0)),
-        );
-        if response.clicked() {
+        let selected = self.page == Page::Library && self.store_filter == id;
+        let color = if id == "all" {
+            BLUE_LIGHT
+        } else {
+            model::STORES
+                .iter()
+                .find(|store| store.id == id)
+                .map(|store| store.color)
+                .unwrap_or(MUTED)
+        };
+        if sidebar_row(
+            ui,
+            label,
+            &count.to_string(),
+            UiIcon::Store,
+            color,
+            selected,
+        )
+        .clicked()
+        {
             self.store_filter = id.to_owned();
             self.filter = LibraryFilter::All;
             self.page = Page::Library;
@@ -989,56 +1651,137 @@ impl eframe::App for Launcher {
         self.poll_covers(&ctx);
         self.poll_accounts(&ctx);
         self.sidebar(ui);
-        egui::CentralPanel::default().frame(Frame::new().fill(BG).inner_margin(Margin::same(22))).show(ui, |ui| {
+        egui::CentralPanel::default()
+            .frame(Frame::new().fill(BG).inner_margin(Margin::same(24)))
+            .show(ui, |ui| {
             self.header(ui);
-            if let Some(message) = self.notice.take() { self.toast = Some((message, ctx.input(|i| i.time) + 3.5)); }
-            if let Some((message, until)) = &self.toast {
-                    if ctx.input(|i| i.time) < *until {
-                    Frame::new().fill(Color32::from_rgb(14, 42, 61)).stroke(Stroke::new(1.0, Color32::from_rgb(28, 96, 137))).corner_radius(8.0).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| { ui.label(RichText::new(message).color(Color32::WHITE)); });
-                    ui.add_space(8.0);
-                } else { self.toast = None; }
+            if let Some(message) = self.notice.take() {
+                self.toast = Some((message, ctx.input(|i| i.time) + 3.5));
             }
-            ui.separator();
+            if let Some((message, until)) = &self.toast {
+                if ctx.input(|i| i.time) < *until {
+                    Frame::new()
+                        .fill(Color32::from_rgb(14, 39, 56))
+                        .stroke(Stroke::new(1.0, Color32::from_rgb(35, 91, 126)))
+                        .corner_radius(10.0)
+                        .inner_margin(Margin::symmetric(12, 8))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                let (icon_rect, _) =
+                                    ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                                paint_icon(ui.painter(), icon_rect, UiIcon::Check, BLUE_LIGHT);
+                                ui.label(RichText::new(message).color(Color32::WHITE));
+                            });
+                        });
+                    ui.add_space(8.0);
+                } else {
+                    self.toast = None;
+                }
+            }
             if self.page == Page::Stores {
+                ui.add_space(4.0);
                 self.accounts_panel(ui);
             } else {
-                ui.add_space(16.0);
+                ui.add_space(17.0);
+                let featured = self
+                    .games
+                    .iter()
+                    .find(|game| game.installed)
+                    .or_else(|| self.games.first())
+                    .cloned();
+                self.draw_hero(ui, featured);
+                ui.add_space(22.0);
                 let installed = self.games.iter().filter(|game| game.installed).count();
                 let uninstalled = self.games.len().saturating_sub(installed);
                 ui.horizontal(|ui| {
                     ui.vertical(|ui| {
-                        ui.label(RichText::new("TU COLECCIÓN, EN UN SOLO LUGAR").size(10.0).strong().color(BLUE));
-                        ui.add_space(4.0);
-                        ui.heading(RichText::new("Biblioteca").size(27.0).strong());
+                        ui.heading(RichText::new("Tu biblioteca").size(22.0).strong());
+                        ui.label(
+                            RichText::new("Tus juegos, ordenados por disponibilidad")
+                                .size(11.0)
+                                .color(MUTED),
+                        );
                     });
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label(RichText::new(format!("{} juegos   ·   {} instalados   ·   {} no instalados", self.games.len(), installed, uninstalled)).size(12.0).color(MUTED));
+                        Frame::new()
+                            .fill(SURFACE)
+                            .stroke(Stroke::new(1.0, LINE))
+                            .corner_radius(10.0)
+                            .inner_margin(Margin::symmetric(12, 8))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new(format!("{} juegos", self.games.len()))
+                                            .size(11.0)
+                                            .strong()
+                                            .color(Color32::WHITE),
+                                    );
+                                    ui.separator();
+                                    ui.label(RichText::new(format!("{installed} instalados")).size(10.0).color(GREEN));
+                                    ui.label(RichText::new(format!("{uninstalled} por instalar")).size(10.0).color(MUTED));
+                                });
+                            });
                     });
                 });
-                ui.add_space(14.0);
+                ui.add_space(16.0);
                 let visible = self.visible_games();
                 if visible.is_empty() {
-                    ui.add_space(70.0);
-                    ui.vertical_centered(|ui| {
-                        ui.label(RichText::new(if self.games.is_empty() { "Conectá tus tiendas" } else { "No hay juegos que coincidan" }).size(24.0).strong());
-                        ui.add_space(8.0);
-                        ui.label(RichText::new(if self.games.is_empty() { "Iniciá sesión en Steam, Epic, EA, GOG, Ubisoft, Amazon, itch.io o Game Jolt para ver tu colección completa." } else { "Probá otro nombre o filtro." }).color(MUTED));
-                        ui.add_space(18.0);
-                        if self.games.is_empty() && ui.add(egui::Button::new("Conectar tiendas").fill(BLUE).corner_radius(8.0)).clicked() { self.page = Page::Stores; }
-                    });
+                    Frame::new()
+                        .fill(CARD)
+                        .stroke(Stroke::new(1.0, LINE))
+                        .corner_radius(15.0)
+                        .inner_margin(Margin::same(25))
+                        .show(ui, |ui| {
+                            ui.vertical_centered(|ui| {
+                                let (icon_rect, _) =
+                                    ui.allocate_exact_size(Vec2::splat(36.0), Sense::hover());
+                                paint_icon(
+                                    ui.painter(),
+                                    icon_rect,
+                                    if self.games.is_empty() { UiIcon::Library } else { UiIcon::Search },
+                                    BLUE_LIGHT,
+                                );
+                                ui.add_space(10.0);
+                                ui.label(
+                                    RichText::new(if self.games.is_empty() {
+                                        "Tu biblioteca está lista para crecer"
+                                    } else {
+                                        "No hay juegos que coincidan"
+                                    })
+                                    .size(20.0)
+                                    .strong(),
+                                );
+                                ui.add_space(6.0);
+                                ui.label(
+                                    RichText::new(if self.games.is_empty() {
+                                        "Conectá Steam y tus otras tiendas para cargar juegos instalados y no instalados."
+                                    } else {
+                                        "Probá otro nombre o elegí un filtro distinto."
+                                    })
+                                    .size(12.0)
+                                    .color(MUTED),
+                                );
+                                if self.games.is_empty() {
+                                    ui.add_space(15.0);
+                                    if icon_label_button(ui, "Conectar tiendas", UiIcon::Accounts, 170.0, true, true).clicked() {
+                                        self.page = Page::Stores;
+                                    }
+                                }
+                            });
+                        });
                 } else {
                     let no_installed: Vec<_> = visible.iter().filter(|game| !game.installed).cloned().collect();
                     let installed_games: Vec<_> = visible.iter().filter(|game| game.installed).cloned().collect();
                     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                         if !no_installed.is_empty() {
-                            section_header(ui, "NO INSTALADOS", no_installed.len(), Color32::from_rgb(153, 185, 210));
-                            ui.add_space(9.0);
+                            section_header(ui, "NO INSTALADOS", no_installed.len(), BLUE_LIGHT);
+                            ui.add_space(12.0);
                             self.draw_grid(ui, &no_installed);
-                            ui.add_space(22.0);
+                            ui.add_space(18.0);
                         }
                         if !installed_games.is_empty() {
-                            section_header(ui, "INSTALADOS", installed_games.len(), Color32::from_rgb(113, 203, 149));
-                            ui.add_space(9.0);
+                            section_header(ui, "INSTALADOS", installed_games.len(), GREEN);
+                            ui.add_space(12.0);
                             self.draw_grid(ui, &installed_games);
                         }
                     });
@@ -1064,23 +1807,105 @@ fn section_header(ui: &mut egui::Ui, label: &str, count: usize, color: Color32) 
     });
 }
 
+fn sidebar_row(
+    ui: &mut egui::Ui,
+    label: &str,
+    count: &str,
+    icon: UiIcon,
+    icon_color: Color32,
+    selected: bool,
+) -> egui::Response {
+    let (rect, response) =
+        ui.allocate_exact_size(Vec2::new(ui.available_width(), 36.0), Sense::click());
+    let fill = if selected {
+        Color32::from_rgb(17, 45, 66)
+    } else if response.hovered() {
+        CARD_HOVER
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter().rect_filled(rect, 9.0, fill);
+    if selected {
+        ui.painter().rect_stroke(
+            rect,
+            9.0,
+            Stroke::new(1.0, Color32::from_rgb(33, 99, 140)),
+            egui::StrokeKind::Inside,
+        );
+        ui.painter().rect_filled(
+            egui::Rect::from_min_size(rect.left_top(), Vec2::new(3.0, rect.height())),
+            2.0,
+            BLUE,
+        );
+    }
+    let icon_rect = egui::Rect::from_center_size(
+        egui::pos2(rect.left() + 23.0, rect.center().y),
+        Vec2::splat(16.0),
+    );
+    paint_icon(
+        ui.painter(),
+        icon_rect,
+        icon,
+        if selected { BLUE_LIGHT } else { icon_color },
+    );
+    ui.painter().text(
+        egui::pos2(rect.left() + 43.0, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        label,
+        FontId::proportional(12.5),
+        if selected { Color32::WHITE } else { MUTED },
+    );
+    ui.painter().text(
+        egui::pos2(rect.right() - 11.0, rect.center().y),
+        egui::Align2::RIGHT_CENTER,
+        count,
+        FontId::proportional(10.5),
+        if selected {
+            Color32::from_rgb(190, 216, 236)
+        } else {
+            MUTED
+        },
+    );
+    response
+}
+
+fn store_initials(id: &str) -> &'static str {
+    match id {
+        "steam" => "S",
+        "epic" => "EP",
+        "ea" => "EA",
+        "gog" => "GOG",
+        "ubisoft" => "U",
+        "amazon" => "A",
+        "rockstar" => "R*",
+        "itch" => "itch",
+        "gamejolt" => "GJ",
+        "xbox" => "X",
+        "battlenet" => "B",
+        _ => "PC",
+    }
+}
+
 fn set_theme(ctx: &egui::Context) {
     let mut visuals = egui::Visuals::dark();
     visuals.panel_fill = BG;
     visuals.window_fill = PANEL;
-    visuals.extreme_bg_color = Color32::from_rgb(8, 12, 18);
-    visuals.faint_bg_color = Color32::from_rgb(19, 27, 38);
-    visuals.selection.bg_fill = Color32::from_rgb(18, 99, 150);
-    visuals.widgets.noninteractive.bg_fill = Color32::from_rgb(15, 21, 30);
-    visuals.widgets.inactive.bg_fill = Color32::from_rgb(19, 27, 37);
-    visuals.widgets.hovered.bg_fill = Color32::from_rgb(28, 40, 54);
+    visuals.extreme_bg_color = Color32::from_rgb(6, 10, 15);
+    visuals.faint_bg_color = Color32::from_rgb(20, 29, 40);
+    visuals.selection.bg_fill = Color32::from_rgb(20, 95, 141);
+    visuals.widgets.noninteractive.bg_fill = SURFACE;
+    visuals.widgets.inactive.bg_fill = CARD;
+    visuals.widgets.hovered.bg_fill = CARD_HOVER;
     visuals.widgets.active.bg_fill = Color32::from_rgb(25, 133, 198);
-    visuals.widgets.noninteractive.fg_stroke.color = Color32::from_rgb(216, 228, 239);
-    visuals.widgets.inactive.fg_stroke.color = Color32::from_rgb(194, 211, 229);
+    visuals.widgets.noninteractive.fg_stroke.color = Color32::from_rgb(226, 234, 243);
+    visuals.widgets.inactive.fg_stroke.color = Color32::from_rgb(202, 216, 230);
     visuals.widgets.hovered.fg_stroke.color = Color32::WHITE;
     visuals.widgets.active.fg_stroke.color = Color32::WHITE;
     ctx.set_visuals(visuals);
-    ctx.all_styles_mut(|style| style.spacing.item_spacing = Vec2::new(8.0, 8.0));
+    ctx.all_styles_mut(|style| {
+        style.spacing.item_spacing = Vec2::new(10.0, 9.0);
+        style.spacing.button_padding = Vec2::new(12.0, 8.0);
+    });
 }
 
 fn read_database(path: &PathBuf) -> Option<Vec<Game>> {
