@@ -22,6 +22,7 @@
 #include "xdg-shell-server-protocol.h"
 #include "linux-dmabuf-v1-server-protocol.h"
 #include "sc_layer.h"
+#include "present_cadence.h"
 #include "ahb_swapchain.h"
 #include "display_buffers.h"
 #include "viewporter-server-protocol.h"
@@ -316,6 +317,10 @@ volatile int g_fps_limit;
 volatile int g_release_unpaced;
 
 volatile int g_bfi;
+atomic_int g_present_cadence;
+atomic_int g_game_on_other_display;
+static int g_cadence_running = -1;
+static const char *g_cadence_blocked;
 volatile int g_bfi_picture_hold;
 static int g_bfi_running;
 static unsigned g_bfi_phase;
@@ -2556,13 +2561,16 @@ static void render_scene(void) {
         static int fell_back;
         vkp_apply_window_request();
         sc_layer_hide_overlay();
+        const void *hdr_frame = NULL;
+        for (int i = dl.n - 1; i >= 0 && !hdr_frame; i--)
+            if (hs.is_hdr && hs.is_hdr[i]) hdr_frame = dl.d[i].img;
         const int generated = framegen ? sc_layer_present_generated(dl.d, dl.n, &hs.hf, w, h, 1, hs.color) : 0;
         if (framegen) g_framegen_layer = generated >= 0;
         if (generated > 0 && g_framegen_layer_said != 3) {
             g_framegen_layer_said = 3;
             droiddeck_log("framegen", "generated frames and the composed HDR picture go on the game's display layer");
         }
-        if (framegen ? generated >= 0 : sc_layer_present_hdr_scene(dl.d, dl.n, &hs.hf, w, h, hs.color) == 0) {
+        if (framegen ? generated >= 0 : sc_layer_present_hdr_scene(dl.d, dl.n, &hs.hf, w, h, hs.color, hdr_frame) == 0) {
             rendered = vkp_base_black(w, h) == 0;
             if (fell_back) { fell_back = 0; droiddeck_log("color", "the composed picture is on the game's display layer again"); }
         } else {
@@ -2802,6 +2810,30 @@ static void bfi_update(void) {
     }
 }
 
+static const char *cadence_blocked(void) {
+    if (g_bfi_running) return "black frame insertion paces every refresh";
+    if (vkp_framegen_active()) return "frame generation fills the refreshes";
+    if (atomic_load(&g_stream_on)) return "the picture is being streamed";
+    if (vkp_cardboard_active()) return "Cardboard VR is on";
+    if (vkp_quest_layer_presentation()) return "this headset composes its own layers";
+    if (atomic_load(&g_game_on_other_display)) return "the game is shown on another screen than the one whose refreshes it follows";
+    return NULL;
+}
+
+static void cadence_update(void) {
+    const int on = atomic_load(&g_present_cadence);
+    const char *why = on ? cadence_blocked() : NULL;
+    const int run = on && !why;
+    if (on && why && why != g_cadence_blocked)
+        droiddeck_log("pacing", "even frame pacing waits: %s", why);
+    g_cadence_blocked = why;
+    if (run == g_cadence_running) return;
+    g_cadence_running = run;
+    sc_layer_set_present_cadence(run);
+    droiddeck_log("pacing", run ? "even frame pacing on: game frames capped below the refresh rate are held to "
+                                  "an even cadence" : "even frame pacing off");
+}
+
 static void bfi_tick(void) {
     /* A capture copies the surface's last buffer: present pictures only, still composed into that surface. */
     if (g_bfi_picture_hold) {
@@ -2841,6 +2873,7 @@ static void on_vsync(int64_t frame_time_ns) {
     if (vkp_cardboard_pose_changed()) tick_change = 1;
     if (tick_change) g_dirty = 1;
     bfi_update();
+    cadence_update();
     if (g_bfi_running) {
         g_tick_held = 0;
         bfi_tick();
@@ -4240,6 +4273,18 @@ static int on_stats_timer(void *data) {
                    g_pace.renders ? (double)g_pace.wait_ns / 1e6 / g_pace.renders : 0.0, (double)g_pace.wait_max_ns / 1e6,
                    g_pace.renders, g_pace.commit_renders, (unsigned long long)game, g_pace.reattaches, g_pace.null_attaches, g_pace.distinct,
                    g_pace.presented, g_pace.replaced, g_pace.undrawn, g_pace.gaps[0], g_pace.gaps[1], g_pace.gaps[2], g_pace.gaps[3]);
+    }
+    {
+        struct present_cadence_stats cs;
+        sc_layer_cadence_take(&cs);
+        if (cs.paced || cs.fillers)
+            droiddeck_log("pacing", "last 10 s: %u game frames held to a steady cadence (every %u refreshes at the end), "
+                       "%.2f/%.2f ms from arrival to screen, %u ready too late for their refresh, %u shown unpaced | "
+                       "presenter: %u filler refreshes, %u refreshes left empty, %u frames past their refresh, %u late wake-ups, "
+                       "frames applied %.2f ms before SurfaceFlinger's deadline, %.2f ms before their refresh",
+                       cs.paced, cs.interval, cs.paced ? (double)cs.latency_ns / 1e6 / cs.paced : 0.0,
+                       (double)cs.latency_max_ns / 1e6, cs.late, cs.unpaced, cs.fillers, cs.skipped, cs.overdue, cs.woke_late,
+                       (double)PRESENT_CADENCE_APPLY_NS / 1e6, (double)cs.lead_ns / 1e6);
     }
     if (g_bfi_stats.lit || g_bfi_stats.dark || g_bfi_stats.failed) {
         droiddeck_log("bfi", "last 10 s: %u pictures, %u black refreshes, %u black refreshes not presented",

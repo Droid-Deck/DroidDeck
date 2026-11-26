@@ -656,6 +656,8 @@
     <string name="drawer_page_display">顯示</string>
     <string name="drawer_frame_limit">幀率限制</string>
     <string name="drawer_frame_limit_note">限制此遊戲的幀率。若有能被此上限整除的螢幕更新率，顯示器會切換至該更新率；其他上限可能看起來不平順。Steam 遊戲請使用快速存取選單中 Steam 的幀率限制。</string>
+    <string name="drawer_even_pacing">均勻幀節奏</string>
+    <string name="drawer_even_pacing_note">當幀率限制能整除更新率時（例如 120 Hz 下的 30 或 40 fps），以均勻的節奏顯示受限的遊戲；其他限制下，幀時長仍會在兩種之間交替。會稍微增加延遲。開啟幀生成或黑幀插入時不可用。</string>
     <string name="drawer_bfi">黑幀插入</string>
     <string name="drawer_bfi_note">動態更清晰：每幀之後插入一次黑色更新。需要 100 Hz 或更高；遊戲以一半更新率運行，畫面較暗。開啟幀生成時不可用。</string>
     <string name="drawer_page_effects">效果</string>

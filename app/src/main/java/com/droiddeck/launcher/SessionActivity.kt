@@ -567,6 +567,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var blackFrameInsertion by mutableStateOf(false)
     private var hdrWanted by mutableStateOf(false)
     private var hdrAvailable by mutableStateOf(false)
+    private var presentCadence by mutableStateOf(false)
 
     private fun noSteamSession(): Boolean = (SessionState.mode == SessionService.MODE_RUN &&
         SessionState.program in setOf(
@@ -753,6 +754,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     @Suppress("DEPRECATION")
     private fun currentActivityDisplayId(): Int = windowManager.defaultDisplay.displayId
+
+    private fun gameOnOtherDisplay(): Boolean {
+        if (glassesOutputActive || bottomOutputActive) return true
+        val own = if (Build.VERSION.SDK_INT >= 30) display?.displayId ?: currentActivityDisplayId()
+            else currentActivityDisplayId()
+        return own != Display.DEFAULT_DISPLAY
+    }
 
     private fun refreshActivityDisplayId(): Boolean {
         val current = if (Build.VERSION.SDK_INT >= 30) display?.displayId ?: currentActivityDisplayId()
@@ -1739,6 +1747,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             hdr = hdrWanted,
             hdrAvailable = hdrAvailable,
             onHdr = { on -> com.droiddeck.launcher.session.SessionHdr.set(this@SessionActivity, hdrPrefMode(), on); hdrWanted = on },
+            presentCadence = presentCadence,
+            presentCadenceAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU,
+            onPresentCadence = { on ->
+                SessionPrefs.setPresentCadence(this@SessionActivity, on)
+                presentCadence = on
+                CompositorHost.setPresentCadence(on)
+            },
             onFrameGenPick = { mode ->
                 val appId = frameGenTargetGameId()
 
@@ -2626,6 +2641,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         blackFrameInsertion = SessionPrefs.blackFrameInsertion(this)
         hdrWanted = SessionPrefs.hdr(this, hdrPrefMode())
         hdrAvailable = HdrSupport.probe(this, glassesScreen?.display).reason == null
+        presentCadence = SessionPrefs.presentCadence(this)
         hudConfig = DroidDeckHudConfig.load(this)
         hudColor = SessionPrefs.hudColor(this)
         hudOpacity = SessionPrefs.hudOpacity(this)
@@ -6430,6 +6446,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         updatePointerCapture()
         if (bottomOutputActive) bottomRecoveries = 0
         if (CompositorHost.isStarted) WaylandCompositor.nativeSetCursorComposite(glassesOutputActive || bottomOutputActive)
+        CompositorHost.setGameOnOtherDisplay(gameOnOtherDisplay())
         surfaceView.visibility = if (glassesOutputActive || bottomOutputActive) View.INVISIBLE else View.VISIBLE
         Log.i(TAG, "compositor output attached: " +
             if (glassesOutputActive) "glasses display ${glassesScreen?.display?.displayId}"

@@ -2,11 +2,13 @@
 #include "sc_layer.h"
 #include "ahb_swapchain.h"
 #include "droiddeck_color.h"
+#include "present_cadence.h"
 #include "vk_present.h"
 #include "framegen_bridge.h"
 #include <android/hardware_buffer.h>
 #include <android/native_window.h>
 #include <android/rect.h>
+#include <linux/sync_file.h>
 #include <dlfcn.h>
 #include <errno.h>
 #include <math.h>
@@ -17,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -237,6 +240,7 @@ void sc_layer_frame_timeline(int64_t present_ns, int64_t deadline_ns, int64_t pe
     g_timeline_deadline_ns = deadline_ns;
     g_timeline_period_ns = period_ns;
     pthread_mutex_unlock(&g_timeline_lock);
+    present_cadence_set_timeline(present_ns, deadline_ns, period_ns, now_ns());
 }
 
 static int64_t cadence_target(int64_t now, int64_t earliest, int64_t period) {
@@ -320,31 +324,244 @@ static int add_complete(ASurfaceTransaction *tx, struct layer *l, int prev_slot,
     return add_complete_on(tx, l, l->sc, prev_slot, prev_token, retire);
 }
 
-static AHardwareBuffer *blank_buffer(void) {
-    if (g_blank) return g_blank;
+static AHardwareBuffer *g_blank2;
+
+static AHardwareBuffer *make_blank(AHardwareBuffer **out) {
+    if (*out) return *out;
+    AHardwareBuffer *b = NULL;
     AHardwareBuffer_Desc d = {
         .width = 16, .height = 16, .layers = 1, .format = AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM,
         .usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE | AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY |
                  AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY};
-    if (AHardwareBuffer_allocate(&d, &g_blank) != 0 || !g_blank) { g_blank = NULL; return NULL; }
+    if (AHardwareBuffer_allocate(&d, &b) != 0 || !b) return NULL;
     void *p = NULL;
-    int locked = AHardwareBuffer_lock(g_blank, AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY, -1, NULL, &p);
+    int locked = AHardwareBuffer_lock(b, AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY, -1, NULL, &p);
     if (locked != 0 || !p) {
-        if (locked == 0) AHardwareBuffer_unlock(g_blank, NULL);
-        AHardwareBuffer_release(g_blank); g_blank = NULL;
+        if (locked == 0) AHardwareBuffer_unlock(b, NULL);
+        AHardwareBuffer_release(b);
         return NULL;
     }
-    AHardwareBuffer_Desc got; AHardwareBuffer_describe(g_blank, &got);
+    AHardwareBuffer_Desc got; AHardwareBuffer_describe(b, &got);
     memset(p, 0, (size_t)got.stride * 4 * got.height);
-    if (AHardwareBuffer_unlock(g_blank, NULL) != 0) {
-        AHardwareBuffer_release(g_blank); g_blank = NULL;
+    if (AHardwareBuffer_unlock(b, NULL) != 0) {
+        AHardwareBuffer_release(b);
         return NULL;
     }
-    return g_blank;
+    *out = b;
+    return b;
 }
+
+static AHardwareBuffer *blank_buffer(void) { return make_blank(&g_blank); }
+
+#define PACER_QUEUE 8
+#define PACER_FILL_NS 100000000LL
+
+struct pacer_item {
+    ASurfaceTransaction *tx;
+    int64_t slot_ns;
+};
+
+static pthread_mutex_t g_pacer_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_pacer_cond;
+static pthread_once_t g_pacer_once = PTHREAD_ONCE_INIT;
+static int g_pacer_ok;
+static struct pacer_item g_pacer_q[PACER_QUEUE];
+static int g_pacer_head, g_pacer_n;
+static int64_t g_pacer_fill_until_ns;
+static int g_filler_flip;
+static ASurfaceControl *g_filler_sc;
+static ANativeWindow *g_filler_win;
+static atomic_uint g_pacer_fillers, g_pacer_overdue, g_pacer_woke_late, g_pacer_skipped;
+static int64_t g_pacer_last_slot_ns;
+static _Atomic int64_t g_pacer_lead_ns;
+
+static void pacer_apply_head_locked(void) {
+    struct pacer_item *it = &g_pacer_q[g_pacer_head];
+    api.txApply(it->tx);
+    api.txDelete(it->tx);
+    it->tx = NULL;
+    g_pacer_head = (g_pacer_head + 1) % PACER_QUEUE;
+    g_pacer_n--;
+}
+
+static void pacer_flush_locked(void) {
+    while (g_pacer_n) pacer_apply_head_locked();
+}
+
+static void filler_retire_locked(void) {
+    if (!g_filler_sc) return;
+    ASurfaceTransaction *tx = api.txCreate();
+    if (tx) {
+        api.reparent(tx, g_filler_sc, NULL);
+        api.txApply(tx);
+        api.txDelete(tx);
+    }
+    api.release(g_filler_sc);
+    g_filler_sc = NULL;
+    g_filler_win = NULL;
+}
+
+static void filler_ensure_locked(void) {
+    ANativeWindow *win = vkp_window();
+    if (g_filler_sc && g_filler_win == win) return;
+    filler_retire_locked();
+    if (!win || !blank_buffer() || !make_blank(&g_blank2)) return;
+    ASurfaceControl *sc = api.createFromWindow(win, "droiddeck_wayland_pacer");
+    if (!sc) return;
+    ASurfaceTransaction *tx = api.txCreate();
+    if (!tx) {
+        api.release(sc);
+        return;
+    }
+    const ARect r = {0, 0, 16, 16};
+    api.setBuffer(tx, sc, g_blank, -1);
+    api.setBufferTransparency(tx, sc, ASC_TRANSPARENCY_TRANSLUCENT);
+    api.setZOrder(tx, sc, 0);
+    api.setGeometry(tx, sc, &r, &r, 0);
+    api.setVisibility(tx, sc, ASC_VISIBILITY_SHOW);
+    api.txApply(tx);
+    api.txDelete(tx);
+    g_filler_sc = sc;
+    g_filler_win = win;
+    g_filler_flip = 0;
+}
+
+/* SurfaceFlinger shows a frame one refresh early when nothing was presented on the refresh before
+ * it, and whether it manages that is a race: swapping the buffer of a transparent 16x16 layer under
+ * the game keeps every refresh presented while a held frame is pending, so each frame lands on its
+ * own refresh. */
+static void filler_locked(void) {
+    if (!g_filler_sc || !g_blank || !g_blank2) return;
+    ASurfaceTransaction *tx = api.txCreate();
+    if (!tx) return;
+    api.setBuffer(tx, g_filler_sc, g_filler_flip ? g_blank : g_blank2, -1);
+    api.txApply(tx);
+    api.txDelete(tx);
+    g_filler_flip ^= 1;
+    atomic_fetch_add(&g_pacer_fillers, 1u);
+}
+
+static void *pacer_main(void *arg) {
+    (void)arg;
+    setpriority(PRIO_PROCESS, 0, -8);
+    pthread_mutex_lock(&g_pacer_lock);
+    for (;;) {
+        const int64_t now = now_ns();
+        int64_t grid = 0, lead = 0, period = 0;
+        if (!present_cadence_timeline(now, &grid, &lead, &period)) {
+            pacer_flush_locked();
+            g_pacer_fill_until_ns = 0;
+            pthread_cond_wait(&g_pacer_cond, &g_pacer_lock);
+            continue;
+        }
+        atomic_store(&g_pacer_lead_ns, lead);
+        const int64_t slot = present_cadence_vsync_at_or_after(now + lead + PRESENT_CADENCE_APPLY_NS, grid, period);
+        while (g_pacer_n && present_cadence_slot_order(g_pacer_q[g_pacer_head].slot_ns, slot, period) < 0) {
+            pacer_apply_head_locked();
+            atomic_fetch_add(&g_pacer_overdue, 1u);
+        }
+        if (!g_pacer_n && now >= g_pacer_fill_until_ns) {
+            pthread_cond_wait(&g_pacer_cond, &g_pacer_lock);
+            continue;
+        }
+        const int64_t at = slot - lead - PRESENT_CADENCE_APPLY_NS;
+        const struct timespec ts = {(time_t)(at / 1000000000LL), (long)(at % 1000000000LL)};
+        if (pthread_cond_timedwait(&g_pacer_cond, &g_pacer_lock, &ts) != ETIMEDOUT && now_ns() < at) continue;
+        if (now_ns() > at + PRESENT_CADENCE_APPLY_NS) atomic_fetch_add(&g_pacer_woke_late, 1u);
+        if (g_pacer_last_slot_ns && present_cadence_slot_order(g_pacer_last_slot_ns + period, slot, period) < 0 &&
+            slot - g_pacer_last_slot_ns < PACER_FILL_NS)
+            atomic_fetch_add(&g_pacer_skipped, (unsigned)((slot - g_pacer_last_slot_ns + period / 2) / period - 1));
+        g_pacer_last_slot_ns = slot;
+        if (g_pacer_n && present_cadence_slot_order(g_pacer_q[g_pacer_head].slot_ns, slot, period) <= 0) {
+            while (g_pacer_n && present_cadence_slot_order(g_pacer_q[g_pacer_head].slot_ns, slot, period) <= 0)
+                pacer_apply_head_locked();
+        } else if (now_ns() < g_pacer_fill_until_ns) {
+            filler_locked();
+        }
+    }
+    return NULL;
+}
+
+static void pacer_init(void) {
+    pthread_condattr_t attr;
+    pthread_condattr_init(&attr);
+    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+    pthread_cond_init(&g_pacer_cond, &attr);
+    pthread_condattr_destroy(&attr);
+    pthread_attr_t ta;
+    pthread_attr_init(&ta);
+    pthread_attr_setdetachstate(&ta, PTHREAD_CREATE_DETACHED);
+    pthread_t thread;
+    g_pacer_ok = pthread_create(&thread, &ta, pacer_main, NULL) == 0;
+    pthread_attr_destroy(&ta);
+    if (g_pacer_ok) pthread_setname_np(thread, "dd-present");
+    else droiddeck_log("layer", "presenter thread could not start: game frames are applied as soon as they are ready");
+}
+
+static void pacer_lock(void) {
+    pthread_mutex_lock(&g_pacer_lock);
+}
+
+/* Takes the transaction. slot_ns 0 applies it now, or with the frame queued last if one is held. */
+static void pacer_submit(ASurfaceTransaction *tx, int64_t slot_ns) {
+    if (slot_ns) pthread_once(&g_pacer_once, pacer_init);
+    pacer_lock();
+    if (slot_ns) {
+        filler_ensure_locked();
+        if (!g_filler_sc) {
+            static int said;
+            if (!said) {
+                said = 1;
+                droiddeck_log("layer", "presenter: the filler layer could not be created, so game frames are shown as "
+                                       "soon as they are ready instead of being held to their refresh");
+            }
+            slot_ns = 0;
+        }
+    }
+    if (!g_pacer_ok || (!slot_ns && !g_pacer_n)) {
+        api.txApply(tx);
+        api.txDelete(tx);
+        pthread_mutex_unlock(&g_pacer_lock);
+        return;
+    }
+    if (!slot_ns) slot_ns = g_pacer_q[(g_pacer_head + g_pacer_n - 1) % PACER_QUEUE].slot_ns;
+    if (g_pacer_n == PACER_QUEUE) {
+        pacer_apply_head_locked();
+        atomic_fetch_add(&g_pacer_overdue, 1u);
+    }
+    struct pacer_item *it = &g_pacer_q[(g_pacer_head + g_pacer_n) % PACER_QUEUE];
+    it->tx = tx;
+    it->slot_ns = slot_ns;
+    g_pacer_n++;
+    if (slot_ns + PACER_FILL_NS > g_pacer_fill_until_ns) g_pacer_fill_until_ns = slot_ns + PACER_FILL_NS;
+    pthread_cond_signal(&g_pacer_cond);
+    pthread_mutex_unlock(&g_pacer_lock);
+}
+
+static void apply_now(ASurfaceTransaction *tx) {
+    pacer_lock();
+    pacer_flush_locked();
+    api.txApply(tx);
+    pthread_mutex_unlock(&g_pacer_lock);
+}
+
+static void pacer_flush(void) {
+    pacer_lock();
+    pacer_flush_locked();
+    pthread_mutex_unlock(&g_pacer_lock);
+}
+
+static int base_black_locked(int width, int height);
 
 int sc_layer_base_black(int width, int height) {
     if (width <= 0 || height <= 0 || load_api() != 0 || !vkp_window()) return -1;
+    pacer_lock();
+    const int r = base_black_locked(width, height);
+    pthread_mutex_unlock(&g_pacer_lock);
+    return r;
+}
+
+static int base_black_locked(int width, int height) {
     if (g_base_sc && g_base_shown && width == g_base_w && height == g_base_h) return 0;
     AHardwareBuffer *black = blank_buffer();
     if (!black) return -1;
@@ -364,7 +581,11 @@ int sc_layer_base_black(int width, int height) {
 }
 
 static void base_hide(int retire) {
-    if (!g_base_sc) return;
+    pacer_lock();
+    if (!g_base_sc) {
+        pthread_mutex_unlock(&g_pacer_lock);
+        return;
+    }
     ASurfaceTransaction *tx = api.txCreate();
     if (tx) {
         api.setVisibility(tx, g_base_sc, ASC_VISIBILITY_HIDE);
@@ -376,6 +597,7 @@ static void base_hide(int retire) {
         api.release(g_base_sc); g_base_sc = NULL;
         g_base_w = g_base_h = g_base_shown = 0;
     }
+    pthread_mutex_unlock(&g_pacer_lock);
 }
 
 void sc_layer_hide_base(void) { base_hide(0); }
@@ -398,7 +620,7 @@ static void retire_sc(struct layer *l) {
     if (tx) {
         retire_ops(tx, l->sc);
         if (add_complete(tx, l, l->cur_slot, l->cur_token, 1) != 0) api.release(l->sc);
-        api.txApply(tx);
+        apply_now(tx);
         api.txDelete(tx);
     } else {
         if (l->cur_token) ahb_swapchain_layer_released(l->cur_token, -1);
@@ -413,6 +635,7 @@ static void retire_sc(struct layer *l) {
 }
 
 static void drain_and_free_pools(void) {
+    pacer_flush();
     int64_t deadline = now_ns() + 300000000LL;
     for (;;) {
         pthread_mutex_lock(&g_lock);
@@ -670,7 +893,7 @@ static int ensure_sc(struct layer *l) {
             api.setZOrder(tx, l->sc, l->z);
             api.setVisibility(tx, l->sc, ASC_VISIBILITY_HIDE);
             apply_frame_rate(tx, l);
-            api.txApply(tx); api.txDelete(tx);
+            apply_now(tx); api.txDelete(tx);
         }
         droiddeck_log("layer", "SurfaceControl \"%s\" created as a child of the screen surface (z=%d)", l->name, (int)l->z);
     }
@@ -832,8 +1055,92 @@ static ASurfaceControl *swap_sc_begin(struct layer *l) {
     return old;
 }
 
+static atomic_int g_cadence_on;
+static struct present_cadence g_cadence;
+static struct present_cadence_stats g_cadence_stats;
+static const void *g_cadence_frame;
+
+void sc_layer_set_present_cadence(int on) {
+    atomic_store(&g_cadence_on, on ? 1 : 0);
+    if (on) return;
+    pacer_lock();
+    pacer_flush_locked();
+    g_pacer_fill_until_ns = 0;
+    pthread_mutex_unlock(&g_pacer_lock);
+}
+
+void sc_layer_cadence_take(struct present_cadence_stats *out) {
+    *out = g_cadence_stats;
+    memset(&g_cadence_stats, 0, sizeof(g_cadence_stats));
+    out->fillers = atomic_exchange(&g_pacer_fillers, 0u);
+    out->overdue = atomic_exchange(&g_pacer_overdue, 0u);
+    out->woke_late = atomic_exchange(&g_pacer_woke_late, 0u);
+    out->skipped = atomic_exchange(&g_pacer_skipped, 0u);
+    out->lead_ns = atomic_load(&g_pacer_lead_ns);
+}
+
+static int64_t pacing_target(int64_t arrival_ns, const void *frame) {
+    if (!atomic_load(&g_cadence_on)) {
+        present_cadence_reset(&g_cadence);
+        g_cadence_frame = NULL;
+        return 0;
+    }
+    if (frame && frame == g_cadence_frame) {
+        g_cadence.target_ns = 0;
+        return 0;
+    }
+    g_cadence_frame = frame;
+    int64_t grid = 0, lead = 0, period = 0;
+    if (!present_cadence_timeline(arrival_ns, &grid, &lead, &period)) grid = lead = period = 0;
+    const int64_t target = present_cadence_plan(&g_cadence, arrival_ns, grid, period, lead);
+    if (!target) {
+        g_cadence_stats.unpaced++;
+        return 0;
+    }
+    const int64_t latency = target - arrival_ns;
+    g_cadence_stats.paced++;
+    g_cadence_stats.interval = g_cadence.interval;
+    g_cadence_stats.latency_ns += latency;
+    if (latency > g_cadence_stats.latency_max_ns) g_cadence_stats.latency_max_ns = latency;
+    return target;
+}
+
+static int64_t fence_signal_ns(int fd) {
+    struct sync_fence_info fi[4];
+    struct sync_file_info info;
+    memset(fi, 0, sizeof(fi));
+    memset(&info, 0, sizeof(info));
+    info.num_fences = 4;
+    info.sync_fence_info = (uint64_t)(uintptr_t)fi;
+    if (ioctl(fd, SYNC_IOC_FILE_INFO, &info) != 0 || info.status != 1) return 0;
+    int64_t t = 0;
+    for (uint32_t i = 0; i < info.num_fences && i < 4; i++)
+        if ((int64_t)fi[i].timestamp_ns > t) t = (int64_t)fi[i].timestamp_ns;
+    return t;
+}
+
+static int g_ready_fd = -1;
+static int64_t g_ready_ref_ns;
+
+/* A zero-copy frame is committed before the client's GPU work on it is done, and SurfaceFlinger
+ * only takes it once its fence has signalled. The planner learns that wait from the fence's signal
+ * time, read when the next frame arrives. */
+static void zero_copy_ready(int64_t ref_ns, int fd) {
+    if (g_ready_fd >= 0) {
+        const int64_t now = now_ns();
+        int64_t done = fence_signal_ns(g_ready_fd);
+        if (!done) done = now;
+        if (g_ready_ref_ns && done - g_ready_ref_ns < PRESENT_CADENCE_MAX_AHEAD_NS)
+            present_cadence_note_wait(&g_cadence, done - g_ready_ref_ns);
+        close(g_ready_fd);
+    }
+    g_ready_fd = ref_ns ? fd : -1;
+    g_ready_ref_ns = ref_ns;
+    if (!ref_ns && fd >= 0) close(fd);
+}
+
 static int present_slot(struct layer *l, int idx, const int r[8], const struct droiddeck_color *color,
-                        int translucent) {
+                        int translucent, int64_t arrival_ns, const void *frame) {
     struct slot *s = &l->slots[idx];
     ASurfaceTransaction *tx = api.txCreate();
     if (!tx) return -1;
@@ -850,12 +1157,14 @@ static int present_slot(struct layer *l, int idx, const int r[8], const struct d
     if (old) retire_ops(tx, old);
     if (add_complete_on(tx, l, old ? old : l->sc, l->cur_slot, l->cur_token, old ? 1 : 0) != 0 && old)
         api.release(old);
+    const int paced = arrival_ns > 0 && l == &g_layers[SC_LAYER_GAME];
+    const int64_t target = paced ? pacing_target(arrival_ns, frame) : 0;
     pthread_mutex_lock(&g_lock);
     s->busy = 1;
     pthread_mutex_unlock(&g_lock);
-    apply_present_time(tx, l == &g_layers[SC_LAYER_GAME]);
-    api.txApply(tx);
-    api.txDelete(tx);
+    if (!atomic_load(&g_cadence_on)) apply_present_time(tx, l == &g_layers[SC_LAYER_GAME]);
+    if (paced && present_cadence_applied(&g_cadence, now_ns())) g_cadence_stats.late++;
+    pacer_submit(tx, target);
     l->cur_slot = idx;
     l->cur_token = NULL;
     if (!l->shown) { l->shown = 1; droiddeck_log("layer", "%s: layer shown", l->name); }
@@ -887,6 +1196,7 @@ int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, voi
                          const struct vkp_draw *draw,
                          const struct droiddeck_color *color, uint32_t ahb_format) {
     struct layer *l = layer_of(SC_LAYER_GAME);
+    const int64_t arrival = now_ns();
     int r[8];
     if (!ahb || !token || ensure_sc(l) != 0) goto unavailable;
     int g = layer_geometry(w, h, scene_w, scene_h, draw, r);
@@ -897,13 +1207,14 @@ int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, voi
         ASurfaceTransaction *tx = api.txCreate();
         if (tx) {
             apply_geometry(tx, l, r); apply_frame_rate(tx, l); apply_colour(tx, l, color);
-            api.txApply(tx); api.txDelete(tx);
+            pacer_submit(tx, 0);
         }
         vkp_signal_first_frame();
         return 0;
     }
     ASurfaceTransaction *tx = api.txCreate();
     if (!tx) goto unavailable;
+    const int ready_fd = atomic_load(&g_cadence_on) && acquire_fd >= 0 ? dup(acquire_fd) : -1;
     ASurfaceControl *old = swap_sc_begin(l);
     if (old) api.setZOrder(tx, l->sc, l->z);
     api.setBuffer(tx, l->sc, ahb, acquire_fd);
@@ -918,12 +1229,15 @@ int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, voi
                         l->cur_token == token ? NULL : l->cur_token, old ? 1 : 0) != 0) {
         api.txDelete(tx);
         if (old) api.release(old);
+        if (ready_fd >= 0) close(ready_fd);
         l->ds_applied = -1; l->md_applied = 0; l->hr_applied = -1.0f;
         return -1;
     }
-    apply_present_time(tx, 1);
-    api.txApply(tx);
-    api.txDelete(tx);
+    const int64_t target = pacing_target(arrival, token);
+    if (!atomic_load(&g_cadence_on)) apply_present_time(tx, 1);
+    zero_copy_ready(g_cadence.planned_ref_ns, ready_fd);
+    if (present_cadence_applied(&g_cadence, now_ns())) g_cadence_stats.late++;
+    pacer_submit(tx, target);
     l->cur_slot = -1;
     l->cur_token = token;
     if (!l->shown) { l->shown = 1; droiddeck_log("layer", "%s: layer shown", l->name); }
@@ -939,6 +1253,7 @@ unavailable:
 int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const struct vkp_draw *draw,
                      const struct droiddeck_color *color) {
     struct layer *l = layer_of(SC_LAYER_GAME);
+    const int64_t arrival = now_ns();
     if (!src || ensure_sc(l) != 0) return -1;
     int sw = vkp_image_width(src), sh = vkp_image_height(src);
     int r[8];
@@ -950,7 +1265,7 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
     if (idx < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, r, color, 0) != 0) return -1;
+    if (present_slot(l, idx, r, color, 0, arrival, src) != 0) return -1;
     if (color && color->dataspace) droiddeck_color_frame_shown(color, DROIDDECK_HDR_LAYER_COPY, AHB_RGBA8);
     if (!l->first_logged) {
         l->first_logged = 1;
@@ -964,6 +1279,7 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
 
 int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int scene_h) {
     struct layer *l = layer_of(SC_LAYER_GAME);
+    const int64_t arrival = now_ns();
     int rw = 0, rh = 0, r[8];
     if (!draws || n <= 0 || ensure_sc(l) != 0) return -1;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
@@ -973,7 +1289,7 @@ int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int 
     int idx = take_free_slot(l, rw, rh, AHB_RGBA8, &wait_fd);
     if (idx < 0) { vkp_pass_abort(); log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_pass_copy_to(l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, r, NULL, 0) != 0) return -1;
+    if (present_slot(l, idx, r, NULL, 0, arrival, draws[0].img) != 0) return -1;
     if (!l->first_logged) {
         l->first_logged = 1;
         droiddeck_log("layer", "presenting %dx%d frames on their own SurfaceControl layer (%s pool, %d buffers); "
@@ -1051,7 +1367,7 @@ int sc_layer_present_generated(const struct vkp_draw *draws, int n_draws, const 
     }
     g_group_frames = m + 1;
     for (int k = 0; k < m; k++) {
-        if (present_slot(l, idx[k], r, color, 0) == 0) continue;
+        if (present_slot(l, idx[k], r, color, 0, 0, NULL) == 0) continue;
         slots_idle(l, idx, k, m);
         if (real) slots_idle(l, idx, VKP_FG_MAX_GENERATIONS, VKP_FG_MAX_GENERATIONS + 1);
         g_group_index = 0;
@@ -1060,7 +1376,7 @@ int sc_layer_present_generated(const struct vkp_draw *draws, int n_draws, const 
     }
     vkp_framegen_presented(m);
     if (real) {
-        if (present_slot(l, idx[VKP_FG_MAX_GENERATIONS], r, color, 0) != 0) {
+        if (present_slot(l, idx[VKP_FG_MAX_GENERATIONS], r, color, 0, 0, NULL) != 0) {
             slots_idle(l, idx, VKP_FG_MAX_GENERATIONS, VKP_FG_MAX_GENERATIONS + 1);
             g_group_index = 0;
             g_group_frames = 1;
@@ -1076,8 +1392,9 @@ int sc_layer_present_generated(const struct vkp_draw *draws, int n_draws, const 
 }
 
 int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct vkp_hdr_frame *hf,
-                               int scene_w, int scene_h, const struct droiddeck_color *color) {
+                               int scene_w, int scene_h, const struct droiddeck_color *color, const void *frame) {
     struct layer *l = layer_of(SC_LAYER_GAME);
+    const int64_t arrival = now_ns();
     int rw = 0, rh = 0, r[8];
     if (!draws || n <= 0 || !hf || ensure_sc(l) != 0) return -1;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
@@ -1088,7 +1405,7 @@ int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct
     int idx = tm ? take_free_slot(l, rw, rh, AHB_RGBA8, &wait_fd) : take_hdr_slot(l, rw, rh, &wait_fd);
     if (idx < 0) { vkp_pass_abort(); log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_pass_copy_to(l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, r, tm ? NULL : color, 0) != 0) return -1;
+    if (present_slot(l, idx, r, tm ? NULL : color, 0, arrival, frame) != 0) return -1;
     if (color && color->dataspace)
         droiddeck_color_frame_shown(color, tm ? DROIDDECK_HDR_TONEMAPPED : DROIDDECK_HDR_COMPOSED, tm ? AHB_RGBA8 : g_hdr_pool_fmt);
     static int said = -1;
@@ -1159,7 +1476,7 @@ int sc_layer_present_overlay(struct vkp_image *src, const int geo[8], int transl
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
     if (idx < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
-    if (present_slot(l, idx, geo, NULL, translucent) != 0) return -1;
+    if (present_slot(l, idx, geo, NULL, translucent, 0, NULL) != 0) return -1;
     if (!l->first_logged) {
         l->first_logged = 1;
         log_layer_count();
@@ -1174,7 +1491,7 @@ static void hide_layer(struct layer *l) {
     replace_with_blank(tx, l);
     api.setVisibility(tx, l->sc, ASC_VISIBILITY_HIDE);
     add_complete(tx, l, l->cur_slot, l->cur_token, 0);
-    api.txApply(tx); api.txDelete(tx);
+    apply_now(tx); api.txDelete(tx);
     l->shown = 0; l->cur_slot = -1; l->cur_token = NULL;
 }
 
@@ -1198,6 +1515,10 @@ void sc_layer_hide_overlay(void) {
 
 void sc_layer_window_gone(void) {
     base_hide(1);
+    pacer_lock();
+    pacer_flush_locked();
+    filler_retire_locked();
+    pthread_mutex_unlock(&g_pacer_lock);
     if (api.state != 1) return;
     layers_init();
     for (int i = SC_LAYER_COUNT - 1; i >= 0; i--) retire_sc(&g_layers[i]);

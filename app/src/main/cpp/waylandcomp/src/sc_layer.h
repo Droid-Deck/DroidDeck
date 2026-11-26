@@ -28,13 +28,18 @@ int sc_layer_present_pass(const struct vkp_draw *draws, int n, int scene_w, int 
 int sc_layer_present_generated(const struct vkp_draw *draws, int n_draws, const struct vkp_hdr_frame *hf,
                                int scene_w, int scene_h, int composed, const struct droiddeck_color *color);
 
+/* frame identifies the game frame the scene shows, so a repeat of it is not paced as a new one. */
 int sc_layer_present_hdr_scene(const struct vkp_draw *draws, int n, const struct vkp_hdr_frame *hf,
-                               int scene_w, int scene_h, const struct droiddeck_color *color);
+                               int scene_w, int scene_h, const struct droiddeck_color *color, const void *frame);
 
 int sc_layer_present_ahb(AHardwareBuffer *ahb, int w, int h, int acquire_fd, void *token,
                          int scene_w, int scene_h, const struct vkp_draw *draw, const struct droiddeck_color *color, uint32_t ahb_format);
 
 void sc_layer_set_frame_rate(float fps);
+
+struct present_cadence_stats;
+void sc_layer_set_present_cadence(int on);
+void sc_layer_cadence_take(struct present_cadence_stats *out);
 
 int sc_layer_overlay_affordable(void);
 

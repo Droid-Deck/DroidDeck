@@ -256,6 +256,10 @@ public final class WaylandCompositor {
 
     public static native void nativeFrameTimeline(long presentNanos, long deadlineNanos, long periodNanos);
 
+    public static native void nativeSetPresentCadence(boolean on);
+
+    public static native void nativeSetGameOnOtherDisplay(boolean on);
+
     public static native void nativeSetClockControl(String path);
 
     public static native int nativeCompositorTid();
