@@ -45,9 +45,6 @@ object OnScreenLayout {
         if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
         if (dock?.portrait == true && !dock.grips && !matched && layout.aspect > 0f && layout.aspect < 1f && stored.any(::isGamepad))
             return scaleDocked(cluster(stored.filterNot { it.alwaysShown || isGamepad(it) && (it.id == KEYBOARD_ID || it.control in BAR) }, layout.aspect, width, height, safe), ControllerPrefs.read(context).size / 100f, width, height, safe)
-        // Keep edits in the layout's saved orientation, but use stock controls when
-        // an unmatched floating layout is displayed in the opposite orientation.
-        // reference() recognizes built-in layouts saved at any supported size.
         val oppositeOrientation = layout.aspect > 0f && ((layout.aspect < 1f) != (height > width))
         val generated = matched ||
             dock != null && PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) ||
@@ -126,8 +123,6 @@ object OnScreenLayout {
             spacePair(InputControl.LT, InputControl.LB)
             spacePair(InputControl.RB, InputControl.RT)
         }
-        // Only correct collisions caused by enlargement. At 100% (and below), preserve
-        // the stored geometry, including intentionally coincident edited controls.
         if (scale > 1f) {
             repeat(scaled.size) {
                 for (i in scaled.indices) {
