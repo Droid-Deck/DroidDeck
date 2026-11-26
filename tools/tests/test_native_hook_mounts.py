@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -193,8 +194,12 @@ class NativeHookMountTest(unittest.TestCase):
         else:
             if syscalls and not shutil.which("strace"):
                 self.skipTest("no strace")
-            cmd = ["strace", "-f", "-qq", "-e", "trace=readlinkat"] if syscalls else []
-            env.update(hook_env)
+            if syscalls:
+                cmd = ["strace", "-f", "-qq", "-e", "trace=readlinkat"]
+                cmd += [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
+            else:
+                cmd = []
+                env.update(hook_env)
         out = subprocess.run(cmd + [str(self.probe), *args], env=env, capture_output=True, text=True, timeout=120,
                              cwd=self.tmp.name)
         self.assertEqual(out.returncode, 0, out.stderr)
@@ -202,7 +207,15 @@ class NativeHookMountTest(unittest.TestCase):
         return (result, out.stderr) if syscalls else result
 
     def readlinks_of(self, log, host):
-        return [line for line in log.splitlines() if "readlinkat" in line and f'"{host}"' in line]
+        return [line for line in log.splitlines()
+                if (m := re.search(r'readlinkat\([^,"]*,\s*"([^"]*)"', line)) and m.group(1) == host]
+
+    def test_readlink_lines_match_the_queried_path_only(self):
+        host = "/tmp/x/links/guest"
+        log = (f'readlinkat(AT_FDCWD, "/proc/self/fd/7", "{host}", 4096) = 18\n'
+               f'readlinkat(AT_FDCWD, "{host}", "/etc/hostname", 4095) = 13\n'
+               f'123 readlinkat(-100,"{host}",0x7f00,4095) = -1 errno=22\n')
+        self.assertEqual(len(self.readlinks_of(log, host)), 2)
 
     def test_dev_fd_in_a_forked_child_names_the_child_descriptors(self):
         out = self.run_probe("fork:/dev/fd", binds="/proc/self/fd:/dev/fd")
