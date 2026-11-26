@@ -325,7 +325,7 @@ internal object SteamStore {
         if (marker.isFile) return true
         if (folder.exists()) return false
         marker.parentFile?.mkdirs()
-        return runCatching { marker.createNewFile() || marker.isFile }.getOrDefault(false)
+        return runCatching { marker.writeText(folder.name); true }.getOrDefault(false)
     }
 
     internal fun createdFolder(context: Context, appId: Int, guest: String): Boolean = createdMarker(context, appId, guest).isFile
@@ -339,18 +339,19 @@ internal object SteamStore {
         val library = runCatching {
             SteamClient.engineLibraries(context).libraries.firstOrNull { SteamClient.sameLibrary(context, it.first, guest) }?.second
         }.getOrNull() ?: return
-        forgetJournal(context, appId, guest)
         val apps = File(library, "steamapps")
         val acf = File(apps, "appmanifest_$appId.acf")
         val manifest = acf.takeIf { it.isFile }?.let { f -> runCatching { SteamStorage.parseManifest(f, f.readText()) }.getOrNull() }
-        if (manifest?.installed == true) return
-        val dir = (installDir ?: manifest?.installDir ?: plans[appId]?.second?.installDir)?.takeIf { validDir(it) }
+        if (manifest?.installed == true) { forgetJournal(context, appId, guest); return }
+        val claimed = runCatching { createdMarker(context, appId, guest).readText().trim() }.getOrNull()?.ifEmpty { null }
+        val dir = (installDir ?: claimed ?: manifest?.installDir ?: plans[appId]?.second?.installDir)?.takeIf { validDir(it) }
         val shared = dir != null && apps.listFiles { f -> f.name.startsWith("appmanifest_") && f.name != acf.name }.orEmpty().any { f ->
             runCatching { SteamStorage.parseManifest(f, f.readText()) }.getOrNull()?.installDir == dir
         }
         if (dir != null && createdDir && !shared) StoreInstalls.deleteTree(File(apps, "common/$dir"))
         StoreInstalls.deleteTree(File(apps, "downloading/$appId"))
         if (manifest != null) acf.delete()
+        forgetJournal(context, appId, guest)
         StoresState.logLine("Steam: removed the unfinished download of $appId")
     }
 }
