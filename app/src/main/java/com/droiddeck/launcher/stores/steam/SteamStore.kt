@@ -20,7 +20,6 @@ import com.droiddeck.launcher.stores.StoreAccounts
 import com.droiddeck.launcher.stores.StoreBackend
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreInstalls
-import com.droiddeck.launcher.stores.StoreShelves
 import com.droiddeck.launcher.stores.StoreSizes
 import com.droiddeck.launcher.stores.StoresState
 import com.droiddeck.launcher.stores.download.DownloadEntry
@@ -46,9 +45,6 @@ internal object SteamStore {
     private val REFUSED = Regex("logon_failed: eresult=(-?\\d+).*")
     /** InvalidPassword, AccessDenied, AccountNotFound, Revoked, Expired, AccountLogonDenied. */
     private val REFUSALS = setOf(5, 15, 18, 26, 27, 63)
-
-    var installed by mutableStateOf<Map<Int, SteamLibraryFolders.Installed>>(emptyMap())
-        private set
 
     var picking by mutableStateOf<CatalogItem?>(null)
 
@@ -146,40 +142,6 @@ internal object SteamStore {
         }
     }
 
-    fun poll(context: Context) {
-        val app = context.applicationContext
-        work.execute {
-            val changed = runCatching { syncAccount(app) }.getOrDefault(false)
-            runCatching { scanInstalled(app) }
-            if (changed) StoresState.notifyLibraryChanged(app)
-        }
-    }
-
-    private val scans = java.util.concurrent.atomic.AtomicLong()
-
-    private class Read(val modified: Long, val length: Long, val text: String)
-    private val manifests = ConcurrentHashMap<String, Read>()
-
-    private fun readManifest(file: File): String? {
-        val modified = file.lastModified()
-        val length = file.length()
-        manifests[file.path]?.takeIf { it.modified == modified && it.length == length }?.let { return it.text }
-        val text = runCatching { file.readText() }.getOrNull() ?: return null
-        manifests[file.path] = Read(modified, length, text)
-        return text
-    }
-
-    /** Owned games count as installed when an appmanifest with StateFlags 4 is in one of the active client's libraries. */
-    fun scanInstalled(context: Context) {
-        val scan = scans.incrementAndGet()
-        val found = SteamLibraryFolders.installed(SteamClient.libraries(context), ::readManifest)
-        StoresState.post {
-            if (scan != scans.get()) return@post
-            if (found != installed) installed = found
-            for ((id, game) in found) if (game.sizeOnDisk > 0 && StoreSizes.onDisk[key(id)] != game.sizeOnDisk) StoreSizes.onDisk[key(id)] = game.sizeOnDisk
-        }
-    }
-
     fun downloading(): Boolean = StoresState.latestDownloads.any {
         it.store == Store.STEAM && (it.state == DownloadState.RUNNING || it.state == DownloadState.QUEUED)
     }
@@ -206,7 +168,6 @@ internal object SteamStore {
             }
             val art = runCatching { Library.steamLibraryArt(app).toMap() }.getOrDefault(emptyMap())
             val items = items(answer.optJSONArray("games"), art)
-            runCatching { scanInstalled(app) }
             StoresState.logLine("Steam: library has ${items.size} games")
             StoresState.post {
                 StoresState.problems.remove(Store.STEAM)
@@ -233,11 +194,6 @@ internal object SteamStore {
             )
         }
         return out.distinctBy { it.id }.sortedBy { it.title.lowercase() }
-    }
-
-    internal fun shelves(context: Context): StoreShelves {
-        val art = runCatching { Library.steamLibraryArt(context) }.getOrDefault(emptyList()).map { Uri.fromFile(it.second).toString() }
-        return StoreShelves(art = art)
     }
 
     /** Reaches the network; call off the main thread. */
@@ -333,7 +289,6 @@ internal object SteamStore {
             }.getOrElse { SteamEngine.failure(it.javaClass.simpleName) } } finally { DownloadQueue.releaseRemoval(key) }
             val ok = answer.optBoolean("ok")
             StoresState.logLine(if (ok) "Steam: uninstalled $appId" else "Steam: uninstall of $appId failed: ${answer.optString("error")}")
-            runCatching { scanInstalled(app) }
             StoresState.post {
                 StoresState.uninstalling.remove(key)
                 if (ok) StoreSizes.onDisk.remove(key)
@@ -345,8 +300,24 @@ internal object SteamStore {
 
     private fun canonical(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
 
+    /** The engine keys an app's resume journal by library as `<journal>/<appId>/<appId>/<crc32 of the guest path>`. */
+    private fun libraryKey(guest: String): String =
+        "%08x".format(java.util.zip.CRC32().apply { update(guest.trimEnd('/').toByteArray()) }.value)
+
     private fun createdMarker(context: Context, appId: Int, guest: String) =
-        File(context.filesDir, "$JOURNAL/$appId/created-${Integer.toHexString(guest.trimEnd('/').hashCode())}")
+        File(context.filesDir, "$JOURNAL/$appId/created-${libraryKey(guest)}")
+
+    /** Drops the resume state of one app in one library; other libraries' downloads of the app keep theirs. */
+    internal fun forgetJournal(context: Context, appId: Int, guest: String, engineGuest: String? = null) {
+        val app = File(context.filesDir, "$JOURNAL/$appId")
+        val spelled = engineGuest ?: runCatching {
+            SteamClient.engineLibraries(context).libraries.firstOrNull { SteamClient.sameLibrary(context, it.first, guest) }?.first?.guest
+        }.getOrNull() ?: guest
+        File(app, "$appId/${libraryKey(spelled)}").deleteRecursively()
+        createdMarker(context, appId, guest).delete()
+        File(app, "$appId").delete()
+        app.delete()
+    }
 
     /** Whether this install made the game folder in that library: decided by its first attempt and kept for every resume. */
     internal fun claimFolder(context: Context, appId: Int, guest: String, folder: File): Boolean {
@@ -364,7 +335,7 @@ internal object SteamStore {
      * ([createdDir]) and no other installed game uses it.
      */
     internal fun discardPartial(context: Context, appId: Int, guest: String, host: File?, installDir: String?, createdDir: Boolean) {
-        File(context.filesDir, "$JOURNAL/$appId").deleteRecursively()
+        forgetJournal(context, appId, guest)
         val library = host ?: runCatching {
             SteamClient.engineLibraries(context).libraries.firstOrNull { SteamClient.sameLibrary(context, it.first, guest) }?.second
         }.getOrNull() ?: return
@@ -394,13 +365,7 @@ internal object SteamBackend : StoreBackend {
 
     override fun syncLibrary(context: Context, force: Boolean) = SteamStore.syncLibrary(context, force)
 
-    override fun loadShelves(context: Context, force: Boolean) {
-        val app = context.applicationContext
-        Thread({
-            val shelves = SteamStore.shelves(app)
-            StoresState.post { StoresState.shelves[store] = shelves }
-        }, "steam-shelves").start()
-    }
+    override fun loadShelves(context: Context, force: Boolean) {}
 
     override fun search(context: Context, query: String): List<CatalogItem> =
         StoresState.library[store].orEmpty().filter { it.title.contains(query, ignoreCase = true) }

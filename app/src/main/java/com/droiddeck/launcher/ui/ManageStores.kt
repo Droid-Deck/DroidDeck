@@ -79,16 +79,13 @@ internal object StoreTabsState {
         private set
 
     fun load(context: android.content.Context) {
-        SessionPrefs.settleStoresTabOrder(context, Store.entries.map { it.id })
+        SessionPrefs.settleStoresTabOrder(context, Store.tabbed.map { it.id })
         tabs = arrangeStoreTabs(SessionPrefs.storesTabOrder(context), SessionPrefs.storesTabHidden(context))
         libraryPlaces = SessionPrefs.libraryTabPlaces(context) ?: DEFAULT_LIBRARY_PLACES
         libraryHidden = SessionPrefs.libraryTabsHidden(context) + listOfNotNull(LIBRARY_HIDDEN.takeUnless { SessionPrefs.libraryShowHidden(context) })
     }
 
-    /**
-     * [ids] may hold the Library's own tabs among the stores; each one's place is kept as the tab it follows. A store [ids]
-     * leaves out (the Steam store, which the Library shows as its own Steam tab) keeps its index.
-     */
+    /** [ids] may hold the Library's own tabs among the stores; each one's place is kept as the tab it follows. */
     fun reorder(context: android.content.Context, ids: List<String>) {
         if (ids.any { it in LIBRARY_OWN_TABS }) {
             val places = libraryPlacesOf(ids)
@@ -96,8 +93,7 @@ internal object StoreTabsState {
             SessionPrefs.setLibraryTabPlaces(context, places)
         }
         val byId = tabs.associateBy { it.store.id }
-        val order = ids.mapNotNull { byId[it] }.toMutableList()
-        tabs.forEachIndexed { i, tab -> if (tab.store.id !in ids) order.add(i.coerceAtMost(order.size), tab) }
+        val order = ids.mapNotNull { byId[it] }
         if (order.map { it.store } != tabs.map { it.store }) {
             tabs = order
             save(context, arranged = true)
@@ -243,7 +239,7 @@ internal fun ManageStoresSheet() {
             SortableRows(
                 rows = {
                     val ids = StoreTabsState.tabs.map { it.store.id }
-                    if (ManageStores.custom) placeLibraryTabs(ids - Store.STEAM.id, StoreTabsState.libraryPlaces) else ids
+                    if (ManageStores.custom) placeLibraryTabs(ids, StoreTabsState.libraryPlaces) else ids
                 },
                 commit = { StoreTabsState.reorder(ctx, it) },
                 movable = { true },

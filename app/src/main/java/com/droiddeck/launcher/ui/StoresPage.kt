@@ -185,12 +185,6 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                 delay(5_000)
             }
         }
-        if (chip == Store.STEAM.id) {
-            while (true) {
-                if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) com.droiddeck.launcher.stores.steam.SteamStore.poll(ctx)
-                delay(5_000)
-            }
-        }
         if (chip == Store.EPIC.id) {
             EpicClient.ensure(ctx)
             while (true) {
@@ -333,7 +327,7 @@ internal fun StoresPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier
                                 !k.accountsLoaded -> Box(Modifier.fillMaxWidth().padding(top = 16.dp)) {
                                     androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().height(3.dp))
                                 }
-                                !k.signedIn -> Box(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) { SignInCard(st, viewportH - 20.dp, onSignIn = if (st == Store.STEAM) a.onPlay else null) }
+                                !k.signedIn -> Box(Modifier.fillMaxWidth().verticalScroll(scroll).padding(top = 4.dp, bottom = 16.dp)) { SignInCard(st, viewportH - 20.dp) }
                                 else -> Storefront(st, query, s, a, grids.getOrPut(k) { LazyGridState() }, clearSearchFocus = openGame != null, onQuery = { query = it }, onOpen = { open(it) })
                             }
                           }
@@ -578,7 +572,7 @@ internal fun CountPill(count: Int) {
 
 @Composable
 /** [inert]: shown in a Library preview, where signing in would act on the real account; the button only says so. */
-internal fun SignInCard(store: Store, height: Dp, inert: Boolean = false, onSignIn: (() -> Unit)? = null) {
+internal fun SignInCard(store: Store, height: Dp, inert: Boolean = false) {
     val ctx = LocalContext.current
     LaunchedEffect(store) { StoresState.preview(ctx, store) }
     val art = remember(StoresState.shelves[store]) {
@@ -588,7 +582,7 @@ internal fun SignInCard(store: Store, height: Dp, inert: Boolean = false, onSign
                 ?: shelves?.all.orEmpty().filter { !it.mature && !it.owned }.mapNotNull { it.tallImageUrl ?: it.imageUrl },
         )
     }
-    HeroWallCard(store.label, art, sourceColours(store.id), height) { SignInButton(store, large = true, inert = inert, onSignIn = onSignIn) }
+    HeroWallCard(store.label, art, sourceColours(store.id), height) { SignInButton(store, large = true, inert = inert) }
 }
 
 /** Repeats a short cover list so the wall has enough tiles to drift; too few covers leave it to the blank capsules. */
@@ -636,17 +630,15 @@ internal fun HeroWallCard(title: String, art: List<Any>, c: SourceColours, heigh
 }
 
 @Composable
-private fun SignInButton(store: Store, large: Boolean = false, inert: Boolean = false, onSignIn: (() -> Unit)? = null) {
+private fun SignInButton(store: Store, large: Boolean = false, inert: Boolean = false) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     var askKey by remember { mutableStateOf(false) }
     if (askKey) ItchKeyDialog { askKey = false }
     Box(Modifier.onGloballyPositioned { placed[0] = it }) {
-        val label = if (onSignIn != null) stringResource(R.string.stores_login_title, store.label) else stringResource(R.string.stores_signin)
-        PrimaryButton(label, main = true, large = large, icon = if (large) Icons.AutoMirrored.Filled.Login else null) {
+        PrimaryButton(stringResource(R.string.stores_signin), main = true, large = large, icon = if (large) Icons.AutoMirrored.Filled.Login else null) {
             if (inert) android.widget.Toast.makeText(ctx, R.string.dev_preview_read_only, android.widget.Toast.LENGTH_SHORT).show()
-            else if (onSignIn != null) onSignIn()
             else startStoreSignIn(ctx, store, placed[0]?.takeIf { it.isAttached }?.boundsInRoot(), colors.primary) { askKey = true }
         }
     }
@@ -665,11 +657,7 @@ private fun Storefront(
     val library = StoresState.library[store] ?: emptyList()
     val shelves = StoresState.shelves[store]
     val found = StoresState.found[store] ?: emptyList()
-    val steamInstalled = if (store == Store.STEAM) com.droiddeck.launcher.stores.steam.SteamStore.installed else emptyMap()
-    val installedKeys = remember(StoresState.installed, steamInstalled) {
-        if (store == Store.STEAM) steamInstalled.keys.mapTo(HashSet()) { it.toString() }
-        else StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id }.toSet()
-    }
+    val installedKeys = remember(StoresState.installed) { StoresState.installed.filter { it.sidecar.store == store }.map { it.sidecar.id }.toSet() }
     val q = query.trim().lowercase()
     val foundKeys = remember(found) { found.map { it.key }.toSet() }
     fun shown(i: CatalogItem) = s.storesShowMature || !i.mature || i.accessible
@@ -679,11 +667,9 @@ private fun Storefront(
     LaunchedEffect(gameJolt, s.storesShowMature) { if (gameJolt) GameJoltBrowseState.sync(ctx, s.storesShowMature) }
     val browsing = q.isEmpty() && (store == Store.ITCH || gameJolt)
     val browseItems = if (!browsing) emptyList() else if (gameJolt) GameJoltBrowseState.items else ItchBrowseState.items
-    val steam = store == Store.STEAM
-    val catalog = (store == Store.BATTLENET || steam) && q.isEmpty()
+    val catalog = store == Store.BATTLENET && q.isEmpty()
     val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems, catalog) {
-        if (catalog && steam) library.filter(::shown)
-        else if (catalog) shelf(shelves?.trending) ?: emptyList()
+        if (catalog) shelf(shelves?.trending) ?: emptyList()
         else if (browsing) {
             val owned = library.associateBy { it.id }
             browseItems.map { owned[it.id] ?: it }.filter(::shown)
@@ -696,8 +682,7 @@ private fun Storefront(
         browsing && gameJolt && GameJoltBrowseState.failed -> R.string.stores_gamejolt_browse_failed
         browsing && !gameJolt && ItchBrowseState.loading -> R.string.stores_shelves_loading
         browsing && !gameJolt && ItchBrowseState.failed -> R.string.stores_itch_browse_failed
-        catalog && steam && !StoresState.library.containsKey(store) -> R.string.stores_shelves_loading
-        catalog && !steam && shelves == null -> R.string.stores_shelves_loading
+        catalog && shelves == null -> R.string.stores_shelves_loading
         else -> R.string.stores_nothing_matches
     })
     var firstPlaced = false
@@ -713,7 +698,7 @@ private fun Storefront(
     val barLine = StoresState.status[store]?.takeIf { bareTab && syncCount(it) != null }
     val itchBar = store == Store.ITCH && q.isEmpty()
     val gameJoltBar = gameJolt && q.isEmpty()
-    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar || gameJoltBar) 1 else 0) + (if (catalog && !steam) 1 else 0)
+    val headerItems = 2 + (if (barLine != null) 1 else 0) + (if (StoresState.problems[store] != null) 1 else 0) + (if (itchBar || gameJoltBar) 1 else 0) + (if (catalog) 1 else 0)
     val card: @Composable (CatalogItem) -> Unit = { item ->
         val first = if (searching) item.key == visible.firstOrNull()?.key else !firstPlaced
         firstPlaced = true
@@ -763,7 +748,7 @@ private fun Storefront(
         StoresState.problems[store]?.let { line -> item(key = "problem", span = { GridItemSpan(maxLineSpan) }) { Rise(3) { Box(Modifier.padding(bottom = 8.dp)) { Note(line) } } } }
         if (itchBar) item(key = "itch-browse-bar", span = { GridItemSpan(maxLineSpan) }) { ItchBrowseBar() }
         if (gameJoltBar) item(key = "gamejolt-browse-bar", span = { GridItemSpan(maxLineSpan) }) { GameJoltBrowseBar(s.storesShowMature) }
-        if (catalog && !steam) item(key = "catalog-label", span = { GridItemSpan(maxLineSpan) }) {
+        if (catalog) item(key = "catalog-label", span = { GridItemSpan(maxLineSpan) }) {
             Box(Modifier.padding(top = 10.dp)) { SectionLabel(stringResource(R.string.bnet_store)) }
         }
         if (searching) {
@@ -814,7 +799,7 @@ private fun ProfileStrip(store: Store, owned: Int, loaded: Boolean, s: FrontEndS
                 if (store == Store.XBOX) SmallTextButton(stringResource(R.string.stores_xbox_cloud_settings), key = "xbox-cloud-settings") {
                     ctx.startActivity(android.content.Intent(ctx, com.droiddeck.launcher.stores.xbox.XboxCloudSettingsActivity::class.java))
                 }
-                if (store != Store.STEAM) SignOutButton(store, name)
+                SignOutButton(store, name)
             }
         }
         if (store == Store.EPIC) EpicLauncherRow(s, a)

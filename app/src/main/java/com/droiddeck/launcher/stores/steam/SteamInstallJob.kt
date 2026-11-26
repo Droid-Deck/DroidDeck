@@ -123,8 +123,7 @@ internal class SteamInstallJob(
         }
         val result = parse(answer.get())
         if (succeeded.get() && result.optBoolean("ok", true)) {
-            journal.deleteRecursively()
-            SteamStore.scanInstalled(app)
+            SteamStore.forgetJournal(app, appId, libraryGuest, target.first.guest)
             return File(target.first.host, "steamapps/common/${plan.installDir}").path
         }
         if (cancelled.get() || result.optString("error") == "cancelled") return null

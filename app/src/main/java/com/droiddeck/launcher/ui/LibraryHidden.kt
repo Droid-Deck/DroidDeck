@@ -55,7 +55,7 @@ internal object LibraryHidden {
     fun isHidden(key: String, game: Library.SteamGame?): Boolean = key in keys || steamId(game, key)?.let { it in steam } == true
 
     fun isHidden(entry: LibraryEntry): Boolean =
-        isHidden(entry.favoriteKey, entry.game) || entry.item?.takeIf { it.store == Store.STEAM }?.id?.toLongOrNull()?.let { it in steam } == true
+        isHidden(entry.favoriteKey, entry.game) || entry.item?.takeIf { it.store == Store.STEAM }?.let { it.key in keys || it.id.toLongOrNull()?.let { id -> id in steam } == true } == true
 
     fun set(context: Context, key: String, game: Library.SteamGame?, hidden: Boolean): Boolean {
         val id = steamId(game, key)

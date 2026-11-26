@@ -370,7 +370,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     remember { StoreTabsState.load(ctx) }
     val storeTabs = StoreTabsState.tabs
     val signInChips = if (!stores || !StoresState.accountsLoaded || preview == LibraryPreview.SAMPLE) emptySet() else storeTabs
-        .filter { it.shown && it.store != Store.STEAM && StoresState.backend(it.store) != null && (preview == LibraryPreview.SIGNED_OUT || storeAccount(it.store) != StoreAccount.SIGNED_IN) }
+        .filter { it.shown && StoresState.backend(it.store) != null && (preview == LibraryPreview.SIGNED_OUT || storeAccount(it.store) != StoreAccount.SIGNED_IN) }
         .map { it.store.id }.toSet()
     val sources = librarySources(
         all, storeTabs.map { it.store.id },

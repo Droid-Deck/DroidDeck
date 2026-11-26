@@ -86,7 +86,6 @@ object StoresState {
                 seen = refreshRequests.get()
                 runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(app) }
                 runCatching { com.droiddeck.launcher.stores.steam.SteamStore.syncAccount(app) }
-                runCatching { com.droiddeck.launcher.stores.steam.SteamStore.scanInstalled(app) }
                 val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
                 val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
                     StoreGameSidecar.read(folder)?.takeIf { it.isInstalled || it.state == StoreGameSidecar.STATE_UPDATING }?.let { InstalledStoreGame(it, folder) }

@@ -1,7 +1,6 @@
 package com.droiddeck.launcher.stores
 
 enum class Store(val id: String, val label: String, val shortLabel: String) {
-    STEAM("steamstore", "Steam", "Steam"),
     EPIC("epic", "Epic Games", "Epic"),
     EA("ea", "EA", "EA"),
     XBOX("xbox", "Xbox", "Xbox"),
@@ -11,7 +10,8 @@ enum class Store(val id: String, val label: String, val shortLabel: String) {
     UBISOFT("ubisoft", "Ubisoft Connect", "Ubisoft"),
     AMAZON("amazon", "Amazon Games", "Amazon"),
     BATTLENET("battlenet", "Battle.net", "Battle.net"),
-    GAMEJOLT("gamejolt", "Game Jolt", "Game Jolt");
+    GAMEJOLT("gamejolt", "Game Jolt", "Game Jolt"),
+    STEAM("steamstore", "Steam", "Steam");
 
     val folder: String get() = if (this == ITCH) "itch" else shortLabel
 
@@ -20,5 +20,8 @@ enum class Store(val id: String, val label: String, val shortLabel: String) {
 
     companion object {
         fun byId(id: String?): Store? = entries.firstOrNull { it.id == id }
+
+        /** The stores with a tab of their own; Steam's games list in the Library's Steam tab. */
+        val tabbed: List<Store> get() = entries - STEAM
     }
 }
