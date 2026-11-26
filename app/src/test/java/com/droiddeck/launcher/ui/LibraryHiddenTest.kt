@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.ui
 
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.stores.Store
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -16,9 +17,9 @@ class LibraryHiddenTest {
 
     @Test fun hiddenGamesLeaveAllAndTheirStoreTab() {
         assertFalse(inLibrarySource(LIBRARY_ALL, tf2, emptySet(), hidden))
-        assertFalse(inLibrarySource(Library.SOURCE_STEAM, tf2, emptySet(), hidden))
+        assertFalse(inLibrarySource(Store.STEAM.id, tf2, emptySet(), hidden))
         assertTrue(inLibrarySource(LIBRARY_ALL, cs, emptySet(), hidden))
-        assertTrue(inLibrarySource(Library.SOURCE_STEAM, cs, emptySet(), hidden))
+        assertTrue(inLibrarySource(Store.STEAM.id, cs, emptySet(), hidden))
     }
 
     @Test fun hiddenGamesLeaveFavorites() {
@@ -32,12 +33,12 @@ class LibraryHiddenTest {
 
     @Test fun theHiddenTabIsLastAndOnlyWhenTurnedOn() {
         val entries = listOf(tf2, cs)
-        assertEquals(listOf(Library.SOURCE_STEAM), librarySources(entries, emptyList(), hidden = hidden))
-        assertEquals(listOf(Library.SOURCE_STEAM, LIBRARY_HIDDEN), librarySources(entries, emptyList(), hidden = hidden, offTabs = emptySet()))
+        assertEquals(listOf(Store.STEAM.id), librarySources(entries, emptyList(), hidden = hidden))
+        assertEquals(listOf(Store.STEAM.id, LIBRARY_HIDDEN), librarySources(entries, emptyList(), hidden = hidden, offTabs = emptySet()))
     }
 
     @Test fun theHiddenTabSortsLastUnlessMoved() {
-        assertEquals(listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM, "epic", Library.ADDED, LIBRARY_HIDDEN), placeLibraryTabs(listOf("epic"), DEFAULT_LIBRARY_PLACES))
+        assertEquals(listOf(LIBRARY_FAVORITES, "epic", Library.ADDED, LIBRARY_HIDDEN), placeLibraryTabs(listOf("epic"), DEFAULT_LIBRARY_PLACES))
         val moved = placeLibraryTabs(listOf("epic"), listOf(LIBRARY_HIDDEN to "epic"))
         assertEquals(listOf("epic", LIBRARY_HIDDEN), moved.filter { it == "epic" || it == LIBRARY_HIDDEN })
     }

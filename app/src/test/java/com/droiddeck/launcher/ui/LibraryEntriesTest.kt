@@ -77,17 +77,25 @@ class LibraryEntriesTest {
         assertEquals(listOf("b", "d", "a", "c"), installedFirst(entries).map { it.key })
     }
 
-    @Test fun librarySourcesFollowTheConfiguredStoreOrderWithSteamFirstAndAddedLast() {
+    @Test fun steamLibraryGamesUseTheSingleSteamStoreFilter() {
         val entries = listOf("added", "gog", "steam", "epic", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
-        assertEquals(listOf("steam", "xbox", "epic", "gog", "added"), librarySources(entries, listOf("xbox", "epic", "gog")))
+        val sources = librarySources(entries, listOf(Store.STEAM.id, "xbox", "epic", "gog"), always = setOf(Store.STEAM.id))
+        assertEquals(listOf(Store.STEAM.id, "xbox", "epic", "gog", "added"), sources)
+        assertEquals(1, sources.count { it == Store.STEAM.id })
+        assertFalse(Library.SOURCE_STEAM in sources)
+        assertTrue(inLibrarySource(Store.STEAM.id, entries.first { it.source == Library.SOURCE_STEAM }, emptySet()))
+        assertEquals(
+            listOf(Store.STEAM.id),
+            librarySources(emptyList(), listOf(Store.STEAM.id), always = setOf(Store.STEAM.id)),
+        )
     }
 
     @Test fun theLibrarysOwnTabsSitAfterTheTabTheyFollow() {
         val entries = listOf("added", "gog", "steam", "epic", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
         val order = listOf("xbox", "epic", "gog")
-        assertEquals(listOf("steam", "xbox", "added", "epic", "gog"), librarySources(entries, order, places = listOf("added" to "xbox")))
-        assertEquals(listOf("added", "steam", "xbox", "epic", "gog"), librarySources(entries, order, places = listOf("added" to "", "favorites" to "added", "steam" to "favorites")))
-        assertEquals(listOf("xbox", "epic", "steam", "gog", "added"), librarySources(entries, order, places = listOf("favorites" to "epic", "steam" to "favorites", "added" to "nope")))
+        assertEquals(listOf("xbox", "added", "epic", "gog", Store.STEAM.id), librarySources(entries, order, places = listOf("added" to "xbox")))
+        assertEquals(listOf("added", "xbox", "epic", "gog", Store.STEAM.id), librarySources(entries, order, places = listOf("added" to "", "favorites" to "added", "steam" to "favorites")))
+        assertEquals(listOf("xbox", "epic", "gog", Store.STEAM.id, "added"), librarySources(entries, order, places = listOf("favorites" to "epic", "steam" to "favorites", "added" to "nope")))
     }
 
     @Test fun hidingTheTabALibraryTabFollowsKeepsItInPlace() {
@@ -96,9 +104,9 @@ class LibraryEntriesTest {
     }
 
     @Test fun placesRoundTripThroughTheirOrder() {
-        val order = listOf("epic", "steam", "favorites", LIBRARY_HIDDEN, "gog", "xbox", "added")
+        val order = listOf("epic", "favorites", LIBRARY_HIDDEN, "gog", "xbox", "added")
         assertEquals(order, placeLibraryTabs(listOf("epic", "gog", "xbox"), libraryPlacesOf(order)))
-        assertEquals(listOf("favorites", "steam", "epic", "gog", "added", LIBRARY_HIDDEN), placeLibraryTabs(listOf("epic", "gog"), emptyList()))
+        assertEquals(listOf("favorites", "epic", "gog", "added", LIBRARY_HIDDEN), placeLibraryTabs(listOf("epic", "gog"), emptyList()))
     }
 
     @Test fun librarySourcesIgnoreUnknownAndDuplicateOrderEntriesAndAppendNewStores() {
@@ -106,9 +114,9 @@ class LibraryEntriesTest {
         assertEquals(listOf("epic", "gog", "battlenet"), librarySources(entries, listOf("missing", "epic", "epic", "amazon")))
     }
 
-    @Test fun aSignedInStoreWithNoGamesKeepsItsPlaceInTheStoreOrder() {
+    @Test fun aSteamLibraryGameUsesItsSingleStoreTabAndOtherEmptySourcesKeepTheirPlace() {
         val entries = listOf("steam", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
-        assertEquals(listOf("steam", "xbox", "itch", "gamejolt"), librarySources(entries, listOf("xbox", "itch", "gamejolt"), setOf("itch", "gamejolt")))
+        assertEquals(listOf("xbox", "itch", "gamejolt", Store.STEAM.id), librarySources(entries, listOf("xbox", "itch", "gamejolt"), setOf("itch", "gamejolt")))
     }
 
     @Test fun gameKeysNameEitherAnAppOrAStoreProduct() {

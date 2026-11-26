@@ -191,10 +191,14 @@ internal fun librarySources(
             when (source) {
                 LIBRARY_HIDDEN -> true
                 LIBRARY_FAVORITES -> entries.any { it.favoriteKey in favorites && !hidden(it) }
-                else -> source in always || entries.any { it.source == source && !hidden(it) }
+                else -> source in always || entries.any { librarySourceMatches(source, it) && !hidden(it) }
             }
         }
 }
+
+/** Installed and account-owned Steam games share the storefront's single library filter. */
+internal fun librarySourceMatches(source: String, entry: LibraryEntry): Boolean =
+    entry.source == source || (source == Store.STEAM.id && entry.source == Library.SOURCE_STEAM)
 
 internal object LibraryDisplay {
     const val DEFAULT_LEVEL = 2
@@ -308,7 +312,7 @@ internal object LibraryView {
     fun showSteamOwned(context: android.content.Context) {
         SessionPrefs.setLibraryShowUninstalled(context, true)
         ownedRequest++
-        source = Library.SOURCE_STEAM
+        source = Store.STEAM.id
         query = ""
         focusFirst = true
     }
@@ -381,7 +385,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     remember { StoreTabsState.load(ctx) }
     val storeTabs = StoreTabsState.tabs
     val signInChips = if (!stores || !StoresState.accountsLoaded || preview == LibraryPreview.SAMPLE) emptySet() else storeTabs
-        .filter { it.store != Store.STEAM && it.shown && StoresState.backend(it.store) != null && (preview == LibraryPreview.SIGNED_OUT || storeAccount(it.store) != StoreAccount.SIGNED_IN) }
+        .filter { it.shown && StoresState.backend(it.store) != null && (it.store == Store.STEAM || preview == LibraryPreview.SIGNED_OUT || storeAccount(it.store) != StoreAccount.SIGNED_IN) }
         .map { it.store.id }.toSet()
     val sources = librarySources(
         all, storeTabs.map { it.store.id },
@@ -587,7 +591,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                 onCollections = { savedDialog = true },
                 trackHits = shownHits, onPlayHit = playHit,
                 // An expired account keeps showing its cached games; with none cached it asks to sign in again, like a signed-out store.
-                signInStore = Store.byId(source)?.takeIf { st -> st.id in signInChips && (preview == LibraryPreview.SIGNED_OUT || storeAccount(st) != StoreAccount.EXPIRED || all.none { it.source == st.id }) },
+                signInStore = Store.byId(source)?.takeIf { st -> st.id in signInChips && (preview == LibraryPreview.SIGNED_OUT || storeAccount(st) != StoreAccount.EXPIRED || all.none { librarySourceMatches(st.id, it) }) },
             ) }
         },
     ) { key ->
@@ -899,7 +903,7 @@ private fun LibraryHeader(
     ) {
         if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onClick = onCollections)
         if (!soundMode && DeveloperTools.on && DevPreview.shortcuts) LibraryPreviewButton()
-        if (!soundMode && !s.shortcutPicker && source in setOf(LIBRARY_ALL, Library.SOURCE_STEAM)) {
+        if (!soundMode && !s.shortcutPicker && source in setOf(LIBRARY_ALL, Store.STEAM.id)) {
             HeaderIconButton(stringResource(R.string.stores_refresh), Icons.Filled.Refresh, "steam-library-refresh") { a.onSteamLibraryRefresh() }
         }
         if (!soundMode && !s.shortcutPicker && source == LIBRARY_ALL) {

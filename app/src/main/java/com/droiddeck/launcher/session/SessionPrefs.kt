@@ -372,7 +372,7 @@ object SessionPrefs {
     }
 
     /**
-     * Where the Library's own tabs (Favorites, Steam, Custom games) sit among the store tabs, as "tab=the tab it follows" pairs in
+     * Where the Library's own tabs (Favorites, Custom games) sit among the store tabs, as "tab=the tab it follows" pairs in
      * strip order ("" follows nothing, i.e. first). Null until arranged.
      */
     fun libraryTabPlaces(context: Context): List<Pair<String, String>>? =

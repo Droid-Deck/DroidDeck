@@ -46,13 +46,13 @@ class LibraryFavoritesTest {
 
     @Test fun theFavoritesTabComesFirstAndOnlyAppearsOnceSomethingIsHearted() {
         val entries = listOf(steam(440, "Team Fortress 2"), owned("123", "Witcher"))
-        assertEquals(listOf("steam", "gog"), librarySources(entries, listOf("gog")))
-        assertEquals(listOf(LIBRARY_FAVORITES, "steam", "gog"), librarySources(entries, listOf("gog"), favorites = setOf("gog:123")))
-        assertEquals(listOf("steam", "gog"), librarySources(entries, listOf("gog"), favorites = setOf("gog:999")))
+        assertEquals(listOf("gog", Store.STEAM.id), librarySources(entries, listOf("gog")))
+        assertEquals(listOf(LIBRARY_FAVORITES, "gog", Store.STEAM.id), librarySources(entries, listOf("gog"), favorites = setOf("gog:123")))
+        assertEquals(listOf("gog", Store.STEAM.id), librarySources(entries, listOf("gog"), favorites = setOf("gog:999")))
     }
 
     @Test fun aHiddenFavoritesTabStaysHiddenWithHeartedGames() {
         val entries = listOf(steam(440, "Team Fortress 2"), owned("123", "Witcher"))
-        assertEquals(listOf("steam", "gog"), librarySources(entries, listOf("gog"), favorites = setOf("gog:123"), offTabs = setOf(LIBRARY_FAVORITES, LIBRARY_HIDDEN)))
+        assertEquals(listOf("gog", Store.STEAM.id), librarySources(entries, listOf("gog"), favorites = setOf("gog:123"), offTabs = setOf(LIBRARY_FAVORITES, LIBRARY_HIDDEN)))
     }
 }
