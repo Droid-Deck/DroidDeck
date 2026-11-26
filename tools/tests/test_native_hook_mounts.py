@@ -412,7 +412,8 @@ class NativeHookMountTest(unittest.TestCase):
                   [("/", "ext4", "/dev/root"), ("/mnt/media_rw/" + os.path.basename(real), "exfat", "/dev/sdb1"),
                    (real, "fuse", "/dev/fuse")],
                   [("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1"),
-                   (f"{real}/real", "ext4", "/dev/" + "x" * 5000)]]
+                   (f"{real}/real", "ext4", "/dev/" + "x" * 5000)],
+                  [("/", "ext4", "/dev/root"), (real, "ext4", "/dev/sda2"), (real, "exfat", "/dev/sdb1")]]
         for table in tables:
             result = self.run_probe(*paths, binds=binds, mounts=table)
             for path, want in paths.items():

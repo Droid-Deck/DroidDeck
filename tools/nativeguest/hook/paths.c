@@ -395,6 +395,7 @@ struct mount_scan {
     char best_name[256];
     int nested_links;
     int incomplete;
+    int ambiguous;
     int lower_count;
     char lower[16][256];
 };
@@ -450,6 +451,7 @@ static void mount_scan_line(struct mount_scan *scan, char *line) {
     }
     int covers = point_len == 1 ? point[0] == '/' : is_path_prefix(scan->src, point, point_len);
     if (!covers || (point_len < scan->best_len && scan->best_len != 0)) return;
+    if (point_len == scan->best_len) scan->ambiguous = 1;
     scan->best_len = point_len;
     scan->best_plain = plain;
     scan->best_fuse = strcmp(type, "fuse") == 0 && strcmp(source, "/dev/fuse") == 0 && is_volume_fuse_point(point, name);
@@ -508,7 +510,7 @@ static int mount_holds_no_links(const char *src, size_t src_len) {
     }
     raw_close_fd(fd);
     int none = 0;
-    if (n == 0 && used == 0 && !scan->incomplete && scan->best_len && !scan->nested_links) {
+    if (n == 0 && used == 0 && !scan->incomplete && !scan->ambiguous && scan->best_len && !scan->nested_links) {
         if (scan->best_plain) none = 1;
         else if (scan->best_fuse && scan->best_name[0])
             for (int i = 0; i < scan->lower_count && !none; i++) none = strcmp(scan->lower[i], scan->best_name) == 0;
