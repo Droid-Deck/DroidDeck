@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.stores.steam
 
 import android.content.Context
+import com.droiddeck.launcher.session.WebCookie
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreAccounts
 import org.json.JSONObject
@@ -15,6 +16,16 @@ internal data class SteamWebSession(
 }
 
 internal object SteamAccount {
+    fun fromWebCookies(cookies: List<WebCookie>): SteamWebSession? {
+        val wanted = setOf("steamLoginSecure", "sessionid")
+        val values = LinkedHashMap<String, String>()
+        cookies.sortedByDescending { it.host.contains("steampowered.com", ignoreCase = true) }.forEach { cookie ->
+            val pair = cookie.header.substringBefore(';').split('=', limit = 2)
+            if (pair.size == 2 && pair[0] in wanted) values.putIfAbsent(pair[0], pair[1])
+        }
+        return fromCookieHeader(values.entries.joinToString("; ") { "${it.key}=${it.value}" })
+    }
+
     fun fromCookieHeader(header: String?): SteamWebSession? {
         val cookies = header.orEmpty().split(';').mapNotNull { field ->
             val name = field.substringBefore('=').trim()

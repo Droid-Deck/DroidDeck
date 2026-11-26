@@ -9,7 +9,6 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SteamWebLogin
-import com.droiddeck.launcher.session.WebCookie
 import com.droiddeck.launcher.stores.steam.SteamAccount
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,28 +59,42 @@ object SteamOwnedLibrary {
     fun sync(context: Context, force: Boolean = false): List<Library.SteamGame> = synchronized(this) {
         val app = context.applicationContext
         val accountSession = SteamAccount.read(app)?.let { Session(it.steamId, it.cookieHeader) }
-        val session = accountSession ?: runCatching {
-            val cookies = SteamWebLogin.read(
-                LinuxRuntime.rootDir(app), SessionState.steamClientArch,
-                File(app.cacheDir, "steam-owned-library-cookies"),
-                SteamWebLogin.HOSTS + SteamWebLogin.STORE_HOSTS,
-            )
-            session(cookies)
+        val clientWebSession = if (!LinuxRuntime.isInstalled(app)) null else runCatching {
+            readClientSession(app)
         }.getOrElse {
             Log.w(TAG, "Steam web session is unavailable (${it.javaClass.simpleName})")
             null
-        } ?: return emptyList()
+        }
+        val clientSession = clientWebSession?.let { Session(it.steamId, it.cookieHeader) }
+        val session = clientSession ?: accountSession ?: return emptyList()
+        val useClientSession = clientSession != null
+        if (useClientSession && accountSession?.steamId != session.steamId) {
+            clientWebSession?.let { SteamAccount.save(app, it) }
+            com.droiddeck.launcher.stores.StoresState.refresh(app)
+        }
         val saved = readSaved(app)
         if (!force && saved?.steamId == session.steamId && System.currentTimeMillis() - saved.syncedAt < REFRESH_MS) {
             return saved.games.toSteamGames()
         }
 
+        var usedClientSession = useClientSession
         val ids = try {
             ownedApps(session.cookie)
-        } catch (e: Exception) {
-            Log.w(TAG, "Steam library refresh failed (${e.javaClass.simpleName})")
-            return saved?.takeIf { it.steamId == session.steamId }?.games.toSteamGames()
+        } catch (primaryError: Exception) {
+            val fallback = accountSession?.takeIf { it.steamId == session.steamId && it.cookie != session.cookie }
+            if (fallback == null) {
+                Log.w(TAG, "Steam library refresh failed (${primaryError.javaClass.simpleName})")
+                return saved?.takeIf { it.steamId == session.steamId }?.games.toSteamGames()
+            }
+            usedClientSession = false
+            try {
+                ownedApps(fallback.cookie)
+            } catch (fallbackError: Exception) {
+                Log.w(TAG, "Steam library refresh failed (${fallbackError.javaClass.simpleName})")
+                return saved?.takeIf { it.steamId == session.steamId }?.games.toSteamGames()
+            }
         }
+        if (usedClientSession) clientWebSession?.let { SteamAccount.save(app, it) }
         SteamAppInfo.lookup(app, ids.toList())
         val games = ids.sorted().mapNotNull { id ->
             val info = runCatching { SteamAppInfo.info(app, id) }.getOrNull() ?: return@mapNotNull null
@@ -99,17 +112,14 @@ object SteamOwnedLibrary {
 
     private data class Session(val steamId: String, val cookie: String)
 
-    private fun session(cookies: List<WebCookie>): Session? {
-        val wanted = setOf("steamLoginSecure", "sessionid")
-        val values = LinkedHashMap<String, String>()
-        cookies.sortedByDescending { it.host.contains("steampowered.com", ignoreCase = true) }.forEach { cookie ->
-            val pair = cookie.header.substringBefore(';').split('=', limit = 2)
-            if (pair.size == 2 && pair[0] in wanted) values.putIfAbsent(pair[0], pair[1])
-        }
-        val login = values["steamLoginSecure"] ?: return null
-        val id = Regex("^(\\d{15,20})(?:\\|\\||%7[Cc]%7[Cc])").find(login)?.groupValues?.get(1) ?: return null
-        val cookie = values.entries.joinToString("; ") { "${it.key}=${it.value}" }
-        return Session(id, cookie)
+    private fun readClientSession(context: Context): com.droiddeck.launcher.stores.steam.SteamWebSession? {
+        val app = context.applicationContext
+        val cookies = SteamWebLogin.read(
+            LinuxRuntime.rootDir(app), SessionState.steamClientArch,
+            File(app.cacheDir, "steam-owned-library-cookies"),
+            SteamWebLogin.HOSTS + SteamWebLogin.STORE_HOSTS,
+        )
+        return SteamAccount.fromWebCookies(cookies)
     }
 
     private fun ownedApps(cookie: String): Set<Int> {
