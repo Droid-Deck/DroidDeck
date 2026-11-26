@@ -126,6 +126,7 @@ import com.droiddeck.launcher.stores.xbox.XboxContent
 import com.droiddeck.launcher.stores.xbox.xboxCloud
 import com.droiddeck.launcher.stores.xbox.xboxPc
 import com.droiddeck.launcher.stores.xbox.XboxRuntime
+import com.droiddeck.launcher.frontend.SteamOwnedLibrary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -139,6 +140,7 @@ import androidx.compose.foundation.layout.offset
 internal class GameRef(val appId: Int?, val store: Store?, val storeId: String?) {
     fun game(games: List<Library.SteamGame>): Library.SteamGame? = when {
         appId != null -> games.firstOrNull { it.appId == appId }
+        store == Store.STEAM && storeId?.toIntOrNull() != null -> games.firstOrNull { it.appId == storeId.toInt() }
         store != null && storeId != null -> games.firstOrNull { it.source == store.id && it.storeId == storeId }
         else -> null
     }
@@ -165,7 +167,7 @@ internal fun GameDetail(
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
     val ref = remember(key) { GameRef.parse(key) }
-    val games = s.steamGames + s.ownedSteamGames + rememberXboxCloudRows(s) + if (s.soundtracksEnabled) emptyList() else s.soundtracks
+    val games = s.steamGames + s.ownedSteamGames + SteamOwnedLibrary.games + rememberXboxCloudRows(s) + if (s.soundtracksEnabled) emptyList() else s.soundtracks
     val found = ref.game(games)
     val known = remember(key) { arrayOfNulls<Pair<Store, String>>(1) }
     val store = ref.store ?: Store.byId(found?.source) ?: known[0]?.first

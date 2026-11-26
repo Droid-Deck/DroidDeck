@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.stores
 
 enum class Store(val id: String, val label: String, val shortLabel: String) {
+    STEAM("steam-account", "Steam", "Steam"),
     EPIC("epic", "Epic Games", "Epic"),
     EA("ea", "EA", "EA"),
     XBOX("xbox", "Xbox", "Xbox"),

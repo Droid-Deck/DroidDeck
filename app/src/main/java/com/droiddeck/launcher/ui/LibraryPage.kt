@@ -109,6 +109,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.frontend.SteamOwnedLibrary
 import com.droiddeck.launcher.frontend.Soundtrack
 import com.droiddeck.launcher.frontend.SoundtrackCollections
 import com.droiddeck.launcher.frontend.SoundtrackIndex
@@ -303,6 +304,14 @@ internal object LibraryView {
         query = ""
         focusFirst = true
     }
+
+    fun showSteamOwned(context: android.content.Context) {
+        SessionPrefs.setLibraryShowUninstalled(context, true)
+        ownedRequest++
+        source = Library.SOURCE_STEAM
+        query = ""
+        focusFirst = true
+    }
 }
 
 @Composable
@@ -342,11 +351,13 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     remember { SoundtrackCollections.load(ctx) }
     val savedSnapshot = SoundtrackCollections.snapshot
     val favoritesLabel = stringResource(R.string.soundtracks_favorites)
-    val all = remember(soundMode, s.steamGames, s.ownedSteamGames, s.soundtracks, s.soundtracksEnabled, cloudRows, owned, installedStore, savedSnapshot, favoritesLabel, preview) {
+    val accountSteamGames = if (s.shortcutPicker) emptyList() else (s.ownedSteamGames + SteamOwnedLibrary.games).distinctBy { it.appId }
+    val libraryOwned = if (s.shortcutPicker) owned else owned - Store.STEAM
+    val all = remember(soundMode, s.steamGames, accountSteamGames, s.soundtracks, s.soundtracksEnabled, cloudRows, libraryOwned, installedStore, savedSnapshot, favoritesLabel, preview) {
         if (soundMode) s.soundtracks.map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) } +
             (if (s.soundtracks.isEmpty() && savedSnapshot.favorites.isEmpty() && savedSnapshot.collections.isEmpty()) emptyList() else SoundtrackCollections.games(ctx, favoritesLabel, skipEmptyFavorites = true))
                 .map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) }
-        else libraryEntries(s.steamGames + (if (s.shortcutPicker) emptyList() else s.ownedSteamGames) + cloudRows + if (s.soundtracksEnabled) emptyList() else s.soundtracks.filter { it.library != Library.ADDED }, owned, installedStore)
+        else libraryEntries(s.steamGames + accountSteamGames + cloudRows + if (s.soundtracksEnabled) emptyList() else s.soundtracks.filter { it.library != Library.ADDED }, libraryOwned, installedStore)
             .let { rows -> if (preview == LibraryPreview.NOTHING_INSTALLED) rows.map { LibraryEntry(it.key, it.source, it.title, it.game, it.item, false) } else rows }
     }
     var addingSoundtrack by remember { mutableStateOf(false) }
@@ -370,7 +381,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     remember { StoreTabsState.load(ctx) }
     val storeTabs = StoreTabsState.tabs
     val signInChips = if (!stores || !StoresState.accountsLoaded || preview == LibraryPreview.SAMPLE) emptySet() else storeTabs
-        .filter { it.shown && StoresState.backend(it.store) != null && (preview == LibraryPreview.SIGNED_OUT || storeAccount(it.store) != StoreAccount.SIGNED_IN) }
+        .filter { it.store != Store.STEAM && it.shown && StoresState.backend(it.store) != null && (preview == LibraryPreview.SIGNED_OUT || storeAccount(it.store) != StoreAccount.SIGNED_IN) }
         .map { it.store.id }.toSet()
     val sources = librarySources(
         all, storeTabs.map { it.store.id },

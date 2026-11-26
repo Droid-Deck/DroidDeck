@@ -1434,7 +1434,7 @@
     <string name="desktop_removal_unknown">Actualiza DroidDeck antes de eliminar esta versión del escritorio.</string>
     <string name="content_linux_desktop">Escritorio de Linux</string>
     <string name="content_linux_desktop_hint">KDE Plasma, Firefox y tus emuladores</string>
-    <string name="games_empty">Los juegos que instales en Steam aparecen aquí después de la sesión.</string>
+    <string name="games_empty">Inicia sesión en Steam desde Tiendas para ver toda tu biblioteca aquí.</string>
     <string name="games_play_steam">Jugar en Steam</string>
     <string name="games_play_steamvr">Jugar en SteamVR</string>
     <string name="games_files">Archivos del juego</string>

@@ -89,6 +89,7 @@ object StoreAccounts {
 
     fun signedInAs(context: Context, store: Store): String? {
         val json = read(context, store) ?: return if (isUnavailable(store)) store.label else null
+        if (store == Store.STEAM) return json.optString("steam_id").takeIf { it.isNotBlank() }?.let { json.optString("display_name").ifBlank { "Steam $it" } }
         if (store == Store.XBOX) return json.optString("username").takeIf { it.isNotBlank() }
         if (store == Store.BATTLENET) return json.optString("display_name").takeIf { it.isNotBlank() }
         if (json.optString("access_token", "").isEmpty()) return null

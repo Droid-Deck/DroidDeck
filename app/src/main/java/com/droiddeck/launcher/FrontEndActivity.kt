@@ -3355,7 +3355,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun refresh() {
         if (shortcutPicker) steamOwnedGames = emptyList()
-        else if (ready) SteamOwnedLibrary.syncAsync(this) { games -> if (!shortcutPicker) steamOwnedGames = games }
+        else if (ready || com.droiddeck.launcher.stores.StoreAccounts.signedInAs(this, com.droiddeck.launcher.stores.Store.STEAM) != null) {
+            SteamOwnedLibrary.syncAsync(this) { games -> if (!shortcutPicker) steamOwnedGames = games }
+        }
         val listX64 = SessionPrefs.activeSteamClientArch(this) == "x86_64"
         if (listX64 != steamGamesX64) {
             steamGamesX64 = listX64
