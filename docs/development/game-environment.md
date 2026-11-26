@@ -205,12 +205,20 @@ same WSI layer, and with eight images and no frame limit it drew flat out
 (about 240 frames a second at 120 Hz) and heated the device. Values set in the
 launch options or the environment editor are kept.
 
+When the driver renders straight into display buffers (zero-copy presentation),
+the session sets `vk_wsi_override_min_image_count=4` and
+`GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=1`. A display buffer comes back only once
+the display releases it, about two refreshes after it is replaced, so the Steam
+client's three-image swapchains ran at 40 fps on a 60 Hz panel. Gamescope's WSI
+layer reads `GAMESCOPE_WSI_MIN_IMAGE_COUNT` first, so a game launch keeps its
+eight images.
+
 DOOM (2016) is the exception (`DOOMx64vk.exe` beside the launched program, which
 is `DOOMx64.exe` for a GOG install). It asks for exactly two images and stops with
 `FATAL ERROR: getSwapchainImagesKHR failed with error (VK_SUCCESS)` when it gets
-more, so its fix removes both variables, also from its launch options, and sets
-`vk_x11_strict_image_count=true`, the option Mesa's driconf gives the game. A
-per-game value in the environment editor still wins.
+more, so its fix removes all three image-count variables, also from its launch
+options, and sets `vk_x11_strict_image_count=true`, the option Mesa's driconf
+gives the game. A per-game value in the environment editor still wins.
 
 Dragon Quest Monsters 4 does not draw slime bodies at its default monster mesh
 detail, leaving only their tips. Before each launch, DroidDeck sets
