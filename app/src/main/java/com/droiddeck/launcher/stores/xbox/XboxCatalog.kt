@@ -73,8 +73,11 @@ internal object XboxCatalog {
         }
         val result = rows.keys.mapNotNull { id -> kind(id)?.let { id to it } }.toMap()
         val missingPlan = rows.values.count { row -> row.optString("satisfiedByProductId").let { it in plans && !activePlan(it) } }
+        val unlistedParent = rows.values.count { row -> active(row) &&
+            row.optString("satisfiedByProductId").let { productId.matches(it) && it !in rows && it !in plans && it !in blocked } }
         report("library entitlements=${array.length()} invalid=${array.length() - rows.size} restricted=${rows.values.count { !active(it) }} " +
-            "unverified-plan=$missingPlan owned=${result.values.count { it == "owned" }} gamepass=${result.values.count { it == "gamepass" }}")
+            "unverified-plan=$missingPlan owned=${result.values.count { it == "owned" }} gamepass=${result.values.count { it == "gamepass" }} " +
+            "plan-rows=${rows.keys.count { it in plans }} unlisted-parent=$unlistedParent")
         return result
     }
 
@@ -105,22 +108,28 @@ internal object XboxCatalog {
         return products(objects(body.optJSONArray("productsList")).map { it.optString("productId") }.take(24), access)
     }
 
-    internal fun product(json: JSONObject, access: Map<String, String>, cloud: XboxCloudCatalog? = null): CatalogItem? {
+    internal fun product(json: JSONObject, access: Map<String, String>, cloud: XboxCloudCatalog? = null,
+                         dropped: (String) -> Unit = {}): CatalogItem? {
         val id = json.optString("ProductId").uppercase()
-        if (!productId.matches(id) || json.optString("ProductType") != "Game") return null
-        val localized = objects(json.optJSONArray("LocalizedProperties")).firstOrNull() ?: return null
-        val title = localized.optString("ProductTitle").takeIf { it.isNotBlank() } ?: return null
-        val packages = objects(json.optJSONArray("DisplaySkuAvailabilities"))
+        if (!productId.matches(id) || json.optString("ProductType") != "Game") return null.also { dropped("not-game") }
+        val localized = objects(json.optJSONArray("LocalizedProperties")).firstOrNull() ?: return null.also { dropped("no-title") }
+        val title = localized.optString("ProductTitle").takeIf { it.isNotBlank() } ?: return null.also { dropped("no-title") }
+        val skus = objects(json.optJSONArray("DisplaySkuAvailabilities"))
             .mapNotNull { it.optJSONObject("Sku")?.optJSONObject("Properties") }
             .filter { it.opt("IsTrial") != true && it.opt("IsPreOrder") != true }
-            .flatMap { objects(it.optJSONArray("Packages")) }
+        val packages = skus.flatMap { objects(it.optJSONArray("Packages")) }
         val pc = packages.filter { pkg -> objects(pkg.optJSONArray("PlatformDependencies")).any { it.optString("PlatformName") == "Windows.Desktop" } }
         val installable = pc.any { installableFormat(it.optString("PackageFormat")) }
         // The installer needs the format, not just the fact that one exists: a
         // legacy container takes a different subcommand from a streamed package.
         val format = pc.firstOrNull { installableFormat(it.optString("PackageFormat")) }?.optString("PackageFormat").orEmpty()
         val streams = cloud?.streams(id, access[id].orEmpty()) == true
-        if (!installable && !streams) return null
+        if (!installable && !streams) return null.also { dropped(when {
+            pc.isNotEmpty() -> "pc-format"
+            packages.isNotEmpty() -> "console-only"
+            skus.any { it.opt("IsBundle") == true } -> "bundle"
+            else -> "no-package"
+        }) }
         val images = objects(localized.optJSONArray("Images"))
         fun image(vararg kinds: String): String? = kinds.firstNotNullOfOrNull { purpose ->
             images.firstOrNull { it.optString("ImagePurpose") == purpose }?.optString("Uri")?.let { raw ->
