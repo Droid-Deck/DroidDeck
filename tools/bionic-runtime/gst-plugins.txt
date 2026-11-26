@@ -1,6 +1,7 @@
 # GStreamer plugins packed for winegstreamer (game video/audio), from the imagefs's lib/gstreamer-1.0 by name
 # (libgst<name>.so): Proton's usual set as far as this imagefs has it (no vpx; videoconvert+videoscale are videoconvertscale).
 coreelements
+debug
 app
 audioconvert
 audiorate
