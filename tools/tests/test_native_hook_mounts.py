@@ -267,6 +267,17 @@ class NativeHookMountTest(unittest.TestCase):
         self.assertEqual(["/mnt/bar"], out["cd:/mnt/bar/"])
         self.assertEqual([self.bind_table(binds, "")], out["env:DDNATV_BINDS_KERNEL"])
 
+    def test_a_bind_table_too_long_for_the_environment_is_not_handed_to_children(self):
+        far = self.links.joinpath(*["f" * 200] * 9)
+        far.mkdir(parents=True, exist_ok=True)
+        (far / "marker").write_text("far")
+        if not (self.links / "farlink").is_symlink():
+            os.symlink(str(far), self.links / "farlink")
+        binds = "|".join(f"{self.links}/farlink:/mnt/far{n}" for n in range(80))
+        out = self.run_probe("ls:/mnt/far79", "env:DDNATV_BINDS_KERNEL", binds=binds)
+        self.assertEqual(["marker"], out["ls:/mnt/far79"])
+        self.assertEqual(["-"], out["env:DDNATV_BINDS_KERNEL"])
+
     def test_a_handed_down_bind_table_is_used_without_looking_the_sources_up(self):
         binds = f"{self.links}/hostdir:/mnt/viahost"
         real = os.path.realpath(self.links / "real")

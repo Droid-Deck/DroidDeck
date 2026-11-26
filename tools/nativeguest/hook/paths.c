@@ -159,7 +159,8 @@ static void ddnatv_load_binds(const char *spec, const char *known) {
     }
     size_t size = 17;
     for (int i = 0; i < g_nbinds; i++) size += 1 + (g_binds[i].resolved ? g_binds[i].src_len : 0);
-    char *table = malloc(size + 1);
+    long page = sysconf(_SC_PAGESIZE);
+    char *table = size + 21 <= (size_t)(page > 0 ? page : 4096) * 32 ? malloc(size + 1) : NULL;
     if (table) {
         size_t used = ddnatv_append(table, size + 1, 0, hash, 16);
         for (int i = 0; i < g_nbinds; i++) {
