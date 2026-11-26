@@ -197,6 +197,7 @@ def doom_2016_swapchain_images(game):
         images = {
             "GAMESCOPE_WSI_MIN_IMAGE_COUNT": None,
             "GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT": None,
+            "vk_wsi_override_min_image_count": None,
             "vk_x11_strict_image_count": "true",
         }
         return images, [], "DOOM (2016): the swapchain keeps the image count the game asks for"

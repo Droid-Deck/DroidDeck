@@ -1036,9 +1036,13 @@ class SessionService : Service() {
         if (!bridge && !venus && SystemVulkanDriver.usesDefault(linuxDriverId)) {
             SystemVulkanDriver.addEnvironment(this, guest)
         }
-        com.droiddeck.launcher.wayland.WaylandCompositor.nativeSetDisplayBufferDriver(
-            !bridge && !venus && LinuxVulkanDriverManager(this).rendersToDisplayBuffers(linuxDriverId),
-        )
+        val displayBuffers = !bridge && !venus && LinuxVulkanDriverManager(this).rendersToDisplayBuffers(linuxDriverId)
+        com.droiddeck.launcher.wayland.WaylandCompositor.nativeSetDisplayBufferDriver(displayBuffers)
+        if (displayBuffers) {
+            guest.add("vk_wsi_override_min_image_count=$DISPLAY_BUFFER_IMAGES")
+            guest.add("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=1")
+            Log.i(TAG, "display buffers: swapchains default to $DISPLAY_BUFFER_IMAGES images")
+        }
         (if (bridge || venus) null else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         // DroidDeck-Bionic games load an Android driver build; this is the one the display uses, for a runtime driver
@@ -2643,6 +2647,7 @@ class SessionService : Service() {
     companion object {
         private const val TAG = "SessionService"
         private const val TRACER_NICE = -6
+        private const val DISPLAY_BUFFER_IMAGES = 4
         private const val MIC_RELEASE_TIMEOUT_MS = 5_000L
         private const val TU_DEBUG_SWITCH = "Download/droiddeck-tu-debug"
         private const val GAME_PREFIX = "DROIDDECK_GAME_"
