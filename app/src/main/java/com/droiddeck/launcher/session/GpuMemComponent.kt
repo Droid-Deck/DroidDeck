@@ -59,19 +59,8 @@ class GpuMemComponent(private val file: File, private val root: File) : SessionP
     private fun sessionPids(): List<String> =
         File("/proc").list()?.filter { it.isNotEmpty() && it.all(Char::isDigit) }.orEmpty()
 
-    private fun kgslMappedKb(pid: String): Long? = runCatching {
-        var bytes = 0L
-        File("/proc/$pid/maps").forEachLine { line ->
-            if (line.endsWith("kgsl-3d0") || line.contains("/dev/dri/renderD")) {
-                val dash = line.indexOf('-')
-                val space = line.indexOf(' ')
-                if (dash > 0 && space > dash) {
-                    bytes += line.substring(dash + 1, space).toLong(16) - line.substring(0, dash).toLong(16)
-                }
-            }
-        }
-        bytes / 1024
-    }.getOrNull()
+    private fun kgslMappedKb(pid: String): Long? =
+        runCatching { File("/proc/$pid/maps").useLines(MemoryReadout::gpuMappedKb) }.getOrNull()
 
     private fun write(bytes: Long) {
         try {

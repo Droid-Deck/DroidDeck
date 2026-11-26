@@ -73,8 +73,26 @@ internal object MemoryReadout {
             }
             children[pid]?.let(queue::addAll)
         }
-        return Split(game, droiddeck, gpuKb())
+        return Split(game, droiddeck, gpuKb() ?: mappedGpuKb(seen))
     }
+
+    fun gpuMappedKb(maps: Sequence<String>): Long {
+        var bytes = 0L
+        maps.forEach { line ->
+            if (line.endsWith("kgsl-3d0") || line.contains("/dev/dri/renderD")) {
+                val dash = line.indexOf('-')
+                val space = line.indexOf(' ')
+                if (dash > 0 && space > dash) {
+                    bytes += line.substring(dash + 1, space).toLong(16) - line.substring(0, dash).toLong(16)
+                }
+            }
+        }
+        return bytes / 1024
+    }
+
+    private fun mappedGpuKb(pids: Collection<Int>): Long? =
+        pids.sumOf { pid -> runCatching { File("/proc/$pid/maps").useLines(::gpuMappedKb) }.getOrDefault(0L) }
+            .takeIf { it > 0 }
 
     private fun parentOf(pid: Int): Int? {
         val stat = runCatching { File("/proc/$pid/stat").readText() }.getOrNull() ?: return null

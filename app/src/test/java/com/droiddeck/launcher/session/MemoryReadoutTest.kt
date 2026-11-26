@@ -54,6 +54,20 @@ class MemoryReadoutTest {
         assertEquals(0L, MemoryReadout.androidKb(device, MemoryReadout.Split(gameKb = 6_000, droiddeckKb = 2_000, gpuKb = 1_000)))
     }
 
+    @Test fun gpuMemoryIsWhatTheGpuNodesMapIntoAProcess() {
+        val maps = """
+            7a00000000-7a00200000 rw-s 100000000 00:0c 512                          /dev/dri/renderD128
+            7a00200000-7a00600000 rw-s 100200000 00:0c 512                          /dev/dri/renderD128
+            7b00000000-7b00100000 rw-s 00000000 00:0d 300                           /dev/kgsl-3d0
+            7c00000000-7c40000000 rw-p 00000000 00:00 0                             [anon:dalvik-main space]
+            7d00000000-7d00400000 rw-s 00000000 00:0e 77                            /dmabuf:
+            7e00000000-7e00100000 r--p 00000000 fd:00 1234                          /data/app/lib/arm64/libdroiddeck.so
+        """.trimIndent()
+        assertEquals(2048L + 4096L + 1024L, MemoryReadout.gpuMappedKb(maps.lineSequence()))
+        assertEquals(0L, MemoryReadout.gpuMappedKb(maps.lineSequence().drop(3)))
+        assertEquals(0L, MemoryReadout.gpuMappedKb(emptySequence()))
+    }
+
     @Test fun theLogLineSaysEveryPartInMegabytes() {
         val device = MemoryReadout.Device(totalKb = 11_379_920, availableKb = 1_048_576, swapTotalKb = 16_777_212, swapFreeKb = 8_388_606)
         val split = MemoryReadout.Split(gameKb = 2_097_152, droiddeckKb = 524_288, gpuKb = 3_145_728)
