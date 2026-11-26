@@ -33,6 +33,13 @@ object SocNames {
     fun name(model: String, platform: String = GpuInfo.systemProperty("ro.board.platform")): String? =
         MODELS[normalizedModel(model)] ?: PLATFORMS[platform.lowercase()]?.let { "$it family" }
 
+    // Without label's platform-family guess: a rebadged chip such as the Duo's CQ7790S reports a platform it is not.
+    fun plainName(model: String = model(), maker: String = manufacturer()): String =
+        MODELS[normalizedModel(model)]?.let { "$it ($model)" } ?: "$maker $model".trim()
+
+    private fun manufacturer(): String =
+        if (Build.VERSION.SDK_INT >= 31) Build.SOC_MANUFACTURER.takeIf { it != Build.UNKNOWN }.orEmpty() else ""
+
     fun label(model: String = model(), platform: String = GpuInfo.systemProperty("ro.board.platform")): String {
         val name = name(model, platform)
         return when {

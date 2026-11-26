@@ -28,12 +28,14 @@ object SessionFiles {
         "usr/local/bin/droiddeck-bottom-desktop" to "usr/local/bin/droiddeck-bottom-desktop",
         "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
         "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
+        "usr/local/bin/droiddeck-device-info" to "usr/local/bin/droiddeck-device-info",
         "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
         "usr/local/bin/droiddeck-library-perms" to "usr/local/bin/droiddeck-library-perms",
         "usr/local/bin/droiddeck-ime" to "usr/local/bin/droiddeck-ime",
         "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
         "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
+        "etc/xdg/fastfetch/config.jsonc" to "etc/xdg/fastfetch/config.jsonc",
     )
 
     private val SERVICE_PACKS = mapOf(
