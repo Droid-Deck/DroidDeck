@@ -379,7 +379,6 @@ void vk_present_set_scale_mode(int mode, int alignment) {
     pthread_mutex_lock(&g_map_lock);
     g_mode = mode;
     g_align = alignment;
-    /* Keep the mapping for the currently displayed frame until the next render rebuilds it. */
     pthread_mutex_unlock(&g_map_lock);
 }
 
@@ -391,7 +390,6 @@ void vk_present_set_zoom(float zoom) {
     if (g_zoom != zoom) {
         g_zoom = zoom;
     }
-    /* Keep the mapping for the currently displayed frame until the next render rebuilds it. */
     pthread_mutex_unlock(&g_map_lock);
 }
 
