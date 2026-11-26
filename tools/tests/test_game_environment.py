@@ -1741,6 +1741,87 @@ class GameEnvironmentTest(unittest.TestCase):
                 (asylum / name).touch()
             self.assertEqual(MODULE["engine_fixes"](str(asylum / "BmLauncher.exe"), []), ({}, [], []))
 
+    def test_store_launcher_resolves_the_game_executable_from_the_sidecar(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "BatmanArkhamCity"
+            bin_dir = root / "Binaries/Win32"
+            bin_dir.mkdir(parents=True)
+            for name in ("Batman2.exe", "BatmanAC.exe"):
+                (bin_dir / name).touch()
+            launcher = root / ".droiddeck-launch.bat"
+            launcher.touch()
+            (root / ".droiddeck-store.json").write_text(json.dumps({
+                "store": "epic", "id": "Egret", "title": "Batman Arkham City",
+                "exe": "Binaries/Win32/Batman2.exe", "launcher": ".droiddeck-launch.bat",
+            }))
+            env, extra, notes = MODULE["engine_fixes"](str(launcher), [])
+            self.assertEqual((env, extra), ({"FEX_X87REDUCEDPRECISION": "0"}, []))
+            self.assertTrue(notes)
+
+            home = Path(tmp) / "home"
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "shared": {"FEX_X87REDUCEDPRECISION": "1"}}))
+            probe = home / "proton"
+            probe.write_text("#!" + sys.executable + "\nimport os, sys\n"
+                             "print(os.environ.get('FEX_X87REDUCEDPRECISION', ''))\n"
+                             "print(sys.argv[2])\n")
+            probe.chmod(0o755)
+            base = {k: v for k, v in os.environ.items() if not k.startswith(("FEX_", "WINE", "PROTON", "DROIDDECK", "DD_", "STEAM"))}
+            base.update(HOME=str(home), STEAM_COMPAT_DATA_PATH=str(home / "compatdata/3648205350"))
+            result = subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", str(launcher)],
+                                    env=base, text=True, capture_output=True, check=True)
+            self.assertEqual(result.stdout.splitlines(), ["0", str(launcher)])
+            self.assertIn("Batman: Arkham City: FEX with full x87 precision", result.stderr)
+
+            rebirth = Path(tmp) / "FF7Rebirth"
+            rebirth_exe = rebirth / "End/Binaries/Win64/ff7rebirth_.exe"
+            rebirth_exe.parent.mkdir(parents=True)
+            rebirth_exe.touch()
+            rebirth_launcher = rebirth / ".droiddeck-launch.bat"
+            rebirth_launcher.touch()
+            (rebirth / ".droiddeck-store.json").write_text(json.dumps({
+                "store": "epic", "id": "ff7", "title": "FF7 Rebirth",
+                "exe": r"End\Binaries\Win64\ff7rebirth_.exe", "launcher": ".droiddeck-launch.bat",
+            }))
+            self.assertEqual(MODULE["engine_fixes"](str(rebirth_launcher), [])[0], {"VKD3D_FEATURE_LEVEL": "12_2"})
+
+    def test_store_launcher_ignores_missing_invalid_or_escaping_sidecar_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = Path(tmp) / "Outside"
+            outside.mkdir()
+            outside_exe = outside / "BatmanAC.exe"
+            outside_exe.touch()
+
+            root = Path(tmp) / "Game"
+            sub = root / "sub"
+            sub.mkdir(parents=True)
+            (root / "real.exe").touch()
+            (root / "escape.exe").symlink_to(outside_exe)
+            launcher = root / ".droiddeck-launch.bat"
+            launcher.touch()
+            sidecar = root / ".droiddeck-store.json"
+
+            resolve = MODULE["store_game_exe"]
+            self.assertEqual(resolve(str(launcher)), str(launcher))
+
+            for payload in ("not-json", "[]", json.dumps({"exe": ""}), json.dumps({"exe": 123}),
+                            json.dumps({"exe": "missing.exe"}), json.dumps({"exe": "sub"}),
+                            json.dumps({"exe": "../Outside/BatmanAC.exe"}),
+                            json.dumps({"exe": "sub/../../Outside/BatmanAC.exe"}),
+                            json.dumps({"exe": str(outside_exe)}),
+                            json.dumps({"exe": r"C:\Windows\notepad.exe"}),
+                            json.dumps({"exe": "escape.exe"})):
+                with self.subTest(payload=payload):
+                    sidecar.write_text(payload)
+                    self.assertEqual(resolve(str(launcher)), str(launcher))
+
+            sidecar.write_text(json.dumps({"exe": "real.exe"}))
+            self.assertEqual(resolve(str(launcher)), str(root / "real.exe"))
+            other_bat = root / "custom.bat"
+            other_bat.touch()
+            self.assertEqual(resolve(str(other_bat)), str(other_bat))
+
     def test_split_second_gets_x87_fip_unless_the_game_sets_jit_features(self):
         with tempfile.TemporaryDirectory() as tmp:
             game = Path(tmp) / "SplitSecond"
