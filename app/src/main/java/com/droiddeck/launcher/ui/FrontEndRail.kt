@@ -96,6 +96,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onPlaced
 import com.droiddeck.launcher.core.PhantomProcessLimit
 
+internal val AttentionAmber: Color @Composable get() = LocalPalette.current.warning
+
 @Composable
 internal fun BottomBar(
     s: FrontEndState, selected: String,
