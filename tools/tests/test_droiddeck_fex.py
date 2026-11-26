@@ -1430,6 +1430,43 @@ class AppInfoTest(unittest.TestCase):
                 self.manifest(steam, app)
             self.assertEqual(downloads(str(steam)), [])
 
+    def test_valve_proton_on_demand_waits_for_a_title_that_uses_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp)
+            for app in ("3127680", "1628350", "4183110"):
+                self.manifest(steam, app)
+            downloads, needed, tool = self.COMPAT["tool_downloads"], self.COMPAT["valve_proton_needed"], self.COMPAT["TOOL"]
+            own = steam / "compatibilitytools.d/DroidDeck-Proton 11-14.1"
+            with mock.patch.dict(os.environ, {"DD_VALVE_PROTON": "0"}):
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                ge = steam / "compatibilitytools.d/GE-Proton10-25"
+                ge.mkdir(parents=True)
+                (ge / "droiddeck-proton-wrap").write_text("")
+                (ge / "compatibilitytool.vdf").write_text(
+                    '"compatibilitytools" { "compat_tools" { "GE-Proton10-25" { "install_path" "." } } }')
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                own.mkdir(parents=True)
+                (own / "droiddeck-proton-wrap").write_text("")
+                (own / "compatibilitytool.vdf").write_text(
+                    '"compatibilitytools" { "compat_tools" { "DroidDeck-Proton-11-14.1" { "install_path" "." } } }')
+                self.assertEqual(downloads(str(steam)), [])
+                self.assertFalse(needed(str(steam), {"DroidDeck-Proton-11-14.1", None}))
+                self.assertTrue(needed(str(steam), {"DroidDeck-Proton-11-14.1", tool}))
+                self.assertTrue(needed(str(steam), {"proton-experimental-arm64"}))
+                self.assertEqual(downloads(str(steam), True), [("4427310", "install")])
+                config = steam / "config/config.vdf"
+                config.parent.mkdir()
+                config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { '
+                                  '"0" { "name" "DroidDeck-Proton-11-14.1" "config" "" "priority" "75" } '
+                                  '"10" { "name" "%s" "config" "" "priority" "250" } } } } } }' % tool)
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                config.unlink()
+                self.manifest(steam, "4427310", flags="6")
+                self.assertEqual(downloads(str(steam), False), [("4427310", "update")])
+            with mock.patch.dict(os.environ, {"DD_VALVE_PROTON": "1"}):
+                (steam / "steamapps/appmanifest_4427310.acf").unlink()
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+
     def test_titles_with_a_valve_pick_are_found_installed_or_not(self):
         def deck(oslist, runtime, kind="game"):
             common = {"type": kind, "oslist": oslist, "steam_deck_compatibility": {"configuration": {"recommended_runtime": runtime}}}

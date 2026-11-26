@@ -19,10 +19,11 @@ def block(first, last):
     return DESKTOP[start:DESKTOP.index(last, start) + len(last)]
 
 
-def run(script, home):
+def run(script, home, layout_installed=True):
     environment = {key: value for key, value in os.environ.items() if key != 'XDG_CONFIG_HOME'}
     environment['HOME'] = str(home)
-    result = subprocess.run(['bash', '-c', script], env=environment, capture_output=True, text=True, timeout=5)
+    prefix = 'dd_layout_installed=1\n' if layout_installed else ''
+    result = subprocess.run(['bash', '-c', prefix + script], env=environment, capture_output=True, text=True, timeout=5)
     if result.returncode != 0:
         raise AssertionError(result.stderr)
 
@@ -100,6 +101,52 @@ class DesktopSteamosPanelTest(unittest.TestCase):
         self.assertIn('org.kde.plasma.kimpanel', OVERLAY_LAYOUT)
         for language in ('ja', 'ko', 'th', 'zh_CN', 'zh_TW', 'hi'):
             self.assertIn('"' + language + '"', OVERLAY_LAYOUT)
+
+    def test_panel_migration_is_skipped_when_layout_directory_is_missing(self):
+        with tempfile.TemporaryDirectory() as home:
+            home = Path(home)
+            config = home / '.config'
+            config.mkdir()
+            (config / RC).write_text('existing panel\n')
+            layout_dir = home / 'missing-layout'
+            script = block('dd_layout=', '# startplasma applies this file')
+            script = script.replace('dd_layout=' + LAYOUT_DIR, 'dd_layout=' + layout_dir.as_posix())
+            run(script, home)
+            self.assertEqual('existing panel\n', (config / RC).read_text())
+            self.assertFalse((config / (RC + '.before-steamos-2')).exists())
+            self.assertFalse((config / STAMP).exists())
+
+    def test_panel_migration_is_skipped_when_layout_write_fails(self):
+        with tempfile.TemporaryDirectory() as home:
+            home = Path(home)
+            config = home / '.config'
+            config.mkdir()
+            (config / RC).write_text('existing panel\n')
+            layout_dir = home / 'layouts'
+            layout_dir.mkdir()
+            (layout_dir / 'org.kde.plasma.desktop-layout.js').mkdir()
+            script = block('dd_layout=', '# startplasma applies this file')
+            script = script.replace('dd_layout=' + LAYOUT_DIR, 'dd_layout=' + layout_dir.as_posix())
+            run(script, home)
+            self.assertEqual('existing panel\n', (config / RC).read_text())
+            self.assertFalse((config / (RC + '.before-steamos-2')).exists())
+            self.assertFalse((config / STAMP).exists())
+
+    def test_panel_migration_runs_after_layout_write_succeeds(self):
+        with tempfile.TemporaryDirectory() as home:
+            home = Path(home)
+            config = home / '.config'
+            config.mkdir()
+            (config / RC).write_text('old panel\n')
+            layout_dir = home / 'layouts'
+            layout_dir.mkdir()
+            script = block('dd_layout=', '# startplasma applies this file')
+            script = script.replace('dd_layout=' + LAYOUT_DIR, 'dd_layout=' + layout_dir.as_posix())
+            run(script, home)
+            self.assertTrue((layout_dir / 'org.kde.plasma.desktop-layout.js').is_file())
+            self.assertFalse((config / RC).exists())
+            self.assertEqual('old panel\n', (config / (RC + '.before-steamos-2')).read_text())
+            self.assertEqual('steamos-2', (config / STAMP).read_text().strip())
 
     def test_the_panel_is_prepared_before_plasma_starts(self):
         for marker in ('dd_layout=', 'dd_panel_rc='):

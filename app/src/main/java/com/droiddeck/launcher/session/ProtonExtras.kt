@@ -249,21 +249,24 @@ object ProtonExtras {
     }
 
     @Synchronized
-    fun install(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
+    fun install(context: Context, tool: Tool, cancelled: java.util.function.BooleanSupplier? = null,
+                onProgress: (String, Int) -> Unit): String? {
         if (installInProgress || prefetching) return context.getString(R.string.pextra_busy)
         installInProgress = true
-        return try { installNow(context, tool, onProgress) } finally { installInProgress = false }
+        return try { installNow(context, tool, cancelled, onProgress) } finally { installInProgress = false }
     }
 
-    private fun fetchArchive(context: Context, tool: Tool, asset: Asset, archive: File, onProgress: (String, Int) -> Unit): String? {
+    private fun fetchArchive(context: Context, tool: Tool, asset: Asset, archive: File, onProgress: (String, Int) -> Unit,
+                             cancelled: java.util.function.BooleanSupplier? = null): String? {
         val downloading = context.getString(R.string.pextra_downloading, tool.name, asset.tag)
         onProgress(downloading, 0)
         var downloaded = false
         for (attempt in 0 until 5) {
-            downloaded = Downloader.downloadFile(asset.url, archive, true, asset.sha256) { fraction ->
+            downloaded = Downloader.downloadFile(asset.url, archive, true, asset.sha256, cancelled) { fraction ->
                 onProgress(downloading, if (fraction < 0) -1 else (fraction * 100f).toInt().coerceIn(0, 100))
             }
             if (downloaded) break
+            if (cancelled?.asBoolean == true) return context.getString(R.string.pextra_interrupted)
             if (attempt < 4) {
                 onProgress(context.getString(R.string.pextra_retrying, attempt + 2, 5), -1)
                 try { Thread.sleep(3_000) } catch (_: InterruptedException) {
@@ -297,7 +300,8 @@ object ProtonExtras {
         return problem
     }
 
-    private fun installNow(context: Context, tool: Tool, onProgress: (String, Int) -> Unit): String? {
+    private fun installNow(context: Context, tool: Tool, cancelled: java.util.function.BooleanSupplier?,
+                           onProgress: (String, Int) -> Unit): String? {
         if (SessionState.running) return context.getString(R.string.pextra_stop_session)
         if (!LinuxRuntime.isInstalled(context)) return context.getString(R.string.user_apps_runtime_required)
 
@@ -312,7 +316,7 @@ object ProtonExtras {
 
         val checked = asset.sha256 != null && asset.size > 0 && checkedArchive == fingerprint(archive) &&
             checkedDigest.equals(asset.sha256, ignoreCase = true)
-        if (!checked) fetchArchive(context, tool, asset, archive, onProgress)?.let { return it }
+        if (!checked) fetchArchive(context, tool, asset, archive, onProgress, cancelled)?.let { return it }
         if (asset.size > 0 && archive.length() != asset.size) {
             if (archive.length() > asset.size) {
                 archive.delete()
