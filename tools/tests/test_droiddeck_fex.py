@@ -1162,10 +1162,15 @@ class LaunchTest(FexTestCase):
         self.assertEqual((guest["FEX_SILENTLOG"], guest["FEX_OUTPUTLOG"]), ("0", "stderr"))
         self.assertEqual(guest["GC_DISABLE_INCREMENTAL"], "1")
         self.assertEqual(guest["DOTNET_INTERNAL_ThreadSuspendInjection"], "0")
+        self.assertEqual(guest["COMPlus_INTERNAL_ThreadSuspendInjection"], "0")
+        legacy = FEX["guest_environment"]({"portable": False}, {"COMPlus_INTERNAL_ThreadSuspendInjection": "1"})
+        self.assertEqual(legacy["COMPlus_INTERNAL_ThreadSuspendInjection"], "1")
+        self.assertNotIn("DOTNET_INTERNAL_ThreadSuspendInjection", legacy)
         guest = FEX["guest_environment"]({"portable": False}, {"LD_PRELOAD": str(arm), "FEX_PORTABLE": "1", "FEX_OUTPUTLOG": "/tmp/fex.log",
                                                                "GC_DISABLE_INCREMENTAL": "0", "DOTNET_INTERNAL_ThreadSuspendInjection": "1"})
         self.assertEqual((guest["FEX_OUTPUTLOG"], guest["GC_DISABLE_INCREMENTAL"]), ("/tmp/fex.log", "0"))
         self.assertEqual(guest["DOTNET_INTERNAL_ThreadSuspendInjection"], "1")
+        self.assertEqual(guest["COMPlus_INTERNAL_ThreadSuspendInjection"], "1")
         self.assertNotIn("LD_PRELOAD", guest)
         self.assertNotIn("FEX_PORTABLE", guest)
 
