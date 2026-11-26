@@ -247,8 +247,13 @@ class NativeHookMountTest(unittest.TestCase):
 
     def test_a_child_given_the_bind_spec_without_its_table_gets_the_table(self):
         binds = f"{self.links}/hostdir:/mnt/viahost"
-        subprocess.run([self.cc, "-static", "-O1", "-o", str(self.root / "child-probe"), str(self.probe) + ".c"], check=True)
-        out = self.run_probe("exec-without:DDNATV_BINDS_KERNEL=/child-probe", binds=binds)
+        child = self.root / "child-probe"
+        subprocess.run([self.cc, "-static", "-O1", "-o", str(child), str(self.probe) + ".c"], check=True)
+        try:
+            subprocess.run([str(child)], capture_output=True, timeout=60)
+        except OSError:
+            self.skipTest("the host cannot start the probe's architecture directly")
+        out =self.run_probe("exec-without:DDNATV_BINDS_KERNEL=/child-probe", binds=binds)
         self.assertEqual([self.bind_table(binds, os.path.realpath(self.links / "real"))], out["env:DDNATV_BINDS_KERNEL"])
 
     def test_process_specific_bind_sources_are_not_handed_to_children(self):
