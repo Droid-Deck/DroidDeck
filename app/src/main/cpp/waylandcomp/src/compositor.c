@@ -620,7 +620,8 @@ static void cursor_publish_shown(void) {
 
 static void cursor_publish_hidden(void) {
     pthread_mutex_lock(&g_cursor_lock);
-    if (!g_cursor_hidden) { g_cursor_hidden = 1; g_cursor_serial++; }
+    // A client that hides the cursor before ever showing one (gamescope drawing its own) must still be reported.
+    if (!g_cursor_hidden || g_cursor_serial == 0) { g_cursor_hidden = 1; g_cursor_serial++; }
     pthread_mutex_unlock(&g_cursor_lock);
 }
 
