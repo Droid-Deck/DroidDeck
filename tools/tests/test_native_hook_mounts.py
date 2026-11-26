@@ -513,6 +513,24 @@ class NativeHookMountTest(unittest.TestCase):
                        for kind in ("ext4", "exfat")]
             self.assertEqual(results[0], results[1], order)
 
+    def test_relative_parent_walks_honour_identity_binds_and_the_rootfs_under_a_plain_bind(self):
+        real, _, _ = self.links_volume()
+        tmp = os.path.realpath(self.tmp.name)
+        card = f"{tmp}/identity-card"
+        os.makedirs(f"{card}/real/sub/deeper", exist_ok=True)
+        Path(f"{card}/real/sub/file.txt").write_text("identity")
+        binds = f"{self.links}:{card}|{card}/real/sub:{card}/real/sub"
+        walk = "sub/deeper/../file.txt"
+        results = [self.run_probe(f"cd:{card}/real", walk, binds=binds,
+                                  mounts=[("/", "ext4", "/dev/root"), (real, kind, "/dev/sdb1")])[walk]
+                   for kind in ("ext4", "exfat")]
+        self.assertEqual(results[0], results[1])
+        climb = "../../etc/hostname"
+        for kind in ("ext4", "exfat"):
+            result = self.run_probe("cd:/etc", climb, binds=f"{tmp}:/mnt/card",
+                                    mounts=[("/", "ext4", "/dev/root"), (tmp, kind, "/dev/sdb1")])
+            self.assertEqual(result[climb], ["1", "rootfs"], kind)
+
 
 if __name__ == "__main__":
     unittest.main()
