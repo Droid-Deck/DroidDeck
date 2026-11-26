@@ -146,44 +146,59 @@ object OnScreenLayout {
                         val centerBY = b.y + b.height / 2f
                         if (overlapX / min(a.width, b.width) <= overlapY / min(a.height, b.height)) {
                             val gapX = 2f / width
-                            val separation = abs(centerBX - centerAX)
-                            val allowed = (separation - gapX).coerceAtLeast(0f)
-                            var factor = (2f * allowed / (a.width + b.width)).coerceIn(0f, 1f)
-                            if (allowed <= 0f) {
-                                val available = (rightBound - leftBound).coerceAtLeast(.001f)
-                                factor = ((available - gapX).coerceAtLeast(0f) / (a.width + b.width)).coerceIn(0f, 1f)
-                                val aw = a.width * factor
-                                val bw = b.width * factor
-                                val total = aw + gapX + bw
-                                val center = ((centerAX + centerBX) / 2f).coerceIn(leftBound + total / 2f, (rightBound - total / 2f).coerceAtLeast(leftBound + total / 2f))
-                                val leftFirst = centerAX <= centerBX
-                                scaled[i] = a.copy(x = if (leftFirst) center - total / 2f else center + total / 2f - aw, width = aw)
-                                scaled[j] = b.copy(x = if (leftFirst) center - total / 2f + aw + gapX else center - total / 2f, width = bw)
+                            val available = (rightBound - leftBound).coerceAtLeast(.001f)
+                            val leftFirst = centerAX <= centerBX
+                            val factor = ((available - gapX).coerceAtLeast(0f) / (a.width + b.width)).coerceIn(0f, 1f)
+                            val aw = a.width * factor
+                            val ah = a.height * factor
+                            val bw = b.width * factor
+                            val bh = b.height * factor
+                            val total = aw + gapX + bw
+                            val center = ((centerAX + centerBX) / 2f).coerceIn(
+                                leftBound + total / 2f,
+                                (rightBound - total / 2f).coerceAtLeast(leftBound + total / 2f))
+                            val first = if (leftFirst) a else b
+                            val second = if (leftFirst) b else a
+                            val firstWidth = if (leftFirst) aw else bw
+                            val secondWidth = if (leftFirst) bw else aw
+                            val firstHeight = if (leftFirst) ah else bh
+                            val secondHeight = if (leftFirst) bh else ah
+                            val firstX = center - total / 2f
+                            val secondX = firstX + firstWidth + gapX
+                            scaled[i] = if (leftFirst) {
+                                a.copy(x = firstX, y = centerAY - ah / 2f, width = aw, height = ah)
                             } else {
-                                scaled[i] = a.copy(x = centerAX - a.width * factor / 2f, width = a.width * factor)
-                                scaled[j] = b.copy(x = centerBX - b.width * factor / 2f, width = b.width * factor)
+                                a.copy(x = secondX, y = centerAY - ah / 2f, width = aw, height = ah)
+                            }
+                            scaled[j] = if (leftFirst) {
+                                b.copy(x = secondX, y = centerBY - bh / 2f, width = bw, height = bh)
+                            } else {
+                                b.copy(x = firstX, y = centerBY - bh / 2f, width = bw, height = bh)
                             }
                         } else {
                             val gapY = 2f / height
-                            val separation = abs(centerBY - centerAY)
-                            val allowed = (separation - gapY).coerceAtLeast(0f)
-                            val factor = if (allowed > 0f) {
-                                (2f * allowed / (a.height + b.height)).coerceIn(0f, 1f)
+                            val available = (bottomBound - topBound).coerceAtLeast(.001f)
+                            val topFirst = centerAY <= centerBY
+                            val factor = ((available - gapY).coerceAtLeast(0f) / (a.height + b.height)).coerceIn(0f, 1f)
+                            val aw = a.width * factor
+                            val ah = a.height * factor
+                            val bw = b.width * factor
+                            val bh = b.height * factor
+                            val total = ah + gapY + bh
+                            val center = ((centerAY + centerBY) / 2f).coerceIn(
+                                topBound + total / 2f,
+                                (bottomBound - total / 2f).coerceAtLeast(topBound + total / 2f))
+                            val firstY = center - total / 2f
+                            val secondY = firstY + ah + gapY
+                            scaled[i] = if (topFirst) {
+                                a.copy(x = centerAX - aw / 2f, y = firstY, width = aw, height = ah)
                             } else {
-                                val available = (bottomBound - topBound).coerceAtLeast(.001f)
-                                ((available - gapY).coerceAtLeast(0f) / (a.height + b.height)).coerceIn(0f, 1f)
+                                a.copy(x = centerAX - aw / 2f, y = secondY, width = aw, height = ah)
                             }
-                            if (allowed <= 0f) {
-                                val ah = a.height * factor
-                                val bh = b.height * factor
-                                val total = ah + gapY + bh
-                                val center = ((centerAY + centerBY) / 2f).coerceIn(topBound + total / 2f, (bottomBound - total / 2f).coerceAtLeast(topBound + total / 2f))
-                                val topFirst = centerAY <= centerBY
-                                scaled[i] = a.copy(y = if (topFirst) center - total / 2f else center + total / 2f - ah, height = ah)
-                                scaled[j] = b.copy(y = if (topFirst) center - total / 2f + ah + gapY else center - total / 2f, height = bh)
+                            scaled[j] = if (topFirst) {
+                                b.copy(x = centerBX - bw / 2f, y = secondY, width = bw, height = bh)
                             } else {
-                                scaled[i] = a.copy(y = centerAY - a.height * factor / 2f, height = a.height * factor)
-                                scaled[j] = b.copy(y = centerBY - b.height * factor / 2f, height = b.height * factor)
+                                b.copy(x = centerBX - bw / 2f, y = firstY, width = bw, height = bh)
                             }
                         }
                     }
