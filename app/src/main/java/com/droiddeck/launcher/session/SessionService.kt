@@ -1727,6 +1727,7 @@ class SessionService : Service() {
             var startupWasSuspended = false
             var seen = false
             var goneSince = 0L
+            var gamePid: String? = null
             while (token == gameExitWatchToken && gen == sessionGen && SessionState.running && !SessionState.stopRequested) {
                 val now = android.os.SystemClock.elapsedRealtime()
                 val startupSuspended = SessionState.suspended || SessionState.suspending || SessionState.phase != SessionPhase.READY
@@ -1742,7 +1743,8 @@ class SessionService : Service() {
                         lastStartupCheck = now
                     }
                 }
-                if (steamGameRunning(gameId)) {
+                gamePid = SteamGameProcess.runningPid(gameId, gamePid)
+                if (gamePid != null) {
                     if (!seen) {
                         Log.i(TAG, "game $gameId started; tracking its exit")
                         mainHandler.post {
