@@ -2181,6 +2181,12 @@
     <string name="bottom_screen_off">أطفئ الشاشة السفلية</string>
     <string name="bottom_quick_on">تشغيل</string>
     <string name="bottom_quick_off">إيقاف</string>
+    <string name="bottom_page_guides">الأدلة</string>
+    <string name="bottom_guides_no_game">ابدأ لعبة لترى أدلة Steam الخاصة بها هنا.</string>
+    <string name="bottom_guides_continue">متابعة القراءة</string>
+    <string name="bottom_guides_back">كل الأدلة</string>
+    <string name="bottom_guides_empty">لا توجد أدلة Steam لهذه اللعبة بعد.</string>
+    <string name="bottom_guides_failed">تعذّر تحميل أدلة Steam. عد عندما تكون متصلًا.</string>
     <string name="bottom_page_telemetry">إحصاءات داخل اللعبة</string>
     <string name="bottom_hud_group">مؤشرات الشاشة السفلية</string>
     <string name="bottom_strip_tabs">شريط على كل تبويب</string>

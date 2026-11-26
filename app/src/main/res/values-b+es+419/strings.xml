@@ -2176,6 +2176,12 @@
     <string name="bottom_screen_off">Apagar la pantalla inferior</string>
     <string name="bottom_quick_on">Activado</string>
     <string name="bottom_quick_off">Desactivado</string>
+    <string name="bottom_page_guides">Guías</string>
+    <string name="bottom_guides_no_game">Inicia un juego para ver aquí sus guías de Steam.</string>
+    <string name="bottom_guides_continue">Seguir leyendo</string>
+    <string name="bottom_guides_back">Todas las guías</string>
+    <string name="bottom_guides_empty">Este juego aún no tiene guías de Steam.</string>
+    <string name="bottom_guides_failed">No se pudieron cargar las guías de Steam. Vuelve a intentarlo cuando tengas conexión.</string>
     <string name="bottom_page_telemetry">Estadísticas del juego</string>
     <string name="bottom_hud_group">HUD de la pantalla inferior</string>
     <string name="bottom_strip_tabs">Franja en todas las pestañas</string>

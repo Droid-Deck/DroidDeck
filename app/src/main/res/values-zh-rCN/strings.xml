@@ -2134,6 +2134,12 @@
     <string name="bottom_screen_off">关闭下屏</string>
     <string name="bottom_quick_on">开</string>
     <string name="bottom_quick_off">关</string>
+    <string name="bottom_page_guides">指南</string>
+    <string name="bottom_guides_no_game">启动游戏后，这里会显示它的 Steam 指南。</string>
+    <string name="bottom_guides_continue">继续阅读</string>
+    <string name="bottom_guides_back">全部指南</string>
+    <string name="bottom_guides_empty">此游戏还没有 Steam 指南。</string>
+    <string name="bottom_guides_failed">无法加载 Steam 指南。请在联网后重试。</string>
     <string name="bottom_page_telemetry">游戏内数据</string>
     <string name="bottom_hud_group">下屏 HUD</string>
     <string name="bottom_strip_tabs">所有页签显示横条</string>

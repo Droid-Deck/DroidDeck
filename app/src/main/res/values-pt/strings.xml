@@ -2119,6 +2119,12 @@
     <string name="bottom_screen_off">Desligar a tela inferior</string>
     <string name="bottom_quick_on">Ativado</string>
     <string name="bottom_quick_off">Desativado</string>
+    <string name="bottom_page_guides">Guias</string>
+    <string name="bottom_guides_no_game">Inicie um jogo para ver os guias Steam dele aqui.</string>
+    <string name="bottom_guides_continue">Continuar lendo</string>
+    <string name="bottom_guides_back">Todos os guias</string>
+    <string name="bottom_guides_empty">Ainda não há guias Steam para este jogo.</string>
+    <string name="bottom_guides_failed">Não foi possível carregar os guias Steam. Tente de novo quando estiver online.</string>
     <string name="bottom_page_telemetry">Estatísticas no jogo</string>
     <string name="bottom_hud_group">HUD da tela inferior</string>
     <string name="bottom_strip_tabs">Faixa em todas as abas</string>

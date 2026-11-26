@@ -2081,6 +2081,12 @@
     <string name="bottom_screen_off">नीचे की स्क्रीन बंद करें</string>
     <string name="bottom_quick_on">चालू</string>
     <string name="bottom_quick_off">बंद</string>
+    <string name="bottom_page_guides">गाइड</string>
+    <string name="bottom_guides_no_game">यहाँ Steam गाइड देखने के लिए कोई गेम शुरू करें।</string>
+    <string name="bottom_guides_continue">पढ़ना जारी रखें</string>
+    <string name="bottom_guides_back">सभी गाइड</string>
+    <string name="bottom_guides_empty">इस गेम के लिए अभी कोई Steam गाइड नहीं है।</string>
+    <string name="bottom_guides_failed">Steam गाइड लोड नहीं हो सके। ऑनलाइन होने पर फिर देखें।</string>
     <string name="bottom_page_telemetry">इन-गेम आंकड़े</string>
     <string name="bottom_hud_group">निचली स्क्रीन HUD</string>
     <string name="bottom_strip_tabs">हर टैब पर स्ट्रिप</string>

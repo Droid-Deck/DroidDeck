@@ -2081,6 +2081,12 @@
     <string name="bottom_screen_off">Alsó képernyő kikapcsolása</string>
     <string name="bottom_quick_on">Be</string>
     <string name="bottom_quick_off">Ki</string>
+    <string name="bottom_page_guides">Útmutatók</string>
+    <string name="bottom_guides_no_game">Indíts el egy játékot, hogy itt lásd a Steam-útmutatóit.</string>
+    <string name="bottom_guides_continue">Olvasás folytatása</string>
+    <string name="bottom_guides_back">Összes útmutató</string>
+    <string name="bottom_guides_empty">Ehhez a játékhoz még nincs Steam-útmutató.</string>
+    <string name="bottom_guides_failed">Nem sikerült betölteni a Steam-útmutatókat. Próbáld újra, ha online vagy.</string>
     <string name="bottom_page_telemetry">Játékon belüli statisztikák</string>
     <string name="bottom_hud_group">HUD az alsó képernyőn</string>
     <string name="bottom_strip_tabs">Sáv minden lapon</string>

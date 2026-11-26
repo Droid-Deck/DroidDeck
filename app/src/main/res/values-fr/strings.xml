@@ -2105,6 +2105,12 @@
     <string name="bottom_screen_off">Éteindre l’écran du bas</string>
     <string name="bottom_quick_on">Activé</string>
     <string name="bottom_quick_off">Désactivé</string>
+    <string name="bottom_page_guides">Guides</string>
+    <string name="bottom_guides_no_game">Lancez un jeu pour voir ses guides Steam ici.</string>
+    <string name="bottom_guides_continue">Reprendre la lecture</string>
+    <string name="bottom_guides_back">Tous les guides</string>
+    <string name="bottom_guides_empty">Ce jeu n’a pas encore de guides Steam.</string>
+    <string name="bottom_guides_failed">Impossible de charger les guides Steam. Réessayez une fois en ligne.</string>
     <string name="bottom_page_telemetry">Statistiques en jeu</string>
     <string name="bottom_hud_group">HUD de l\'écran du bas</string>
     <string name="bottom_strip_tabs">Bande sur tous les onglets</string>

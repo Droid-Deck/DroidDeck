@@ -2106,6 +2106,12 @@
     <string name="bottom_screen_off">Oprește ecranul de jos</string>
     <string name="bottom_quick_on">Pornit</string>
     <string name="bottom_quick_off">Oprit</string>
+    <string name="bottom_page_guides">Ghiduri</string>
+    <string name="bottom_guides_no_game">Pornește un joc ca să-i vezi aici ghidurile Steam.</string>
+    <string name="bottom_guides_continue">Continuă lectura</string>
+    <string name="bottom_guides_back">Toate ghidurile</string>
+    <string name="bottom_guides_empty">Încă nu există ghiduri Steam pentru acest joc.</string>
+    <string name="bottom_guides_failed">Ghidurile Steam nu s-au putut încărca. Încearcă din nou când ești online.</string>
     <string name="bottom_page_telemetry">Statistici în joc</string>
     <string name="bottom_hud_group">HUD pe ecranul de jos</string>
     <string name="bottom_strip_tabs">Bandă pe fiecare filă</string>

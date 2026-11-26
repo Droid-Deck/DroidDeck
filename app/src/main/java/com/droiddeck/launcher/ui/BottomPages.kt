@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.Text
@@ -39,6 +40,7 @@ fun sessionBottomPages(actions: BottomPageActions): List<BottomPage> = listOf(
     BottomPage(BOTTOM_PAGE_TELEMETRY, R.string.bottom_page_telemetry, Icons.Filled.Speed) { BottomTelemetryPage(actions.fps, actions.runningGame) },
     BottomPage("quick", R.string.drawer_quick_access, Icons.Filled.GridView) { BottomQuickPage(actions) },
     BottomPage("achievements", R.string.achievements_title, Icons.Filled.EmojiEvents) { BottomAchievementsPage(actions.runningGame) },
+    BottomPage("guides", R.string.bottom_page_guides, Icons.Filled.MenuBook) { BottomGuidesPage(actions.runningGame) },
     BottomPage("downloads", R.string.bottom_page_downloads, Icons.Filled.Download) { BottomDownloadsPage() },
     BottomPage("screenshots", R.string.bottom_page_screenshots, Icons.Filled.Image) { BottomScreenshotsPage(actions.takeScreenshot) },
     BottomPage("chat", R.string.bottom_page_chat, Icons.Filled.People) { BottomChatPage() },

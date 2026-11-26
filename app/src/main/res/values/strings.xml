@@ -2352,6 +2352,12 @@
     <string name="bottom_screen_off">Turn off the bottom screen</string>
     <string name="bottom_quick_on">On</string>
     <string name="bottom_quick_off">Off</string>
+    <string name="bottom_page_guides">Guides</string>
+    <string name="bottom_guides_no_game">Start a game to see its Steam guides here.</string>
+    <string name="bottom_guides_continue">Continue reading</string>
+    <string name="bottom_guides_back">All guides</string>
+    <string name="bottom_guides_empty">There are no Steam guides for this game yet.</string>
+    <string name="bottom_guides_failed">Could not load Steam guides. Check back once you are online.</string>
     <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_hud_group">Bottom screen HUD</string>
     <string name="bottom_strip_tabs">Strip on every tab</string>

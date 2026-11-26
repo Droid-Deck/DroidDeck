@@ -2057,6 +2057,12 @@
     <string name="bottom_screen_off">ปิดหน้าจอล่าง</string>
     <string name="bottom_quick_on">เปิด</string>
     <string name="bottom_quick_off">ปิด</string>
+    <string name="bottom_page_guides">คู่มือ</string>
+    <string name="bottom_guides_no_game">เริ่มเกมเพื่อดูคู่มือ Steam ของเกมที่นี่</string>
+    <string name="bottom_guides_continue">อ่านต่อ</string>
+    <string name="bottom_guides_back">คู่มือทั้งหมด</string>
+    <string name="bottom_guides_empty">ยังไม่มีคู่มือ Steam สำหรับเกมนี้</string>
+    <string name="bottom_guides_failed">โหลดคู่มือ Steam ไม่ได้ ลองอีกครั้งเมื่อออนไลน์</string>
     <string name="bottom_page_telemetry">สถิติในเกม</string>
     <string name="bottom_hud_group">HUD หน้าจอล่าง</string>
     <string name="bottom_strip_tabs">แถบในทุกแท็บ</string>

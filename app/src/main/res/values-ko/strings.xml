@@ -2057,6 +2057,12 @@
     <string name="bottom_screen_off">아래 화면 끄기</string>
     <string name="bottom_quick_on">켜짐</string>
     <string name="bottom_quick_off">꺼짐</string>
+    <string name="bottom_page_guides">가이드</string>
+    <string name="bottom_guides_no_game">게임을 시작하면 여기에 Steam 가이드가 표시됩니다.</string>
+    <string name="bottom_guides_continue">이어서 읽기</string>
+    <string name="bottom_guides_back">모든 가이드</string>
+    <string name="bottom_guides_empty">이 게임에는 아직 Steam 가이드가 없습니다.</string>
+    <string name="bottom_guides_failed">Steam 가이드를 불러오지 못했습니다. 온라인 상태에서 다시 확인하세요.</string>
     <string name="bottom_page_telemetry">게임 내 통계</string>
     <string name="bottom_hud_group">하단 화면 HUD</string>
     <string name="bottom_strip_tabs">모든 탭에 스트립 표시</string>

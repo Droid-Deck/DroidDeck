@@ -2073,6 +2073,12 @@
     <string name="bottom_screen_off">Unteren Bildschirm ausschalten</string>
     <string name="bottom_quick_on">An</string>
     <string name="bottom_quick_off">Aus</string>
+    <string name="bottom_page_guides">Anleitungen</string>
+    <string name="bottom_guides_no_game">Starte ein Spiel, um hier seine Steam-Anleitungen zu sehen.</string>
+    <string name="bottom_guides_continue">Weiterlesen</string>
+    <string name="bottom_guides_back">Alle Anleitungen</string>
+    <string name="bottom_guides_empty">Für dieses Spiel gibt es noch keine Steam-Anleitungen.</string>
+    <string name="bottom_guides_failed">Steam-Anleitungen konnten nicht geladen werden. Versuche es erneut, sobald du online bist.</string>
     <string name="bottom_page_telemetry">Spielstatistiken</string>
     <string name="bottom_hud_group">HUD für den unteren Bildschirm</string>
     <string name="bottom_strip_tabs">Leiste auf jedem Tab</string>

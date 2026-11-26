@@ -2131,6 +2131,12 @@
     <string name="bottom_screen_off">Vypnout spodní obrazovku</string>
     <string name="bottom_quick_on">Zapnuto</string>
     <string name="bottom_quick_off">Vypnuto</string>
+    <string name="bottom_page_guides">Návody</string>
+    <string name="bottom_guides_no_game">Spusťte hru a uvidíte zde její návody ze Steamu.</string>
+    <string name="bottom_guides_continue">Pokračovat ve čtení</string>
+    <string name="bottom_guides_back">Všechny návody</string>
+    <string name="bottom_guides_empty">Pro tuto hru zatím nejsou žádné návody na Steamu.</string>
+    <string name="bottom_guides_failed">Návody ze Steamu se nepodařilo načíst. Zkuste to znovu, až budete online.</string>
     <string name="bottom_page_telemetry">Statistiky ve hře</string>
     <string name="bottom_hud_group">HUD na spodní obrazovce</string>
     <string name="bottom_strip_tabs">Lišta na každé kartě</string>

@@ -2057,6 +2057,12 @@
     <string name="bottom_screen_off">Tắt màn hình dưới</string>
     <string name="bottom_quick_on">Bật</string>
     <string name="bottom_quick_off">Tắt</string>
+    <string name="bottom_page_guides">Hướng dẫn</string>
+    <string name="bottom_guides_no_game">Hãy mở một trò chơi để xem hướng dẫn Steam của nó tại đây.</string>
+    <string name="bottom_guides_continue">Đọc tiếp</string>
+    <string name="bottom_guides_back">Tất cả hướng dẫn</string>
+    <string name="bottom_guides_empty">Trò chơi này chưa có hướng dẫn Steam nào.</string>
+    <string name="bottom_guides_failed">Không tải được hướng dẫn Steam. Hãy thử lại khi bạn trực tuyến.</string>
     <string name="bottom_page_telemetry">Thông số trong game</string>
     <string name="bottom_hud_group">HUD màn hình dưới</string>
     <string name="bottom_strip_tabs">Thanh trên mọi tab</string>

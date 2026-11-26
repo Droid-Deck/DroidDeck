@@ -2081,6 +2081,12 @@
     <string name="bottom_screen_off">Onderste scherm uitzetten</string>
     <string name="bottom_quick_on">Aan</string>
     <string name="bottom_quick_off">Uit</string>
+    <string name="bottom_page_guides">Handleidingen</string>
+    <string name="bottom_guides_no_game">Start een game om hier de Steam-handleidingen te zien.</string>
+    <string name="bottom_guides_continue">Verder lezen</string>
+    <string name="bottom_guides_back">Alle handleidingen</string>
+    <string name="bottom_guides_empty">Er zijn nog geen Steam-handleidingen voor deze game.</string>
+    <string name="bottom_guides_failed">Kan Steam-handleidingen niet laden. Probeer het opnieuw wanneer je online bent.</string>
     <string name="bottom_page_telemetry">In-game statistieken</string>
     <string name="bottom_hud_group">HUD op het onderste scherm</string>
     <string name="bottom_strip_tabs">Strip op elk tabblad</string>

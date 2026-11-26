@@ -2097,6 +2097,12 @@
     <string name="bottom_screen_off">Spegni lo schermo inferiore</string>
     <string name="bottom_quick_on">Attivo</string>
     <string name="bottom_quick_off">Disattivo</string>
+    <string name="bottom_page_guides">Guide</string>
+    <string name="bottom_guides_no_game">Avvia un gioco per vederne qui le guide di Steam.</string>
+    <string name="bottom_guides_continue">Continua a leggere</string>
+    <string name="bottom_guides_back">Tutte le guide</string>
+    <string name="bottom_guides_empty">Non ci sono ancora guide di Steam per questo gioco.</string>
+    <string name="bottom_guides_failed">Impossibile caricare le guide di Steam. Riprova quando sei online.</string>
     <string name="bottom_page_telemetry">Statistiche di gioco</string>
     <string name="bottom_hud_group">HUD dello schermo inferiore</string>
     <string name="bottom_strip_tabs">Barra su ogni scheda</string>

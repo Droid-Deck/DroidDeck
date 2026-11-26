@@ -2081,6 +2081,12 @@
     <string name="bottom_screen_off">Sammuta alanäyttö</string>
     <string name="bottom_quick_on">Päällä</string>
     <string name="bottom_quick_off">Pois</string>
+    <string name="bottom_page_guides">Oppaat</string>
+    <string name="bottom_guides_no_game">Käynnistä peli nähdäksesi sen Steam-oppaat täällä.</string>
+    <string name="bottom_guides_continue">Jatka lukemista</string>
+    <string name="bottom_guides_back">Kaikki oppaat</string>
+    <string name="bottom_guides_empty">Tälle pelille ei ole vielä Steam-oppaita.</string>
+    <string name="bottom_guides_failed">Steam-oppaiden lataus epäonnistui. Yritä uudelleen, kun olet verkossa.</string>
     <string name="bottom_page_telemetry">Pelinsisäiset tilastot</string>
     <string name="bottom_hud_group">Alanäytön HUD</string>
     <string name="bottom_strip_tabs">Palkki kaikilla välilehdillä</string>

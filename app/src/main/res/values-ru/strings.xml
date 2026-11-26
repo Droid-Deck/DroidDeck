@@ -2132,6 +2132,12 @@
     <string name="bottom_screen_off">Выключить нижний экран</string>
     <string name="bottom_quick_on">Вкл.</string>
     <string name="bottom_quick_off">Выкл.</string>
+    <string name="bottom_page_guides">Руководства</string>
+    <string name="bottom_guides_no_game">Запустите игру, чтобы увидеть здесь её руководства Steam.</string>
+    <string name="bottom_guides_continue">Продолжить чтение</string>
+    <string name="bottom_guides_back">Все руководства</string>
+    <string name="bottom_guides_empty">Для этой игры пока нет руководств Steam.</string>
+    <string name="bottom_guides_failed">Не удалось загрузить руководства Steam. Попробуйте снова, когда будете в сети.</string>
     <string name="bottom_page_telemetry">Игровая статистика</string>
     <string name="bottom_hud_group">HUD нижнего экрана</string>
     <string name="bottom_strip_tabs">Полоса на всех вкладках</string>

@@ -2073,6 +2073,12 @@
     <string name="bottom_screen_off">Alt ekranı kapat</string>
     <string name="bottom_quick_on">Açık</string>
     <string name="bottom_quick_off">Kapalı</string>
+    <string name="bottom_page_guides">Rehberler</string>
+    <string name="bottom_guides_no_game">Steam rehberlerini burada görmek için bir oyun başlatın.</string>
+    <string name="bottom_guides_continue">Okumaya devam et</string>
+    <string name="bottom_guides_back">Tüm rehberler</string>
+    <string name="bottom_guides_empty">Bu oyun için henüz Steam rehberi yok.</string>
+    <string name="bottom_guides_failed">Steam rehberleri yüklenemedi. Çevrimiçi olduğunuzda tekrar deneyin.</string>
     <string name="bottom_page_telemetry">Oyun içi istatistikler</string>
     <string name="bottom_hud_group">Alt ekrandaki HUD</string>
     <string name="bottom_strip_tabs">Her sekmede şerit</string>

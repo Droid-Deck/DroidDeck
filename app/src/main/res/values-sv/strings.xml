@@ -2081,6 +2081,12 @@
     <string name="bottom_screen_off">Stäng av den nedre skärmen</string>
     <string name="bottom_quick_on">På</string>
     <string name="bottom_quick_off">Av</string>
+    <string name="bottom_page_guides">Guider</string>
+    <string name="bottom_guides_no_game">Starta ett spel för att se dess Steam-guider här.</string>
+    <string name="bottom_guides_continue">Fortsätt läsa</string>
+    <string name="bottom_guides_back">Alla guider</string>
+    <string name="bottom_guides_empty">Det finns inga Steam-guider för det här spelet ännu.</string>
+    <string name="bottom_guides_failed">Det gick inte att läsa in Steam-guider. Försök igen när du är online.</string>
     <string name="bottom_page_telemetry">Statistik i spelet</string>
     <string name="bottom_hud_group">HUD på nedre skärmen</string>
     <string name="bottom_strip_tabs">Remsa på varje flik</string>

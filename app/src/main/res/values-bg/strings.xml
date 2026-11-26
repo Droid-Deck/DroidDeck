@@ -2081,6 +2081,12 @@
     <string name="bottom_screen_off">Изключи долния екран</string>
     <string name="bottom_quick_on">Вкл.</string>
     <string name="bottom_quick_off">Изкл.</string>
+    <string name="bottom_page_guides">Ръководства</string>
+    <string name="bottom_guides_no_game">Пуснете игра, за да видите тук нейните ръководства в Steam.</string>
+    <string name="bottom_guides_continue">Продължи четенето</string>
+    <string name="bottom_guides_back">Всички ръководства</string>
+    <string name="bottom_guides_empty">Все още няма ръководства в Steam за тази игра.</string>
+    <string name="bottom_guides_failed">Ръководствата в Steam не се заредиха. Опитайте отново, когато сте онлайн.</string>
     <string name="bottom_page_telemetry">Статистика в играта</string>
     <string name="bottom_hud_group">HUD на долния екран</string>
     <string name="bottom_strip_tabs">Лента на всеки раздел</string>

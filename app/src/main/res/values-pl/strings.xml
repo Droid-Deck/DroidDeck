@@ -2131,6 +2131,12 @@
     <string name="bottom_screen_off">Wyłącz dolny ekran</string>
     <string name="bottom_quick_on">Wł.</string>
     <string name="bottom_quick_off">Wył.</string>
+    <string name="bottom_page_guides">Poradniki</string>
+    <string name="bottom_guides_no_game">Uruchom grę, aby zobaczyć tu jej poradniki ze Steam.</string>
+    <string name="bottom_guides_continue">Czytaj dalej</string>
+    <string name="bottom_guides_back">Wszystkie poradniki</string>
+    <string name="bottom_guides_empty">Ta gra nie ma jeszcze poradników na Steam.</string>
+    <string name="bottom_guides_failed">Nie udało się wczytać poradników ze Steam. Spróbuj ponownie, gdy będziesz online.</string>
     <string name="bottom_page_telemetry">Statystyki w grze</string>
     <string name="bottom_hud_group">HUD dolnego ekranu</string>
     <string name="bottom_strip_tabs">Pasek na każdej karcie</string>

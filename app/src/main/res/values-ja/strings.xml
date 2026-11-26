@@ -2057,6 +2057,12 @@
     <string name="bottom_screen_off">下の画面をオフにする</string>
     <string name="bottom_quick_on">オン</string>
     <string name="bottom_quick_off">オフ</string>
+    <string name="bottom_page_guides">ガイド</string>
+    <string name="bottom_guides_no_game">ゲームを起動すると、ここに Steam ガイドが表示されます。</string>
+    <string name="bottom_guides_continue">続きを読む</string>
+    <string name="bottom_guides_back">すべてのガイド</string>
+    <string name="bottom_guides_empty">このゲームの Steam ガイドはまだありません。</string>
+    <string name="bottom_guides_failed">Steam ガイドを読み込めませんでした。オンラインになってから再度お試しください。</string>
     <string name="bottom_page_telemetry">ゲーム内統計</string>
     <string name="bottom_hud_group">下部画面の HUD</string>
     <string name="bottom_strip_tabs">すべてのタブにストリップを表示</string>

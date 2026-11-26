@@ -2081,6 +2081,12 @@
     <string name="bottom_screen_off">Slå av den nederste skjermen</string>
     <string name="bottom_quick_on">På</string>
     <string name="bottom_quick_off">Av</string>
+    <string name="bottom_page_guides">Guider</string>
+    <string name="bottom_guides_no_game">Start et spill for å se Steam-guidene her.</string>
+    <string name="bottom_guides_continue">Fortsett å lese</string>
+    <string name="bottom_guides_back">Alle guider</string>
+    <string name="bottom_guides_empty">Det finnes ingen Steam-guider for dette spillet ennå.</string>
+    <string name="bottom_guides_failed">Kunne ikke laste Steam-guider. Prøv igjen når du er på nett.</string>
     <string name="bottom_page_telemetry">Statistikk i spillet</string>
     <string name="bottom_hud_group">HUD på bunnskjermen</string>
     <string name="bottom_strip_tabs">Stripe på hver fane</string>

@@ -2057,6 +2057,12 @@
     <string name="bottom_screen_off">Matikan layar bawah</string>
     <string name="bottom_quick_on">Aktif</string>
     <string name="bottom_quick_off">Nonaktif</string>
+    <string name="bottom_page_guides">Panduan</string>
+    <string name="bottom_guides_no_game">Mulai game untuk melihat panduan Steam-nya di sini.</string>
+    <string name="bottom_guides_continue">Lanjutkan membaca</string>
+    <string name="bottom_guides_back">Semua panduan</string>
+    <string name="bottom_guides_empty">Belum ada panduan Steam untuk game ini.</string>
+    <string name="bottom_guides_failed">Tidak dapat memuat panduan Steam. Coba lagi saat Anda online.</string>
     <string name="bottom_page_telemetry">Statistik dalam gim</string>
     <string name="bottom_hud_group">HUD layar bawah</string>
     <string name="bottom_strip_tabs">Strip di setiap tab</string>

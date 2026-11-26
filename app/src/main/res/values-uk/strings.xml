@@ -2131,6 +2131,12 @@
     <string name="bottom_screen_off">Вимкнути нижній екран</string>
     <string name="bottom_quick_on">Увімк.</string>
     <string name="bottom_quick_off">Вимк.</string>
+    <string name="bottom_page_guides">Посібники</string>
+    <string name="bottom_guides_no_game">Запустіть гру, щоб побачити тут її посібники Steam.</string>
+    <string name="bottom_guides_continue">Продовжити читання</string>
+    <string name="bottom_guides_back">Усі посібники</string>
+    <string name="bottom_guides_empty">Для цієї гри ще немає посібників Steam.</string>
+    <string name="bottom_guides_failed">Не вдалося завантажити посібники Steam. Спробуйте знову, коли будете онлайн.</string>
     <string name="bottom_page_telemetry">Ігрова статистика</string>
     <string name="bottom_hud_group">HUD на нижньому екрані</string>
     <string name="bottom_strip_tabs">Смуга на кожній вкладці</string>

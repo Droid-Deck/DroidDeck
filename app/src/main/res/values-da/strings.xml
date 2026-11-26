@@ -2081,6 +2081,12 @@
     <string name="bottom_screen_off">Sluk den nederste skærm</string>
     <string name="bottom_quick_on">Til</string>
     <string name="bottom_quick_off">Fra</string>
+    <string name="bottom_page_guides">Guides</string>
+    <string name="bottom_guides_no_game">Start et spil for at se dets Steam-guides her.</string>
+    <string name="bottom_guides_continue">Læs videre</string>
+    <string name="bottom_guides_back">Alle guides</string>
+    <string name="bottom_guides_empty">Der er endnu ingen Steam-guides til dette spil.</string>
+    <string name="bottom_guides_failed">Kunne ikke hente Steam-guides. Prøv igen, når du er online.</string>
     <string name="bottom_page_telemetry">Statistik i spillet</string>
     <string name="bottom_hud_group">HUD på nederste skærm</string>
     <string name="bottom_strip_tabs">Stribe på alle faner</string>
