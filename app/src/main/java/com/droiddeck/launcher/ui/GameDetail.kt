@@ -1078,10 +1078,11 @@ private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, ses
             if (outdated.size > 1 && !SessionState.running) MenuItem(
                 stringResource(R.string.store_update_all, outdated.size), checked = false, enabled = progress.isEmpty(),
             ) {
-                val plan = outdated.groupBy { item -> curseOf(item)?.first?.id ?: item.name }.values.map { group ->
+                val plan = outdated.groupBy { item -> curseOf(item)?.first?.id?.let { "curse:$it" } ?: "folder:${item.name}" }.values.map { group ->
                     Triple(group.map { it.name }, updates[group.first().name], curseOf(group.first()))
                 }
                 plan.forEach { (folders) -> folders.forEach { progress[it] = 0 } }
+                val owned = plan.flatMap { it.first }.toMutableSet()
                 scope.launch {
                     try {
                         plan.forEach { (folders, wowi, curse) ->
@@ -1090,10 +1091,11 @@ private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, ses
                                 scope.launch { folders.forEach { progress[it] = pct } }
                             }
                             folders.forEach { progress.remove(it) }
+                            owned.removeAll(folders.toSet())
                             if (!ok && message != null) android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
                         }
                     } finally {
-                        plan.forEach { (folders) -> folders.forEach { progress.remove(it) } }
+                        owned.forEach { progress.remove(it) }
                     }
                 }
             }
