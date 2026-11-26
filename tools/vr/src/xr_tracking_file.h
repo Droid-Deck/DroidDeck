@@ -2,6 +2,7 @@
 #include "xr_tracking.h"
 #include <cstring>
 #include <cmath>
+#include <dlfcn.h>
 #include <mutex>
 #include <string>
 #include <fcntl.h>
@@ -38,8 +39,16 @@ public:
         }
         return false;
     }
+    // Android stamps these packets with the real monotonic clock. The session's clockpause preload holds the
+    // guest's clock back by the time spent suspended, so read libc's clock directly.
     static int64_t Now() {
-        timespec now{}; clock_gettime(CLOCK_MONOTONIC, &now);
+        using ClockGettime = int (*)(clockid_t, timespec *);
+        static const ClockGettime real = [] {
+            void *libc = dlopen("libc.so.6", RTLD_LAZY | RTLD_NOLOAD);
+            void *symbol = libc ? dlsym(libc, "clock_gettime") : nullptr;
+            return symbol ? reinterpret_cast<ClockGettime>(symbol) : &clock_gettime;
+        }();
+        timespec now{}; real(CLOCK_MONOTONIC, &now);
         return (int64_t)now.tv_sec * 1000000000LL + now.tv_nsec;
     }
     static double PoseTimeOffset(int64_t predicted, int64_t now) {
