@@ -335,10 +335,11 @@ internal object SteamStore {
      * ([createdDir]) and no other installed game uses it.
      */
     internal fun discardPartial(context: Context, appId: Int, guest: String, host: File?, installDir: String?, createdDir: Boolean) {
-        forgetJournal(context, appId, guest)
+        // An unmounted library keeps its journal and ownership record, so a later cancel can still clean it up.
         val library = host ?: runCatching {
             SteamClient.engineLibraries(context).libraries.firstOrNull { SteamClient.sameLibrary(context, it.first, guest) }?.second
         }.getOrNull() ?: return
+        forgetJournal(context, appId, guest)
         val apps = File(library, "steamapps")
         val acf = File(apps, "appmanifest_$appId.acf")
         val manifest = acf.takeIf { it.isFile }?.let { f -> runCatching { SteamStorage.parseManifest(f, f.readText()) }.getOrNull() }
