@@ -79,14 +79,17 @@ object OfflineMode {
 
     fun sync(context: Context): Boolean? {
         val root = LinuxRuntime.rootDir(context)
-        return switchLive(context, write(context, root, saved(context, root)))
+        val offline = synchronized(this) { write(context, root, saved(context, root)) }
+        return switchLive(context, offline)
     }
 
     fun follow(context: Context): Boolean? {
         if (!auto(context)) return false
         val root = LinuxRuntime.rootDir(context)
-        val byNetwork = prefs(context).getBoolean(NETWORK_KEY, false)
-        val offline = write(context, root, afterNetworkChange(saved(context, root), isOnline(context)))
+        val (byNetwork, offline) = synchronized(this) {
+            prefs(context).getBoolean(NETWORK_KEY, false) to
+                write(context, root, afterNetworkChange(saved(context, root), isOnline(context)))
+        }
         val result = switchLive(context, offline)
         if (result == null && !offline && byNetwork) restoreNetworkOffline(context)
         return result
