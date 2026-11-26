@@ -157,12 +157,6 @@ object OnScreenLayout {
                             val center = ((centerAX + centerBX) / 2f).coerceIn(
                                 leftBound + total / 2f,
                                 (rightBound - total / 2f).coerceAtLeast(leftBound + total / 2f))
-                            val first = if (leftFirst) a else b
-                            val second = if (leftFirst) b else a
-                            val firstWidth = if (leftFirst) aw else bw
-                            val secondWidth = if (leftFirst) bw else aw
-                            val firstHeight = if (leftFirst) ah else bh
-                            val secondHeight = if (leftFirst) bh else ah
                             val firstX = center - total / 2f
                             val secondX = firstX + firstWidth + gapX
                             scaled[i] = if (leftFirst) {
