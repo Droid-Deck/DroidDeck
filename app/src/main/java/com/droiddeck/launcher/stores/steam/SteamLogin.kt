@@ -27,6 +27,7 @@ internal class SteamLogin(override val userAgent: String) : StoreLoginActivity.F
         val found = session ?: return activity.getString(R.string.stores_login_error_verification)
         return runCatching {
             SteamAccount.save(activity, found)
+            runCatching { SteamBackend.syncLibrary(activity, force = true) }
             null
         }.getOrElse {
             Log.w("SteamLogin", "could not save the Steam web session (${it.javaClass.simpleName})")

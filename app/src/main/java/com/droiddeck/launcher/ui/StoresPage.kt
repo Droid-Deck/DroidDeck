@@ -130,6 +130,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.frontend.SteamFeatured
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.gamejolt.GameJoltBrowseState
@@ -574,13 +575,16 @@ internal fun CountPill(count: Int) {
 /** [inert]: shown in a Library preview, where signing in would act on the real account; the button only says so. */
 internal fun SignInCard(store: Store, height: Dp, inert: Boolean = false) {
     val ctx = LocalContext.current
-    LaunchedEffect(store) { StoresState.preview(ctx, store) }
-    val art = remember(StoresState.shelves[store]) {
+    LaunchedEffect(store) {
+        StoresState.preview(ctx, store)
+        if (store == Store.STEAM) SteamFeatured.load(ctx)
+    }
+    val featuredSteam = SteamFeatured.games
+    val art = remember(store, StoresState.shelves[store], featuredSteam) {
         val shelves = StoresState.shelves[store]
-        wallTiles(
-            shelves?.art?.takeIf { it.isNotEmpty() }
-                ?: shelves?.all.orEmpty().filter { !it.mature && !it.owned }.mapNotNull { it.tallImageUrl ?: it.imageUrl },
-        )
+        if (store == Store.STEAM && featuredSteam.isNotEmpty()) wallTiles(featuredSteam.map { it.art })
+        else wallTiles(shelves?.art?.takeIf { it.isNotEmpty() }
+            ?: shelves?.all.orEmpty().filter { !it.mature && !it.owned }.mapNotNull { it.tallImageUrl ?: it.imageUrl })
     }
     HeroWallCard(store.label, art, sourceColours(store.id), height) { SignInButton(store, large = true, inert = inert) }
 }

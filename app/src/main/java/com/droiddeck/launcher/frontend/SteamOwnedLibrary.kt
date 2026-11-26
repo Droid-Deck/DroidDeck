@@ -68,7 +68,10 @@ object SteamOwnedLibrary {
         val clientSession = clientWebSession?.let { Session(it.steamId, it.cookieHeader) }
         val session = clientSession ?: accountSession ?: return emptyList()
         val useClientSession = clientSession != null
-        if (useClientSession && accountSession?.steamId != session.steamId) {
+        if (clientSession != null && (
+                accountSession?.steamId != clientSession.steamId || accountSession?.cookie != clientSession.cookie
+            )
+        ) {
             clientWebSession?.let { SteamAccount.save(app, it) }
             com.droiddeck.launcher.stores.StoresState.refresh(app)
         }

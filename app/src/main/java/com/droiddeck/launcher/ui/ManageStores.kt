@@ -157,6 +157,21 @@ internal object ManageStores {
 
 internal enum class StoreAccount { SIGNED_IN, SIGNED_OUT, EXPIRED, NEEDS_KEY }
 
+internal fun librarySignInSources(
+    tabs: List<StoreTab>, availableBackends: Set<Store>, preview: LibraryPreview, accounts: Map<Store, StoreAccount>,
+): Set<String> = if (preview == LibraryPreview.SAMPLE) emptySet() else tabs.asSequence()
+    .filter { it.shown && it.store in availableBackends && (preview == LibraryPreview.SIGNED_OUT || accounts[it.store] != StoreAccount.SIGNED_IN) }
+    .mapTo(linkedSetOf()) { it.store.id }
+
+internal fun shouldShowStoreSignInCard(
+    source: String, signInSources: Set<String>, preview: LibraryPreview, account: StoreAccount, hasCachedGames: Boolean,
+): Boolean = source in signInSources && when {
+    preview == LibraryPreview.SIGNED_OUT -> true
+    account == StoreAccount.SIGNED_OUT || account == StoreAccount.NEEDS_KEY -> true
+    account == StoreAccount.EXPIRED -> !hasCachedGames
+    else -> false
+}
+
 internal fun storeAccount(store: Store): StoreAccount = when {
     StoresState.isSignedIn(store) && StoresState.expired[store] == true -> StoreAccount.EXPIRED
     StoresState.isSignedIn(store) -> StoreAccount.SIGNED_IN

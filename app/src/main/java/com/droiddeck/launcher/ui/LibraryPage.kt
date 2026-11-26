@@ -384,12 +384,21 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     val gameJoltSignedIn = owned.containsKey(Store.GAMEJOLT)
     remember { StoreTabsState.load(ctx) }
     val storeTabs = StoreTabsState.tabs
-    val signInChips = if (!stores || !StoresState.accountsLoaded || preview == LibraryPreview.SAMPLE) emptySet() else storeTabs
-        .filter { it.shown && StoresState.backend(it.store) != null && (it.store == Store.STEAM || preview == LibraryPreview.SIGNED_OUT || storeAccount(it.store) != StoreAccount.SIGNED_IN) }
-        .map { it.store.id }.toSet()
+    val signInChips = if (!stores || !StoresState.accountsLoaded) emptySet() else librarySignInSources(
+        storeTabs,
+        Store.entries.filterTo(linkedSetOf()) { StoresState.backend(it) != null },
+        preview,
+        Store.entries.associateWith { storeAccount(it) },
+    )
+    val steamFilter = if (stores && preview != LibraryPreview.SAMPLE && storeTabs.any { it.store == Store.STEAM && it.shown }) setOf(Store.STEAM.id) else emptySet()
+    val alwaysSources = listOfNotNull(
+        Store.ITCH.id.takeIf { itchSignedIn && !soundMode },
+        Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode },
+        Library.ADDED.takeIf { stores },
+    ).toSet() + signInChips + steamFilter
     val sources = librarySources(
         all, storeTabs.map { it.store.id },
-        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.ADDED.takeIf { stores }).toSet() + signInChips,
+        alwaysSources,
         favorites, concealed,
         offStores = if (soundMode) emptySet() else storeTabs.filterNot { it.shown }.map { it.store.id }.toSet(),
         places = if (soundMode) DEFAULT_LIBRARY_PLACES else StoreTabsState.libraryPlaces,
@@ -591,7 +600,9 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
                 onCollections = { savedDialog = true },
                 trackHits = shownHits, onPlayHit = playHit,
                 // An expired account keeps showing its cached games; with none cached it asks to sign in again, like a signed-out store.
-                signInStore = Store.byId(source)?.takeIf { st -> st.id in signInChips && (preview == LibraryPreview.SIGNED_OUT || storeAccount(st) != StoreAccount.EXPIRED || all.none { librarySourceMatches(st.id, it) }) },
+                signInStore = Store.byId(source)?.takeIf { st ->
+                    shouldShowStoreSignInCard(st.id, signInChips, preview, storeAccount(st), all.any { librarySourceMatches(st.id, it) })
+                },
             ) }
         },
     ) { key ->
