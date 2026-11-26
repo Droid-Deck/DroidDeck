@@ -75,13 +75,6 @@ object Themes {
     var customColors by mutableStateOf(CustomThemeColors())
         private set
 
-    var warningColor by mutableStateOf(Color(0xFFFFB547))
-        private set
-
-    fun updateWarningColor(color: Color) {
-        warningColor = color
-    }
-
     const val RGB_SPEEDS = 10
     const val DEFAULT_RGB_SPEED = 3
     const val RGB_HUE_STEP = 3f
@@ -244,7 +237,6 @@ fun DroidDeckTheme(theme: String? = null, appScale: Int = AppUiPrefs.DEFAULT_SCA
     val id = theme ?: SessionPrefs.theme(context)
     if (id == Themes.INNER_GAMER) InnerGamerHue(Themes.rgbSpeed)
     val p = Themes.byId(id)
-    SideEffect { Themes.updateWarningColor(p.warning) }
     val scheme = darkColorScheme(
         primary = p.primary, onPrimary = p.onPrimary, secondary = p.onSurfaceVariant,
         background = p.background, onBackground = p.onBackground,
