@@ -20,6 +20,17 @@ class GameLaunchIntentTest {
         }
     }
 
+    @Test fun aLinkIsReplayedOnlyWhenANewProcessRestoresItOrRecentsReopensIt() {
+        val link = Intent(Intent.ACTION_VIEW)
+        assertFalse(GameLaunchIntent.replayed(link, restored = false, createdInProcess = false))
+        assertFalse(GameLaunchIntent.replayed(link, restored = false, createdInProcess = true))
+        assertFalse(GameLaunchIntent.replayed(link, restored = true, createdInProcess = true))
+        assertTrue(GameLaunchIntent.replayed(link, restored = true, createdInProcess = false))
+        val fromRecents = Intent(link).addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)
+        assertTrue(GameLaunchIntent.replayed(fromRecents, restored = false, createdInProcess = true))
+        assertTrue(GameLaunchIntent.replayed(fromRecents, restored = false, createdInProcess = false))
+    }
+
     @Test fun longAndStringIdsPreserveUnsignedShortcutIds() {
         listOf("2147483648", "18446744073709551615").forEach { id ->
             assertEquals(id, GameLaunchIntent.readExtras(Intent(GameLaunchIntent.ACTION).putExtra("app_id", id))?.id)
