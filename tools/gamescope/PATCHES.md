@@ -425,3 +425,12 @@ at a pointer that never left the top-left corner. Steam picks Disabled for some 
 cursor followed the mouse while every click landed at (0,0). In Disabled the nested pointer now warps the X pointer as
 in the other modes; real fingers are still ignored. `tools/tests/test_gamescope_disabled_touch_mouse.py` compiles the
 branch from this patch.
+
+## 0142 wlserver: a finger warp keeps the cursor hidden
+
+`wlserver_mousewarp` cleared `bCursorHidden` for every non-synthetic warp, so with the cursor drawn inside gamescope
+(`gamescope_cursor_composite=2`) a direct touch in any click mode but Passthrough made a cursor appear under the finger.
+A Steam Deck never shows one for its touchscreen: Big Picture sets Passthrough, which never warps. Warps from a real
+finger (`bFromTouch`, set by `0131` for `wlserver_touchdown` and non-nested `wlserver_touchmotion`) no longer un-hide it.
+The nested mouse, the touchpad and controller cursors still do, so a game's own controller cursor stays visible.
+`tools/tests/test_gamescope_touch_cursor_hidden.py` compiles the condition from this patch.

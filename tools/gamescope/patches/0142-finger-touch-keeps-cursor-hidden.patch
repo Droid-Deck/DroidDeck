@@ -1,0 +1,12 @@
+diff --git a/src/wlserver.cpp b/src/wlserver.cpp
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -3152,7 +3152,7 @@
+ 	wlserver_clampcursor();
+ 
+ 	wlserver.ulLastMovedCursorTime = get_time_in_nanos();
+-	if ( !bSynthetic )
++	if ( !bSynthetic && !bFromTouch )
+ 		wlserver.bCursorHidden = !wlserver.bCursorHasImage;
+ 
+ 	wlserver_oncursorevent();
