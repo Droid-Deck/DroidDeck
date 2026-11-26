@@ -413,10 +413,9 @@ class Actions:
         """Undo a held intervention; targets whose undo failed stay held for the next restore."""
         present = {t.get("id") for t in targets}
         mine = [t for t in targets if t.get("id") in held]
-        out = self.each(mine, method, params)
-        for target in mine:
-            if isinstance(out.get(target.get("title") or "?"), int):
-                held.discard(target.get("id"))
+        undone = set()
+        out = self.each(mine, method, params, undone)
+        held.difference_update(undone)
         held.intersection_update(present)
         return out
 

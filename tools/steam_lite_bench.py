@@ -247,7 +247,7 @@ def system_available(dev: Device) -> int | None:
     return int(parts[1]) // 1024 if len(parts) >= 2 and parts[1].isdigit() else None
 
 
-def oom_trial(dev: Device, app: str, profile: str, run_dir: Path, args) -> dict:
+def oom_trial(dev: Device, app: str, profile: str, run_dir: Path, args, arm: str | None = None) -> dict:
     """Fresh Steam, launch, load the save, and see whether the session survives."""
     run_dir.mkdir(parents=True, exist_ok=True)
     ensure_steam(dev, fresh=True)
@@ -259,7 +259,7 @@ def oom_trial(dev: Device, app: str, profile: str, run_dir: Path, args) -> dict:
     total = args.idle + 60 + args.title + 10 + args.watch + 20
     rec = recorder(dev, total, args.interval, name)
     events = {"profile": profile, "app": app, "started": time.time(), "kind": "oom", "env": args.env or [],
-              "arm": args.arm or profile}
+              "arm": arm or profile}
     time.sleep(args.idle)
     dev.mark("launch")
     t0 = time.monotonic()
@@ -808,7 +808,7 @@ def main(argv=None) -> int:
                     if args.arm and not arms and len(names) > 1:
                         arm = "%s-%s" % (args.arm, name)
                     run_dir = args.out / ("oom-%s-%s-r%d" % (args.app, arm, i + 1))
-                    events = oom_trial(dev, args.app, profile, run_dir, args)
+                    events = oom_trial(dev, args.app, profile, run_dir, args, arm)
                     print(json.dumps({k: events.get(k) for k in ("arm", "profile", "loaded", "survived",
                                                                  "died_after_s", "exit", "launch_s")}), flush=True)
                 else:

@@ -218,6 +218,24 @@ class ActionsTest(unittest.TestCase):
         self.assertEqual(actions.frozen, {'w'})
         self.assertTrue(actions.holding())
 
+    def test_undo_results_follow_target_ids_when_titles_repeat(self):
+        log = []
+        first = dict(STORE, id='w1')
+        second = dict(STORE, id='w2', webSocketDebuggerUrl='ws://127.0.0.1:8080/devtools/page/w2')
+        c = client(log, broken=())
+        failing = c.opener
+
+        def opener(url):
+            session = failing(url)
+            if url.endswith('/w'):
+                session.broken = ('Page.setWebLifecycleState',)
+            return session
+        c.opener = opener
+        actions = Actions(c, clock=lambda: 0.0)
+        actions.frozen = {'w1', 'w2'}
+        actions.thaw([first, second])
+        self.assertEqual(actions.frozen, {'w1'})
+
     def test_a_closed_target_is_no_longer_held(self):
         self.actions.frozen = {'gone'}
         self.actions.thaw(TARGETS)
