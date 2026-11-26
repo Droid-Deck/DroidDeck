@@ -208,4 +208,53 @@ class XboxCatalogTest {
         val merged = mergeEditions(listOf(pc, console)).single()
         assertEquals(game, merged.id); assertTrue(merged.xboxPc); assertTrue(merged.xboxCloud); assertEquals(parent, merged.xboxCloudId)
     }
+
+    @Test fun anOwnedCloudEditionMakesTheGamePassPcCardOwned() {
+        val cloud = XboxCloudCatalog(gamePass = setOf(game), all = setOf(game, parent))
+        val pc = XboxCatalog.product(product(game, "Windows.Desktop"), mapOf(game to "gamepass"), cloud)!!
+        val console = XboxCatalog.product(product(parent, "Xbox.One"), mapOf(parent to "owned"), cloud)!!
+        val merged = mergeEditions(listOf(pc, console)).single()
+        assertEquals(game, merged.id); assertTrue(merged.owned); assertFalse(merged.subscription); assertEquals("owned", merged.extra["access"])
+        assertTrue(merged.xboxCloud); assertEquals(game, merged.xboxCloudId)
+    }
+
+    @Test fun launchArtIsHeroArtThenScreenshotsFromStoreImagesOnly() {
+        fun img(purpose: String, uri: String) = JSONObject().put("ImagePurpose", purpose).put("Uri", uri)
+        val json = JSONObject().put("LocalizedProperties", JSONArray().put(JSONObject().put("Images", JSONArray()
+            .put(img("Screenshot", "//store-images.s-microsoft.com/image/shot1"))
+            .put(img("BoxArt", "https://store-images.s-microsoft.com/image/box"))
+            .put(img("SuperHeroArt", "https://store-images.s-microsoft.com/image/hero"))
+            .put(img("Screenshot", "https://evil.example/shot2"))
+            .put(img("Screenshot", "https://store-images.s-microsoft.com/image/shot1")))))
+        assertEquals(listOf("https://store-images.s-microsoft.com/image/hero", "https://store-images.s-microsoft.com/image/shot1"),
+            XboxCatalog.launchArtUrls(json))
+        assertEquals(emptyList<String>(), XboxCatalog.launchArtUrls(JSONObject()))
+    }
+
+    @Test fun cloudOnlyEditionsWithTheSameTitleBecomeOneOwnedCard() {
+        val third = "9CCCCCCCCCCC"
+        val cloud = XboxCloudCatalog(gamePass = setOf(game), all = setOf(game, third))
+        val pass = XboxCatalog.product(product(game, "Xbox.One"), mapOf(game to "gamepass"), cloud)!!
+        val owned = XboxCatalog.product(product(third, "Xbox.One"), mapOf(third to "owned"), cloud)!!
+        val merged = mergeEditions(listOf(pass, owned)).single()
+        assertEquals(third, merged.id); assertTrue(merged.owned)
+    }
+
+    @Test fun nonLatinTitlesStaySeparateEditions() {
+        val third = "9CCCCCCCCCCC"
+        val cloud = XboxCloudCatalog(gamePass = setOf(game, parent, third), all = setOf(game, parent, third))
+        val first = XboxCatalog.product(product(game, "Xbox.One"), mapOf(game to "gamepass"), cloud)!!.copy(title = "原神")
+        val second = XboxCatalog.product(product(parent, "Xbox.One"), mapOf(parent to "gamepass"), cloud)!!.copy(title = "逆転裁判")
+        val pc = XboxCatalog.product(product(third, "Windows.Desktop"), mapOf(third to "gamepass"), cloud)!!.copy(title = "鉄拳")
+        val merged = mergeEditions(listOf(first, second, pc))
+        assertEquals(setOf(game, parent, third), merged.map { it.id }.toSet())
+        assertFalse(merged.single { it.id == third }.extra["cloudId"] in setOf(game, parent))
+    }
+
+    @Test fun supplementaryPlaneLettersKeepEditionsApart() {
+        val cloud = XboxCloudCatalog(gamePass = setOf(game, parent), all = setOf(game, parent))
+        val first = XboxCatalog.product(product(game, "Xbox.One"), mapOf(game to "gamepass"), cloud)!!.copy(title = "\uD840\uDC00 2")
+        val second = XboxCatalog.product(product(parent, "Xbox.One"), mapOf(parent to "gamepass"), cloud)!!.copy(title = "\uD840\uDC01 2")
+        assertEquals(2, mergeEditions(listOf(first, second)).size)
+    }
 }
