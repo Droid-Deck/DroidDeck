@@ -65,6 +65,27 @@ class LinuxRuntimeRootPrefixTest {
         assertEquals(Paths.get("/storage/emulated/0"), Files.readSymbolicLink(card))
     }
 
+    @Test fun linksIntoSharedStorageKeepTheirGuestPath() {
+        val home = File(root, "root").apply { mkdirs() }
+        File(home, "Storage/Download").mkdirs()
+        File(root, "root/.local/share/Steam").mkdirs()
+        val downloads = File(home, "Downloads").toPath()
+        val storage = File(home, "Storage").toPath()
+        val steam = File(home, "steam").toPath()
+        Files.createSymbolicLink(downloads, Paths.get("/root/Storage/Download"))
+        Files.createSymbolicLink(File(home, "share").toPath(), Paths.get("/root/Storage"))
+        Files.createSymbolicLink(steam, Paths.get("/root/.local/share/Steam"))
+        Files.createSymbolicLink(File(home, "StorageX").toPath(), Paths.get("/root/StorageX"))
+
+        assertEquals(2, NativeGuest.relinkAbsoluteSymlinks(context, root))
+
+        assertEquals(Paths.get("/root/Storage/Download"), Files.readSymbolicLink(downloads))
+        assertEquals(Paths.get("/root/Storage"), Files.readSymbolicLink(File(home, "share").toPath()))
+        assertEquals(Paths.get(".local/share/Steam"), Files.readSymbolicLink(steam))
+        assertEquals(Paths.get("StorageX"), Files.readSymbolicLink(File(home, "StorageX").toPath()))
+        assertTrue(Files.isDirectory(storage))
+    }
+
     @Test fun packageLinksAFakeRootProotRunMadeAreRelinkedToo() {
         val bin = File(root, "usr/bin").apply { mkdirs() }
         File(root, "usr/share/tool").mkdirs()

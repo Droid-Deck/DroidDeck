@@ -177,7 +177,7 @@ object NativeGuest {
     }
 
     private val HOST_LINK_TARGETS = listOf("/proc", "/dev", "/sys", "/sdcard", "/storage", "/data", "/system", "/vendor", "/apex",
-        "/system_ext", "/product", "/odm", "/linkerconfig", "/mnt")
+        "/system_ext", "/product", "/odm", "/linkerconfig", "/mnt", "/root/Storage")
 
     /**
      * Symbolic links the kernel follows by itself (ld.so, Steam, anything that skips the hook) read
@@ -187,7 +187,7 @@ object NativeGuest {
      */
     fun relinkAbsoluteSymlinks(context: Context, root: File): Int {
         val stamp = File(root, RELINK_STAMP)
-        val version = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installedVersion(context).orEmpty() + "/2"
+        val version = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installedVersion(context).orEmpty() + "/3"
         if (stamp.isFile && stamp.readText() == version) return 0
         val rootPath = root.toPath()
         var rewritten = 0
