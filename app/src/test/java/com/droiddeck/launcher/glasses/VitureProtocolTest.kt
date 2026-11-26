@@ -15,6 +15,103 @@ class VitureProtocolTest {
     private fun u8(b: Byte) = b.toInt() and 0xFF
     private fun u16(b: ByteArray, at: Int) = u8(b[at]) or (u8(b[at + 1]) shl 8)
 
+    @Test fun documentedProductNamesCanOfferImportWithoutInventingAProductId() {
+        for (name in listOf("One", "One Lite", "Lite", "Pro", "Pro 2", "Luma", "Luma Pro", "Luma Cyber", "Luma Ultra", "Beast", "Phantom Beast", "Phantom")) {
+            assertTrue(name, VitureProtocol.isGlassesProductName("VITURE $name"))
+            assertTrue(name, VitureProtocol.isGlassesProductName("VITURE $name XR GLASSES"))
+        }
+        assertTrue(VitureProtocol.isGlassesProductName("  viture Phantom   Beast glasses  "))
+        assertNull(VitureProtocol.model(0xffff, "VITURE Phantom Beast XR GLASSES"))
+        assertTrue(VitureProtocol.isGlassesProductName("VITURE Phantom XR Glasses"))
+        assertNull(VitureProtocol.model(0xffff, "VITURE Phantom XR Glasses"))
+    }
+
+    @Test fun accessoriesAndUnbrandedNamesDoNotOfferGlassesImport() {
+        for (name in listOf(null, "", "VITURE", "Phantom Beast", "VITURE Microphone", "VITURE Camera", "VITURE Mobile Dock",
+            "VITURE Luma Ultra Camera", "VITURE Phantom Beast Microphone", "VITURE Phantom Camera",
+            "VITURE Phantom Microphone", "VITURE Phantom XR Dock", "VITURE Beast Dock", "VITURE Unknown XR Glasses")) {
+            assertFalse(name, VitureProtocol.isGlassesProductName(name))
+        }
+    }
+
+    @Test fun verifiedPhantomUsbIdentityUsesTheSdkDependentBeastProfile() {
+        for (name in listOf(null, "VITURE Phantom XR Glasses")) {
+            val phantom = VitureProtocol.model(0x1221, name)!!
+            assertEquals("VITURE Phantom Beast", phantom.name)
+            assertEquals(VitureProtocol.Family.BEAST, phantom.family)
+            assertTrue(phantom.needsSdk)
+            assertEquals(15, phantom.volumeMax)
+            assertEquals(58f, phantom.diagonalFovDeg, 0f)
+        }
+        assertNull(VitureProtocol.model(0x1222, "VITURE Phantom XR Glasses"))
+    }
+
+    @Test fun oneAndLiteHardwareLimitsApplyBeforeAndAfterSdkImport() {
+        val one = listOf("One").map { VitureProtocol.sdkModel(it)!! } +
+            listOf(0x1011, 0x1013, 0x1017).map { VitureProtocol.model(it, null)!! }
+        val lite = listOf(VitureProtocol.sdkModel("Lite")!!) +
+            listOf(0x1015, 0x101b).map { VitureProtocol.model(it, null)!! }
+        for (model in one + lite) {
+            assertEquals(listOf(60), model.rates2d)
+            assertEquals(6, model.brightnessMax)
+            assertEquals(7, model.volumeMax)
+            assertEquals(43f, model.diagonalFovDeg, 0f)
+            for (hz in listOf(60, 90, 120)) {
+                assertEquals(0x31, model.mode(hz, false))
+                assertEquals(0x32, model.mode(hz, true))
+            }
+            for (step in 1..3) assertEquals(0x31, model.modeForStep(step))
+            assertEquals(0x32, model.modeForStep(4))
+        }
+        one.forEach { assertTrue(it.hasSunblock); assertFalse(it.lite) }
+        lite.forEach { assertFalse(it.hasSunblock); assertTrue(it.lite) }
+        assertFalse(VitureProtocol.model(0x1015, "VITURE One XR Glasses")!!.hasSunblock)
+    }
+
+    @Test fun namedLumaModelsUseTheirDocumentedOptics() {
+        for ((name, fov) in mapOf("Luma" to 50f, "Luma Pro" to 52f, "Luma Cyber" to 52f, "Luma Ultra" to 52f)) {
+            val sdk = VitureProtocol.sdkModel(name)!!
+            assertEquals(name, fov, sdk.diagonalFovDeg, 0f)
+            assertEquals(listOf(60, 90, 120), sdk.rates2d)
+            val pid = if (name == "Luma Ultra") 0x1104 else 0x1131
+            assertEquals(name, fov, VitureProtocol.model(pid, "VITURE $name XR Glasses")!!.diagonalFovDeg, 0f)
+        }
+        assertEquals(52f, VitureProtocol.model(0x1101, null)!!.diagonalFovDeg, 0f)
+    }
+
+    @Test fun missingLumaProductNamesUsePidOpticsConsistentWithTheSdk() {
+        for ((pid, marketName) in mapOf(0x1121 to "Luma Pro", 0x1141 to "Luma Pro", 0x1151 to "Luma Pro", 0x1131 to "Luma")) {
+            val sdk = VitureProtocol.sdkModel(marketName)!!
+            for (productName in listOf(null, "", "  ")) {
+                val model = VitureProtocol.model(pid, productName)!!
+                assertEquals(sdk.name, model.name)
+                assertEquals("PID ${pid.toString(16)}", sdk.diagonalFovDeg, model.diagonalFovDeg, 0f)
+            }
+        }
+    }
+
+    @Test fun explicitLumaProductNamesKeepPriorityOverPidOptics() {
+        assertEquals(50f, VitureProtocol.model(0x1121, "VITURE Luma XR Glasses")!!.diagonalFovDeg, 0f)
+        assertEquals(52f, VitureProtocol.model(0x1131, "  viture Luma Pro XR Glasses  ")!!.diagonalFovDeg, 0f)
+        assertEquals(52f, VitureProtocol.model(0x1131, "VITURE Luma Cyber XR Glasses")!!.diagonalFovDeg, 0f)
+        assertEquals(50f, VitureProtocol.model(0x1121, "VITURE Unknown XR Glasses")!!.diagonalFovDeg, 0f)
+    }
+
+    @Test fun otherSdkModelLimitsRemainDistinct() {
+        for (name in listOf("Pro", "Pro 2", "Luma", "Luma Pro", "Luma Cyber", "Luma Ultra", "Beast", "Phantom Beast")) {
+            val model = VitureProtocol.sdkModel(name)!!
+            assertEquals(name, 8, model.brightnessMax)
+            assertEquals(name, if (name.endsWith("Beast")) 15 else 8, model.volumeMax)
+            assertEquals(name, name != "Pro 2", model.hasSunblock)
+        }
+        for (name in listOf("Pro", "Pro 2")) {
+            val model = VitureProtocol.sdkModel(name)!!
+            assertEquals(listOf(60, 90, 120), model.rates2d)
+            assertEquals(0x33, model.mode(90, false))
+            assertEquals(0x34, model.mode(120, false))
+        }
+    }
+
     @Test fun crcIsXmodem() {
         val check = "123456789".toByteArray()
         assertEquals(0x31C3, VitureProtocol.crc16(check, 0, check.size))
@@ -141,7 +238,7 @@ class VitureProtocolTest {
         assertEquals(0, direct.brightnessMax)
         assertEquals(0, direct.volumeMax)
 
-        for (pid in listOf(0x1101, 0x1104, 0x1201, 0x1211)) {
+        for (pid in listOf(0x1101, 0x1104, 0x1201, 0x1211, 0x1221)) {
             val model = VitureProtocol.model(pid, null)!!
             assertTrue(model.needsSdk)
             assertTrue(model.hardwareControls)

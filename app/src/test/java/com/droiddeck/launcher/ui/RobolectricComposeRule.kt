@@ -5,6 +5,7 @@ import android.os.Handler
 import android.view.Choreographer
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.platform.AndroidUiDispatcher
+import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.runtime.snapshots.Snapshot
 import org.robolectric.RuntimeEnvironment
@@ -19,6 +20,14 @@ fun createRobolectricComposeRule() = createComposeRule().also {
     )
     resumeDroppedUiDispatch()
     Snapshot.sendApplyNotifications()
+}
+
+fun ComposeContentTestRule.renderPendingChanges() {
+    repeat(2) {
+        runOnIdle { Snapshot.sendApplyNotifications() }
+        mainClock.advanceTimeByFrame()
+        waitForIdle()
+    }
 }
 
 internal class UiDispatch {

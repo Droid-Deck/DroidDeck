@@ -192,7 +192,7 @@ private class MenuPresentation(
     override fun configure(state: GlassesState, settings: GlassesSettings) {
         surface.configure(settings, state)
         val mode = display.mode
-        val hz = if (state.sbs) settings.sbsHz else settings.refreshHz
+        val hz = GlassesRendering.outputHz(settings, state)
         val best = display.supportedModes.filter {
             it.physicalWidth == mode.physicalWidth && it.physicalHeight == mode.physicalHeight
         }.minByOrNull { kotlin.math.abs(it.refreshRate - hz) }
