@@ -343,7 +343,7 @@ internal object SteamStore {
         val acf = File(apps, "appmanifest_$appId.acf")
         val manifest = acf.takeIf { it.isFile }?.let { f -> runCatching { SteamStorage.parseManifest(f, f.readText()) }.getOrNull() }
         if (manifest?.installed == true) { forgetJournal(context, appId, guest); return }
-        val claimed = runCatching { createdMarker(context, appId, guest).readText().trim() }.getOrNull()?.ifEmpty { null }
+        val claimed = runCatching { createdMarker(context, appId, guest).readText() }.getOrNull()?.ifEmpty { null }
         val dir = (installDir ?: claimed ?: manifest?.installDir ?: plans[appId]?.second?.installDir)?.takeIf { validDir(it) }
         val shared = dir != null && apps.listFiles { f -> f.name.startsWith("appmanifest_") && f.name != acf.name }.orEmpty().any { f ->
             runCatching { SteamStorage.parseManifest(f, f.readText()) }.getOrNull()?.installDir == dir
