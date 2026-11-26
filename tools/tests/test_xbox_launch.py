@@ -615,6 +615,47 @@ class ComClassRegistrationTest(unittest.TestCase):
                 encoding='utf-8',
             )
             with patch('subprocess.run') as run:
-                xbox['register_com_classes']('/proton', prefix, {}, 'uwp-host.dll', [self.XHR_CLSID])
+                previous = xbox['register_com_classes']('/proton', prefix, {}, 'uwp-host.dll', [self.XHR_CLSID])
+            self.assertEqual(previous, {})
             run.assert_not_called()
+
+    def test_restores_previous_com_entry_and_removes_new_ones(self):
+        with tempfile.TemporaryDirectory() as folder:
+            prefix = Path(folder)
+            (prefix / 'system.reg').write_text(
+                '[Software\\\\Classes\\\\CLSID\\\\' + self.XHR_CLSID + '\\\\InprocServer32]\n'
+                '@="C:\\\\windows\\\\system32\\\\msxml6.dll"\n'
+                '"ThreadingModel"="Apartment"\n',
+                encoding='utf-8',
+            )
+            imported = []
+
+            def fake_run(cmd, **kwargs):
+                reg_file = Path(cmd[-1][2:].replace('\\', '/'))
+                imported.append(reg_file.read_bytes().decode('utf-16'))
+                return type('Result', (), {'returncode': 0})()
+
+            other_clsid = '{11111111-2222-3333-4444-555555555555}'
+            with patch('subprocess.run', side_effect=fake_run):
+                previous = xbox['register_com_classes'](
+                    '/proton', prefix, {}, 'uwp-host.dll', [self.XHR_CLSID, other_clsid]
+                )
+                self.assertEqual(
+                    previous,
+                    {
+                        self.XHR_CLSID: ('C:\\windows\\system32\\msxml6.dll', 'Apartment'),
+                        other_clsid: None,
+                    },
+                )
+                xbox['restore_com_classes']('/proton', prefix, {}, previous)
+            self.assertEqual(len(imported), 2)
+            self.assertIn('msxml6.dll', imported[1])
+            self.assertIn('"ThreadingModel"="Apartment"', imported[1])
+            self.assertIn('[-HKEY_LOCAL_MACHINE\\Software\\Classes\\CLSID\\' + other_clsid + '\\InprocServer32]', imported[1])
+
+    def test_restore_failure_is_nonfatal(self):
+        with tempfile.TemporaryDirectory() as folder:
+            prefix = Path(folder)
+            with patch('subprocess.run', return_value=type('Result', (), {'returncode': 1})()):
+                xbox['restore_com_classes']('/proton', prefix, {}, {self.XHR_CLSID: None})
 

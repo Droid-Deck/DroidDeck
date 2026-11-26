@@ -227,9 +227,9 @@ def register_classes(proton, prefix, env, extra=None):
         print('droiddeck-xbox: Windows Runtime class registration failed; launching without it', file=sys.stderr)
 
 
-def com_class_paths(registry):
-    """Map each registered COM CLSID (lowercased) to its InprocServer32 default DLL path."""
-    paths = {}
+def com_class_entries(registry):
+    """Map each registered COM CLSID (lowercased) to (dll_path, threading_model)."""
+    entries = {}
     current = None
     prefix = COM_CLSID_KEY.replace('\\', '\\\\').lower()
     suffix = '\\\\inprocserver32'
@@ -241,21 +241,33 @@ def com_class_paths(registry):
             else:
                 current = None
         elif current is not None and line.startswith('@='):
-            paths[current] = line[2:].strip('"').replace('\\\\', '\\')
-    return paths
+            path = line[2:].strip('"').replace('\\\\', '\\')
+            _, threading = entries.get(current, ('', None))
+            entries[current] = (path, threading)
+        elif current is not None and line.lower().startswith('"threadingmodel"='):
+            threading = line.split('=', 1)[1].strip('"').replace('\\\\', '\\')
+            path, _ = entries.get(current, ('', None))
+            entries[current] = (path, threading)
+    return entries
+
+
+def com_class_paths(registry):
+    """Map each registered COM CLSID (lowercased) to its InprocServer32 default DLL path."""
+    return {clsid: path for clsid, (path, _) in com_class_entries(registry).items()}
 
 
 def register_com_classes(proton, prefix, env, dll, clsids):
-    """Register COM InprocServer32 CLSIDs pointing to `dll` where the prefix does not already match."""
+    """Register COM InprocServer32 CLSIDs pointing to `dll` and return prior entries for restore."""
     try:
         registry = (prefix / 'system.reg').read_text(encoding='utf-8', errors='replace')
     except OSError:
-        return
+        return {}
     dll_path = dll if '\\' in dll else 'C:\\windows\\system32\\' + dll
-    installed = com_class_paths(registry)
-    missing = [clsid for clsid in clsids if installed.get(clsid.lower(), '').lower() != dll_path.lower()]
+    installed = com_class_entries(registry)
+    missing = [clsid for clsid in clsids if installed.get(clsid.lower(), ('', None))[0].lower() != dll_path.lower()]
     if not missing:
-        return
+        return {}
+    previous = {clsid: installed.get(clsid.lower()) for clsid in missing}
     escaped = dll_path.replace('\\', '\\\\')
     text = 'Windows Registry Editor Version 5.00\r\n\r\n' + ''.join(
         '[HKEY_LOCAL_MACHINE\\%s%s\\InprocServer32]\r\n@="%s"\r\n"ThreadingModel"="Both"\r\n\r\n'
@@ -271,6 +283,39 @@ def register_com_classes(proton, prefix, env, dll, clsids):
             failed = True
     if failed:
         print('droiddeck-xbox: COM class registration failed; launching without it', file=sys.stderr)
+        return {}
+    return previous
+
+
+def restore_com_classes(proton, prefix, env, previous):
+    """Restore COM InprocServer32 CLSIDs modified for a view launch."""
+    if not previous:
+        return
+    blocks = []
+    for clsid, prior in previous.items():
+        if prior is None:
+            blocks.append('[-HKEY_LOCAL_MACHINE\\%s%s\\InprocServer32]\r\n\r\n' % (COM_CLSID_KEY, clsid))
+        else:
+            path, threading = prior
+            escaped = path.replace('\\', '\\\\')
+            lines = ['[HKEY_LOCAL_MACHINE\\%s%s\\InprocServer32]' % (COM_CLSID_KEY, clsid),
+                     '@="%s"' % escaped]
+            if threading is not None:
+                lines.append('"ThreadingModel"="%s"' % threading.replace('\\', '\\\\'))
+            else:
+                lines.append('"ThreadingModel"=-')
+            blocks.append('\r\n'.join(lines) + '\r\n\r\n')
+    text = 'Windows Registry Editor Version 5.00\r\n\r\n' + ''.join(blocks)
+    with tempfile.TemporaryDirectory(prefix='droiddeck-xbox-') as temporary:
+        source = Path(temporary) / 'restore_com_classes.reg'
+        source.write_bytes(b'\xff\xfe' + text.encode('utf-16-le'))
+        try:
+            failed = subprocess.run([proton, 'run', 'reg.exe', 'import', 'Z:' + str(source).replace('/', '\\')],
+                                    stdout=sys.stderr, env=env, timeout=90).returncode != 0
+        except subprocess.TimeoutExpired:
+            failed = True
+    if failed:
+        print('droiddeck-xbox: COM class restore failed', file=sys.stderr)
 
 
 def game_config(exe):
@@ -439,6 +484,7 @@ def wine(argv, source_env=None, package=None):
     active_package = view_root if (view_root is not None and (view_root / 'AppxManifest.xml').is_file()) else package
     package_root = None
     staged_full_name = None
+    com_previous = {}
     try:
         if active_package is not None:
             parsed = package_manifest_identity(active_package)
@@ -457,7 +503,7 @@ def wine(argv, source_env=None, package=None):
                 classes['uwp-host.dll'] = UWP_CLASSES
         register_classes(command[0], prefix, env, classes)
         if 'uwp-host.dll' in classes:
-            register_com_classes(command[0], prefix, env, 'uwp-host.dll', UWP_COM_CLSIDS)
+            com_previous = register_com_classes(command[0], prefix, env, 'uwp-host.dll', UWP_COM_CLSIDS)
         if active_package is not None:
             register_packages(command[0], prefix, env, package_identities(active_package, install_path=package_root))
         run_install_actions(command[0], prefix, argv[0], env)
@@ -473,6 +519,8 @@ def wine(argv, source_env=None, package=None):
                 exe = package_root + '\\' + str(rel_exe).replace('/', '\\')
         return subprocess.call([*command[:2], exe, *command[3:]], env=env)
     finally:
+        if com_previous:
+            restore_com_classes(command[0], prefix, env, com_previous)
         if staged_full_name is not None and package is not None and active_package != package:
             stage_package_root(prefix, package, staged_full_name)
         if drive is not None:

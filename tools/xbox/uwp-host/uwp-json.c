@@ -272,7 +272,12 @@ static kvp_obj *make_kvp(hstring_t k, void *v) {
     o->vtbl = g_kvp_vtbl;
     o->refs = 1;
     o->key = NULL;
-    if (g_dup_str && k) g_dup_str(k, &o->key);
+    if (g_dup_str && k) {
+        if (FAILED(g_dup_str(k, &o->key))) {
+            HeapFree(GetProcessHeap(), 0, o);
+            return NULL;
+        }
+    }
     o->val = v;
     if (v) (*(raw_jv_vtbl **)v)->AddRef(v);
     return o;
@@ -288,13 +293,15 @@ typedef struct wrapped_jo {
     const void *mv_vtbl;
     const void *iter_vtbl;
     LONG refs;
-    void *inner; /* orig IJsonObject* */
+    CRITICAL_SECTION lock;
+    void *inner; /* orig IJsonObject* (metadata/IInspectable only; items is authoritative) */
     kvp_entry *items;
     UINT32 count;
     UINT32 cap;
 } wrapped_jo;
 
 static wrapped_jo *wrap_jo(void *inner);
+static wrapped_jo *wrap_jo_with_source(void *inner, hstring_t source_json);
 
 /* Iterator over wrapped_jo */
 typedef struct jo_iter {
@@ -336,8 +343,15 @@ static HRESULT __stdcall it_GetTL(void *s, int *t) { (void)s; if (t) *t = 0; ret
 static HRESULT __stdcall it_get_Current(void *s, void **out) {
     jo_iter *o = (jo_iter *)s;
     if (!out) return E_POINTER;
-    if (!o->owner || o->idx >= o->owner->count) { *out = NULL; return E_BOUNDS; }
+    if (!o->owner) { *out = NULL; return E_BOUNDS; }
+    EnterCriticalSection(&o->owner->lock);
+    if (o->idx >= o->owner->count) {
+        LeaveCriticalSection(&o->owner->lock);
+        *out = NULL;
+        return E_BOUNDS;
+    }
     kvp_obj *k = make_kvp(o->owner->items[o->idx].key, o->owner->items[o->idx].val);
+    LeaveCriticalSection(&o->owner->lock);
     if (!k) { *out = NULL; return E_OUTOFMEMORY; }
     *out = &k->vtbl;
     return S_OK;
@@ -345,36 +359,51 @@ static HRESULT __stdcall it_get_Current(void *s, void **out) {
 static HRESULT __stdcall it_get_HasCurrent(void *s, boolean_t *out) {
     jo_iter *o = (jo_iter *)s;
     if (!out) return E_POINTER;
-    *out = (o->owner && o->idx < o->owner->count) ? 1 : 0;
+    if (!o->owner) { *out = 0; return S_OK; }
+    EnterCriticalSection(&o->owner->lock);
+    *out = (o->idx < o->owner->count) ? 1 : 0;
+    LeaveCriticalSection(&o->owner->lock);
     return S_OK;
 }
 static HRESULT __stdcall it_MoveNext(void *s, boolean_t *out) {
     jo_iter *o = (jo_iter *)s;
     if (!out) return E_POINTER;
-    if (o->owner && o->idx < o->owner->count) o->idx++;
-    *out = (o->owner && o->idx < o->owner->count) ? 1 : 0;
+    if (!o->owner) { *out = 0; return S_OK; }
+    EnterCriticalSection(&o->owner->lock);
+    if (o->idx < o->owner->count) o->idx++;
+    *out = (o->idx < o->owner->count) ? 1 : 0;
+    LeaveCriticalSection(&o->owner->lock);
     return S_OK;
 }
 static HRESULT __stdcall it_GetMany(void *s, UINT32 cap, void **items, UINT32 *actual) {
     jo_iter *o = (jo_iter *)s;
     if (!actual) return E_POINTER;
+    if (cap > 0 && !items) return E_POINTER;
     UINT32 n = 0;
-    while (n < cap && o->owner && o->idx < o->owner->count) {
-        kvp_obj *k = make_kvp(o->owner->items[o->idx].key, o->owner->items[o->idx].val);
-        if (!k) break;
-        items[n++] = &k->vtbl;
-        o->idx++;
+    HRESULT hr = S_OK;
+    if (o->owner) {
+        EnterCriticalSection(&o->owner->lock);
+        while (n < cap && o->idx < o->owner->count) {
+            kvp_obj *k = make_kvp(o->owner->items[o->idx].key, o->owner->items[o->idx].val);
+            if (!k) {
+                if (n == 0) hr = E_OUTOFMEMORY;
+                break;
+            }
+            items[n++] = &k->vtbl;
+            o->idx++;
+        }
+        LeaveCriticalSection(&o->owner->lock);
     }
     *actual = n;
-    return S_OK;
+    return hr;
 }
 static const void *g_it_vtbl[] = {
     it_QI, it_AddRef, it_Release, it_GetIids, it_GetRCN, it_GetTL,
     it_get_Current, it_get_HasCurrent, it_MoveNext, it_GetMany
 };
 
-/* Internal map helpers on wrapped_jo */
-static int wjo_find(wrapped_jo *o, hstring_t key) {
+/* Internal map helpers on wrapped_jo (caller holds o->lock) */
+static int wjo_find_locked(wrapped_jo *o, hstring_t key) {
     for (UINT32 i = 0; i < o->count; i++) {
         if (hstr_eq(o->items[i].key, key)) return (int)i;
     }
@@ -390,17 +419,25 @@ static HRESULT wjo_put(wrapped_jo *o, hstring_t key, void *val, boolean_t *repla
             (*(raw_jv_vtbl **)jv)->AddRef(jv);
         }
     }
-    int idx = wjo_find(o, key);
+    void *old_val = NULL;
+    EnterCriticalSection(&o->lock);
+    int idx = wjo_find_locked(o, key);
     if (idx >= 0) {
-        if (o->items[idx].val) (*(raw_jv_vtbl **)o->items[idx].val)->Release(o->items[idx].val);
+        old_val = o->items[idx].val;
         o->items[idx].val = jv;
         if (replaced) *replaced = 1;
+        LeaveCriticalSection(&o->lock);
+        if (old_val) (*(raw_jv_vtbl **)old_val)->Release(old_val);
         return S_OK;
     }
     if (o->count >= o->cap) {
         UINT32 nc = o->cap ? o->cap * 2 : 8;
         kvp_entry *ni = (kvp_entry *)HeapAlloc(GetProcessHeap(), 0, nc * sizeof(kvp_entry));
-        if (!ni) { if (jv) (*(raw_jv_vtbl **)jv)->Release(jv); return E_OUTOFMEMORY; }
+        if (!ni) {
+            LeaveCriticalSection(&o->lock);
+            if (jv) (*(raw_jv_vtbl **)jv)->Release(jv);
+            return E_OUTOFMEMORY;
+        }
         if (o->items) {
             my_memcpy(ni, o->items, o->count * sizeof(kvp_entry));
             HeapFree(GetProcessHeap(), 0, o->items);
@@ -409,19 +446,34 @@ static HRESULT wjo_put(wrapped_jo *o, hstring_t key, void *val, boolean_t *repla
         o->cap = nc;
     }
     hstring_t kdup = NULL;
-    if (g_dup_str && key) g_dup_str(key, &kdup);
+    if (g_dup_str && key) {
+        HRESULT dhr = g_dup_str(key, &kdup);
+        if (FAILED(dhr)) {
+            LeaveCriticalSection(&o->lock);
+            if (jv) (*(raw_jv_vtbl **)jv)->Release(jv);
+            return dhr;
+        }
+    }
     o->items[o->count].key = kdup;
     o->items[o->count].val = jv;
     o->count++;
+    LeaveCriticalSection(&o->lock);
     return S_OK;
 }
 
 static void wjo_clear_items(wrapped_jo *o) {
-    for (UINT32 i = 0; i < o->count; i++) {
-        if (o->items[i].key && g_del_str) g_del_str(o->items[i].key);
-        if (o->items[i].val) (*(raw_jv_vtbl **)o->items[i].val)->Release(o->items[i].val);
-    }
+    EnterCriticalSection(&o->lock);
+    kvp_entry *old = o->items;
+    UINT32 n = o->count;
+    o->items = NULL;
     o->count = 0;
+    o->cap = 0;
+    LeaveCriticalSection(&o->lock);
+    for (UINT32 i = 0; i < n; i++) {
+        if (old[i].key && g_del_str) g_del_str(old[i].key);
+        if (old[i].val) (*(raw_jv_vtbl **)old[i].val)->Release(old[i].val);
+    }
+    if (old) HeapFree(GetProcessHeap(), 0, old);
 }
 
 /* Dynamic WCHAR buffer for JSON Stringify */
@@ -429,30 +481,42 @@ typedef struct wbuf {
     WCHAR *p;
     UINT32 len;
     UINT32 cap;
+    int oom;
 } wbuf;
 
 static void wb_push(wbuf *b, WCHAR c) {
+    if (b->oom) return;
     if (b->len + 1 >= b->cap) {
         UINT32 nc = b->cap ? b->cap * 2 : 128;
         WCHAR *np = (WCHAR *)HeapAlloc(GetProcessHeap(), 0, nc * sizeof(WCHAR));
-        if (!np) return;
+        if (!np) { b->oom = 1; return; }
         if (b->p) { my_memcpy(np, b->p, b->len * sizeof(WCHAR)); HeapFree(GetProcessHeap(), 0, b->p); }
         b->p = np; b->cap = nc;
     }
     b->p[b->len++] = c;
 }
 static void wb_push_str(wbuf *b, const WCHAR *s, UINT32 n) {
-    for (UINT32 i = 0; i < n; i++) wb_push(b, s[i]);
+    for (UINT32 i = 0; i < n && !b->oom; i++) wb_push(b, s[i]);
 }
 static void wb_push_escaped(wbuf *b, const WCHAR *s, UINT32 n) {
+    static const WCHAR hex[] = L"0123456789abcdef";
     wb_push(b, L'"');
-    for (UINT32 i = 0; i < n; i++) {
+    for (UINT32 i = 0; i < n && !b->oom; i++) {
         WCHAR c = s[i];
         if (c == L'"' || c == L'\\') { wb_push(b, L'\\'); wb_push(b, c); }
+        else if (c == L'\b') { wb_push(b, L'\\'); wb_push(b, L'b'); }
+        else if (c == L'\f') { wb_push(b, L'\\'); wb_push(b, L'f'); }
         else if (c == L'\n') { wb_push(b, L'\\'); wb_push(b, L'n'); }
         else if (c == L'\r') { wb_push(b, L'\\'); wb_push(b, L'r'); }
         else if (c == L'\t') { wb_push(b, L'\\'); wb_push(b, L't'); }
-        else wb_push(b, c);
+        else if (c < 0x20) {
+            wb_push(b, L'\\'); wb_push(b, L'u');
+            wb_push(b, L'0'); wb_push(b, L'0');
+            wb_push(b, hex[(c >> 4) & 0xF]);
+            wb_push(b, hex[c & 0xF]);
+        } else {
+            wb_push(b, c);
+        }
     }
     wb_push(b, L'"');
 }
@@ -509,7 +573,7 @@ static ULONG __stdcall wjo_Release(void *self) {
     LONG r = InterlockedDecrement(&o->refs);
     if (r == 0) {
         wjo_clear_items(o);
-        if (o->items) HeapFree(GetProcessHeap(), 0, o->items);
+        DeleteCriticalSection(&o->lock);
         if (o->inner) (*(raw_jo_vtbl **)o->inner)->Release(o->inner);
         HeapFree(GetProcessHeap(), 0, o);
     }
@@ -531,89 +595,89 @@ static HRESULT __stdcall wjo_GetRCN(void *s, hstring_t *n) {
 }
 static HRESULT __stdcall wjo_GetTL(void *s, int *t) { (void)s; if (t) *t = 0; return S_OK; }
 
+static HRESULT wjo_lookup_addref(wrapped_jo *o, hstring_t name, void **ret) {
+    EnterCriticalSection(&o->lock);
+    int idx = wjo_find_locked(o, name);
+    if (idx < 0) {
+        LeaveCriticalSection(&o->lock);
+        *ret = NULL;
+        return E_BOUNDS;
+    }
+    void *v = o->items[idx].val;
+    if (v) (*(raw_jv_vtbl **)v)->AddRef(v);
+    LeaveCriticalSection(&o->lock);
+    *ret = v;
+    return S_OK;
+}
+
 static HRESULT __stdcall wjo_GetNamedValue(void *s, hstring_t name, void **ret) {
     wrapped_jo *o = (wrapped_jo *)s;
     if (!ret) return E_POINTER;
-    int idx = wjo_find(o, name);
-    if (idx >= 0) {
-        *ret = o->items[idx].val;
-        if (*ret) (*(raw_jv_vtbl **)(*ret))->AddRef(*ret);
-        return S_OK;
-    }
-    if (o->inner) return (*(raw_jo_vtbl **)o->inner)->GetNamedValue(o->inner, name, ret);
-    *ret = NULL;
-    return E_BOUNDS;
+    return wjo_lookup_addref(o, name, ret);
 }
 static HRESULT __stdcall wjo_SetNamedValue(void *s, hstring_t name, void *val) {
     wrapped_jo *o = (wrapped_jo *)s;
-    wjo_put(o, name, val, NULL);
-    if (o->inner) (*(raw_jo_vtbl **)o->inner)->SetNamedValue(o->inner, name, val);
-    return S_OK;
+    return wjo_put(o, name, val, NULL);
 }
 static HRESULT __stdcall wjo_GetNamedObject(void *s, hstring_t name, void **ret) {
     wrapped_jo *o = (wrapped_jo *)s;
+    void *v = NULL;
     if (!ret) return E_POINTER;
-    int idx = wjo_find(o, name);
-    if (idx >= 0 && o->items[idx].val) {
-        return (*(raw_jv_vtbl **)o->items[idx].val)->GetObject(o->items[idx].val, ret);
-    }
-    if (o->inner) {
-        void *sub = NULL;
-        HRESULT hr = (*(raw_jo_vtbl **)o->inner)->GetNamedObject(o->inner, name, &sub);
-        if (SUCCEEDED(hr) && sub) {
-            *ret = wrap_jo(sub);
-            if (!*ret) { (*(raw_jo_vtbl **)sub)->Release(sub); return E_OUTOFMEMORY; }
-            return S_OK;
-        }
-        *ret = NULL;
-        return hr;
-    }
     *ret = NULL;
-    return E_BOUNDS;
+    HRESULT hr = wjo_lookup_addref(o, name, &v);
+    if (FAILED(hr)) return hr;
+    if (!v) return E_BOUNDS;
+    hr = (*(raw_jv_vtbl **)v)->GetObject(v, ret);
+    (*(raw_jv_vtbl **)v)->Release(v);
+    return hr;
 }
 static HRESULT __stdcall wjo_GetNamedArray(void *s, hstring_t name, void **ret) {
     wrapped_jo *o = (wrapped_jo *)s;
+    void *v = NULL;
     if (!ret) return E_POINTER;
-    int idx = wjo_find(o, name);
-    if (idx >= 0 && o->items[idx].val) {
-        return (*(raw_jv_vtbl **)o->items[idx].val)->GetArray(o->items[idx].val, ret);
-    }
-    if (o->inner) return (*(raw_jo_vtbl **)o->inner)->GetNamedArray(o->inner, name, ret);
     *ret = NULL;
-    return E_BOUNDS;
+    HRESULT hr = wjo_lookup_addref(o, name, &v);
+    if (FAILED(hr)) return hr;
+    if (!v) return E_BOUNDS;
+    hr = (*(raw_jv_vtbl **)v)->GetArray(v, ret);
+    (*(raw_jv_vtbl **)v)->Release(v);
+    return hr;
 }
 static HRESULT __stdcall wjo_GetNamedString(void *s, hstring_t name, hstring_t *ret) {
     wrapped_jo *o = (wrapped_jo *)s;
+    void *v = NULL;
     if (!ret) return E_POINTER;
-    int idx = wjo_find(o, name);
-    if (idx >= 0 && o->items[idx].val) {
-        return (*(raw_jv_vtbl **)o->items[idx].val)->GetString(o->items[idx].val, ret);
-    }
-    if (o->inner) return (*(raw_jo_vtbl **)o->inner)->GetNamedString(o->inner, name, ret);
     *ret = NULL;
-    return E_BOUNDS;
+    HRESULT hr = wjo_lookup_addref(o, name, &v);
+    if (FAILED(hr)) return hr;
+    if (!v) return E_BOUNDS;
+    hr = (*(raw_jv_vtbl **)v)->GetString(v, ret);
+    (*(raw_jv_vtbl **)v)->Release(v);
+    return hr;
 }
 static HRESULT __stdcall wjo_GetNamedNumber(void *s, hstring_t name, double *ret) {
     wrapped_jo *o = (wrapped_jo *)s;
+    void *v = NULL;
     if (!ret) return E_POINTER;
-    int idx = wjo_find(o, name);
-    if (idx >= 0 && o->items[idx].val) {
-        return (*(raw_jv_vtbl **)o->items[idx].val)->GetNumber(o->items[idx].val, ret);
-    }
-    if (o->inner) return (*(raw_jo_vtbl **)o->inner)->GetNamedNumber(o->inner, name, ret);
     *ret = 0;
-    return E_BOUNDS;
+    HRESULT hr = wjo_lookup_addref(o, name, &v);
+    if (FAILED(hr)) return hr;
+    if (!v) return E_BOUNDS;
+    hr = (*(raw_jv_vtbl **)v)->GetNumber(v, ret);
+    (*(raw_jv_vtbl **)v)->Release(v);
+    return hr;
 }
 static HRESULT __stdcall wjo_GetNamedBoolean(void *s, hstring_t name, boolean_t *ret) {
     wrapped_jo *o = (wrapped_jo *)s;
+    void *v = NULL;
     if (!ret) return E_POINTER;
-    int idx = wjo_find(o, name);
-    if (idx >= 0 && o->items[idx].val) {
-        return (*(raw_jv_vtbl **)o->items[idx].val)->GetBoolean(o->items[idx].val, ret);
-    }
-    if (o->inner) return (*(raw_jo_vtbl **)o->inner)->GetNamedBoolean(o->inner, name, ret);
     *ret = 0;
-    return E_BOUNDS;
+    HRESULT hr = wjo_lookup_addref(o, name, &v);
+    if (FAILED(hr)) return hr;
+    if (!v) return E_BOUNDS;
+    hr = (*(raw_jv_vtbl **)v)->GetBoolean(v, ret);
+    (*(raw_jv_vtbl **)v)->Release(v);
+    return hr;
 }
 
 /* IJsonValue view on wrapped_jo */
@@ -629,16 +693,42 @@ static HRESULT __stdcall wjo_jv_Stringify(void *s, hstring_t *out) {
     wrapped_jo *o = from_jv(s);
     if (!out) return E_POINTER;
     if (!g_create_str) { *out = NULL; return S_OK; }
-    wbuf b = {NULL, 0, 0};
+    /* Snapshot entries under lock so recursive Stringify never deadlocks or races Remove. */
+    EnterCriticalSection(&o->lock);
+    UINT32 n = o->count;
+    kvp_entry *snap = n ? (kvp_entry *)HeapAlloc(GetProcessHeap(), 0, n * sizeof(kvp_entry)) : NULL;
+    if (n && !snap) {
+        LeaveCriticalSection(&o->lock);
+        *out = NULL;
+        return E_OUTOFMEMORY;
+    }
+    for (UINT32 i = 0; i < n; i++) {
+        snap[i].key = NULL;
+        snap[i].val = o->items[i].val;
+        if (o->items[i].key && g_dup_str && FAILED(g_dup_str(o->items[i].key, &snap[i].key))) {
+            for (UINT32 j = 0; j < i; j++) {
+                if (snap[j].key && g_del_str) g_del_str(snap[j].key);
+                if (snap[j].val) (*(raw_jv_vtbl **)snap[j].val)->Release(snap[j].val);
+            }
+            HeapFree(GetProcessHeap(), 0, snap);
+            LeaveCriticalSection(&o->lock);
+            *out = NULL;
+            return E_OUTOFMEMORY;
+        }
+        if (snap[i].val) (*(raw_jv_vtbl **)snap[i].val)->AddRef(snap[i].val);
+    }
+    LeaveCriticalSection(&o->lock);
+
+    wbuf b = {NULL, 0, 0, 0};
     wb_push(&b, L'{');
-    for (UINT32 i = 0; i < o->count; i++) {
+    for (UINT32 i = 0; i < n && !b.oom; i++) {
         if (i > 0) wb_push(&b, L',');
         UINT32 kl = 0;
-        const WCHAR *ks = (g_get_raw && o->items[i].key) ? g_get_raw(o->items[i].key, &kl) : L"";
+        const WCHAR *ks = (g_get_raw && snap[i].key) ? g_get_raw(snap[i].key, &kl) : L"";
         wb_push_escaped(&b, ks, kl);
         wb_push(&b, L':');
         hstring_t vs = NULL;
-        if (o->items[i].val && SUCCEEDED((*(raw_jv_vtbl **)o->items[i].val)->Stringify(o->items[i].val, &vs)) && vs) {
+        if (snap[i].val && SUCCEEDED((*(raw_jv_vtbl **)snap[i].val)->Stringify(snap[i].val, &vs)) && vs) {
             UINT32 vl = 0;
             const WCHAR *vraw = g_get_raw ? g_get_raw(vs, &vl) : L"null";
             wb_push_str(&b, vraw, vl);
@@ -648,6 +738,16 @@ static HRESULT __stdcall wjo_jv_Stringify(void *s, hstring_t *out) {
         }
     }
     wb_push(&b, L'}');
+    for (UINT32 i = 0; i < n; i++) {
+        if (snap[i].key && g_del_str) g_del_str(snap[i].key);
+        if (snap[i].val) (*(raw_jv_vtbl **)snap[i].val)->Release(snap[i].val);
+    }
+    if (snap) HeapFree(GetProcessHeap(), 0, snap);
+    if (b.oom) {
+        if (b.p) HeapFree(GetProcessHeap(), 0, b.p);
+        *out = NULL;
+        return E_OUTOFMEMORY;
+    }
     HRESULT hr = g_create_str(b.p ? b.p : L"{}", b.p ? b.len : 2, out);
     if (b.p) HeapFree(GetProcessHeap(), 0, b.p);
     return hr;
@@ -727,22 +827,17 @@ static HRESULT __stdcall wjo_map_Lookup(void *s, hstring_t key, void **ret) {
 static HRESULT __stdcall wjo_map_get_Size(void *s, UINT32 *size) {
     wrapped_jo *o = from_map(s);
     if (!size) return E_POINTER;
+    EnterCriticalSection(&o->lock);
     *size = o->count;
+    LeaveCriticalSection(&o->lock);
     return S_OK;
 }
 static HRESULT __stdcall wjo_map_HasKey(void *s, hstring_t key, boolean_t *found) {
     wrapped_jo *o = from_map(s);
     if (!found) return E_POINTER;
-    if (wjo_find(o, key) >= 0) { *found = 1; return S_OK; }
-    if (o->inner) {
-        void *tmp = NULL;
-        if (SUCCEEDED((*(raw_jo_vtbl **)o->inner)->GetNamedValue(o->inner, key, &tmp)) && tmp) {
-            (*(raw_jv_vtbl **)tmp)->Release(tmp);
-            *found = 1;
-            return S_OK;
-        }
-    }
-    *found = 0;
+    EnterCriticalSection(&o->lock);
+    *found = (wjo_find_locked(o, key) >= 0) ? 1 : 0;
+    LeaveCriticalSection(&o->lock);
     return S_OK;
 }
 static HRESULT __stdcall wjo_map_GetView(void *s, void **view) {
@@ -754,18 +849,25 @@ static HRESULT __stdcall wjo_map_GetView(void *s, void **view) {
 }
 static HRESULT __stdcall wjo_map_Insert(void *s, hstring_t key, void *val, boolean_t *replaced) {
     wrapped_jo *o = from_map(s);
-    HRESULT hr = wjo_put(o, key, val, replaced);
-    if (o->inner) (*(raw_jo_vtbl **)o->inner)->SetNamedValue(o->inner, key, val);
-    return hr;
+    return wjo_put(o, key, val, replaced);
 }
 static HRESULT __stdcall wjo_map_Remove(void *s, hstring_t key) {
     wrapped_jo *o = from_map(s);
-    int idx = wjo_find(o, key);
-    if (idx < 0) return E_BOUNDS;
-    if (o->items[idx].key && g_del_str) g_del_str(o->items[idx].key);
-    if (o->items[idx].val) (*(raw_jv_vtbl **)o->items[idx].val)->Release(o->items[idx].val);
+    hstring_t old_key = NULL;
+    void *old_val = NULL;
+    EnterCriticalSection(&o->lock);
+    int idx = wjo_find_locked(o, key);
+    if (idx < 0) {
+        LeaveCriticalSection(&o->lock);
+        return E_BOUNDS;
+    }
+    old_key = o->items[idx].key;
+    old_val = o->items[idx].val;
     for (UINT32 i = (UINT32)idx; i + 1 < o->count; i++) o->items[i] = o->items[i + 1];
     o->count--;
+    LeaveCriticalSection(&o->lock);
+    if (old_key && g_del_str) g_del_str(old_key);
+    if (old_val) (*(raw_jv_vtbl **)old_val)->Release(old_val);
     return S_OK;
 }
 static HRESULT __stdcall wjo_map_Clear(void *s) {
@@ -782,7 +884,7 @@ static HRESULT __stdcall wjo_mv_GetIids(void *s, ULONG *c, GUID **i) { return wj
 static HRESULT __stdcall wjo_mv_GetRCN(void *s, hstring_t *n) { return wjo_GetRCN(from_mv(s), n); }
 static HRESULT __stdcall wjo_mv_GetTL(void *s, int *t) { return wjo_GetTL(from_mv(s), t); }
 static HRESULT __stdcall wjo_mv_Lookup(void *s, hstring_t key, void **ret) { return wjo_GetNamedValue(from_mv(s), key, ret); }
-static HRESULT __stdcall wjo_mv_get_Size(void *s, UINT32 *size) { if (!size) return E_POINTER; *size = from_mv(s)->count; return S_OK; }
+static HRESULT __stdcall wjo_mv_get_Size(void *s, UINT32 *size) { return wjo_map_get_Size(&from_mv(s)->map_vtbl, size); }
 static HRESULT __stdcall wjo_mv_HasKey(void *s, hstring_t key, boolean_t *found) { return wjo_map_HasKey(&from_mv(s)->map_vtbl, key, found); }
 static HRESULT __stdcall wjo_mv_Split(void *s, void **first, void **second) {
     (void)s;
@@ -846,7 +948,160 @@ static const void *g_wjo_it_vtbl[] = {
     wjo_it_First
 };
 
-static wrapped_jo *wrap_jo(void *inner) {
+static void wjo_skip_ws(const WCHAR *s, UINT32 len, UINT32 *pos) {
+    while (*pos < len) {
+        WCHAR c = s[*pos];
+        if (c == L' ' || c == L'\t' || c == L'\r' || c == L'\n') (*pos)++;
+        else break;
+    }
+}
+
+static int wjo_hex_digit(WCHAR c) {
+    if (c >= L'0' && c <= L'9') return c - L'0';
+    if (c >= L'a' && c <= L'f') return 10 + (c - L'a');
+    if (c >= L'A' && c <= L'F') return 10 + (c - L'A');
+    return -1;
+}
+
+static int wjo_parse_string_token(const WCHAR *s, UINT32 len, UINT32 *pos, wbuf *out) {
+    if (*pos >= len || s[*pos] != L'"') return 0;
+    (*pos)++;
+    while (*pos < len) {
+        WCHAR c = s[(*pos)++];
+        if (c == L'"') return !out->oom;
+        if (c == L'\\') {
+            if (*pos >= len) return 0;
+            WCHAR e = s[(*pos)++];
+            switch (e) {
+            case L'"': case L'\\': case L'/': wb_push(out, e); break;
+            case L'b': wb_push(out, L'\b'); break;
+            case L'f': wb_push(out, L'\f'); break;
+            case L'n': wb_push(out, L'\n'); break;
+            case L'r': wb_push(out, L'\r'); break;
+            case L't': wb_push(out, L'\t'); break;
+            case L'u': {
+                if (*pos + 4 > len) return 0;
+                int d0 = wjo_hex_digit(s[*pos]), d1 = wjo_hex_digit(s[*pos + 1]),
+                    d2 = wjo_hex_digit(s[*pos + 2]), d3 = wjo_hex_digit(s[*pos + 3]);
+                if (d0 < 0 || d1 < 0 || d2 < 0 || d3 < 0) return 0;
+                wb_push(out, (WCHAR)((d0 << 12) | (d1 << 8) | (d2 << 4) | d3));
+                *pos += 4;
+                break;
+            }
+            default: wb_push(out, e); break;
+            }
+        } else {
+            wb_push(out, c);
+        }
+    }
+    return 0;
+}
+
+static int wjo_skip_json_value(const WCHAR *s, UINT32 len, UINT32 *pos) {
+    wjo_skip_ws(s, len, pos);
+    if (*pos >= len) return 0;
+    WCHAR c = s[*pos];
+    if (c == L'"') {
+        (*pos)++;
+        while (*pos < len) {
+            WCHAR ch = s[(*pos)++];
+            if (ch == L'\\') { if (*pos >= len) return 0; (*pos)++; }
+            else if (ch == L'"') return 1;
+        }
+        return 0;
+    }
+    if (c == L'{' || c == L'[') {
+        int depth = 0;
+        while (*pos < len) {
+            WCHAR ch = s[(*pos)++];
+            if (ch == L'"') {
+                while (*pos < len) {
+                    WCHAR sc = s[(*pos)++];
+                    if (sc == L'\\') { if (*pos >= len) return 0; (*pos)++; }
+                    else if (sc == L'"') break;
+                }
+            } else if (ch == L'{' || ch == L'[') {
+                depth++;
+            } else if (ch == L'}' || ch == L']') {
+                depth--;
+                if (depth == 0) return 1;
+            }
+        }
+        return 0;
+    }
+    while (*pos < len) {
+        WCHAR ch = s[*pos];
+        if (ch == L',' || ch == L'}' || ch == L']' || ch == L' ' || ch == L'\t' || ch == L'\r' || ch == L'\n') break;
+        (*pos)++;
+    }
+    return 1;
+}
+
+static HRESULT wjo_hydrate_from_text(wrapped_jo *o, const WCHAR *s, UINT32 len) {
+    if (!o->inner || !s || !g_create_str) return S_OK;
+    UINT32 pos = 0;
+    wjo_skip_ws(s, len, &pos);
+    if (pos >= len || s[pos] != L'{') return S_OK;
+    pos++;
+    wjo_skip_ws(s, len, &pos);
+    if (pos < len && s[pos] == L'}') return S_OK;
+    while (pos < len) {
+        wjo_skip_ws(s, len, &pos);
+        wbuf kb = {NULL, 0, 0, 0};
+        if (!wjo_parse_string_token(s, len, &pos, &kb)) {
+            if (kb.p) HeapFree(GetProcessHeap(), 0, kb.p);
+            break;
+        }
+        wjo_skip_ws(s, len, &pos);
+        if (pos >= len || s[pos] != L':') {
+            if (kb.p) HeapFree(GetProcessHeap(), 0, kb.p);
+            break;
+        }
+        pos++;
+        UINT32 val_start = pos;
+        if (!wjo_skip_json_value(s, len, &pos)) {
+            if (kb.p) HeapFree(GetProcessHeap(), 0, kb.p);
+            break;
+        }
+        UINT32 val_end = pos;
+        hstring_t kstr = NULL;
+        HRESULT khr = g_create_str(kb.p ? kb.p : L"", kb.len, &kstr);
+        if (kb.p) HeapFree(GetProcessHeap(), 0, kb.p);
+        if (FAILED(khr)) return khr;
+        void *val = NULL;
+        HRESULT vhr = (*(raw_jo_vtbl **)o->inner)->GetNamedValue(o->inner, kstr, &val);
+        if (SUCCEEDED(vhr) && val) {
+            int vt = 0;
+            if (SUCCEEDED((*(raw_jv_vtbl **)val)->get_ValueType(val, &vt)) && vt == 5) {
+                void *sub_jo = NULL;
+                if (SUCCEEDED((*(raw_jv_vtbl **)val)->GetObject(val, &sub_jo)) && sub_jo) {
+                    hstring_t sub_src = NULL;
+                    if (val_end > val_start) g_create_str(s + val_start, val_end - val_start, &sub_src);
+                    wrapped_jo *sw = wrap_jo_with_source(sub_jo, sub_src);
+                    if (sub_src && g_del_str) g_del_str(sub_src);
+                    if (sw) {
+                        (*(raw_jv_vtbl **)val)->Release(val);
+                        val = &sw->jv_vtbl;
+                    } else {
+                        (*(raw_jo_vtbl **)sub_jo)->Release(sub_jo);
+                    }
+                }
+            }
+            HRESULT phr = wjo_put(o, kstr, val, NULL);
+            (*(raw_jv_vtbl **)val)->Release(val);
+            if (g_del_str) g_del_str(kstr);
+            if (FAILED(phr)) return phr;
+        } else {
+            if (g_del_str) g_del_str(kstr);
+        }
+        wjo_skip_ws(s, len, &pos);
+        if (pos < len && s[pos] == L',') { pos++; continue; }
+        break;
+    }
+    return S_OK;
+}
+
+static wrapped_jo *wrap_jo_with_source(void *inner, hstring_t source_json) {
     wrapped_jo *o = (wrapped_jo *)HeapAlloc(GetProcessHeap(), 0, sizeof(wrapped_jo));
     if (!o) return NULL;
     o->jo_vtbl = g_wjo_vtbl;
@@ -857,11 +1112,38 @@ static wrapped_jo *wrap_jo(void *inner) {
     o->mv_vtbl = g_wjo_mv_vtbl;
     o->iter_vtbl = g_wjo_it_vtbl;
     o->refs = 1;
+    InitializeCriticalSection(&o->lock);
     o->inner = inner;
     o->items = NULL;
     o->count = 0;
     o->cap = 0;
+    if (inner) {
+        hstring_t text = source_json;
+        hstring_t owned = NULL;
+        if (!text) {
+            void *ijv = NULL;
+            if (SUCCEEDED((*(raw_jo_vtbl **)inner)->QI(inner, &IID_IJsonValue_, &ijv)) && ijv) {
+                if (SUCCEEDED((*(raw_jv_vtbl **)ijv)->Stringify(ijv, &owned))) text = owned;
+                (*(raw_jv_vtbl **)ijv)->Release(ijv);
+            }
+        }
+        if (text && g_get_raw) {
+            UINT32 len = 0;
+            const WCHAR *raw = g_get_raw(text, &len);
+            if (raw && len > 0 && FAILED(wjo_hydrate_from_text(o, raw, len))) {
+                if (owned && g_del_str) g_del_str(owned);
+                o->inner = NULL; /* caller still owns inner on NULL return */
+                wjo_Release(o);
+                return NULL;
+            }
+        }
+        if (owned && g_del_str) g_del_str(owned);
+    }
     return o;
+}
+
+static wrapped_jo *wrap_jo(void *inner) {
+    return wrap_jo_with_source(inner, NULL);
 }
 
 /* ---------- Wrapped JsonObject Factory (IActivationFactory + IJsonObjectStatics) ---------- */
@@ -920,7 +1202,7 @@ static HRESULT __stdcall jos_Parse(void *s, hstring_t input, void **result) {
     hr = (*(raw_jv_vtbl **)jv)->GetObject(jv, &jo);
     (*(raw_jv_vtbl **)jv)->Release(jv);
     if (SUCCEEDED(hr) && jo) {
-        wrapped_jo *w = wrap_jo(jo);
+        wrapped_jo *w = wrap_jo_with_source(jo, input);
         if (!w) { (*(raw_jo_vtbl **)jo)->Release(jo); return E_OUTOFMEMORY; }
         *result = &w->jo_vtbl;
     }
@@ -941,7 +1223,7 @@ static HRESULT __stdcall jos_TryParse(void *s, hstring_t input, void **result, b
     if (SUCCEEDED((*(raw_jv_vtbl **)jv)->get_ValueType(jv, &vt)) && vt == 5) {
         void *jo = NULL;
         if (SUCCEEDED((*(raw_jv_vtbl **)jv)->GetObject(jv, &jo)) && jo) {
-            wrapped_jo *w = wrap_jo(jo);
+            wrapped_jo *w = wrap_jo_with_source(jo, input);
             if (w) { *result = &w->jo_vtbl; *succeeded = 1; }
             else (*(raw_jo_vtbl **)jo)->Release(jo);
         }

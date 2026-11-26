@@ -424,9 +424,12 @@ static HWND host_window;
 static int host_quit;
 static LONG host_closed_fired;
 static LONG app_exit_requested;
+static LONG app_exiting_fired;
 static LONG app_restart_started;
 static void run_dispatched(void);
 static void fire_window_closed(void);
+static void fire_window_size_changed(int width, int height);
+static void fire_app_exiting(void);
 
 static LRESULT CALLBACK host_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
 {
@@ -434,8 +437,16 @@ static LRESULT CALLBACK host_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPA
     case WM_NULL:
         run_dispatched();
         return 0;
+    case WM_SIZE:
+        if (wparam != SIZE_MINIMIZED) {
+            int w = (int)LOWORD(lparam);
+            int h = (int)HIWORD(lparam);
+            if (w > 0 && h > 0) fire_window_size_changed(w, h);
+        }
+        return 0;
     case WM_CLOSE:
         fire_window_closed();
+        fire_app_exiting();
         DestroyWindow(hwnd);
         return 0;
     case WM_DESTROY:
@@ -1254,15 +1265,17 @@ static HRESULT wea_query_interface(window_event_args *self, const GUID *id, void
 {
     trace_guid("args QI", id);
     if (!out) return E_POINTER;
+    if (IsEqualIID(id, &iid_core_window_args) ||
+        (self->iid == &iid_core_window_args &&
+         (IsEqualIID(id, &iid_unknown) || IsEqualIID(id, &iid_inspectable)))) {
+        *out = &self->handled;
+        self->handled.refs++;
+        return S_OK;
+    }
     if (IsEqualIID(id, &iid_unknown) || IsEqualIID(id, &iid_inspectable) ||
         (self->iid && IsEqualIID(id, self->iid))) {
         *out = &self->base;
         self->base.refs++;
-        return S_OK;
-    }
-    if (IsEqualIID(id, &iid_core_window_args)) {
-        *out = &self->handled;
-        self->handled.refs++;
         return S_OK;
     }
     *out = NULL;
@@ -1383,7 +1396,19 @@ static void fire_window_closed(void)
 {
     if (InterlockedExchange(&host_closed_fired, 1)) return;
     trace("window Closed");
-    fire_delegate(cw_event_handler[CW_EV_CLOSED], &window, &closed_args);
+    fire_delegate(cw_event_handler[CW_EV_CLOSED], &window, &closed_args.handled);
+}
+
+static void fire_window_size_changed(int width, int height)
+{
+    int changed = (width != window_size_w || height != window_size_h);
+    window_size_w = width;
+    window_size_h = height;
+    size_args.state.width = (float)width;
+    size_args.state.height = (float)height;
+    if (changed && !activation_pending) {
+        fire_delegate(cw_event_handler[CW_EV_SIZE_CHANGED], &window, &size_args);
+    }
 }
 
 /* CoreApplicationView::Activated hands a title IActivatedEventArgs, and for a
@@ -1641,10 +1666,35 @@ static HRESULT ca_face_qi(host_object *self, const GUID *id, void **out)
     return ca_query_interface(&application, id, out);
 }
 
-static void *ca_exit_handler;
+#define MAX_EXITING_SUBS 16
+static SRWLOCK ca_exiting_lock = SRWLOCK_INIT;
+static struct {
+    long long token;
+    void *handler;
+} ca_exiting_subs[MAX_EXITING_SUBS];
 static long long ca_exit_token;
 
 HRESULT svc_u32_op(const GUID *op_iid, HRESULT error, UINT32 value, void **out);
+
+static void fire_app_exiting(void)
+{
+    void *snapshot[MAX_EXITING_SUBS];
+    size_t count = 0, i;
+    if (InterlockedExchange(&app_exiting_fired, 1)) return;
+    AcquireSRWLockExclusive(&ca_exiting_lock);
+    for (i = 0; i < MAX_EXITING_SUBS; i++) {
+        if (ca_exiting_subs[i].handler) {
+            com_add_ref(ca_exiting_subs[i].handler);
+            snapshot[count++] = ca_exiting_subs[i].handler;
+        }
+    }
+    ReleaseSRWLockExclusive(&ca_exiting_lock);
+    if (count > 0) trace("CoreApplication::Exiting fire");
+    for (i = 0; i < count; i++) {
+        fire_delegate(snapshot[i], NULL, NULL);
+        com_release(snapshot[i]);
+    }
+}
 
 static DWORD WINAPI ca_exit_watchdog(LPVOID param)
 {
@@ -1661,10 +1711,7 @@ static HRESULT ca_exit_Exit(host_object *self)
     (void)self;
     trace("CoreApplication::Exit");
     if (!InterlockedExchange(&app_exit_requested, 1)) {
-        if (ca_exit_handler) {
-            trace("CoreApplication::Exiting fire");
-            fire_delegate(ca_exit_handler, NULL, NULL);
-        }
+        fire_app_exiting();
         /* On Windows UWP, CoreApplication::Exit shuts down the process. If the
            title's Run loop or background threads stall after window teardown
            (e.g., applying graphics preset changes that require restart), do not
@@ -1677,23 +1724,41 @@ static HRESULT ca_exit_Exit(host_object *self)
 
 static HRESULT ca_exit_add_Exiting(host_object *self, void *handler, long long *token)
 {
+    size_t i;
     (void)self;
     if (!token) return E_POINTER;
-    com_release(ca_exit_handler);
-    ca_exit_handler = handler;
-    com_add_ref(handler);
-    ca_exit_token++;
-    *token = ca_exit_token;
-    return S_OK;
+    if (!handler) return E_INVALIDARG;
+    AcquireSRWLockExclusive(&ca_exiting_lock);
+    for (i = 0; i < MAX_EXITING_SUBS; i++) {
+        if (!ca_exiting_subs[i].handler) {
+            com_add_ref(handler);
+            ca_exiting_subs[i].handler = handler;
+            ca_exiting_subs[i].token = ++ca_exit_token;
+            *token = ca_exiting_subs[i].token;
+            ReleaseSRWLockExclusive(&ca_exiting_lock);
+            return S_OK;
+        }
+    }
+    ReleaseSRWLockExclusive(&ca_exiting_lock);
+    return E_OUTOFMEMORY;
 }
 
 static HRESULT ca_exit_remove_Exiting(host_object *self, long long token)
 {
+    size_t i;
+    void *old = NULL;
     (void)self;
-    if (token == ca_exit_token) {
-        com_release(ca_exit_handler);
-        ca_exit_handler = NULL;
+    AcquireSRWLockExclusive(&ca_exiting_lock);
+    for (i = 0; i < MAX_EXITING_SUBS; i++) {
+        if (ca_exiting_subs[i].handler && ca_exiting_subs[i].token == token) {
+            old = ca_exiting_subs[i].handler;
+            ca_exiting_subs[i].handler = NULL;
+            ca_exiting_subs[i].token = 0;
+            break;
+        }
     }
+    ReleaseSRWLockExclusive(&ca_exiting_lock);
+    com_release(old);
     return S_OK;
 }
 

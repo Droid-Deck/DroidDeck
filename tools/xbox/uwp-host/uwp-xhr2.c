@@ -76,8 +76,55 @@ static const GUID XHR2_IID_IAgileObject = {
     0x94ea2b94, 0xe9cc, 0x49e0, {0xc0, 0xff, 0xee, 0x64, 0xca, 0x8f, 0x5b, 0x90}};
 static const GUID XHR2_IID_IXMLHTTPRequest2 = {
     0xe5d37dc0, 0x552a, 0x4d52, {0x9c, 0xc0, 0xa1, 0x4d, 0x54, 0x6f, 0xbd, 0x04}};
+static const GUID XHR2_IID_IXMLHTTPRequest2Callback = {
+    0xa44a9299, 0xe321, 0x40de, {0x88, 0x66, 0x34, 0x1b, 0x41, 0x66, 0x91, 0x62}};
 static const GUID XHR2_IID_ISequentialStream = {
     0x0c733a30, 0x2a1c, 0x11ce, {0xad, 0xe5, 0x00, 0xaa, 0x00, 0x44, 0x77, 0x3d}};
+
+/* MSXML6 XHR_PROPERTY enum values (Windows SDK msxml6.h). */
+enum {
+    XHR2_PROP_NO_CRED_PROMPT = 0,
+    XHR2_PROP_NO_AUTH = 1,
+    XHR2_PROP_TIMEOUT = 2,
+    XHR2_PROP_NO_DEFAULT_HEADERS = 3,
+    XHR2_PROP_REPORT_REDIRECT_STATUS = 4,
+};
+
+static const WCHAR *xhr2_trace_url(const WCHAR *url, WCHAR *buf, size_t cap)
+{
+    const WCHAR *end;
+    size_t len;
+    if (!url || !cap) return L"";
+    end = wcspbrk(url, L"?#");
+    len = end ? (size_t)(end - url) : wcslen(url);
+    if (len >= cap) len = cap - 1;
+    memcpy(buf, url, len * sizeof(WCHAR));
+    buf[len] = 0;
+    return buf;
+}
+
+static IStream *xhr2_marshal_if(void *iface, const GUID *iid)
+{
+    IUnknown *unk = (IUnknown *)iface;
+    void *agile = NULL;
+    IStream *stm = NULL;
+    if (!unk) return NULL;
+    /* Agile / free-threaded interfaces can be called directly from the MTA worker. */
+    if (SUCCEEDED(unk->lpVtbl->QueryInterface(unk, &XHR2_IID_IAgileObject, &agile)) && agile) {
+        ((IUnknown *)agile)->lpVtbl->Release((IUnknown *)agile);
+        return NULL;
+    }
+    if (SUCCEEDED(CoMarshalInterThreadInterfaceInStream(iid, unk, &stm))) return stm;
+    return NULL;
+}
+
+static void xhr2_release_stream(IStream **pstm)
+{
+    if (*pstm) {
+        (*pstm)->lpVtbl->Release(*pstm);
+        *pstm = NULL;
+    }
+}
 
 /* --------------------------------------------------------------- WinINet loader */
 
@@ -283,8 +330,11 @@ typedef struct {
     WCHAR *method;
     WCHAR *url;
     xhr2_cb_if *cb;
+    IStream *cb_stream;
     xhr2_seq_stream_if *custom_stream;
+    IStream *custom_stream_m;
     xhr2_seq_stream_if *req_body;
+    IStream *req_body_stream;
     ULONGLONG req_body_len;
     xhr2_header *req_headers;
     size_t req_header_count;
@@ -292,7 +342,6 @@ typedef struct {
     WCHAR *resp_headers;
     DWORD timeout_ms;
     int report_redirect;
-    xhr_hinet active_req;
 } xhr2_obj;
 
 static WCHAR *xhr2_wcsdup(const WCHAR *s)
@@ -338,6 +387,9 @@ static ULONG __stdcall xhr2_Release(xhr2_obj *self)
 {
     LONG left = InterlockedDecrement(&self->refs);
     if (left == 0) {
+        xhr2_release_stream(&self->cb_stream);
+        xhr2_release_stream(&self->custom_stream_m);
+        xhr2_release_stream(&self->req_body_stream);
         if (self->cb) self->cb->lpVtbl->Release(self->cb);
         if (self->custom_stream) self->custom_stream->lpVtbl->Release(self->custom_stream);
         if (self->req_body) self->req_body->lpVtbl->Release(self->req_body);
@@ -356,10 +408,14 @@ static HRESULT __stdcall xhr2_Open(xhr2_obj *self, const WCHAR *method, const WC
                                    void *callback, const WCHAR *user, const WCHAR *pass,
                                    const WCHAR *proxy_user, const WCHAR *proxy_pass)
 {
+    IStream *cb_stm;
+    xhr2_cb_if *old_cb;
+    IStream *old_stm;
     (void)user; (void)pass; (void)proxy_user; (void)proxy_pass;
     if (!method || !url || !callback) return E_INVALIDARG;
+    cb_stm = xhr2_marshal_if(callback, &XHR2_IID_IXMLHTTPRequest2Callback);
     EnterCriticalSection(&self->lock);
-    self->aborted = 0;
+    InterlockedExchange(&self->aborted, 0);
     free(self->method);
     free(self->url);
     free(self->resp_headers);
@@ -367,10 +423,14 @@ static HRESULT __stdcall xhr2_Open(xhr2_obj *self, const WCHAR *method, const WC
     self->url = xhr2_wcsdup(url);
     self->resp_headers = NULL;
     xhr2_clear_req_headers_locked(self);
-    if (self->cb) self->cb->lpVtbl->Release(self->cb);
+    old_cb = self->cb;
+    old_stm = self->cb_stream;
     self->cb = (xhr2_cb_if *)callback;
     self->cb->lpVtbl->AddRef(self->cb);
+    self->cb_stream = cb_stm;
     LeaveCriticalSection(&self->lock);
+    if (old_stm) old_stm->lpVtbl->Release(old_stm);
+    if (old_cb) old_cb->lpVtbl->Release(old_cb);
     if (!self->method || !self->url) return E_OUTOFMEMORY;
     return S_OK;
 }
@@ -438,9 +498,13 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
 {
     xhr2_obj *self = (xhr2_obj *)param;
     WCHAR *method = NULL, *url = NULL;
+    WCHAR safe_url[512];
     xhr2_cb_if *cb = NULL;
+    IStream *cb_stm = NULL;
     xhr2_seq_stream_if *custom_stream = NULL;
+    IStream *custom_stm = NULL;
     xhr2_seq_stream_if *req_body = NULL;
+    IStream *req_body_stm = NULL;
     xhr2_mem_stream *mem_stream = NULL;
     ULONGLONG req_body_len = 0;
     xhr2_header *hdrs = NULL;
@@ -463,17 +527,33 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
     HRESULT err_hr = S_OK;
     int com_inited;
 
+    safe_url[0] = 0;
     com_inited = SUCCEEDED(CoInitializeEx(NULL, COINIT_MULTITHREADED));
 
     EnterCriticalSection(&self->lock);
     method = xhr2_wcsdup(self->method);
     url = xhr2_wcsdup(self->url);
-    cb = self->cb;
-    if (cb) cb->lpVtbl->AddRef(cb);
-    custom_stream = self->custom_stream;
-    if (custom_stream) custom_stream->lpVtbl->AddRef(custom_stream);
-    req_body = self->req_body;
-    self->req_body = NULL;
+    cb_stm = self->cb_stream;
+    self->cb_stream = NULL;
+    if (!cb_stm) {
+        cb = self->cb;
+        if (cb) cb->lpVtbl->AddRef(cb);
+    }
+    custom_stm = self->custom_stream_m;
+    self->custom_stream_m = NULL;
+    if (!custom_stm) {
+        custom_stream = self->custom_stream;
+        if (custom_stream) custom_stream->lpVtbl->AddRef(custom_stream);
+    }
+    req_body_stm = self->req_body_stream;
+    self->req_body_stream = NULL;
+    if (!req_body_stm) {
+        req_body = self->req_body;
+        self->req_body = NULL;
+    } else if (self->req_body) {
+        self->req_body->lpVtbl->Release(self->req_body);
+        self->req_body = NULL;
+    }
     req_body_len = self->req_body_len;
     self->req_body_len = 0;
     timeout_ms = self->timeout_ms ? self->timeout_ms : 30000;
@@ -492,6 +572,27 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
     }
     LeaveCriticalSection(&self->lock);
 
+    if (cb_stm) {
+        void *p = NULL;
+        if (SUCCEEDED(CoGetInterfaceAndReleaseStream(cb_stm, &XHR2_IID_IXMLHTTPRequest2Callback, &p)))
+            cb = (xhr2_cb_if *)p;
+        cb_stm = NULL;
+    }
+    if (custom_stm) {
+        void *p = NULL;
+        if (SUCCEEDED(CoGetInterfaceAndReleaseStream(custom_stm, &XHR2_IID_ISequentialStream, &p)))
+            custom_stream = (xhr2_seq_stream_if *)p;
+        custom_stm = NULL;
+    }
+    if (req_body_stm) {
+        void *p = NULL;
+        if (SUCCEEDED(CoGetInterfaceAndReleaseStream(req_body_stm, &XHR2_IID_ISequentialStream, &p)))
+            req_body = (xhr2_seq_stream_if *)p;
+        req_body_stm = NULL;
+    }
+
+    if (url) xhr2_trace_url(url, safe_url, sizeof(safe_url) / sizeof(safe_url[0]));
+
     if (!method || !url || !cb) {
         xhr2_tracef("worker invalid args m=%p u=%p cb=%p", (void *)method, (void *)url, (void *)cb);
         err_hr = E_INVALIDARG;
@@ -502,7 +603,7 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
         goto fail;
     }
     xhr2_tracef("start %ls %ls body=%p len=%llu hdrs=%zu custom=%p",
-                method, url, (void *)req_body, (unsigned long long)req_body_len,
+                method, safe_url, (void *)req_body, (unsigned long long)req_body_len,
                 hdr_count, (void *)custom_stream);
 
     /* Read request body from ISequentialStream if provided. */
@@ -599,14 +700,10 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
         goto fail;
     }
 
-    EnterCriticalSection(&self->lock);
-    if (self->aborted) {
-        LeaveCriticalSection(&self->lock);
+    if (InterlockedCompareExchange(&self->aborted, 0, 0)) {
         err_hr = E_ABORT;
         goto fail;
     }
-    self->active_req = h_req;
-    LeaveCriticalSection(&self->lock);
 
     if (g_in.set_opt) {
         BOOL dec = TRUE;
@@ -632,11 +729,16 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
         }
     }
 
+    if (InterlockedCompareExchange(&self->aborted, 0, 0)) {
+        err_hr = E_ABORT;
+        goto fail;
+    }
+
     if (!g_in.send_req(h_req, NULL, 0,
                        body_len ? body_buf : NULL,
                        (DWORD)body_len)) {
         DWORD e = GetLastError();
-        xhr2_tracef("HttpSendRequestW failed %ls %ls err=%lu", method, url, (unsigned long)e);
+        xhr2_tracef("HttpSendRequestW failed %ls %ls err=%lu", method, safe_url, (unsigned long)e);
         err_hr = HRESULT_FROM_WIN32(e ? e : ERROR_GEN_FAILURE);
         goto fail;
     }
@@ -664,9 +766,9 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
         raw_hdrs = NULL;
     }
 
-    xhr2_tracef("%ls %ls -> HTTP %lu (req_body=%zu)", method, url, (unsigned long)status_code, body_len);
+    xhr2_tracef("%ls %ls -> HTTP %lu (req_body=%zu)", method, safe_url, (unsigned long)status_code, body_len);
 
-    if (self->aborted) {
+    if (InterlockedCompareExchange(&self->aborted, 0, 0)) {
         err_hr = E_ABORT;
         goto fail;
     }
@@ -684,7 +786,7 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
     for (;;) {
         uint8_t chunk[16384];
         DWORD got = 0;
-        if (self->aborted) {
+        if (InterlockedCompareExchange(&self->aborted, 0, 0)) {
             err_hr = E_ABORT;
             goto fail;
         }
@@ -703,7 +805,10 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
                     err_hr = whr;
                     goto fail;
                 }
-                if (written == 0) break;
+                if (written == 0) {
+                    err_hr = STG_E_WRITEFAULT;
+                    goto fail;
+                }
                 off += written;
             }
             cb->lpVtbl->OnDataAvailable(cb, self, custom_stream);
@@ -718,23 +823,20 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
         }
     }
 
-    if (self->aborted) {
+    if (InterlockedCompareExchange(&self->aborted, 0, 0)) {
         err_hr = E_ABORT;
         goto fail;
     }
 
     cb->lpVtbl->OnResponseReceived(cb, self, custom_stream ? (void *)custom_stream : (void *)mem_stream);
-    xhr2_tracef("done %ls %ls -> %lu", method, url, (unsigned long)status_code);
+    xhr2_tracef("done %ls %ls -> %lu", method, safe_url, (unsigned long)status_code);
     goto cleanup;
 
 fail:
-    xhr2_tracef("fail %ls %ls hr=0x%08lx", method ? method : L"", url ? url : L"", (unsigned long)err_hr);
+    xhr2_tracef("fail %ls %ls hr=0x%08lx", method ? method : L"", safe_url, (unsigned long)err_hr);
     if (cb) cb->lpVtbl->OnError(cb, self, err_hr);
 
 cleanup:
-    EnterCriticalSection(&self->lock);
-    if (self->active_req == h_req) self->active_req = NULL;
-    LeaveCriticalSection(&self->lock);
     if (h_req) g_in.close_handle(h_req);
     if (h_conn) g_in.close_handle(h_conn);
     if (h_sess) g_in.close_handle(h_sess);
@@ -758,17 +860,27 @@ cleanup:
 static HRESULT __stdcall xhr2_Send(xhr2_obj *self, void *body, ULONGLONG cb_body)
 {
     HANDLE th;
+    IStream *body_stm;
+    xhr2_seq_stream_if *old_body;
+    IStream *old_body_stm;
+
+    body_stm = xhr2_marshal_if(body, &XHR2_IID_ISequentialStream);
     EnterCriticalSection(&self->lock);
     if (!self->method || !self->url || !self->cb) {
         LeaveCriticalSection(&self->lock);
+        if (body_stm) body_stm->lpVtbl->Release(body_stm);
         return E_UNEXPECTED;
     }
-    if (self->req_body) self->req_body->lpVtbl->Release(self->req_body);
+    old_body = self->req_body;
+    old_body_stm = self->req_body_stream;
     self->req_body = (xhr2_seq_stream_if *)body;
     if (self->req_body) self->req_body->lpVtbl->AddRef(self->req_body);
+    self->req_body_stream = body_stm;
     self->req_body_len = cb_body;
-    self->aborted = 0;
+    InterlockedExchange(&self->aborted, 0);
     LeaveCriticalSection(&self->lock);
+    if (old_body_stm) old_body_stm->lpVtbl->Release(old_body_stm);
+    if (old_body) old_body->lpVtbl->Release(old_body);
 
     xhr2_AddRef(self);
     th = CreateThread(NULL, 0, xhr2_worker, self, 0, NULL);
@@ -782,13 +894,7 @@ static HRESULT __stdcall xhr2_Send(xhr2_obj *self, void *body, ULONGLONG cb_body
 
 static HRESULT __stdcall xhr2_Abort(xhr2_obj *self)
 {
-    xhr_hinet req;
-    EnterCriticalSection(&self->lock);
-    self->aborted = 1;
-    req = self->active_req;
-    self->active_req = NULL;
-    LeaveCriticalSection(&self->lock);
-    if (req && g_in.close_handle) g_in.close_handle(req);
+    InterlockedExchange(&self->aborted, 1);
     return S_OK;
 }
 
@@ -801,20 +907,27 @@ static HRESULT __stdcall xhr2_SetCookie(xhr2_obj *self, const void *cookie, DWOR
 
 static HRESULT __stdcall xhr2_SetCustomResponseStream(xhr2_obj *self, void *stream)
 {
+    IStream *stm = xhr2_marshal_if(stream, &XHR2_IID_ISequentialStream);
+    xhr2_seq_stream_if *old_stream;
+    IStream *old_stm;
     EnterCriticalSection(&self->lock);
-    if (self->custom_stream) self->custom_stream->lpVtbl->Release(self->custom_stream);
+    old_stream = self->custom_stream;
+    old_stm = self->custom_stream_m;
     self->custom_stream = (xhr2_seq_stream_if *)stream;
     if (self->custom_stream) self->custom_stream->lpVtbl->AddRef(self->custom_stream);
+    self->custom_stream_m = stm;
     LeaveCriticalSection(&self->lock);
+    if (old_stm) old_stm->lpVtbl->Release(old_stm);
+    if (old_stream) old_stream->lpVtbl->Release(old_stream);
     return S_OK;
 }
 
 static HRESULT __stdcall xhr2_SetProperty(xhr2_obj *self, DWORD prop, ULONGLONG val)
 {
     EnterCriticalSection(&self->lock);
-    if (prop == 1 /* XHR_PROP_TIMEOUT */) {
+    if (prop == XHR2_PROP_TIMEOUT) {
         self->timeout_ms = (DWORD)val;
-    } else if (prop == 7 /* XHR_PROP_REPORT_REDIRECT_STATUS */) {
+    } else if (prop == XHR2_PROP_REPORT_REDIRECT_STATUS) {
         self->report_redirect = (val != 0);
     }
     LeaveCriticalSection(&self->lock);

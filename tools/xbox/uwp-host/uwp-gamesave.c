@@ -79,18 +79,27 @@ static gs_create_hstring_fn gs_fn_create;
 static gs_hstring_buf_fn gs_fn_raw;
 static gs_delete_hstring_fn gs_fn_delete;
 static gs_dup_hstring_fn gs_fn_dup;
+static INIT_ONCE gs_hstring_once = INIT_ONCE_STATIC_INIT;
 
-static void gs_load_hstring(void)
+static BOOL CALLBACK gs_load_hstring_once(PINIT_ONCE once, PVOID param, PVOID *ctx)
 {
     HMODULE combase;
-    if (gs_fn_create) return;
+    (void)once;
+    (void)param;
+    (void)ctx;
     combase = GetModuleHandleA("combase.dll");
     if (!combase) combase = LoadLibraryA("combase.dll");
-    if (!combase) return;
+    if (!combase) return TRUE;
     gs_fn_create = (gs_create_hstring_fn)(void *)GetProcAddress(combase, "WindowsCreateString");
     gs_fn_raw = (gs_hstring_buf_fn)(void *)GetProcAddress(combase, "WindowsGetStringRawBuffer");
     gs_fn_delete = (gs_delete_hstring_fn)(void *)GetProcAddress(combase, "WindowsDeleteString");
     gs_fn_dup = (gs_dup_hstring_fn)(void *)GetProcAddress(combase, "WindowsDuplicateString");
+    return TRUE;
+}
+
+static void gs_load_hstring(void)
+{
+    InitOnceExecuteOnce(&gs_hstring_once, gs_load_hstring_once, NULL, NULL);
 }
 
 static hstring_t gs_hstr(const WCHAR *s)
@@ -393,10 +402,14 @@ static void gs_delete_tree(const WCHAR *dir)
             WCHAR sub[MAX_PATH * 2];
             _snwprintf(sub, sizeof(sub) / sizeof(sub[0]), L"%ls\\%ls", dir, fd.cFileName);
             sub[sizeof(sub) / sizeof(sub[0]) - 1] = 0;
-            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                gs_delete_tree(sub);
-            else
+            if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                if (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+                    RemoveDirectoryW(sub);
+                else
+                    gs_delete_tree(sub);
+            } else {
                 DeleteFileW(sub);
+            }
         } while (FindNextFileW(h, &fd));
         FindClose(h);
     }
@@ -621,8 +634,11 @@ typedef struct {
     INT64 i64_val;
     UINT32 u32_val;
     void *handler;
+    IStream *handler_stream;
     LONG fired;
-    LONG status; /* 0 = Started, 1 = Completed */
+    LONG status; /* 0 = Started, 1 = Completed, 2 = Canceled, 3 = Error */
+    LONG cancel_requested;
+    HRESULT error_code;
     HANDLE done_ev;
     CRITICAL_SECTION lock;
 } gs_async;
@@ -646,6 +662,10 @@ static ULONG __stdcall gs_async_Release(gs_async *self)
         if (self->done_ev) {
             CloseHandle(self->done_ev);
             DeleteCriticalSection(&self->lock);
+        }
+        if (self->handler_stream) {
+            self->handler_stream->lpVtbl->Release(self->handler_stream);
+            self->handler_stream = NULL;
         }
         gs_unk_release(self->obj_val);
         gs_unk_release(self->handler);
@@ -682,18 +702,39 @@ static HRESULT __stdcall gs_async_name(gs_async *self, hstring_t *out)
 static HRESULT __stdcall gs_async_put_Completed(gs_async *self, void *handler)
 {
     void *old = NULL;
+    IStream *old_stream = NULL;
+    IStream *new_stream = NULL;
     void *invoke = NULL;
+    INT32 final_status = 1;
 
     if (self->done_ev) {
+        if (handler) {
+            void *agile = NULL;
+            /* Non-agile STA delegates need apartment marshaling for the MTA worker. */
+            if (FAILED(gs_unk_qi(handler, &gs_iid_agile, &agile)) || !agile) {
+                CoMarshalInterThreadInterfaceInStream(&gs_iid_unknown, (IUnknown *)handler,
+                                                      &new_stream);
+            } else {
+                gs_unk_release(agile);
+            }
+        }
         EnterCriticalSection(&self->lock);
         old = self->handler;
+        old_stream = self->handler_stream;
         self->handler = handler;
+        self->handler_stream = NULL;
         gs_unk_addref(handler);
-        if (handler && self->status == 1 && InterlockedExchange(&self->fired, 1) == 0) {
+        if (handler && self->status != 0 && InterlockedExchange(&self->fired, 1) == 0) {
             invoke = handler;
+            final_status = (INT32)self->status;
             gs_unk_addref(invoke);
+        } else if (handler && self->status == 0) {
+            self->handler_stream = new_stream;
+            new_stream = NULL;
         }
         LeaveCriticalSection(&self->lock);
+        if (new_stream) new_stream->lpVtbl->Release(new_stream);
+        if (old_stream) old_stream->lpVtbl->Release(old_stream);
         gs_unk_release(old);
     } else {
         old = self->handler;
@@ -702,12 +743,14 @@ static HRESULT __stdcall gs_async_put_Completed(gs_async *self, void *handler)
         gs_unk_release(old);
         if (handler && InterlockedExchange(&self->fired, 1) == 0) {
             invoke = handler;
+            final_status = 1;
             gs_unk_addref(invoke);
         }
     }
     if (invoke) {
         gs_async_AddRef(self);
-        ((HRESULT(__stdcall *)(void *, void *, INT32))(*(void ***)invoke)[3])(invoke, self, 1);
+        ((HRESULT(__stdcall *)(void *, void *, INT32))(*(void ***)invoke)[3])(invoke, self,
+                                                                               final_status);
         gs_async_Release(self);
         gs_unk_release(invoke);
     }
@@ -731,9 +774,19 @@ static HRESULT __stdcall gs_async_get_Completed(gs_async *self, void **out)
 
 static HRESULT __stdcall gs_async_GetResults(gs_async *self, void *out)
 {
+    INT32 st;
     if (!out) return E_POINTER;
     if (self->done_ev && InterlockedCompareExchange(&self->status, 0, 0) == 0)
         WaitForSingleObject(self->done_ev, INFINITE);
+    st = self->done_ev ? (INT32)InterlockedCompareExchange(&self->status, 0, 0) : 1;
+    if (st == 2) {
+        if (self->kind == GS_ASYNC_OBJ) *(void **)out = NULL;
+        return E_ABORT;
+    }
+    if (st == 3) {
+        if (self->kind == GS_ASYNC_OBJ) *(void **)out = NULL;
+        return FAILED(self->error_code) ? self->error_code : E_FAIL;
+    }
     if (self->kind == GS_ASYNC_OBJ) {
         *(void **)out = self->obj_val;
         gs_unk_addref(self->obj_val);
@@ -783,14 +836,15 @@ static HRESULT __stdcall gs_ainfo_Status(void *iface, INT32 *out)
 }
 static HRESULT __stdcall gs_ainfo_ErrorCode(void *iface, HRESULT *out)
 {
-    (void)iface;
+    gs_async *a = gs_async_from_info(iface);
     if (!out) return E_POINTER;
-    *out = S_OK;
+    *out = a->error_code;
     return S_OK;
 }
 static HRESULT __stdcall gs_ainfo_Cancel(void *iface)
 {
-    (void)iface;
+    gs_async *a = gs_async_from_info(iface);
+    InterlockedExchange(&a->cancel_requested, 1);
     return S_OK;
 }
 static HRESULT __stdcall gs_ainfo_Close(void *iface)
@@ -844,25 +898,51 @@ static gs_async *gs_async_new_pending(const GUID *op_iid, const char *name)
     return a;
 }
 
-static void gs_async_complete_obj(gs_async *a, void *obj)
+static void gs_async_complete_status(gs_async *a, void *obj, LONG final_status, HRESULT err_code)
 {
     void *invoke = NULL;
+    IStream *stream = NULL;
     EnterCriticalSection(&a->lock);
-    a->obj_val = obj;
-    gs_unk_addref(obj);
-    InterlockedExchange(&a->status, 1);
+    if (final_status == 1 && InterlockedCompareExchange(&a->cancel_requested, 0, 0) != 0) {
+        final_status = 2; /* AsyncStatus_Canceled */
+        err_code = E_ABORT;
+    }
+    if (final_status == 1) {
+        a->obj_val = obj;
+        gs_unk_addref(obj);
+    }
+    a->error_code = err_code;
+    InterlockedExchange(&a->status, final_status);
     if (a->handler && InterlockedExchange(&a->fired, 1) == 0) {
-        invoke = a->handler;
-        gs_unk_addref(invoke);
+        if (a->handler_stream) {
+            stream = a->handler_stream;
+            a->handler_stream = NULL;
+        } else {
+            invoke = a->handler;
+            gs_unk_addref(invoke);
+        }
     }
     SetEvent(a->done_ev);
     LeaveCriticalSection(&a->lock);
+    if (stream) {
+        void *unmarshaled = NULL;
+        if (SUCCEEDED(CoGetInterfaceAndReleaseStream(stream, &gs_iid_unknown, &unmarshaled)) &&
+            unmarshaled) {
+            invoke = unmarshaled;
+        }
+    }
     if (invoke) {
         gs_async_AddRef(a);
-        ((HRESULT(__stdcall *)(void *, void *, INT32))(*(void ***)invoke)[3])(invoke, a, 1);
+        ((HRESULT(__stdcall *)(void *, void *, INT32))(*(void ***)invoke)[3])(
+            invoke, a, (INT32)final_status);
         gs_async_Release(a);
         gs_unk_release(invoke);
     }
+}
+
+static void gs_async_complete_obj(gs_async *a, void *obj)
+{
+    gs_async_complete_status(a, obj, 1, S_OK);
 }
 
 static gs_async *gs_async_new_i64(INT64 val)
@@ -1446,23 +1526,28 @@ static gs_mapview *gs_map_create(void)
     return m;
 }
 
-static void gs_map_put(gs_mapview *m, const WCHAR *key, void *buf_iface)
+static int gs_map_put(gs_mapview *m, const WCHAR *key, void *buf_iface)
 {
     gs_kvp *kv = (gs_kvp *)calloc(1, sizeof(gs_kvp));
     gs_kvp **n;
-    if (!kv) return;
+    if (!kv) return 0;
     kv->vtbl = gs_kvp_vtable;
     kv->refs = 1;
     kv->key = gs_wcsdup(key);
+    if (key && !kv->key) {
+        free(kv);
+        return 0;
+    }
     kv->val = buf_iface;
     gs_unk_addref(buf_iface);
     n = (gs_kvp **)realloc(m->entries, (m->count + 1) * sizeof(gs_kvp *));
     if (!n) {
         gs_kvp_Release(kv);
-        return;
+        return 0;
     }
     m->entries = n;
     m->entries[m->count++] = kv;
+    return 1;
 }
 
 /* --------------------------------------------------------------- Result objects */
@@ -1687,10 +1772,13 @@ static HRESULT __stdcall gs_bq_GetWithRange(gs_bquery *self, UINT32 start, UINT3
     gs_vecview *vec;
     gs_result *res;
     if (!out) return E_POINTER;
+    *out = NULL;
     vec = gs_scan_blobs(self->dir, self->prefix, start, max_n);
+    if (!vec) return E_OUTOFMEMORY;
     res = gs_res_new(&gs_iid_blob_info_get,
                      "Windows.Gaming.XboxLive.Storage.GameSaveBlobInfoGetResult", GS_OK, vec);
     gs_vec_Release(vec);
+    if (!res) return E_OUTOFMEMORY;
     *out = gs_async_new_obj(&gs_iid_async_blob_info_get,
                             "Windows.Foundation.IAsyncOperation`1<GameSaveBlobInfoGetResult>", res);
     gs_res_Release(res);
@@ -1993,11 +2081,14 @@ static HRESULT __stdcall gs_cq_GetWithRange(gs_cquery *self, UINT32 start, UINT3
     gs_vecview *vec;
     gs_result *res;
     if (!out) return E_POINTER;
+    *out = NULL;
     vec = gs_scan_containers(self->root, self->prefix, start, max_n);
-    gs_log("ContainerInfoQuery::GetContainerInfoAsync -> count=%u", vec ? vec->count : 0);
+    if (!vec) return E_OUTOFMEMORY;
+    gs_log("ContainerInfoQuery::GetContainerInfoAsync -> count=%u", vec->count);
     res = gs_res_new(&gs_iid_cont_info_get,
                      "Windows.Gaming.XboxLive.Storage.GameSaveContainerInfoGetResult", GS_OK, vec);
     gs_vec_Release(vec);
+    if (!res) return E_OUTOFMEMORY;
     *out = gs_async_new_obj(&gs_iid_async_cont_info_get,
                             "Windows.Foundation.IAsyncOperation`1<GameSaveContainerInfoGetResult>",
                             res);
@@ -2057,6 +2148,8 @@ typedef struct gs_upload_item {
     struct gs_upload_item *next;
     WCHAR *name;
     WCHAR *dir;
+    int attempts;
+    ULONGLONG retry_after;
 } gs_upload_item;
 
 typedef struct gs_provider gs_provider;
@@ -2637,12 +2730,19 @@ static int gs_copy_existing_files(const WCHAR *src_dir, const WCHAR *dst_dir)
     WCHAR pat[MAX_PATH * 2];
     WIN32_FIND_DATAW fd;
     HANDLE h;
+    DWORD err;
     int n;
-    if (GetFileAttributesW(src_dir) == INVALID_FILE_ATTRIBUTES) return 1;
+    if (GetFileAttributesW(src_dir) == INVALID_FILE_ATTRIBUTES) {
+        err = GetLastError();
+        return (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND) ? 1 : 0;
+    }
     n = _snwprintf(pat, sizeof(pat) / sizeof(pat[0]), L"%ls\\*", src_dir);
     if (n < 0 || (size_t)n >= sizeof(pat) / sizeof(pat[0])) return 0;
     h = FindFirstFileW(pat, &fd);
-    if (h == INVALID_HANDLE_VALUE) return 1;
+    if (h == INVALID_HANDLE_VALUE) {
+        err = GetLastError();
+        return (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND) ? 1 : 0;
+    }
     do {
         WCHAR sfile[MAX_PATH * 2], dfile[MAX_PATH * 2];
         int ns, nd;
@@ -2657,8 +2757,9 @@ static int gs_copy_existing_files(const WCHAR *src_dir, const WCHAR *dst_dir)
             return 0;
         }
     } while (FindNextFileW(h, &fd));
+    err = GetLastError();
     FindClose(h);
-    return 1;
+    return (err == ERROR_NO_MORE_FILES) ? 1 : 0;
 }
 
 static INT32 gs_write_ibuffer_blob(const WCHAR *dir, const WCHAR *bname, void *ibuf, int *wrote)
@@ -2737,15 +2838,18 @@ static HRESULT gs_submit_atomic(gs_container *self, void *blobs_to_write, void *
             void *iter = NULL;
             if (SUCCEEDED(((HRESULT(__stdcall *)(void *, void **))(*(void ***)iterable)[6])(iterable, &iter)) && iter) {
                 BYTE has = 0;
-                ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[7])(iter, &has);
+                if (FAILED(((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[7])(iter, &has))) {
+                    status = GS_ABORT;
+                    has = 0;
+                }
                 while (has && status == GS_OK) {
                     void *kvp = NULL;
                     if (SUCCEEDED(((HRESULT(__stdcall *)(void *, void **))(*(void ***)iter)[6])(iter, &kvp)) && kvp) {
                         hstring_t hkey = NULL;
                         void *ibuf = NULL;
-                        ((HRESULT(__stdcall *)(void *, hstring_t *))(*(void ***)kvp)[6])(kvp, &hkey);
-                        ((HRESULT(__stdcall *)(void *, void **))(*(void ***)kvp)[7])(kvp, &ibuf);
-                        if (!hkey || !ibuf) {
+                        HRESULT hr_k = ((HRESULT(__stdcall *)(void *, hstring_t *))(*(void ***)kvp)[6])(kvp, &hkey);
+                        HRESULT hr_v = ((HRESULT(__stdcall *)(void *, void **))(*(void ***)kvp)[7])(kvp, &ibuf);
+                        if (FAILED(hr_k) || FAILED(hr_v) || !hkey || !ibuf) {
                             status = GS_ABORT;
                         } else {
                             const WCHAR *bk = gs_hstr_raw(hkey);
@@ -2762,7 +2866,11 @@ static HRESULT gs_submit_atomic(gs_container *self, void *blobs_to_write, void *
                         status = GS_ABORT;
                     }
                     has = 0;
-                    ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[8])(iter, &has);
+                    if (status == GS_OK &&
+                        FAILED(((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[8])(iter, &has))) {
+                        status = GS_ABORT;
+                        has = 0;
+                    }
                 }
                 gs_unk_release(iter);
             } else {
@@ -2780,15 +2888,18 @@ static HRESULT gs_submit_atomic(gs_container *self, void *blobs_to_write, void *
             void *iter = NULL;
             if (SUCCEEDED(((HRESULT(__stdcall *)(void *, void **))(*(void ***)iterable)[6])(iterable, &iter)) && iter) {
                 BYTE has = 0;
-                ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[7])(iter, &has);
+                if (FAILED(((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[7])(iter, &has))) {
+                    status = GS_ABORT;
+                    has = 0;
+                }
                 while (has && status == GS_OK) {
                     void *kvp = NULL;
                     if (SUCCEEDED(((HRESULT(__stdcall *)(void *, void **))(*(void ***)iter)[6])(iter, &kvp)) && kvp) {
                         hstring_t hkey = NULL;
                         void *val = NULL;
-                        ((HRESULT(__stdcall *)(void *, hstring_t *))(*(void ***)kvp)[6])(kvp, &hkey);
-                        ((HRESULT(__stdcall *)(void *, void **))(*(void ***)kvp)[7])(kvp, &val);
-                        if (!hkey || !val) {
+                        HRESULT hr_k = ((HRESULT(__stdcall *)(void *, hstring_t *))(*(void ***)kvp)[6])(kvp, &hkey);
+                        HRESULT hr_v = ((HRESULT(__stdcall *)(void *, void **))(*(void ***)kvp)[7])(kvp, &val);
+                        if (FAILED(hr_k) || FAILED(hr_v) || !hkey || !val) {
                             status = GS_ABORT;
                         } else {
                             void *ibuf = NULL;
@@ -2811,7 +2922,11 @@ static HRESULT gs_submit_atomic(gs_container *self, void *blobs_to_write, void *
                         status = GS_ABORT;
                     }
                     has = 0;
-                    ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[8])(iter, &has);
+                    if (status == GS_OK &&
+                        FAILED(((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[8])(iter, &has))) {
+                        status = GS_ABORT;
+                        has = 0;
+                    }
                 }
                 gs_unk_release(iter);
             } else {
@@ -2829,7 +2944,10 @@ static HRESULT gs_submit_atomic(gs_container *self, void *blobs_to_write, void *
             void *iter = NULL;
             if (SUCCEEDED(((HRESULT(__stdcall *)(void *, void **))(*(void ***)iterable)[6])(iterable, &iter)) && iter) {
                 BYTE has = 0;
-                ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[7])(iter, &has);
+                if (FAILED(((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[7])(iter, &has))) {
+                    status = GS_ABORT;
+                    has = 0;
+                }
                 while (has && status == GS_OK) {
                     hstring_t hkey = NULL;
                     if (SUCCEEDED(((HRESULT(__stdcall *)(void *, hstring_t *))(*(void ***)iter)[6])(iter, &hkey)) && hkey) {
@@ -2846,9 +2964,15 @@ static HRESULT gs_submit_atomic(gs_container *self, void *blobs_to_write, void *
                             }
                         }
                         gs_hstr_free(hkey);
+                    } else {
+                        status = GS_ABORT;
                     }
                     has = 0;
-                    ((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[8])(iter, &has);
+                    if (status == GS_OK &&
+                        FAILED(((HRESULT(__stdcall *)(void *, BYTE *))(*(void ***)iter)[8])(iter, &has))) {
+                        status = GS_ABORT;
+                        has = 0;
+                    }
                 }
                 gs_unk_release(iter);
             } else {
@@ -2885,8 +3009,10 @@ cleanup:
 
 finish:
     gs_log("Container::SubmitUpdatesAsync(%ls) wrote=%d deleted=%d status=%d", self->name, wrote, deleted, status);
+    *out = NULL;
     res = gs_res_new(&gs_iid_op_result, "Windows.Gaming.XboxLive.Storage.GameSaveOperationResult",
                      status, NULL);
+    if (!res) return E_OUTOFMEMORY;
     *out = gs_async_new_obj(&gs_iid_async_op_result,
                             "Windows.Foundation.IAsyncOperation`1<GameSaveOperationResult>", res);
     gs_res_Release(res);
@@ -2948,18 +3074,27 @@ static HRESULT __stdcall gs_cont_ReadAsync(gs_container *self, void *blobs_to_re
                                 } else {
                                     void *bba = NULL;
                                     BYTE *dst = NULL;
-                                    if (SUCCEEDED(gs_unk_qi(ibuf, &gs_iid_ibuffer_bytes, &bba)) &&
-                                        bba) {
+                                    int copied = 0;
+                                    if (flen == 0) {
+                                        copied = 1;
+                                    } else if (SUCCEEDED(gs_unk_qi(ibuf, &gs_iid_ibuffer_bytes,
+                                                                   &bba)) &&
+                                               bba) {
                                         if (SUCCEEDED(((HRESULT(__stdcall *)(void *, BYTE **))(
                                                 *(void ***)bba)[3])(bba, &dst)) &&
-                                            dst && flen > 0) {
+                                            dst) {
                                             memcpy(dst, fdata, flen);
+                                            copied = 1;
                                         }
                                         gs_unk_release(bba);
                                     }
-                                    ((HRESULT(__stdcall *)(void *, UINT32))(*(void ***)ibuf)[8])(
-                                        ibuf, flen);
-                                    read_n++;
+                                    if (!copied ||
+                                        FAILED(((HRESULT(__stdcall *)(void *, UINT32))(
+                                            *(void ***)ibuf)[8])(ibuf, flen))) {
+                                        status = GS_ABORT;
+                                    } else {
+                                        read_n++;
+                                    }
                                 }
                                 free(fdata);
                             }
@@ -2978,8 +3113,10 @@ static HRESULT __stdcall gs_cont_ReadAsync(gs_container *self, void *blobs_to_re
     }
 
     gs_log("Container::ReadAsync(%ls) count=%d status=%d", self->name, read_n, status);
+    *out = NULL;
     res = gs_res_new(&gs_iid_op_result, "Windows.Gaming.XboxLive.Storage.GameSaveOperationResult",
                      status, NULL);
+    if (!res) return E_OUTOFMEMORY;
     *out = gs_async_new_obj(&gs_iid_async_op_result,
                             "Windows.Foundation.IAsyncOperation`1<GameSaveOperationResult>", res);
     gs_res_Release(res);
@@ -2988,14 +3125,14 @@ static HRESULT __stdcall gs_cont_ReadAsync(gs_container *self, void *blobs_to_re
 
 static HRESULT __stdcall gs_cont_GetAsync(gs_container *self, void *blobs_to_read, void **out)
 {
-    gs_mapview *map = gs_map_create();
+    gs_mapview *map;
     INT32 status = GS_OK;
     gs_result *res;
 
-    if (!out) {
-        if (map) gs_map_Release(map);
-        return E_POINTER;
-    }
+    if (!out) return E_POINTER;
+    *out = NULL;
+    map = gs_map_create();
+    if (!map) return E_OUTOFMEMORY;
 
     if (blobs_to_read) {
         void *iterable = NULL;
@@ -3022,8 +3159,10 @@ static HRESULT __stdcall gs_cont_GetAsync(gs_container *self, void *blobs_to_rea
                         }
                         if (fdata) {
                             gs_buffer *buf = gs_buf_create_owned(fdata, flen);
-                            if (buf) {
-                                gs_map_put(map, bname, buf);
+                            if (!buf || !gs_map_put(map, bname, buf)) {
+                                if (buf) gs_buf_Release(buf);
+                                status = GS_ABORT;
+                            } else {
                                 gs_buf_Release(buf);
                             }
                         } else {
@@ -3061,8 +3200,10 @@ static HRESULT __stdcall gs_cont_GetAsync(gs_container *self, void *blobs_to_rea
                 fdata = gs_read_file_all(bpath, &flen);
                 if (fdata) {
                     gs_buffer *buf = gs_buf_create_owned(fdata, flen);
-                    if (buf) {
-                        gs_map_put(map, decoded, buf);
+                    if (!buf || !gs_map_put(map, decoded, buf)) {
+                        if (buf) gs_buf_Release(buf);
+                        status = GS_ABORT;
+                    } else {
                         gs_buf_Release(buf);
                     }
                 }
@@ -3071,10 +3212,11 @@ static HRESULT __stdcall gs_cont_GetAsync(gs_container *self, void *blobs_to_rea
         }
     }
 
-    gs_log("Container::GetAsync(%ls) found=%u status=%d", self->name, map ? map->count : 0, status);
+    gs_log("Container::GetAsync(%ls) found=%u status=%d", self->name, map->count, status);
     res = gs_res_new(&gs_iid_blob_get, "Windows.Gaming.XboxLive.Storage.GameSaveBlobGetResult",
                      status, map);
     gs_map_Release(map);
+    if (!res) return E_OUTOFMEMORY;
     *out = gs_async_new_obj(&gs_iid_async_blob_get,
                             "Windows.Foundation.IAsyncOperation`1<GameSaveBlobGetResult>", res);
     gs_res_Release(res);
@@ -3396,7 +3538,8 @@ static void gs_cloud_unlock(gs_provider *prov, int uploaded)
 }
 
 static int gs_cloud_download_container(gs_provider *prov, const char *name_u8,
-                                       const char *display_u8, const char *remote_time)
+                                       const char *display_u8, const char *remote_time,
+                                       const WCHAR *backup_dir, int *backup_made)
 {
     char *enc_url = NULL;
     char subpath[1024];
@@ -3405,6 +3548,7 @@ static int gs_cloud_download_container(gs_provider *prov, const char *name_u8,
     const char *atoms_obj, *cur;
     WCHAR *name_w = NULL, *disp_w = NULL;
     WCHAR enc_dir[260], target_dir[MAX_PATH * 2], stage_dir[MAX_PATH * 2], old_dir[MAX_PATH * 2];
+    WCHAR backup_dst[MAX_PATH * 2];
     gs_cloud_meta existing_meta, new_meta;
     INT64 remote_ft;
     int ok = 0, blobs_dl = 0, blobs_reused = 0, had_existing = 0;
@@ -3537,15 +3681,29 @@ static int gs_cloud_download_container(gs_provider *prov, const char *name_u8,
     if (!gs_cloud_meta_save(stage_dir, &new_meta)) goto done;
 
     had_existing = (GetFileAttributesW(target_dir) != INVALID_FILE_ATTRIBUTES);
-    if (had_existing) {
-        gs_delete_tree(old_dir);
-        if (!MoveFileW(target_dir, old_dir)) goto done;
+    if (had_existing && backup_dir && backup_dir[0]) {
+        if (!gs_ensure_dir(backup_dir) ||
+            _snwprintf(backup_dst, sizeof(backup_dst) / sizeof(backup_dst[0]), L"%ls\\%ls",
+                       backup_dir, enc_dir) < 0)
+            goto done;
+        gs_delete_tree(backup_dst);
+        if (!MoveFileW(target_dir, backup_dst)) goto done;
+        if (!MoveFileW(stage_dir, target_dir)) {
+            MoveFileW(backup_dst, target_dir);
+            goto done;
+        }
+        if (backup_made) *backup_made = 1;
+    } else {
+        if (had_existing) {
+            gs_delete_tree(old_dir);
+            if (!MoveFileW(target_dir, old_dir)) goto done;
+        }
+        if (!MoveFileW(stage_dir, target_dir)) {
+            if (had_existing) MoveFileW(old_dir, target_dir);
+            goto done;
+        }
+        if (had_existing) gs_delete_tree(old_dir);
     }
-    if (!MoveFileW(stage_dir, target_dir)) {
-        if (had_existing) MoveFileW(old_dir, target_dir);
-        goto done;
-    }
-    if (had_existing) gs_delete_tree(old_dir);
     ok = 1;
     gs_log("cloud download container '%s' ok (downloaded=%d reused=%d time=%s)",
            name_u8, blobs_dl, blobs_reused, remote_time ? remote_time : "");
@@ -3677,10 +3835,25 @@ static int gs_cloud_upload_container(gs_provider *prov, const WCHAR *name_w, con
 
     if (!gs_cloud_lock(prov)) goto done;
 
+    /* Verify container directory still exists before enumerating/committing so a deleted
+     * container never uploads an empty manifest and wipes remote blobs. */
+    if (GetFileAttributesW(dir_w) == INVALID_FILE_ATTRIBUTES) {
+        gs_log("cloud upload container '%s' skipped (local directory gone)", name_u8);
+        goto done_unlock;
+    }
+
     _snwprintf(pat, sizeof(pat) / sizeof(pat[0]), L"%ls\\*", dir_w);
     pat[sizeof(pat) / sizeof(pat[0]) - 1] = 0;
     h = FindFirstFileW(pat, &fd);
-    if (h != INVALID_HANDLE_VALUE) {
+    if (h == INVALID_HANDLE_VALUE) {
+        DWORD err = GetLastError();
+        if (err != ERROR_FILE_NOT_FOUND && err != ERROR_PATH_NOT_FOUND) {
+            gs_log("cloud upload container '%s' FindFirstFileW failed err=%lu",
+                   name_u8, (unsigned long)err);
+            goto done_unlock;
+        }
+    } else {
+        DWORD find_err;
         do {
             WCHAR decoded[260], bpath[MAX_PATH * 2];
             char *bname_u8 = NULL;
@@ -3752,7 +3925,13 @@ static int gs_cloud_upload_container(gs_provider *prov, const WCHAR *name_w, con
             gs_cloud_meta_set_atom(&new_meta, bname_u8, atom);
             free(bname_u8);
         } while (FindNextFileW(h, &fd));
+        find_err = GetLastError();
         FindClose(h);
+        if (find_err != ERROR_NO_MORE_FILES) {
+            gs_log("cloud upload container '%s' enumeration interrupted err=%lu",
+                   name_u8, (unsigned long)find_err);
+            goto done_unlock;
+        }
     }
 
     for (i = 0; i < new_meta.count; i++)
@@ -3862,27 +4041,75 @@ static DWORD WINAPI gs_cloud_upload_thread(LPVOID arg)
 {
     gs_provider *prov = (gs_provider *)arg;
     HRESULT hr_com = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+    DWORD wait_ms = INFINITE;
 
     for (;;) {
-        WaitForSingleObject(prov->upload_ev, INFINITE);
+        WaitForSingleObject(prov->upload_ev, wait_ms);
+        wait_ms = INFINITE;
         for (;;) {
-            gs_upload_item *item = NULL;
-            int stopping = 0;
+            gs_upload_item *item = NULL, *cur, *prev = NULL;
+            ULONGLONG now = GetTickCount64();
+            ULONGLONG next_retry = 0;
+            int stopping = 0, uploaded = 0;
 
             EnterCriticalSection(&prov->upload_cs);
-            item = prov->upload_head;
-            if (item) prov->upload_head = item->next;
             stopping = prov->upload_stopping;
+            cur = prov->upload_head;
+            while (cur) {
+                if (stopping || cur->retry_after <= now) {
+                    item = cur;
+                    if (prev) prev->next = cur->next;
+                    else prov->upload_head = cur->next;
+                    item->next = NULL;
+                    break;
+                }
+                if (next_retry == 0 || cur->retry_after < next_retry)
+                    next_retry = cur->retry_after;
+                prev = cur;
+                cur = cur->next;
+            }
             LeaveCriticalSection(&prov->upload_cs);
 
             if (!item) {
                 if (stopping) goto done;
+                if (next_retry > now) {
+                    ULONGLONG diff = next_retry - now;
+                    wait_ms = diff > 60000ULL ? 60000U : (DWORD)diff;
+                }
                 break;
             }
 
             EnterCriticalSection(&prov->cloud_cs);
-            gs_cloud_upload_container(prov, item->name, item->dir, 0);
+            uploaded = gs_cloud_upload_container(prov, item->name, item->dir, 0);
             LeaveCriticalSection(&prov->cloud_cs);
+
+            if (!uploaded && item->attempts < 5 &&
+                GetFileAttributesW(item->dir) != INVALID_FILE_ATTRIBUTES) {
+                int requeued = 0;
+                EnterCriticalSection(&prov->upload_cs);
+                if (!prov->upload_stopping) {
+                    int superseded = 0;
+                    gs_upload_item **tail = &prov->upload_head;
+                    for (cur = prov->upload_head; cur; cur = cur->next) {
+                        if (wcscmp(cur->name, item->name) == 0) {
+                            superseded = 1;
+                            break;
+                        }
+                    }
+                    if (!superseded) {
+                        ULONGLONG delay = 2000ULL << item->attempts;
+                        item->attempts++;
+                        item->retry_after = GetTickCount64() + delay;
+                        while (*tail) tail = &(*tail)->next;
+                        *tail = item;
+                        requeued = 1;
+                        gs_log("cloud upload retry %d/5 scheduled for '%ls' in %llums",
+                               item->attempts, item->name, (unsigned long long)delay);
+                    }
+                }
+                LeaveCriticalSection(&prov->upload_cs);
+                if (requeued) continue;
+            }
 
             free(item->name);
             free(item->dir);
@@ -4105,13 +4332,18 @@ static void gs_maybe_migrate_legacy_root(const WCHAR *local_state, const WCHAR *
     gs_log("migrated pre-cloud local saves into per-account root %ls", xuid_root);
 }
 
-static void gs_cloud_sync(gs_provider *prov)
+static int gs_async_is_cancelled(gs_async *op)
+{
+    return op && InterlockedCompareExchange(&op->cancel_requested, 0, 0) != 0;
+}
+
+static void gs_cloud_sync(gs_provider *prov, gs_async *op)
 {
     gs_remote_cont *remotes = NULL;
     size_t rcount = 0, rcap = 0, i;
     char *cont_token = NULL;
     int page;
-    int any_local = 0, any_baseline = 0;
+    int any_local = 0, any_baseline = 0, first_sync_guard = 0, dl_failed = 0;
     WCHAR pat[MAX_PATH * 2];
     WIN32_FIND_DATAW fd;
     HANDLE h;
@@ -4119,6 +4351,7 @@ static void gs_cloud_sync(gs_provider *prov)
     int backup_made = 0;
     int dl_count = 0, ul_count = 0, skip_count = 0;
 
+    if (gs_async_is_cancelled(op)) return;
     if (prov->sync_mode == GS_SYNC_NONE) {
         gs_log("cloud sync disabled (XODUS_SAVE_SYNC=none)");
         return;
@@ -4267,33 +4500,26 @@ static void gs_cloud_sync(gs_provider *prov)
     backup_dir[sizeof(backup_dir) / sizeof(backup_dir[0]) - 1] = 0;
 
     /* First-sync safety guard: if cloud already has saves and local has only unsynced saves
-     * (created before cloud sync existed), back up local and pull the full consistent cloud set
-     * so we never corrupt or overwrite the user's real Xbox/PC save! */
-    if (rcount > 0 && any_local && !any_baseline && prov->sync_mode != GS_SYNC_UPLOAD) {
-        gs_log("cloud sync: unsynced local save detected alongside %u cloud containers; backing up local",
+     * (created before cloud sync existed), stage replacement downloads BEFORE moving local
+     * saves to backup so a network failure never leaves the playable save path empty. */
+    first_sync_guard = (rcount > 0 && any_local && !any_baseline &&
+                        prov->sync_mode != GS_SYNC_UPLOAD);
+    if (first_sync_guard) {
+        gs_log("cloud sync: unsynced local save detected alongside %u cloud containers; "
+               "will back up local containers on replacement",
                (unsigned)rcount);
-        h = FindFirstFileW(pat, &fd);
-        if (h != INVALID_HANDLE_VALUE) {
-            do {
-                if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
-                if (fd.cFileName[0] == L'.') continue;
-                if (gs_has_suffix(fd.cFileName, GS_STAGE_SUFFIX) ||
-                    gs_has_suffix(fd.cFileName, GS_OLD_SUFFIX))
-                    continue;
-                gs_backup_local_container(prov->root, fd.cFileName, backup_dir);
-                backup_made = 1;
-            } while (FindNextFileW(h, &fd));
-            FindClose(h);
-        }
     }
 
     /* Reconcile every remote container */
     for (i = 0; i < rcount; i++) {
-        WCHAR *nw = gs_u82w(remotes[i].name);
+        WCHAR *nw;
         WCHAR enc[260], ldir[MAX_PATH * 2];
         gs_cloud_meta lm;
         int exists;
 
+        if (gs_async_is_cancelled(op)) goto cleanup;
+
+        nw = gs_u82w(remotes[i].name);
         if (!nw || !gs_encode_name(nw, enc, sizeof(enc) / sizeof(enc[0]))) {
             free(nw);
             continue;
@@ -4306,19 +4532,30 @@ static void gs_cloud_sync(gs_provider *prov)
 
         if (prov->sync_mode == GS_SYNC_UPLOAD && exists) {
             if (gs_cloud_upload_container(prov, nw, ldir, 1)) ul_count++;
+        } else if (first_sync_guard) {
+            if (gs_cloud_download_container(prov, remotes[i].name, remotes[i].display,
+                                            remotes[i].time, exists ? backup_dir : NULL,
+                                            &backup_made)) {
+                dl_count++;
+            } else {
+                dl_failed++;
+            }
         } else if (!exists) {
-            if (gs_cloud_download_container(prov, remotes[i].name, remotes[i].display, remotes[i].time))
+            if (gs_cloud_download_container(prov, remotes[i].name, remotes[i].display,
+                                            remotes[i].time, NULL, NULL))
                 dl_count++;
         } else if (prov->sync_mode == GS_SYNC_DOWNLOAD) {
             if (!lm.dirty && lm.remote[0] && remotes[i].time && strcmp(lm.remote, remotes[i].time) == 0) {
                 skip_count++;
-            } else if (gs_cloud_download_container(prov, remotes[i].name, remotes[i].display, remotes[i].time)) {
+            } else if (gs_cloud_download_container(prov, remotes[i].name, remotes[i].display,
+                                                   remotes[i].time, NULL, NULL)) {
                 dl_count++;
             }
         } else if (!lm.dirty) {
             if (lm.remote[0] && remotes[i].time && strcmp(lm.remote, remotes[i].time) == 0) {
                 skip_count++;
-            } else if (gs_cloud_download_container(prov, remotes[i].name, remotes[i].display, remotes[i].time)) {
+            } else if (gs_cloud_download_container(prov, remotes[i].name, remotes[i].display,
+                                                   remotes[i].time, NULL, NULL)) {
                 dl_count++;
             }
         } else {
@@ -4327,14 +4564,14 @@ static void gs_cloud_sync(gs_provider *prov)
                 /* Clean local edit on top of current cloud baseline -> upload */
                 if (gs_cloud_upload_container(prov, nw, ldir, 0)) ul_count++;
             } else {
-                /* Conflict: compare timestamps; prefer cloud if newer/equal (back up local first) */
+                /* Conflict: compare timestamps; prefer cloud if newer/equal (backup atomically
+                 * only once replacement download is fully staged). */
                 INT64 rft = gs_iso_to_filetime(remotes[i].time);
                 INT64 lft = 0;
                 gs_dir_total_size(ldir, &lft);
                 if (!lm.remote[0] || rft >= lft) {
-                    gs_backup_local_container(prov->root, enc, backup_dir);
-                    backup_made = 1;
-                    if (gs_cloud_download_container(prov, remotes[i].name, remotes[i].display, remotes[i].time))
+                    if (gs_cloud_download_container(prov, remotes[i].name, remotes[i].display,
+                                                    remotes[i].time, backup_dir, &backup_made))
                         dl_count++;
                 } else {
                     if (gs_cloud_upload_container(prov, nw, ldir, 0)) ul_count++;
@@ -4346,6 +4583,8 @@ static void gs_cloud_sync(gs_provider *prov)
         free(nw);
     }
 
+    if (gs_async_is_cancelled(op)) goto cleanup;
+
     /* Reconcile local-only containers */
     if (prov->sync_mode != GS_SYNC_DOWNLOAD) {
         h = FindFirstFileW(pat, &fd);
@@ -4356,6 +4595,10 @@ static void gs_cloud_sync(gs_provider *prov)
                 int in_remote = 0;
                 gs_cloud_meta lm;
 
+                if (gs_async_is_cancelled(op)) {
+                    FindClose(h);
+                    goto cleanup;
+                }
                 if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
                 if (fd.cFileName[0] == L'.') continue;
                 if (gs_has_suffix(fd.cFileName, GS_STAGE_SUFFIX) ||
@@ -4373,7 +4616,14 @@ static void gs_cloud_sync(gs_provider *prov)
                 _snwprintf(ldir, sizeof(ldir) / sizeof(ldir[0]), L"%ls\\%ls", prov->root, fd.cFileName);
                 ldir[sizeof(ldir) / sizeof(ldir[0]) - 1] = 0;
                 gs_cloud_meta_load(ldir, &lm);
-                if (prov->sync_mode == GS_SYNC_UPLOAD) {
+                if (first_sync_guard) {
+                    /* Only move remaining unsynced local-only containers to backup if the full
+                     * remote save set downloaded cleanly. */
+                    if (dl_failed == 0) {
+                        gs_backup_local_container(prov->root, fd.cFileName, backup_dir);
+                        backup_made = 1;
+                    }
+                } else if (prov->sync_mode == GS_SYNC_UPLOAD) {
                     if (gs_cloud_upload_container(prov, decoded, ldir, 1)) ul_count++;
                 } else if (lm.dirty || !lm.remote[0]) {
                     if (gs_cloud_upload_container(prov, decoded, ldir, 0)) ul_count++;
@@ -4386,6 +4636,8 @@ static void gs_cloud_sync(gs_provider *prov)
             FindClose(h);
         }
     }
+
+    if (gs_async_is_cancelled(op)) goto cleanup;
 
     /* Start background upload thread for SubmitUpdatesAsync */
     if (prov->cloud_enabled && prov->sync_mode != GS_SYNC_DOWNLOAD) {
@@ -4426,12 +4678,20 @@ static DWORD WINAPI gs_open_worker(LPVOID arg)
     gs_result *res;
     HRESULT hr_com = CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
-    gs_cloud_sync(ctx->prov);
-    res = gs_res_new(&gs_iid_provider_get,
-                     "Windows.Gaming.XboxLive.Storage.GameSaveProviderGetResult",
-                     GS_OK, ctx->prov);
-    gs_async_complete_obj(ctx->op, res);
-    gs_res_Release(res);
+    gs_cloud_sync(ctx->prov, ctx->op);
+    if (gs_async_is_cancelled(ctx->op)) {
+        gs_async_complete_status(ctx->op, NULL, 2, E_ABORT);
+    } else {
+        res = gs_res_new(&gs_iid_provider_get,
+                         "Windows.Gaming.XboxLive.Storage.GameSaveProviderGetResult",
+                         GS_OK, ctx->prov);
+        if (res) {
+            gs_async_complete_obj(ctx->op, res);
+            gs_res_Release(res);
+        } else {
+            gs_async_complete_status(ctx->op, NULL, 3, E_OUTOFMEMORY);
+        }
+    }
     gs_prov_Release(ctx->prov);
     gs_async_Release(ctx->op);
     free(ctx);
