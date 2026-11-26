@@ -14,7 +14,7 @@ El launcher detecta juegos instalados de Steam y Epic Games. También relaciona 
 
 ## Ejecutar y empaquetar
 
-Necesita Node.js y npm en Windows.
+Para ejecutar o empaquetar desde el código necesita Node.js 22.12 o posterior y npm en Windows. El instalador generado funciona sin Node.js.
 
 ```powershell
 npm install

@@ -5,6 +5,9 @@
   "author": "DroidDeck contributors",
   "private": true,
   "license": "GPL-3.0-only",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
@@ -12,8 +15,8 @@
     "dist": "electron-builder --win nsis"
   },
   "devDependencies": {
-    "electron": "^41.7.1",
-    "electron-builder": "^26.18.0"
+    "electron": "45.5.0",
+    "electron-builder": "26.18.1"
   },
   "build": {
     "appId": "dev.droiddeck.launcher.windows",
