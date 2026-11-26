@@ -56,6 +56,18 @@ static void check_path_choice(void) {
     assert(!vkp_linear_dmabuf_through_buffer(1, linear, 1));
 }
 
+static void check_describable_layouts(void) {
+    const uint64_t linear = 0;
+    const uint64_t qcom_compressed = 0x0500000000000001ULL;
+    const uint64_t arm_afbc = 0x0800000000000001ULL;
+    assert(vkp_dmabuf_layout_describable(0, linear));
+    assert(vkp_dmabuf_layout_describable(1, linear));
+    assert(vkp_dmabuf_layout_describable(1, qcom_compressed));
+    assert(vkp_dmabuf_layout_describable(1, arm_afbc));
+    assert(!vkp_dmabuf_layout_describable(0, qcom_compressed));
+    assert(!vkp_dmabuf_layout_describable(0, arm_afbc));
+}
+
 static void check_foreign_image(void) {
     assert(vkp_linear_dmabuf_foreign_image(1, 0));
     assert(!vkp_linear_dmabuf_foreign_image(1, 1));
@@ -117,6 +129,7 @@ int main(void) {
     check_rejected_layouts();
     check_path_choice();
     check_padded_layer_targets();
+    check_describable_layouts();
     check_foreign_image();
     check_readback_order();
     check_ownership();
