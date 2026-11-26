@@ -337,12 +337,13 @@ static void VKAPI_CALL mock_set_blend_equation(VkCommandBuffer cmd, uint32_t fir
         driver_equation_count = first + count;
 }
 
-static const VkRenderingInfo *driver_rendering_info;
+static const VkRenderingInfo *caller_rendering_info;
+static bool driver_got_caller_info;
 static VkRenderingInfo driver_rendering;
 
 static void VKAPI_CALL mock_begin_rendering(VkCommandBuffer cmd, const VkRenderingInfo *info)
 {
-    driver_rendering_info = info;
+    driver_got_caller_info = info == caller_rendering_info;
     driver_rendering = *info;
 }
 
@@ -427,6 +428,12 @@ static bool same_attachment(const VkPipelineColorBlendAttachmentState *a, const 
     return !memcmp(a, b, sizeof(*a));
 }
 
+static void begin_rendering(PFN_vkCmdBeginRendering begin, VkCommandBuffer cmd, const VkRenderingInfo *info)
+{
+    caller_rendering_info = info;
+    begin(cmd, info);
+}
+
 static void test_empty_render_pass(void)
 {
     VkDevice device;
@@ -440,8 +447,8 @@ static void test_empty_render_pass(void)
 
     VkRenderingInfo empty = {.sType = VK_STRUCTURE_TYPE_RENDERING_INFO, .renderArea = {{0, 0}, {32768, 32768}},
                              .layerCount = 256};
-    begin(cmd, &empty);
-    assert(driver_rendering_info != &empty && driver_rendering.layerCount == 1);
+    begin_rendering(begin, cmd, &empty);
+    assert(!driver_got_caller_info && driver_rendering.layerCount == 1);
     assert(driver_rendering.renderArea.extent.width == 4096 && driver_rendering.renderArea.extent.height == 4096);
     assert(empty.renderArea.extent.width == 32768 && empty.layerCount == 256);
 
@@ -450,29 +457,29 @@ static void test_empty_render_pass(void)
     VkRenderingInfo drawn = empty;
     drawn.colorAttachmentCount = 1;
     drawn.pColorAttachments = &color;
-    begin_khr(cmd, &drawn);
-    assert(driver_rendering_info == &drawn);
+    begin_rendering(begin_khr, cmd, &drawn);
+    assert(driver_got_caller_info);
 
     VkRenderingAttachmentInfo unused = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
     drawn.pColorAttachments = &unused;
     drawn.pDepthAttachment = &unused;
     drawn.pStencilAttachment = &unused;
-    begin_khr(cmd, &drawn);
-    assert(driver_rendering_info != &drawn && driver_rendering.renderArea.extent.width == 4096);
+    begin_rendering(begin_khr, cmd, &drawn);
+    assert(!driver_got_caller_info && driver_rendering.renderArea.extent.width == 4096);
 
     VkRenderingInfo screen = {.sType = VK_STRUCTURE_TYPE_RENDERING_INFO, .renderArea = {{0, 0}, {1602, 720}},
                               .layerCount = 1};
-    begin(cmd, &screen);
-    assert(driver_rendering_info == &screen);
+    begin_rendering(begin, cmd, &screen);
+    assert(driver_got_caller_info);
 
     VkRenderingInfo multiview = empty;
     multiview.viewMask = 3;
-    begin(cmd, &multiview);
+    begin_rendering(begin, cmd, &multiview);
     assert(driver_rendering.renderArea.extent.height == 4096 && driver_rendering.viewMask == 3);
     assert(driver_rendering.layerCount == 256);
     multiview.renderArea.extent = screen.renderArea.extent;
-    begin(cmd, &multiview);
-    assert(driver_rendering_info == &multiview);
+    begin_rendering(begin, cmd, &multiview);
+    assert(driver_got_caller_info);
     destroy_device(device);
 }
 
