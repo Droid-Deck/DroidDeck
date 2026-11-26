@@ -682,6 +682,10 @@ def guest_environment(fex, env):
     if "aarch64" in result.get("GCONV_PATH", ""):
         result["GCONV_PATH"] = ""
     result.setdefault("GC_DISABLE_INCREMENTAL", "1")
+    if not result.get("COMPlus_INTERNAL_ThreadSuspendInjection"):
+        if not result.get("DOTNET_INTERNAL_ThreadSuspendInjection"):
+            result["DOTNET_INTERNAL_ThreadSuspendInjection"] = "0"
+        result["COMPlus_INTERNAL_ThreadSuspendInjection"] = result["DOTNET_INTERNAL_ThreadSuspendInjection"]
     if fex["portable"]:
         result["FEX_PORTABLE"] = "1"
     else:
