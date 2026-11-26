@@ -36,7 +36,7 @@ static void init_ddnatv_hook(void) {
             }
         }
     }
-    ddnatv_load_binds(getenv("DDNATV_BINDS"));
+    ddnatv_load_binds(getenv("DDNATV_BINDS"), getenv("DDNATV_BINDS_KERNEL"));
     const char *mount_table = getenv("DDNATV_MOUNTINFO");
     if (mount_table && mount_table[0] == '/' && strlen(mount_table) < sizeof(g_mount_table))
         ddnatv_copy_cstr(g_mount_table, sizeof(g_mount_table), mount_table);

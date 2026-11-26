@@ -178,10 +178,12 @@ class NativeHookMountTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_probe(self, *args, binds=None, mounts=None, syscalls=False):
+    def run_probe(self, *args, binds=None, mounts=None, syscalls=False, table=None):
         if binds is None:
             binds = f"{self.library}:/mnt/library|{self.private}:/mnt/private|{self.eqlen_src}:{self.eqlen_dst}"
         hook_env = {"DDNATV_ROOT": str(self.root), "DDNATV_BINDS": binds, "LD_PRELOAD": str(self.hook)}
+        if table is not None:
+            hook_env["DDNATV_BINDS_KERNEL"] = table
         if mounts is not None:
             table = Path(self.tmp.name) / f"mountinfo-{len(list(Path(self.tmp.name).glob('mountinfo-*')))}"
             table.write_text("".join(f"{i + 20} 1 0:{i + 40} / {point} rw - {kind} {source} rw\n"
@@ -205,6 +207,40 @@ class NativeHookMountTest(unittest.TestCase):
         self.assertEqual(out.returncode, 0, out.stderr)
         result = {line.split("\t")[0]: line.split("\t")[1:] for line in out.stdout.splitlines()}
         return (result, out.stderr) if syscalls else result
+
+    def bind_table(self, binds, *sources):
+        h = 1469598103934665603
+        for byte in binds.encode():
+            h = ((h ^ byte) * 1099511628211) & 0xFFFFFFFFFFFFFFFF
+        return "%016x" % h + "".join("|" + source for source in sources)
+
+    def test_a_bind_source_through_a_link_is_resolved_once_and_handed_to_children(self):
+        binds = f"{self.links}/hostdir:/mnt/viahost|{self.links}/hostdir:/mnt/again|/dev:/dev"
+        out, log = self.run_probe("cd:/mnt/viahost/sub/", "env:DDNATV_BINDS_KERNEL", binds=binds, syscalls=True)
+        self.assertEqual(["/mnt/viahost/sub"], out["cd:/mnt/viahost/sub/"])
+        real = os.path.realpath(self.links / "real")
+        self.assertEqual([self.bind_table(binds, real, real, "")], out["env:DDNATV_BINDS_KERNEL"])
+        self.assertEqual(1, log.count(f'"{self.links}/hostdir"'))
+
+    def test_process_specific_bind_sources_are_not_handed_to_children(self):
+        binds = "/proc/self/fd/0:/dev/stdin|/proc/self/fd:/dev/fd"
+        out = self.run_probe("env:DDNATV_BINDS_KERNEL", binds=binds)
+        self.assertEqual([self.bind_table(binds, "", "")], out["env:DDNATV_BINDS_KERNEL"])
+
+    def test_a_handed_down_bind_table_is_used_without_looking_the_sources_up(self):
+        binds = f"{self.links}/hostdir:/mnt/viahost"
+        real = os.path.realpath(self.links / "real")
+        table = self.bind_table(binds, real)
+        out, log = self.run_probe("cd:/mnt/viahost/sub/", binds=binds, table=table, syscalls=True)
+        self.assertEqual(["/mnt/viahost/sub"], out["cd:/mnt/viahost/sub/"])
+        self.assertNotIn(f"{self.links}/hostdir", log)
+
+    def test_a_bind_table_for_other_binds_is_ignored(self):
+        binds = f"{self.links}/hostdir:/mnt/viahost"
+        stale = self.bind_table(f"{self.library}:/mnt/viahost", str(self.library))
+        out = self.run_probe("cd:/mnt/viahost/sub/", "env:DDNATV_BINDS_KERNEL", binds=binds, table=stale)
+        self.assertEqual(["/mnt/viahost/sub"], out["cd:/mnt/viahost/sub/"])
+        self.assertEqual([self.bind_table(binds, os.path.realpath(self.links / "real"))], out["env:DDNATV_BINDS_KERNEL"])
 
     def readlinks_of(self, log, host):
         return [line for line in log.splitlines()

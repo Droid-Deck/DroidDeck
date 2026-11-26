@@ -14,20 +14,40 @@ static size_t g_ddnatv_root_len = 0;
 // The path the kernel reports for [path] (/proc/self/fd, getcwd(), realpath()): for a targetSdk 30+
 // app, Android's own /data/user/0 is a link to /data/data, so the app's paths are not what the kernel
 // gives back for them. Into out, or path itself when it cannot be resolved; returns out's length.
-static size_t ddnatv_kernel_path(const char *path, size_t len, char *out, size_t outsz) {
+static size_t ddnatv_resolve_path(const char *path, size_t len, char *out, size_t outsz, int *found) {
     static char *(*libc_realpath)(const char *, char *) = NULL;
+    static long (*libc_syscall)(long, ...) = NULL;
     if (!libc_realpath) libc_realpath = (char *(*)(const char *, char *))dlsym(RTLD_NEXT, "realpath");
+    if (!libc_syscall) libc_syscall = (long (*)(long, ...))dlsym(RTLD_NEXT, "syscall");
     char given[PATH_MAX];
     if (len >= sizeof(given)) len = sizeof(given) - 1;
     memcpy(given, path, len);
     given[len] = '\0';
     char resolved[PATH_MAX];
-    const char *use = (libc_realpath && libc_realpath(given, resolved)) ? resolved : given;
+    const char *use = given;
+    int fd = libc_syscall && given[0] == '/' && strncmp(given, "/proc/", 6) != 0
+        ? (int)libc_syscall(SYS_openat, AT_FDCWD, given, O_PATH | O_CLOEXEC) : -1;
+    if (fd >= 0) {
+        char link[32];
+        snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+        ssize_t n = libc_syscall(SYS_readlinkat, AT_FDCWD, link, resolved, sizeof(resolved) - 1);
+        libc_syscall(SYS_close, fd);
+        if (n > 0 && resolved[0] == '/') {
+            resolved[n] = '\0';
+            use = resolved;
+        }
+    }
+    if (use == given && libc_realpath && libc_realpath(given, resolved)) use = resolved;
+    if (found) *found = use != given;
     size_t n = strlen(use);
     if (n >= outsz) n = outsz - 1;
     memcpy(out, use, n);
     out[n] = '\0';
     return n;
+}
+
+static size_t ddnatv_kernel_path(const char *path, size_t len, char *out, size_t outsz) {
+    return ddnatv_resolve_path(path, len, out, outsz, NULL);
 }
 
 static void ddnatv_set_root(const char *root, size_t len) {
@@ -45,12 +65,14 @@ struct ddnatv_bind {
     size_t src_len, dst_len;
     int identity;
     int links;
+    int resolved;
     int order; // position in DDNATV_BINDS: the earlier of two mounts of one folder is its guest path
 };
 // as many as the session has: a fixed table dropped what came after its 128th entry
 static struct ddnatv_bind *g_binds = NULL;
 static int g_nbinds = 0;
 static char *g_binds_raw = NULL;
+static char *g_binds_kernel = NULL;
 // The session's host name (DDNATV_HOSTNAME), what proot put in uname(): Android's kernel says "localhost"
 static char g_hostname[65];
 // A Flatpak sandbox's: the session's rootfs (DDNATV_LINK_ROOT), whose hook stored absolute guest
@@ -64,7 +86,18 @@ static int ddnatv_bind_longer_first(const void *a, const void *b) {
     return (y->dst_len > x->dst_len) - (y->dst_len < x->dst_len);
 }
 
-static void ddnatv_load_binds(const char *spec) {
+static size_t ddnatv_append(char *out, size_t outsz, size_t used, const char *s, size_t len);
+
+static uint64_t ddnatv_hash(const char *s) {
+    uint64_t h = 1469598103934665603ULL;
+    for (; *s; s++) {
+        h ^= (unsigned char)*s;
+        h *= 1099511628211ULL;
+    }
+    return h;
+}
+
+static void ddnatv_load_binds(const char *spec, const char *known) {
     if (!spec || !spec[0]) return;
     char *raw = strdup(spec);
     char *copy = strdup(spec);
@@ -73,18 +106,45 @@ static void ddnatv_load_binds(const char *spec) {
     size_t count = 1;
     for (const char *c = spec; *c; c++) count += *c == '|';
     g_binds = calloc(count, sizeof(*g_binds));
-    if (!g_binds) { free(raw); free(copy); return; }
+    const char **given = calloc(count, sizeof(*given));
+    if (!g_binds || !given) { free(g_binds); g_binds = NULL; free(given); free(raw); free(copy); return; }
+    char hash[17];
+    snprintf(hash, sizeof(hash), "%016llx", (unsigned long long)ddnatv_hash(spec));
+    char *cache = known && strncmp(known, hash, 16) == 0 && known[16] == '|' ? strdup(known + 17) : NULL;
+    char *next = cache;
     for (char *entry = strtok_r(copy, "|", &save); entry && (size_t)g_nbinds < count; entry = strtok_r(NULL, "|", &save)) {
         char *colon = strchr(entry, ':');
         const char *src = entry;
         const char *dst = colon ? colon + 1 : entry;
         if (colon) *colon = '\0';
         if (src[0] != '/' || dst[0] != '/' || strcmp(dst, "/") == 0) continue;
-        struct ddnatv_bind *b = &g_binds[g_nbinds++];
+        char *cached = next;
+        if (next) {
+            char *bar = strchr(next, '|');
+            if (bar) *bar = '\0';
+            next = bar ? bar + 1 : NULL;
+        }
+        int index = g_nbinds++;
+        struct ddnatv_bind *b = &g_binds[index];
+        given[index] = src;
         char kernel_src[PATH_MAX];
         if (strcmp(src, dst) != 0) {
-            ddnatv_kernel_path(src, strlen(src), kernel_src, sizeof(kernel_src));
-            if (strncmp(kernel_src, "/proc/", 6) != 0 || kernel_src[6] < '0' || kernel_src[6] > '9') src = kernel_src;
+            if (cached && cached[0] == '/') {
+                src = cached;
+                b->resolved = 1;
+            } else {
+                for (int j = 0; j < index && !b->resolved; j++) {
+                    if (g_binds[j].resolved && strcmp(given[j], src) == 0) {
+                        src = g_binds[j].src;
+                        b->resolved = 1;
+                    }
+                }
+                if (!b->resolved) {
+                    ddnatv_resolve_path(src, strlen(src), kernel_src, sizeof(kernel_src), &b->resolved);
+                    if (strncmp(src, "/proc/", 6) == 0) b->resolved = 0;
+                    if (strncmp(kernel_src, "/proc/", 6) != 0 || kernel_src[6] < '0' || kernel_src[6] > '9') src = kernel_src;
+                }
+            }
         }
         b->src = strdup(src);
         b->dst = strdup(dst);
@@ -93,8 +153,22 @@ static void ddnatv_load_binds(const char *spec) {
         while (b->dst_len > 1 && b->dst[b->dst_len - 1] == '/') b->dst[--b->dst_len] = '\0';
         while (b->src_len > 1 && b->src[b->src_len - 1] == '/') b->src[--b->src_len] = '\0';
         b->identity = strcmp(b->src, b->dst) == 0;
-        b->order = g_nbinds - 1;
+        b->order = index;
     }
+    size_t size = 17;
+    for (int i = 0; i < g_nbinds; i++) size += 1 + (g_binds[i].resolved ? g_binds[i].src_len : 0);
+    char *table = malloc(size + 1);
+    if (table) {
+        size_t used = ddnatv_append(table, size + 1, 0, hash, 16);
+        for (int i = 0; i < g_nbinds; i++) {
+            used = ddnatv_append(table, size + 1, used, "|", 1);
+            if (g_binds[i].resolved) used = ddnatv_append(table, size + 1, used, g_binds[i].src, g_binds[i].src_len);
+        }
+        if (!known || strcmp(known, table) != 0) setenv("DDNATV_BINDS_KERNEL", table, 1);
+        g_binds_kernel = table;
+    }
+    free(cache);
+    free(given);
     free(copy);
     qsort(g_binds, (size_t)g_nbinds, sizeof(g_binds[0]), ddnatv_bind_longer_first);
     g_binds_raw = raw;
