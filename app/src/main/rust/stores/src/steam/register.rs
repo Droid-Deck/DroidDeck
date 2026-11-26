@@ -16,6 +16,7 @@
 use crate::steam::content_manifest::ContentManifest;
 use crate::steam::kv;
 use crate::steam::plan::AppPlan;
+use crate::steam::safe_fs::Root;
 use crate::steam::vdf::KVNode;
 use std::collections::HashSet;
 use std::fs;
@@ -151,41 +152,16 @@ pub fn adopt_staged(library: &LibraryRoot, app_id: u32, install_dir: &str) -> us
         return 0;
     }
     let staging = library.steamapps().join("downloading").join(app_id.to_string());
-    let target = library.common_dir(install_dir);
-    let mut moved = 0;
-    let mut pending = vec![staging.clone()];
-    while let Some(dir) = pending.pop() {
-        let Ok(entries) = fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
-            let Ok(meta) = fs::symlink_metadata(&path) else {
-                continue;
-            };
-            if meta.is_dir() {
-                pending.push(path);
-                continue;
-            }
-            if !meta.is_file() {
-                continue;
-            }
-            let Ok(rel) = path.strip_prefix(&staging) else {
-                continue;
-            };
-            let dest = target.join(rel);
-            if fs::symlink_metadata(&dest).is_ok() {
-                continue;
-            }
-            let Some(parent) = dest.parent() else {
-                continue;
-            };
-            if fs::create_dir_all(parent).is_ok() && fs::rename(&path, &dest).is_ok() {
-                moved += 1;
-            }
-        }
-    }
-    moved
+    let Ok(from) = Root::open(&staging, false) else {
+        return 0;
+    };
+    let Ok(to) = Root::open(&library.common_dir(install_dir), true) else {
+        return 0;
+    };
+    from.files()
+        .iter()
+        .filter(|rel| from.move_new(rel, &to, rel).unwrap_or(false))
+        .count()
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -413,6 +389,46 @@ fn set_default(node: &mut KVNode, key: &str, value: &str) {
 
 /// Records a shared depot in its app's manifest (creating the manifest when the app has none
 /// yet), as the client does: `InstalledDepots`, `InstallScripts`, `SizeOnDisk`.
+/// Shared depots an install in progress relies on, with how many installs hold each. An
+/// uninstall leaves a held depot in place, from the moment an install sees it until its manifest,
+/// which lists the depot under `SharedDepots`, is written.
+static SHARED_HELD: std::sync::Mutex<Vec<(u32, usize)>> = std::sync::Mutex::new(Vec::new());
+
+pub struct SharedHold(Vec<u32>);
+
+pub fn hold_shared(depots: &[u32]) -> SharedHold {
+    let mut held = SHARED_HELD.lock().unwrap_or_else(|p| p.into_inner());
+    for depot in depots {
+        match held.iter_mut().find(|(id, _)| id == depot) {
+            Some((_, count)) => *count += 1,
+            None => held.push((*depot, 1)),
+        }
+    }
+    SharedHold(depots.to_vec())
+}
+
+impl Drop for SharedHold {
+    fn drop(&mut self) {
+        let mut held = SHARED_HELD.lock().unwrap_or_else(|p| p.into_inner());
+        for depot in &self.0 {
+            if let Some(pos) = held.iter().position(|(id, _)| id == depot) {
+                held[pos].1 -= 1;
+                if held[pos].1 == 0 {
+                    held.remove(pos);
+                }
+            }
+        }
+    }
+}
+
+pub fn shared_held(depot: u32) -> bool {
+    SHARED_HELD
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .iter()
+        .any(|(id, _)| *id == depot)
+}
+
 /// Serializes read-modify-write of a shared app's manifest between installs and uninstalls.
 static SHARED_ACF_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -748,6 +764,9 @@ fn remove_shared_depot(
     let _guard = SHARED_ACF_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if shared_held(depot_id) {
+        return Ok(false);
+    }
     let Some(lib) = libraries.iter().find(|l| l.acf_path(from_app).exists()) else {
         return Ok(false);
     };
@@ -765,8 +784,7 @@ fn remove_shared_depot(
     let Some(files) = shared_files(from_app, depot_id, manifest_id) else {
         return Ok(false);
     };
-    let base = lib.common_dir(&install_dir);
-    let Ok(real_base) = fs::canonicalize(&base) else {
+    let Ok(base) = Root::open(&lib.common_dir(&install_dir), false) else {
         return Ok(false);
     };
     let mut removed_any = false;
@@ -774,18 +792,11 @@ fn remove_shared_depot(
         if !crate::steam::depot_writer::path_is_safe(&rel) {
             continue;
         }
-        let target = base.join(&rel);
-        // The final component is unlinked without following it; its folder must resolve inside
-        // the shared app's folder, so a linked ancestor cannot send the removal elsewhere.
-        let inside = target
-            .parent()
-            .and_then(|parent| fs::canonicalize(parent).ok())
-            .is_some_and(|parent| parent.starts_with(&real_base));
-        if !inside {
-            continue;
-        }
-        if fs::symlink_metadata(&target).is_ok_and(|m| !m.is_dir()) {
-            match fs::remove_file(&target) {
+        let rel = Path::new(&rel);
+        // Walked below the shared app's folder without following links; a linked folder on the
+        // way leaves the file alone. The file itself is unlinked, never followed.
+        if base.kind(rel).ok().flatten().is_some_and(|kind| kind != libc::S_IFDIR) {
+            match base.remove_file(rel) {
                 Ok(()) => removed_any = true,
                 Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
                 // Untouched, the depot stays recorded so a later uninstall can retry. Once files
@@ -1249,5 +1260,16 @@ mod tests {
         fs::write(library.acf_path(42), "\"AppState\"\n{\n\t\"StateFlags\"\t\t\"6\"\n}\n").unwrap();
         assert_eq!(adopt_staged(&library, 42, "Game"), 0);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_held_shared_depot_counts_holds() {
+        assert!(!shared_held(999_001));
+        let a = hold_shared(&[999_001]);
+        let b = hold_shared(&[999_001]);
+        drop(a);
+        assert!(shared_held(999_001));
+        drop(b);
+        assert!(!shared_held(999_001));
     }
 }

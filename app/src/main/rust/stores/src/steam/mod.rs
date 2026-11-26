@@ -31,6 +31,7 @@ pub mod plan;
 pub mod proto_envelope;
 pub mod proto_wire;
 pub mod register;
+pub mod safe_fs;
 pub mod session;
 pub mod signin;
 pub mod steam_directory;

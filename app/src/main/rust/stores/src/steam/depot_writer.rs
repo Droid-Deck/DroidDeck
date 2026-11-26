@@ -13,9 +13,10 @@ use crate::steam::cdn;
 use crate::steam::content_manifest::{ChunkData, ContentManifest};
 use crate::steam::depot_chunk::{process_depot_chunk, steam_adler_hash};
 use crate::steam::pb::ccontentserverdirectory::CContentServerDirectoryServerInfo;
+use crate::steam::safe_fs::Root;
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -109,14 +110,16 @@ struct FileSlot {
     remaining: AtomicUsize,
     size: u64,
     path: PathBuf,
+    /// `path` below the install folder, as the manifest names it.
+    rel: PathBuf,
     mode: u32,
 }
 
 struct DepotFiles {
     slots: Vec<FileSlot>,
     open_count: AtomicUsize,
-    /// The canonical target folder; every write must resolve beneath it.
-    root: PathBuf,
+    /// The install folder; every file is opened below it without following symlinks.
+    root: Root,
 }
 
 impl DepotFiles {
@@ -126,14 +129,9 @@ impl DepotFiles {
         if let Some(file) = handle.as_ref() {
             return Ok(Arc::clone(file));
         }
-        make_parent_dirs(&self.root, &slot.path)?;
-        check_file_target(&self.root, &slot.path)?;
-        let file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .read(true)
-            .truncate(false)
-            .open(&slot.path)
+        let file = self
+            .root
+            .open_rw(&slot.rel, slot.mode)
             .map_err(|err| format!("open '{}': {err}", slot.path.display()))?;
         set_file_mode(&file, &slot.path, slot.mode)?;
         let file = Arc::new(file);
@@ -178,13 +176,9 @@ impl DepotFiles {
     /// Files with nothing left to fetch (zero chunks, or every chunk already correct on disk).
     fn finalize_untouched(&self, idx: usize) -> Result<(), String> {
         let slot = &self.slots[idx];
-        make_parent_dirs(&self.root, &slot.path)?;
-        check_file_target(&self.root, &slot.path)?;
-        let file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(false)
-            .open(&slot.path)
+        let file = self
+            .root
+            .open_rw(&slot.rel, slot.mode)
             .map_err(|err| format!("open '{}': {err}", slot.path.display()))?;
         set_file_mode(&file, &slot.path, slot.mode)?;
         let current = file.metadata().map(|m| m.len()).unwrap_or(u64::MAX);
@@ -260,17 +254,11 @@ fn prepare(
             bad.filename
         )));
     }
-    if let Err(err) = fs::create_dir_all(request.target_dir) {
-        return Err(DepotWriteOutcome::fail(format!(
-            "mkdir '{}': {err}",
-            request.target_dir.display()
-        )));
-    }
-    let root = match fs::canonicalize(request.target_dir) {
+    let root = match Root::open(request.target_dir, true) {
         Ok(root) => root,
         Err(err) => {
             return Err(DepotWriteOutcome::fail(format!(
-                "resolve '{}': {err}",
+                "open '{}': {err}",
                 request.target_dir.display()
             )))
         }
@@ -280,9 +268,13 @@ fn prepare(
     let mut existing = Vec::with_capacity(manifest.files.len());
     for file in &manifest.files {
         let path = request.target_dir.join(&file.filename);
+        let rel = PathBuf::from(&file.filename);
         let regular = is_regular(file.flags, &file.linktarget);
         let len = if regular {
-            fs::metadata(&path).map(|m| m.len()).unwrap_or(0)
+            root.open_read(&rel)
+                .and_then(|f| f.metadata())
+                .map(|m| m.len())
+                .unwrap_or(0)
         } else {
             0
         };
@@ -292,6 +284,7 @@ fn prepare(
             remaining: AtomicUsize::new(0),
             size: file.size,
             path,
+            rel,
             mode: if (file.flags & DEPOT_FILE_FLAG_EXECUTABLE) != 0 {
                 0o755
             } else {
@@ -319,11 +312,13 @@ fn prepare(
     }
 
     for file in &manifest.files {
-        let path = request.target_dir.join(&file.filename);
+        let rel = Path::new(&file.filename);
         let result = if !file.linktarget.is_empty() {
-            create_symlink(&root, &path, &file.linktarget)
+            root.symlink(rel, &file.linktarget)
+                .map_err(|err| format!("symlink '{}': {err}", file.filename))
         } else if (file.flags & DEPOT_FILE_FLAG_DIRECTORY) != 0 {
-            make_dirs(&root, &path)
+            root.make_dirs(rel)
+                .map_err(|err| format!("mkdir '{}': {err}", file.filename))
         } else {
             Ok(())
         };
@@ -527,7 +522,7 @@ fn verify_existing(
     manifest: &ContentManifest,
     slots: &[FileSlot],
     existing: &[u64],
-    root: &Path,
+    root: &Root,
     workers: usize,
     cancel: &AtomicBool,
 ) -> Vec<Vec<bool>> {
@@ -556,10 +551,7 @@ fn verify_existing(
                     let Some(idx) = next else {
                         return;
                     };
-                    if check_file_target(root, &slots[idx].path).is_err() {
-                        continue;
-                    }
-                    let Ok(file) = File::open(&slots[idx].path) else {
+                    let Ok(file) = root.open_read(&slots[idx].rel) else {
                         continue;
                     };
                     let chunks = &manifest.files[idx].chunks;
@@ -597,71 +589,6 @@ pub fn existing_chunk_matches(file: &File, file_len: u64, chunk: &ChunkData) -> 
         return false;
     }
     steam_adler_hash(&buf) == chunk.crc
-}
-
-/// Fails unless `path` (which must exist) resolves beneath `root`, so a symlink in the game folder
-/// cannot carry a write outside it.
-fn check_inside(root: &Path, path: &Path) -> Result<(), String> {
-    match fs::canonicalize(path) {
-        Ok(real) if real.starts_with(root) => Ok(()),
-        Ok(real) => Err(format!(
-            "'{}' resolves outside the install folder ({})",
-            path.display(),
-            real.display()
-        )),
-        Err(err) => Err(format!("resolve '{}': {err}", path.display())),
-    }
-}
-
-/// Creates `dir` and its missing parents, refusing when an existing ancestor or the result
-/// resolves outside `root`.
-fn make_dirs(root: &Path, dir: &Path) -> Result<(), String> {
-    let mut existing = dir;
-    while fs::symlink_metadata(existing).is_err() {
-        match existing.parent() {
-            Some(parent) if !parent.as_os_str().is_empty() => existing = parent,
-            _ => break,
-        }
-    }
-    check_inside(root, existing)?;
-    fs::create_dir_all(dir).map_err(|err| format!("mkdir '{}': {err}", dir.display()))?;
-    check_inside(root, dir)
-}
-
-fn make_parent_dirs(root: &Path, path: &Path) -> Result<(), String> {
-    match path.parent() {
-        Some(parent) if !parent.as_os_str().is_empty() => make_dirs(root, parent),
-        _ => Ok(()),
-    }
-}
-
-/// A file about to be opened: its folder must be inside `root`, and if the path itself is a symlink
-/// it must resolve inside `root` too (a dangling one would create its target wherever it points).
-fn check_file_target(root: &Path, path: &Path) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        check_inside(root, parent)?;
-    }
-    match fs::symlink_metadata(path) {
-        Ok(meta) if meta.file_type().is_symlink() => check_inside(root, path),
-        _ => Ok(()),
-    }
-}
-
-fn create_symlink(root: &Path, path: &Path, target: &str) -> Result<(), String> {
-    make_parent_dirs(root, path)?;
-    if fs::symlink_metadata(path).is_ok() {
-        fs::remove_file(path).map_err(|err| format!("unlink '{}': {err}", path.display()))?;
-    }
-    #[cfg(unix)]
-    {
-        std::os::unix::fs::symlink(target, path)
-            .map_err(|err| format!("symlink '{}': {err}", path.display()))
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = target;
-        Err(format!("symlink '{}': unsupported", path.display()))
-    }
 }
 
 #[cfg(unix)]
@@ -765,9 +692,10 @@ mod tests {
             remaining: AtomicUsize::new(0),
             size: 10,
             path: path.clone(),
+            rel: PathBuf::from(path.file_name().unwrap()),
             mode: 0o644,
         }];
-        let root = fs::canonicalize(&dir).unwrap();
+        let root = Root::open(&dir, false).unwrap();
         let flags = verify_existing(&manifest, &slots, &[10], &root, 2, &AtomicBool::new(false));
         assert_eq!(flags, vec![vec![true, false]]);
         let cancelled = verify_existing(&manifest, &slots, &[10], &root, 2, &AtomicBool::new(true));
@@ -929,7 +857,6 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
-    #[cfg(unix)]
     #[test]
     fn refuses_writes_through_a_symlink_out_of_the_install_folder() {
         let base = std::env::temp_dir().join(format!(
@@ -944,15 +871,13 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         fs::create_dir_all(&outside).unwrap();
         std::os::unix::fs::symlink(&outside, dir.join("link")).unwrap();
-        std::os::unix::fs::symlink("../game", dir.join("inner")).unwrap();
-        let root = fs::canonicalize(&dir).unwrap();
-        assert!(make_parent_dirs(&root, &dir.join("link/sub/f.bin")).is_err());
-        assert!(!outside.join("sub").exists());
-        assert!(check_file_target(&root, &dir.join("link/f.bin")).is_err());
-        assert!(make_parent_dirs(&root, &dir.join("inner/sub/f.bin")).is_ok());
-        assert!(check_file_target(&root, &dir.join("inner/sub/f.bin")).is_ok());
         std::os::unix::fs::symlink(outside.join("x"), dir.join("dangling")).unwrap();
-        assert!(check_file_target(&root, &dir.join("dangling")).is_err());
+        let root = Root::open(&dir, false).unwrap();
+        assert!(root.make_dirs(Path::new("link/sub")).is_err());
+        assert!(root.open_rw(Path::new("link/f.bin"), 0o644).is_err());
+        assert!(root.open_rw(Path::new("dangling"), 0o644).is_err());
+        assert!(!outside.join("sub").exists() && !outside.join("f.bin").exists() && !outside.join("x").exists());
+        assert!(root.open_rw(Path::new("sub/f.bin"), 0o644).is_ok());
         let _ = fs::remove_dir_all(&base);
     }
 }
