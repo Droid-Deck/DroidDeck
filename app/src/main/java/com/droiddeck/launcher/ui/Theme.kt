@@ -239,7 +239,9 @@ val Palette.onSignal: Color get() = if (signal.luminance() > 0.18f) Color(0xFF03
 
 @Composable
 fun DroidDeckTheme(theme: String? = null, appScale: Int = AppUiPrefs.DEFAULT_SCALE, content: @Composable () -> Unit) {
-    val id = theme ?: SessionPrefs.theme(LocalContext.current)
+    val context = LocalContext.current
+    remember(context) { Themes.loadGradient(context) }
+    val id = theme ?: SessionPrefs.theme(context)
     if (id == Themes.INNER_GAMER) InnerGamerHue(Themes.rgbSpeed)
     val p = Themes.byId(id)
     SideEffect { Themes.updateWarningColor(p.warning) }
