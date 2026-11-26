@@ -84,6 +84,23 @@ internal object XboxCatalog {
         return rawProducts(ids, market).mapNotNull { product(it, access) }
     }
 
+    fun launchArt(id: String, market: String = Xodus.market()): List<String> =
+        rawProducts(listOf(id.uppercase()), market).firstOrNull()?.let(::launchArtUrls).orEmpty()
+
+    internal fun launchArtUrls(json: JSONObject): List<String> {
+        val images = objects(objects(json.optJSONArray("LocalizedProperties")).firstOrNull()?.optJSONArray("Images"))
+        val order = listOf("SuperHeroArt", "TitledHeroArt", "Screenshot", "Hero")
+        return images.filter { it.optString("ImagePurpose") in order }
+            .sortedBy { order.indexOf(it.optString("ImagePurpose")) }
+            .mapNotNull { image ->
+                val raw = image.optString("Uri")
+                val url = if (raw.startsWith("//")) "https:$raw" else raw
+                runCatching { java.net.URI(url) }.getOrNull()?.takeIf {
+                    it.scheme == "https" && it.host in setOf("store-images.s-microsoft.com", "store-images.microsoft.com") && it.userInfo == null && it.port == -1
+                }?.toString()
+            }.distinct().take(12)
+    }
+
     fun rawProducts(ids: List<String>, market: String = Xodus.market()): List<JSONObject> = productBatches(ids, market) { it }
 
     // 25 ids per request, up to 4 requests at a time; each batch is mapped as it arrives (a whole library of raw entries is large).

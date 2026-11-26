@@ -53,6 +53,7 @@ internal class XboxNativeVideo(private val context: Context, eglBase: EglBase, p
     @Volatile private var fpsTarget = 0
     private var nextDueNs = 0L
     @Volatile var frames = 0L
+    @Volatile var onFirstFrame: (() -> Unit)? = null
         private set
 
     fun setSurface(target: Surface?, width: Int, height: Int, displayRefreshHz: Float) = synchronized(lock) {
@@ -126,7 +127,10 @@ internal class XboxNativeVideo(private val context: Context, eglBase: EglBase, p
                 if (nextDueNs == 0L || now - nextDueNs > interval) nextDueNs = now
                 if (now + 4_000_000L < nextDueNs) true else { nextDueNs += interval; false }
             }
-            if (attached && buffer != null && !skip) { WaylandCompositor.nativeStreamFrame(buffer); frames++ }
+            if (attached && buffer != null && !skip) {
+                WaylandCompositor.nativeStreamFrame(buffer); frames++
+                onFirstFrame?.let { onFirstFrame = null; it() }
+            }
             buffer?.close()
             held.addLast(image)
             while (held.size > 2) held.removeFirst().close()

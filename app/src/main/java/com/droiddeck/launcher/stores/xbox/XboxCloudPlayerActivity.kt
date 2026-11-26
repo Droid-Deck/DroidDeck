@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.KeyEvent
 import android.view.WindowManager
 import android.webkit.JavascriptInterface
@@ -47,6 +48,8 @@ class XboxCloudPlayerActivity : ComponentActivity() {
     private lateinit var root: FrameLayout
     private var web: WebView? = null
     private var notice: LinearLayout? = null
+    private lateinit var art: XboxLaunchArt
+    private lateinit var artStatus: TextView
     private val worker = Executors.newSingleThreadExecutor()
     private val signalling = Executors.newCachedThreadPool()
     @Volatile private var session: XboxCloudSession.Session? = null
@@ -68,6 +71,13 @@ class XboxCloudPlayerActivity : ComponentActivity() {
         root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         setContentView(root)
         val requested = intent.getStringExtra("product").orEmpty()
+        art = XboxLaunchArt(this) { diag("cloud player $it") }
+        root.addView(art.view(intent.getStringExtra("title").orEmpty()), FrameLayout.LayoutParams(-1, -1))
+        artStatus = TextView(this).apply {
+            setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER; setShadowLayer(10f, 0f, 0f, Color.BLACK); visibility = View.GONE
+        }
+        root.addView(artStatus, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { bottomMargin = 120 })
+        art.load(requested)
         showNotice("Signing in to Xbox Cloud Gaming…", withButtons = false)
         worker.execute {
             val result = runCatching {
@@ -88,6 +98,7 @@ class XboxCloudPlayerActivity : ComponentActivity() {
                 if (closed) return@runOnUiThread
                 result.onSuccess { openPlayer() }.onFailure {
                     diag("cloud player not started: ${it.javaClass.simpleName}: ${it.message?.take(160)}")
+                    hideArt()
                     showNotice(it.message ?: "Xbox Cloud Gaming could not start.", withButtons = true)
                 }
             }
@@ -139,12 +150,24 @@ class XboxCloudPlayerActivity : ComponentActivity() {
         }
 
         @JavascriptInterface
-        fun status(text: String) { android.util.Log.i("XboxCloudPlayer", "status: ${text.take(120)}") }
+        fun status(text: String) {
+            android.util.Log.i("XboxCloudPlayer", "status: ${text.take(120)}")
+            if (art.shown) runOnUiThread { if (art.shown) { artStatus.text = text; artStatus.visibility = if (text.isEmpty()) View.GONE else View.VISIBLE } }
+        }
 
         @JavascriptInterface
         fun playing() {
             diag("cloud player streaming")
-            runOnUiThread { web?.requestFocus() }
+            runOnUiThread {
+                web?.requestFocus()
+                if (art.shown) { web?.evaluateJavascript(FIRST_FRAME_JS, null); root.postDelayed({ hideArt() }, 6000) }
+            }
+        }
+
+        @JavascriptInterface
+        fun firstFrame() {
+            if (art.shown) diag("cloud player first frame")
+            hideArt()
         }
 
         @JavascriptInterface
@@ -156,6 +179,7 @@ class XboxCloudPlayerActivity : ComponentActivity() {
         @JavascriptInterface
         fun failed(stage: String, detail: String) {
             diag("cloud player failed at ${stage.take(40)}: ${detail.take(300)}")
+            hideArt()
             runOnUiThread { if (!closed) showNotice("The stream could not start ($stage).", withButtons = true) }
         }
     }
@@ -164,6 +188,11 @@ class XboxCloudPlayerActivity : ComponentActivity() {
         val active = session ?: error("no session")
         val signals = sessionSignals ?: XboxCloudSignalling(active, titleId ?: error("no title"), settings).also { sessionSignals = it }
         return signals.op(op, arg).also { sessionPath = signals.path }
+    }
+
+    private fun hideArt() {
+        art.hide()
+        runOnUiThread { artStatus.visibility = View.GONE }
     }
 
     private fun showNotice(text: String, withButtons: Boolean) {
@@ -381,6 +410,10 @@ class XboxCloudPlayerActivity : ComponentActivity() {
 
     companion object {
         private const val DOUBLE_PRESS_MS = 350L
+        // Calls DDCloud.firstFrame() once the page's video has decoded a frame (or after 6 s).
+        private const val FIRST_FRAME_JS = "(function(){var t=Date.now();(function poll(){var v=document.querySelector('video');" +
+            "var n=v&&v.getVideoPlaybackQuality?v.getVideoPlaybackQuality().totalVideoFrames:0;" +
+            "if(n>0||(v&&v.currentTime>0)||Date.now()-t>6000){DDCloud.firstFrame();return;}setTimeout(poll,100);})();})()"
 
         fun intent(context: Context, productId: String, title: String): Intent = Intent(context, XboxCloudPlayerActivity::class.java)
             .putExtra("product", productId.uppercase()).putExtra("title", title)

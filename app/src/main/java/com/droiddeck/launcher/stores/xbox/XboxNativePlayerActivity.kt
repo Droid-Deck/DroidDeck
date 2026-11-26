@@ -76,6 +76,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
     @Volatile private var connectedOnce = false
     @Volatile private var endedInBackground = false
     private var backgroundEnd: Runnable? = null
+    private lateinit var art: XboxLaunchArt
     private var notice: androidx.compose.ui.platform.ComposeView? = null
     @Volatile private var regionNames = emptyList<String>()
     @Volatile private var serverName: String? = null
@@ -104,7 +105,10 @@ class XboxNativePlayerActivity : ComponentActivity() {
         root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         surfaceView = SurfaceView(this)
         root.addView(surfaceView, FrameLayout.LayoutParams(-1, -1))
-        status = TextView(this).apply { setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER }
+        art = XboxLaunchArt(this) { log(it) }
+        root.addView(art.view(intent.getStringExtra("title").orEmpty()), FrameLayout.LayoutParams(-1, -1))
+        art.load(intent.getStringExtra("product").orEmpty())
+        status = TextView(this).apply { setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER; setShadowLayer(10f, 0f, 0f, Color.BLACK) }
         root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { bottomMargin = 120 })
         overlay = TextView(this).apply {
             setTextColor(Color.WHITE); textSize = 12f; typeface = android.graphics.Typeface.MONOSPACE
@@ -119,6 +123,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
 
         val egl = EglBase.create().also { eglBase = it }
         val nativeVideo = XboxNativeVideo(this, egl) { log(it) }.also { video = it }
+        nativeVideo.onFirstFrame = { hideArt() }
         surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {}
             override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -138,9 +143,11 @@ class XboxNativePlayerActivity : ComponentActivity() {
 
     private fun log(text: String) = com.droiddeck.launcher.stores.StoresState.logLine("Xbox: native player: ${text.take(240)}")
     private fun show(text: String) = runOnUiThread { status.text = text; status.visibility = if (text.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE }
+    private fun hideArt() { if (art.shown) { art.hide(); show("") } }
 
     private fun fail(stage: String, detail: String) {
         log("failed at $stage: $detail")
+        art.hide()
         if (closed) return
         if (connectedOnce) showNotice("The connection to the cloud console was lost",
             "The stream stopped reaching this device ($detail). Restart the stream to play again: the game starts over, " +
@@ -375,7 +382,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
             when (state) {
                 PeerConnection.PeerConnectionState.CONNECTED -> {
                     connectedOnce = true
-                    show("")
+                    if (art.shown) root.postDelayed({ hideArt() }, 6000) else show("")
                     video?.setFpsTarget(settings.fpsTarget)
                     video?.setFrameGeneration(effectiveFrameGen())
                 }

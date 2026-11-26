@@ -218,6 +218,19 @@ class XboxCatalogTest {
         assertTrue(merged.xboxCloud); assertEquals(game, merged.xboxCloudId)
     }
 
+    @Test fun launchArtIsHeroArtThenScreenshotsFromStoreImagesOnly() {
+        fun img(purpose: String, uri: String) = JSONObject().put("ImagePurpose", purpose).put("Uri", uri)
+        val json = JSONObject().put("LocalizedProperties", JSONArray().put(JSONObject().put("Images", JSONArray()
+            .put(img("Screenshot", "//store-images.s-microsoft.com/image/shot1"))
+            .put(img("BoxArt", "https://store-images.s-microsoft.com/image/box"))
+            .put(img("SuperHeroArt", "https://store-images.s-microsoft.com/image/hero"))
+            .put(img("Screenshot", "https://evil.example/shot2"))
+            .put(img("Screenshot", "https://store-images.s-microsoft.com/image/shot1")))))
+        assertEquals(listOf("https://store-images.s-microsoft.com/image/hero", "https://store-images.s-microsoft.com/image/shot1"),
+            XboxCatalog.launchArtUrls(json))
+        assertEquals(emptyList<String>(), XboxCatalog.launchArtUrls(JSONObject()))
+    }
+
     @Test fun cloudOnlyEditionsWithTheSameTitleBecomeOneOwnedCard() {
         val third = "9CCCCCCCCCCC"
         val cloud = XboxCloudCatalog(gamePass = setOf(game), all = setOf(game, third))
