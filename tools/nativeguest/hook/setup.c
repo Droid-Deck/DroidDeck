@@ -779,13 +779,16 @@ static const char *rewrite_path_follow(const char *path, char *buffer, size_t bu
             if (!best || b->src_len > best->src_len) best = b;
         }
         if (!best) {
+#if defined(__aarch64__)
+            t_plain_host = NULL;
+#endif
             const char *host = rewrite_path_in_root(path, buffer, bufsize);
 #if defined(__aarch64__)
             // A link in the rootfs with an absolute guest target that the hook did not write (one made
             // under proot, or copied from Proton's template prefix, as Wine's "z:" -> "/") is followed
             // by the kernel on Android's own tree: Wine found no drive for any path and gave games
             // \\?\unix\ names, which an NW.js game could not load its DLLs from.
-            if (is_android_host_path(path)) return host;
+            if (is_android_host_path(path) || known_plain(host)) return host;
             char target[PATH_MAX];
             long n = raw_readlinkat(AT_FDCWD, host, target, sizeof(target) - 1);
             if (n <= 0 || target[0] != '/') return host;

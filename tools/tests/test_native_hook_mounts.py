@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -164,6 +165,8 @@ class NativeHookMountTest(unittest.TestCase):
         os.symlink("/etc/hostname", cls.links / "guest")
         os.symlink("real/sub/file.txt", cls.links / "file")
         os.symlink("/mnt/links/real", cls.links / "real/up")
+        (cls.root / "pfx/card/dosdevices").mkdir(parents=True)
+        os.symlink("/mnt/links", cls.root / "pfx/card/dosdevices/d:")
         cls.eqlen_src = tmp / "eqsrcdir"
         cls.eqlen_dst = "/" + "d" * (len(str(cls.eqlen_src)) - 1)
         eqlen_pfx = cls.eqlen_src / "123/pfx/dosdevices"
@@ -174,7 +177,7 @@ class NativeHookMountTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_probe(self, *args, binds=None, mounts=None):
+    def run_probe(self, *args, binds=None, mounts=None, syscalls=False):
         if binds is None:
             binds = f"{self.library}:/mnt/library|{self.private}:/mnt/private|{self.eqlen_src}:{self.eqlen_dst}"
         hook_env = {"DDNATV_ROOT": str(self.root), "DDNATV_BINDS": binds, "LD_PRELOAD": str(self.hook)}
@@ -185,14 +188,21 @@ class NativeHookMountTest(unittest.TestCase):
             hook_env["DDNATV_MOUNTINFO"] = str(table)
         env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "LOCPATH", "GCONV_PATH")}
         if self.prefix:
-            cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
+            cmd = list(self.prefix[:1]) + (["-strace"] if syscalls else []) + list(self.prefix[1:])
+            cmd += [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
         else:
-            cmd = []
+            if syscalls and not shutil.which("strace"):
+                self.skipTest("no strace")
+            cmd = ["strace", "-f", "-qq", "-e", "trace=readlinkat"] if syscalls else []
             env.update(hook_env)
         out = subprocess.run(cmd + [str(self.probe), *args], env=env, capture_output=True, text=True, timeout=120,
                              cwd=self.tmp.name)
         self.assertEqual(out.returncode, 0, out.stderr)
-        return {line.split("\t")[0]: line.split("\t")[1:] for line in out.stdout.splitlines()}
+        result = {line.split("\t")[0]: line.split("\t")[1:] for line in out.stdout.splitlines()}
+        return (result, out.stderr) if syscalls else result
+
+    def readlinks_of(self, log, host):
+        return [line for line in log.splitlines() if "readlinkat" in line and f'"{host}"' in line]
 
     def test_dev_fd_in_a_forked_child_names_the_child_descriptors(self):
         out = self.run_probe("fork:/dev/fd", binds="/proc/self/fd:/dev/fd")
@@ -430,6 +440,33 @@ class NativeHookMountTest(unittest.TestCase):
         result = self.run_probe(*paths, binds=binds, mounts=[])
         for path, want in paths.items():
             self.assertEqual(result[path], want, path)
+
+    def test_drive_links_into_mounts_without_links_skip_the_last_link_check(self):
+        real, parent, name = self.links_volume()
+        binds = f"{self.links}:/mnt/links"
+        tables = [[("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1")],
+                  [("/", "ext4", "/dev/root"), (f"/mnt/media_rw/{name}", "exfat", "/dev/sdb1"), (real, "fuse", "/dev/fuse")]]
+        for table in tables:
+            result, log = self.run_probe("/pfx/card/dosdevices/d:/real/sub/file.txt", "/pfx/card/dosdevices/d:/real/missing",
+                                         "lstat:/pfx/card/dosdevices/d:/real/sub", binds=binds, mounts=table, syscalls=True)
+            self.assertEqual(result["/pfx/card/dosdevices/d:/real/sub/file.txt"], ["1", "deep"], table)
+            self.assertEqual(result["/pfx/card/dosdevices/d:/real/missing"], ["0", "-"], table)
+            self.assertEqual(result["lstat:/pfx/card/dosdevices/d:/real/sub"], ["1", "0"], table)
+            for host in (f"{self.links}/real/sub/file.txt", f"{self.links}/real/missing"):
+                self.assertEqual(self.readlinks_of(log, host), [], (host, table))
+
+    def test_drive_links_into_mounts_with_links_still_check_the_last_link(self):
+        real, _, _ = self.links_volume()
+        binds = f"{self.links}:/mnt/links"
+        paths = {"/pfx/card/dosdevices/d:/guest": ["1", "rootfs"], "/pfx/card/dosdevices/d:/file": ["1", "deep"],
+                 "/pfx/card/dosdevices/d:/real/sub/file.txt": ["1", "deep"],
+                 "/pfx/native/dosdevices/z:/etc/hostname": ["1", "rootfs"]}
+        for table in (None, [("/", "ext4", "/dev/root"), (real, "ext4", "/dev/sda2")]):
+            result, log = self.run_probe(*paths, binds=binds, mounts=table, syscalls=True)
+            for path, want in paths.items():
+                self.assertEqual(result[path], want, (path, table))
+            self.assertNotEqual(self.readlinks_of(log, f"{self.links}/guest"), [], table)
+            self.assertNotEqual(self.readlinks_of(log, f"{self.root}/etc/hostname"), [], table)
 
 
 if __name__ == "__main__":
