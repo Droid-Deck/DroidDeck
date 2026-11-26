@@ -256,14 +256,14 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe, const
             memcpy(str + 13, g_binds_raw, len + 1);
             new_env[dst++] = str;
         }
-        if (!has_binds_kernel && g_binds_kernel) {
-            size_t kernel_len = strlen(g_binds_kernel);
-            char *kernel = malloc(20 + kernel_len + 1);
-            if (kernel) {
-                memcpy(kernel, "DDNATV_BINDS_KERNEL=", 20);
-                memcpy(kernel + 20, g_binds_kernel, kernel_len + 1);
-                new_env[dst++] = kernel;
-            }
+    }
+    if (!has_binds_kernel && g_binds_kernel) {
+        size_t kernel_len = strlen(g_binds_kernel);
+        char *kernel = malloc(20 + kernel_len + 1);
+        if (kernel) {
+            memcpy(kernel, "DDNATV_BINDS_KERNEL=", 20);
+            memcpy(kernel + 20, g_binds_kernel, kernel_len + 1);
+            new_env[dst++] = kernel;
         }
     }
     // This process looked for the ARM translator's files and found none: the programs it starts

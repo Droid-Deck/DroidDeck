@@ -141,7 +141,9 @@ static void ddnatv_load_binds(const char *spec, const char *known) {
                 }
                 if (!b->resolved) {
                     ddnatv_resolve_path(src, strlen(src), kernel_src, sizeof(kernel_src), &b->resolved);
-                    if (strncmp(src, "/proc/", 6) == 0) b->resolved = 0;
+                    const char *lead = src;
+                    while (lead[0] == '/' && lead[1] == '/') lead++;
+                    if (strncmp(lead, "/proc/", 6) == 0 || strchr(kernel_src, '|')) b->resolved = 0;
                     if (strncmp(kernel_src, "/proc/", 6) != 0 || kernel_src[6] < '0' || kernel_src[6] > '9') src = kernel_src;
                 }
             }
