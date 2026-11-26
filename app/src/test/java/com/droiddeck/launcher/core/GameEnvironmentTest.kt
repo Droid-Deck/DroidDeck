@@ -20,6 +20,24 @@ class GameEnvironmentTest {
         assertEquals("1", GameEnvironment.effective(config, "", "43", forceSsbs = true)[GameEnvironment.FORCE_SSBS])
     }
 
+    @Test fun knownGameFixesBeatSharedSettingsButNotTheGamesOwn() {
+        val shared = GameEnvironment.Config(shared = mapOf("FEX_X87REDUCEDPRECISION" to "1"))
+        assertEquals("0", GameEnvironment.effective(shared, "PERFORMANCE_TSO", "12100")["FEX_X87REDUCEDPRECISION"])
+        assertEquals("1", GameEnvironment.effective(shared, "PERFORMANCE_TSO", "12110")["FEX_X87REDUCEDPRECISION"])
+        val own = shared.withEntries("12100", mapOf("FEX_X87REDUCEDPRECISION" to "1"))
+        assertEquals("1", GameEnvironment.effective(own, "PERFORMANCE_TSO", "12100")["FEX_X87REDUCEDPRECISION"])
+        assertEquals("1", GameEnvironment.withKnownGames(own).games["12100"]?.get("FEX_X87REDUCEDPRECISION"))
+        assertEquals("0", GameEnvironment.withKnownGames(shared).games["12100"]?.get("FEX_X87REDUCEDPRECISION"))
+    }
+
+    @Test fun aGamePresetKeepsTheGamesKnownFix() {
+        val picked = GameEnvironment.withGameFexPreset(GameEnvironment.Config(), "12100", "PERFORMANCE")
+        assertEquals("0", GameEnvironment.effective(picked, "PERFORMANCE_TSO", "12100")["FEX_X87REDUCEDPRECISION"])
+        assertEquals("PERFORMANCE", GameEnvironment.gameFexPreset(picked, "12100"))
+        val other = GameEnvironment.withGameFexPreset(GameEnvironment.Config(), "12110", "PERFORMANCE")
+        assertEquals("1", GameEnvironment.effective(other, "PERFORMANCE_TSO", "12110")["FEX_X87REDUCEDPRECISION"])
+    }
+
     @Test fun gameOverridesSharedAndPresetWithoutLeakingToOtherGames() {
         val config = GameEnvironment.Config(
             shared = mapOf("FEX_MULTIBLOCK" to "0", "VKD3D_FEATURE_LEVEL" to "12_2"),
