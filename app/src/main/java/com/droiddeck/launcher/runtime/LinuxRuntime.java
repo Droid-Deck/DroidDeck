@@ -363,10 +363,18 @@ public final class LinuxRuntime {
     };
 
     public static String gpuStandIn(Context context) {
-        if (new File(KGSL_DEVICE).exists()) return KGSL_DEVICE;
-        if (com.droiddeck.launcher.core.DeviceSupport.INSTANCE.openDriverActive(context) && new File(MALI_DEVICE).exists()) return MALI_DEVICE;
-        if (!com.droiddeck.launcher.core.DeviceSupport.INSTANCE.vkBridge(context)) return null;
-        return bridgeStandIn(path -> new File(path).exists());
+        return gpuStandIn(path -> new File(path).exists(),
+                () -> com.droiddeck.launcher.core.DeviceSupport.INSTANCE.openDriverActive(context)
+                        || com.droiddeck.launcher.session.VenusComponent.wanted(context),
+                () -> com.droiddeck.launcher.core.DeviceSupport.INSTANCE.vkBridge(context));
+    }
+
+    static String gpuStandIn(java.util.function.Predicate<String> exists, java.util.function.BooleanSupplier maliGuestDriver,
+            java.util.function.BooleanSupplier bridge) {
+        if (exists.test(KGSL_DEVICE)) return KGSL_DEVICE;
+        if (maliGuestDriver.getAsBoolean() && exists.test(MALI_DEVICE)) return MALI_DEVICE;
+        if (!bridge.getAsBoolean()) return null;
+        return bridgeStandIn(exists);
     }
 
     static String bridgeStandIn(java.util.function.Predicate<String> exists) {

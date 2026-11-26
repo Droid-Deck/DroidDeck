@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/sysmacros.h>
 
 #define LAYER_NAME "VK_LAYER_DROIDDECK_mali_compat"
 
@@ -389,12 +391,29 @@ static VKAPI_ATTR void VKAPI_CALL GetPhysicalDeviceProperties(VkPhysicalDevice p
     report_limits(&properties->limits, physical_device_gaps(inst, physical_device));
 }
 
+static void report_render_node(VkPhysicalDeviceProperties2 *properties)
+{
+    VkPhysicalDeviceDrmPropertiesEXT *drm = NULL;
+    for (VkBaseOutStructure *s = properties->pNext; s && !drm; s = s->pNext) {
+        if (s->sType == VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT)
+            drm = (VkPhysicalDeviceDrmPropertiesEXT *)s;
+    }
+    const char *node = getenv("DD_DRM_STANDIN");
+    struct stat st;
+    if (!drm || drm->hasRender || !node || !*node || stat(node, &st) != 0 || !S_ISCHR(st.st_mode))
+        return;
+    drm->hasRender = VK_TRUE;
+    drm->renderMajor = major(st.st_rdev);
+    drm->renderMinor = minor(st.st_rdev);
+}
+
 static VKAPI_ATTR void VKAPI_CALL GetPhysicalDeviceProperties2(VkPhysicalDevice physical_device,
                                                                VkPhysicalDeviceProperties2 *properties)
 {
     struct instance *inst = instance_from_handle(physical_device);
     inst->GetPhysicalDeviceProperties2(physical_device, properties);
     report_limits(&properties->properties.limits, physical_device_gaps(inst, physical_device));
+    report_render_node(properties);
     if (tracing())
         layer_log("trace: vkGetPhysicalDeviceProperties2: %s, Vulkan %u.%u.%u, type %d", properties->properties.deviceName,
                   VK_API_VERSION_MAJOR(properties->properties.apiVersion), VK_API_VERSION_MINOR(properties->properties.apiVersion),

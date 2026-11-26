@@ -44,8 +44,9 @@ through `kwin_wayland_wrapper`. The package's `kwin-compositor` marker selects O
 Zink for KWin 6.8, which removed QPainter. Older packages retain their software compositor.
 KWin runs without Gallium's threaded context and without overlay layers. With the threaded context, KWin crashed
 uploading windows' shared-memory buffers by reading past their end, and the host shows only a single buffer.
-On Android the launcher explicitly selects the KGSL render node; the nested backend can use it
-when the host's dmabuf feedback cannot name a DRM device. Games and emulators from the menu go
+On Android the launcher explicitly selects the GPU's render node (KGSL, or `/dev/mali0` as a
+stand-in for the Mali open driver and Venus); the nested backend can use it when the host's dmabuf
+feedback cannot name a DRM device. Without one, KWin 6.8 has no compositor and the desktop stays black. Games and emulators from the menu go
 through `droiddeck-gpu`, and Steam goes back to the app as a Steam session.
 
 `kwin.env` pins the KWin version shared by the build and packaging jobs. `build-kwin.sh` builds that version's
