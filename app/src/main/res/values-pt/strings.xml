@@ -4130,4 +4130,5 @@
     <string name="hud_only_during_game_hint">Ocultar o HUD quando nenhum quadro do jogo for detectado.</string>
     <string name="steam_store_close_steam">Feche o Steam primeiro</string>
     <string name="steam_store_session_wait">Pause o download do Steam primeiro</string>
+    <string name="steam_store_linux_build">Este jogo instala sua versão para Linux. Instale-o pelo Steam.</string>
 </resources>

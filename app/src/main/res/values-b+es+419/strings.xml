@@ -4123,4 +4123,5 @@
     <string name="hud_only_during_game_hint">Ocultar el HUD cuando no se detecten fotogramas del juego.</string>
     <string name="steam_store_close_steam">Cierra Steam primero</string>
     <string name="steam_store_session_wait">Pausa primero la descarga de Steam</string>
+    <string name="steam_store_linux_build">Este juego instala su versión para Linux. Instálalo desde Steam.</string>
 </resources>

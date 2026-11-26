@@ -4083,4 +4083,5 @@
     <string name="hud_only_during_game_hint">Piilota HUD, kun pelin ruutuja ei havaita.</string>
     <string name="steam_store_close_steam">Sulje Steam ensin</string>
     <string name="steam_store_session_wait">Keskeytä Steam-lataus ensin</string>
+    <string name="steam_store_linux_build">Tämä peli asentaa Linux-versionsa. Asenna se Steamista.</string>
 </resources>

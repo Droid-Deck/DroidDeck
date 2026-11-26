@@ -4122,4 +4122,5 @@
     <string name="hud_only_during_game_hint">Masquer le HUD lorsqu’aucune image du jeu n’est détectée.</string>
     <string name="steam_store_close_steam">Fermez d\'abord Steam</string>
     <string name="steam_store_session_wait">Mettez d\'abord en pause le téléchargement Steam</string>
+    <string name="steam_store_linux_build">Ce jeu installe sa version Linux. Installez-le depuis Steam.</string>
 </resources>

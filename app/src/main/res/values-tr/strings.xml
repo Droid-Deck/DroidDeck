@@ -4083,4 +4083,5 @@
     <string name="hud_only_during_game_hint">Oyun kareleri algılanmadığında HUD\'yi gizle.</string>
     <string name="steam_store_close_steam">Önce Steam\'i kapatın</string>
     <string name="steam_store_session_wait">Önce Steam indirmesini duraklatın</string>
+    <string name="steam_store_linux_build">Bu oyun Linux sürümünü yükler. Steam\'den yükleyin.</string>
 </resources>

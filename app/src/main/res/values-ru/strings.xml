@@ -4164,4 +4164,5 @@
     <string name="hud_only_during_game_hint">Скрывать HUD, когда кадры игры не обнаруживаются.</string>
     <string name="steam_store_close_steam">Сначала закройте Steam</string>
     <string name="steam_store_session_wait">Сначала приостановите загрузку Steam</string>
+    <string name="steam_store_linux_build">Эта игра устанавливает свою версию для Linux. Установите её из Steam.</string>
 </resources>

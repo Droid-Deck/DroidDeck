@@ -4083,4 +4083,5 @@
     <string name="hud_only_during_game_hint">Verberg de HUD wanneer er geen gameframes worden gedetecteerd.</string>
     <string name="steam_store_close_steam">Sluit eerst Steam</string>
     <string name="steam_store_session_wait">Pauzeer eerst de Steam-download</string>
+    <string name="steam_store_linux_build">Deze game installeert zijn Linux-versie. Installeer hem via Steam.</string>
 </resources>

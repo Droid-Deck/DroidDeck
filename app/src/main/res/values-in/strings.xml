@@ -4053,4 +4053,5 @@
     <string name="hud_only_during_game_hint">Sembunyikan HUD saat tidak ada frame game yang terdeteksi.</string>
     <string name="steam_store_close_steam">Tutup Steam terlebih dahulu</string>
     <string name="steam_store_session_wait">Jeda unduhan Steam terlebih dahulu</string>
+    <string name="steam_store_linux_build">Game ini memasang versi Linux-nya. Pasang dari Steam.</string>
 </resources>

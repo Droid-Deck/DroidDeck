@@ -578,7 +578,7 @@ internal fun CountPill(count: Int) {
 
 @Composable
 /** [inert]: shown in a Library preview, where signing in would act on the real account; the button only says so. */
-internal fun SignInCard(store: Store, height: Dp, inert: Boolean = false) {
+internal fun SignInCard(store: Store, height: Dp, inert: Boolean = false, onSignIn: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     LaunchedEffect(store) { StoresState.preview(ctx, store) }
     val art = remember(StoresState.shelves[store]) {
@@ -588,7 +588,7 @@ internal fun SignInCard(store: Store, height: Dp, inert: Boolean = false) {
                 ?: shelves?.all.orEmpty().filter { !it.mature && !it.owned }.mapNotNull { it.tallImageUrl ?: it.imageUrl },
         )
     }
-    HeroWallCard(store.label, art, sourceColours(store.id), height) { SignInButton(store, large = true, inert = inert) }
+    HeroWallCard(store.label, art, sourceColours(store.id), height) { SignInButton(store, large = true, inert = inert, onSignIn = onSignIn) }
 }
 
 /** Repeats a short cover list so the wall has enough tiles to drift; too few covers leave it to the blank capsules. */
@@ -636,15 +636,17 @@ internal fun HeroWallCard(title: String, art: List<Any>, c: SourceColours, heigh
 }
 
 @Composable
-private fun SignInButton(store: Store, large: Boolean = false, inert: Boolean = false) {
+private fun SignInButton(store: Store, large: Boolean = false, inert: Boolean = false, onSignIn: (() -> Unit)? = null) {
     val ctx = LocalContext.current
     val colors = MaterialTheme.colorScheme
     val placed = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
     var askKey by remember { mutableStateOf(false) }
     if (askKey) ItchKeyDialog { askKey = false }
     Box(Modifier.onGloballyPositioned { placed[0] = it }) {
-        PrimaryButton(stringResource(R.string.stores_signin), main = true, large = large, icon = if (large) Icons.AutoMirrored.Filled.Login else null) {
+        val label = if (onSignIn != null) stringResource(R.string.stores_login_title, store.label) else stringResource(R.string.stores_signin)
+        PrimaryButton(label, main = true, large = large, icon = if (large) Icons.AutoMirrored.Filled.Login else null) {
             if (inert) android.widget.Toast.makeText(ctx, R.string.dev_preview_read_only, android.widget.Toast.LENGTH_SHORT).show()
+            else if (onSignIn != null) onSignIn()
             else startStoreSignIn(ctx, store, placed[0]?.takeIf { it.isAttached }?.boundsInRoot(), colors.primary) { askKey = true }
         }
     }
@@ -1337,6 +1339,6 @@ internal fun openUrl(ctx: android.content.Context, url: String) {
 }
 
 internal fun launchStoreGame(store: Store, id: String, s: FrontEndState, a: FrontEndActions) {
-    val game = s.steamGames.firstOrNull { it.source == store.id && it.storeId == id }
+    val game = GameRef(null, store, id).game(s.steamGames)
     if (game != null) a.onSteamGame(game) else a.onStoreGame(store, id)
 }

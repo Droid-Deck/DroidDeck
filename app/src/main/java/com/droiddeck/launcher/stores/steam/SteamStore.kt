@@ -49,15 +49,17 @@ internal object SteamStore {
 
     var picking by mutableStateOf<CatalogItem?>(null)
 
-    class Plan(val installDir: String, val downloadBytes: Long, val installBytes: Long, val buildId: String) {
+    class Plan(val installDir: String, val downloadBytes: Long, val installBytes: Long, val buildId: String, val linuxBuild: Boolean) {
         companion object {
             fun of(json: JSONObject): Plan? {
                 if (!json.optBoolean("ok")) return null
                 val dir = json.optString("installDir").takeIf { SteamStore.validDir(it) } ?: return null
-                return Plan(dir, json.optLong("downloadBytes"), json.optLong("installBytes"), json.optString("buildId"))
+                return Plan(dir, json.optLong("downloadBytes"), json.optLong("installBytes"), json.optString("buildId"), json.optBoolean("linuxBuild"))
             }
         }
     }
+
+    internal const val LINUX_BUILD = "linux_build"
 
     private val plans = ConcurrentHashMap<Int, Plan>()
     private val work = Executors.newSingleThreadExecutor { r -> Thread(r, "steam-store") }
@@ -80,6 +82,7 @@ internal object SteamStore {
         val error = answer.optString("error")
         return when {
             error == SteamEngine.MISSING -> SteamEngine.MISSING_TEXT
+            error == LINUX_BUILD -> context.getString(R.string.steam_store_linux_build)
             isSignInError(error) -> context.getString(R.string.stores_login_title, Store.STEAM.label)
             error.isBlank() -> "Steam: install failed"
             else -> error
@@ -218,13 +221,20 @@ internal object SteamStore {
 
     /** Reaches the network; call off the main thread. */
     internal fun plan(context: Context, appId: Int, language: String = SteamClient.language(context)): Pair<Plan?, JSONObject> {
-        plans[appId]?.let { return it to JSONObject().put("ok", true) }
-        val answer = SteamEngine.plan(context, appId, language)
-        val plan = Plan.of(answer)
-        val error = answer.optString("error")
-        if (plan != null) plans[appId] = plan
-        else if (isSignInError(error)) signInFailed(context, error)
-        return plan to answer
+        val plan = plans[appId] ?: run {
+            val answer = SteamEngine.plan(context, appId, language)
+            val error = answer.optString("error")
+            if (isSignInError(error)) signInFailed(context, error)
+            Plan.of(answer)?.also { plans[appId] = it } ?: return null to answer
+        }
+        if (plan.linuxBuild && !protonMapped(context, appId)) return null to SteamEngine.failure(LINUX_BUILD)
+        return plan to JSONObject().put("ok", true)
+    }
+
+    /** The engine installs the Windows depots; a game with a Linux build gets those from the client only when it is mapped to a Proton. */
+    private fun protonMapped(context: Context, appId: Int): Boolean {
+        val config = runCatching { File(SteamClient.root(context), "config/config.vdf").readText() }.getOrNull() ?: return false
+        return SteamStorage.compatMappings(config)[appId.toString()]?.contains("proton", ignoreCase = true) == true
     }
 
     internal fun plannedBytes(context: Context, item: CatalogItem): Long =
@@ -270,7 +280,8 @@ internal object SteamStore {
         DownloadQueue.enqueue(app, entry) { SteamInstallJob(app, appId, guest) }
     }
 
-    fun uninstall(context: Context, appId: Int, onDone: () -> Unit = {}) {
+    /** Removes a game like the client does; [fallback] deletes it when the engine cannot (no engine, or a library it does not map). */
+    fun uninstall(context: Context, appId: Int, fallback: () -> Unit, onDone: () -> Unit = {}) {
         val app = context.applicationContext
         if (SteamClient.clientMayRun()) {
             toast(app, R.string.steam_store_close_steam)
@@ -282,11 +293,10 @@ internal object SteamStore {
         Thread({
             val answer = runCatching {
                 val game = SteamLibraryFolders.installed(SteamClient.libraries(app))[appId]
-                if (game == null) JSONObject().put("ok", true)
-                else {
-                    val engine = SteamClient.engineLibraries(app)
-                    SteamEngine.uninstall(appId, SteamClient.root(app).absolutePath, engine.hostOf(game.library).absolutePath, game.library.guest, engine.json)
-                }
+                val engine = SteamClient.engineLibraries(app)
+                val answer = if (game == null) SteamEngine.failure(SteamEngine.MISSING)
+                    else SteamEngine.uninstall(appId, SteamClient.root(app).absolutePath, engine.hostOf(game.library).absolutePath, game.library.guest, engine.json)
+                if (answer.optString("error") == SteamEngine.MISSING) { fallback(); JSONObject().put("ok", true) } else answer
             }.getOrElse { SteamEngine.failure(it.javaClass.simpleName) }
             val ok = answer.optBoolean("ok")
             StoresState.logLine(if (ok) "Steam: uninstalled $appId" else "Steam: uninstall of $appId failed: ${answer.optString("error")}")

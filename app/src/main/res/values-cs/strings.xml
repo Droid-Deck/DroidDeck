@@ -4163,4 +4163,5 @@
     <string name="hud_only_during_game_hint">Skrýt HUD, když nejsou detekovány snímky hry.</string>
     <string name="steam_store_close_steam">Nejprve zavřete Steam</string>
     <string name="steam_store_session_wait">Nejprve pozastavte stahování ze Steamu</string>
+    <string name="steam_store_linux_build">Tato hra instaluje svou verzi pro Linux. Nainstalujte ji ze Steamu.</string>
 </resources>

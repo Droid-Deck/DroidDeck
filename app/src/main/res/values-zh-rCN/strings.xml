@@ -4053,4 +4053,5 @@
     <string name="hud_only_during_game_hint">未检测到游戏帧时隐藏 HUD。</string>
     <string name="steam_store_close_steam">请先关闭 Steam</string>
     <string name="steam_store_session_wait">请先暂停 Steam 下载</string>
+    <string name="steam_store_linux_build">此游戏会安装其 Linux 版本。请通过 Steam 安装。</string>
 </resources>

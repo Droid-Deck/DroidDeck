@@ -4392,4 +4392,5 @@
     <string name="onboarding_button_finish">Finish setup · %1$d%%</string>
     <string name="steam_store_close_steam">Close Steam first</string>
     <string name="steam_store_session_wait">Pause the Steam download first</string>
+    <string name="steam_store_linux_build">This game installs its Linux build. Install it from Steam.</string>
 </resources>

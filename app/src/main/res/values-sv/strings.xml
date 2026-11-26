@@ -4083,4 +4083,5 @@
     <string name="hud_only_during_game_hint">Dölj HUD när inga spelbildrutor upptäcks.</string>
     <string name="steam_store_close_steam">Stäng Steam först</string>
     <string name="steam_store_session_wait">Pausa Steam-nedladdningen först</string>
+    <string name="steam_store_linux_build">Det här spelet installerar sin Linux-version. Installera det från Steam.</string>
 </resources>

@@ -239,7 +239,7 @@ internal fun ManageStoresSheet() {
             SortableRows(
                 rows = {
                     val ids = StoreTabsState.tabs.map { it.store.id }
-                    if (ManageStores.custom) placeLibraryTabs(ids, StoreTabsState.libraryPlaces) else ids
+                    if (ManageStores.custom) placeLibraryTabs(ids - Store.STEAM.id, StoreTabsState.libraryPlaces) else ids
                 },
                 commit = { StoreTabsState.reorder(ctx, it) },
                 movable = { true },

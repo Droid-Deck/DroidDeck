@@ -3096,6 +3096,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     return
                 }
                 val target = com.droiddeck.launcher.frontend.GameRemoval.steamFiles(g) ?: return
+                if (Library.fromSteamClient(g)) {
+                    com.droiddeck.launcher.stores.steam.SteamStore.uninstall(this, g.appId, fallback = { com.droiddeck.launcher.frontend.GameRemoval.delete(target) }) { refreshAddedGames(); refresh() }
+                    return
+                }
                 Thread({
                     com.droiddeck.launcher.frontend.GameRemoval.delete(target)
                     ui.post { refreshAddedGames(); refresh() }

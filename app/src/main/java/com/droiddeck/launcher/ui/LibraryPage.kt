@@ -139,7 +139,8 @@ internal class LibraryEntry(
     val game: Library.SteamGame?, val item: CatalogItem?, val installed: Boolean,
 ) {
     val storeKey: String? get() = item?.key ?: game?.storeId?.let { "${game.source}:$it" }
-    val favoriteKey: String get() = storeKey ?: key
+    /** A Steam game keeps the key it has once the Steam client lists it, so favoriting it before the install carries over. */
+    val favoriteKey: String get() = if (item?.store == Store.STEAM) "app:${item.id}" else storeKey ?: key
 }
 
 internal fun libraryEntries(
@@ -149,6 +150,7 @@ internal fun libraryEntries(
     val out = ArrayList<LibraryEntry>()
     for (g in games.sortedBy { it.library == Library.XBOX_CLOUD }) {
         if (g.library == Library.EPIC_LAUNCHER) continue
+        if (Library.fromSteamClient(g)) claimed.add("${Store.STEAM.id}:${g.appId}")
         val storeKey = g.storeId?.let { "${g.source}:$it" }
         val item = storeKey?.let { k -> Store.byId(g.source)?.let { st -> owned[st]?.firstOrNull { it.key == k } } }
         if (storeKey != null) {
@@ -158,9 +160,9 @@ internal fun libraryEntries(
         out += LibraryEntry(GameRef.key(g), g.source, g.name, g, item,
             installed = g.library != Library.XBOX_CLOUD || storeKey in installedStore)
     }
-    for (store in Store.entries) if (store != Store.STEAM) for (item in owned[store].orEmpty()) {
+    for (store in Store.entries) for (item in owned[store].orEmpty()) {
         if (!claimed.add(item.key)) continue
-        out += LibraryEntry(GameRef.key(item), store.id, item.title, null, item, installed = item.key in installedStore)
+        out += LibraryEntry(GameRef.key(item), store.librarySource, item.title, null, item, installed = item.key in installedStore)
     }
     return out.distinctBy { it.key }
 }
@@ -297,7 +299,7 @@ internal object LibraryView {
     fun showOwned(context: android.content.Context, store: Store) {
         SessionPrefs.setLibraryShowUninstalled(context, true)
         ownedRequest++
-        source = store.id
+        source = store.librarySource
         query = ""
         focusFirst = true
     }
@@ -368,7 +370,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     remember { StoreTabsState.load(ctx) }
     val storeTabs = StoreTabsState.tabs
     val signInChips = if (!stores || !StoresState.accountsLoaded || preview == LibraryPreview.SAMPLE) emptySet() else storeTabs
-        .filter { it.shown && StoresState.backend(it.store) != null && (preview == LibraryPreview.SIGNED_OUT || storeAccount(it.store) != StoreAccount.SIGNED_IN) }
+        .filter { it.shown && it.store != Store.STEAM && StoresState.backend(it.store) != null && (preview == LibraryPreview.SIGNED_OUT || storeAccount(it.store) != StoreAccount.SIGNED_IN) }
         .map { it.store.id }.toSet()
     val sources = librarySources(
         all, storeTabs.map { it.store.id },
