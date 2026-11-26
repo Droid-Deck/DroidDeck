@@ -84,9 +84,10 @@ def store_game_exe(exe):
     target = sidecar.get("exe") if isinstance(sidecar, dict) else None
     if not isinstance(target, str) or not target.strip() or "\0" in target:
         return exe
-    if ":" in target or target.startswith(("/", "\\")):
+    normalized = target.replace("\\", "/")
+    if ":" in normalized or normalized.startswith("/") or ".." in normalized.split("/"):
         return exe
-    relative = os.path.normpath(target.replace("\\", "/"))
+    relative = os.path.normpath(normalized)
     if os.path.isabs(relative) or relative in (".", "..") or relative.startswith(".." + os.sep):
         return exe
     candidate = os.path.join(folder, relative)

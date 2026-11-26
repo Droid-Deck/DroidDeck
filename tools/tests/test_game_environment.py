@@ -1797,7 +1797,9 @@ class GameEnvironmentTest(unittest.TestCase):
             sub = root / "sub"
             sub.mkdir(parents=True)
             (root / "real.exe").touch()
+            (sub / "nested.exe").touch()
             (root / "escape.exe").symlink_to(outside_exe)
+            (root / "linkdir").symlink_to(outside)
             launcher = root / ".droiddeck-launch.bat"
             launcher.touch()
             sidecar = root / ".droiddeck-store.json"
@@ -1808,6 +1810,9 @@ class GameEnvironmentTest(unittest.TestCase):
             for payload in ("not-json", "[]", json.dumps({"exe": ""}), json.dumps({"exe": 123}),
                             json.dumps({"exe": "missing.exe"}), json.dumps({"exe": "sub"}),
                             json.dumps({"exe": "../Outside/BatmanAC.exe"}),
+                            json.dumps({"exe": "sub/../real.exe"}),
+                            json.dumps({"exe": r"sub\..\real.exe"}),
+                            json.dumps({"exe": "linkdir/../real.exe"}),
                             json.dumps({"exe": "sub/../../Outside/BatmanAC.exe"}),
                             json.dumps({"exe": str(outside_exe)}),
                             json.dumps({"exe": r"C:\Windows\notepad.exe"}),
@@ -1818,6 +1823,8 @@ class GameEnvironmentTest(unittest.TestCase):
 
             sidecar.write_text(json.dumps({"exe": "real.exe"}))
             self.assertEqual(resolve(str(launcher)), str(root / "real.exe"))
+            sidecar.write_text(json.dumps({"exe": "sub/nested.exe"}))
+            self.assertEqual(resolve(str(launcher)), str(sub / "nested.exe"))
             other_bat = root / "custom.bat"
             other_bat.touch()
             self.assertEqual(resolve(str(other_bat)), str(other_bat))
