@@ -1796,7 +1796,6 @@
     <string name="game_sync_err_steam_library">ไลบรารี Steam ไม่พร้อมใช้งาน</string>
     <string name="game_sync_err_previous_sd">ไลบรารี SD ก่อนหน้าไม่พร้อมใช้งาน</string>
     <string name="game_sync_err_game_storage">พื้นที่จัดเก็บเกมไม่พร้อมใช้งาน</string>
-    <string name="game_sync_err_added_games">โฟลเดอร์เกมที่เพิ่มไม่พร้อมใช้งาน</string>
     <string name="game_sync_err_manifests">ไฟล์ manifest ของ Steam ไม่พร้อมใช้งาน</string>
     <string name="content_system_many">หลายระบบ</string>
     <string name="fm_drive_internal">ภายใน</string>

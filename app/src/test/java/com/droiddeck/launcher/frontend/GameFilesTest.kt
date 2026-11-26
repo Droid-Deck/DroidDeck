@@ -142,6 +142,24 @@ class GameFilesTest {
         assertEquals("user edit", modified.readText())
     }
 
+    @Test fun syncWithoutPruneKeepsVanishedGamesButStillAddsAndRenames() {
+        val folder = tmp.newFolder()
+        val first = game()
+        val second = game("620", "Portal 2")
+        GameFiles.sync(app, folder, listOf(first, second))
+        val renamed = game("620", "Portal 2 Remastered")
+        val third = game("1", "New install")
+        GameFiles.sync(app, folder, listOf(renamed, third), prune = false)
+        assertEquals("8400", File(folder, GameFiles.filename(first)).readText())
+        assertFalse(File(folder, GameFiles.filename(second)).exists())
+        assertEquals("620", File(folder, GameFiles.filename(renamed)).readText())
+        assertEquals("1", File(folder, GameFiles.filename(third)).readText())
+        GameFiles.sync(app, folder, listOf(renamed, third))
+        assertFalse(File(folder, GameFiles.filename(first)).exists())
+        assertTrue(File(folder, GameFiles.filename(renamed)).isFile)
+        assertTrue(File(folder, GameFiles.filename(third)).isFile)
+    }
+
     @Test fun failedExportDoesNotPruneOldInventoryAndNeverOverwritesCollisions() {
         val folder = tmp.newFolder()
         val first = game()

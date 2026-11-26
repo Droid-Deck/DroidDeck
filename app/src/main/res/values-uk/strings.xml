@@ -1852,7 +1852,6 @@
     <string name="game_sync_err_steam_library">Бібліотека Steam недоступна</string>
     <string name="game_sync_err_previous_sd">Попередня бібліотека на SD-карті недоступна</string>
     <string name="game_sync_err_game_storage">Сховище ігор недоступне</string>
-    <string name="game_sync_err_added_games">Папка доданих ігор недоступна</string>
     <string name="game_sync_err_manifests">Маніфести Steam недоступні</string>
     <string name="content_system_many">Багато систем</string>
     <string name="fm_drive_internal">Внутрішня пам’ять</string>

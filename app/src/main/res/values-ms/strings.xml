@@ -1796,7 +1796,6 @@
     <string name="game_sync_err_steam_library">Pustaka Steam tidak tersedia</string>
     <string name="game_sync_err_previous_sd">Pustaka SD terdahulu tidak tersedia</string>
     <string name="game_sync_err_game_storage">Storan permainan tidak tersedia</string>
-    <string name="game_sync_err_added_games">Folder permainan yang ditambah tidak tersedia</string>
     <string name="game_sync_err_manifests">Manifest Steam tidak tersedia</string>
     <string name="content_system_many">Banyak sistem</string>
     <string name="fm_drive_internal">Dalaman</string>

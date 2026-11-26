@@ -1796,7 +1796,6 @@
     <string name="game_sync_err_steam_library">Thư viện Steam không khả dụng</string>
     <string name="game_sync_err_previous_sd">Thư viện SD trước đó không khả dụng</string>
     <string name="game_sync_err_game_storage">Lưu trữ game không khả dụng</string>
-    <string name="game_sync_err_added_games">Thư mục game đã thêm không khả dụng</string>
     <string name="game_sync_err_manifests">Manifest của Steam không khả dụng</string>
     <string name="content_system_many">Nhiều hệ máy</string>
     <string name="fm_drive_internal">Nội bộ</string>

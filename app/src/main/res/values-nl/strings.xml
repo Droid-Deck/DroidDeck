@@ -1814,7 +1814,6 @@
     <string name="game_sync_err_steam_library">Steam-bibliotheek is niet beschikbaar</string>
     <string name="game_sync_err_previous_sd">Vorige SD-bibliotheek is niet beschikbaar</string>
     <string name="game_sync_err_game_storage">Gameopslag is niet beschikbaar</string>
-    <string name="game_sync_err_added_games">Map met toegevoegde games is niet beschikbaar</string>
     <string name="game_sync_err_manifests">Steam-manifesten zijn niet beschikbaar</string>
     <string name="content_system_many">Veel systemen</string>
     <string name="fm_drive_internal">Intern</string>

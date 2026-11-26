@@ -1806,7 +1806,6 @@
     <string name="game_sync_err_steam_library">Steam-Bibliothek ist nicht verfügbar</string>
     <string name="game_sync_err_previous_sd">Vorherige SD-Bibliothek ist nicht verfügbar</string>
     <string name="game_sync_err_game_storage">Spielspeicher ist nicht verfügbar</string>
-    <string name="game_sync_err_added_games">Ordner für hinzugefügte Spiele ist nicht verfügbar</string>
     <string name="game_sync_err_manifests">Steam-Manifeste sind nicht verfügbar</string>
     <string name="content_system_many">Viele Systeme</string>
     <string name="fm_drive_internal">Intern</string>

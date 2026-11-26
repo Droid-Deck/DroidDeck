@@ -1806,7 +1806,6 @@
     <string name="game_sync_err_steam_library">Steam kütüphanesi kullanılamıyor</string>
     <string name="game_sync_err_previous_sd">Önceki SD kütüphanesi kullanılamıyor</string>
     <string name="game_sync_err_game_storage">Oyun depolama alanı kullanılamıyor</string>
-    <string name="game_sync_err_added_games">Eklenen oyunlar klasörü kullanılamıyor</string>
     <string name="game_sync_err_manifests">Steam manifest dosyaları kullanılamıyor</string>
     <string name="content_system_many">Birçok sistem</string>
     <string name="fm_drive_internal">Dahili</string>

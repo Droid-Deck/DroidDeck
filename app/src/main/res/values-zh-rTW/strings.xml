@@ -1795,7 +1795,6 @@
     <string name="game_sync_err_steam_library">無法使用 Steam 收藏庫</string>
     <string name="game_sync_err_previous_sd">無法使用先前的 SD 卡收藏庫</string>
     <string name="game_sync_err_game_storage">無法使用遊戲儲存空間</string>
-    <string name="game_sync_err_added_games">無法使用已新增遊戲的資料夾</string>
     <string name="game_sync_err_manifests">無法使用 Steam 資訊清單</string>
     <string name="content_system_many">多種主機</string>
     <string name="fm_drive_internal">內部</string>
