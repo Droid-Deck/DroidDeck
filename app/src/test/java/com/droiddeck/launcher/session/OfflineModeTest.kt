@@ -216,6 +216,23 @@ class OfflineModeTest {
     }
 
     @Test
+    fun turningAutoOffRightAfterTheNetworkReturnsKeepsSteamOffline() {
+        network(online = false)
+        assertTrue(OfflineMode.apply(context, root))
+        network(online = true)
+        OfflineMode.setAuto(context, false)
+        assertTrue(OfflineMode.enabled(context))
+        assertEquals("1", steamWants())
+    }
+
+    @Test
+    fun turningAutoOffWhileOnlineStaysOnline() {
+        OfflineMode.setAuto(context, false)
+        assertFalse(OfflineMode.enabled(context))
+        assertEquals("0", steamWants())
+    }
+
+    @Test
     fun turningAutoOnFollowsTheNetworkAgain() {
         OfflineMode.setAuto(context, false)
         OfflineMode.setEnabled(context, true)

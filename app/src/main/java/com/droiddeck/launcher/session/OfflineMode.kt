@@ -63,6 +63,7 @@ object OfflineMode {
     fun active(context: Context): Boolean =
         offline(enabled(context), isOnline(context), auto(context))
 
+    @Synchronized
     fun setEnabled(context: Context, on: Boolean) {
         write(context, LinuxRuntime.rootDir(context), on)
         SteamOfflineFollow.request()
@@ -70,7 +71,7 @@ object OfflineMode {
 
     @Synchronized
     fun setAuto(context: Context, on: Boolean) {
-        val manual = if (on) false else active(context)
+        val manual = if (on) false else steamWants(context, LinuxRuntime.rootDir(context)) ?: active(context)
         prefs(context).edit().putBoolean(AUTO_KEY, on).commit()
         setEnabled(context, manual)
     }
