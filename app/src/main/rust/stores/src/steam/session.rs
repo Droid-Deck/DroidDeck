@@ -41,6 +41,8 @@ pub struct Session {
     pub steam_id: u64,
     pub ca_bundle_path: String,
     library: Mutex<Option<Arc<Library>>>,
+    /// Bumped by [`Session::forget_library`]; a load started before it is not published.
+    library_generation: std::sync::atomic::AtomicU64,
 }
 
 static SESSION: Mutex<Option<Arc<Session>>> = Mutex::new(None);
@@ -89,6 +91,7 @@ pub fn sign_in(login: &SavedLogin, ca_bundle_path: &str) -> Result<Arc<Session>,
         },
         ca_bundle_path: ca_bundle_path.to_string(),
         library: Mutex::new(None),
+        library_generation: std::sync::atomic::AtomicU64::new(0),
     });
     *SESSION.lock().expect("session poisoned") = Some(Arc::clone(&session));
     Ok(session)
@@ -394,25 +397,35 @@ impl Session {
         if let Some(lib) = self.library.lock().expect("library poisoned").as_ref() {
             return Ok(Arc::clone(lib));
         }
+        let generation = self.library_generation.load(Ordering::Acquire);
         let lib = Arc::new(Library::load(self)?);
-        *self.library.lock().expect("library poisoned") = Some(Arc::clone(&lib));
+        self.publish_library(generation, &lib);
         Ok(lib)
     }
 
     /// The owned games, loaded once per session.
     pub fn games(&self) -> Result<Vec<crate::steam::library::Game>, String> {
+        let generation = self.library_generation.load(Ordering::Acquire);
         let lib = self.library()?;
         if let Some(games) = lib.cached_games() {
             return Ok(games);
         }
         let games = lib.load_games(self)?;
-        *self.library.lock().expect("library poisoned") =
-            Some(Arc::new(lib.with_games(games.clone())));
+        self.publish_library(generation, &Arc::new(lib.with_games(games.clone())));
         Ok(games)
     }
 
+    fn publish_library(&self, generation: u64, lib: &Arc<Library>) {
+        let mut slot = self.library.lock().expect("library poisoned");
+        if self.library_generation.load(Ordering::Acquire) == generation {
+            *slot = Some(Arc::clone(lib));
+        }
+    }
+
     pub fn forget_library(&self) {
-        *self.library.lock().expect("library poisoned") = None;
+        let mut slot = self.library.lock().expect("library poisoned");
+        self.library_generation.fetch_add(1, Ordering::AcqRel);
+        *slot = None;
     }
 
     /// `CMsgClientRequestFreeLicense` for one app; true when Steam granted it and the license
@@ -478,21 +491,25 @@ impl Session {
                 thread::sleep(Duration::from_millis(
                     crate::fetch_tuning::retry_backoff_millis(attempt),
                 ));
+                if cancel.load(Ordering::Relaxed) {
+                    return KeyResolution::Cancelled;
+                }
             }
             let Some((header, body)) = self.proto_response(REQUEST_TIMEOUT, |core, job| {
                 core.build_get_depot_decryption_key(depot_id, app_id, job)
             }) else {
                 continue;
             };
-            let response = CMsgClientGetDepotDecryptionKeyResponse::deserialize(&body);
-            if let Some(r) = &response {
-                if r.eresult == ERESULT_OK as u32 && r.depot_encryption_key.len() == 32 {
-                    return KeyResolution::Granted(r.depot_encryption_key.clone());
-                }
+            // An undecodable reply is retried like a missing one.
+            let Some(r) = CMsgClientGetDepotDecryptionKeyResponse::deserialize(&body) else {
+                continue;
+            };
+            if r.eresult == ERESULT_OK && r.depot_encryption_key.len() == 32 {
+                return KeyResolution::Granted(r.depot_encryption_key);
             }
             crate::steam::log(&format!(
                 "depot key refused depot={depot_id} header_eresult={header} body_eresult={}",
-                response.map(|r| r.eresult as i64).unwrap_or(-1)
+                r.eresult
             ));
             return KeyResolution::AccessDenied;
         }
@@ -514,6 +531,9 @@ impl Session {
                 thread::sleep(Duration::from_millis(
                     crate::fetch_tuning::retry_backoff_millis(attempt),
                 ));
+                if cancel.load(Ordering::Relaxed) {
+                    return CodeResolution::Cancelled;
+                }
             }
             let Some((eresult, body)) = self.service_response(REQUEST_TIMEOUT, |core, job| {
                 core.build_manifest_request_code_call(app_id, depot_id, manifest_id, "public", job)

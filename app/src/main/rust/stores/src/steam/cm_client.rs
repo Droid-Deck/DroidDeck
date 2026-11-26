@@ -119,10 +119,12 @@ impl CMClientCore {
     pub fn reset_session_identity(&self) {
         self.steam_id.store(0, Ordering::Relaxed);
         self.session_id.store(0, Ordering::Relaxed);
-        self.outbound_wires
-            .lock()
-            .expect("outbound queue poisoned")
-            .clear();
+        // Unsent wires can hold the logon token.
+        let mut queue = self.outbound_wires.lock().expect("outbound queue poisoned");
+        for wire in queue.iter_mut() {
+            zeroize::Zeroize::zeroize(wire);
+        }
+        queue.clear();
     }
 
     pub fn steam_id(&self) -> u64 {
@@ -138,7 +140,7 @@ impl CMClientCore {
     }
 
     pub fn last_logon_eresult(&self) -> i32 {
-        self.last_logon_eresult.load(Ordering::Relaxed)
+        self.last_logon_eresult.load(Ordering::Acquire)
     }
 
     pub fn clear_last_logon_eresult(&self) {
@@ -520,9 +522,9 @@ impl CMClientCore {
                 let Some(resp) = CMsgClientLogonResponse::deserialize(body) else {
                     return InboundAction::ParseFailed("ClientLogonResponse");
                 };
-                self.last_logon_eresult
-                    .store(resp.eresult, Ordering::Relaxed);
-                if resp.eresult == 1 {
+                // The eresult is published last (Release) so a waiter that sees it also sees the
+                // state and ids that go with it.
+                let action = if resp.eresult == 1 {
                     self.state
                         .store(ClientState::LoggedOn as u8, Ordering::Relaxed);
                     self.steam_id
@@ -533,7 +535,10 @@ impl CMClientCore {
                     InboundAction::LogonOk
                 } else {
                     InboundAction::LoggedOff
-                }
+                };
+                self.last_logon_eresult
+                    .store(resp.eresult, Ordering::Release);
+                action
             }
             EMsg::CLIENT_LOGGED_OFF | EMsg::CLIENT_SERVER_UNAVAILABLE => {
                 if self.state() == ClientState::LoggedOn {
@@ -555,6 +560,10 @@ impl CMClientCore {
                     return InboundAction::ParseFailed("ClientLicenseList");
                 };
                 let count = msg.licenses.len();
+                // A refused list keeps the last good snapshot (or none, so the load reports it).
+                if msg.eresult != 1 && msg.licenses.is_empty() {
+                    return InboundAction::ParseFailed("ClientLicenseList refused");
+                }
                 *self.license_list.lock().expect("license list poisoned") = Some(msg.licenses);
                 InboundAction::LicenseList(count)
             }
@@ -605,13 +614,20 @@ pub fn decode_multi_records(body: &[u8]) -> Option<Vec<Vec<u8>>> {
     (offset == records.len()).then_some(out)
 }
 
+/// Largest MULTI batch accepted once decompressed.
+const MAX_MULTI_UNZIPPED: usize = 64 << 20;
+
 fn gunzip_or_zlib(compressed: &[u8], expected_size: usize) -> Option<Vec<u8>> {
+    if expected_size == 0 || expected_size > MAX_MULTI_UNZIPPED {
+        return None;
+    }
+    let limit = expected_size as u64 + 1;
     let mut out = Vec::with_capacity(expected_size);
-    if GzDecoder::new(compressed).read_to_end(&mut out).is_ok() && !out.is_empty() {
+    if GzDecoder::new(compressed).take(limit).read_to_end(&mut out).is_ok() && out.len() == expected_size {
         return Some(out);
     }
     out.clear();
-    if ZlibDecoder::new(compressed).read_to_end(&mut out).is_ok() && !out.is_empty() {
+    if ZlibDecoder::new(compressed).take(limit).read_to_end(&mut out).is_ok() && out.len() == expected_size {
         return Some(out);
     }
     None
@@ -755,12 +771,17 @@ mod tests {
     fn license_list_push_is_stored() {
         let core = CMClientCore::default();
         assert!(core.license_list().is_none());
+        let mut refused = Vec::new();
+        Writer::new(&mut refused).int32_field(1, 2);
+        assert!(matches!(
+            core.route_inbound(EMsg::CLIENT_LICENSE_LIST, &CMsgProtoBufHeader::default(), &refused),
+            InboundAction::ParseFailed(_)
+        ));
+        assert!(core.license_list().is_none());
+        let mut ok = Vec::new();
+        Writer::new(&mut ok).int32_field(1, 1);
         assert_eq!(
-            core.route_inbound(
-                EMsg::CLIENT_LICENSE_LIST,
-                &CMsgProtoBufHeader::default(),
-                &[]
-            ),
+            core.route_inbound(EMsg::CLIENT_LICENSE_LIST, &CMsgProtoBufHeader::default(), &ok),
             InboundAction::LicenseList(0)
         );
         assert_eq!(core.license_list(), Some(Vec::new()));

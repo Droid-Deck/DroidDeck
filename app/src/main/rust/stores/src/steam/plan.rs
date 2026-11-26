@@ -227,6 +227,10 @@ pub fn effective_language(appinfo: &KVNode, requested: &str) -> String {
         .map(|d| language_of(d.child("config")))
         .filter(|l| !l.is_empty())
         .collect();
+    language_from(&tags, requested)
+}
+
+fn language_from(tags: &HashSet<String>, requested: String) -> String {
     if tags.is_empty() || tags.contains(&requested) || !tags.contains("english") {
         requested
     } else {
@@ -244,13 +248,11 @@ pub fn plan_app(
     language: &str,
 ) -> Result<AppPlan, String> {
     let appinfo = appinfo_root(appinfo);
-    let language = effective_language(appinfo, language);
     let mut plan = AppPlan {
         app_id,
         name: app_name(appinfo),
         install_dir: app_install_dir(appinfo),
         build_id: public_build_id(appinfo),
-        language: language.clone(),
         linux_build: str_at(appinfo, &["common", "oslist"])
             .split(',')
             .any(|os| os.trim().eq_ignore_ascii_case("linux")),
@@ -258,6 +260,9 @@ pub fn plan_app(
     };
     if plan.install_dir.is_empty() {
         return Err("appinfo has no installdir".to_string());
+    }
+    if !crate::steam::register::is_plain_name(&plan.install_dir) {
+        return Err("appinfo installdir is not a plain folder name".to_string());
     }
     let Some(depots) = appinfo.child("depots") else {
         return Err("appinfo has no depots".to_string());
@@ -294,10 +299,26 @@ pub fn plan_app(
         };
         if is_shared {
             shared.push(candidate);
-        } else {
+        } else if public_manifest(depot).is_some() {
+            // Only a depot with a public manifest can be installed, so only those take part in
+            // the language and architecture choice.
             own.push(candidate);
         }
     }
+
+    let requested = language.trim().to_ascii_lowercase();
+    let requested = if requested.is_empty() {
+        "english".to_string()
+    } else {
+        requested
+    };
+    let tags: HashSet<String> = own
+        .iter()
+        .map(|c| c.language.clone())
+        .filter(|l| !l.is_empty())
+        .collect();
+    let language = language_from(&tags, requested);
+    plan.language = language.clone();
 
     for candidate in narrow(own, &language) {
         let Some((manifest_id, size, download)) = public_manifest(candidate.node) else {
@@ -322,14 +343,23 @@ pub fn plan_app(
         });
     }
     if plan.depots.is_empty() {
-        return Err("no installable Windows depot".to_string());
+        // The client installs the Linux build of a game that has no Windows depot.
+        return Err(if plan.linux_build {
+            "linux_build".to_string()
+        } else {
+            "no installable Windows depot".to_string()
+        });
     }
     Ok(plan)
 }
 
 /// Fills [`AppPlan::shared`] from the owning apps' appinfo (`lookup(from_app_id)`); a shared
-/// depot without a public manifest there is left out.
-pub fn resolve_shared(plan: &mut AppPlan, lookup: &dyn Fn(u32) -> Option<KVNode>) {
+/// depot without a public manifest there is left out. Fails when an owning app's appinfo could
+/// not be fetched, so a plan never goes ahead without a shared depot it may need.
+pub fn resolve_shared(
+    plan: &mut AppPlan,
+    lookup: &dyn Fn(u32) -> Option<KVNode>,
+) -> Result<(), String> {
     plan.shared.clear();
     let mut cache: Vec<(u32, Option<KVNode>)> = Vec::new();
     for shared_ref in plan.shared_refs.clone() {
@@ -344,7 +374,10 @@ pub fn resolve_shared(plan: &mut AppPlan, lookup: &dyn Fn(u32) -> Option<KVNode>
             }
         };
         let Some(info) = cache[pos].1.as_ref() else {
-            continue;
+            return Err(format!(
+                "appinfo unavailable for shared app {}",
+                shared_ref.from_app_id
+            ));
         };
         let info = appinfo_root(info);
         let Some(depot) = info
@@ -357,7 +390,7 @@ pub fn resolve_shared(plan: &mut AppPlan, lookup: &dyn Fn(u32) -> Option<KVNode>
             continue;
         };
         let install_dir = app_install_dir(info);
-        if install_dir.is_empty() {
+        if !crate::steam::register::is_plain_name(&install_dir) {
             continue;
         }
         plan.shared.push(SharedDepot {
@@ -371,6 +404,7 @@ pub fn resolve_shared(plan: &mut AppPlan, lookup: &dyn Fn(u32) -> Option<KVNode>
             from_build_id: public_build_id(info),
         });
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -569,7 +603,7 @@ pub mod tests {
                 from_app_id: 228980
             }]
         );
-        resolve_shared(&mut plan, &|app| (app == 228980).then(|| parse(REDIST)));
+        resolve_shared(&mut plan, &|app| (app == 228980).then(|| parse(REDIST))).unwrap();
         assert_eq!(plan.shared.len(), 1);
         let shared = &plan.shared[0];
         assert_eq!(shared.manifest_id, 6645201662696499616);

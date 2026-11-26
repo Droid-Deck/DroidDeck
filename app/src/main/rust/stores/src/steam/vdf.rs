@@ -368,15 +368,16 @@ impl<'a> TextCursor<'a> {
 fn parse_text_object(cursor: &mut TextCursor<'_>, parent: &mut KVNode) -> bool {
     loop {
         cursor.skip_ws_and_comments();
+        // An object that ends before its closing brace is a truncated file, not a complete one.
         if cursor.eof() {
-            return true;
+            return false;
         }
         if cursor.peek() == b'}' {
             cursor.pos += 1;
             return true;
         }
         let Some(key) = cursor.read_token() else {
-            return cursor.ok;
+            return false;
         };
         cursor.skip_ws_and_comments();
         if cursor.eof() {
@@ -414,6 +415,14 @@ pub fn parse_text(body: &[u8]) -> Option<KVNode> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn refuses_a_truncated_text_object() {
+        assert!(parse_text(b"\"a\" { \"b\" \"1\" }").is_some());
+        assert!(parse_text(b"\"a\" { \"b\" \"1\"").is_none());
+        assert!(parse_text(b"\"a\" { \"b\" { \"c\" \"1\" }").is_none());
+        assert!(parse_text(b"\"a\" { { }").is_none());
+    }
 
     #[test]
     fn parses_text_vdf_with_comments_and_case_insensitive_lookup() {

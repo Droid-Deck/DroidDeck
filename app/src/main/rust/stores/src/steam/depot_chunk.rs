@@ -45,7 +45,7 @@ pub fn process_depot_chunk(
     } else if dec.starts_with(b"VZa") {
         decompress_vzip(&dec, expected_size)
     } else if dec.starts_with(b"PK\x03\x04") {
-        match cdn::unzip_first_entry(&dec) {
+        match cdn::unzip_first_entry(&dec, expected_size as usize) {
             Some(data) => DepotChunkResult {
                 data,
                 error: String::new(),
@@ -85,12 +85,17 @@ fn decompress_vzstd(dec: &[u8], expected_size: u32) -> DepotChunkResult {
         return fail("vzstd: chunk too small");
     }
     let payload = &dec[8..];
-    let mut reader = match ruzstd::decoding::StreamingDecoder::new(Cursor::new(payload)) {
+    let reader = match ruzstd::decoding::StreamingDecoder::new(Cursor::new(payload)) {
         Ok(reader) => reader,
         Err(_) => return fail("vzstd: bad zstd frame"),
     };
     let mut data = Vec::with_capacity(expected_size as usize);
-    if reader.read_to_end(&mut data).is_err() {
+    // One byte past the expected size is enough for the size check to reject an oversized frame.
+    if reader
+        .take(expected_size as u64 + 1)
+        .read_to_end(&mut data)
+        .is_err()
+    {
         return fail("vzstd: decode failed");
     }
     DepotChunkResult {

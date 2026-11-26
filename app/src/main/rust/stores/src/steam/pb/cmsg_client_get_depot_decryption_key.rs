@@ -1,4 +1,4 @@
-use crate::steam::proto_wire::{Reader, Writer};
+use crate::steam::proto_wire::{Reader, WireType, Writer};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct CMsgClientGetDepotDecryptionKey {
@@ -18,7 +18,7 @@ impl CMsgClientGetDepotDecryptionKey {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CMsgClientGetDepotDecryptionKeyResponse {
-    pub eresult: u32,
+    pub eresult: i32,
     pub depot_id: u32,
     pub depot_encryption_key: Vec<u8>,
 }
@@ -41,10 +41,12 @@ impl CMsgClientGetDepotDecryptionKeyResponse {
             let Some(tag) = reader.next_tag() else {
                 return reader.ok().then_some(msg);
             };
-            match tag.field_number {
-                1 => msg.eresult = reader.u32()?,
-                2 => msg.depot_id = reader.u32()?,
-                3 => msg.depot_encryption_key = reader.bytes()?.to_vec(),
+            match (tag.field_number, tag.wire_type) {
+                (1, WireType::Varint) => msg.eresult = reader.i32()?,
+                (2, WireType::Varint) => msg.depot_id = reader.u32()?,
+                (3, WireType::LengthDelimited) => {
+                    msg.depot_encryption_key = reader.bytes()?.to_vec()
+                }
                 _ => {
                     if !reader.skip(tag.wire_type) {
                         return None;
@@ -53,5 +55,25 @@ impl CMsgClientGetDepotDecryptionKeyResponse {
             }
         }
         Some(msg)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_fields_only_with_their_wire_type() {
+        let mut ok = Vec::new();
+        let mut w = Writer::new(&mut ok);
+        w.int32_field(1, 1);
+        w.uint32_field(2, 7);
+        w.bytes_field(3, &[9u8; 32]);
+        let r = CMsgClientGetDepotDecryptionKeyResponse::deserialize(&ok).unwrap();
+        assert_eq!((r.eresult, r.depot_id, r.depot_encryption_key.len()), (1, 7, 32));
+        // Field 1 as a length-delimited value is skipped, not read as the eresult.
+        let mismatched = [0x0a, 0x01, 0x01];
+        let r = CMsgClientGetDepotDecryptionKeyResponse::deserialize(&mismatched).unwrap();
+        assert_eq!(r.eresult, 2);
     }
 }

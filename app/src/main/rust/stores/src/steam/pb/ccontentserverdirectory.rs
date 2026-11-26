@@ -106,7 +106,12 @@ impl CContentServerDirectoryServerInfo {
                             msg.allowed_app_ids.push(packed.varint()? as u32);
                         }
                     }
-                    _ => msg.allowed_app_ids.push(reader.u32()?),
+                    WireType::Varint => msg.allowed_app_ids.push(reader.u32()?),
+                    other => {
+                        if !reader.skip(other) {
+                            return None;
+                        }
+                    }
                 },
                 15 => msg.priority_class = reader.u32()?,
                 _ => {
@@ -140,7 +145,7 @@ impl CContentServerDirectoryGetServersForSteamPipeRequest {
         let mut out = Vec::new();
         let mut w = Writer::new(&mut out);
         w.uint32_field(1, self.cell_id);
-        w.uint32_field(2, self.max_servers);
+        w.uint32_field_force(2, self.max_servers);
         out
     }
 }

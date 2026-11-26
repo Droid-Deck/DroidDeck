@@ -139,10 +139,14 @@ impl CMsgClientLogon {
         }
         w.bytes_field(30, &self.machine_id);
         if self.obfuscated_private_ip != 0 {
-            w.uint32_field(31, self.obfuscated_private_ip);
+            // The LoginID: deprecated_obfustucated_private_ip = 2 and
+            // obfuscated_private_ip = 11 (CMsgIPAddress { fixed32 v4 = 1 }).
+            w.uint32_field(2, self.obfuscated_private_ip);
             let mut ip_msg = Vec::new();
-            Writer::new(&mut ip_msg).uint32_field(1, self.obfuscated_private_ip);
-            w.bytes_field(95, &ip_msg);
+            let mut ip = Writer::new(&mut ip_msg);
+            ip.tag(1, WireType::Fixed32);
+            ip.raw_bytes(&self.obfuscated_private_ip.to_le_bytes());
+            w.bytes_field(11, &ip_msg);
         }
         w.uint32_field(32, self.ui_mode);
         w.uint32_field(33, self.chat_mode);
@@ -248,14 +252,21 @@ mod tests {
         let bytes = msg.serialize();
         let mut reader = Reader::new(&bytes);
         let mut fields = Vec::new();
+        let mut ip_message = Vec::new();
         while let Some(tag) = reader.next_tag() {
-            fields.push(tag.field_number);
-            reader.skip(tag.wire_type);
+            fields.push((tag.field_number, tag.wire_type));
+            if tag.field_number == 11 {
+                ip_message = reader.bytes().unwrap().to_vec();
+            } else {
+                reader.skip(tag.wire_type);
+            }
         }
-        assert!(fields.contains(&50));
-        assert!(fields.contains(&95));
-        assert!(fields.contains(&108));
-        assert!(!fields.contains(&10));
+        assert!(fields.contains(&(2, WireType::Varint)));
+        assert!(fields.contains(&(11, WireType::LengthDelimited)));
+        assert_eq!(ip_message, [0x0d, 0x04, 0x03, 0x02, 0x01]);
+        assert!(fields.contains(&(50, WireType::LengthDelimited)));
+        assert!(fields.contains(&(108, WireType::LengthDelimited)));
+        assert!(!fields.iter().any(|(f, _)| *f == 31 || *f == 95 || *f == 10));
     }
 
     #[test]

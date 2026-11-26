@@ -13,6 +13,7 @@ use crate::steam::cdn;
 use crate::steam::content_manifest::{ChunkData, ContentManifest};
 use crate::steam::depot_chunk::{process_depot_chunk, steam_adler_hash};
 use crate::steam::pb::ccontentserverdirectory::CContentServerDirectoryServerInfo;
+use sha1::{Digest, Sha1};
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::path::{Component, Path, PathBuf};
@@ -114,6 +115,8 @@ struct FileSlot {
 struct DepotFiles {
     slots: Vec<FileSlot>,
     open_count: AtomicUsize,
+    /// The canonical target folder; every write must resolve beneath it.
+    root: PathBuf,
 }
 
 impl DepotFiles {
@@ -123,7 +126,8 @@ impl DepotFiles {
         if let Some(file) = handle.as_ref() {
             return Ok(Arc::clone(file));
         }
-        make_parent_dirs(&slot.path)?;
+        make_parent_dirs(&self.root, &slot.path)?;
+        check_file_target(&self.root, &slot.path)?;
         let file = OpenOptions::new()
             .create(true)
             .write(true)
@@ -131,7 +135,7 @@ impl DepotFiles {
             .truncate(false)
             .open(&slot.path)
             .map_err(|err| format!("open '{}': {err}", slot.path.display()))?;
-        set_file_mode(&slot.path, slot.mode)?;
+        set_file_mode(&file, &slot.path, slot.mode)?;
         let file = Arc::new(file);
         *handle = Some(Arc::clone(&file));
         self.open_count.fetch_add(1, Ordering::Relaxed);
@@ -174,14 +178,15 @@ impl DepotFiles {
     /// Files with nothing left to fetch (zero chunks, or every chunk already correct on disk).
     fn finalize_untouched(&self, idx: usize) -> Result<(), String> {
         let slot = &self.slots[idx];
-        make_parent_dirs(&slot.path)?;
+        make_parent_dirs(&self.root, &slot.path)?;
+        check_file_target(&self.root, &slot.path)?;
         let file = OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(false)
             .open(&slot.path)
             .map_err(|err| format!("open '{}': {err}", slot.path.display()))?;
-        set_file_mode(&slot.path, slot.mode)?;
+        set_file_mode(&file, &slot.path, slot.mode)?;
         let current = file.metadata().map(|m| m.len()).unwrap_or(u64::MAX);
         if current != slot.size {
             file.set_len(slot.size)
@@ -212,6 +217,10 @@ impl FetchSink for ChunkSink<'_> {
         let processed = process_depot_chunk(&body, self.depot_key, chunk.crc, chunk.cb_original);
         if !processed.ok() {
             return Err(SinkError::Retry(processed.error));
+        }
+        // A chunk's id is the SHA-1 of its decompressed bytes.
+        if Sha1::digest(&processed.data).as_slice() != chunk.sha.as_slice() {
+            return Err(SinkError::Retry("chunk: SHA-1 mismatch".to_string()));
         }
         let mut credited = 0u64;
         for target in &chunk.targets {
@@ -257,6 +266,15 @@ fn prepare(
             request.target_dir.display()
         )));
     }
+    let root = match fs::canonicalize(request.target_dir) {
+        Ok(root) => root,
+        Err(err) => {
+            return Err(DepotWriteOutcome::fail(format!(
+                "resolve '{}': {err}",
+                request.target_dir.display()
+            )))
+        }
+    };
 
     let mut slots = Vec::with_capacity(manifest.files.len());
     let mut existing = Vec::with_capacity(manifest.files.len());
@@ -303,9 +321,9 @@ fn prepare(
     for file in &manifest.files {
         let path = request.target_dir.join(&file.filename);
         let result = if !file.linktarget.is_empty() {
-            create_symlink(&path, &file.linktarget)
+            create_symlink(&root, &path, &file.linktarget)
         } else if (file.flags & DEPOT_FILE_FLAG_DIRECTORY) != 0 {
-            fs::create_dir_all(&path).map_err(|err| format!("mkdir '{}': {err}", path.display()))
+            make_dirs(&root, &path)
         } else {
             Ok(())
         };
@@ -314,7 +332,14 @@ fn prepare(
         }
     }
 
-    let verified = verify_existing(manifest, &slots, &existing, request.process_workers, cancel);
+    let verified = verify_existing(
+        manifest,
+        &slots,
+        &existing,
+        &root,
+        request.process_workers,
+        cancel,
+    );
     if cancel.load(Ordering::Relaxed) {
         return Err(DepotWriteOutcome {
             cancelled: true,
@@ -362,6 +387,7 @@ fn prepare(
     let files = DepotFiles {
         slots,
         open_count: AtomicUsize::new(0),
+        root,
     };
     for (idx, file) in manifest.files.iter().enumerate() {
         if is_regular(file.flags, &file.linktarget)
@@ -390,9 +416,6 @@ pub fn write_depot(
 ) -> DepotWriteOutcome {
     let manifest = request.manifest;
     let servers = cdn::usable_servers(request.servers);
-    if servers.is_empty() {
-        return DepotWriteOutcome::fail("no usable CDN server");
-    }
     let Prepared {
         files,
         chunks,
@@ -402,6 +425,9 @@ pub fn write_depot(
         Ok(prepared) => prepared,
         Err(outcome) => return outcome,
     };
+    if servers.is_empty() && !chunks.is_empty() {
+        return DepotWriteOutcome::fail("no usable CDN server");
+    }
     progress(bytes_verified);
     log(&format!(
         "depot={} files={} unique_chunks={} verified_bytes={bytes_verified} total_bytes={total}",
@@ -501,6 +527,7 @@ fn verify_existing(
     manifest: &ContentManifest,
     slots: &[FileSlot],
     existing: &[u64],
+    root: &Path,
     workers: usize,
     cancel: &AtomicBool,
 ) -> Vec<Vec<bool>> {
@@ -529,14 +556,20 @@ fn verify_existing(
                     let Some(idx) = next else {
                         return;
                     };
+                    if check_file_target(root, &slots[idx].path).is_err() {
+                        continue;
+                    }
                     let Ok(file) = File::open(&slots[idx].path) else {
                         continue;
                     };
-                    let flags = manifest.files[idx]
-                        .chunks
-                        .iter()
-                        .map(|chunk| existing_chunk_matches(&file, existing[idx], chunk))
-                        .collect();
+                    let chunks = &manifest.files[idx].chunks;
+                    let mut flags = vec![false; chunks.len()];
+                    for (flag, chunk) in flags.iter_mut().zip(chunks) {
+                        if cancel.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        *flag = existing_chunk_matches(&file, existing[idx], chunk);
+                    }
                     results
                         .lock()
                         .expect("verify results poisoned")
@@ -566,18 +599,56 @@ pub fn existing_chunk_matches(file: &File, file_len: u64, chunk: &ChunkData) -> 
     steam_adler_hash(&buf) == chunk.crc
 }
 
-fn make_parent_dirs(path: &Path) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            fs::create_dir_all(parent)
-                .map_err(|err| format!("mkdir '{}': {err}", parent.display()))?;
-        }
+/// Fails unless `path` (which must exist) resolves beneath `root`, so a symlink in the game folder
+/// cannot carry a write outside it.
+fn check_inside(root: &Path, path: &Path) -> Result<(), String> {
+    match fs::canonicalize(path) {
+        Ok(real) if real.starts_with(root) => Ok(()),
+        Ok(real) => Err(format!(
+            "'{}' resolves outside the install folder ({})",
+            path.display(),
+            real.display()
+        )),
+        Err(err) => Err(format!("resolve '{}': {err}", path.display())),
     }
-    Ok(())
 }
 
-fn create_symlink(path: &Path, target: &str) -> Result<(), String> {
-    make_parent_dirs(path)?;
+/// Creates `dir` and its missing parents, refusing when an existing ancestor or the result
+/// resolves outside `root`.
+fn make_dirs(root: &Path, dir: &Path) -> Result<(), String> {
+    let mut existing = dir;
+    while fs::symlink_metadata(existing).is_err() {
+        match existing.parent() {
+            Some(parent) if !parent.as_os_str().is_empty() => existing = parent,
+            _ => break,
+        }
+    }
+    check_inside(root, existing)?;
+    fs::create_dir_all(dir).map_err(|err| format!("mkdir '{}': {err}", dir.display()))?;
+    check_inside(root, dir)
+}
+
+fn make_parent_dirs(root: &Path, path: &Path) -> Result<(), String> {
+    match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => make_dirs(root, parent),
+        _ => Ok(()),
+    }
+}
+
+/// A file about to be opened: its folder must be inside `root`, and if the path itself is a symlink
+/// it must resolve inside `root` too (a dangling one would create its target wherever it points).
+fn check_file_target(root: &Path, path: &Path) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        check_inside(root, parent)?;
+    }
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_symlink() => check_inside(root, path),
+        _ => Ok(()),
+    }
+}
+
+fn create_symlink(root: &Path, path: &Path, target: &str) -> Result<(), String> {
+    make_parent_dirs(root, path)?;
     if fs::symlink_metadata(path).is_ok() {
         fs::remove_file(path).map_err(|err| format!("unlink '{}': {err}", path.display()))?;
     }
@@ -594,14 +665,14 @@ fn create_symlink(path: &Path, target: &str) -> Result<(), String> {
 }
 
 #[cfg(unix)]
-fn set_file_mode(path: &Path, mode: u32) -> Result<(), String> {
+fn set_file_mode(file: &File, path: &Path, mode: u32) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(path, fs::Permissions::from_mode(mode))
+    file.set_permissions(fs::Permissions::from_mode(mode))
         .map_err(|err| format!("chmod '{}': {err}", path.display()))
 }
 
 #[cfg(not(unix))]
-fn set_file_mode(_path: &Path, _mode: u32) -> Result<(), String> {
+fn set_file_mode(_file: &File, _path: &Path, _mode: u32) -> Result<(), String> {
     Ok(())
 }
 
@@ -696,8 +767,11 @@ mod tests {
             path: path.clone(),
             mode: 0o644,
         }];
-        let flags = verify_existing(&manifest, &slots, &[10], 2, &AtomicBool::new(false));
+        let root = fs::canonicalize(&dir).unwrap();
+        let flags = verify_existing(&manifest, &slots, &[10], &root, 2, &AtomicBool::new(false));
         assert_eq!(flags, vec![vec![true, false]]);
+        let cancelled = verify_existing(&manifest, &slots, &[10], &root, 2, &AtomicBool::new(true));
+        assert_eq!(cancelled, vec![vec![false, false]]);
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -724,9 +798,9 @@ mod tests {
         out
     }
 
-    fn chunk(sha: u8, data: &[u8], offset: u64) -> ChunkData {
+    fn chunk(data: &[u8], offset: u64) -> ChunkData {
         ChunkData {
-            sha: vec![sha; 20],
+            sha: Sha1::digest(data).to_vec(),
             crc: steam_adler_hash(data),
             offset,
             cb_original: data.len() as u32,
@@ -755,13 +829,13 @@ mod tests {
                     filename: "bin/game.exe".into(),
                     size: 10,
                     flags: DEPOT_FILE_FLAG_EXECUTABLE,
-                    chunks: vec![chunk(1, b"hello", 0), chunk(2, b"world", 5)],
+                    chunks: vec![chunk(b"hello", 0), chunk(b"world", 5)],
                     ..Default::default()
                 },
                 FileMapping {
                     filename: "data/copy.bin".into(),
                     size: 5,
-                    chunks: vec![chunk(2, b"world", 0)],
+                    chunks: vec![chunk(b"world", 0)],
                     ..Default::default()
                 },
                 FileMapping {
@@ -804,6 +878,19 @@ mod tests {
             sink.process(&item(0), b"garbage-garbage-garbage-garbage!".to_vec()),
             Err(SinkError::Retry(_))
         ));
+        // Same size and Adler-32 as "hello" would need a collision; a different body of the right
+        // size is enough to show the SHA-1 is checked after the Adler-32 one passes.
+        let mut wrong = prepared.chunks.clone();
+        wrong[0].crc = steam_adler_hash(b"HELLO");
+        let wrong_sink = ChunkSink {
+            chunks: &wrong,
+            files: &prepared.files,
+            depot_key: &key,
+        };
+        assert!(matches!(
+            wrong_sink.process(&item(0), encrypted_chunk(&key, b"HELLO")),
+            Err(SinkError::Retry(e)) if e.contains("SHA-1")
+        ));
         assert_eq!(
             sink.process(&item(1), encrypted_chunk(&key, b"world"))
                 .unwrap(),
@@ -840,5 +927,32 @@ mod tests {
             }]
         );
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_writes_through_a_symlink_out_of_the_install_folder() {
+        let base = std::env::temp_dir().join(format!(
+            "droiddeck_steam_escape_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let dir = base.join("game");
+        let outside = base.join("outside");
+        fs::create_dir_all(&dir).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        std::os::unix::fs::symlink(&outside, dir.join("link")).unwrap();
+        std::os::unix::fs::symlink("../game", dir.join("inner")).unwrap();
+        let root = fs::canonicalize(&dir).unwrap();
+        assert!(make_parent_dirs(&root, &dir.join("link/sub/f.bin")).is_err());
+        assert!(!outside.join("sub").exists());
+        assert!(check_file_target(&root, &dir.join("link/f.bin")).is_err());
+        assert!(make_parent_dirs(&root, &dir.join("inner/sub/f.bin")).is_ok());
+        assert!(check_file_target(&root, &dir.join("inner/sub/f.bin")).is_ok());
+        std::os::unix::fs::symlink(outside.join("x"), dir.join("dangling")).unwrap();
+        assert!(check_file_target(&root, &dir.join("dangling")).is_err());
+        let _ = fs::remove_dir_all(&base);
     }
 }

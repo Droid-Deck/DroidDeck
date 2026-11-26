@@ -24,7 +24,11 @@ impl CmServer {
         if self.transport != CmTransport::WebSocket || self.host.is_empty() || self.port == 0 {
             return String::new();
         }
-        format!("wss://{}:{}/cmsocket/", self.host, self.port)
+        if self.host.contains(':') && !self.host.starts_with('[') {
+            format!("wss://[{}]:{}/cmsocket/", self.host, self.port)
+        } else {
+            format!("wss://{}:{}/cmsocket/", self.host, self.port)
+        }
     }
 }
 
@@ -77,5 +81,13 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(server.websocket_url(), "wss://cm.example.com:443/cmsocket/");
+        let (host, port) = parse_endpoint("[2001:db8::1]:27017").unwrap();
+        let v6 = CmServer {
+            host,
+            port,
+            transport: CmTransport::WebSocket,
+            ..Default::default()
+        };
+        assert_eq!(v6.websocket_url(), "wss://[2001:db8::1]:27017/cmsocket/");
     }
 }

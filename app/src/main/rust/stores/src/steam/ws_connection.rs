@@ -5,10 +5,13 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 use tungstenite::error::Error as WsError;
 use tungstenite::stream::MaybeTlsStream;
-use tungstenite::{connect, Message};
+use tungstenite::client::IntoClientRequest;
+use tungstenite::Message;
 
 const NORMAL_CLOSE_CODE: u16 = 1000;
 const READ_POLL_TIMEOUT: Duration = Duration::from_millis(100);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
 
 type MessageCallback = Arc<dyn Fn(&[u8]) + Send + Sync + 'static>;
 type ConnectedCallback = Arc<dyn Fn() + Send + Sync + 'static>;
@@ -244,12 +247,34 @@ impl WsConnectionShared {
     fn mark_connected(&self) {
         self.state
             .store(TransportState::Connected as u8, Ordering::Release);
-        if let Some(cb) = self
+        self.fire_connected();
+    }
+
+    /// Publishes Connected only while still Connecting, so a disconnect queued during the
+    /// handshake wins.
+    fn mark_connected_if_connecting(&self) -> bool {
+        let won = self
+            .state
+            .compare_exchange(
+                TransportState::Connecting as u8,
+                TransportState::Connected as u8,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            )
+            .is_ok();
+        if won {
+            self.fire_connected();
+        }
+        won
+    }
+
+    fn fire_connected(&self) {
+        let cb = self
             .on_connected
             .lock()
             .expect("ws connection poisoned")
-            .clone()
-        {
+            .clone();
+        if let Some(cb) = cb {
             cb();
         }
     }
@@ -262,40 +287,81 @@ impl WsConnectionShared {
         } else {
             map_close_reason(close_code, tls_failed)
         };
-        if let Some(cb) = self
+        let cb = self
             .on_disconnected
             .lock()
             .expect("ws connection poisoned")
-            .clone()
-        {
+            .clone();
+        if let Some(cb) = cb {
             cb(reason, detail);
         }
     }
 
     fn deliver_binary(&self, data: &[u8]) {
-        if let Some(cb) = self
+        let cb = self
             .on_message
             .lock()
             .expect("ws connection poisoned")
-            .clone()
-        {
+            .clone();
+        if let Some(cb) = cb {
             cb(data);
         }
     }
 }
 
+type WsSocket = tungstenite::WebSocket<MaybeTlsStream<std::net::TcpStream>>;
+
+/// One TLS WebSocket handshake with bounded connect and handshake times. Redirects are not
+/// followed, so a CM cannot move the session to another scheme or host.
+fn open_socket(url: &str) -> Result<WsSocket, String> {
+    if !url.starts_with("wss://") {
+        return Err(format!("refusing non-TLS CM url {url}"));
+    }
+    let request = url.into_client_request().map_err(|e| e.to_string())?;
+    let host = request
+        .uri()
+        .host()
+        .ok_or_else(|| "CM url has no host".to_string())?
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_string();
+    let port = request.uri().port_u16().unwrap_or(443);
+    let addrs = std::net::ToSocketAddrs::to_socket_addrs(&(host.as_str(), port))
+        .map_err(|e| e.to_string())?;
+    let mut last = "no address for CM host".to_string();
+    for addr in addrs {
+        match std::net::TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT) {
+            Ok(stream) => {
+                let _ = stream.set_read_timeout(Some(HANDSHAKE_TIMEOUT));
+                let _ = stream.set_write_timeout(Some(HANDSHAKE_TIMEOUT));
+                return tungstenite::client_tls(request, stream)
+                    .map(|(socket, _)| socket)
+                    .map_err(|e| e.to_string());
+            }
+            Err(err) => last = err.to_string(),
+        }
+    }
+    Err(last)
+}
+
 fn run_ws_worker(shared: Arc<WsConnectionShared>, url: String, rx: mpsc::Receiver<WsCommand>) {
-    let (mut socket, _) = match connect(url.as_str()) {
-        Ok(connection) => connection,
-        Err(err) => {
-            let detail = err.to_string();
+    let mut socket = match open_socket(&url) {
+        Ok(socket) => socket,
+        Err(detail) => {
             let reason = map_error_reason(&detail, false);
             shared.mark_disconnected(reason_to_close_code(reason), &detail, false);
             return;
         }
     };
     let _ = set_read_timeout(socket.get_mut(), Some(READ_POLL_TIMEOUT));
-    shared.mark_connected();
+    if let MaybeTlsStream::Rustls(stream) = socket.get_mut() {
+        let _ = stream.sock.set_write_timeout(None);
+    }
+    if !shared.mark_connected_if_connecting() {
+        let _ = socket.close(None);
+        shared.mark_disconnected(NORMAL_CLOSE_CODE, "client disconnect", false);
+        return;
+    }
 
     loop {
         while let Ok(cmd) = rx.try_recv() {
@@ -442,5 +508,27 @@ mod tests {
         ws.mark_connected();
         assert_eq!(ws.state(), TransportState::Connected);
         assert_eq!(rx.recv().unwrap(), "connected");
+    }
+
+    #[test]
+    fn a_disconnect_during_the_handshake_keeps_connected_unpublished() {
+        let ws = WsConnection::new();
+        assert!(ws.transition_connecting());
+        ws.mark_user_disconnect();
+        assert!(!ws.shared.mark_connected_if_connecting());
+        assert_eq!(ws.state(), TransportState::Disconnecting);
+    }
+
+    #[test]
+    fn a_callback_may_replace_itself() {
+        let ws = Arc::new(WsConnection::new());
+        let inner = Arc::clone(&ws);
+        ws.set_on_message(move |_| inner.set_on_message(|_| {}));
+        ws.deliver_binary(b"x");
+    }
+
+    #[test]
+    fn refuses_plain_ws_urls() {
+        assert!(open_socket("ws://example.invalid/cmsocket/").is_err());
     }
 }

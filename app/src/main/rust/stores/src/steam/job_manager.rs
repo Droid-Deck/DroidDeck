@@ -84,6 +84,14 @@ impl JobManager {
         cv.notify_all();
     }
 
+    pub fn is_tracked(&self, job_id: u64) -> bool {
+        let (mu, _) = &*self.pending;
+        mu.lock()
+            .expect("job manager poisoned")
+            .jobs
+            .contains_key(&job_id)
+    }
+
     pub fn deliver(
         &self,
         job_id_target: u64,
@@ -140,8 +148,12 @@ impl Default for JobManager {
 
 impl Drop for JobManager {
     fn drop(&mut self) {
-        self.stop.store(true, Ordering::Relaxed);
-        self.pending.1.notify_all();
+        {
+            // Under the lock, so the worker cannot start waiting between the store and the notify.
+            let _guard = self.pending.0.lock().expect("job manager poisoned");
+            self.stop.store(true, Ordering::Relaxed);
+            self.pending.1.notify_all();
+        }
         if let Some(handle) = self.timeout_thread.take() {
             let _ = handle.join();
         }

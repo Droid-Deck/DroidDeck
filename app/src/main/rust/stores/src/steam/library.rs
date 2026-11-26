@@ -115,20 +115,40 @@ impl Library {
         package_ids.sort_unstable();
         let mut owned_apps = HashSet::new();
         let mut owned_depots = HashSet::new();
-        for batch in package_ids.chunks(PACKAGE_BATCH) {
-            let request = batch
-                .iter()
-                .map(|id| PicsPackageInfoReq {
-                    packageid: *id,
-                    access_token: tokens.get(id).copied().unwrap_or(0),
-                })
-                .collect();
-            let response = session
-                .pics_product_info(request, Vec::new())
-                .ok_or_else(|| "package info request failed".to_string())?;
-            for package in &response.packages {
-                owned_apps.extend(package_app_ids(&package.buffer));
-                owned_depots.extend(package_depot_ids(&package.buffer));
+        // A package the CM left out of its answer (neither info nor unknown) is asked once more;
+        // ownership is not published while one is still unanswered.
+        let mut pending = package_ids.clone();
+        for attempt in 0..2 {
+            let mut unanswered = Vec::new();
+            for batch in pending.chunks(PACKAGE_BATCH) {
+                let request = batch
+                    .iter()
+                    .map(|id| PicsPackageInfoReq {
+                        packageid: *id,
+                        access_token: tokens.get(id).copied().unwrap_or(0),
+                    })
+                    .collect();
+                let response = session
+                    .pics_product_info(request, Vec::new())
+                    .ok_or_else(|| "package info request failed".to_string())?;
+                let answered: HashSet<u32> = response
+                    .packages
+                    .iter()
+                    .map(|p| p.packageid)
+                    .chain(response.unknown_packageids.iter().copied())
+                    .collect();
+                for package in &response.packages {
+                    owned_apps.extend(package_app_ids(&package.buffer));
+                    owned_depots.extend(package_depot_ids(&package.buffer));
+                }
+                unanswered.extend(batch.iter().copied().filter(|id| !answered.contains(id)));
+            }
+            pending = unanswered;
+            if pending.is_empty() {
+                break;
+            }
+            if attempt == 1 {
+                return Err(format!("package info incomplete ({} unanswered)", pending.len()));
             }
         }
         crate::steam::log(&format!(
@@ -168,28 +188,47 @@ impl Library {
             }
         }
         let mut games = Vec::new();
-        for batch in app_ids.chunks(APP_BATCH) {
-            let request = batch
-                .iter()
-                .map(|id| PicsAppInfoReq {
-                    appid: *id,
-                    access_token: tokens.get(id).copied().unwrap_or(0),
-                    only_public_obsolete: false,
-                })
-                .collect();
-            let response = session
-                .pics_product_info(Vec::new(), request)
-                .ok_or_else(|| "app info request failed".to_string())?;
-            for app in &response.apps {
-                if app.buffer.is_empty() {
-                    continue;
+        // An app whose appinfo did not arrive (left out, or its HTTP delivery failed) is asked
+        // once more; it is not taken for a non-game while its metadata is missing.
+        let mut pending = app_ids;
+        for attempt in 0..2 {
+            let mut unresolved = Vec::new();
+            for batch in pending.chunks(APP_BATCH) {
+                let request = batch
+                    .iter()
+                    .map(|id| PicsAppInfoReq {
+                        appid: *id,
+                        access_token: tokens.get(id).copied().unwrap_or(0),
+                        only_public_obsolete: false,
+                    })
+                    .collect();
+                let response = session
+                    .pics_product_info(Vec::new(), request)
+                    .ok_or_else(|| "app info request failed".to_string())?;
+                let mut settled: HashSet<u32> = response.unknown_appids.iter().copied().collect();
+                for app in &response.apps {
+                    if app.buffer.is_empty() {
+                        if app.missing_token {
+                            settled.insert(app.appid);
+                        }
+                        continue;
+                    }
+                    settled.insert(app.appid);
+                    let Some(root) = vdf::parse_auto(&app.buffer) else {
+                        continue;
+                    };
+                    if let Some(game) = game_from_appinfo(app.appid, &root) {
+                        games.push(game);
+                    }
                 }
-                let Some(root) = vdf::parse_auto(&app.buffer) else {
-                    continue;
-                };
-                if let Some(game) = game_from_appinfo(app.appid, &root) {
-                    games.push(game);
-                }
+                unresolved.extend(batch.iter().copied().filter(|id| !settled.contains(id)));
+            }
+            pending = unresolved;
+            if pending.is_empty() {
+                break;
+            }
+            if attempt == 1 {
+                return Err(format!("app info incomplete ({} unresolved)", pending.len()));
             }
         }
         sort_games(&mut games);

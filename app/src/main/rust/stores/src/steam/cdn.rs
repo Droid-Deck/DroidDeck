@@ -12,6 +12,11 @@ pub const MAX_CDN_HOSTS: usize = 10;
 
 pub const MAX_MANIFEST_FETCH_ATTEMPTS: usize = 5;
 
+/// Largest decompressed manifest accepted; real ones are at most tens of MiB.
+pub const MAX_MANIFEST_BYTES: usize = 512 * 1024 * 1024;
+/// Largest decompressed HTTP-delivered appinfo accepted.
+pub const MAX_APPINFO_BYTES: usize = 64 * 1024 * 1024;
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct CdnManifestResult {
     pub raw_manifest: Vec<u8>,
@@ -145,16 +150,16 @@ pub fn fetch_manifest_with_retry(
     }
     let mut last = CdnManifestResult::default();
     for attempt in 0..MAX_MANIFEST_FETCH_ATTEMPTS {
+        if attempt > 0 {
+            std::thread::sleep(Duration::from_millis(
+                crate::fetch_tuning::retry_backoff_millis(attempt as u32),
+            ));
+        }
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
             return CdnManifestResult {
                 error: "cancelled".to_string(),
                 ..Default::default()
             };
-        }
-        if attempt > 0 {
-            std::thread::sleep(Duration::from_millis(
-                crate::fetch_tuning::retry_backoff_millis(attempt as u32),
-            ));
         }
         let server = &servers[attempt % servers.len()];
         last = fetch_manifest(
@@ -198,7 +203,7 @@ pub fn fetch_appinfo(
     if response.status != 200 || response.body.is_empty() {
         return None;
     }
-    Some(maybe_gunzip(response.body))
+    maybe_gunzip(response.body, MAX_APPINFO_BYTES)
 }
 
 pub fn validate_manifest_response(
@@ -222,7 +227,7 @@ pub fn validate_manifest_response(
             };
         }
     }
-    let Some(raw_manifest) = unzip_first_entry(&body) else {
+    let Some(raw_manifest) = unzip_first_entry(&body, MAX_MANIFEST_BYTES) else {
         return CdnManifestResult {
             http_status,
             error: "manifest unzip failed".to_string(),
@@ -236,7 +241,9 @@ pub fn validate_manifest_response(
     }
 }
 
-pub fn unzip_first_entry(zip: &[u8]) -> Option<Vec<u8>> {
+/// The first entry of a zip, refused when it declares or decodes to more than `limit` bytes, or
+/// to a size other than the one its header declares.
+pub fn unzip_first_entry(zip: &[u8], limit: usize) -> Option<Vec<u8>> {
     if zip.len() < 30 || read_u32(zip, 0)? != 0x0403_4b50 {
         return None;
     }
@@ -255,28 +262,38 @@ pub fn unzip_first_entry(zip: &[u8]) -> Option<Vec<u8>> {
     if data_off.checked_add(comp_size)? > zip.len() {
         return None;
     }
+    if uncomp_size > limit {
+        return None;
+    }
     let data = &zip[data_off..data_off + comp_size];
 
-    match method {
-        0 => Some(data.to_vec()),
+    let out = match method {
+        0 => data.to_vec(),
         8 => {
             let mut out = Vec::with_capacity(uncomp_size);
-            DeflateDecoder::new(data).read_to_end(&mut out).ok()?;
-            Some(out)
+            DeflateDecoder::new(data)
+                .take(uncomp_size as u64 + 1)
+                .read_to_end(&mut out)
+                .ok()?;
+            out
         }
-        _ => None,
-    }
+        _ => return None,
+    };
+    (out.len() == uncomp_size).then_some(out)
 }
 
-/// Gunzip; pass through already-inflated bytes (edge caches may decompress).
-pub fn maybe_gunzip(body: Vec<u8>) -> Vec<u8> {
-    if body.len() >= 2 && body[0] == 0x1f && body[1] == 0x8b {
-        let mut out = Vec::new();
-        if GzDecoder::new(&body[..]).read_to_end(&mut out).is_ok() && !out.is_empty() {
-            return out;
-        }
+/// Gunzip; pass through already-inflated bytes (edge caches may decompress). Gzip data that does
+/// not decode, or decodes to more than `limit` bytes, is refused.
+pub fn maybe_gunzip(body: Vec<u8>, limit: usize) -> Option<Vec<u8>> {
+    if body.len() < 2 || body[0] != 0x1f || body[1] != 0x8b {
+        return Some(body);
     }
-    body
+    let mut out = Vec::new();
+    GzDecoder::new(&body[..])
+        .take(limit as u64 + 1)
+        .read_to_end(&mut out)
+        .ok()?;
+    (!out.is_empty() && out.len() <= limit).then_some(out)
 }
 
 pub fn hex_encode(bytes: &[u8]) -> String {
@@ -310,7 +327,7 @@ mod tests {
     #[test]
     fn extracts_stored_zip_entry() {
         let zip = zip_with_entry(0, b"manifest bytes");
-        assert_eq!(unzip_first_entry(&zip), Some(b"manifest bytes".to_vec()));
+        assert_eq!(unzip_first_entry(&zip, 64), Some(b"manifest bytes".to_vec()));
     }
 
     #[test]
@@ -319,14 +336,14 @@ mod tests {
         encoder.write_all(b"manifest bytes").unwrap();
         let deflated = encoder.finish().unwrap();
         let zip = zip_with_compressed_entry(8, &deflated, b"manifest bytes".len() as u32);
-        assert_eq!(unzip_first_entry(&zip), Some(b"manifest bytes".to_vec()));
+        assert_eq!(unzip_first_entry(&zip, 64), Some(b"manifest bytes".to_vec()));
     }
 
     #[test]
     fn rejects_data_descriptor_zip_entry() {
         let mut zip = zip_with_entry(0, b"x");
         zip[6] = 0x08;
-        assert_eq!(unzip_first_entry(&zip), None);
+        assert_eq!(unzip_first_entry(&zip, 64), None);
     }
 
     #[test]
@@ -348,8 +365,20 @@ mod tests {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
         encoder.write_all(b"\"appinfo\"{}").unwrap();
         let gz = encoder.finish().unwrap();
-        assert_eq!(maybe_gunzip(gz), b"\"appinfo\"{}");
-        assert_eq!(maybe_gunzip(b"\"appinfo\"{}".to_vec()), b"\"appinfo\"{}");
+        assert_eq!(maybe_gunzip(gz.clone(), 64).unwrap(), b"\"appinfo\"{}");
+        assert_eq!(maybe_gunzip(b"\"appinfo\"{}".to_vec(), 64).unwrap(), b"\"appinfo\"{}");
+        assert_eq!(maybe_gunzip(gz, 4), None);
+        assert_eq!(maybe_gunzip(vec![0x1f, 0x8b, 0, 0], 64), None);
+    }
+
+    #[test]
+    fn refuses_zip_entries_over_the_limit_or_their_declared_size() {
+        let mut encoder = DeflateEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(&[7u8; 4096]).unwrap();
+        let deflated = encoder.finish().unwrap();
+        assert!(unzip_first_entry(&zip_with_compressed_entry(8, &deflated, 4096), 4096).is_some());
+        assert_eq!(unzip_first_entry(&zip_with_compressed_entry(8, &deflated, 4096), 4095), None);
+        assert_eq!(unzip_first_entry(&zip_with_compressed_entry(8, &deflated, 16), 4096), None);
     }
 
     #[test]

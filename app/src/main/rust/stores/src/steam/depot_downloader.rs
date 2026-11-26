@@ -82,10 +82,8 @@ pub fn prepare_depot(
                 cdn::fetch_manifest_with_retry(&servers, depot_id, manifest_id, code, ca, cancel);
             if !fetched.ok() && fetched.error != "cancelled" {
                 // Request codes rotate every few minutes: one more pass with a fresh one.
-                if let CodeResolution::Code(fresh) =
-                    session.manifest_code(app_id, depot_id, manifest_id, cancel)
-                {
-                    if fresh != code {
+                match session.manifest_code(app_id, depot_id, manifest_id, cancel) {
+                    CodeResolution::Code(fresh) if fresh != code => {
                         fetched = cdn::fetch_manifest_with_retry(
                             &servers,
                             depot_id,
@@ -95,6 +93,8 @@ pub fn prepare_depot(
                             cancel,
                         );
                     }
+                    CodeResolution::Cancelled => return Err(DepotError::Cancelled),
+                    _ => {}
                 }
             }
             if fetched.error == "cancelled" {
@@ -112,9 +112,19 @@ pub fn prepare_depot(
             fetched.raw_manifest
         }
     };
-    let mut manifest = ContentManifest::parse(&raw)
-        .ok_or_else(|| DepotError::Failed(format!("manifest parse failed for depot {depot_id}")))?;
+    let forget = || {
+        if let Some(journal) = journal {
+            journal.remove_cached_manifest(depot_id, manifest_id);
+        }
+    };
+    let Some(mut manifest) = ContentManifest::parse(&raw) else {
+        forget();
+        return Err(DepotError::Failed(format!(
+            "manifest parse failed for depot {depot_id}"
+        )));
+    };
     if !manifest.decrypt_filenames(&key) {
+        forget();
         return Err(DepotError::Failed(format!(
             "filename decryption failed for depot {depot_id}"
         )));

@@ -88,6 +88,11 @@ impl DepotConfigStore {
         atomic_write_synced(&self.manifest_cache_path(depot_id, manifest_id), raw)
     }
 
+    /// Drops a cached manifest that turned out unusable, so the next attempt fetches it again.
+    pub fn remove_cached_manifest(&self, depot_id: u32, manifest_id: u64) {
+        let _ = fs::remove_file(self.manifest_cache_path(depot_id, manifest_id));
+    }
+
     /// Removes the whole journal directory (after a successful install, or when it is stale).
     pub fn discard(&mut self) {
         self.installed.clear();
@@ -166,6 +171,8 @@ mod tests {
             loaded.read_cached_manifest(291551, 4224536525702420323),
             Some(b"raw".to_vec())
         );
+        loaded.remove_cached_manifest(291551, 4224536525702420323);
+        assert_eq!(loaded.read_cached_manifest(291551, 4224536525702420323), None);
         let other_build = DepotConfigStore::load(&dir, 1);
         assert!(!other_build.is_installed(291551, 4224536525702420323));
         assert!(!dir.exists());

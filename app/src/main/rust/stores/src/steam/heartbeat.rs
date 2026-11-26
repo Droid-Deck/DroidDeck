@@ -96,11 +96,13 @@ mod tests {
     fn ticks_and_stops() {
         let ticks = Arc::new(AtomicUsize::new(0));
         let tick_copy = Arc::clone(&ticks);
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
         let mut hb = Heartbeat::default();
         assert!(hb.start(Duration::from_millis(10), move || {
             tick_copy.fetch_add(1, Ordering::Relaxed);
+            let _ = tx.try_send(());
         }));
-        thread::sleep(Duration::from_millis(35));
+        rx.recv_timeout(Duration::from_secs(5)).unwrap();
         hb.stop();
         assert!(ticks.load(Ordering::Relaxed) > 0);
         assert!(!hb.running());

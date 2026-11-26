@@ -46,6 +46,11 @@ pub trait Events: Sync {
     fn progress(&self, done: u64, total: u64, phase: &str);
 }
 
+/// The resume journal of one app in one library: depots finished in another library are not on this one.
+fn journal_for(root: &std::path::Path, app_id: u32, library_guest: &str) -> PathBuf {
+    app_journal_dir(root, app_id).join(format!("{:08x}", crc32fast::hash(library_guest.trim_end_matches('/').as_bytes())))
+}
+
 fn fail(error: impl Into<String>) -> Value {
     json!({"ok": false, "error": error.into()})
 }
@@ -93,7 +98,7 @@ pub fn build_plan(
         owned_depots,
         language,
     )?;
-    crate::steam::plan::resolve_shared(&mut plan, &|from| session.app_info(from));
+    crate::steam::plan::resolve_shared(&mut plan, &|from| session.app_info(from))?;
     Ok(plan)
 }
 
@@ -174,6 +179,10 @@ pub fn run(
     if cancelled() {
         return fail("cancelled");
     }
+    // Checked before takeover, which removes a half-finished client download's staging.
+    if !register::library_registered(&req.steam_root, &req.game_library.guest) {
+        return fail("library_not_in_libraryfolders");
+    }
     let takeover = match register::takeover(&req.game_library, req.app_id, plan.build_id) {
         Ok(t) => t,
         Err(err) => return fail(format!("takeover: {err}")),
@@ -185,18 +194,27 @@ pub fn run(
         plan.depots.len(),
         plan.shared.len()
     ));
+    let mut journal =
+        DepotConfigStore::load(journal_for(&req.journal_dir, req.app_id, &req.game_library.guest), plan.build_id);
     if takeover == Takeover::AlreadyInstalled {
+        // A run that wrote the app manifest may have stopped before the library index: finish it.
+        match register::update_libraryfolders(
+            &req.steam_root,
+            &req.game_library.guest,
+            req.app_id,
+            true,
+        ) {
+            Ok(0) => return fail("library_not_in_libraryfolders"),
+            Ok(_) => {}
+            Err(err) => return fail(format!("libraryfolders: {err}")),
+        }
+        journal.discard();
         return json!({"ok": true, "alreadyInstalled": true});
     }
     if takeover == Takeover::Update {
         // Updates stay with the Steam client: it removes files a new build dropped.
         return fail("update_in_steam");
     }
-    if !register::library_registered(&req.steam_root, &req.game_library.guest) {
-        return fail("library_not_in_libraryfolders");
-    }
-    let mut journal =
-        DepotConfigStore::load(app_journal_dir(&req.journal_dir, req.app_id), plan.build_id);
     if takeover == Takeover::TookOver {
         journal.discard();
     }
@@ -228,6 +246,7 @@ pub fn run(
 
     let mut shared_jobs: Vec<(PreparedDepot, SharedInstall)> = Vec::new();
     let mut shared_present: Vec<(u32, u32)> = Vec::new();
+    let mut shared_present_libraries: Vec<(u32, register::LibraryRoot)> = Vec::new();
     for shared in &plan.shared {
         let library =
             register::shared_app_library(shared.from_app_id, &req.steam_root, &req.libraries);
@@ -235,6 +254,7 @@ pub fn run(
             .and_then(|acf| register::installed_manifest(&acf, shared.depot_id));
         if installed == Some(shared.manifest_id) {
             shared_present.push((shared.depot_id, shared.from_app_id));
+            shared_present_libraries.push((shared.from_app_id, library));
             continue;
         }
         let servers = servers_for(&all_servers, shared.from_app_id);
@@ -366,6 +386,15 @@ pub fn run(
             return fail(format!("libraryfolders: {err}"));
         }
     }
+    // A shared app already installed may still be missing from its library's index (an earlier
+    // run stopped between its manifest and the index); the update is idempotent.
+    for (from_app_id, library) in &shared_present_libraries {
+        if let Err(err) =
+            register::update_libraryfolders(&req.steam_root, &library.guest, *from_app_id, true)
+        {
+            return fail(format!("libraryfolders: {err}"));
+        }
+    }
     let installed: Vec<InstalledDepot> = game_depots
         .iter()
         .map(|(p, dlc)| InstalledDepot {
@@ -408,10 +437,11 @@ pub fn run(
     if let Err(err) = register::write_game_acf(&req.game_library, &registration) {
         return fail(format!("app manifest: {err}"));
     }
-    if let Err(err) =
-        register::update_libraryfolders(&req.steam_root, &req.game_library.guest, req.app_id, true)
+    match register::update_libraryfolders(&req.steam_root, &req.game_library.guest, req.app_id, true)
     {
-        return fail(format!("libraryfolders: {err}"));
+        Ok(0) => return fail("library_not_in_libraryfolders"),
+        Ok(_) => {}
+        Err(err) => return fail(format!("libraryfolders: {err}")),
     }
     journal.discard();
     progress.emit(total, true);

@@ -73,14 +73,16 @@ fn sort_by_numeric_key(node: &mut crate::steam::vdf::KVNode) {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Takeover {
-    /// No app manifest: a fresh install.
+    /// No app manifest, or an unfinished one with no client staging left (an earlier run of
+    /// ours): installed as fresh, merging into that manifest.
     Fresh,
     /// Fully installed at the build being installed: nothing to do.
     AlreadyInstalled,
     /// Fully installed at another build: left to the Steam client, which updates it.
     Update,
-    /// A half-finished client download was removed (its manifest, `downloading/<appid>` and
-    /// `temp/<appid>`).
+    /// A half-finished client download was taken over: its `downloading/<appid>` and
+    /// `temp/<appid>` staging went; its manifest stays so its user settings carry into the one
+    /// written when the install finishes.
     TookOver,
 }
 
@@ -100,25 +102,30 @@ pub fn takeover(
     let acf = kv::parse_file(&acf_path);
     if let Some(acf) = acf.as_ref() {
         let flags = kv::get_u64(acf, "StateFlags");
-        if state_is_finished(flags) {
-            return Ok(if kv::get_u64(acf, "buildid") == build_id {
-                Takeover::AlreadyInstalled
-            } else {
-                Takeover::Update
-            });
+        if state_is_finished(flags) && kv::get_u64(acf, "buildid") == build_id {
+            return Ok(Takeover::AlreadyInstalled);
+        }
+        // A build is on disk (e.g. 6: installed, update required): updating it is the client's.
+        if flags & STATE_FULLY_INSTALLED != 0 {
+            return Ok(Takeover::Update);
         }
     }
     let steamapps = game_library.steamapps();
+    let mut took_over = false;
     for dir in [
         steamapps.join("downloading").join(app_id.to_string()),
         steamapps.join("temp").join(app_id.to_string()),
     ] {
         if dir.exists() {
             fs::remove_dir_all(&dir).map_err(|err| format!("remove '{}': {err}", dir.display()))?;
+            took_over = true;
         }
     }
-    fs::remove_file(&acf_path).map_err(|err| format!("remove '{}': {err}", acf_path.display()))?;
-    Ok(Takeover::TookOver)
+    Ok(if took_over {
+        Takeover::TookOver
+    } else {
+        Takeover::Fresh
+    })
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -368,6 +375,8 @@ pub fn register_shared_depot(
         let scripts = insert_after(&mut root, "InstallScripts", "InstalledDepots");
         kv::set(scripts, &depot_key, script.as_str());
         sort_by_numeric_key(scripts);
+    } else if let Some(scripts) = kv::get_mut(&mut root, "InstallScripts") {
+        kv::remove(scripts, &depot_key);
     }
     if root.child("UserConfig").is_none() {
         kv::object_mut(&mut root, "UserConfig");
@@ -426,12 +435,18 @@ pub fn library_registered(steam_root: &Path, guest_path: &str) -> bool {
 
 /// Adds (`add = true`) or removes `"<appid>"` in the `apps` block of the entry whose `path` is
 /// `guest_path`, in both copies. Returns how many copies had that entry.
+/// Serializes the read-modify-write of `libraryfolders.vdf` between installs and uninstalls.
+static LIBRARYFOLDERS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub fn update_libraryfolders(
     steam_root: &Path,
     guest_path: &str,
     app_id: u32,
     add: bool,
 ) -> Result<usize, String> {
+    let _guard = LIBRARYFOLDERS_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let want = normalize_guest(guest_path);
     let mut matched = 0usize;
     for path in libraryfolders_paths(steam_root) {
@@ -474,19 +489,31 @@ pub fn update_libraryfolders(
     Ok(matched)
 }
 
-fn is_plain_name(name: &str) -> bool {
+pub(crate) fn is_plain_name(name: &str) -> bool {
     !name.is_empty() && name != "." && name != ".." && !name.contains('/') && !name.contains('\\')
 }
 
-/// Every app manifest in the libraries, except `skip` (path), parsed.
-fn all_app_manifests(libraries: &[LibraryRoot], skip: &[PathBuf]) -> Vec<KVNode> {
+/// Every app manifest in the libraries, except `skip` (path), parsed, and whether every library
+/// and manifest could be read (a library without `steamapps` counts as read).
+fn all_app_manifests(libraries: &[LibraryRoot], skip: &[PathBuf]) -> (Vec<KVNode>, bool) {
     let mut out = Vec::new();
+    let mut complete = true;
     let mut seen: HashSet<PathBuf> = HashSet::new();
     for lib in libraries {
-        let Ok(entries) = fs::read_dir(lib.steamapps()) else {
-            continue;
+        let entries = match fs::read_dir(lib.steamapps()) {
+            Ok(entries) => entries,
+            Err(err) => {
+                if err.kind() != std::io::ErrorKind::NotFound {
+                    complete = false;
+                }
+                continue;
+            }
         };
-        for entry in entries.flatten() {
+        for entry in entries {
+            let Ok(entry) = entry else {
+                complete = false;
+                continue;
+            };
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();
             if !name.starts_with("appmanifest_") || !name.ends_with(".acf") {
@@ -495,12 +522,13 @@ fn all_app_manifests(libraries: &[LibraryRoot], skip: &[PathBuf]) -> Vec<KVNode>
             if skip.contains(&path) || !seen.insert(path.clone()) {
                 continue;
             }
-            if let Some(acf) = kv::parse_file(&path) {
-                out.push(acf);
+            match kv::parse_file(&path) {
+                Some(acf) => out.push(acf),
+                None => complete = false,
             }
         }
     }
-    out
+    (out, complete)
 }
 
 /// Is `depot_id` listed in the `SharedDepots` of any of these manifests?
@@ -544,8 +572,6 @@ pub fn uninstall(
         fs::remove_dir_all(&game_dir)
             .map_err(|err| format!("remove '{}': {err}", game_dir.display()))?;
     }
-    fs::remove_file(&acf_path).map_err(|err| format!("remove '{}': {err}", acf_path.display()))?;
-
     if let Some(depots) = acf.child("InstalledDepots") {
         for depot in &depots.children {
             let manifest = kv::get_str(depot, "manifest").unwrap_or_default();
@@ -567,7 +593,7 @@ pub fn uninstall(
     }
 
     let mut report = UninstallReport::default();
-    let others = all_app_manifests(libraries, std::slice::from_ref(&acf_path));
+    let (others, complete) = all_app_manifests(libraries, std::slice::from_ref(&acf_path));
     if let Some(shared) = acf.child("SharedDepots") {
         for entry in &shared.children {
             let (Ok(depot_id), Ok(from_app)) = (
@@ -579,6 +605,11 @@ pub fn uninstall(
             if shared_depot_in_use(&others, depot_id) {
                 continue;
             }
+            // A library or manifest that could not be read may hold another game using it.
+            if !complete {
+                report.kept_shared.push(depot_id);
+                continue;
+            }
             if remove_shared_depot(depot_id, from_app, libraries, shared_files)? {
                 report.removed_shared.push(depot_id);
             } else {
@@ -588,6 +619,12 @@ pub fn uninstall(
     }
 
     update_libraryfolders(steam_root, &game_library.guest, app_id, false)?;
+    // The manifest goes last, so a run that stopped early is retried rather than "not_installed".
+    match fs::remove_file(&acf_path) {
+        Ok(()) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => return Err(format!("remove '{}': {err}", acf_path.display())),
+    }
     Ok(report)
 }
 
@@ -617,13 +654,30 @@ fn remove_shared_depot(
         return Ok(false);
     };
     let base = lib.common_dir(&install_dir);
+    let Ok(real_base) = fs::canonicalize(&base) else {
+        return Ok(false);
+    };
     for rel in files {
         if !crate::steam::depot_writer::path_is_safe(&rel) {
             continue;
         }
         let target = base.join(&rel);
+        // The final component is unlinked without following it; its folder must resolve inside
+        // the shared app's folder, so a linked ancestor cannot send the removal elsewhere.
+        let inside = target
+            .parent()
+            .and_then(|parent| fs::canonicalize(parent).ok())
+            .is_some_and(|parent| parent.starts_with(&real_base));
+        if !inside {
+            continue;
+        }
         if fs::symlink_metadata(&target).is_ok_and(|m| !m.is_dir()) {
-            let _ = fs::remove_file(&target);
+            match fs::remove_file(&target) {
+                Ok(()) => {}
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                // Keep the depot recorded so a later uninstall can finish removing it.
+                Err(_) => return Ok(false),
+            }
         }
     }
     let key = depot_id.to_string();
@@ -874,9 +928,18 @@ mod tests {
             takeover(&fx.sd, 291550, 26465982).unwrap(),
             Takeover::TookOver
         );
-        assert!(!fx.sd.acf_path(291550).exists());
+        assert!(fx.sd.acf_path(291550).exists()); // its settings merge into the final one
         assert!(!steamapps.join("downloading/291550").exists());
         assert!(!steamapps.join("temp/291550").exists());
+        assert_eq!(takeover(&fx.sd, 291550, 26465982).unwrap(), Takeover::Fresh); // a retry
+        fs::write(
+            fx.sd.acf_path(291550),
+            "\"AppState\"\n{\n\t\"StateFlags\"\t\t\"6\"\n\t\"buildid\"\t\t\"1\"\n}\n",
+        )
+        .unwrap();
+        fs::create_dir_all(steamapps.join("downloading/291550")).unwrap();
+        assert_eq!(takeover(&fx.sd, 291550, 26465982).unwrap(), Takeover::Update);
+        assert!(steamapps.join("downloading/291550").exists()); // the client's update staging stays
         fs::write(fx.sd.acf_path(291550), BRAWLHALLA_ACF).unwrap();
         assert_eq!(
             takeover(&fx.sd, 291550, 26465982).unwrap(),

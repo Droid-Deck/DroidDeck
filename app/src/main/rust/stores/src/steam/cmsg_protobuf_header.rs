@@ -55,13 +55,13 @@ impl CMsgProtoBufHeader {
         }
         writer.string_field(12, &self.target_job_name);
         if self.eresult >= 0 {
-            writer.tag(14, WireType::Varint);
+            writer.tag(13, WireType::Varint);
             writer.varint(self.eresult as i64 as u64);
         }
-        writer.string_field(15, &self.error_message);
-        writer.uint32_field(29, self.realm);
-        writer.uint64_field(21, self.messageid);
-        writer.uint64_field(34, self.token_id);
+        writer.string_field(14, &self.error_message);
+        writer.uint64_field(18, self.messageid);
+        writer.uint32_field(32, self.realm);
+        writer.uint64_field(36, self.token_id);
     }
 
     pub fn deserialize(bytes: &[u8]) -> Option<Self> {
@@ -94,11 +94,11 @@ impl CMsgProtoBufHeader {
                     header.jobid_target = reader.fixed64()?;
                 }
                 12 => header.target_job_name = reader.string()?,
-                14 => header.eresult = reader.i32()?,
-                15 => header.error_message = reader.string()?,
-                21 => header.messageid = reader.u64()?,
-                29 => header.realm = reader.u32()?,
-                34 => header.token_id = reader.u64()?,
+                13 => header.eresult = reader.i32()?,
+                14 => header.error_message = reader.string()?,
+                18 => header.messageid = reader.u64()?,
+                32 => header.realm = reader.u32()?,
+                36 => header.token_id = reader.u64()?,
                 _ => {
                     if !reader.skip(tag.wire_type) {
                         return None;
@@ -141,6 +141,23 @@ mod tests {
         assert!(!bytes
             .windows(2)
             .any(|w| w == [0x51, 0xff] || w == [0x59, 0xff]));
+    }
+
+    #[test]
+    fn reads_steam_field_numbers() {
+        // steammessages_base.proto: eresult = 13, error_message = 14, messageid = 18, realm = 32, token_id = 36.
+        let bytes = [
+            0x68, 0x05, 0x72, 0x02, b'n', b'o', 0x90, 0x01, 0x07, 0x80, 0x02, 0x01, 0xa0, 0x02, 0x09,
+        ];
+        let h = CMsgProtoBufHeader::deserialize(&bytes).unwrap();
+        assert_eq!(h.eresult, 5);
+        assert_eq!(h.error_message, "no");
+        assert_eq!(h.messageid, 7);
+        assert_eq!(h.realm, 1);
+        assert_eq!(h.token_id, 9);
+        let mut out = Vec::new();
+        h.serialize(&mut out);
+        assert_eq!(out, bytes);
     }
 
     #[test]

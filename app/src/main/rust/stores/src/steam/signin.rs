@@ -278,11 +278,16 @@ pub fn load_saved_login(
     let auto_login = registry_vdf
         .and_then(read_vdf)
         .and_then(|reg| auto_login_user(&reg));
-    let account = choose_account(&accounts, auto_login.as_deref())
+    let mut account = choose_account(&accounts, auto_login.as_deref())
         .ok_or(SigninError::NoSavedLogin)?
         .clone();
     if account.remember_password == Some(false) {
-        return Err(SigninError::RememberMeOff);
+        // The same account may be remembered by the other client's root.
+        account = accounts
+            .iter()
+            .find(|a| a.steam_id == account.steam_id && a.remember_password != Some(false))
+            .ok_or(SigninError::RememberMeOff)?
+            .clone();
     }
 
     let mut order: Vec<usize> = vec![account.root_index];
@@ -465,7 +470,20 @@ mod tests {
             load_saved_login(std::slice::from_ref(&wrong), None).unwrap_err(),
             SigninError::DecryptFailed
         );
-        for dir in [empty, off, wrong] {
+        let remembered = temp_dir("remembered");
+        let good = format!(
+            "\t\t\t\t\t\"{}1\"\t\t\"{}\"\n",
+            connect_cache_key_prefix("ada"),
+            encrypt_blob(&jwt_for(ID), "ada")
+        );
+        write_root(
+            &remembered,
+            &format!("\"users\"\n{{\n{}}}\n", user_block(ID, "ada", "")),
+            &good,
+        );
+        let login = load_saved_login(&[off.clone(), remembered.clone()], None).unwrap();
+        assert_eq!(login.steam_root, remembered);
+        for dir in [empty, off, wrong, remembered] {
             let _ = fs::remove_dir_all(dir);
         }
     }

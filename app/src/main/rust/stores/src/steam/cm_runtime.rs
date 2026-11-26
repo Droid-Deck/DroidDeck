@@ -18,7 +18,11 @@ use zeroize::Zeroize;
 type StateCallback = Box<dyn Fn(ClientState) + Send + Sync + 'static>;
 type ClientMessageCallback = Box<dyn Fn(EMsg, &CMsgProtoBufHeader, &[u8]) + Send + Sync + 'static>;
 
+/// MULTI batches nest at most this deep (Steam sends one level).
+const MAX_MULTI_DEPTH: u32 = 2;
+
 pub struct CMClientRuntime {
+    flush: Mutex<()>,
     core: Arc<CMClientCore>,
     channel: EncryptedChannel,
     jobs: JobManager,
@@ -31,6 +35,7 @@ pub struct CMClientRuntime {
 impl CMClientRuntime {
     pub fn new(core: Arc<CMClientCore>, transport: Box<dyn Transport>) -> Arc<Self> {
         let runtime = Arc::new(Self {
+            flush: Mutex::new(()),
             core,
             channel: EncryptedChannel::new(transport),
             jobs: JobManager::default(),
@@ -125,6 +130,8 @@ impl CMClientRuntime {
         if self.channel.state() != ChannelState::Encrypted {
             return 0;
         }
+        // One flush at a time, so two flushers cannot send queued wires out of order.
+        let _flushing = self.flush.lock().expect("flush poisoned");
         let mut wires = self.core.take_outbound_wires();
         let mut sent = 0usize;
         for idx in 0..wires.len() {
@@ -141,10 +148,14 @@ impl CMClientRuntime {
     }
 
     pub fn handle_channel_message(self: &Arc<Self>, bytes: &[u8]) -> InboundAction {
+        self.handle_message_at(bytes, 0)
+    }
+
+    fn handle_message_at(self: &Arc<Self>, bytes: &[u8], depth: u32) -> InboundAction {
         let Some(envelope) = decode_proto_envelope(bytes) else {
             return self.handle_non_proto_message(bytes);
         };
-        self.process_envelope(envelope.emsg, &envelope.header, &envelope.body)
+        self.process_envelope(envelope.emsg, &envelope.header, &envelope.body, depth)
     }
 
     fn process_envelope(
@@ -152,13 +163,17 @@ impl CMClientRuntime {
         emsg: EMsg,
         header: &CMsgProtoBufHeader,
         body: &[u8],
+        depth: u32,
     ) -> InboundAction {
         let action = self.core.route_inbound(emsg, header, body);
         match &action {
             InboundAction::Multi => {
+                if depth >= MAX_MULTI_DEPTH {
+                    return InboundAction::ParseFailed("MULTI nested too deep");
+                }
                 if let Some(records) = decode_multi_records(body) {
                     for record in records {
-                        self.handle_channel_message(&record);
+                        self.handle_message_at(&record, depth + 1);
                     }
                 }
             }
@@ -232,19 +247,27 @@ impl CMClientRuntime {
         if header.jobid_target == INVALID_JOB_ID {
             return;
         }
+        let mut pending = self
+            .pics_product_info
+            .lock()
+            .expect("pics product info poisoned");
+        // Fragments of jobs that timed out or failed are dropped, and a late one starts nothing.
+        pending.retain(|job, _| self.jobs.is_tracked(*job));
         let Some(response) = CMsgClientPICSProductInfoResponse::deserialize(body) else {
+            pending.remove(&header.jobid_target);
+            drop(pending);
+            // 0 (Invalid) is a failure to every caller; -1 would be delivered as success.
             self.jobs.deliver(
                 header.jobid_target,
-                -1,
+                0,
                 "PICS product-info parse failed".to_string(),
                 &[],
             );
             return;
         };
-        let mut pending = self
-            .pics_product_info
-            .lock()
-            .expect("pics product info poisoned");
+        if !self.jobs.is_tracked(header.jobid_target) {
+            return;
+        }
         if response.response_pending {
             let acc = pending.entry(header.jobid_target).or_default();
             merge_pics_product_info(acc, response);

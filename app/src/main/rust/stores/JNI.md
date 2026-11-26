@@ -392,7 +392,8 @@ depots are listed under `shared` with the owning app (e.g. 228980 Steamworks Com
 Redistributables), whose public manifest they use. Manifest gids are the public branch's, sizes
 come from PICS, `buildId` is the public branch's. `installBytes`/`downloadBytes` include the
 shared depots (they are not checked against what is already installed here). Errors:
-`not_signed_in`, `not_owned`, `appinfo unavailable`, `no installable Windows depot`. A free app
+`not_signed_in`, `not_owned`, `appinfo unavailable`, `appinfo unavailable for shared app <id>`,
+`no installable Windows depot`, `linux_build` (no Windows depot, and the game has a Linux build). A free app
 the account does not own yet is planned without asking for its license. `linuxBuild` is true
 when `common.oslist` lists `linux`: the client then installs the Linux build unless the game is
 mapped to a Proton, so the caller checks that mapping before installing.

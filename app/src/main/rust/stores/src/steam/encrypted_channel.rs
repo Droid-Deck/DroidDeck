@@ -28,9 +28,9 @@ pub enum ChannelDisconnectReason {
     HmacMismatch,
 }
 
-type MessageCallback = Box<dyn Fn(&[u8]) + Send + Sync + 'static>;
-type ConnectedCallback = Box<dyn Fn() + Send + Sync + 'static>;
-type DisconnectedCallback = Box<dyn Fn(ChannelDisconnectReason, &str) + Send + Sync + 'static>;
+type MessageCallback = Arc<dyn Fn(&[u8]) + Send + Sync + 'static>;
+type ConnectedCallback = Arc<dyn Fn() + Send + Sync + 'static>;
+type DisconnectedCallback = Arc<dyn Fn(ChannelDisconnectReason, &str) + Send + Sync + 'static>;
 
 pub struct EncryptedChannel {
     inner: Arc<EncryptedChannelInner>,
@@ -65,12 +65,12 @@ impl EncryptedChannel {
                 inner
                     .state
                     .store(ChannelState::Encrypted as u8, Ordering::Release);
-                if let Some(callback) = inner
+                let callback = inner
                     .on_connected
                     .lock()
                     .expect("encrypted channel callback poisoned")
-                    .as_ref()
-                {
+                    .clone();
+                if let Some(callback) = callback {
                     callback();
                 }
             }
@@ -88,12 +88,12 @@ impl EncryptedChannel {
                     }
                     _ => ChannelDisconnectReason::TransportError,
                 };
-                if let Some(callback) = inner
+                let callback = inner
                     .on_disconnected
                     .lock()
                     .expect("encrypted channel callback poisoned")
-                    .as_ref()
-                {
+                    .clone();
+                if let Some(callback) = callback {
                     callback(reason, detail);
                 }
             }
@@ -105,12 +105,12 @@ impl EncryptedChannel {
                 if inner.state() != ChannelState::Encrypted {
                     return;
                 }
-                if let Some(callback) = inner
+                let callback = inner
                     .on_message
                     .lock()
                     .expect("encrypted channel callback poisoned")
-                    .as_ref()
-                {
+                    .clone();
+                if let Some(callback) = callback {
                     callback(bytes);
                 }
             }
@@ -192,7 +192,7 @@ impl EncryptedChannel {
             .inner
             .on_message
             .lock()
-            .expect("encrypted channel callback poisoned") = Some(Box::new(callback));
+            .expect("encrypted channel callback poisoned") = Some(Arc::new(callback));
     }
 
     pub fn set_on_connected<F>(&self, callback: F)
@@ -203,7 +203,7 @@ impl EncryptedChannel {
             .inner
             .on_connected
             .lock()
-            .expect("encrypted channel callback poisoned") = Some(Box::new(callback));
+            .expect("encrypted channel callback poisoned") = Some(Arc::new(callback));
     }
 
     pub fn set_on_disconnected<F>(&self, callback: F)
@@ -214,7 +214,7 @@ impl EncryptedChannel {
             .inner
             .on_disconnected
             .lock()
-            .expect("encrypted channel callback poisoned") = Some(Box::new(callback));
+            .expect("encrypted channel callback poisoned") = Some(Arc::new(callback));
     }
 }
 
@@ -334,12 +334,18 @@ mod tests {
 
     #[test]
     fn envelope_rejects_hmac_mismatch() {
-        let env = EncryptedEnvelope::new([7u8; 32]);
+        let key = [7u8; 32];
+        let env = EncryptedEnvelope::new(key);
         let mut encrypted = env
             .encrypt_with_random_iv(b"hello steam", [3u8; AES_BLOCK_BYTES - 4])
             .unwrap();
-        let last = encrypted.last_mut().unwrap();
-        *last ^= 0x55;
+        // Change the HMAC prefix carried in the IV and re-encrypt it: the CBC padding stays valid,
+        // so only the HMAC check can refuse it.
+        let iv_ciphertext: AesBlock = encrypted[..AES_BLOCK_BYTES].try_into().unwrap();
+        let mut iv = aes256_ecb_decrypt_block(&key, &iv_ciphertext).unwrap();
+        iv[0] ^= 0x55;
+        assert!(aes256_cbc_decrypt(&key, &iv, &encrypted[AES_BLOCK_BYTES..]).is_some());
+        encrypted[..AES_BLOCK_BYTES].copy_from_slice(&aes256_ecb_encrypt_block(&key, &iv).unwrap());
         assert!(env.decrypt(&encrypted).is_none());
     }
 
