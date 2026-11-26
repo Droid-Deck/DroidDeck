@@ -44,6 +44,7 @@ struct ddnatv_bind {
     char *src, *dst;
     size_t src_len, dst_len;
     int identity;
+    int links;
     int order; // position in DDNATV_BINDS: the earlier of two mounts of one folder is its guest path
 };
 // as many as the session has: a fixed table dropped what came after its 128th entry
@@ -56,6 +57,7 @@ static char g_hostname[65];
 // link targets as paths in it, as the kernel follows them there; in the sandbox they are guest paths
 static char g_link_root[PATH_MAX];
 static size_t g_link_root_len = 0;
+static char g_mount_table[PATH_MAX] = "/proc/self/mountinfo";
 
 static int ddnatv_bind_longer_first(const void *a, const void *b) {
     const struct ddnatv_bind *x = a, *y = b;
@@ -297,10 +299,243 @@ static int relative_link_into_bind(const char *link, const char *target, const c
 // /sys/devices/droiddeck/...): proot follows them inside the guest, the kernel on Android's own /sys.
 // A link met on the way to a deeper path is replaced by its target, mapped again; the last component is
 // left as it is (lstat() and readlink() must see the link).
-static const char *resolve_bind_links(const char *host, size_t src_len, char *buffer, size_t bufsize) {
+#if defined(__aarch64__)
+static long raw_open_path(const char *path, long flags) {
+    register long x8 __asm__("x8") = 56;
+    register long x0 __asm__("x0") = AT_FDCWD;
+    register long x1 __asm__("x1") = (long)path;
+    register long x2 __asm__("x2") = flags | O_PATH | O_CLOEXEC;
+    register long x3 __asm__("x3") = 0;
+    __asm__ volatile("svc #0" : "+r"(x0) : "r"(x8), "r"(x1), "r"(x2), "r"(x3) : "memory");
+    return x0;
+}
+
+static void raw_close_fd(long fd) {
+    register long x8 __asm__("x8") = 57;
+    register long x0 __asm__("x0") = fd;
+    __asm__ volatile("svc #0" : "+r"(x0) : "r"(x8) : "memory");
+}
+
+static __thread const char *t_plain_host = NULL;
+static __thread size_t t_plain_len = 0;
+
+static int fd_is_at(long fd, const char *path, size_t len) {
+    char link[32] = "/proc/self/fd/";
+    char digits[24];
+    int nd = 0;
+    for (long v = fd; nd == 0 || v > 0; v /= 10) digits[nd++] = (char)('0' + v % 10);
+    size_t at = 14;
+    while (nd > 0) link[at++] = digits[--nd];
+    link[at] = '\0';
+    char real[PATH_MAX];
+    long n = raw_readlinkat(AT_FDCWD, link, real, sizeof(real));
+    return n == (long)len && memcmp(real, path, len) == 0;
+}
+
+static int prefix_has_no_links(const char *host, size_t dir_len, size_t src_len) {
+    char dir[PATH_MAX];
+    if (dir_len <= src_len || dir_len >= sizeof(dir)) return 0;
+    memcpy(dir, host, dir_len);
+    dir[dir_len] = '\0';
+    size_t at = dir_len;
+    for (;;) {
+        long fd = raw_open_path(dir, O_NOFOLLOW);
+        if (fd >= 0) {
+            char target[2];
+            int plain = fd_is_at(fd, dir, at) && raw_readlinkat((int)fd, "", target, sizeof(target)) < 0;
+            raw_close_fd(fd);
+            return plain;
+        }
+        if (fd != -ENOENT && fd != -ENOTDIR) return 0;
+        while (at > src_len && dir[at] != '/') at--;
+        if (at <= src_len) return 0;
+        dir[at] = '\0';
+    }
+}
+
+static int path_has_no_links(const char *host, size_t len, size_t dir_len, size_t src_len) {
+    t_plain_host = NULL;
+    long fd = raw_open_path(host, O_NOFOLLOW);
+    if (fd >= 0) {
+        char target[2];
+        int plain = fd_is_at(fd, host, len) && raw_readlinkat((int)fd, "", target, sizeof(target)) < 0;
+        raw_close_fd(fd);
+        if (plain) {
+            t_plain_host = host;
+            t_plain_len = len;
+            return 1;
+        }
+        return prefix_has_no_links(host, dir_len, src_len);
+    }
+    if (!prefix_has_no_links(host, dir_len, src_len)) return 0;
+    if (fd == -ENOENT) {
+        t_plain_host = host;
+        t_plain_len = len;
+    }
+    return 1;
+}
+
+static int known_plain(const char *host) {
+    int plain = t_plain_host == host && strlen(host) == t_plain_len;
+    t_plain_host = NULL;
+    return plain;
+}
+
+static int fs_type_holds_no_links(const char *type) {
+    return strcmp(type, "vfat") == 0 || strcmp(type, "exfat") == 0 || strcmp(type, "msdos") == 0 ||
+           strcmp(type, "sdfat") == 0;
+}
+
+struct mount_scan {
+    const char *src;
+    size_t src_len;
+    size_t best_len;
+    int best_plain;
+    int best_fuse;
+    char best_name[256];
+    int nested_links;
+    int incomplete;
+    int ambiguous;
+    int lower_count;
+    char lower[16][256];
+};
+
+static int is_volume_fuse_point(const char *point, const char *name) {
+    static const char *const roots[] = {"/mnt/user/", "/mnt/installer/", "/mnt/androidwritable/"};
+    const char *rest = NULL;
+    if (strncmp(point, "/storage/", 9) == 0) {
+        rest = point + 9;
+    } else {
+        for (size_t i = 0; i < sizeof(roots) / sizeof(roots[0]) && !rest; i++) {
+            size_t len = strlen(roots[i]);
+            if (strncmp(point, roots[i], len) != 0) continue;
+            const char *p = point + len;
+            if (*p < '0' || *p > '9') return 0;
+            while (*p >= '0' && *p <= '9') p++;
+            if (*p != '/') return 0;
+            rest = p + 1;
+        }
+    }
+    return rest && rest == name && name[0];
+}
+
+static void mount_scan_line(struct mount_scan *scan, char *line) {
+    char *field[5];
+    char *p = line;
+    for (int i = 0; i < 5; i++) {
+        while (*p == ' ') p++;
+        field[i] = p;
+        while (*p && *p != ' ') p++;
+        if (!*p) return;
+        *p++ = '\0';
+    }
+    char *sep = strstr(p, " - ");
+    if (!sep) return;
+    char *type = sep + 3;
+    char *source = strchr(type, ' ');
+    if (!source) return;
+    *source++ = '\0';
+    char *end = strchr(source, ' ');
+    if (end) *end = '\0';
+    const char *point = field[4];
+    size_t point_len = strlen(point);
+    int plain = fs_type_holds_no_links(type);
+    const char *name = strrchr(point, '/');
+    name = name ? name + 1 : point;
+    if (plain && strncmp(point, "/mnt/media_rw/", 14) == 0 && !strchr(point + 14, '/') && name[0] &&
+        strlen(name) < sizeof(scan->lower[0]) && scan->lower_count < 16)
+        ddnatv_copy_cstr(scan->lower[scan->lower_count++], sizeof(scan->lower[0]), name);
+    if (point_len > scan->src_len && is_path_prefix(point, scan->src, scan->src_len)) {
+        if (!plain) scan->nested_links = 1;
+        return;
+    }
+    int covers = point_len == 1 ? point[0] == '/' : is_path_prefix(scan->src, point, point_len);
+    if (!covers || (point_len < scan->best_len && scan->best_len != 0)) return;
+    if (point_len == scan->best_len) scan->ambiguous = 1;
+    scan->best_len = point_len;
+    scan->best_plain = plain;
+    scan->best_fuse = strcmp(type, "fuse") == 0 && strcmp(source, "/dev/fuse") == 0 && is_volume_fuse_point(point, name);
+    ddnatv_copy_cstr(scan->best_name, sizeof(scan->best_name), strlen(name) < sizeof(scan->best_name) ? name : "");
+}
+
+static long raw_open_read(const char *path) {
+    register long x8 __asm__("x8") = 56;
+    register long x0 __asm__("x0") = AT_FDCWD;
+    register long x1 __asm__("x1") = (long)path;
+    register long x2 __asm__("x2") = O_RDONLY | O_CLOEXEC;
+    register long x3 __asm__("x3") = 0;
+    __asm__ volatile("svc #0" : "+r"(x0) : "r"(x8), "r"(x1), "r"(x2), "r"(x3) : "memory");
+    return x0;
+}
+
+static long raw_read_fd(long fd, char *buf, size_t size) {
+    register long x8 __asm__("x8") = 63;
+    register long x0 __asm__("x0") = fd;
+    register long x1 __asm__("x1") = (long)buf;
+    register long x2 __asm__("x2") = (long)size;
+    __asm__ volatile("svc #0" : "+r"(x0) : "r"(x8), "r"(x1), "r"(x2) : "memory");
+    return x0;
+}
+
+static int mount_holds_no_links(const char *src, size_t src_len) {
+    if (src_len == 0 || src_len >= PATH_MAX || strpbrk(src, " \t\n\\")) return 0;
+    long fd = raw_open_read(g_mount_table);
+    if (fd < 0) return 0;
+    struct mount_scan *scan = calloc(1, sizeof(*scan));
+    if (!scan) { raw_close_fd(fd); return 0; }
+    scan->src = src;
+    scan->src_len = src_len;
+    char line[4096];
+    size_t used = 0;
+    int skipping = 0;
+    char chunk[4096];
+    long n;
+    while ((n = raw_read_fd(fd, chunk, sizeof(chunk))) > 0 || n == -EINTR) {
+        for (long i = 0; i < n; i++) {
+            char c = chunk[i];
+            if (c == '\n') {
+                if (!skipping) {
+                    line[used] = '\0';
+                    mount_scan_line(scan, line);
+                }
+                used = 0;
+                skipping = 0;
+            } else if (used + 1 < sizeof(line)) {
+                line[used++] = c;
+            } else {
+                skipping = 1;
+                scan->incomplete = 1;
+            }
+        }
+    }
+    raw_close_fd(fd);
+    int none = 0;
+    if (n == 0 && used == 0 && !scan->incomplete && !scan->ambiguous && scan->best_len && !scan->nested_links) {
+        if (scan->best_plain) none = 1;
+        else if (scan->best_fuse && scan->best_name[0])
+            for (int i = 0; i < scan->lower_count && !none; i++) none = strcmp(scan->lower[i], scan->best_name) == 0;
+    }
+    free(scan);
+    return none;
+}
+
+static int bind_holds_no_links(struct ddnatv_bind *b) {
+    int state = __atomic_load_n(&b->links, __ATOMIC_RELAXED);
+    if (state == 0) {
+        state = mount_holds_no_links(b->src, b->src_len) ? 2 : 1;
+        __atomic_store_n(&b->links, state, __ATOMIC_RELAXED);
+    }
+    return state == 2;
+}
+#endif
+
+static const char *resolve_links_after(const char *host, size_t src_len, char *buffer, size_t bufsize, int check_plain) {
 #if defined(__aarch64__)
     size_t len = strlen(host);
     if (len >= PATH_MAX || t_bind_link_depth >= 8) return host;
+    const char *last = strrchr(host, '/');
+    size_t dir_len = last ? (size_t)(last - host) : 0;
+    if (check_plain && dir_len > src_len && path_has_no_links(host, len, dir_len, src_len)) return host == buffer ? buffer : host;
     for (size_t i = src_len + 1; i < len; i++) {
         if (host[i] != '/') continue;
         char prefix[PATH_MAX];
@@ -324,9 +559,13 @@ static const char *resolve_bind_links(const char *host, size_t src_len, char *bu
         return buffer;
     }
 #else
-    (void)src_len; (void)bufsize;
+    (void)src_len; (void)bufsize; (void)check_plain;
 #endif
     return host == buffer ? buffer : host;
+}
+
+static const char *resolve_bind_links(const char *host, size_t src_len, char *buffer, size_t bufsize) {
+    return resolve_links_after(host, src_len, buffer, bufsize, 1);
 }
 
 // Wine opens every file through its prefix's drive link (dosdevices/z: -> /), so the link must be
@@ -335,7 +574,7 @@ static const char *resolve_bind_links(const char *host, size_t src_len, char *bu
 static const char *resolve_drive_links(const char *host, char *buffer, size_t bufsize) {
     const char *devices = strstr(host, "/dosdevices/");
     if (!devices) return host;
-    return resolve_bind_links(host, (size_t)(devices - host) + 11, buffer, bufsize);
+    return resolve_links_after(host, (size_t)(devices - host) + 11, buffer, bufsize, 0);
 }
 
 // Maps an absolute Ubuntu path into the rootfs. Returns `path` (possibly advanced past
@@ -390,7 +629,14 @@ static const char *rewrite_path_in_root(const char *path, char *buffer, size_t b
             if (strstr(path + b->dst_len, "/..") && climbs_past_root("", path + b->dst_len))
                 return rewrite_normalized_in_root(path, buffer, bufsize);
             size_t n = ddnatv_append(buffer, bufsize, 0, b->src, b->src_len);
-            ddnatv_append(buffer, bufsize, n, path + b->dst_len, strlen(path + b->dst_len));
+            n = ddnatv_append(buffer, bufsize, n, path + b->dst_len, strlen(path + b->dst_len));
+#if defined(__aarch64__)
+            if (bind_holds_no_links(&g_binds[i])) {
+                t_plain_host = buffer;
+                t_plain_len = n;
+                return buffer;
+            }
+#endif
             return resolve_bind_links(buffer, b->src_len, buffer, bufsize);
         }
     }
@@ -455,17 +701,21 @@ static size_t link_root_guest_target(char *target, size_t len) {
 // view: the kernel resolves a relative target next to the link's real place, and in a mount that is
 // elsewhere (Flatpak's /run/user/0/wayland-0 -> ../../flatpak/wayland-0, where /run/flatpak/wayland-0
 // is another mount). Returns `path` when it is no link.
-static const char *follow_guest_link(const char *path, char *out, size_t outsz) {
+static const char *follow_guest_link_host(const char *path, char *out, size_t outsz, char *host_out, size_t host_outsz) {
 #if defined(__aarch64__)
     const char *cur = path;
     for (int depth = 0; depth < 8; depth++) {
         char host_buf[PATH_MAX];
+        t_plain_host = NULL;
         const char *host = rewrite_path_in_root(cur, host_buf, sizeof(host_buf));
         // /dev/stdin and /dev/fd are mounts of /proc/self/fd, whose links ("pipe:[123]") only the kernel opens
         if (strncmp(host, "/proc/", 6) == 0) return cur;
         char target[PATH_MAX];
-        long n = raw_readlinkat(AT_FDCWD, host, target, sizeof(target) - 1);
-        if (n <= 0) return cur;
+        long n = known_plain(host) ? -EINVAL : raw_readlinkat(AT_FDCWD, host, target, sizeof(target) - 1);
+        if (n <= 0) {
+            if (host_out && cur == path) ddnatv_copy_cstr(host_out, host_outsz, host);
+            return cur;
+        }
         target[n] = '\0';
         n = (long)link_root_guest_target(target, (size_t)n);
         char joined[PATH_MAX];
@@ -504,9 +754,13 @@ static const char *follow_guest_link(const char *path, char *out, size_t outsz) 
     }
     return cur;
 #else
-    (void)out; (void)outsz;
+    (void)out; (void)outsz; (void)host_out; (void)host_outsz;
     return path;
 #endif
+}
+
+static const char *follow_guest_link(const char *path, char *out, size_t outsz) {
+    return follow_guest_link_host(path, out, outsz, NULL, 0);
 }
 
 // On ENOENT, stat()/lstat()/readlink() retry /usr/bin <-> /bin and /usr/sbin <-> /sbin, for
