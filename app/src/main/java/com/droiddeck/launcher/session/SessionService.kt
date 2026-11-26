@@ -233,6 +233,8 @@ class SessionService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_STOP -> {
+                if (intent.hasExtra(DesktopLock.EXTRA_UNLOCK_SOURCE) &&
+                    !DesktopLock.currentSession(intent.getStringExtra(DesktopLock.EXTRA_UNLOCK_SOURCE), SessionState.sessionId, SessionState.running)) return START_NOT_STICKY
                 Log.i(TAG, "stop requested from the notification")
                 stopSession(0)
                 return START_NOT_STICKY
@@ -1932,8 +1934,8 @@ class SessionService : Service() {
                     .putExtra(EXTRA_STEAM_UI, ui)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (url.isNotEmpty()) next.putExtra(EXTRA_STEAM_URL, url)
-                val unlock = if (DesktopLock.enabled(this@SessionService)) DesktopLock.handoff(session, ui, url) else null
-                if (unlock != null) {
+                if (DesktopLock.requiresUnlock(DesktopLock.enabled(this@SessionService), session, ui)) {
+                    val unlock = DesktopLock.handoff(session, ui, url)?.copy(source = SessionState.sessionId) ?: return
                     val home = unlock.put(Intent(this@SessionService, com.droiddeck.launcher.FrontEndActivity::class.java))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
                     android.os.Handler(android.os.Looper.getMainLooper()).post {
@@ -2679,7 +2681,14 @@ class SessionService : Service() {
             else context.startService(intent)
         }
 
-        fun stop(context: Context) {
+        fun stop(context: Context, source: String? = null) {
+            if (source != null) {
+                if (DesktopLock.currentSession(source, SessionState.sessionId, SessionState.running)) {
+                    context.startService(Intent(context, SessionService::class.java).setAction(ACTION_STOP)
+                        .putExtra(DesktopLock.EXTRA_UNLOCK_SOURCE, source))
+                }
+                return
+            }
             if (!SessionState.running) {
                 SessionState.stopRequested = true
                 SessionState.installCancellation?.cancel()

@@ -4180,7 +4180,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun showSecondScreen(requested: SecondScreenMode) {
         if (pipUi || !started) return
-        val mode = if (requested == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad) openingPanel() else requested
+        val mode = if (requested == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad ||
+            requested == SecondScreenMode.DESKTOP && !com.droiddeck.launcher.session.BottomDesktop.available(this)) openingPanel() else requested
         val target = displayManager.getDisplay(selectedSecondScreenDisplay)
         if (target == null || !target.isValid || (target.flags and Display.FLAG_PRESENTATION) == 0) {
             closeSecondScreen(reset = false)

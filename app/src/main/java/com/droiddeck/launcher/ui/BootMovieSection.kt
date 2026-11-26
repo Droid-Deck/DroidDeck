@@ -688,7 +688,7 @@ internal fun TextEntryDialog(
     val shown = rememberShown(onDismiss)
     val close = { shown.targetState = false }
     var text by remember { mutableStateOf(initial) }
-    val submit = { onSubmit(text.trim()); close() }
+    val submit = { if (shown.targetState) { close(); onSubmit(text.trim()) } }
     AppDialog(shown, close, id, wide = false, maxWidth = 460.dp) {
         DialogTitleRow(title, close)
         AdbTextField(

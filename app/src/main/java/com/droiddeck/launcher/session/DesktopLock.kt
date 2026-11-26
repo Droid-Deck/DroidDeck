@@ -13,6 +13,7 @@ object DesktopLock {
     const val EXTRA_UNLOCK_MODE = "com.droiddeck.launcher.extra.DESKTOP_UNLOCK_MODE"
     const val EXTRA_UNLOCK_UI = "com.droiddeck.launcher.extra.DESKTOP_UNLOCK_UI"
     const val EXTRA_UNLOCK_URL = "com.droiddeck.launcher.extra.DESKTOP_UNLOCK_URL"
+    const val EXTRA_UNLOCK_SOURCE = "com.droiddeck.launcher.extra.DESKTOP_UNLOCK_SOURCE"
     private const val PREFS = "desktop_lock"
     private const val SALT = "salt"
     private const val HASH = "hash"
@@ -20,16 +21,18 @@ object DesktopLock {
     private val PIN = Regex("[0-9]{4,8}")
     private val UI = Regex("[a-z]{1,32}")
 
-    data class Handoff(val mode: String, val ui: String, val url: String) {
+    data class Handoff(val mode: String, val ui: String, val url: String, val source: String? = null) {
         fun put(intent: Intent): Intent = intent
             .putExtra(EXTRA_UNLOCK_MODE, mode)
             .putExtra(EXTRA_UNLOCK_UI, ui)
             .putExtra(EXTRA_UNLOCK_URL, url)
+            .putExtra(EXTRA_UNLOCK_SOURCE, source)
 
         fun session(context: Context): Intent {
             val next = Intent(context, com.droiddeck.launcher.SessionActivity::class.java)
                 .putExtra(SessionService.EXTRA_MODE, mode)
                 .putExtra(SessionService.EXTRA_STEAM_UI, ui)
+                .putExtra(EXTRA_UNLOCK_SOURCE, source)
             if (url.isNotEmpty()) next.putExtra(SessionService.EXTRA_STEAM_URL, url)
             return next
         }
@@ -46,17 +49,41 @@ object DesktopLock {
     fun handoff(intent: Intent): Handoff? {
         if (!intent.hasExtra(EXTRA_UNLOCK_MODE)) return null
         val found = handoff(intent.getStringExtra(EXTRA_UNLOCK_MODE), intent.getStringExtra(EXTRA_UNLOCK_UI), intent.getStringExtra(EXTRA_UNLOCK_URL))
+        val source = intent.getStringExtra(EXTRA_UNLOCK_SOURCE)
+        intent.removeExtra(EXTRA_UNLOCK_SOURCE)
         intent.removeExtra(EXTRA_UNLOCK_MODE)
         intent.removeExtra(EXTRA_UNLOCK_UI)
         intent.removeExtra(EXTRA_UNLOCK_URL)
-        return found
+        return found?.copy(source = source)
     }
 
     private fun prefs(context: Context): SharedPreferences = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun enabled(context: Context): Boolean = prefs(context).contains(HASH)
+    private data class Credentials(val salt: String?, val hash: String?)
+    private val saved = java.util.concurrent.ConcurrentHashMap<SharedPreferences, Credentials>()
+
+    private fun credentials(p: SharedPreferences): Credentials = saved.computeIfAbsent(p) {
+        Credentials(it.getString(SALT, null), it.getString(HASH, null))
+    }
+
+    private fun write(p: SharedPreferences, next: Credentials): Boolean {
+        val previous = credentials(p)
+        if (!p.edit().putString(SALT, next.salt).putString(HASH, next.hash).commit()) {
+            p.edit().putString(SALT, previous.salt).putString(HASH, previous.hash).commit()
+            throw java.io.IOException()
+        }
+        saved[p] = next
+        return true
+    }
+
+    fun enabled(context: Context): Boolean = credentials(prefs(context)).hash != null
 
     fun validPin(pin: String): Boolean = PIN.matches(pin)
+
+    fun requiresUnlock(enabled: Boolean, mode: String?, ui: String?): Boolean = enabled && entersDesktop(mode, ui)
+
+    fun currentSession(source: String?, current: String?, running: Boolean): Boolean =
+        source != null && source == current && running
 
     fun entersDesktop(mode: String?, steamUi: String?): Boolean =
         mode == SessionService.MODE_DESKTOP || steamUi == "desktop"
@@ -64,24 +91,24 @@ object DesktopLock {
     fun entersDesktop(intent: Intent): Boolean =
         entersDesktop(intent.getStringExtra(SessionService.EXTRA_MODE), intent.getStringExtra(SessionService.EXTRA_STEAM_UI))
 
+    @Synchronized
     fun set(context: Context, pin: String): Boolean {
         if (!validPin(pin)) return false
         val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
-        return prefs(context).edit()
-            .putString(SALT, Base64.getEncoder().encodeToString(salt))
-            .putString(HASH, Base64.getEncoder().encodeToString(hash(pin, salt)))
-            .commit()
+        return write(prefs(context), Credentials(Base64.getEncoder().encodeToString(salt),
+            Base64.getEncoder().encodeToString(hash(pin, salt))))
     }
 
     fun matches(context: Context, pin: String): Boolean {
-        val p = prefs(context)
-        val salt = p.getString(SALT, null)?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() } ?: return false
-        val stored = p.getString(HASH, null)?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() } ?: return false
+        val storedCredentials = credentials(prefs(context))
+        val salt = storedCredentials.salt?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() } ?: return false
+        val stored = storedCredentials.hash?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() } ?: return false
         return validPin(pin) && MessageDigest.isEqual(stored, hash(pin, salt))
     }
 
+    @Synchronized
     fun clear(context: Context, pin: String): Boolean =
-        matches(context, pin) && prefs(context).edit().clear().commit()
+        matches(context, pin) && write(prefs(context), Credentials(null, null))
 
     internal fun hash(pin: String, salt: ByteArray): ByteArray {
         val spec = PBEKeySpec(pin.toCharArray(), salt, ROUNDS, 256)

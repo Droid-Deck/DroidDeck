@@ -1150,13 +1150,18 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         awaitSessionEnd(next, android.os.SystemClock.uptimeMillis() + SESSION_SWITCH_WAIT_MS)
     }
 
-    private fun awaitSessionEnd(next: Intent, deadline: Long) {
+    private fun awaitSessionEnd(next: Intent, deadline: Long, source: String? = next.getStringExtra(com.droiddeck.launcher.session.DesktopLock.EXTRA_UNLOCK_SOURCE)) {
         switchingTo = next
         switchDeadline = deadline
         switchPoll?.let { ui.removeCallbacks(it) }
         val poll = object : Runnable {
             override fun run() {
                 if (isDestroyed) return
+                if (source != null && SessionState.sessionId != source) {
+                    switchPoll = null
+                    switchingTo = null
+                    return
+                }
                 if (SessionState.running || SessionState.phase !in SESSION_ENDED) {
                     if (android.os.SystemClock.uptimeMillis() < deadline) ui.postDelayed(this, SESSION_SWITCH_POLL_MS)
                     else {
@@ -1820,7 +1825,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         com.droiddeck.launcher.ui.TextEntryDialog(
                             title = androidx.compose.ui.res.stringResource(ask.title), initial = "", number = true, secret = true,
                             confirm = androidx.compose.ui.res.stringResource(R.string.common_ok),
-                            onSubmit = ask.onPin, onDismiss = { if (pinAsk === ask) { pinAsk = null; ask.onCancel() } }, id = "desktop-lock",
+                            onSubmit = { pin -> if (pinAsk === ask) { pinAsk = null; ask.onPin(pin) } }, onDismiss = { if (pinAsk === ask) { pinAsk = null; ask.onCancel() } }, id = "desktop-lock",
                         )
                     }
                 }
@@ -1874,7 +1879,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             restoreCompatLaunch(savedInstanceState)
             pendingSwitch = savedIntent(savedInstanceState, KEY_PENDING_SWITCH)
             com.droiddeck.launcher.session.DesktopLock.handoff(savedInstanceState.getString(KEY_UNLOCK_MODE),
-                savedInstanceState.getString(KEY_UNLOCK_UI), savedInstanceState.getString(KEY_UNLOCK_URL))?.let(::askHandoff)
+                savedInstanceState.getString(KEY_UNLOCK_UI), savedInstanceState.getString(KEY_UNLOCK_URL))?.copy(source = savedInstanceState.getString(KEY_UNLOCK_SOURCE))?.let(::askHandoff)
             savedIntent(savedInstanceState, KEY_SWITCHING_TO)?.let { awaitSessionEnd(it, savedInstanceState.getLong(KEY_SWITCH_DEADLINE)) }
         }
 
@@ -1939,7 +1944,23 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private class PinAsk(@androidx.annotation.StringRes val title: Int, val onCancel: () -> Unit = {}, val onPin: (String) -> Unit)
 
-    private var pinAsk by mutableStateOf<PinAsk?>(null)
+    private var activePinAsk by mutableStateOf<PinAsk?>(null)
+    private var pinGeneration = 0
+    private var pinAsk: PinAsk?
+        get() = activePinAsk
+        set(value) { pinGeneration++; activePinAsk = value }
+
+    private fun pinWork(work: () -> Boolean, done: (Boolean) -> Unit) {
+        val generation = pinGeneration
+        Thread({
+            val result = runCatching(work)
+            ui.post {
+                if (!isDestroyed && !isFinishing && generation == pinGeneration) {
+                    result.fold(done) { pinToast(R.string.game_env_error) }
+                }
+            }
+        }, "desktop-pin").start()
+    }
     private var desktopLock by mutableStateOf(false)
     private var pendingUnlock: com.droiddeck.launcher.session.DesktopLock.Handoff? = null
 
@@ -1949,7 +1970,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun whenUnlocked(action: () -> Unit) {
         if (!com.droiddeck.launcher.session.DesktopLock.enabled(this)) return action()
         pinAsk = PinAsk(R.string.desktop_lock_enter) { pin ->
-            if (com.droiddeck.launcher.session.DesktopLock.matches(this, pin)) action() else pinToast(R.string.desktop_lock_wrong)
+            pinWork({ com.droiddeck.launcher.session.DesktopLock.matches(this, pin) }) { matched ->
+                if (matched) action() else pinToast(R.string.desktop_lock_wrong)
+            }
         }
     }
 
@@ -1958,8 +1981,13 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         pendingUnlock = request
         pinAsk = PinAsk(R.string.desktop_lock_enter, onCancel = { if (pendingUnlock === request) pendingUnlock = null }) { pin ->
             if (pendingUnlock === request) pendingUnlock = null
-            if (com.droiddeck.launcher.session.DesktopLock.matches(this, pin)) startAfterSession(request.session(this))
-            else pinToast(R.string.desktop_lock_wrong)
+            pinWork({ com.droiddeck.launcher.session.DesktopLock.matches(this, pin) }) { matched ->
+                if (!matched) pinToast(R.string.desktop_lock_wrong)
+                else if (com.droiddeck.launcher.session.DesktopLock.currentSession(request.source, SessionState.sessionId, SessionState.running)) {
+                    SessionService.stop(this, request.source)
+                    awaitSessionEnd(request.session(this), android.os.SystemClock.uptimeMillis() + SESSION_SWITCH_WAIT_MS, request.source)
+                }
+            }
         }
     }
 
@@ -1971,10 +1999,13 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             if (!lock.validPin(pin)) pinToast(R.string.desktop_lock_invalid)
             else pinAsk = PinAsk(R.string.desktop_lock_confirm) { again ->
                 if (again != pin) pinToast(R.string.desktop_lock_mismatch)
-                else desktopLock = lock.set(this, pin)
+                else pinWork({ lock.set(this, pin) }) { desktopLock = lock.enabled(this) }
             }
         } else PinAsk(R.string.desktop_lock_enter) { pin ->
-            if (lock.clear(this, pin)) desktopLock = false else pinToast(R.string.desktop_lock_wrong)
+            pinWork({ lock.clear(this, pin) }) { cleared ->
+                desktopLock = lock.enabled(this)
+                if (!cleared) pinToast(R.string.desktop_lock_wrong)
+            }
         }
     }
 
@@ -2204,6 +2235,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             outState.putString(KEY_UNLOCK_MODE, it.mode)
             outState.putString(KEY_UNLOCK_UI, it.ui)
             outState.putString(KEY_UNLOCK_URL, it.url)
+            outState.putString(KEY_UNLOCK_SOURCE, it.source)
         }
         switchingTo?.let {
             outState.putParcelable(KEY_SWITCHING_TO, it)
@@ -2241,6 +2273,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     override fun onStop() {
+        pinGeneration++
         if (!homeChoiceOpen) HomeApp.releaseUnusedHomeEntry(this)
         unregisterReceiver(wifiLocationReceiver)
         unregisterReceiver(dateReceiver)
@@ -3460,6 +3493,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         private const val KEY_SWITCH_DEADLINE = "switch_deadline"
         private const val KEY_UNLOCK_MODE = "desktop_unlock_mode"
         private const val KEY_UNLOCK_UI = "desktop_unlock_ui"
+        private const val KEY_UNLOCK_SOURCE = "desktop_unlock_source"
         private const val KEY_UNLOCK_URL = "desktop_unlock_url"
         private val SESSION_ENDED = setOf(SessionPhase.IDLE, SessionPhase.FAILED)
         private val ZIP_EXT = listOf("zip")
