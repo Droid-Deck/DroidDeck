@@ -173,7 +173,7 @@ class StoreGameSidecarTest {
     )
 
     @Test fun epicTitlesThatCheckTheirParentStartUnderTheStandIn() {
-        for (id in listOf("9d2d0eb64d5c44529cece33fe2a46482", "8769e24080ea413b8ebca3f1b8c50951", "Heather")) {
+        for (id in listOf("9d2d0eb64d5c44529cece33fe2a46482", "8769e24080ea413b8ebca3f1b8c50951", "Heather", "7133a8c315324112a3eee2458f0a8242")) {
             val lines = StoreLaunch.launcherText(StoreGameSidecar(Store.EPIC, id, "Rockstar title", "PlayGTAV.exe")).split("\r\n")
             val on = lines.indexOf("set \"DD_P=1\"")
             assertTrue(id, on > lines.indexOf("cd /d \"%~dp0\""))
