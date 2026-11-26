@@ -2108,6 +2108,13 @@
     <string name="bottom_companion_favorites">Αγαπημένα</string>
     <string name="bottom_companion_radio_on">Ενεργοποίηση ραδιοφώνου</string>
     <string name="bottom_companion_radio_off">Απενεργοποίηση ραδιοφώνου</string>
+    <string name="bottom_page_mirror">Καθρέφτης</string>
+    <string name="bottom_mirror_pick">Σύρετε πάνω από το μέρος του παιχνιδιού που θέλετε να εμφανίζεται εδώ, όπως ο μικρός χάρτης.</string>
+    <string name="bottom_mirror_save">Αποθήκευση περιοχής</string>
+    <string name="bottom_mirror_edit">Επεξεργασία περιοχής</string>
+    <string name="bottom_mirror_sharp">Οξύ</string>
+    <string name="bottom_mirror_smooth">Ομαλό</string>
+    <string name="bottom_mirror_no_frame">Η εικόνα του παιχνιδιού δεν μπορεί να αντιγραφεί τώρα.</string>
     <string name="bottom_page_telemetry">Στατιστικά παιχνιδιού</string>
     <string name="bottom_hud_group">HUD κάτω οθόνης</string>
     <string name="bottom_strip_tabs">Λωρίδα σε κάθε καρτέλα</string>

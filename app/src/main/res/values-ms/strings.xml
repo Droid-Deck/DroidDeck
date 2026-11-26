@@ -2084,6 +2084,13 @@
     <string name="bottom_companion_favorites">Kegemaran</string>
     <string name="bottom_companion_radio_on">Hidupkan radio</string>
     <string name="bottom_companion_radio_off">Matikan radio</string>
+    <string name="bottom_page_mirror">Cermin</string>
+    <string name="bottom_mirror_pick">Seret ke atas bahagian permainan yang mahu dipaparkan di sini, seperti peta mini.</string>
+    <string name="bottom_mirror_save">Simpan kawasan</string>
+    <string name="bottom_mirror_edit">Edit kawasan</string>
+    <string name="bottom_mirror_sharp">Tajam</string>
+    <string name="bottom_mirror_smooth">Licin</string>
+    <string name="bottom_mirror_no_frame">Gambar permainan tidak dapat disalin sekarang.</string>
     <string name="bottom_page_telemetry">Statistik dalam permainan</string>
     <string name="bottom_hud_group">HUD skrin bawah</string>
     <string name="bottom_strip_tabs">Jalur pada setiap tab</string>

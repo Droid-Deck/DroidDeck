@@ -2084,6 +2084,13 @@
     <string name="bottom_companion_favorites">รายการโปรด</string>
     <string name="bottom_companion_radio_on">เปิดวิทยุ</string>
     <string name="bottom_companion_radio_off">ปิดวิทยุ</string>
+    <string name="bottom_page_mirror">กระจก</string>
+    <string name="bottom_mirror_pick">ลากครอบส่วนของเกมที่ต้องการแสดงที่นี่ เช่น มินิแมป</string>
+    <string name="bottom_mirror_save">บันทึกพื้นที่</string>
+    <string name="bottom_mirror_edit">แก้ไขพื้นที่</string>
+    <string name="bottom_mirror_sharp">คมชัด</string>
+    <string name="bottom_mirror_smooth">นุ่มนวล</string>
+    <string name="bottom_mirror_no_frame">ตอนนี้ไม่สามารถคัดลอกภาพเกมได้</string>
     <string name="bottom_page_telemetry">สถิติในเกม</string>
     <string name="bottom_hud_group">HUD หน้าจอล่าง</string>
     <string name="bottom_strip_tabs">แถบในทุกแท็บ</string>

@@ -2133,6 +2133,13 @@
     <string name="bottom_companion_favorites">Favorite</string>
     <string name="bottom_companion_radio_on">Pornește radioul</string>
     <string name="bottom_companion_radio_off">Oprește radioul</string>
+    <string name="bottom_page_mirror">Oglindă</string>
+    <string name="bottom_mirror_pick">Trage peste partea din joc care să apară aici, de exemplu minimapa.</string>
+    <string name="bottom_mirror_save">Salvează zona</string>
+    <string name="bottom_mirror_edit">Editează zona</string>
+    <string name="bottom_mirror_sharp">Clar</string>
+    <string name="bottom_mirror_smooth">Neted</string>
+    <string name="bottom_mirror_no_frame">Imaginea jocului nu poate fi copiată acum.</string>
     <string name="bottom_page_telemetry">Statistici în joc</string>
     <string name="bottom_hud_group">HUD pe ecranul de jos</string>
     <string name="bottom_strip_tabs">Bandă pe fiecare filă</string>

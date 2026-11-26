@@ -2208,6 +2208,13 @@
     <string name="bottom_companion_favorites">المفضلة</string>
     <string name="bottom_companion_radio_on">شغّل الراديو</string>
     <string name="bottom_companion_radio_off">أطفئ الراديو</string>
+    <string name="bottom_page_mirror">المرآة</string>
+    <string name="bottom_mirror_pick">اسحب فوق جزء اللعبة الذي تريد عرضه هنا، مثل الخريطة المصغّرة.</string>
+    <string name="bottom_mirror_save">احفظ المنطقة</string>
+    <string name="bottom_mirror_edit">عدّل المنطقة</string>
+    <string name="bottom_mirror_sharp">حاد</string>
+    <string name="bottom_mirror_smooth">ناعم</string>
+    <string name="bottom_mirror_no_frame">لا يمكن نسخ صورة اللعبة الآن.</string>
     <string name="bottom_page_telemetry">إحصاءات داخل اللعبة</string>
     <string name="bottom_hud_group">مؤشرات الشاشة السفلية</string>
     <string name="bottom_strip_tabs">شريط على كل تبويب</string>

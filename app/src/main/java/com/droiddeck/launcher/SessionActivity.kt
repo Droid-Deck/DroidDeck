@@ -4649,6 +4649,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         fps = { if (::hud.isInitialized) hud.liveFps else null },
         runningGame = { gestureGame },
         quick = { drawerActions },
+        copyRegion = ::copyGameRegion,
         screenOff = { secondScreenPresentation?.screenOff() },
     ))
 
@@ -4696,6 +4697,40 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 bitmap.recycle()
                 onFrame(null)
             }
+        }
+    }
+
+    private fun copyGameRegion(region: android.graphics.RectF?, outWidth: Int, outHeight: Int, onFrame: (android.graphics.Bitmap?) -> Unit) {
+        val source = if (glassesOutputActive) glassesScreen?.surfaceView else if (bottomOutputActive) bottomGame?.surfaceView
+            else if (::surfaceView.isInitialized) surfaceView else null
+        val width = source?.width ?: 0
+        val height = source?.height ?: 0
+        if (source == null || width <= 0 || height <= 0 || outWidth <= 0 || outHeight <= 0 || source.holder.surface?.isValid != true) {
+            onFrame(null)
+            return
+        }
+        val r = region ?: android.graphics.RectF(0f, 0f, 1f, 1f)
+        val src = android.graphics.Rect((r.left * width).toInt(), (r.top * height).toInt(), (r.right * width).toInt(), (r.bottom * height).toInt())
+        if (src.width() <= 0 || src.height() <= 0) {
+            onFrame(null)
+            return
+        }
+        val bitmap = try {
+            android.graphics.Bitmap.createBitmap(outWidth, outHeight, android.graphics.Bitmap.Config.ARGB_8888)
+        } catch (_: OutOfMemoryError) {
+            onFrame(null)
+            return
+        }
+        try {
+            android.view.PixelCopy.request(source, src, bitmap, { result ->
+                if (result == android.view.PixelCopy.SUCCESS) onFrame(bitmap) else {
+                    bitmap.recycle()
+                    onFrame(null)
+                }
+            }, uiHandler)
+        } catch (_: IllegalArgumentException) {
+            bitmap.recycle()
+            onFrame(null)
         }
     }
 

@@ -2379,6 +2379,13 @@
     <string name="bottom_companion_favorites">Favorites</string>
     <string name="bottom_companion_radio_on">Turn on the radio</string>
     <string name="bottom_companion_radio_off">Turn off the radio</string>
+    <string name="bottom_page_mirror">Mirror</string>
+    <string name="bottom_mirror_pick">Drag over the part of the game to show here, such as the minimap.</string>
+    <string name="bottom_mirror_save">Save region</string>
+    <string name="bottom_mirror_edit">Edit region</string>
+    <string name="bottom_mirror_sharp">Sharp</string>
+    <string name="bottom_mirror_smooth">Smooth</string>
+    <string name="bottom_mirror_no_frame">The game picture cannot be copied right now.</string>
     <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_hud_group">Bottom screen HUD</string>
     <string name="bottom_strip_tabs">Strip on every tab</string>

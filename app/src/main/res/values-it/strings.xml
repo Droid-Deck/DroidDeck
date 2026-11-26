@@ -2124,6 +2124,13 @@
     <string name="bottom_companion_favorites">Preferiti</string>
     <string name="bottom_companion_radio_on">Accendi la radio</string>
     <string name="bottom_companion_radio_off">Spegni la radio</string>
+    <string name="bottom_page_mirror">Specchio</string>
+    <string name="bottom_mirror_pick">Trascina sulla parte del gioco da mostrare qui, come la minimappa.</string>
+    <string name="bottom_mirror_save">Salva area</string>
+    <string name="bottom_mirror_edit">Modifica area</string>
+    <string name="bottom_mirror_sharp">Nitido</string>
+    <string name="bottom_mirror_smooth">Morbido</string>
+    <string name="bottom_mirror_no_frame">Al momento l’immagine del gioco non può essere copiata.</string>
     <string name="bottom_page_telemetry">Statistiche di gioco</string>
     <string name="bottom_hud_group">HUD dello schermo inferiore</string>
     <string name="bottom_strip_tabs">Barra su ogni scheda</string>

@@ -2084,6 +2084,13 @@
     <string name="bottom_companion_favorites">즐겨찾기</string>
     <string name="bottom_companion_radio_on">라디오 켜기</string>
     <string name="bottom_companion_radio_off">라디오 끄기</string>
+    <string name="bottom_page_mirror">미러</string>
+    <string name="bottom_mirror_pick">미니맵처럼 여기에 표시할 게임 화면 부분을 드래그하세요.</string>
+    <string name="bottom_mirror_save">영역 저장</string>
+    <string name="bottom_mirror_edit">영역 편집</string>
+    <string name="bottom_mirror_sharp">선명하게</string>
+    <string name="bottom_mirror_smooth">부드럽게</string>
+    <string name="bottom_mirror_no_frame">지금은 게임 화면을 복사할 수 없습니다.</string>
     <string name="bottom_page_telemetry">게임 내 통계</string>
     <string name="bottom_hud_group">하단 화면 HUD</string>
     <string name="bottom_strip_tabs">모든 탭에 스트립 표시</string>

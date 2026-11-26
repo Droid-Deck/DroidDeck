@@ -2158,6 +2158,13 @@
     <string name="bottom_companion_favorites">Ulubione</string>
     <string name="bottom_companion_radio_on">Włącz radio</string>
     <string name="bottom_companion_radio_off">Wyłącz radio</string>
+    <string name="bottom_page_mirror">Lustro</string>
+    <string name="bottom_mirror_pick">Przeciągnij po fragmencie gry, który ma się tu wyświetlać, np. minimapie.</string>
+    <string name="bottom_mirror_save">Zapisz obszar</string>
+    <string name="bottom_mirror_edit">Edytuj obszar</string>
+    <string name="bottom_mirror_sharp">Ostro</string>
+    <string name="bottom_mirror_smooth">Gładko</string>
+    <string name="bottom_mirror_no_frame">Obrazu gry nie można teraz skopiować.</string>
     <string name="bottom_page_telemetry">Statystyki w grze</string>
     <string name="bottom_hud_group">HUD dolnego ekranu</string>
     <string name="bottom_strip_tabs">Pasek na każdej karcie</string>

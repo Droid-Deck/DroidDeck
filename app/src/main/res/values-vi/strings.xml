@@ -2084,6 +2084,13 @@
     <string name="bottom_companion_favorites">Yêu thích</string>
     <string name="bottom_companion_radio_on">Bật radio</string>
     <string name="bottom_companion_radio_off">Tắt radio</string>
+    <string name="bottom_page_mirror">Phản chiếu</string>
+    <string name="bottom_mirror_pick">Kéo qua phần trò chơi muốn hiển thị ở đây, chẳng hạn bản đồ nhỏ.</string>
+    <string name="bottom_mirror_save">Lưu vùng</string>
+    <string name="bottom_mirror_edit">Sửa vùng</string>
+    <string name="bottom_mirror_sharp">Sắc nét</string>
+    <string name="bottom_mirror_smooth">Mượt</string>
+    <string name="bottom_mirror_no_frame">Hiện không thể sao chép hình ảnh trò chơi.</string>
     <string name="bottom_page_telemetry">Thông số trong game</string>
     <string name="bottom_hud_group">HUD màn hình dưới</string>
     <string name="bottom_strip_tabs">Thanh trên mọi tab</string>

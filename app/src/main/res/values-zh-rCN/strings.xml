@@ -2161,6 +2161,13 @@
     <string name="bottom_companion_favorites">收藏</string>
     <string name="bottom_companion_radio_on">打开收音机</string>
     <string name="bottom_companion_radio_off">关闭收音机</string>
+    <string name="bottom_page_mirror">镜像</string>
+    <string name="bottom_mirror_pick">拖动框选要在这里显示的游戏区域，例如小地图。</string>
+    <string name="bottom_mirror_save">保存区域</string>
+    <string name="bottom_mirror_edit">编辑区域</string>
+    <string name="bottom_mirror_sharp">锐利</string>
+    <string name="bottom_mirror_smooth">平滑</string>
+    <string name="bottom_mirror_no_frame">现在无法复制游戏画面。</string>
     <string name="bottom_page_telemetry">游戏内数据</string>
     <string name="bottom_hud_group">下屏 HUD</string>
     <string name="bottom_strip_tabs">所有页签显示横条</string>

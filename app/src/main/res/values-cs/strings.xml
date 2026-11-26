@@ -2158,6 +2158,13 @@
     <string name="bottom_companion_favorites">Oblíbené</string>
     <string name="bottom_companion_radio_on">Zapnout rádio</string>
     <string name="bottom_companion_radio_off">Vypnout rádio</string>
+    <string name="bottom_page_mirror">Zrcadlo</string>
+    <string name="bottom_mirror_pick">Táhnutím označte část hry, která se tu má zobrazit, například minimapu.</string>
+    <string name="bottom_mirror_save">Uložit oblast</string>
+    <string name="bottom_mirror_edit">Upravit oblast</string>
+    <string name="bottom_mirror_sharp">Ostré</string>
+    <string name="bottom_mirror_smooth">Hladké</string>
+    <string name="bottom_mirror_no_frame">Obraz hry teď nelze zkopírovat.</string>
     <string name="bottom_page_telemetry">Statistiky ve hře</string>
     <string name="bottom_hud_group">HUD na spodní obrazovce</string>
     <string name="bottom_strip_tabs">Lišta na každé kartě</string>

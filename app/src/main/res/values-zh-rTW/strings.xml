@@ -2083,6 +2083,13 @@
     <string name="bottom_companion_favorites">最愛</string>
     <string name="bottom_companion_radio_on">開啟收音機</string>
     <string name="bottom_companion_radio_off">關閉收音機</string>
+    <string name="bottom_page_mirror">鏡像</string>
+    <string name="bottom_mirror_pick">拖曳框選要在這裡顯示的遊戲區域，例如小地圖。</string>
+    <string name="bottom_mirror_save">儲存區域</string>
+    <string name="bottom_mirror_edit">編輯區域</string>
+    <string name="bottom_mirror_sharp">銳利</string>
+    <string name="bottom_mirror_smooth">平滑</string>
+    <string name="bottom_mirror_no_frame">目前無法複製遊戲畫面。</string>
     <string name="bottom_page_telemetry">遊戲內數據</string>
     <string name="bottom_hud_group">下螢幕 HUD</string>
     <string name="bottom_strip_tabs">在每個分頁顯示資訊列</string>

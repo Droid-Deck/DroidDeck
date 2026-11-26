@@ -2084,6 +2084,13 @@
     <string name="bottom_companion_favorites">お気に入り</string>
     <string name="bottom_companion_radio_on">ラジオをオン</string>
     <string name="bottom_companion_radio_off">ラジオをオフ</string>
+    <string name="bottom_page_mirror">ミラー</string>
+    <string name="bottom_mirror_pick">ミニマップなど、ここに表示したいゲーム画面の部分をドラッグで選びます。</string>
+    <string name="bottom_mirror_save">範囲を保存</string>
+    <string name="bottom_mirror_edit">範囲を編集</string>
+    <string name="bottom_mirror_sharp">シャープ</string>
+    <string name="bottom_mirror_smooth">なめらか</string>
+    <string name="bottom_mirror_no_frame">現在ゲーム画面をコピーできません。</string>
     <string name="bottom_page_telemetry">ゲーム内統計</string>
     <string name="bottom_hud_group">下部画面の HUD</string>
     <string name="bottom_strip_tabs">すべてのタブにストリップを表示</string>

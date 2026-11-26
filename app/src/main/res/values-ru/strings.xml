@@ -2159,6 +2159,13 @@
     <string name="bottom_companion_favorites">Избранное</string>
     <string name="bottom_companion_radio_on">Включить радио</string>
     <string name="bottom_companion_radio_off">Выключить радио</string>
+    <string name="bottom_page_mirror">Зеркало</string>
+    <string name="bottom_mirror_pick">Проведите по части игры, которую нужно показывать здесь, например по мини-карте.</string>
+    <string name="bottom_mirror_save">Сохранить область</string>
+    <string name="bottom_mirror_edit">Изменить область</string>
+    <string name="bottom_mirror_sharp">Чётко</string>
+    <string name="bottom_mirror_smooth">Сглаженно</string>
+    <string name="bottom_mirror_no_frame">Сейчас не удаётся скопировать изображение игры.</string>
     <string name="bottom_page_telemetry">Игровая статистика</string>
     <string name="bottom_hud_group">HUD нижнего экрана</string>
     <string name="bottom_strip_tabs">Полоса на всех вкладках</string>

@@ -2158,6 +2158,13 @@
     <string name="bottom_companion_favorites">Вибране</string>
     <string name="bottom_companion_radio_on">Увімкнути радіо</string>
     <string name="bottom_companion_radio_off">Вимкнути радіо</string>
+    <string name="bottom_page_mirror">Дзеркало</string>
+    <string name="bottom_mirror_pick">Проведіть по частині гри, яку треба показувати тут, наприклад по мінікарті.</string>
+    <string name="bottom_mirror_save">Зберегти область</string>
+    <string name="bottom_mirror_edit">Змінити область</string>
+    <string name="bottom_mirror_sharp">Чітко</string>
+    <string name="bottom_mirror_smooth">Згладжено</string>
+    <string name="bottom_mirror_no_frame">Зараз не вдається скопіювати зображення гри.</string>
     <string name="bottom_page_telemetry">Ігрова статистика</string>
     <string name="bottom_hud_group">HUD на нижньому екрані</string>
     <string name="bottom_strip_tabs">Смуга на кожній вкладці</string>

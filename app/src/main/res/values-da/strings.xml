@@ -2108,6 +2108,13 @@
     <string name="bottom_companion_favorites">Favoritter</string>
     <string name="bottom_companion_radio_on">Tænd radioen</string>
     <string name="bottom_companion_radio_off">Sluk radioen</string>
+    <string name="bottom_page_mirror">Spejl</string>
+    <string name="bottom_mirror_pick">Træk hen over den del af spillet, der skal vises her, f.eks. minikortet.</string>
+    <string name="bottom_mirror_save">Gem område</string>
+    <string name="bottom_mirror_edit">Rediger område</string>
+    <string name="bottom_mirror_sharp">Skarp</string>
+    <string name="bottom_mirror_smooth">Blød</string>
+    <string name="bottom_mirror_no_frame">Spillets billede kan ikke kopieres lige nu.</string>
     <string name="bottom_page_telemetry">Statistik i spillet</string>
     <string name="bottom_hud_group">HUD på nederste skærm</string>
     <string name="bottom_strip_tabs">Stribe på alle faner</string>

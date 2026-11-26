@@ -2108,6 +2108,13 @@
     <string name="bottom_companion_favorites">Favorieten</string>
     <string name="bottom_companion_radio_on">Radio aanzetten</string>
     <string name="bottom_companion_radio_off">Radio uitzetten</string>
+    <string name="bottom_page_mirror">Spiegel</string>
+    <string name="bottom_mirror_pick">Sleep over het deel van de game dat hier moet verschijnen, zoals de minikaart.</string>
+    <string name="bottom_mirror_save">Gebied opslaan</string>
+    <string name="bottom_mirror_edit">Gebied bewerken</string>
+    <string name="bottom_mirror_sharp">Scherp</string>
+    <string name="bottom_mirror_smooth">Vloeiend</string>
+    <string name="bottom_mirror_no_frame">Het gamebeeld kan nu niet worden gekopieerd.</string>
     <string name="bottom_page_telemetry">In-game statistieken</string>
     <string name="bottom_hud_group">HUD op het onderste scherm</string>
     <string name="bottom_strip_tabs">Strip op elk tabblad</string>

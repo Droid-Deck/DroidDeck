@@ -2108,6 +2108,13 @@
     <string name="bottom_companion_favorites">पसंदीदा</string>
     <string name="bottom_companion_radio_on">रेडियो चालू करें</string>
     <string name="bottom_companion_radio_off">रेडियो बंद करें</string>
+    <string name="bottom_page_mirror">मिरर</string>
+    <string name="bottom_mirror_pick">गेम का वह हिस्सा चुनने के लिए खींचें जो यहाँ दिखे, जैसे मिनीमैप।</string>
+    <string name="bottom_mirror_save">क्षेत्र सहेजें</string>
+    <string name="bottom_mirror_edit">क्षेत्र बदलें</string>
+    <string name="bottom_mirror_sharp">तेज़</string>
+    <string name="bottom_mirror_smooth">मुलायम</string>
+    <string name="bottom_mirror_no_frame">गेम की तस्वीर अभी कॉपी नहीं हो सकती।</string>
     <string name="bottom_page_telemetry">इन-गेम आंकड़े</string>
     <string name="bottom_hud_group">निचली स्क्रीन HUD</string>
     <string name="bottom_strip_tabs">हर टैब पर स्ट्रिप</string>

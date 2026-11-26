@@ -2132,6 +2132,13 @@
     <string name="bottom_companion_favorites">Favoris</string>
     <string name="bottom_companion_radio_on">Allumer la radio</string>
     <string name="bottom_companion_radio_off">Éteindre la radio</string>
+    <string name="bottom_page_mirror">Miroir</string>
+    <string name="bottom_mirror_pick">Faites glisser sur la partie du jeu à afficher ici, comme la mini-carte.</string>
+    <string name="bottom_mirror_save">Enregistrer la zone</string>
+    <string name="bottom_mirror_edit">Modifier la zone</string>
+    <string name="bottom_mirror_sharp">Net</string>
+    <string name="bottom_mirror_smooth">Lissé</string>
+    <string name="bottom_mirror_no_frame">L’image du jeu ne peut pas être copiée pour le moment.</string>
     <string name="bottom_page_telemetry">Statistiques en jeu</string>
     <string name="bottom_hud_group">HUD de l\'écran du bas</string>
     <string name="bottom_strip_tabs">Bande sur tous les onglets</string>

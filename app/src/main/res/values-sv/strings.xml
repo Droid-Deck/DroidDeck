@@ -2108,6 +2108,13 @@
     <string name="bottom_companion_favorites">Favoriter</string>
     <string name="bottom_companion_radio_on">Slå på radion</string>
     <string name="bottom_companion_radio_off">Stäng av radion</string>
+    <string name="bottom_page_mirror">Spegel</string>
+    <string name="bottom_mirror_pick">Dra över den del av spelet som ska visas här, till exempel minikartan.</string>
+    <string name="bottom_mirror_save">Spara område</string>
+    <string name="bottom_mirror_edit">Redigera område</string>
+    <string name="bottom_mirror_sharp">Skarp</string>
+    <string name="bottom_mirror_smooth">Mjuk</string>
+    <string name="bottom_mirror_no_frame">Spelbilden kan inte kopieras just nu.</string>
     <string name="bottom_page_telemetry">Statistik i spelet</string>
     <string name="bottom_hud_group">HUD på nedre skärmen</string>
     <string name="bottom_strip_tabs">Remsa på varje flik</string>

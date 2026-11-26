@@ -2100,6 +2100,13 @@
     <string name="bottom_companion_favorites">Favoriler</string>
     <string name="bottom_companion_radio_on">Radyoyu aç</string>
     <string name="bottom_companion_radio_off">Radyoyu kapat</string>
+    <string name="bottom_page_mirror">Ayna</string>
+    <string name="bottom_mirror_pick">Burada gösterilecek oyun bölümünün üzerinden sürükleyin, örneğin mini harita.</string>
+    <string name="bottom_mirror_save">Bölgeyi kaydet</string>
+    <string name="bottom_mirror_edit">Bölgeyi düzenle</string>
+    <string name="bottom_mirror_sharp">Keskin</string>
+    <string name="bottom_mirror_smooth">Yumuşak</string>
+    <string name="bottom_mirror_no_frame">Oyun görüntüsü şu anda kopyalanamıyor.</string>
     <string name="bottom_page_telemetry">Oyun içi istatistikler</string>
     <string name="bottom_hud_group">Alt ekrandaki HUD</string>
     <string name="bottom_strip_tabs">Her sekmede şerit</string>

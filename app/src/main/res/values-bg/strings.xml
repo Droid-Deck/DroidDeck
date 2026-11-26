@@ -2108,6 +2108,13 @@
     <string name="bottom_companion_favorites">Любими</string>
     <string name="bottom_companion_radio_on">Включи радиото</string>
     <string name="bottom_companion_radio_off">Изключи радиото</string>
+    <string name="bottom_page_mirror">Огледало</string>
+    <string name="bottom_mirror_pick">Плъзнете върху частта от играта, която да се показва тук, например мини картата.</string>
+    <string name="bottom_mirror_save">Запази областта</string>
+    <string name="bottom_mirror_edit">Редактирай областта</string>
+    <string name="bottom_mirror_sharp">Остро</string>
+    <string name="bottom_mirror_smooth">Гладко</string>
+    <string name="bottom_mirror_no_frame">Картината на играта не може да се копира в момента.</string>
     <string name="bottom_page_telemetry">Статистика в играта</string>
     <string name="bottom_hud_group">HUD на долния екран</string>
     <string name="bottom_strip_tabs">Лента на всеки раздел</string>

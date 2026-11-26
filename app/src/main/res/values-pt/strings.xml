@@ -2146,6 +2146,13 @@
     <string name="bottom_companion_favorites">Favoritos</string>
     <string name="bottom_companion_radio_on">Ligar o rádio</string>
     <string name="bottom_companion_radio_off">Desligar o rádio</string>
+    <string name="bottom_page_mirror">Espelho</string>
+    <string name="bottom_mirror_pick">Arraste sobre a parte do jogo que deve aparecer aqui, como o minimapa.</string>
+    <string name="bottom_mirror_save">Salvar região</string>
+    <string name="bottom_mirror_edit">Editar região</string>
+    <string name="bottom_mirror_sharp">Nítido</string>
+    <string name="bottom_mirror_smooth">Suave</string>
+    <string name="bottom_mirror_no_frame">Não é possível copiar a imagem do jogo agora.</string>
     <string name="bottom_page_telemetry">Estatísticas no jogo</string>
     <string name="bottom_hud_group">HUD da tela inferior</string>
     <string name="bottom_strip_tabs">Faixa em todas as abas</string>

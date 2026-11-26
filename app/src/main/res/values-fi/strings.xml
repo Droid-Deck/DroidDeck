@@ -2108,6 +2108,13 @@
     <string name="bottom_companion_favorites">Suosikit</string>
     <string name="bottom_companion_radio_on">Laita radio päälle</string>
     <string name="bottom_companion_radio_off">Sammuta radio</string>
+    <string name="bottom_page_mirror">Peili</string>
+    <string name="bottom_mirror_pick">Vedä sen pelin osan yli, joka näytetään täällä, kuten minikartan.</string>
+    <string name="bottom_mirror_save">Tallenna alue</string>
+    <string name="bottom_mirror_edit">Muokkaa aluetta</string>
+    <string name="bottom_mirror_sharp">Terävä</string>
+    <string name="bottom_mirror_smooth">Pehmeä</string>
+    <string name="bottom_mirror_no_frame">Pelikuvaa ei voi kopioida juuri nyt.</string>
     <string name="bottom_page_telemetry">Pelinsisäiset tilastot</string>
     <string name="bottom_hud_group">Alanäytön HUD</string>
     <string name="bottom_strip_tabs">Palkki kaikilla välilehdillä</string>

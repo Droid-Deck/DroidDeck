@@ -2100,6 +2100,13 @@
     <string name="bottom_companion_favorites">Favoriten</string>
     <string name="bottom_companion_radio_on">Radio einschalten</string>
     <string name="bottom_companion_radio_off">Radio ausschalten</string>
+    <string name="bottom_page_mirror">Spiegel</string>
+    <string name="bottom_mirror_pick">Ziehe über den Teil des Spiels, der hier erscheinen soll, etwa die Minikarte.</string>
+    <string name="bottom_mirror_save">Bereich speichern</string>
+    <string name="bottom_mirror_edit">Bereich bearbeiten</string>
+    <string name="bottom_mirror_sharp">Scharf</string>
+    <string name="bottom_mirror_smooth">Weich</string>
+    <string name="bottom_mirror_no_frame">Das Spielbild kann gerade nicht kopiert werden.</string>
     <string name="bottom_page_telemetry">Spielstatistiken</string>
     <string name="bottom_hud_group">HUD für den unteren Bildschirm</string>
     <string name="bottom_strip_tabs">Leiste auf jedem Tab</string>
