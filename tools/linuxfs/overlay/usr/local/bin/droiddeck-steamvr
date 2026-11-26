@@ -90,6 +90,11 @@ launch)
         "$0" install || exit $?
         while [ -f "$state/installing" ]; do sleep 1; done
     fi
+    if [ -f "$state/quest-immersive" ]; then
+        : > "$state/xr-request"
+        echo "asked DroidDeck to open the Quest's immersive view, which starts SteamVR"
+        exit 0
+    fi
     "$0" start
     ;;
 status)
