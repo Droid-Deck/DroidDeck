@@ -55,7 +55,7 @@ diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
 index 10990b8..08afbc4 100644
 --- a/src/steamcompmgr.cpp
 +++ b/src/steamcompmgr.cpp
-@@ -2025,18 +2025,53 @@ void MouseCursor::UpdatePosition()
+@@ -2025,18 +2025,58 @@ void MouseCursor::UpdatePosition()
  	if ( pConstraint && pConstraint->current.cursor_hint.enabled )
  	{
  		m_bConstrained = true;
@@ -102,7 +102,12 @@ index 10990b8..08afbc4 100644
 +	               &win_x, &win_y,
 +	               &mask );
 +
-+	if ( root_x != m_x || root_y != m_y )
++	// The X server starts its pointer at the screen centre; only a later move is input.
++	const bool bRootMoved = m_bRootQueried && ( root_x != m_nRootX || root_y != m_nRootY );
++	m_bRootQueried = true;
++	m_nRootX = root_x;
++	m_nRootY = root_y;
++	if ( bRootMoved && ( root_x != m_x || root_y != m_y ) )
 +	{
 +		m_x = root_x;
 +		m_y = root_y;
@@ -117,11 +122,13 @@ diff --git a/src/steamcompmgr.hpp b/src/steamcompmgr.hpp
 index c428784..bd62fd1 100644
 --- a/src/steamcompmgr.hpp
 +++ b/src/steamcompmgr.hpp
-@@ -109,6 +109,7 @@ private:
+@@ -109,6 +109,9 @@ private:
  
  	int m_x = 0, m_y = 0;
  	bool m_bConstrained = false;
 +	uint64_t m_ulLastPointerQuery = 0;
++	bool m_bRootQueried = false;
++	int m_nRootX = 0, m_nRootY = 0;
  	int m_hotspotX = 0, m_hotspotY = 0;
  
  	gamescope::OwningRc<CVulkanTexture> m_texture;

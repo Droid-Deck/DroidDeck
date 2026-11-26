@@ -19,6 +19,8 @@ library list, before anything is published.
   moves (it sat frozen). The X pointer is asked for only while a cursor image is drawn - every
   vblank while shown, every 50 ms while hidden for inactivity - since each ask is a blocking round
   trip to Xwayland on the paint thread; with no image, wlserver's position is used as upstream does.
+  Only a move of the X pointer is followed, not where the X server starts it (the screen centre):
+  a window that gains focus is entered at the cursor, and Big Picture then hovered its centre tile.
 - `0101-nested-wayland-cursor-routing.patch` - this app: `gamescope_cursor_composite=2` lets the
   nested Wayland session paint its cursor in the output using the real X pointer position; client
   cursor surfaces are cleared to prevent a duplicate at the host pointer, while Gamescope's original
