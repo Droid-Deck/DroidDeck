@@ -1007,7 +1007,9 @@ class SessionService : Service() {
             com.droiddeck.launcher.core.AppLanguage.effective(this),
             com.droiddeck.launcher.core.AppLanguage.system(this).country,
         ))
-        guest.add("TZ=" + java.util.TimeZone.getDefault().id)
+        val timeZone = java.util.TimeZone.getDefault().id
+        guest.add("TZ=$timeZone")
+        guest.add("WINE_HOST_TZ=$timeZone")
         if (SessionState.mode == MODE_STEAM) SessionPrefs.pendingShaderPrecache(this)?.let { guest.add("DD_SHADER_PRECACHE=" + if (it) "1" else "0") }
         guest.add("DD_VALVE_PROTON=" + if (SessionPrefs.ownProtonFirst(this)) "0" else "1")
         guest.add("XDG_RUNTIME_DIR=" + LinuxRuntime.GUEST_RUNTIME_DIR)
