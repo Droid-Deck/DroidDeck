@@ -1,0 +1,14 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -5818,7 +5818,9 @@
+ 			if ( pFocus->inputFocusWindow->GetFocus()->bResetToCorner )
+ 			{
+ 				wlserver_lock();
+-				wlserver_mousewarp( pFocus->inputFocusWindow->GetGeometry().nWidth / 2, pFocus->inputFocusWindow->GetGeometry().nHeight / 2, 0, true );
++				// Only the corner reaches the client: a page that loads during this reset keeps the centre as its hover.
++				wlserver.mouse_surface_cursorx = pFocus->inputFocusWindow->GetGeometry().nWidth / 2;
++				wlserver.mouse_surface_cursory = pFocus->inputFocusWindow->GetGeometry().nHeight / 2;
+ 				wlserver_fake_mouse_pos( pFocus->inputFocusWindow->GetGeometry().nWidth - 1, pFocus->inputFocusWindow->GetGeometry().nHeight - 1 );
+ 				wlserver_unlock();
+ 			}
