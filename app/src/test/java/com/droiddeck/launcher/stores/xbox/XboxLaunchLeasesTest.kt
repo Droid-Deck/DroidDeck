@@ -81,6 +81,15 @@ class XboxLaunchLeasesTest {
         reap()
         assertEquals(0, closed)
     }
+    @Test fun expiredLaunchDoesNotBlockTheNextPlay() {
+        launch()
+        time = 181_000
+        assertFalse(leases.active("game"))
+        val next = launch()
+        assertEquals(1, closed)
+        assertTrue(leases.active("game"))
+        leases.release(next)?.close()
+    }
     @Test fun activityQueriesDoNotWaitForBackendClose() {
         val token = launch()
         val detached = leases.release(token)
