@@ -165,7 +165,7 @@ internal fun GameDetail(
     val narrow = LocalNarrowPane.current
     val stacked = narrow || LocalConfiguration.current.screenWidthDp < 700
     val ref = remember(key) { GameRef.parse(key) }
-    val games = s.steamGames + rememberXboxCloudRows(s) + if (s.soundtracksEnabled) emptyList() else s.soundtracks
+    val games = s.steamGames + s.ownedSteamGames + rememberXboxCloudRows(s) + if (s.soundtracksEnabled) emptyList() else s.soundtracks
     val found = ref.game(games)
     val known = remember(key) { arrayOfNulls<Pair<Store, String>>(1) }
     val store = ref.store ?: Store.byId(found?.source) ?: known[0]?.first
@@ -206,10 +206,10 @@ internal fun GameDetail(
         if (description.isNotBlank() || developer.isNotBlank() || publisher.isNotBlank() || releaseDate.isNotBlank() || scored || (!s.shortcutPicker && title.isNotBlank() && title != id)) add(GameTab.ABOUT)
         if (achievementState != null) add(GameTab.ACHIEVEMENTS)
         val cloud = game?.library == Library.XBOX_CLOUD
-        if (game != null && !cloud) add(GameTab.LAUNCH)
+        if (game != null && !cloud && game.installed) add(GameTab.LAUNCH)
         if (game != null && game.library == Library.ADDED && prefix != null) add(GameTab.SAVES)
         if (addonTargets.isNotEmpty()) add(GameTab.ADDONS)
-        if ((game != null && !cloud) || installed != null) add(GameTab.INSTALL)
+        if ((game != null && !cloud && game.installed) || installed != null) add(GameTab.INSTALL)
     }
     var picked by remember(key) { mutableStateOf<GameTab?>(null) }
     val tab = picked?.takeIf { it in tabs } ?: tabs.firstOrNull()
@@ -229,10 +229,10 @@ internal fun GameDetail(
         val at = tabs.indexOf(tab).coerceAtLeast(0)
         picked = tabs[(at + step + tabs.size) % tabs.size]
     }
-    val art: Any? = game?.hero ?: item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
+    val art: Any? = game?.hero ?: game?.remoteHero ?: item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
     val artModel: Any? = if (art is String) cardArtRequest(art, item?.tallImageUrl) else art
     val inset = LocalDetailInset.current
-    GameBackdrop(artModel, art ?: game?.art, hueOf(title), fadeTop = inset.top < 8.dp, onArtPlaced = { StoresMotion.heroAt = it }) {
+    GameBackdrop(artModel, art ?: game?.art ?: game?.remoteArt, hueOf(title), fadeTop = inset.top < 8.dp, onArtPlaced = { StoresMotion.heroAt = it }) {
         Column(Modifier.fillMaxWidth().padding(horizontal = inset.horizontal).padding(top = inset.top).onFocusChanged { inPage = it.hasFocus }.bumpers(onPrevious = { cycle(-1) }, onNext = { cycle(1) })) {
             Rise(0) {
                 Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -328,6 +328,7 @@ private fun GameStatusLine(source: String, game: Library.SteamGame?, item: Catal
     val state = when {
         installed != null -> listOf(StoreInstallRoot.labelFor(ctx, installed.folder))
         game?.library == Library.XBOX_CLOUD -> listOf(libraryLabel(game))
+        game != null && !game.installed -> listOf(stringResource(R.string.stores_section_not_installed))
         game != null -> listOf(libraryLabel(game))
         !downloadAt.isNullOrBlank() -> listOf(stringResource(R.string.stores_eyebrow_library), downloadAt)
         item?.owned == true -> listOf(stringResource(R.string.stores_eyebrow_library))
@@ -530,6 +531,12 @@ internal fun GameActions(
                 if (lead) PrimaryButton(stringResource(R.string.game_shortcut_choose), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn) { a.onSteamGame(game) }
                 if (rest) FileButtons(game, a)
             }
+            game != null && game.source == Library.SOURCE_STEAM && !game.installed -> {
+                if (lead) InstallButton(stringResource(R.string.stores_install), leadOn) { a.onSteamInstall(game) }
+                if (rest) SecondaryButton(stringResource(R.string.stores_view_on, ctx.getString(R.string.source_steam))) {
+                    a.onSteamUrl("https://store.steampowered.com/app/${game.appId}/")
+                }
+            }
             !cloud && (game != null || installed != null) -> {
                 val gone = storeKey?.let { StoresState.uninstalling[it] }
                 val xboxBusy = store == Store.XBOX && id != null && XboxContent.busy(id)
@@ -664,7 +671,7 @@ internal fun rememberXboxCloudRows(s: FrontEndState): List<Library.SteamGame> {
     if (s.shortcutPicker) return emptyList()
     val added = XboxCloudGames.entries.toList()
     return remember(added, s.steamGames) {
-        val installedXbox = s.steamGames.filter { it.source == Store.XBOX.id }.mapNotNull { it.storeId }.toSet()
+        val installedXbox = s.steamGames.filter { it.source == Store.XBOX.id && it.installed }.mapNotNull { it.storeId }.toSet()
         XboxCloudGames.rows(ctx, installedXbox)
     }
 }

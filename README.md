@@ -57,6 +57,10 @@ The APK lands in `app/build/outputs/apk/release/`. Install it with `tools/deploy
 
 On Windows, see `tools/run_windows.ps1` and `tools/prepare_windows_runtime.py`.
 
+## Windows launcher
+
+`windows-launcher/` is a separate native Windows game launcher. It does not use Android, Linux runtimes or emulation. Import `DroidDeck-library.json` from the Android app to bring the signed-in stores' owned games into one catalogue. It detects installed Steam and Epic games and can launch additional games from Windows shortcuts or a chosen executable. See [the Windows launcher guide](windows-launcher/README.md).
+
 
 ## Credits and licence
 

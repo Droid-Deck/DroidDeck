@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.layout.boundsInParent
@@ -59,6 +60,7 @@ import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.ViewModule
@@ -156,7 +158,7 @@ internal fun libraryEntries(
             claimed.add(storeKey)
         }
         out += LibraryEntry(GameRef.key(g), g.source, g.name, g, item,
-            installed = g.library != Library.XBOX_CLOUD || storeKey in installedStore)
+            installed = g.installed && (g.library != Library.XBOX_CLOUD || storeKey in installedStore))
     }
     for (store in Store.entries) for (item in owned[store].orEmpty()) {
         if (!claimed.add(item.key)) continue
@@ -340,11 +342,11 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     remember { SoundtrackCollections.load(ctx) }
     val savedSnapshot = SoundtrackCollections.snapshot
     val favoritesLabel = stringResource(R.string.soundtracks_favorites)
-    val all = remember(soundMode, s.steamGames, s.soundtracks, s.soundtracksEnabled, cloudRows, owned, installedStore, savedSnapshot, favoritesLabel, preview) {
+    val all = remember(soundMode, s.steamGames, s.ownedSteamGames, s.soundtracks, s.soundtracksEnabled, cloudRows, owned, installedStore, savedSnapshot, favoritesLabel, preview) {
         if (soundMode) s.soundtracks.map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) } +
             (if (s.soundtracks.isEmpty() && savedSnapshot.favorites.isEmpty() && savedSnapshot.collections.isEmpty()) emptyList() else SoundtrackCollections.games(ctx, favoritesLabel, skipEmptyFavorites = true))
                 .map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) }
-        else libraryEntries(s.steamGames + cloudRows + if (s.soundtracksEnabled) emptyList() else s.soundtracks.filter { it.library != Library.ADDED }, owned, installedStore)
+        else libraryEntries(s.steamGames + (if (s.shortcutPicker) emptyList() else s.ownedSteamGames) + cloudRows + if (s.soundtracksEnabled) emptyList() else s.soundtracks.filter { it.library != Library.ADDED }, owned, installedStore)
             .let { rows -> if (preview == LibraryPreview.NOTHING_INSTALLED) rows.map { LibraryEntry(it.key, it.source, it.title, it.game, it.item, false) } else rows }
     }
     var addingSoundtrack by remember { mutableStateOf(false) }
@@ -426,8 +428,12 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         }
     }
     var savedDialog by remember { mutableStateOf(false) }
-    val candidates = if (listUninstalled || source == LIBRARY_HIDDEN) matching else matching.filter { it.installed }
-    val hiddenUninstalled = if (listUninstalled || source == LIBRARY_HIDDEN) 0 else matching.count { !it.installed }
+    // Steam ownership is the cross-store duplicate-purchase check, so keep those
+    // titles visible even when the optional uninstalled sections are collapsed.
+    val candidates = if (listUninstalled || source == LIBRARY_HIDDEN) matching
+        else matching.filter { it.installed || it.game?.library == Library.NOT_INSTALLED }
+    val hiddenUninstalled = if (listUninstalled || source == LIBRARY_HIDDEN) 0
+        else matching.count { !it.installed && it.game?.library != Library.NOT_INSTALLED }
     val sort = s.storesSort
     val sizeSort = sort == "sizeAsc" || sort == "sizeDesc"
     val installedAt = StoresState.installed.associate { it.key to it.sidecar.installedAt }
@@ -882,6 +888,12 @@ private fun LibraryHeader(
     ) {
         if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onClick = onCollections)
         if (!soundMode && DeveloperTools.on && DevPreview.shortcuts) LibraryPreviewButton()
+        if (!soundMode && !s.shortcutPicker && source in setOf(LIBRARY_ALL, Library.SOURCE_STEAM)) {
+            HeaderIconButton(stringResource(R.string.stores_refresh), Icons.Filled.Refresh, "steam-library-refresh") { a.onSteamLibraryRefresh() }
+        }
+        if (!soundMode && !s.shortcutPicker && source == LIBRARY_ALL) {
+            HeaderIconButton(stringResource(R.string.setup_log_share), Icons.Outlined.Share, "export-library") { a.onExportLibrary() }
+        }
         DisplayButton()
         if (!soundMode && xbox) LibraryFilterButton(null, onShowUninstalled, xbox)
         if (collections != null) CollectionsButton(collections)
@@ -1032,8 +1044,8 @@ internal fun ManageStoresChip() {
 
 private fun entryArt(e: LibraryEntry, tall: Boolean): Any? {
     val inst = e.storeKey?.let { k -> StoresState.installed.firstOrNull { it.key == k } }
-    val wide: Any? = e.game?.hero ?: e.item?.imageUrl ?: inst?.sidecar?.hero ?: inst?.sidecar?.cover
-    val portrait: Any? = e.game?.art ?: e.item?.tallImageUrl ?: inst?.sidecar?.cover
+    val wide: Any? = e.game?.hero ?: e.game?.remoteHero ?: e.item?.imageUrl ?: inst?.sidecar?.hero ?: inst?.sidecar?.cover
+    val portrait: Any? = e.game?.art ?: e.game?.remoteArt ?: e.item?.tallImageUrl ?: inst?.sidecar?.cover
     return if (tall) portrait ?: wide else wide ?: portrait
 }
 

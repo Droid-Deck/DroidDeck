@@ -197,6 +197,7 @@ class FrontEndState(
     val storesSort: String = SessionPrefs.STORES_SORTS.first(),
     val storesView: String = SessionPrefs.DEFAULT_STORES_VIEW,
     val storeDownloadsActive: Int = 0,
+    val ownedSteamGames: List<Library.SteamGame> = emptyList(),
     val updates: UpdatesState = UpdatesState(),
 )
 
@@ -206,6 +207,9 @@ class FrontEndActions(
     val onPlayDesktopUi: () -> Unit,
     val onSteamUrl: (String) -> Unit = {},
     val onSteamGame: (Library.SteamGame) -> Unit,
+    val onSteamInstall: (Library.SteamGame) -> Unit = {},
+    val onSteamLibraryRefresh: () -> Unit = {},
+    val onExportLibrary: () -> Unit = {},
     val onStoreGame: (com.droiddeck.launcher.stores.Store, String) -> Unit = { _, _ -> },
     val onGameShortcut: (Library.SteamGame) -> Unit = {},
     val onExportGameFile: (Library.SteamGame) -> Unit = {},

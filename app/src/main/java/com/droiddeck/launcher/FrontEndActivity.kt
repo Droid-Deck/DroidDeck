@@ -75,6 +75,7 @@ import com.droiddeck.launcher.ui.FrontEndState
 import com.droiddeck.launcher.ui.FrontEndActions
 import com.droiddeck.launcher.frontend.CoverArt
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.frontend.SteamOwnedLibrary
 import com.droiddeck.launcher.frontend.GameFiles
 import com.droiddeck.launcher.frontend.GameFileSync
 import com.droiddeck.launcher.frontend.GameLaunchIntent
@@ -86,6 +87,7 @@ import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SteamLibraries
+import com.droiddeck.launcher.stores.DroidDeckLibraryExport
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenDisplays
 
@@ -326,6 +328,21 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 }, "save-session-logs").start()
             }
         }
+    }
+    private val pickLibraryExport = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@registerForActivityResult
+        val contents = DroidDeckLibraryExport.json(steamGames + steamOwnedGames, steamOwnedGames)
+        Thread({
+            val saved = runCatching {
+                contentResolver.openOutputStream(uri)?.use { it.write(contents.toByteArray(Charsets.UTF_8)) }
+                    ?: error("Could not open destination")
+            }.isSuccess
+            ui.post {
+                if (saved) android.widget.Toast.makeText(this,
+                    getString(R.string.user_apps_saved, getString(R.string.stores_tab_library)), android.widget.Toast.LENGTH_LONG).show()
+                else Log.w(TAG, "could not export the DroidDeck library")
+            }
+        }, "save-droiddeck-library").start()
     }
 
     private fun refreshWifiDiscovery() {
@@ -683,6 +700,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
     private var romsDir by mutableStateOf<String?>(null)
     private var steamGames by mutableStateOf<List<Library.SteamGame>>(emptyList())
+    private var steamOwnedGames by mutableStateOf<List<Library.SteamGame>>(emptyList())
     private var steamGamesX64 by mutableStateOf(false)
     @Volatile private var componentSweepDone = false
     @Volatile private var componentSweepSession: String? = null
@@ -1485,6 +1503,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         storesSort = storesSort,
                         storesView = storesView,
                         storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
+                        ownedSteamGames = steamOwnedGames,
                     ),
                     FrontEndActions(
                         onPlay = { playSteam() },
@@ -1497,6 +1516,19 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                                 Intent(this, SessionActivity::class.java).putExtra(SessionService.EXTRA_STEAM_URL, url), steamSession = true,
                             )
                         },
+                        onSteamInstall = { game ->
+                            val next = Intent(this, SessionActivity::class.java)
+                                .putExtra(SessionService.EXTRA_STEAM_URL, "steam://install/${game.appId}")
+                            if (SessionState.running) {
+                                if (!SessionState.stopRequested) pendingSwitch = next
+                            } else startSessionOrWait(next)
+                        },
+                        onSteamLibraryRefresh = {
+                            SteamOwnedLibrary.syncAsync(this, force = true) { games ->
+                                if (!shortcutPicker) steamOwnedGames = games
+                            }
+                        },
+                        onExportLibrary = { pickLibraryExport.launch("DroidDeck-library.json") },
                         onPlayDesktopUi = {
                             startSession(Intent(this, SessionActivity::class.java)
                                 .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
@@ -3312,6 +3344,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun refresh() {
+        if (shortcutPicker) steamOwnedGames = emptyList()
+        else if (ready) SteamOwnedLibrary.syncAsync(this) { games -> if (!shortcutPicker) steamOwnedGames = games }
         val listX64 = SessionPrefs.activeSteamClientArch(this) == "x86_64"
         if (listX64 != steamGamesX64) {
             steamGamesX64 = listX64

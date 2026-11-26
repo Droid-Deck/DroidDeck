@@ -17,7 +17,7 @@ object SteamAppInfo {
     private const val RETRY_AFTER_MS = 7L * 24 * 3600 * 1000
     const val SHARED_APP = "228980"
 
-    class Info(val name: String, val sharedDepots: List<String>)
+    class Info(val name: String, val sharedDepots: List<String>, val type: String = "")
 
     fun appinfoFile(context: Context) = File(com.droiddeck.launcher.session.SessionPrefs.activeSteamRoot(context), "appcache/appinfo.vdf")
 
@@ -29,13 +29,26 @@ object SteamAppInfo {
         val mtime = appinfo.lastModified()
         val known = cache.optJSONObject(appId.toString())
         known?.let { o ->
-            if (!o.optBoolean("miss")) return Info(o.optString("name"), o.optJSONArray("depots").strings())
+            if (!o.optBoolean("miss")) {
+                val cachedType = o.optString("type")
+                if (cachedType.isNotBlank()) return Info(o.optString("name"), o.optJSONArray("depots").strings(), cachedType)
+                val disk = runCatching { read(appinfo, appId) }.getOrNull()
+                if (disk != null) {
+                    o.put("type", disk.type)
+                    o.put("name", disk.name)
+                    o.put("depots", JSONArray(disk.sharedDepots))
+                    val out = cacheFile.startWrite()
+                    try { out.write(cache.toString().toByteArray()); cacheFile.finishWrite(out) } catch (e: Exception) { cacheFile.failWrite(out) }
+                    return disk
+                }
+                return Info(o.optString("name"), o.optJSONArray("depots").strings())
+            }
             if (now - o.optLong("at") < RETRY_AFTER_MS && o.optLong("mtime") == mtime) return null
         }
         val read = runCatching { read(appinfo, appId) }.onFailure { Log.w(TAG, "appinfo: ${it.javaClass.simpleName}") }.getOrNull()
         val entry = JSONObject().put("at", now).put("mtime", mtime)
         known?.optLong("picsAt")?.takeIf { it > 0 }?.let { entry.put("picsAt", it) }
-        if (read == null) entry.put("miss", true) else entry.put("name", read.name).put("depots", JSONArray(read.sharedDepots))
+        if (read == null) entry.put("miss", true) else entry.put("name", read.name).put("depots", JSONArray(read.sharedDepots)).put("type", read.type)
         cache.put(appId.toString(), entry)
         val out = cacheFile.startWrite()
         try { out.write(cache.toString().toByteArray()); cacheFile.finishWrite(out) } catch (e: Exception) { cacheFile.failWrite(out) }
@@ -46,7 +59,7 @@ object SteamAppInfo {
     internal var pics: (List<Int>) -> Map<Int, Info?>? = { SteamPics.lookup(it) }
 
     fun needLookup(context: Context, appIds: List<Int>): List<Int> {
-        val wanted = appIds.distinct().filter { it > 0 && info(context, it) == null }
+        val wanted = appIds.distinct().filter { id -> id > 0 && info(context, id).let { it == null || it.type.isBlank() } }
         if (wanted.isEmpty()) return emptyList()
         val cache = cache(context)
         val now = System.currentTimeMillis()
@@ -64,7 +77,7 @@ object SteamAppInfo {
         for (id in need) {
             val info = answers[id]
             val entry = JSONObject().put("at", now).put("mtime", mtime).put("picsAt", now)
-            if (info == null) entry.put("miss", true) else entry.put("name", info.name).put("depots", JSONArray(info.sharedDepots)).put("source", "pics")
+            if (info == null) entry.put("miss", true) else entry.put("name", info.name).put("depots", JSONArray(info.sharedDepots)).put("type", info.type).put("source", "pics")
             cache.put(id.toString(), entry)
         }
         val file = AtomicFile(File(context.filesDir, CACHE))
@@ -128,7 +141,8 @@ object SteamAppInfo {
             val depot = value as? Map<String, Any> ?: return@mapNotNull null
             key.takeIf { (depot["depotfromapp"] as? String) == SHARED_APP || (key in SteamRedists.DEPOTS && depot["sharedinstall"] != null) }
         }
-        return Info(name, shared)
+        val type = (app["common"] as? Map<String, Any>)?.get("type") as? String ?: ""
+        return Info(name, shared, type)
     }
 
     private fun readStrings(raf: RandomAccessFile, at: Long): List<String> {
