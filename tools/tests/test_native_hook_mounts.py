@@ -195,7 +195,7 @@ class NativeHookMountTest(unittest.TestCase):
             if syscalls and not shutil.which("strace"):
                 self.skipTest("no strace")
             if syscalls:
-                cmd = ["strace", "-f", "-qq", "-e", "trace=readlinkat"]
+                cmd = ["strace", "-f", "-qq", "-e", "trace=readlinkat,newfstatat,fstatat64,statx"]
                 cmd += [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
             else:
                 cmd = []
@@ -481,6 +481,67 @@ class NativeHookMountTest(unittest.TestCase):
                 self.assertEqual(result[path], want, (path, table))
             self.assertNotEqual(self.readlinks_of(log, f"{self.links}/guest"), [], table)
             self.assertNotEqual(self.readlinks_of(log, f"{self.root}/etc/hostname"), [], table)
+
+    def test_relative_parent_walks_inside_mounts_without_links_stay_relative(self):
+        real, _, _ = self.links_volume()
+        binds = f"{self.links}:/mnt/links"
+        paths = {"sub/deeper/../file.txt": ["1", "deep"], "sub/deeper/more/../more/leaf.txt": ["1", "leaf"],
+                 "../real/sub/file.txt": ["1", "deep"], "../../../etc/hostname": ["1", "rootfs"],
+                 "sub/../../../../etc/hostname": ["1", "rootfs"]}
+        for kind, relative in (("exfat", True), ("ext4", False)):
+            table = [("/", "ext4", "/dev/root"), (real, kind, "/dev/sdb1")]
+            result, log = self.run_probe("cd:/mnt/links/real", *paths, binds=binds, mounts=table, syscalls=True)
+            for path, want in paths.items():
+                self.assertEqual(result[path], want, (path, kind))
+            stats = [m.group(1) for m in re.finditer(r'(?:fstatat|statx)\([^,"]*,\s*"([^"]*)"', log)]
+            for path in ("sub/deeper/../file.txt", "sub/deeper/more/../more/leaf.txt", "../real/sub/file.txt"):
+                self.assertEqual(path in stats, relative, (path, kind, stats))
+            for path in ("../../../etc/hostname", "sub/../../../../etc/hostname"):
+                self.assertNotIn(path, stats, (path, kind))
+        nested = f"{binds}|{self.library}:/mnt/links/real/sub"
+        table = [("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1")]
+        result, log = self.run_probe("cd:/mnt/links/real", "sub/deeper/../game.txt", binds=nested, mounts=table,
+                                     syscalls=True)
+        stats = [m.group(1) for m in re.finditer(r'(?:fstatat|statx)\([^,"]*,\s*"([^"]*)"', log)]
+        self.assertNotIn("sub/deeper/../game.txt", stats)
+        walk = "sub/Some Game/../Some Game/game.txt"
+        for order in ((f"{self.links}:/mnt/links", f"{self.links}:/mnt/longer/alias"),
+                      (f"{self.links}:/mnt/longer/alias", f"{self.links}:/mnt/links")):
+            shared = "|".join(order) + f"|{self.library}:/mnt/links/real/sub"
+            results = [self.run_probe("cd:/mnt/links/real", walk, binds=shared,
+                                      mounts=[("/", "ext4", "/dev/root"), (real, kind, "/dev/sdb1")])[walk]
+                       for kind in ("ext4", "exfat")]
+            self.assertEqual(results[0], results[1], order)
+
+    def test_relative_parent_walks_honour_identity_binds_shared_guest_paths_and_the_rootfs(self):
+        real, _, _ = self.links_volume()
+        tmp = os.path.realpath(self.tmp.name)
+        card = f"{tmp}/identity-card"
+        os.makedirs(f"{card}/real/sub/deeper", exist_ok=True)
+        Path(f"{card}/real/sub/file.txt").write_text("identity")
+        binds = f"{self.links}:{card}|{card}/real/sub:{card}/real/sub"
+        walk = "sub/deeper/../file.txt"
+        results = [self.run_probe(f"cd:{card}/real", walk, binds=binds,
+                                  mounts=[("/", "ext4", "/dev/root"), (real, kind, "/dev/sdb1")])[walk]
+                   for kind in ("ext4", "exfat")]
+        self.assertEqual(results[0], results[1])
+        twins = (f"{tmp}/twin-a", f"{tmp}/twin-b")
+        for twin in twins:
+            os.makedirs(f"{twin}/only/sub/deeper", exist_ok=True)
+            Path(f"{twin}/only/sub/file.txt").write_text(os.path.basename(twin))
+        for order in (twins, twins[::-1]):
+            shared = "|".join(f"{src}:/mnt/twin" for src in order)
+            result, log = self.run_probe("cd:/mnt/twin/only", walk, binds=shared, syscalls=True,
+                                         mounts=[("/", "ext4", "/dev/root")] +
+                                                [(twin, "exfat", f"/dev/sd{i}1") for i, twin in zip("bc", twins)])
+            stats = [m.group(1) for m in re.finditer(r'(?:fstatat|statx)\([^,"]*,\s*"([^"]*)"', log)]
+            self.assertEqual(result[walk], ["1", os.path.basename(order[0])], order)
+            self.assertNotIn(walk, stats, order)
+        climb = "../../etc/hostname"
+        for kind in ("ext4", "exfat"):
+            result = self.run_probe("cd:/etc", climb, binds=f"{tmp}:/mnt/card",
+                                    mounts=[("/", "ext4", "/dev/root"), (tmp, kind, "/dev/sdb1")])
+            self.assertEqual(result[climb], ["1", "rootfs"], kind)
 
 
 if __name__ == "__main__":
