@@ -739,7 +739,7 @@ index 0000000..d43c5fc
 +            progress.bytes(high, total);
 +        };
 +        if extracted != ExitCode::SUCCESS {
-+            return fail("extract-failed", "Could not unpack the package; the download is kept for a retry");
++            return fail("extract-failed", "Could not unpack the package; retrying may require downloading the bundle again because containers are removed to save disk space");
 +        }
 +        // Drop each container as soon as it is unpacked: a full title is tens of
 +        // gigabytes, and holding the archive and its contents at once can fill
@@ -1255,7 +1255,7 @@ index 0000000..d43c5fc
 +        .join("\n")
 +}
 +
-++fn declares_application(folder: &Path) -> bool {
++fn declares_application(folder: &Path) -> bool {
 +    let text = manifest_text(folder);
 +    opens_element(&text, "<application") || opens_element(&text, "<executable")
 +}
