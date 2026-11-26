@@ -12,6 +12,8 @@ const NORMAL_CLOSE_CODE: u16 = 1000;
 const READ_POLL_TIMEOUT: Duration = Duration::from_millis(100);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
+/// A send that cannot progress for this long fails the connection instead of blocking the worker.
+const SEND_TIMEOUT: Duration = Duration::from_secs(30);
 
 type MessageCallback = Arc<dyn Fn(&[u8]) + Send + Sync + 'static>;
 type ConnectedCallback = Arc<dyn Fn() + Send + Sync + 'static>;
@@ -355,7 +357,7 @@ fn run_ws_worker(shared: Arc<WsConnectionShared>, url: String, rx: mpsc::Receive
     };
     let _ = set_read_timeout(socket.get_mut(), Some(READ_POLL_TIMEOUT));
     if let MaybeTlsStream::Rustls(stream) = socket.get_mut() {
-        let _ = stream.sock.set_write_timeout(None);
+        let _ = stream.sock.set_write_timeout(Some(SEND_TIMEOUT));
     }
     if !shared.mark_connected_if_connecting() {
         let _ = socket.close(None);

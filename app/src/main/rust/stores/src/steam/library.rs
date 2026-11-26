@@ -180,11 +180,15 @@ impl Library {
         let mut app_ids: Vec<u32> = self.owned_apps.iter().copied().collect();
         app_ids.sort_unstable();
         let mut tokens: HashMap<u32, u64> = HashMap::new();
+        // A failed token batch is asked once more, then fails the load: without its tokens the
+        // apps would come back `missing_token` and be cached as non-games.
         for batch in app_ids.chunks(APP_BATCH * 5) {
-            if let Some(response) = session.pics_access_tokens(Vec::new(), batch.to_vec()) {
-                for token in response.app_access_tokens {
-                    tokens.insert(token.appid, token.access_token);
-                }
+            let response = session
+                .pics_access_tokens(Vec::new(), batch.to_vec())
+                .or_else(|| session.pics_access_tokens(Vec::new(), batch.to_vec()))
+                .ok_or_else(|| "access token request failed".to_string())?;
+            for token in response.app_access_tokens {
+                tokens.insert(token.appid, token.access_token);
             }
         }
         let mut games = Vec::new();

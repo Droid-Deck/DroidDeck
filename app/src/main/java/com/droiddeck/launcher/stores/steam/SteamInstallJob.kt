@@ -55,7 +55,7 @@ internal class SteamInstallJob(
         val (plan, planned) = SteamStore.plan(app, appId, language)
         if (plan == null) throw IllegalStateException(SteamStore.errorText(app, planned))
         installDir = plan.installDir
-        createdDir = !File(target.second, "steamapps/common/${plan.installDir}").exists() || SteamStore.resuming(app, appId)
+        createdDir = SteamStore.claimFolder(app, appId, libraryGuest, File(target.second, "steamapps/common/${plan.installDir}"))
         if (plan.installBytes > 0) handle.diskSize(plan.installBytes)
         if (cancelled.get()) return null
 
@@ -138,7 +138,7 @@ internal class SteamInstallJob(
         cancelled.set(true)
         if (!deleteFiles) return
         discard = true
-        if (!started.get()) SteamStore.discardPartial(app, appId, libraryGuest, null, null, SteamStore.resuming(app, appId))
+        if (!started.get()) SteamStore.discardPartial(app, appId, libraryGuest, null, null, SteamStore.createdFolder(app, appId, libraryGuest))
     }
 
     private companion object {

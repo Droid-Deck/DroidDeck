@@ -47,15 +47,18 @@ internal object LibraryHidden {
         }
     }
 
-    fun steamId(game: Library.SteamGame?): Long? = game?.takeIf { Library.fromSteamClient(it) }?.appId?.toLong()
+    /** The Steam client's own id for a game it lists, or for an owned Steam game it has not installed ([key] `steamstore:<appid>`). */
+    fun steamId(game: Library.SteamGame?, key: String = ""): Long? =
+        game?.takeIf { Library.fromSteamClient(it) }?.appId?.toLong()
+            ?: key.takeIf { game == null && it.startsWith("${Store.STEAM.id}:") }?.substringAfter(':')?.toLongOrNull()
 
-    fun isHidden(key: String, game: Library.SteamGame?): Boolean = key in keys || steamId(game)?.let { it in steam } == true
+    fun isHidden(key: String, game: Library.SteamGame?): Boolean = key in keys || steamId(game, key)?.let { it in steam } == true
 
     fun isHidden(entry: LibraryEntry): Boolean =
         isHidden(entry.favoriteKey, entry.game) || entry.item?.takeIf { it.store == Store.STEAM }?.id?.toLongOrNull()?.let { it in steam } == true
 
     fun set(context: Context, key: String, game: Library.SteamGame?, hidden: Boolean): Boolean {
-        val id = steamId(game)
+        val id = steamId(game, key)
         val root = SessionPrefs.activeSteamRoot(context)
         val written = id?.let { SteamHidden.write(root, it, hidden) }
         if (id != null) {

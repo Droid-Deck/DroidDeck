@@ -425,10 +425,11 @@ What a run does, in order:
    `CMsgClientRequestFreeLicense`.
 2. Takeover check on `<gameLibraryHost>/steamapps/appmanifest_<appId>.acf`: absent → fresh
    install; `StateFlags` has 4 and none of the update/download/validate bits and `buildid` is the
-   current build → `alreadyInstalled`; fully installed at another build → files are checked and
-   updated in place and the manifest is merged; otherwise (a half-finished client download) the
-   manifest, `steamapps/downloading/<appId>` and `steamapps/temp/<appId>` are deleted (and any
-   journal for the app) before downloading.
+   current build → `alreadyInstalled`; a build on disk at another build (the fully-installed bit
+   set, even with an update pending) → `update_in_steam`, left to the Steam client; otherwise (a
+   half-finished client download) `steamapps/downloading/<appId>` and `steamapps/temp/<appId>`
+   are deleted and the journal is discarded, while the manifest is kept so registration merges
+   its settings.
 3. Downloads the game's depots in place into `<gameLibraryHost>/steamapps/common/<installdir>`:
    no temp files, no space reservation, each file trimmed to its exact size when its last chunk
    lands. A chunk used several times is fetched once. Files already on disk are read back chunk by
@@ -458,9 +459,11 @@ Never written: `config.vdf`, `localconfig.vdf`, `registry.vdf` (the client regen
 `depotcache/` (the client keeps manifests there with decrypted file names, not in the CDN form
 this engine caches; it fetches them when it needs them).
 
-On-disk protocol of the journal: `<journalDir>/<appId>/depot.config` (JSON: `buildId`, the
-finished manifest per depot or an in-progress sentinel) and `<depot>_<manifest>.manifest` (raw
-CDN manifests). A cancelled or failed run keeps it, and the next `nativeStart` for the same app
+On-disk protocol of the journal: `<journalDir>/<appId>/<libraryHash>/depot.config` (JSON:
+`buildId`, the finished manifest per depot or an in-progress sentinel) and
+`<depot>_<manifest>.manifest` (raw CDN manifests) beside it. `<libraryHash>` is the CRC32, as 8
+lowercase hex digits, of `gameLibraryGuest` with trailing `/` removed, so a resume in one library
+never trusts depots finished in another. A cancelled or failed run keeps it, and the next `nativeStart` for the same app
 resumes (finished depots are skipped, the rest is checked on disk); a journal written for another
 build is dropped. It is deleted after a successful registration. Nothing extra is ever left in
 the game folder.

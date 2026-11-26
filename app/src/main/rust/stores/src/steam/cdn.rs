@@ -286,7 +286,7 @@ pub fn unzip_first_entry(zip: &[u8], limit: usize) -> Option<Vec<u8>> {
 /// not decode, or decodes to more than `limit` bytes, is refused.
 pub fn maybe_gunzip(body: Vec<u8>, limit: usize) -> Option<Vec<u8>> {
     if body.len() < 2 || body[0] != 0x1f || body[1] != 0x8b {
-        return Some(body);
+        return (body.len() <= limit).then_some(body);
     }
     let mut out = Vec::new();
     GzDecoder::new(&body[..])

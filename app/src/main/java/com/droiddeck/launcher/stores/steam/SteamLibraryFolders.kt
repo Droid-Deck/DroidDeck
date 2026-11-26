@@ -122,18 +122,32 @@ internal object SteamLibraryFolders {
 
     fun savedAccount(loginUsers: String): String? = savedLogin(loginUsers)?.name
 
-    /** The account the client signs in with by itself: remembered, the most recent one first. [SavedAccount.id] is its SteamID64. */
-    fun savedLogin(loginUsers: String): SavedAccount? {
+    /**
+     * The account the client signs in with by itself, chosen as the engine does: `AutoLoginUser`, else the most recent, else the newest;
+     * none when that account opted out of Remember me. [SavedAccount.id] is its SteamID64.
+     */
+    fun savedLogin(loginUsers: String, registry: String = ""): SavedAccount? {
         val users = LinkedHashMap<String, HashMap<String, String>>()
         walk(loginUsers, pair = { blocks, key, value ->
             if (blocks.size == 2 && blocks[0].equals("users", ignoreCase = true)) users.getOrPut(blocks[1]) { HashMap() }[key.lowercase()] = value
         })
-        val remembered = users.entries.filter { it.value["rememberpassword"] == "1" }
-        val (id, user) = remembered.firstOrNull { it.value["mostrecent"] == "1" }
-            ?: remembered.maxByOrNull { it.value["timestamp"]?.toLongOrNull() ?: 0L }
+        val accounts = users.entries.filter { it.key.all(Char::isDigit) && !it.value["accountname"].isNullOrBlank() }
+        val auto = autoLoginUser(registry)
+        val (id, user) = auto?.let { name -> accounts.firstOrNull { it.value["accountname"].equals(name, ignoreCase = true) } }
+            ?: accounts.firstOrNull { it.value["mostrecent"] == "1" }
+            ?: accounts.maxByOrNull { it.value["timestamp"]?.toLongOrNull() ?: 0L }
             ?: return null
+        if (user["rememberpassword"] == "0") return null
         val name = user["personaname"]?.takeIf { it.isNotBlank() } ?: user["accountname"]?.takeIf { it.isNotBlank() } ?: return null
         return SavedAccount(id, name)
+    }
+
+    fun autoLoginUser(registry: String): String? {
+        var found: String? = null
+        walk(registry, pair = { blocks, key, value ->
+            if (found == null && key.equals("AutoLoginUser", ignoreCase = true) && blocks.lastOrNull().equals("Steam", ignoreCase = true) && value.isNotBlank()) found = value
+        })
+        return found
     }
 
     fun language(registry: String): String? {

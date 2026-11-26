@@ -104,7 +104,8 @@ internal object SteamStore {
     private fun savedAccount(context: Context): SteamLibraryFolders.SavedAccount? {
         val print = fingerprint(context)
         if (print == rejectedThisRun || print == prefs(context).getString("rejected", null)) return null
-        return runCatching { SteamLibraryFolders.savedLogin(SteamClient.loginUsers(context).readText()) }.getOrNull()
+        val registry = runCatching { SteamClient.registry(context).readText() }.getOrDefault("")
+        return runCatching { SteamLibraryFolders.savedLogin(SteamClient.loginUsers(context).readText(), registry) }.getOrNull()
     }
 
     /** Mirrors the client's saved sign-in into the store account; reads storage. A new name for the same account only relabels it. */
@@ -132,7 +133,7 @@ internal object SteamStore {
     }
 
     internal fun signInFailed(context: Context, error: String) {
-        if (error == SteamEngine.MISSING) return
+        if (!isSignInError(error)) return
         val print = fingerprint(context)
         if (SteamEngine.attempted?.let { it != print } == true) return
         rejectedThisRun = print
@@ -311,7 +312,12 @@ internal object SteamStore {
         if (key in StoresState.uninstalling) return
         StoresState.uninstalling[key] = 0f
         Thread({
-            val answer = runCatching {
+            if (!DownloadQueue.holdForRemovalWhenFree(key)) {
+                StoresState.logLine("Steam: kept $appId, its download is still running")
+                StoresState.post { StoresState.uninstalling.remove(key); onDone() }
+                return@Thread
+            }
+            val answer = try { runCatching {
                 val libraries = SteamClient.libraries(app)
                 val apps = manifest?.parentFile?.let(::canonical)
                 val chosen = if (apps == null) libraries else libraries.filter { canonical(File(it.host, "steamapps")) == apps }
@@ -324,7 +330,7 @@ internal object SteamStore {
                     fallback() -> JSONObject().put("ok", true)
                     else -> SteamEngine.failure("remove_failed")
                 }
-            }.getOrElse { SteamEngine.failure(it.javaClass.simpleName) }
+            }.getOrElse { SteamEngine.failure(it.javaClass.simpleName) } } finally { DownloadQueue.releaseRemoval(key) }
             val ok = answer.optBoolean("ok")
             StoresState.logLine(if (ok) "Steam: uninstalled $appId" else "Steam: uninstall of $appId failed: ${answer.optString("error")}")
             runCatching { scanInstalled(app) }
@@ -339,8 +345,19 @@ internal object SteamStore {
 
     private fun canonical(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
 
-    /** An earlier run of this download left its journal, so the game folder is its own. */
-    internal fun resuming(context: Context, appId: Int): Boolean = File(context.filesDir, "$JOURNAL/$appId").list()?.isNotEmpty() == true
+    private fun createdMarker(context: Context, appId: Int, guest: String) =
+        File(context.filesDir, "$JOURNAL/$appId/created-${Integer.toHexString(guest.trimEnd('/').hashCode())}")
+
+    /** Whether this install made the game folder in that library: decided by its first attempt and kept for every resume. */
+    internal fun claimFolder(context: Context, appId: Int, guest: String, folder: File): Boolean {
+        val marker = createdMarker(context, appId, guest)
+        if (marker.isFile) return true
+        if (folder.exists()) return false
+        marker.parentFile?.mkdirs()
+        return runCatching { marker.createNewFile() || marker.isFile }.getOrDefault(false)
+    }
+
+    internal fun createdFolder(context: Context, appId: Int, guest: String): Boolean = createdMarker(context, appId, guest).isFile
 
     /**
      * Removes what a cancelled download left; a finished install stays. The game folder goes only when this download made it

@@ -310,11 +310,17 @@ fn set_default(node: &mut KVNode, key: &str, value: &str) {
 
 /// Records a shared depot in its app's manifest (creating the manifest when the app has none
 /// yet), as the client does: `InstalledDepots`, `InstallScripts`, `SizeOnDisk`.
+/// Serializes read-modify-write of a shared app's manifest between installs and uninstalls.
+static SHARED_ACF_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub fn register_shared_depot(
     shared: &SharedInstall,
     owner_steam_id: u64,
     now: u64,
 ) -> Result<bool, String> {
+    let _guard = SHARED_ACF_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let path = shared.library.acf_path(shared.from_app_id);
     let existing = kv::parse_file(&path).filter(|r| r.name.eq_ignore_ascii_case("AppState"));
     let created = existing.is_none();
@@ -636,6 +642,9 @@ fn remove_shared_depot(
     libraries: &[LibraryRoot],
     shared_files: &dyn Fn(u32, u32, u64) -> Option<Vec<String>>,
 ) -> Result<bool, String> {
+    let _guard = SHARED_ACF_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let Some(lib) = libraries.iter().find(|l| l.acf_path(from_app).exists()) else {
         return Ok(false);
     };
@@ -657,6 +666,7 @@ fn remove_shared_depot(
     let Ok(real_base) = fs::canonicalize(&base) else {
         return Ok(false);
     };
+    let mut removed_any = false;
     for rel in files {
         if !crate::steam::depot_writer::path_is_safe(&rel) {
             continue;
@@ -673,10 +683,22 @@ fn remove_shared_depot(
         }
         if fs::symlink_metadata(&target).is_ok_and(|m| !m.is_dir()) {
             match fs::remove_file(&target) {
-                Ok(()) => {}
+                Ok(()) => removed_any = true,
                 Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-                // Keep the depot recorded so a later uninstall can finish removing it.
-                Err(_) => return Ok(false),
+                // Untouched, the depot stays recorded so a later uninstall can retry. Once files
+                // are gone it must not read as installed at its manifest, or an install would skip
+                // it; manifest 0 makes the client and the engine download it again.
+                Err(_) => {
+                    if removed_any {
+                        if let Some(entry) = kv::get_mut(&mut root, "InstalledDepots")
+                            .and_then(|d| kv::get_mut(d, &depot_id.to_string()))
+                        {
+                            kv::set(entry, "manifest", "0");
+                            kv::write_file(&path, &root)?;
+                        }
+                    }
+                    return Ok(false);
+                }
             }
         }
     }

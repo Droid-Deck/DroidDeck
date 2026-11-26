@@ -346,7 +346,12 @@ pub fn run(
         }
         let servers = servers_for(&all_servers, install.from_app_id);
         let target = install.library.common_dir(&install.from_install_dir);
-        if !journal.is_installed(prepared.depot_id, prepared.manifest_id) {
+        // The journal belongs to the game's library; a shared depot written to another library is
+        // checked on disk instead (only missing or wrong chunks are fetched).
+        let recorded = install.library.guest.trim_end_matches('/')
+            == req.game_library.guest.trim_end_matches('/')
+            && journal.is_installed(prepared.depot_id, prepared.manifest_id);
+        if !recorded {
             journal.begin_depot(prepared.depot_id);
             let outcome = download_prepared(
                 prepared,

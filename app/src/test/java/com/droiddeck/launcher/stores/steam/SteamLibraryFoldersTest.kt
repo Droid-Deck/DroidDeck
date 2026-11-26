@@ -236,6 +236,9 @@ class SteamLibraryFoldersTest {
         assertEquals("player", SteamLibraryFolders.savedAccount(users.replace("\"PersonaName\"\t\t\"Player\"", "\"PersonaName\"\t\t\"\"").replace("\"Old One\"", "\"\"").replace("\"1600000000\"", "\"1\"")))
         assertNull(SteamLibraryFolders.savedAccount(users.replace("\"RememberPassword\"\t\t\"1\"", "\"RememberPassword\"\t\t\"0\"")))
         assertNull(SteamLibraryFolders.savedAccount(""))
+        val registry = "\"Registry\"\n{\n\t\"HKCU\"\n\t{\n\t\t\"Software\"\n\t\t{\n\t\t\t\"Valve\"\n\t\t\t{\n\t\t\t\t\"Steam\"\n\t\t\t\t{\n\t\t\t\t\t\"AutoLoginUser\"\t\t\"OLD\"\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n"
+        assertEquals(SteamLibraryFolders.SavedAccount("76561190000000001", "Old One"), SteamLibraryFolders.savedLogin(users, registry))
+        assertNull(SteamLibraryFolders.savedLogin(users.replace("\"RememberPassword\"\t\t\"1\"\n\t\t\"MostRecent\"\t\t\"0\"", "\"RememberPassword\"\t\t\"0\"\n\t\t\"MostRecent\"\t\t\"0\""), registry))
     }
 
     @Test fun theClientLanguageComesFromTheRegistry() {

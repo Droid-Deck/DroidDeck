@@ -206,8 +206,6 @@ impl CMClientRuntime {
     }
 
     fn on_channel_connected(self: &Arc<Self>) {
-        self.core.set_state(ClientState::Connected);
-        self.notify_state(ClientState::Connected);
         // Always send ClientHello first; pre-existing queued wires (e.g. a
         // logon enqueued before the channel finished negotiating) must come
         // after the Hello or Steam rejects the conversation as malformed.
@@ -227,6 +225,10 @@ impl CMClientRuntime {
             combined
         };
         self.core.restore_outbound_wires_front(combined);
+        // Connected is published only once Hello heads the queue, so a logon queued by a waiter
+        // that wakes on it cannot get ahead of the Hello.
+        self.core.set_state(ClientState::Connected);
+        self.notify_state(ClientState::Connected);
         self.flush_outbound();
     }
 
