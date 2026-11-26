@@ -21,7 +21,10 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::PathBuf,
-    sync::mpsc::{self, Receiver, Sender},
+    sync::{
+        Arc,
+        mpsc::{self, Receiver, Sender},
+    },
     time::Duration,
 };
 use threadpool::ThreadPool;
@@ -33,8 +36,8 @@ const CARD: Color32 = Color32::from_rgb(17, 25, 36);
 const CARD_HOVER: Color32 = Color32::from_rgb(22, 32, 45);
 const LINE: Color32 = Color32::from_rgb(35, 49, 66);
 const MUTED: Color32 = Color32::from_rgb(143, 162, 183);
-const BLUE: Color32 = Color32::from_rgb(34, 164, 245);
-const BLUE_LIGHT: Color32 = Color32::from_rgb(89, 194, 255);
+const BLUE: Color32 = Color32::from_rgb(26, 159, 255);
+const BLUE_LIGHT: Color32 = Color32::from_rgb(87, 194, 255);
 const GREEN: Color32 = Color32::from_rgb(113, 203, 149);
 const CARD_W: f32 = 184.0;
 const CARD_H: f32 = 326.0;
@@ -372,11 +375,29 @@ fn main() {
 }
 
 fn run_launcher() -> eframe::Result<()> {
+    let window_icon = image::load_from_memory(include_bytes!(
+        "../../app/src/main/res/drawable-nodpi/logo.png"
+    ))
+    .ok()
+    .map(|decoded| {
+        let rgba = decoded.to_rgba8();
+        let width = rgba.width();
+        let height = rgba.height();
+        Arc::new(egui::IconData {
+            rgba: rgba.into_raw(),
+            width,
+            height,
+        })
+    });
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_title("DroidDeck Launcher")
+        .with_inner_size([1420.0, 940.0])
+        .with_min_inner_size([980.0, 680.0]);
+    if let Some(icon) = window_icon {
+        viewport = viewport.with_icon(icon);
+    }
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_title("DroidDeck Launcher")
-            .with_inner_size([1420.0, 940.0])
-            .with_min_inner_size([980.0, 680.0]),
+        viewport,
         ..Default::default()
     };
     eframe::run_native(
@@ -430,6 +451,7 @@ struct Launcher {
     store_filter: String,
     paths: Paths,
     textures: HashMap<String, TextureHandle>,
+    logo_texture: Option<TextureHandle>,
     requested_covers: HashSet<String>,
     cover_tx: Sender<(String, Option<egui::ColorImage>)>,
     cover_rx: Receiver<(String, Option<egui::ColorImage>)>,
@@ -447,6 +469,21 @@ struct Launcher {
 impl Launcher {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         set_theme(&cc.egui_ctx);
+        let logo_texture = image::load_from_memory(include_bytes!(
+            "../../app/src/main/res/drawable-nodpi/logo.png"
+        ))
+        .ok()
+        .map(|decoded| {
+            let rgba = decoded.to_rgba8();
+            cc.egui_ctx.load_texture(
+                "droiddeck-logo",
+                egui::ColorImage::from_rgba_unmultiplied(
+                    [rgba.width() as usize, rgba.height() as usize],
+                    rgba.as_raw(),
+                ),
+                TextureOptions::LINEAR,
+            )
+        });
         let paths = Paths::new();
         let games =
             scanner::merge_local(read_database(&paths.db).unwrap_or_else(load_legacy_database));
@@ -459,6 +496,7 @@ impl Launcher {
             store_filter: "all".to_owned(),
             paths,
             textures: HashMap::new(),
+            logo_texture,
             requested_covers: HashSet::new(),
             cover_tx,
             cover_rx,
@@ -901,84 +939,142 @@ impl Launcher {
 
     fn draw_hero(&mut self, ui: &mut egui::Ui, featured: Option<Game>) {
         let ctx = ui.ctx().clone();
+        let tile_count = ((ui.available_width() / 142.0).ceil() as usize).clamp(7, 14);
+        let mut mosaic_games = Vec::with_capacity(tile_count);
         if let Some(game) = &featured {
+            mosaic_games.push(game.clone());
+        }
+        for game in &self.games {
+            if mosaic_games.len() >= tile_count {
+                break;
+            }
+            if featured
+                .as_ref()
+                .is_none_or(|selected| selected.key != game.key)
+            {
+                mosaic_games.push(game.clone());
+            }
+        }
+        for game in &mosaic_games {
             self.queue_cover(game, &ctx);
         }
+        let logo_texture = self.logo_texture.clone();
         let (rect, _) =
             ui.allocate_exact_size(Vec2::new(ui.available_width(), 228.0), Sense::hover());
         let painter = ui.painter().clone();
-        painter.rect_filled(rect, 18.0, Color32::from_rgb(12, 24, 38));
+        painter.rect_filled(rect, 18.0, Color32::from_rgb(8, 15, 24));
+        let tile_width = rect.width() / tile_count as f32;
+        for index in 0..tile_count {
+            let tile = egui::Rect::from_min_max(
+                egui::pos2(rect.left() + tile_width * index as f32, rect.top()),
+                egui::pos2(
+                    rect.left() + tile_width * (index + 1) as f32 + 1.0,
+                    rect.bottom(),
+                ),
+            );
+            if let Some(game) = mosaic_games.get(index) {
+                if let Some(texture) = self.textures.get(&game.key) {
+                    painter.with_clip_rect(tile).image(
+                        texture.id(),
+                        tile,
+                        image_uv_for_fill(texture, tile.size()),
+                        Color32::WHITE,
+                    );
+                } else {
+                    let color = game.store_color();
+                    painter.rect_filled(
+                        tile,
+                        0.0,
+                        Color32::from_rgb(
+                            color.r().saturating_div(3),
+                            color.g().saturating_div(3),
+                            color.b().saturating_div(3),
+                        ),
+                    );
+                    painter.text(
+                        tile.center(),
+                        egui::Align2::CENTER_CENTER,
+                        game.title.chars().next().unwrap_or('D').to_string(),
+                        FontId::proportional(46.0),
+                        Color32::from_rgba_unmultiplied(220, 238, 255, 130),
+                    );
+                }
+            }
+            painter.line_segment(
+                [tile.left_top(), tile.left_bottom()],
+                Stroke::new(1.0, Color32::from_rgba_unmultiplied(210, 228, 244, 28)),
+            );
+        }
+        painter.rect_filled(rect, 18.0, Color32::from_rgba_unmultiplied(3, 8, 14, 118));
         painter.rect_stroke(
             rect,
             18.0,
             Stroke::new(1.0, Color32::from_rgb(38, 70, 98)),
             egui::StrokeKind::Inside,
         );
-        let art_center = egui::pos2(rect.right() - 238.0, rect.center().y);
-        for i in 0..5 {
-            painter.circle_stroke(
-                art_center,
-                48.0 + i as f32 * 28.0,
-                Stroke::new(
-                    1.0,
-                    Color32::from_rgba_unmultiplied(39, 153, 225, 90 - i as u8 * 12),
-                ),
+        let gradient_width = rect.width() * 0.78;
+        for step in 0..32 {
+            let progress = step as f32 / 31.0;
+            let alpha = (218.0 - progress * 156.0) as u8;
+            let strip_width = gradient_width / 32.0 + 1.0;
+            let strip = egui::Rect::from_min_size(
+                egui::pos2(rect.left() + strip_width * step as f32, rect.top()),
+                Vec2::new(strip_width, rect.height()),
             );
-        }
-        let art_clip = painter.with_clip_rect(rect);
-        for i in 0..11 {
-            let x = rect.right() - 410.0 + i as f32 * 32.0;
-            art_clip.line_segment(
-                [
-                    egui::pos2(x, rect.top() + 15.0),
-                    egui::pos2(x + 90.0, rect.bottom() - 10.0),
-                ],
-                Stroke::new(
-                    1.0,
-                    Color32::from_rgba_unmultiplied(43, 144, 220, 18 + (i % 3) as u8 * 8),
-                ),
+            painter.rect_filled(
+                strip,
+                0.0,
+                Color32::from_rgba_unmultiplied(5, 10, 16, alpha),
             );
-        }
-        if let Some(game) = &featured {
-            if let Some(texture) = self.textures.get(&game.key) {
-                let cover = egui::Rect::from_min_size(
-                    egui::pos2(rect.right() - 343.0, rect.top() + 16.0),
-                    Vec2::new(148.0, 196.0),
-                );
-                art_clip.image(
-                    texture.id(),
-                    cover,
-                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                    Color32::WHITE,
-                );
-                art_clip.rect_stroke(
-                    cover,
-                    10.0,
-                    Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 80)),
-                    egui::StrokeKind::Inside,
-                );
-            }
         }
         let left_rect = egui::Rect::from_min_max(
-            rect.left_top() + Vec2::new(28.0, 25.0),
-            egui::pos2(rect.right() - 370.0, rect.bottom() - 22.0),
+            rect.left_top() + Vec2::new(26.0, 18.0),
+            egui::pos2(rect.right() - 335.0, rect.bottom() - 15.0),
         );
         ui.scope_builder(
             UiBuilder::new()
                 .max_rect(left_rect)
                 .layout(Layout::top_down(Align::Min)),
             |ui| {
+                ui.horizontal(|ui| {
+                    let (logo_rect, _) = ui.allocate_exact_size(Vec2::splat(34.0), Sense::hover());
+                    if let Some(texture) = &logo_texture {
+                        ui.painter().image(
+                            texture.id(),
+                            logo_rect,
+                            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                            Color32::WHITE,
+                        );
+                    } else {
+                        ui.label(RichText::new("D").strong().size(24.0).color(BLUE));
+                    }
+                    ui.vertical(|ui| {
+                        ui.label(
+                            RichText::new("DroidDeck")
+                                .strong()
+                                .size(19.0)
+                                .color(Color32::WHITE),
+                        );
+                        ui.label(
+                            RichText::new("PC GAME LIBRARY")
+                                .size(8.0)
+                                .strong()
+                                .color(Color32::from_rgb(180, 203, 222)),
+                        );
+                    });
+                });
+                ui.add_space(8.0);
                 ui.label(
                     RichText::new("TU COLECCIÓN, EN UN SOLO LUGAR")
-                        .size(10.0)
+                        .size(9.0)
                         .strong()
                         .color(BLUE_LIGHT),
                 );
-                ui.add_space(5.0);
+                ui.add_space(2.0);
                 if let Some(game) = &featured {
                     ui.label(
                         RichText::new(&game.title)
-                            .size(30.0)
+                            .size(27.0)
                             .strong()
                             .color(Color32::WHITE),
                     );
@@ -993,10 +1089,10 @@ impl Launcher {
                                 "En tu colección"
                             }
                         ))
-                        .size(12.0)
+                        .size(11.0)
                         .color(Color32::from_rgb(192, 211, 228)),
                     );
-                    ui.add_space(13.0);
+                    ui.add_space(9.0);
                     if icon_label_button(
                         ui,
                         if game.installed {
@@ -1009,7 +1105,7 @@ impl Launcher {
                         } else {
                             UiIcon::Store
                         },
-                        148.0,
+                        144.0,
                         true,
                         true,
                     )
@@ -1020,7 +1116,7 @@ impl Launcher {
                 } else {
                     ui.label(
                         RichText::new("Tu biblioteca empieza acá")
-                            .size(27.0)
+                            .size(25.0)
                             .strong()
                             .color(Color32::WHITE),
                     );
@@ -1049,11 +1145,16 @@ impl Launcher {
         let total = self.games.len();
         let installed = self.games.iter().filter(|game| game.installed).count();
         let count_rect = egui::Rect::from_min_size(
-            egui::pos2(rect.right() - 154.0, rect.bottom() - 72.0),
-            Vec2::new(128.0, 48.0),
+            egui::pos2(rect.right() - 154.0, rect.bottom() - 69.0),
+            Vec2::new(128.0, 46.0),
+        );
+        painter.rect_filled(
+            count_rect.expand2(Vec2::new(8.0, 6.0)),
+            10.0,
+            Color32::from_rgba_unmultiplied(5, 11, 18, 155),
         );
         painter.text(
-            egui::pos2(count_rect.center().x, count_rect.top() + 2.0),
+            egui::pos2(count_rect.center().x, count_rect.top()),
             egui::Align2::CENTER_TOP,
             total.to_string(),
             FontId::proportional(30.0),
@@ -1062,8 +1163,8 @@ impl Launcher {
         painter.text(
             egui::pos2(count_rect.center().x, count_rect.bottom() - 2.0),
             egui::Align2::CENTER_BOTTOM,
-            format!("JUEGOS  ·  {installed} INSTALADOS"),
-            FontId::proportional(9.0),
+            format!("{total} JUEGOS  ·  {installed} INSTALADOS"),
+            FontId::proportional(8.0),
             Color32::from_rgb(172, 197, 218),
         );
     }
@@ -1492,13 +1593,25 @@ impl Launcher {
             .show(ui, |ui| {
                 ui.add_space(7.0);
                 ui.horizontal(|ui| {
-                    Frame::new()
-                        .fill(BLUE)
-                        .corner_radius(11.0)
-                        .inner_margin(Margin::symmetric(9, 7))
-                        .show(ui, |ui| {
-                            ui.label(RichText::new("D").strong().size(22.0).color(Color32::WHITE));
-                        });
+                    let (logo_rect, _) = ui.allocate_exact_size(Vec2::splat(42.0), Sense::hover());
+                    if let Some(texture) = &self.logo_texture {
+                        ui.painter().image(
+                            texture.id(),
+                            logo_rect,
+                            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                            Color32::WHITE,
+                        );
+                    } else {
+                        Frame::new()
+                            .fill(BLUE)
+                            .corner_radius(11.0)
+                            .inner_margin(Margin::symmetric(9, 7))
+                            .show(ui, |ui| {
+                                ui.label(
+                                    RichText::new("D").strong().size(22.0).color(Color32::WHITE),
+                                );
+                            });
+                    }
                     ui.vertical(|ui| {
                         ui.label(
                             RichText::new("DroidDeck")
@@ -1805,6 +1918,21 @@ fn section_header(ui: &mut egui::Ui, label: &str, count: usize, color: Color32) 
             Stroke::new(1.0, LINE),
         );
     });
+}
+
+fn image_uv_for_fill(texture: &TextureHandle, target_size: Vec2) -> egui::Rect {
+    let [width, height] = texture.size();
+    let source_aspect = width as f32 / height.max(1) as f32;
+    let target_aspect = target_size.x / target_size.y.max(1.0);
+    if source_aspect > target_aspect {
+        let visible_width = target_aspect / source_aspect;
+        let inset = (1.0 - visible_width) * 0.5;
+        egui::Rect::from_min_max(egui::pos2(inset, 0.0), egui::pos2(1.0 - inset, 1.0))
+    } else {
+        let visible_height = source_aspect / target_aspect.max(0.001);
+        let inset = (1.0 - visible_height) * 0.5;
+        egui::Rect::from_min_max(egui::pos2(0.0, inset), egui::pos2(1.0, 1.0 - inset))
+    }
 }
 
 fn sidebar_row(
