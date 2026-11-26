@@ -47,7 +47,7 @@ object GameFileSync {
         }
         storage?.let { check(libraryReadable(File(it.path))) { context.getString(R.string.game_sync_err_game_storage) } }
         val addedReadable = AddedGames.roots(context).all { it.host.listFiles() != null }
-        GameFiles.sync(context, folder, Library.launchableGames(context, strictRead = true), prune = addedReadable)
+        GameFiles.sync(context, folder, Library.launchableGames(context, strictRead = true), pruneShortcuts = addedReadable)
         prefs(context).edit().putString("storageSetting", storageSetting).putString("storagePath", storage?.path).apply()
     }
 
