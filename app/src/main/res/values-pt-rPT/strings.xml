@@ -4119,4 +4119,6 @@
     <string name="drawer_antialiasing">Suavização de serrilhado</string>
     <string name="hud_only_during_game">Mostrar o HUD apenas durante um jogo</string>
     <string name="hud_only_during_game_hint">Ocultar o HUD quando não forem detetados fotogramas do jogo.</string>
+    <string name="game_zoom_title">Zoom do jogo</string>
+    <string name="game_zoom_hint">Ajuste a ampliação do jogo de 100% a 300%</string>
 </resources>

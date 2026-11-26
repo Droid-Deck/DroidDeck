@@ -4050,4 +4050,6 @@
     <string name="theme_custom_error">Lỗi</string>
     <string name="hud_only_during_game">Chỉ hiển thị HUD khi đang chơi</string>
     <string name="hud_only_during_game_hint">Ẩn HUD khi không phát hiện khung hình trò chơi.</string>
+    <string name="game_zoom_title">Thu phóng trò chơi</string>
+    <string name="game_zoom_hint">Điều chỉnh độ phóng đại trò chơi từ 100% đến 300%</string>
 </resources>

@@ -4160,4 +4160,6 @@
     <string name="theme_custom_error">Błąd</string>
     <string name="hud_only_during_game">Pokazuj HUD tylko podczas gry</string>
     <string name="hud_only_during_game_hint">Ukryj HUD, gdy nie wykryto klatek gry.</string>
+    <string name="game_zoom_title">Powiększenie gry</string>
+    <string name="game_zoom_hint">Dostosuj powiększenie gry w zakresie od 100% do 300%</string>
 </resources>

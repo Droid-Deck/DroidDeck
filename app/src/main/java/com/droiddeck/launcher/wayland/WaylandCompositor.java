@@ -371,6 +371,7 @@ public final class WaylandCompositor {
     public static native void nativeHdrNoteHeadroomRequest(float ratio);
 
     public static native void nativeSetScaleMode(int fullscreenMode, int screenAlignment);
+    public static native void nativeSetZoom(float zoom);
 
 
     public static native void nativeSetUpscaler(int mode);

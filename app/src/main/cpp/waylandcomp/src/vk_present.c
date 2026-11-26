@@ -212,13 +212,16 @@ static pthread_cond_t g_req_condition = PTHREAD_COND_INITIALIZER;
 
 
 static volatile int g_mode = VKP_MODE_STRETCH, g_align = VKP_ALIGN_CENTER;
+static volatile float g_zoom = 1.0f;
 
 static struct {
     int scene_w, scene_h, out_w, out_h, mode, align;
     float kx, ky, off_x, off_y;
+    float base_kx, base_ky, base_off_x, base_off_y, zoom;
     int rx, ry, rw, rh;
     int valid;
 } g_map;
+static pthread_mutex_t g_map_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t g_game_picture_lock = PTHREAD_MUTEX_INITIALIZER;
 static float g_game_picture_rect[4];
 static int g_game_picture_placed;
@@ -373,8 +376,23 @@ int vkp_completion_unknown(void) { return g_dev_state == -3; }
 void vk_present_set_scale_mode(int mode, int alignment) {
     if (mode < VKP_MODE_OFF || mode > VKP_MODE_INTEGER) mode = VKP_MODE_FIT;
     if (alignment < VKP_ALIGN_CENTER || alignment > VKP_ALIGN_PICTURE_RIGHT) alignment = VKP_ALIGN_CENTER;
+    pthread_mutex_lock(&g_map_lock);
     g_mode = mode;
     g_align = alignment;
+    /* Keep the mapping for the currently displayed frame until the next render rebuilds it. */
+    pthread_mutex_unlock(&g_map_lock);
+}
+
+void vk_present_set_zoom(float zoom) {
+    if (!(zoom >= 1.0f)) zoom = 1.0f;
+    if (zoom > 3.0f) zoom = 3.0f;
+    zoom = 1.0f + roundf((zoom - 1.0f) * 4.0f) * 0.25f;
+    pthread_mutex_lock(&g_map_lock);
+    if (g_zoom != zoom) {
+        g_zoom = zoom;
+    }
+    /* Keep the mapping for the currently displayed frame until the next render rebuilds it. */
+    pthread_mutex_unlock(&g_map_lock);
 }
 
 static const char *mode_name(int m) {
@@ -400,13 +418,18 @@ static const char *align_name(int a) {
 }
 
 static void update_map(int scene_w, int scene_h) {
+    pthread_mutex_lock(&g_map_lock);
     int mode = g_mode, align = g_align;
+    float zoom = g_zoom;
     int W = (int)g_extent.width, H = (int)g_extent.height;
     if (g_map.valid && g_map.scene_w == scene_w && g_map.scene_h == scene_h && g_map.out_w == W &&
-        g_map.out_h == H && g_map.mode == mode && g_map.align == align)
+        g_map.out_h == H && g_map.mode == mode && g_map.align == align && g_map.zoom == zoom) {
+        pthread_mutex_unlock(&g_map_lock);
         return;
+    }
+    g_map.valid = 0;
     g_map.scene_w = scene_w; g_map.scene_h = scene_h; g_map.out_w = W; g_map.out_h = H;
-    g_map.mode = mode; g_map.align = align;
+    g_map.mode = mode; g_map.align = align; g_map.zoom = zoom;
 
     int half = H / 2;
     switch (align) {
@@ -439,6 +462,82 @@ static void update_map(int scene_w, int scene_h) {
     else if (align == VKP_ALIGN_PICTURE_BOTTOM) g_map.off_y = H - scene_h * g_map.ky;
     else if (align == VKP_ALIGN_PICTURE_LEFT) g_map.off_x = 0;
     else if (align == VKP_ALIGN_PICTURE_RIGHT) g_map.off_x = W - scene_w * g_map.kx;
+
+    g_map.base_kx = g_map.kx;
+    g_map.base_ky = g_map.ky;
+    g_map.base_off_x = g_map.off_x;
+    g_map.base_off_y = g_map.off_y;
+
+    if (!(g_map.base_kx > 0.0f) || !(g_map.base_ky > 0.0f) ||
+        !isfinite(g_map.base_kx) || !isfinite(g_map.base_ky) ||
+        !isfinite(g_map.base_off_x) || !isfinite(g_map.base_off_y)) {
+        pthread_mutex_lock(&g_game_picture_lock);
+        g_game_picture_placed = 0;
+        pthread_mutex_unlock(&g_game_picture_lock);
+        pthread_mutex_unlock(&g_map_lock);
+        return;
+    }
+
+    if (zoom > 1.0f) {
+        float cx = (float)g_map.rx + (float)g_map.rw * 0.5f;
+        float cy = (float)g_map.ry + (float)g_map.rh * 0.5f;
+        float image_w, image_h;
+
+        g_map.kx = g_map.base_kx * zoom;
+        g_map.ky = g_map.base_ky * zoom;
+        image_w = scene_w * g_map.kx;
+        image_h = scene_h * g_map.ky;
+
+        g_map.off_x = cx + (g_map.base_off_x - cx) * zoom;
+        g_map.off_y = cy + (g_map.base_off_y - cy) * zoom;
+
+        if (image_w >= g_map.rw) {
+            float min_x = (float)g_map.rx + g_map.rw - image_w;
+            if (g_map.off_x < min_x) g_map.off_x = min_x;
+            if (g_map.off_x > g_map.rx) g_map.off_x = (float)g_map.rx;
+        } else {
+            g_map.off_x = (float)g_map.rx + (g_map.rw - image_w) * 0.5f;
+        }
+
+        if (image_h >= g_map.rh) {
+            float min_y = (float)g_map.ry + g_map.rh - image_h;
+            if (g_map.off_y < min_y) g_map.off_y = min_y;
+            if (g_map.off_y > g_map.ry) g_map.off_y = (float)g_map.ry;
+        } else {
+            g_map.off_y = (float)g_map.ry + (g_map.rh - image_h) * 0.5f;
+        }
+    }
+
+    if (zoom > 1.0f &&
+        (!(g_map.kx > 0.0f) || !(g_map.ky > 0.0f) ||
+         !isfinite(g_map.kx) || !isfinite(g_map.ky) ||
+         !isfinite(g_map.off_x) || !isfinite(g_map.off_y))) {
+        if (g_map.base_kx > 0.0f && g_map.base_ky > 0.0f &&
+            isfinite(g_map.base_kx) && isfinite(g_map.base_ky) &&
+            isfinite(g_map.base_off_x) && isfinite(g_map.base_off_y)) {
+            g_map.kx = g_map.base_kx;
+            g_map.ky = g_map.base_ky;
+            g_map.off_x = g_map.base_off_x;
+            g_map.off_y = g_map.base_off_y;
+        } else {
+            pthread_mutex_lock(&g_game_picture_lock);
+            g_game_picture_placed = 0;
+            pthread_mutex_unlock(&g_game_picture_lock);
+            pthread_mutex_unlock(&g_map_lock);
+            return;
+        }
+    }
+
+    if (!(g_map.kx > 0.0f) || !(g_map.ky > 0.0f) ||
+        !isfinite(g_map.kx) || !isfinite(g_map.ky) ||
+        !isfinite(g_map.off_x) || !isfinite(g_map.off_y)) {
+        pthread_mutex_lock(&g_game_picture_lock);
+        g_game_picture_placed = 0;
+        pthread_mutex_unlock(&g_game_picture_lock);
+        pthread_mutex_unlock(&g_map_lock);
+        return;
+    }
+
     g_map.valid = 1;
     pthread_mutex_lock(&g_game_picture_lock);
     g_game_picture_placed = mode == VKP_MODE_INTEGER || align == VKP_ALIGN_PICTURE_TOP || align == VKP_ALIGN_PICTURE_BOTTOM || align == VKP_ALIGN_PICTURE_LEFT || align == VKP_ALIGN_PICTURE_RIGHT;
@@ -451,6 +550,7 @@ static void update_map(int scene_w, int scene_h) {
                mode_name(mode), align_name(align), scene_w, scene_h,
                (int)(scene_w * g_map.kx + 0.5f), (int)(scene_h * g_map.ky + 0.5f),
                (int)g_map.off_x, (int)g_map.off_y, W, H);
+    pthread_mutex_unlock(&g_map_lock);
 }
 
 int vkp_game_picture_rect(float rect[4]) {
@@ -462,22 +562,127 @@ int vkp_game_picture_rect(float rect[4]) {
 }
 
 int vkp_output_to_scene(double ox, double oy, double *sx, double *sy) {
-    if (!g_map.valid || g_map.kx <= 0 || g_map.ky <= 0) return 0;
+    pthread_mutex_lock(&g_map_lock);
+    if (!g_map.valid || g_map.kx <= 0 || g_map.ky <= 0) {
+        pthread_mutex_unlock(&g_map_lock);
+        return 0;
+    }
     *sx = (ox - g_map.off_x) / g_map.kx;
     *sy = (oy - g_map.off_y) / g_map.ky;
+    pthread_mutex_unlock(&g_map_lock);
     return 1;
 }
 
 int vkp_scene_to_output(double sx, double sy, double *ox, double *oy) {
-    if (!g_map.valid || g_map.kx <= 0 || g_map.ky <= 0) return 0;
+    pthread_mutex_lock(&g_map_lock);
+    if (!g_map.valid || g_map.kx <= 0 || g_map.ky <= 0) {
+        pthread_mutex_unlock(&g_map_lock);
+        return 0;
+    }
     *ox = sx * g_map.kx + g_map.off_x;
     *oy = sy * g_map.ky + g_map.off_y;
+    pthread_mutex_unlock(&g_map_lock);
     return 1;
 }
 
 void vkp_output_size(int *w, int *h) {
     *w = (int)g_extent.width;
     *h = (int)g_extent.height;
+}
+
+int vkp_zoom_pan_cursor(double ox, double oy) {
+    double cursor_x, cursor_y;
+    float next_x, next_y;
+    float image_w, image_h;
+    int changed;
+
+    pthread_mutex_lock(&g_map_lock);
+    if (!g_map.valid || g_map.zoom != g_zoom || g_map.mode != g_mode ||
+        g_map.align != g_align || g_zoom <= 1.0f || g_zoom > 3.0f ||
+        g_map.scene_w <= 0 || g_map.scene_h <= 0 ||
+        g_map.rw <= 0 || g_map.rh <= 0 ||
+        g_map.base_kx <= 0.0f || g_map.base_ky <= 0.0f ||
+        g_map.kx <= 0.0f || g_map.ky <= 0.0f ||
+        !isfinite(g_map.base_kx) || !isfinite(g_map.base_ky) ||
+        !isfinite(g_map.kx) || !isfinite(g_map.ky) ||
+        !isfinite(g_map.off_x) || !isfinite(g_map.off_y)) {
+        pthread_mutex_unlock(&g_map_lock);
+        return 0;
+    }
+
+    if (!isfinite(ox) || !isfinite(oy)) {
+        pthread_mutex_unlock(&g_map_lock);
+        return 0;
+    }
+
+    /* Keep the actual cursor position even when it is outside the viewport.
+     * Clamp the resulting image offsets below, not the cursor coordinates. */
+    cursor_x = (ox - g_map.off_x) / g_map.kx;
+    cursor_y = (oy - g_map.off_y) / g_map.ky;
+
+    if (cursor_x < 0.0) cursor_x = 0.0;
+    if (cursor_y < 0.0) cursor_y = 0.0;
+    if (cursor_x > g_map.scene_w - 1) cursor_x = g_map.scene_w - 1;
+    if (cursor_y > g_map.scene_h - 1) cursor_y = g_map.scene_h - 1;
+
+    next_x = g_map.off_x;
+    next_y = g_map.off_y;
+    image_w = g_map.scene_w * g_map.kx;
+    image_h = g_map.scene_h * g_map.ky;
+
+    if (image_w > g_map.rw) {
+        float left = ((float)g_map.rx - g_map.off_x) / g_map.kx;
+        float right = ((float)(g_map.rx + g_map.rw) - g_map.off_x) / g_map.kx;
+        float margin = (right - left) * 0.2f;
+
+        if (cursor_x < left + margin)
+            next_x += (float)(left + margin - cursor_x) * g_map.kx;
+        else if (cursor_x > right - margin)
+            next_x -= (float)(cursor_x - (right - margin)) * g_map.kx;
+
+        float min_x = (float)g_map.rx + g_map.rw - image_w;
+        if (next_x < min_x) next_x = min_x;
+        if (next_x > g_map.rx) next_x = (float)g_map.rx;
+    }
+
+    if (image_h > g_map.rh) {
+        float top = ((float)g_map.ry - g_map.off_y) / g_map.ky;
+        float bottom = ((float)(g_map.ry + g_map.rh) - g_map.off_y) / g_map.ky;
+        float margin = (bottom - top) * 0.2f;
+
+        if (cursor_y < top + margin)
+            next_y += (float)(top + margin - cursor_y) * g_map.ky;
+        else if (cursor_y > bottom - margin)
+            next_y -= (float)(cursor_y - (bottom - margin)) * g_map.ky;
+
+        float min_y = (float)g_map.ry + g_map.rh - image_h;
+        if (next_y < min_y) next_y = min_y;
+        if (next_y > g_map.ry) next_y = (float)g_map.ry;
+    }
+
+    if (!isfinite(next_x) || !isfinite(next_y)) {
+        pthread_mutex_unlock(&g_map_lock);
+        return 0;
+    }
+
+    changed = fabsf(next_x - g_map.off_x) >= 0.5f ||
+              fabsf(next_y - g_map.off_y) >= 0.5f;
+    if (!changed) {
+        pthread_mutex_unlock(&g_map_lock);
+        return 0;
+    }
+
+    g_map.off_x = next_x;
+    g_map.off_y = next_y;
+
+    pthread_mutex_lock(&g_game_picture_lock);
+    g_game_picture_rect[0] = g_map.off_x;
+    g_game_picture_rect[1] = g_map.off_y;
+    g_game_picture_rect[2] = g_map.off_x + g_map.scene_w * g_map.kx;
+    g_game_picture_rect[3] = g_map.off_y + g_map.scene_h * g_map.ky;
+    pthread_mutex_unlock(&g_game_picture_lock);
+    pthread_mutex_unlock(&g_map_lock);
+    return 1;
 }
 
 static void init_black_image(void);

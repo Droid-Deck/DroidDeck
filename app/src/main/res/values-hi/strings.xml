@@ -4080,4 +4080,6 @@
     <string name="theme_custom_error">त्रुटि</string>
     <string name="hud_only_during_game">HUD केवल गेम के दौरान दिखाएँ</string>
     <string name="hud_only_during_game_hint">गेम के फ़्रेम का पता न चलने पर HUD छिपाएँ।</string>
+    <string name="game_zoom_title">गेम ज़ूम</string>
+    <string formatted="false" name="game_zoom_hint">गेम का आवर्धन 100% से 300% तक समायोजित करें</string>
 </resources>

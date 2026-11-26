@@ -4050,4 +4050,6 @@
     <string name="theme_custom_error">Ralat</string>
     <string name="hud_only_during_game">Paparkan HUD hanya semasa bermain</string>
     <string name="hud_only_during_game_hint">Sembunyikan HUD apabila bingkai permainan tidak dikesan.</string>
+    <string name="game_zoom_title">Zum permainan</string>
+    <string name="game_zoom_hint">Laraskan pembesaran permainan daripada 100% hingga 300%</string>
 </resources>

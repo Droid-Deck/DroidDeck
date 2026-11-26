@@ -4080,4 +4080,6 @@
     <string name="theme_custom_error">Virhe</string>
     <string name="hud_only_during_game">Näytä HUD vain pelin aikana</string>
     <string name="hud_only_during_game_hint">Piilota HUD, kun pelin ruutuja ei havaita.</string>
+    <string name="game_zoom_title">Pelin zoomaus</string>
+    <string name="game_zoom_hint">Säädä pelin suurennusta välillä 100–300 %</string>
 </resources>

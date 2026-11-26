@@ -4080,4 +4080,6 @@
     <string name="theme_custom_error">Fel</string>
     <string name="hud_only_during_game">Visa HUD endast under spel</string>
     <string name="hud_only_during_game_hint">Dölj HUD när inga spelbildrutor upptäcks.</string>
+    <string name="game_zoom_title">Spelzoom</string>
+    <string name="game_zoom_hint">Justera spelförstoringen från 100 % till 300 %</string>
 </resources>

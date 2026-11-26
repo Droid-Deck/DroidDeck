@@ -4080,4 +4080,6 @@
     <string name="theme_custom_error">Hata</string>
     <string name="hud_only_during_game">HUD\'yi yalnızca oyun sırasında göster</string>
     <string name="hud_only_during_game_hint">Oyun kareleri algılanmadığında HUD\'yi gizle.</string>
+    <string name="game_zoom_title">Oyun yakınlaştırma</string>
+    <string formatted="false" name="game_zoom_hint">Oyun büyütmesini %100 ile %300 arasında ayarlayın</string>
 </resources>

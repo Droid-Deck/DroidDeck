@@ -4119,4 +4119,6 @@
     <string name="theme_custom_error">Errore</string>
     <string name="hud_only_during_game">Mostra l’HUD solo durante il gioco</string>
     <string name="hud_only_during_game_hint">Nascondi l’HUD quando non vengono rilevati fotogrammi del gioco.</string>
+    <string name="game_zoom_title">Zoom del gioco</string>
+    <string name="game_zoom_hint">Regola l\'ingrandimento del gioco dal 100% al 300%</string>
 </resources>

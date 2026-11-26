@@ -4050,4 +4050,6 @@
     <string name="theme_custom_error">Kesalahan</string>
     <string name="hud_only_during_game">Tampilkan HUD hanya saat bermain</string>
     <string name="hud_only_during_game_hint">Sembunyikan HUD saat tidak ada frame game yang terdeteksi.</string>
+    <string name="game_zoom_title">Zoom game</string>
+    <string name="game_zoom_hint">Sesuaikan pembesaran game dari 100% hingga 300%</string>
 </resources>

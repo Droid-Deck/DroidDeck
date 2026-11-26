@@ -4050,4 +4050,6 @@
     <string name="theme_custom_error">エラー</string>
     <string name="hud_only_during_game">ゲーム中のみHUDを表示</string>
     <string name="hud_only_during_game_hint">ゲームのフレームが検出されないときはHUDを非表示にする。</string>
+    <string name="game_zoom_title">ゲームズーム</string>
+    <string formatted="false" name="game_zoom_hint">ゲームの拡大率を100%から300%の範囲で調整します</string>
 </resources>

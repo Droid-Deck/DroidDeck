@@ -4240,4 +4240,6 @@
     <string name="theme_custom_error">خطأ</string>
     <string name="hud_only_during_game">عرض HUD أثناء اللعب فقط</string>
     <string name="hud_only_during_game_hint">إخفاء HUD عند عدم اكتشاف إطارات اللعبة.</string>
+    <string name="game_zoom_title">تكبير اللعبة</string>
+    <string name="game_zoom_hint">اضبط تكبير اللعبة من 100% إلى 300%</string>
 </resources>

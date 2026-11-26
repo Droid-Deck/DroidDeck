@@ -4161,4 +4161,6 @@
     <string name="theme_custom_error">Ошибка</string>
     <string name="hud_only_during_game">Показывать HUD только во время игры</string>
     <string name="hud_only_during_game_hint">Скрывать HUD, когда кадры игры не обнаруживаются.</string>
+    <string name="game_zoom_title">Масштаб игры</string>
+    <string name="game_zoom_hint">Настройте увеличение игры от 100% до 300%</string>
 </resources>

@@ -179,6 +179,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var quickButtons by mutableStateOf<Map<InputCommand, Boolean>>(emptyMap())
     private var picturePosition by mutableStateOf("center")
     private var integerScaling by mutableStateOf(false)
+    private var gameZoom by mutableStateOf(1.0f)
     private var avoidNotch = false
 
     private fun applyNotchInset(insets: android.view.WindowInsets? = window.decorView.rootWindowInsets) {
@@ -1131,6 +1132,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         isFocusableInTouchMode = true
         defaultFocusHighlightEnabled = false
         setContent {
+            androidx.compose.runtime.LaunchedEffect(SessionState.running) {
+                gameZoom = 1.0f
+                runCatching { WaylandCompositor.nativeSetZoom(1.0f) }
+            }
+
             val activeEffectsProfileId = currentScreenEffectsProfileId()
             val effectsEditorTarget = if (drawerOpen) screenEffectsTarget else null
             val effectsEditorProfileId = activeEffectsProfileId.takeIf {
@@ -1198,6 +1204,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 CursorOverlay({ cursorPos }, cursorVisible && (!cursorHidden || onlyPcKeyboardOpen()) && !bottomOutputActive,
                     resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
+
                 if (memoryHud.text.isNotEmpty()) HudText(memoryHud.text, hudColor, hudOpacity)
                 if (bottomOutputActive && !loading.visible) SwappedTopPanel()
                 val phonePanel = glassesOutputActive && !loading.visible && !drawerOpen && !pcKeyboardOpen
@@ -1563,6 +1570,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onHudReset = { hudConfig = DroidDeckHudConfig.reset(this@SessionActivity); hud.applyConfig() },
             onHudOrderReset = { hudConfig = DroidDeckHudConfig.clearOrder(this@SessionActivity); hud.applyConfig() },
             onHudExport = { exportHudDiagnostics() },
+            gameZoomAvailable = SessionState.running,
+            gameZoom = gameZoom,
+            onGameZoom = { value ->
+                gameZoom = value.coerceIn(1.0f, 3.0f)
+                runCatching { WaylandCompositor.nativeSetZoom(gameZoom) }
+            },
             integerScaling = integerScaling,
             onIntegerScaling = { enabled ->
                 SessionPrefs.setIntegerScaling(this@SessionActivity, enabled)

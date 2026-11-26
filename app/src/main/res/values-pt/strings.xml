@@ -2470,6 +2470,8 @@
     <string name="display_preserve">Manter proporções</string>
     <string name="display_stretch">Esticar para a tela</string>
     <string name="display_image_scaling">Escala de imagem</string>
+    <string name="game_zoom_hint">Ajuste a ampliação do jogo de 100% a 300%</string>
+    <string name="game_zoom_title">Zoom do jogo</string>
     <string name="display_filter">Filtro de escala</string>
     <string name="display_filter_hint">Compartilhado entre Steam e Área de trabalho.</string>
     <string name="display_filter_live">Aplicado na hora. Compartilhado entre Steam e Área de trabalho.</string>

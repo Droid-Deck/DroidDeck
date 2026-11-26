@@ -4080,4 +4080,6 @@
     <string name="theme_custom_error">Hiba</string>
     <string name="hud_only_during_game">HUD megjelenítése csak játék közben</string>
     <string name="hud_only_during_game_hint">HUD elrejtése, ha nem észlelhetők játék képkockái.</string>
+    <string name="game_zoom_title">Játék nagyítása</string>
+    <string formatted="false" name="game_zoom_hint">Állítsd be a játék nagyítását 100% és 300% között</string>
 </resources>

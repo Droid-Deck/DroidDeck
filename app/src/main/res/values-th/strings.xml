@@ -4050,4 +4050,6 @@
     <string name="theme_custom_error">ข้อผิดพลาด</string>
     <string name="hud_only_during_game">แสดง HUD เฉพาะขณะเล่นเกม</string>
     <string name="hud_only_during_game_hint">ซ่อน HUD เมื่อไม่พบเฟรมของเกม</string>
+    <string name="game_zoom_title">ซูมเกม</string>
+    <string name="game_zoom_hint">ปรับการขยายเกมตั้งแต่ 100% ถึง 300%</string>
 </resources>

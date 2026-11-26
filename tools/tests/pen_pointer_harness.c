@@ -52,6 +52,20 @@ static int vkp_output_to_scene(double ox, double oy, double *x, double *y) {
     (void)ox; (void)oy; (void)x; (void)y;
     return 0;
 }
+static int vkp_scene_to_output(double sx, double sy, double *ox, double *oy) {
+    (void)sx;
+    (void)sy;
+    (void)ox;
+    (void)oy;
+    return 0;
+}
+
+static int vkp_zoom_pan_cursor(double ox, double oy) {
+    (void)ox;
+    (void)oy;
+    return 0;
+}
+
 static struct surface *toplevel_at(double x, double y) {
     (void)y;
     return x < 1000 ? &a : &b;

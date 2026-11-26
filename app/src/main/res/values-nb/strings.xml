@@ -4080,4 +4080,6 @@
     <string name="theme_custom_error">Feil</string>
     <string name="hud_only_during_game">Vis HUD bare mens du spiller</string>
     <string name="hud_only_during_game_hint">Skjul HUD når ingen spillbilder registreres.</string>
+    <string name="game_zoom_title">Spillzoom</string>
+    <string name="game_zoom_hint">Juster spillforstørrelsen fra 100 % til 300 %</string>
 </resources>
