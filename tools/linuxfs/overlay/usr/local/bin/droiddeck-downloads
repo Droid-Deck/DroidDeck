@@ -10,7 +10,7 @@ free_name() {
 share() {
   local android=$HOME/Storage/$1 link=$HOME/$2 f
   [ -d "$android" ] && [ -w "$android" ] || return 0
-  [ "$(readlink "$link" 2>/dev/null)" = "$android" ] && return 0
+  [ "$(readlink "$link" 2>/dev/null)" = "$android" ] && [ -d "$link/." ] && return 0
   if [ -L "$link" ]; then
     rm -f "$link"
   elif [ -d "$link" ]; then
