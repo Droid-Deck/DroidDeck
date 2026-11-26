@@ -2079,6 +2079,8 @@
     <string name="bottom_chat_volume">वॉल्यूम %1$d%%</string>
     <string name="bottom_achievements_no_game">यहाँ उपलब्धियाँ देखने के लिए कोई गेम शुरू करें।</string>
     <string name="bottom_screen_off">नीचे की स्क्रीन बंद करें</string>
+    <string name="bottom_quick_on">चालू</string>
+    <string name="bottom_quick_off">बंद</string>
     <string name="bottom_page_telemetry">इन-गेम आंकड़े</string>
     <string name="bottom_hud_group">निचली स्क्रीन HUD</string>
     <string name="bottom_strip_tabs">हर टैब पर स्ट्रिप</string>

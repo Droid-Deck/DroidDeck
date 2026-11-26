@@ -2129,6 +2129,8 @@
     <string name="bottom_chat_volume">Hlasitost %1$d%%</string>
     <string name="bottom_achievements_no_game">Spusťte hru a uvidíte zde její úspěchy.</string>
     <string name="bottom_screen_off">Vypnout spodní obrazovku</string>
+    <string name="bottom_quick_on">Zapnuto</string>
+    <string name="bottom_quick_off">Vypnuto</string>
     <string name="bottom_page_telemetry">Statistiky ve hře</string>
     <string name="bottom_hud_group">HUD na spodní obrazovce</string>
     <string name="bottom_strip_tabs">Lišta na každé kartě</string>

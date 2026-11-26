@@ -2055,6 +2055,8 @@
     <string name="bottom_chat_volume">볼륨 %1$d%%</string>
     <string name="bottom_achievements_no_game">게임을 시작하면 여기에 도전 과제가 표시됩니다.</string>
     <string name="bottom_screen_off">아래 화면 끄기</string>
+    <string name="bottom_quick_on">켜짐</string>
+    <string name="bottom_quick_off">꺼짐</string>
     <string name="bottom_page_telemetry">게임 내 통계</string>
     <string name="bottom_hud_group">하단 화면 HUD</string>
     <string name="bottom_strip_tabs">모든 탭에 스트립 표시</string>

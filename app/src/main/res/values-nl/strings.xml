@@ -2079,6 +2079,8 @@
     <string name="bottom_chat_volume">Volume %1$d%%</string>
     <string name="bottom_achievements_no_game">Start een game om hier de prestaties te zien.</string>
     <string name="bottom_screen_off">Onderste scherm uitzetten</string>
+    <string name="bottom_quick_on">Aan</string>
+    <string name="bottom_quick_off">Uit</string>
     <string name="bottom_page_telemetry">In-game statistieken</string>
     <string name="bottom_hud_group">HUD op het onderste scherm</string>
     <string name="bottom_strip_tabs">Strip op elk tabblad</string>

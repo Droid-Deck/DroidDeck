@@ -2079,6 +2079,8 @@
     <string name="bottom_chat_volume">Lydstyrke %1$d%%</string>
     <string name="bottom_achievements_no_game">Start et spil for at se dets præstationer her.</string>
     <string name="bottom_screen_off">Sluk den nederste skærm</string>
+    <string name="bottom_quick_on">Til</string>
+    <string name="bottom_quick_off">Fra</string>
     <string name="bottom_page_telemetry">Statistik i spillet</string>
     <string name="bottom_hud_group">HUD på nederste skærm</string>
     <string name="bottom_strip_tabs">Stribe på alle faner</string>

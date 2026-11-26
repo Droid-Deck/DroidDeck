@@ -2130,6 +2130,8 @@
     <string name="bottom_chat_volume">Громкость %1$d%%</string>
     <string name="bottom_achievements_no_game">Запустите игру, чтобы увидеть здесь её достижения.</string>
     <string name="bottom_screen_off">Выключить нижний экран</string>
+    <string name="bottom_quick_on">Вкл.</string>
+    <string name="bottom_quick_off">Выкл.</string>
     <string name="bottom_page_telemetry">Игровая статистика</string>
     <string name="bottom_hud_group">HUD нижнего экрана</string>
     <string name="bottom_strip_tabs">Полоса на всех вкладках</string>

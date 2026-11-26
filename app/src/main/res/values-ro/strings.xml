@@ -2104,6 +2104,8 @@
     <string name="bottom_chat_volume">Volum %1$d%%</string>
     <string name="bottom_achievements_no_game">Pornește un joc ca să-i vezi realizările aici.</string>
     <string name="bottom_screen_off">Oprește ecranul de jos</string>
+    <string name="bottom_quick_on">Pornit</string>
+    <string name="bottom_quick_off">Oprit</string>
     <string name="bottom_page_telemetry">Statistici în joc</string>
     <string name="bottom_hud_group">HUD pe ecranul de jos</string>
     <string name="bottom_strip_tabs">Bandă pe fiecare filă</string>

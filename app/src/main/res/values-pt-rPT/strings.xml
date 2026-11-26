@@ -2109,6 +2109,8 @@
     <string name="bottom_chat_volume">Volume %1$d%%</string>
     <string name="bottom_achievements_no_game">Inicie um jogo para ver aqui as conquistas dele.</string>
     <string name="bottom_screen_off">Desligar o ecrã inferior</string>
+    <string name="bottom_quick_on">Ativado</string>
+    <string name="bottom_quick_off">Desativado</string>
     <string name="bottom_page_telemetry">Estatísticas no jogo</string>
     <string name="bottom_hud_group">HUD do ecrã inferior</string>
     <string name="bottom_strip_tabs">Faixa em todos os separadores</string>

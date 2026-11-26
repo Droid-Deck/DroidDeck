@@ -2055,6 +2055,8 @@
     <string name="bottom_chat_volume">Volume %1$d%%</string>
     <string name="bottom_achievements_no_game">Mulai game untuk melihat pencapaiannya di sini.</string>
     <string name="bottom_screen_off">Matikan layar bawah</string>
+    <string name="bottom_quick_on">Aktif</string>
+    <string name="bottom_quick_off">Nonaktif</string>
     <string name="bottom_page_telemetry">Statistik dalam gim</string>
     <string name="bottom_hud_group">HUD layar bawah</string>
     <string name="bottom_strip_tabs">Strip di setiap tab</string>

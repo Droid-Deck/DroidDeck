@@ -2055,6 +2055,8 @@
     <string name="bottom_chat_volume">ระดับเสียง %1$d%%</string>
     <string name="bottom_achievements_no_game">เริ่มเกมเพื่อดูความสำเร็จของเกมที่นี่</string>
     <string name="bottom_screen_off">ปิดหน้าจอล่าง</string>
+    <string name="bottom_quick_on">เปิด</string>
+    <string name="bottom_quick_off">ปิด</string>
     <string name="bottom_page_telemetry">สถิติในเกม</string>
     <string name="bottom_hud_group">HUD หน้าจอล่าง</string>
     <string name="bottom_strip_tabs">แถบในทุกแท็บ</string>

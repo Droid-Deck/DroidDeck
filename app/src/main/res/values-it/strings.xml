@@ -2095,6 +2095,8 @@
     <string name="bottom_chat_volume">Volume %1$d%%</string>
     <string name="bottom_achievements_no_game">Avvia un gioco per vederne qui gli obiettivi.</string>
     <string name="bottom_screen_off">Spegni lo schermo inferiore</string>
+    <string name="bottom_quick_on">Attivo</string>
+    <string name="bottom_quick_off">Disattivo</string>
     <string name="bottom_page_telemetry">Statistiche di gioco</string>
     <string name="bottom_hud_group">HUD dello schermo inferiore</string>
     <string name="bottom_strip_tabs">Barra su ogni scheda</string>

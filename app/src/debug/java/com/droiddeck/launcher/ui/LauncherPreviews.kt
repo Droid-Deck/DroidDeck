@@ -5,6 +5,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -69,6 +75,23 @@ private fun BottomIdle() = PreviewHost {
 
 @DroidDeckPreviews @Composable private fun BottomIdlePreview() = BottomIdle()
 
+/** The dashboard's quick tiles, with a frame limit and the HUD on. */
+@Composable
+private fun BottomQuick() = PreviewHost {
+    Column(Modifier.fillMaxSize().background(Color.Black).padding(12.dp)) {
+        QuickTileGrid(listOf(
+            QuickTile("screenshot", "Take screenshot", androidx.compose.material.icons.Icons.Filled.PhotoCamera) {},
+            QuickTile("fps", "Frame limit", androidx.compose.material.icons.Icons.Filled.Timer, "40", active = true) {},
+            QuickTile("framegen", "Frame generation", androidx.compose.material.icons.Icons.Filled.AutoAwesome, "Off") {},
+            QuickTile("hud", "Performance HUD", androidx.compose.material.icons.Icons.Filled.Speed, "On", active = true) {},
+            QuickTile("swap", "Swap screens", androidx.compose.material.icons.Icons.Filled.SwapVert) {},
+            QuickTile("screen-off", "Turn off the bottom screen", androidx.compose.material.icons.Icons.Filled.DarkMode) {},
+        ))
+    }
+}
+
+@DroidDeckPreviews @Composable private fun BottomQuickPreview() = BottomQuick()
+
 /** The Library and Stores tabs read store accounts, which load on a background thread. */
 private val storesLoaded = { com.droiddeck.launcher.stores.StoresState.accountsLoaded }
 
@@ -90,4 +113,5 @@ internal val previewCases: List<PreviewCase> = listOf(
     PreviewCase("session-menu-docked-display") { DockedMenu(SessionDrawerPage.DISPLAY) },
     PreviewCase("bottom-panel-bar") { BottomPanelBar() },
     PreviewCase("bottom-idle-home") { BottomIdle() },
+    PreviewCase("bottom-quick-tiles") { BottomQuick() },
 )

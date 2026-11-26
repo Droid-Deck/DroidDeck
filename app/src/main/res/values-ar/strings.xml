@@ -2179,6 +2179,8 @@
     <string name="bottom_chat_volume">مستوى الصوت %1$d%%</string>
     <string name="bottom_achievements_no_game">ابدأ لعبة لترى إنجازاتها هنا.</string>
     <string name="bottom_screen_off">أطفئ الشاشة السفلية</string>
+    <string name="bottom_quick_on">تشغيل</string>
+    <string name="bottom_quick_off">إيقاف</string>
     <string name="bottom_page_telemetry">إحصاءات داخل اللعبة</string>
     <string name="bottom_hud_group">مؤشرات الشاشة السفلية</string>
     <string name="bottom_strip_tabs">شريط على كل تبويب</string>

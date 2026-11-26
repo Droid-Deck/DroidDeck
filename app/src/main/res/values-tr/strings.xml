@@ -2071,6 +2071,8 @@
     <string name="bottom_chat_volume">Ses düzeyi %1$d%%</string>
     <string name="bottom_achievements_no_game">Başarımlarını burada görmek için bir oyun başlatın.</string>
     <string name="bottom_screen_off">Alt ekranı kapat</string>
+    <string name="bottom_quick_on">Açık</string>
+    <string name="bottom_quick_off">Kapalı</string>
     <string name="bottom_page_telemetry">Oyun içi istatistikler</string>
     <string name="bottom_hud_group">Alt ekrandaki HUD</string>
     <string name="bottom_strip_tabs">Her sekmede şerit</string>

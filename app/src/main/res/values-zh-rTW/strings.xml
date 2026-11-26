@@ -2054,6 +2054,8 @@
     <string name="bottom_chat_volume">音量 %1$d%%</string>
     <string name="bottom_achievements_no_game">啟動遊戲後，這裡會顯示它的成就。</string>
     <string name="bottom_screen_off">關閉下螢幕</string>
+    <string name="bottom_quick_on">開</string>
+    <string name="bottom_quick_off">關</string>
     <string name="bottom_page_telemetry">遊戲內數據</string>
     <string name="bottom_hud_group">下螢幕 HUD</string>
     <string name="bottom_strip_tabs">在每個分頁顯示資訊列</string>

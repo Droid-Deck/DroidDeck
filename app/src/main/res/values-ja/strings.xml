@@ -2055,6 +2055,8 @@
     <string name="bottom_chat_volume">音量 %1$d%%</string>
     <string name="bottom_achievements_no_game">ゲームを起動すると、ここに実績が表示されます。</string>
     <string name="bottom_screen_off">下の画面をオフにする</string>
+    <string name="bottom_quick_on">オン</string>
+    <string name="bottom_quick_off">オフ</string>
     <string name="bottom_page_telemetry">ゲーム内統計</string>
     <string name="bottom_hud_group">下部画面の HUD</string>
     <string name="bottom_strip_tabs">すべてのタブにストリップを表示</string>

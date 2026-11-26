@@ -2055,6 +2055,8 @@
     <string name="bottom_chat_volume">Âm lượng %1$d%%</string>
     <string name="bottom_achievements_no_game">Hãy mở một trò chơi để xem thành tựu tại đây.</string>
     <string name="bottom_screen_off">Tắt màn hình dưới</string>
+    <string name="bottom_quick_on">Bật</string>
+    <string name="bottom_quick_off">Tắt</string>
     <string name="bottom_page_telemetry">Thông số trong game</string>
     <string name="bottom_hud_group">HUD màn hình dưới</string>
     <string name="bottom_strip_tabs">Thanh trên mọi tab</string>

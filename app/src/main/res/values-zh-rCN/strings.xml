@@ -2132,6 +2132,8 @@
     <string name="bottom_chat_volume">音量 %1$d%%</string>
     <string name="bottom_achievements_no_game">启动游戏后，这里会显示它的成就。</string>
     <string name="bottom_screen_off">关闭下屏</string>
+    <string name="bottom_quick_on">开</string>
+    <string name="bottom_quick_off">关</string>
     <string name="bottom_page_telemetry">游戏内数据</string>
     <string name="bottom_hud_group">下屏 HUD</string>
     <string name="bottom_strip_tabs">所有页签显示横条</string>

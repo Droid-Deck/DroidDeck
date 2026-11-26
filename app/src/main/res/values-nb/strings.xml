@@ -2079,6 +2079,8 @@
     <string name="bottom_chat_volume">Volum %1$d%%</string>
     <string name="bottom_achievements_no_game">Start et spill for å se prestasjonene her.</string>
     <string name="bottom_screen_off">Slå av den nederste skjermen</string>
+    <string name="bottom_quick_on">På</string>
+    <string name="bottom_quick_off">Av</string>
     <string name="bottom_page_telemetry">Statistikk i spillet</string>
     <string name="bottom_hud_group">HUD på bunnskjermen</string>
     <string name="bottom_strip_tabs">Stripe på hver fane</string>

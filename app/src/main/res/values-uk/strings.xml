@@ -2129,6 +2129,8 @@
     <string name="bottom_chat_volume">Гучність %1$d%%</string>
     <string name="bottom_achievements_no_game">Запустіть гру, щоб побачити тут її досягнення.</string>
     <string name="bottom_screen_off">Вимкнути нижній екран</string>
+    <string name="bottom_quick_on">Увімк.</string>
+    <string name="bottom_quick_off">Вимк.</string>
     <string name="bottom_page_telemetry">Ігрова статистика</string>
     <string name="bottom_hud_group">HUD на нижньому екрані</string>
     <string name="bottom_strip_tabs">Смуга на кожній вкладці</string>

@@ -2079,6 +2079,8 @@
     <string name="bottom_chat_volume">Hangerő %1$d%%</string>
     <string name="bottom_achievements_no_game">Indíts el egy játékot, hogy itt lásd a teljesítményeit.</string>
     <string name="bottom_screen_off">Alsó képernyő kikapcsolása</string>
+    <string name="bottom_quick_on">Be</string>
+    <string name="bottom_quick_off">Ki</string>
     <string name="bottom_page_telemetry">Játékon belüli statisztikák</string>
     <string name="bottom_hud_group">HUD az alsó képernyőn</string>
     <string name="bottom_strip_tabs">Sáv minden lapon</string>

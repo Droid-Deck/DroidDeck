@@ -2079,6 +2079,8 @@
     <string name="bottom_chat_volume">Сила на звука %1$d%%</string>
     <string name="bottom_achievements_no_game">Пуснете игра, за да видите постиженията ѝ тук.</string>
     <string name="bottom_screen_off">Изключи долния екран</string>
+    <string name="bottom_quick_on">Вкл.</string>
+    <string name="bottom_quick_off">Изкл.</string>
     <string name="bottom_page_telemetry">Статистика в играта</string>
     <string name="bottom_hud_group">HUD на долния екран</string>
     <string name="bottom_strip_tabs">Лента на всеки раздел</string>

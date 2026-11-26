@@ -2129,6 +2129,8 @@
     <string name="bottom_chat_volume">Głośność %1$d%%</string>
     <string name="bottom_achievements_no_game">Uruchom grę, aby zobaczyć tu jej osiągnięcia.</string>
     <string name="bottom_screen_off">Wyłącz dolny ekran</string>
+    <string name="bottom_quick_on">Wł.</string>
+    <string name="bottom_quick_off">Wył.</string>
     <string name="bottom_page_telemetry">Statystyki w grze</string>
     <string name="bottom_hud_group">HUD dolnego ekranu</string>
     <string name="bottom_strip_tabs">Pasek na każdej karcie</string>

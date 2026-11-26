@@ -2055,6 +2055,8 @@
     <string name="bottom_chat_volume">Kelantangan %1$d%%</string>
     <string name="bottom_achievements_no_game">Mulakan permainan untuk melihat pencapaiannya di sini.</string>
     <string name="bottom_screen_off">Matikan skrin bawah</string>
+    <string name="bottom_quick_on">Hidup</string>
+    <string name="bottom_quick_off">Mati</string>
     <string name="bottom_page_telemetry">Statistik dalam permainan</string>
     <string name="bottom_hud_group">HUD skrin bawah</string>
     <string name="bottom_strip_tabs">Jalur pada setiap tab</string>

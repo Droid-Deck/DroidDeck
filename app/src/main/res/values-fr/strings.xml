@@ -2103,6 +2103,8 @@
     <string name="bottom_chat_volume">Volume %1$d %%</string>
     <string name="bottom_achievements_no_game">Lancez un jeu pour voir ses succès ici.</string>
     <string name="bottom_screen_off">Éteindre l’écran du bas</string>
+    <string name="bottom_quick_on">Activé</string>
+    <string name="bottom_quick_off">Désactivé</string>
     <string name="bottom_page_telemetry">Statistiques en jeu</string>
     <string name="bottom_hud_group">HUD de l\'écran du bas</string>
     <string name="bottom_strip_tabs">Bande sur tous les onglets</string>

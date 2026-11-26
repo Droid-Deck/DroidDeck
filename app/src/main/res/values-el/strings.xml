@@ -2079,6 +2079,8 @@
     <string name="bottom_chat_volume">Ένταση %1$d%%</string>
     <string name="bottom_achievements_no_game">Ξεκινήστε ένα παιχνίδι για να δείτε εδώ τα επιτεύγματά του.</string>
     <string name="bottom_screen_off">Απενεργοποίηση κάτω οθόνης</string>
+    <string name="bottom_quick_on">Ενεργό</string>
+    <string name="bottom_quick_off">Ανενεργό</string>
     <string name="bottom_page_telemetry">Στατιστικά παιχνιδιού</string>
     <string name="bottom_hud_group">HUD κάτω οθόνης</string>
     <string name="bottom_strip_tabs">Λωρίδα σε κάθε καρτέλα</string>

@@ -1485,7 +1485,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         effectsEditorTarget: String?,
     ) {
         SessionDrawer(drawerOpen || (docked && drawerPinned), drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, docked = docked,
-            backRequest = drawerBackRequests, onLayerChange = { drawerLayerOpen = it }, a = DrawerActions(
+            backRequest = drawerBackRequests, onLayerChange = { drawerLayerOpen = it }, a = latestDrawerActions(DrawerActions(
             steam = SessionState.mode == SessionService.MODE_STEAM,
             desktop = SessionState.mode == SessionService.MODE_DESKTOP,
             systemPowerVr = com.droiddeck.launcher.gpu.SystemVulkanDriver.usesDefault(
@@ -1984,8 +1984,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             defaultProtonId = drawerDefaultProton,
             onDefaultProton = ::chooseDrawerDefaultProton,
             onGameProton = ::setDrawerGameProton,
-        ))
+        )))
     }
+
+    private var drawerActions: DrawerActions? = null
+
+    private fun latestDrawerActions(actions: DrawerActions): DrawerActions = actions.also { drawerActions = it }
 
     private fun refreshHomeApp() {
         isHomeApp = HomeApp.isDefault(this)
@@ -4644,6 +4648,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         takeScreenshot = ::captureScreenshot,
         fps = { if (::hud.isInitialized) hud.liveFps else null },
         runningGame = { gestureGame },
+        quick = { drawerActions },
+        screenOff = { secondScreenPresentation?.screenOff() },
     ))
 
     private fun captureScreenshot(onDone: (Boolean) -> Unit) = copyGameFrame { bitmap ->

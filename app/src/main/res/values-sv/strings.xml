@@ -2079,6 +2079,8 @@
     <string name="bottom_chat_volume">Volym %1$d%%</string>
     <string name="bottom_achievements_no_game">Starta ett spel för att se dess prestationer här.</string>
     <string name="bottom_screen_off">Stäng av den nedre skärmen</string>
+    <string name="bottom_quick_on">På</string>
+    <string name="bottom_quick_off">Av</string>
     <string name="bottom_page_telemetry">Statistik i spelet</string>
     <string name="bottom_hud_group">HUD på nedre skärmen</string>
     <string name="bottom_strip_tabs">Remsa på varje flik</string>
