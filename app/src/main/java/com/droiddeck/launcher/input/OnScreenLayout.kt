@@ -155,7 +155,7 @@ object OnScreenLayout {
                                 val aw = a.width * factor
                                 val bw = b.width * factor
                                 val total = aw + gapX + bw
-                                val center = ((centerAX + centerBX) / 2f).coerceIn(leftBound + total / 2f, rightBound - total / 2f)
+                                val center = ((centerAX + centerBX) / 2f).coerceIn(leftBound + total / 2f, (rightBound - total / 2f).coerceAtLeast(leftBound + total / 2f))
                                 val leftFirst = centerAX <= centerBX
                                 scaled[i] = a.copy(x = if (leftFirst) center - total / 2f else center + total / 2f - aw, width = aw)
                                 scaled[j] = b.copy(x = if (leftFirst) center - total / 2f + aw + gapX else center - total / 2f, width = bw)
@@ -177,7 +177,7 @@ object OnScreenLayout {
                                 val ah = a.height * factor
                                 val bh = b.height * factor
                                 val total = ah + gapY + bh
-                                val center = ((centerAY + centerBY) / 2f).coerceIn(topBound + total / 2f, bottomBound - total / 2f)
+                                val center = ((centerAY + centerBY) / 2f).coerceIn(topBound + total / 2f, (bottomBound - total / 2f).coerceAtLeast(topBound + total / 2f))
                                 val topFirst = centerAY <= centerBY
                                 scaled[i] = a.copy(y = if (topFirst) center - total / 2f else center + total / 2f - ah, height = ah)
                                 scaled[j] = b.copy(y = if (topFirst) center - total / 2f + ah + gapY else center - total / 2f, height = bh)
