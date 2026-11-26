@@ -142,6 +142,28 @@ object SessionPrefs {
 
     private fun secondScreenPanelKey(desktop: Boolean) = if (desktop) "secondScreenPanel.desktop" else "secondScreenPanel.game"
 
+    fun gameSecondScreenPanel(context: Context, game: String): String? = prefs(context).getString("secondScreenPanel.app.$game", null)
+
+    fun setGameSecondScreenPanel(context: Context, game: String, mode: String) {
+        prefs(context).edit().putString("secondScreenPanel.app.$game", mode).apply()
+    }
+
+    fun gameBottomPage(context: Context, game: String): String? = prefs(context).getString("bottomPage.app.$game", null)
+
+    fun setGameBottomPage(context: Context, game: String, page: String) {
+        prefs(context).edit().putString("bottomPage.app.$game", page).apply()
+    }
+
+    fun bottomAutoDim(context: Context): Boolean = prefs(context).getBoolean("bottomAutoDim", true)
+
+    fun setBottomAutoDim(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bottomAutoDim", on).apply()
+    }
+
+    fun clearGameBottomScreen(context: Context, game: String) {
+        prefs(context).edit().remove("secondScreenPanel.app.$game").remove("bottomPage.app.$game").apply()
+    }
+
     /** The bottom-screen desktop takes touch as a trackpad unless the user switched it to direct touch. */
     fun bottomDesktopDirectTouch(context: Context): Boolean = prefs(context).getBoolean("bottomDesktopDirectTouch", false)
 

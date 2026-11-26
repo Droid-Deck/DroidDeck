@@ -28,6 +28,11 @@ class BottomDashboardTest {
         assertEquals("telemetry", pageForGameStart(listOf("telemetry", "downloads", "chat")))
         assertNull(pageForGameStart(listOf("downloads", "chat")))
     }
+
+    @Test fun aGameStartShowsThePageLastPickedForThatGame() {
+        assertEquals("chat", pageForGameStart(listOf("telemetry", "downloads", "chat"), "chat"))
+        assertEquals("telemetry", pageForGameStart(listOf("telemetry", "downloads"), "chat"))
+    }
 }
 
 class BottomDownloadsRateTest {

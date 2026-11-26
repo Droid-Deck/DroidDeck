@@ -2149,6 +2149,12 @@
     <string name="stats_hud_red_mark">العلامة الحمراء هي النقطة التي تُظهر فيها المؤشرات درجة الحرارة باللون الأحمر.</string>
     <string name="stats_hud_whole_device">الجهاز بالكامل</string>
     <string name="stats_hud_battery_temp">البطارية</string>
+    <string name="bottom_idle_selected">محدد في Steam</string>
+    <string name="bottom_idle_recent">آخر ما لُعب</string>
+    <string name="bottom_idle_play">العب</string>
+    <string name="bottom_idle_never">لم يُلعب بعد</string>
+    <string name="bottom_idle_minutes">%1$d دقيقة لعب</string>
+    <string name="bottom_idle_hours">%1$d ساعة لعب</string>
     <string name="bottom_telemetry_send_title">إرسال بيانات لوحة العدادات</string>
     <string name="bottom_telemetry_send_auto">تلقائي</string>
     <string name="bottom_telemetry_send_auto_hint">يفعّلها لكل لعبة مدرجة هنا، بما في ذلك الألعاب التي يُعثر عليها لاحقًا. تبقى الألعاب التي توقفها متوقفة.</string>
@@ -2171,6 +2177,8 @@
     <string name="bottom_chat_mic_off">الميكروفون متوقف</string>
     <string name="bottom_chat_mic_unavailable">الميكروفون متوقف لهذه اللعبة. للتحدث، فعِّل «الميكروفون» في إعدادات Steam في DroidDeck (الصوت) وابدأ اللعبة من جديد.</string>
     <string name="bottom_chat_volume">مستوى الصوت %1$d%%</string>
+    <string name="bottom_achievements_no_game">ابدأ لعبة لترى إنجازاتها هنا.</string>
+    <string name="bottom_screen_off">أطفئ الشاشة السفلية</string>
     <string name="bottom_page_telemetry">إحصاءات داخل اللعبة</string>
     <string name="bottom_hud_group">مؤشرات الشاشة السفلية</string>
     <string name="bottom_strip_tabs">شريط على كل تبويب</string>

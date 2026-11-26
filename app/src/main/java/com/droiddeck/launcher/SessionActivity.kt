@@ -1311,6 +1311,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         if (nextGame != null) gameStarts++
                         gestureGame = nextGame
                         refreshGestureConfig()
+                        restoreGamePanel(nextGame)
                     }
                     if (
                         SessionState.mode == SessionService.MODE_STEAM &&
@@ -4552,8 +4553,27 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         typingReturnMode = null
         automaticPanel = false
         SessionState.bottomMenu = false
-        if (mode != SecondScreenMode.NONE) SessionPrefs.setSecondScreenPanel(this, desktopSession, mode.id)
+        if (mode != SecondScreenMode.NONE) {
+            SessionPrefs.setSecondScreenPanel(this, desktopSession, mode.id)
+            gestureGame?.let { SessionPrefs.setGameSecondScreenPanel(this, it, mode.id) }
+            gamePanelApplied = gestureGame != null
+        }
         selectSecondScreenMode(mode)
+    }
+
+    private var gamePanelApplied = false
+
+    private fun restoreGamePanel(game: String?) {
+        if (secondScreenMode == SecondScreenMode.NONE || typingReturnMode != null || menuShownOnBottom() || pipUi) return
+        val remembered = game?.let { SessionPrefs.gameSecondScreenPanel(this, it) }
+        val wanted = when {
+            remembered != null -> SecondScreenMode.opening(remembered, SessionState.deckPad, bottomPages().isNotEmpty(),
+                com.droiddeck.launcher.session.BottomDesktop.available())
+            gamePanelApplied -> openingPanel()
+            else -> return
+        }
+        gamePanelApplied = remembered != null
+        if (wanted != SecondScreenMode.MENU && wanted != secondScreenMode) selectSecondScreenMode(wanted)
     }
 
     private fun bottomScreenPicker(mode: SecondScreenMode) = com.droiddeck.launcher.ui.ScreenPicker(
@@ -4607,7 +4627,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 BottomDashboard(
                     bottomPages(), com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
                     gameStarts = gameStarts,
-                    onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
+                    gamePage = { gestureGame?.let { SessionPrefs.gameBottomPage(this@SessionActivity, it) } },
+                    onPage = {
+                        com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it)
+                        gestureGame?.let { game -> SessionPrefs.setGameBottomPage(this@SessionActivity, game, it) }
+                    },
                     strip = { pageId ->
                         com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }
                     },
@@ -6632,7 +6656,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 else -> BottomDashboard(
                     pages, com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
                     gameStarts = gameStarts,
-                    onPage = { com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it) },
+                    gamePage = { gestureGame?.let { SessionPrefs.gameBottomPage(this@SessionActivity, it) } },
+                    onPage = {
+                        com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it)
+                        gestureGame?.let { game -> SessionPrefs.setGameBottomPage(this@SessionActivity, game, it) }
+                    },
                     bar = bar(getString(R.string.second_mode_dashboard)),
                     strip = { pageId ->
                         com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }

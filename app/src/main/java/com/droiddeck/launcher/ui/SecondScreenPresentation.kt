@@ -15,6 +15,8 @@ import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
@@ -80,6 +82,7 @@ class SecondScreenPresentation(
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         frame.addView(root, FrameLayout.LayoutParams(-1, -1))
+        frame.addView(sleepView, FrameLayout.LayoutParams(-1, -1))
         setContentView(frame)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             root.setOnApplyWindowInsetsListener { view, insets ->
@@ -232,8 +235,40 @@ class SecondScreenPresentation(
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (screen != BottomScreenLight.ON) {
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) wake()
+            return true
+        }
+        scheduleDim()
         if (menuShown && event.actionMasked == MotionEvent.ACTION_DOWN) onMenuTouched()
         return super.dispatchTouchEvent(event)
+    }
+
+    private val sleepView = View(context).apply {
+        setBackgroundColor(Color.BLACK)
+        visibility = View.GONE
+    }
+    private var screen = BottomScreenLight.ON
+    private val dim = Runnable { if (screen == BottomScreenLight.ON) light(BottomScreenLight.DIM) }
+
+    fun screenOff() = light(BottomScreenLight.OFF)
+
+    fun wake() {
+        light(BottomScreenLight.ON)
+        scheduleDim()
+    }
+
+    private fun light(state: BottomScreenLight) {
+        screen = state
+        sleepView.visibility = if (state == BottomScreenLight.OFF) View.VISIBLE else View.GONE
+        sleepView.alpha = 1f
+        val w = window ?: return
+        w.attributes = w.attributes.apply { screenBrightness = state.brightness }
+    }
+
+    private fun scheduleDim() {
+        frame.removeCallbacks(dim)
+        if (BottomScreenLight.autoDims(currentMode) && SessionPrefs.bottomAutoDim(context)) frame.postDelayed(dim, BottomScreenLight.DIM_AFTER_MS)
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
@@ -266,6 +301,7 @@ class SecondScreenPresentation(
     }
 
     private fun renderMode() {
+        if (created) wake()
         dropChat()
         fieldKeyboard = false
         keyboardHost?.hide()
@@ -318,17 +354,19 @@ class SecondScreenPresentation(
     }
 
     internal fun barModel(mode: SecondScreenMode): BottomBarModel? {
-        val swap = listOfNotNull(onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, tag = "bottom-swap", onClick = it) })
+        val extras = listOfNotNull(onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, tag = "bottom-swap", onClick = it) }) +
+            BarExtra(context.getString(R.string.bottom_screen_off), vector = Icons.Filled.DarkMode,
+                tag = "bottom-screen-off", onClick = ::screenOff)
         fun model(extras: List<BarExtra>, tabs: BarTabs? = null) =
             sessionBarModel(context.getString(mode.label), onClose, onMenu, onSteamMenu, onQam, extras, tabs, picker?.invoke(mode))
         return when (mode) {
             SecondScreenMode.KEYBOARD_TRACKPAD -> model(listOf(BarExtra(
                 context.getString(if (keyboardShown.value) R.string.second_hide_keyboard else R.string.second_show_keyboard),
-                icon = R.drawable.ic_bottom_keyboard, active = keyboardShown.value, tag = "bottom-keyboard") { showKeyboard() }) + swap)
-            SecondScreenMode.DECK_CONTROLS -> model(swap, deckPanelTabs(context, deckPanel.value, ::selectDeckPanel))
-            SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS -> model(swap)
+                icon = R.drawable.ic_bottom_keyboard, active = keyboardShown.value, tag = "bottom-keyboard") { showKeyboard() }) + extras)
+            SecondScreenMode.DECK_CONTROLS -> model(extras, deckPanelTabs(context, deckPanel.value, ::selectDeckPanel))
+            SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS -> model(extras)
             SecondScreenMode.TERMINAL -> model(listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard,
-                tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }) + swap)
+                tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }) + extras)
             else -> null
         }
     }
@@ -395,4 +433,15 @@ class SecondScreenPresentation(
 @androidx.compose.runtime.Composable
 private fun PresentationWindows(content: @androidx.compose.runtime.Composable () -> Unit) {
     androidx.compose.runtime.CompositionLocalProvider(LocalPresentationWindow provides true) { content() }
+}
+
+internal enum class BottomScreenLight(val brightness: Float) {
+    ON(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE),
+    DIM(0.05f),
+    OFF(WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF);
+
+    companion object {
+        const val DIM_AFTER_MS = 60_000L
+        fun autoDims(mode: SecondScreenMode) = mode == SecondScreenMode.DASHBOARD
+    }
 }

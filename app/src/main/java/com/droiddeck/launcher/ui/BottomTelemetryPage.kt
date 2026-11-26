@@ -297,6 +297,7 @@ fun BottomTelemetryPage(fps: () -> Float?, runningGame: () -> String? = { null }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val viewport = maxHeight
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (running == null && steamClient != null) BottomIdleHome()
             if (!hudOn) Unit
             else if (noData) hudTick.let {
                 perfTick.let {

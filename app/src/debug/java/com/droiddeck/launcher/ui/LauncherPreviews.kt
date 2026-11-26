@@ -3,6 +3,8 @@ package com.droiddeck.launcher.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,6 +59,16 @@ private fun BottomPanelBar() = PreviewHost {
 @DroidDeckPreviews @Composable private fun SessionMenuDockedDisplayPreview() = DockedMenu(SessionDrawerPage.DISPLAY)
 @DroidDeckPreviews @Composable private fun BottomPanelBarPreview() = BottomPanelBar()
 
+/** The dashboard's stats page with no game running: the game highlighted in Steam. */
+@Composable
+private fun BottomIdle() = PreviewHost {
+    Column(Modifier.fillMaxSize().background(Color.Black).padding(12.dp)) {
+        IdleHomeCard(IdleGame(1145360, "Hades", null, 2843, System.currentTimeMillis() / 1000 - 2 * 86_400, highlighted = true)) {}
+    }
+}
+
+@DroidDeckPreviews @Composable private fun BottomIdlePreview() = BottomIdle()
+
 /** The Library and Stores tabs read store accounts, which load on a background thread. */
 private val storesLoaded = { com.droiddeck.launcher.stores.StoresState.accountsLoaded }
 
@@ -77,4 +89,5 @@ internal val previewCases: List<PreviewCase> = listOf(
     PreviewCase("session-menu-docked") { DockedMenu(SessionDrawerPage.CONTROLLER) },
     PreviewCase("session-menu-docked-display") { DockedMenu(SessionDrawerPage.DISPLAY) },
     PreviewCase("bottom-panel-bar") { BottomPanelBar() },
+    PreviewCase("bottom-idle-home") { BottomIdle() },
 )

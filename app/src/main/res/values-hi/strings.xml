@@ -2049,6 +2049,12 @@
     <string name="stats_hud_red_mark">लाल निशान वह बिंदु है जहाँ HUD तापमान को लाल रंग में दिखाता है।</string>
     <string name="stats_hud_whole_device">पूरा डिवाइस</string>
     <string name="stats_hud_battery_temp">बैटरी</string>
+    <string name="bottom_idle_selected">Steam में चुना गया</string>
+    <string name="bottom_idle_recent">पिछली बार खेला</string>
+    <string name="bottom_idle_play">खेलें</string>
+    <string name="bottom_idle_never">अभी तक नहीं खेला</string>
+    <string name="bottom_idle_minutes">%1$d मिनट खेला</string>
+    <string name="bottom_idle_hours">%1$d घंटे खेला</string>
     <string name="bottom_telemetry_send_title">डैशबोर्ड डेटा भेजें</string>
     <string name="bottom_telemetry_send_auto">ऑटोमैटिक</string>
     <string name="bottom_telemetry_send_auto_hint">यहां दिए हर गेम के लिए इसे चालू करता है, बाद में मिलने वाले गेम भी शामिल हैं। जिन गेम को आप बंद करते हैं, वे बंद ही रहते हैं।</string>
@@ -2071,6 +2077,8 @@
     <string name="bottom_chat_mic_off">माइक बंद</string>
     <string name="bottom_chat_mic_unavailable">इस गेम के लिए माइक बंद है। बात करने के लिए DroidDeck की Steam सेटिंग (ऑडियो) में माइक्रोफ़ोन चालू करें और गेम फिर से शुरू करें।</string>
     <string name="bottom_chat_volume">वॉल्यूम %1$d%%</string>
+    <string name="bottom_achievements_no_game">यहाँ उपलब्धियाँ देखने के लिए कोई गेम शुरू करें।</string>
+    <string name="bottom_screen_off">नीचे की स्क्रीन बंद करें</string>
     <string name="bottom_page_telemetry">इन-गेम आंकड़े</string>
     <string name="bottom_hud_group">निचली स्क्रीन HUD</string>
     <string name="bottom_strip_tabs">हर टैब पर स्ट्रिप</string>

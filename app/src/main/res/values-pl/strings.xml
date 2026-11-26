@@ -2099,6 +2099,12 @@
     <string name="stats_hud_red_mark">Czerwony znacznik wskazuje temperaturę, od której HUD wyświetla ją na czerwono.</string>
     <string name="stats_hud_whole_device">całe urządzenie</string>
     <string name="stats_hud_battery_temp">bateria</string>
+    <string name="bottom_idle_selected">Wybrano w Steam</string>
+    <string name="bottom_idle_recent">Ostatnio grane</string>
+    <string name="bottom_idle_play">Graj</string>
+    <string name="bottom_idle_never">Jeszcze nie grano</string>
+    <string name="bottom_idle_minutes">%1$d min gry</string>
+    <string name="bottom_idle_hours">%1$d godz. gry</string>
     <string name="bottom_telemetry_send_title">Wysyłaj dane do panelu</string>
     <string name="bottom_telemetry_send_auto">Automatycznie</string>
     <string name="bottom_telemetry_send_auto_hint">Włącza wysyłanie dla każdej gry z tej listy, także dla gier znalezionych później. Gry, które wyłączysz, pozostaną wyłączone.</string>
@@ -2121,6 +2127,8 @@
     <string name="bottom_chat_mic_off">Mikrofon wył.</string>
     <string name="bottom_chat_mic_unavailable">Mikrofon jest wyłączony dla tej gry. Aby rozmawiać, włącz Mikrofon w ustawieniach Steam w DroidDeck (Dźwięk) i uruchom grę ponownie.</string>
     <string name="bottom_chat_volume">Głośność %1$d%%</string>
+    <string name="bottom_achievements_no_game">Uruchom grę, aby zobaczyć tu jej osiągnięcia.</string>
+    <string name="bottom_screen_off">Wyłącz dolny ekran</string>
     <string name="bottom_page_telemetry">Statystyki w grze</string>
     <string name="bottom_hud_group">HUD dolnego ekranu</string>
     <string name="bottom_strip_tabs">Pasek na każdej karcie</string>

@@ -90,13 +90,13 @@ class SecondScreenBarTest {
             assertEquals(context.getString(R.string.second_mode_keyboard_trackpad), bar.title)
             assertNotNull(bar.onClose); assertNotNull(bar.onMenu); assertNotNull(bar.onSteam); assertNotNull(bar.onQam)
             assertNull(bar.tabs)
-            assertEquals(listOf("bottom-keyboard", "bottom-swap"), bar.extras.map { it.tag })
+            assertEquals(listOf("bottom-keyboard", "bottom-swap", "bottom-screen-off"), bar.extras.map { it.tag })
             val keyboard = bar.extras.first()
             assertEquals(context.getString(R.string.second_show_keyboard), keyboard.description)
             assertFalse(keyboard.active)
-            bar.extras.last().onClick()
+            bar.extras.first { it.tag == "bottom-swap" }.onClick()
             assertEquals(1, swaps)
-            assertEquals(listOf("bottom-keyboard", "bottom-swap"), panel.barModel(SecondScreenMode.TERMINAL)!!.extras.map { it.tag })
+            assertEquals(listOf("bottom-keyboard", "bottom-swap", "bottom-screen-off"), panel.barModel(SecondScreenMode.TERMINAL)!!.extras.map { it.tag })
             ReflectionHelpers.getField<MutableState<Boolean>>(panel, "keyboardShown").value = true
             val shown = panel.barModel(SecondScreenMode.KEYBOARD_TRACKPAD)!!.extras.first()
             assertEquals(context.getString(R.string.second_hide_keyboard), shown.description)
@@ -115,17 +115,17 @@ class SecondScreenBarTest {
             assertTrue(rootChildren(panel)[0] is ComposeView)
             val bar = panel.barModel(SecondScreenMode.DECK_CONTROLS)!!
             assertEquals(context.getString(R.string.second_mode_deck_controls), bar.title)
-            assertEquals(listOf(context.getString(R.string.swap_screens)), bar.extras.map { it.description })
-            bar.extras.single().onClick()
+            assertEquals(listOf(context.getString(R.string.swap_screens), context.getString(R.string.bottom_screen_off)), bar.extras.map { it.description })
+            bar.extras.first { it.tag == "bottom-swap" }.onClick()
             assertEquals(1, swaps)
             assertEquals(DeckPanel.entries.map { context.getString(it.label) }, bar.tabs!!.labels)
             assertEquals(DeckPanel.BOTH.ordinal, bar.tabs!!.selected)
             panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
             val profile = panel.barModel(SecondScreenMode.CUSTOM_CONTROLS)!!
             assertEquals(context.getString(R.string.input_profile_controls_mode), profile.title)
-            assertEquals(listOf(context.getString(R.string.swap_screens)), profile.extras.map { it.description })
+            assertEquals(listOf(context.getString(R.string.swap_screens), context.getString(R.string.bottom_screen_off)), profile.extras.map { it.description })
             assertNotNull(profile.onClose); assertNotNull(profile.onMenu)
-            profile.extras.single().onClick()
+            profile.extras.first { it.tag == "bottom-swap" }.onClick()
             assertEquals(2, swaps)
             assertTrue(rootChildren(panel)[0] is ComposeView)
             assertTrue(rootChildren(panel)[1] is InputSurfaceView)
@@ -134,9 +134,9 @@ class SecondScreenBarTest {
         try {
             noSwap.show()
             noSwap.showMode(SecondScreenMode.DECK_CONTROLS)
-            assertTrue(noSwap.barModel(SecondScreenMode.DECK_CONTROLS)!!.extras.isEmpty())
-            assertEquals(listOf("bottom-keyboard"), noSwap.barModel(SecondScreenMode.TERMINAL)!!.extras.map { it.tag })
-            assertEquals(listOf("bottom-keyboard"), noSwap.barModel(SecondScreenMode.KEYBOARD_TRACKPAD)!!.extras.map { it.tag })
+            assertEquals(listOf("bottom-screen-off"), noSwap.barModel(SecondScreenMode.DECK_CONTROLS)!!.extras.map { it.tag })
+            assertEquals(listOf("bottom-keyboard", "bottom-screen-off"), noSwap.barModel(SecondScreenMode.TERMINAL)!!.extras.map { it.tag })
+            assertEquals(listOf("bottom-keyboard", "bottom-screen-off"), noSwap.barModel(SecondScreenMode.KEYBOARD_TRACKPAD)!!.extras.map { it.tag })
         } finally { noSwap.closeControls() }
     }
 

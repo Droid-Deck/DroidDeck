@@ -2319,6 +2319,13 @@
     <string name="stats_hud_red_mark">The red mark is where the HUD shows the temperature in red.</string>
     <string name="stats_hud_whole_device">whole device</string>
     <string name="stats_hud_battery_temp">battery</string>
+    <string name="bottom_idle_selected">Selected in Steam</string>
+    <string name="bottom_idle_recent">Last played</string>
+    <string name="bottom_idle_play">Play</string>
+    <string name="bottom_idle_never">Not played yet</string>
+    <string name="bottom_idle_minutes">%1$d min played</string>
+    <string name="bottom_idle_hours">%1$d h played</string>
+    <string name="bottom_idle_details" translatable="false">%1$s · %2$s</string>
     <string name="bottom_telemetry_send_title">Send dashboard data</string>
     <string name="bottom_telemetry_send_auto">Automatic</string>
     <string name="bottom_telemetry_send_auto_hint">Turns it on for every game listed here, including games found later. Games you switch off stay off.</string>
@@ -2341,6 +2348,8 @@
     <string name="bottom_chat_mic_off">Mic off</string>
     <string name="bottom_chat_mic_unavailable">Mic is off for this game. To talk, turn on Microphone in DroidDeck\'s Steam settings (Audio) and start the game again.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
+    <string name="bottom_achievements_no_game">Start a game to see its achievements here.</string>
+    <string name="bottom_screen_off">Turn off the bottom screen</string>
     <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_hud_group">Bottom screen HUD</string>
     <string name="bottom_strip_tabs">Strip on every tab</string>

@@ -2025,6 +2025,12 @@
     <string name="stats_hud_red_mark">赤いマークは、HUD が温度を赤で表示する位置です。</string>
     <string name="stats_hud_whole_device">デバイス全体</string>
     <string name="stats_hud_battery_temp">バッテリー</string>
+    <string name="bottom_idle_selected">Steam で選択中</string>
+    <string name="bottom_idle_recent">最近プレイ</string>
+    <string name="bottom_idle_play">プレイ</string>
+    <string name="bottom_idle_never">未プレイ</string>
+    <string name="bottom_idle_minutes">%1$d 分プレイ</string>
+    <string name="bottom_idle_hours">%1$d 時間プレイ</string>
     <string name="bottom_telemetry_send_title">ダッシュボード用データを送信</string>
     <string name="bottom_telemetry_send_auto">自動</string>
     <string name="bottom_telemetry_send_auto_hint">ここに表示されているすべてのゲーム（後から見つかったゲームを含む）でオンにします。オフにしたゲームはオフのままです。</string>
@@ -2047,6 +2053,8 @@
     <string name="bottom_chat_mic_off">マイク オフ</string>
     <string name="bottom_chat_mic_unavailable">このゲームではマイクがオフです。話すには、DroidDeckのSteam設定（オーディオ）でマイクをオンにして、ゲームを再起動してください。</string>
     <string name="bottom_chat_volume">音量 %1$d%%</string>
+    <string name="bottom_achievements_no_game">ゲームを起動すると、ここに実績が表示されます。</string>
+    <string name="bottom_screen_off">下の画面をオフにする</string>
     <string name="bottom_page_telemetry">ゲーム内統計</string>
     <string name="bottom_hud_group">下部画面の HUD</string>
     <string name="bottom_strip_tabs">すべてのタブにストリップを表示</string>

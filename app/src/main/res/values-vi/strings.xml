@@ -2025,6 +2025,12 @@
     <string name="stats_hud_red_mark">Vạch đỏ là vị trí HUD hiển thị nhiệt độ bằng màu đỏ.</string>
     <string name="stats_hud_whole_device">toàn thiết bị</string>
     <string name="stats_hud_battery_temp">pin</string>
+    <string name="bottom_idle_selected">Đã chọn trong Steam</string>
+    <string name="bottom_idle_recent">Chơi gần đây</string>
+    <string name="bottom_idle_play">Chơi</string>
+    <string name="bottom_idle_never">Chưa chơi</string>
+    <string name="bottom_idle_minutes">Đã chơi %1$d phút</string>
+    <string name="bottom_idle_hours">Đã chơi %1$d giờ</string>
     <string name="bottom_telemetry_send_title">Gửi dữ liệu bảng đồng hồ</string>
     <string name="bottom_telemetry_send_auto">Tự động</string>
     <string name="bottom_telemetry_send_auto_hint">Bật cho mọi game trong danh sách này, kể cả game được tìm thấy sau này. Game bạn đã tắt sẽ vẫn tắt.</string>
@@ -2047,6 +2053,8 @@
     <string name="bottom_chat_mic_off">Micro tắt</string>
     <string name="bottom_chat_mic_unavailable">Micro đang tắt cho game này. Để nói chuyện, hãy bật Micro trong thiết lập Steam của DroidDeck (Âm thanh) rồi khởi động lại game.</string>
     <string name="bottom_chat_volume">Âm lượng %1$d%%</string>
+    <string name="bottom_achievements_no_game">Hãy mở một trò chơi để xem thành tựu tại đây.</string>
+    <string name="bottom_screen_off">Tắt màn hình dưới</string>
     <string name="bottom_page_telemetry">Thông số trong game</string>
     <string name="bottom_hud_group">HUD màn hình dưới</string>
     <string name="bottom_strip_tabs">Thanh trên mọi tab</string>

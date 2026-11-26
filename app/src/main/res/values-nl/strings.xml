@@ -2049,6 +2049,12 @@
     <string name="stats_hud_red_mark">De rode markering is het punt waarop de HUD de temperatuur in het rood weergeeft.</string>
     <string name="stats_hud_whole_device">hele apparaat</string>
     <string name="stats_hud_battery_temp">accu</string>
+    <string name="bottom_idle_selected">Geselecteerd in Steam</string>
+    <string name="bottom_idle_recent">Laatst gespeeld</string>
+    <string name="bottom_idle_play">Spelen</string>
+    <string name="bottom_idle_never">Nog niet gespeeld</string>
+    <string name="bottom_idle_minutes">%1$d min gespeeld</string>
+    <string name="bottom_idle_hours">%1$d u gespeeld</string>
     <string name="bottom_telemetry_send_title">Dashboardgegevens verzenden</string>
     <string name="bottom_telemetry_send_auto">Automatisch</string>
     <string name="bottom_telemetry_send_auto_hint">Zet het aan voor elke game in deze lijst, ook voor games die later worden gevonden. Games die je uitzet, blijven uit.</string>
@@ -2071,6 +2077,8 @@
     <string name="bottom_chat_mic_off">Microfoon uit</string>
     <string name="bottom_chat_mic_unavailable">De microfoon staat uit voor deze game. Zet Microfoon aan in de Steam-instellingen van DroidDeck (Audio) en start de game opnieuw om te praten.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
+    <string name="bottom_achievements_no_game">Start een game om hier de prestaties te zien.</string>
+    <string name="bottom_screen_off">Onderste scherm uitzetten</string>
     <string name="bottom_page_telemetry">In-game statistieken</string>
     <string name="bottom_hud_group">HUD op het onderste scherm</string>
     <string name="bottom_strip_tabs">Strip op elk tabblad</string>

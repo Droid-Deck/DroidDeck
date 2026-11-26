@@ -2041,6 +2041,12 @@
     <string name="stats_hud_red_mark">Kırmızı işaret, sıcaklığın HUD üzerinde kırmızı göründüğü yerdir.</string>
     <string name="stats_hud_whole_device">tüm cihaz</string>
     <string name="stats_hud_battery_temp">pil</string>
+    <string name="bottom_idle_selected">Steam\'de seçili</string>
+    <string name="bottom_idle_recent">Son oynanan</string>
+    <string name="bottom_idle_play">Oyna</string>
+    <string name="bottom_idle_never">Henüz oynanmadı</string>
+    <string name="bottom_idle_minutes">%1$d dk oynandı</string>
+    <string name="bottom_idle_hours">%1$d sa oynandı</string>
     <string name="bottom_telemetry_send_title">Gösterge verilerini gönder</string>
     <string name="bottom_telemetry_send_auto">Otomatik</string>
     <string name="bottom_telemetry_send_auto_hint">Sonradan bulunanlar dahil, burada listelenen her oyun için açar. Kapattığınız oyunlar kapalı kalır.</string>
@@ -2063,6 +2069,8 @@
     <string name="bottom_chat_mic_off">Mikrofon kapalı</string>
     <string name="bottom_chat_mic_unavailable">Bu oyun için mikrofon kapalı. Konuşmak için DroidDeck\'in Steam ayarlarında (Ses) Mikrofon\'u açın ve oyunu yeniden başlatın.</string>
     <string name="bottom_chat_volume">Ses düzeyi %1$d%%</string>
+    <string name="bottom_achievements_no_game">Başarımlarını burada görmek için bir oyun başlatın.</string>
+    <string name="bottom_screen_off">Alt ekranı kapat</string>
     <string name="bottom_page_telemetry">Oyun içi istatistikler</string>
     <string name="bottom_hud_group">Alt ekrandaki HUD</string>
     <string name="bottom_strip_tabs">Her sekmede şerit</string>

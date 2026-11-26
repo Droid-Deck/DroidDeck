@@ -22,6 +22,7 @@ object GameProfileManager {
         clear("component packages") { ComponentsManager.clearGameComponents(context, scope) }
         clear("texture filtering") { SessionPrefs.clearGameTextureFiltering(context, scope) }
         clear("Windows components") { WinComponents.setPicks(context, scope, emptyList()) }
+        clear("bottom screen") { SessionPrefs.clearGameBottomScreen(context, scope) }
 
         if (failures.isNotEmpty()) {
             val names = failures.joinToString { it.first }

@@ -2049,6 +2049,12 @@
     <string name="stats_hud_red_mark">Det røde mærke angiver, hvor HUD viser temperaturen i rødt.</string>
     <string name="stats_hud_whole_device">hele enheden</string>
     <string name="stats_hud_battery_temp">batteri</string>
+    <string name="bottom_idle_selected">Valgt i Steam</string>
+    <string name="bottom_idle_recent">Senest spillet</string>
+    <string name="bottom_idle_play">Spil</string>
+    <string name="bottom_idle_never">Ikke spillet endnu</string>
+    <string name="bottom_idle_minutes">%1$d min spillet</string>
+    <string name="bottom_idle_hours">%1$d t spillet</string>
     <string name="bottom_telemetry_send_title">Send instrumentbrætdata</string>
     <string name="bottom_telemetry_send_auto">Auto</string>
     <string name="bottom_telemetry_send_auto_hint">Slår det til for alle spil på listen her, også spil, der findes senere. Spil, du slår fra, forbliver slået fra.</string>
@@ -2071,6 +2077,8 @@
     <string name="bottom_chat_mic_off">Mikrofon fra</string>
     <string name="bottom_chat_mic_unavailable">Mikrofonen er slået fra for dette spil. For at tale skal du slå Mikrofon til i DroidDecks Steam-indstillinger (Lyd) og starte spillet igen.</string>
     <string name="bottom_chat_volume">Lydstyrke %1$d%%</string>
+    <string name="bottom_achievements_no_game">Start et spil for at se dets præstationer her.</string>
+    <string name="bottom_screen_off">Sluk den nederste skærm</string>
     <string name="bottom_page_telemetry">Statistik i spillet</string>
     <string name="bottom_hud_group">HUD på nederste skærm</string>
     <string name="bottom_strip_tabs">Stribe på alle faner</string>

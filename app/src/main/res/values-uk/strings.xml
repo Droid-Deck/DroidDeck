@@ -2099,6 +2099,12 @@
     <string name="stats_hud_red_mark">Червона позначка — це поріг, після якого HUD показує температуру червоним.</string>
     <string name="stats_hud_whole_device">весь пристрій</string>
     <string name="stats_hud_battery_temp">акумулятор</string>
+    <string name="bottom_idle_selected">Вибрано в Steam</string>
+    <string name="bottom_idle_recent">Остання гра</string>
+    <string name="bottom_idle_play">Грати</string>
+    <string name="bottom_idle_never">Ще не запускалася</string>
+    <string name="bottom_idle_minutes">Зіграно %1$d хв</string>
+    <string name="bottom_idle_hours">Зіграно %1$d год</string>
     <string name="bottom_telemetry_send_title">Надсилати дані для панелі</string>
     <string name="bottom_telemetry_send_auto">Автоматично</string>
     <string name="bottom_telemetry_send_auto_hint">Вмикає це для кожної гри в цьому списку, зокрема для знайдених пізніше. Ігри, які ви вимкнете, лишаються вимкненими.</string>
@@ -2121,6 +2127,8 @@
     <string name="bottom_chat_mic_off">Мікрофон вимкнено</string>
     <string name="bottom_chat_mic_unavailable">Для цієї гри мікрофон вимкнено. Щоб говорити, увімкніть «Мікрофон» у налаштуваннях Steam у DroidDeck (Звук) і запустіть гру знову.</string>
     <string name="bottom_chat_volume">Гучність %1$d%%</string>
+    <string name="bottom_achievements_no_game">Запустіть гру, щоб побачити тут її досягнення.</string>
+    <string name="bottom_screen_off">Вимкнути нижній екран</string>
     <string name="bottom_page_telemetry">Ігрова статистика</string>
     <string name="bottom_hud_group">HUD на нижньому екрані</string>
     <string name="bottom_strip_tabs">Смуга на кожній вкладці</string>

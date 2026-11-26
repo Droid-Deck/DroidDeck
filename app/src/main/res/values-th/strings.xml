@@ -2025,6 +2025,12 @@
     <string name="stats_hud_red_mark">ขีดสีแดงคือจุดที่ HUD แสดงอุณหภูมิเป็นสีแดง</string>
     <string name="stats_hud_whole_device">ทั้งเครื่อง</string>
     <string name="stats_hud_battery_temp">แบตเตอรี่</string>
+    <string name="bottom_idle_selected">เลือกใน Steam</string>
+    <string name="bottom_idle_recent">เล่นล่าสุด</string>
+    <string name="bottom_idle_play">เล่น</string>
+    <string name="bottom_idle_never">ยังไม่ได้เล่น</string>
+    <string name="bottom_idle_minutes">เล่นแล้ว %1$d นาที</string>
+    <string name="bottom_idle_hours">เล่นแล้ว %1$d ชม.</string>
     <string name="bottom_telemetry_send_title">ส่งข้อมูลแดชบอร์ด</string>
     <string name="bottom_telemetry_send_auto">อัตโนมัติ</string>
     <string name="bottom_telemetry_send_auto_hint">เปิดใช้สำหรับทุกเกมที่แสดงที่นี่ รวมถึงเกมที่พบในภายหลัง เกมที่คุณปิดไว้จะยังคงปิดอยู่</string>
@@ -2047,6 +2053,8 @@
     <string name="bottom_chat_mic_off">ไมค์ปิด</string>
     <string name="bottom_chat_mic_unavailable">ไมค์ปิดอยู่สำหรับเกมนี้ หากต้องการพูด ให้เปิดไมโครโฟนในการตั้งค่า Steam ของ DroidDeck (เสียง) แล้วเริ่มเกมอีกครั้ง</string>
     <string name="bottom_chat_volume">ระดับเสียง %1$d%%</string>
+    <string name="bottom_achievements_no_game">เริ่มเกมเพื่อดูความสำเร็จของเกมที่นี่</string>
+    <string name="bottom_screen_off">ปิดหน้าจอล่าง</string>
     <string name="bottom_page_telemetry">สถิติในเกม</string>
     <string name="bottom_hud_group">HUD หน้าจอล่าง</string>
     <string name="bottom_strip_tabs">แถบในทุกแท็บ</string>
