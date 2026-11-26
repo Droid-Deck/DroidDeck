@@ -14,11 +14,16 @@ static size_t g_ddnatv_root_len = 0;
 // The path the kernel reports for [path] (/proc/self/fd, getcwd(), realpath()): for a targetSdk 30+
 // app, Android's own /data/user/0 is a link to /data/data, so the app's paths are not what the kernel
 // gives back for them. Into out, or path itself when it cannot be resolved; returns out's length.
-static size_t ddnatv_resolve_path(const char *path, size_t len, char *out, size_t outsz, int *found) {
-    static char *(*libc_realpath)(const char *, char *) = NULL;
-    static long (*libc_syscall)(long, ...) = NULL;
+static char *(*libc_realpath)(const char *, char *) = NULL;
+static long (*libc_syscall)(long, ...) = NULL;
+
+static void ddnatv_resolve_libc(void) {
     if (!libc_realpath) libc_realpath = (char *(*)(const char *, char *))dlsym(RTLD_NEXT, "realpath");
     if (!libc_syscall) libc_syscall = (long (*)(long, ...))dlsym(RTLD_NEXT, "syscall");
+}
+
+static size_t ddnatv_resolve_path(const char *path, size_t len, char *out, size_t outsz, int *found) {
+    ddnatv_resolve_libc();
     char given[PATH_MAX];
     if (len >= sizeof(given)) len = sizeof(given) - 1;
     memcpy(given, path, len);

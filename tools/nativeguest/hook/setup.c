@@ -228,6 +228,7 @@ static void adopt_forwarded_fds(void) {
 
 __attribute__((constructor(103))) static void init_ddnatv_hook_early(int argc, char **argv) {
     adopt_forwarded_fds();
+    ddnatv_resolve_libc();
     init_ddnatv_hook();
     compact_loader_args(argc, argv);
     // The kernel names the process after what it executed, the rootfs ld.so: process monitors, and
