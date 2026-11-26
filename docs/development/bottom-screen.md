@@ -1,6 +1,6 @@
 # Bottom screen: research and proposals
 
-Researched 2026-11-26 against `main` at `d788afc12` (0.7.11). Implementation is not scheduled yet. This document records what other dual-screen Android projects put on the second screen, how they get their data, where DroidDeck stands, and the features we want to build.
+Researched 2026-11-26 against `main` at `d788afc12` (0.7.11). Implementation is not scheduled yet. This document records what other dual-screen Android projects put on the second screen, how they get their data, where DroidDeck stands, and the features we want to build. Three proposals have their own documents: [region mirror](bottom-screen-region-mirror.md), [guides tab](bottom-screen-guides.md) and [companion API](bottom-screen-companion-api.md).
 
 The starting point was WULFF DEN's survey video [Dual screen Android apps are getting crazy](https://youtu.be/dAiuG2A-wkc) (2026-11-26). It covers the AYN Thor and Retroid Pocket Duo, and most of its apps come from the [GAFT list](https://andreyvelsk.github.io/GAFT) of Thor apps.
 
@@ -131,28 +131,21 @@ Rearrangeable tiles on the dashboard: FPS limit, 60/120 Hz, per-screen brightnes
 
 ### 6. Region mirror from our compositor
 
-Crop rectangles of the game image (minimap, HUD, inventory) and show them scaled on the bottom panel, saved per game.
+Crop rectangles of the game image (minimap, HUD, ability bars) onto the bottom screen, saved per game, optionally hidden on the top screen. Other Thor tools need MediaProjection or a privileged helper and cannot hide the original; our compositor has the game image before display, so it can do both with no permission prompt. Recommended path: a second output in `vk_present` that blits region sub-rectangles, with zero-copy layers later.
 
-- We own the game's output surface, so we can sample it on the GPU without screen capture, a permission prompt, or capture latency. Megingiard, WalkThor and Heimdall all need MediaProjection for this.
-- Editing: drag a rectangle on a frozen frame on the bottom screen, pinch to zoom. Optionally hide the region on the top screen.
-- Needs a design for how the crop reaches the bottom `Presentation`: a second output of the compositor, or a shared texture.
+Details: [bottom-screen-region-mirror.md](bottom-screen-region-mirror.md).
 
 ### 7. Guides tab
 
-A per-game guides tab: Steam Community guides for the running app id, pinned pages, and the last page reopened when the game returns. Save pages for offline use.
+A per-game tab with Steam Community guides for the exact app id, Steam achievements as a spoiler-safe checklist, the game's wiki and fixes (found through Wikidata), saved pages for offline use, and a workspace that reopens at the last section. It must never take focus from the game, and pauses pages it is not showing.
 
-- The chat WebView and its cookies are the starting point.
-- Later: maps, and ProtonDB or DroidDeck compatibility notes for the game.
+Details: [bottom-screen-guides.md](bottom-screen-guides.md).
 
 ### 8. Companion API for PC games
 
-Let games and mods drive the bottom screen. In order of effort:
+Let mods running in Proton drive native bottom-screen pages over loopback. Thor Pip-Boy (Fallout 4) and Grand Theft Companion (GTA) already run against DroidDeck as separate apps, and the Stardew, Skyrim and RimWorld ecosystems have servers we can adapt to. Plan: adapters for those first, then DroidDeck's own token-authenticated protocol with declarative pages and normalized state keys, then "run on bottom", then memory profiles only if needed. The existing racing, War Thunder and Elite Dangerous telemetry is the first set of built-in adapters.
 
-1. **Loopback channel.** Mods inside the container (SMAPI, BepInEx, MelonLoader) publish JSON or WebSocket state that a bottom-screen page renders. First target: compatibility with the existing Stardew mod on `127.0.0.1:7786`, which gives a full showcase without writing a mod. Needs a check that loopback in the container reaches the app, or a relay through `droiddeck-agent`.
-2. **Run on bottom.** A command like Armada's `armada-run-bottom` that opens a guest window on the bottom panel with touch, building on the KDE desktop mode. This lets a game's second window or a companion process (Kanto Gear's separate mode, second-monitor mods) appear there. Unity games could use `Display.displays[1]` if the bottom panel is exposed as a second X output.
-3. **Declarative packages.** Eden Duo-style per-game packages: a UI manifest plus a data source (loopback, file tail, or memory reads locked to the Steam build ID). Distributed from a catalog repo and fetched in-app. Only after 1 and 2 show demand.
-
-The existing racing, War Thunder and Elite Dangerous telemetry follows the same idea and becomes the first set of built-in companions.
+Details: [bottom-screen-companion-api.md](bottom-screen-companion-api.md).
 
 ## Related fixes
 
