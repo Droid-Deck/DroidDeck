@@ -250,4 +250,11 @@ class XboxCatalogTest {
         assertEquals(setOf(game, parent, third), merged.map { it.id }.toSet())
         assertFalse(merged.single { it.id == third }.extra["cloudId"] in setOf(game, parent))
     }
+
+    @Test fun supplementaryPlaneLettersKeepEditionsApart() {
+        val cloud = XboxCloudCatalog(gamePass = setOf(game, parent), all = setOf(game, parent))
+        val first = XboxCatalog.product(product(game, "Xbox.One"), mapOf(game to "gamepass"), cloud)!!.copy(title = "\uD840\uDC00 2")
+        val second = XboxCatalog.product(product(parent, "Xbox.One"), mapOf(parent to "gamepass"), cloud)!!.copy(title = "\uD840\uDC01 2")
+        assertEquals(2, mergeEditions(listOf(first, second)).size)
+    }
 }
