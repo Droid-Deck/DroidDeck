@@ -264,6 +264,16 @@ public final class WaylandCompositor {
 
     private static native String nativeDisplayDriver();
 
+    private static native boolean nativeDisplayDeviceUnusable();
+
+    public static boolean displayDeviceUnusable() {
+        try {
+            return nativeDisplayDeviceUnusable();
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     /** Why the compositor cannot present, or "" while it can (or before the library is loaded). */
     public static String compositorFault() {
         try {
