@@ -919,6 +919,7 @@
     <string name="setup_reset_settings_session_running">Dừng phiên trước khi đặt lại thiết lập.</string>
     <string name="setup_reset_settings_partial">Đã đặt lại thiết lập, nhưng chưa phải tất cả. Chi tiết có trong log.</string>
     <string name="setup_offline">Chế độ ngoại tuyến</string>
+    <string name="setup_offline_auto">Chế độ ngoại tuyến tự động</string>
     <string name="setup_sign_in_first">Đăng nhập Steam trước</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Ngôn ngữ</string>

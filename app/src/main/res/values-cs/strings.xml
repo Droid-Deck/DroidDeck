@@ -928,6 +928,7 @@
     <string name="setup_reset_settings_session_running">Před obnovením nastavení zastav relaci.</string>
     <string name="setup_reset_settings_partial">Nastavení byla obnovena, ale ne všechna. Podrobnosti jsou v logech.</string>
     <string name="setup_offline">Režim offline</string>
+    <string name="setup_offline_auto">Automatický režim offline</string>
     <string name="setup_sign_in_first">Nejprve se přihlaste ke Steamu</string>
     <string name="setup_launcher">Spouštěč</string>
     <string name="setup_language">Jazyk</string>

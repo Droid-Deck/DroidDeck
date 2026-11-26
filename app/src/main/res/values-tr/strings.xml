@@ -914,6 +914,7 @@
     <string name="setup_log_export_failed">Oturum günlükleri kaydedilemedi.</string>
     <string name="setup_log_delete_failed">Oturum günlükleri silinemedi.</string>
     <string name="setup_offline">Çevrimdışı mod</string>
+    <string name="setup_offline_auto">Otomatik çevrimdışı mod</string>
     <string name="setup_sign_in_first">Önce Steam\'de oturum açın</string>
     <string name="setup_launcher">Başlatıcı</string>
     <string name="setup_language">Dil</string>

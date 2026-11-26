@@ -1004,6 +1004,7 @@
     <string name="setup_reset_settings_session_running">Stop the session before resetting settings.</string>
     <string name="setup_reset_settings_partial">Settings were reset, but some parts could not be. The logs have the details.</string>
     <string name="setup_offline">Offline mode</string>
+    <string name="setup_offline_auto">Auto offline mode</string>
     <string name="setup_sign_in_first">Sign in to Steam first</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Language</string>

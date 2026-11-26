@@ -922,6 +922,7 @@
     <string name="setup_reset_settings_session_running">Stoppa sessionen innan du återställer inställningar.</string>
     <string name="setup_reset_settings_partial">Inställningarna återställdes, men inte alla. Detaljerna finns i loggen.</string>
     <string name="setup_offline">Offlineläge</string>
+    <string name="setup_offline_auto">Automatiskt offlineläge</string>
     <string name="setup_sign_in_first">Logga in på Steam först</string>
     <string name="setup_launcher">Startprogram</string>
     <string name="setup_language">Språk</string>

@@ -919,6 +919,7 @@
     <string name="setup_reset_settings_session_running">설정을 초기화하기 전에 세션을 중지하세요.</string>
     <string name="setup_reset_settings_partial">설정이 초기화되었지만 일부는 초기화하지 못했습니다. 자세한 내용은 로그를 확인하세요.</string>
     <string name="setup_offline">오프라인 모드</string>
+    <string name="setup_offline_auto">자동 오프라인 모드</string>
     <string name="setup_sign_in_first">먼저 Steam에 로그인하세요</string>
     <string name="setup_launcher">런처</string>
     <string name="setup_language">언어</string>
