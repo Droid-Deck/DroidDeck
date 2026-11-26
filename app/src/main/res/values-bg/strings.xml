@@ -4081,4 +4081,7 @@
     <string name="theme_custom_error">Грешка</string>
     <string name="hud_only_during_game">Показвай HUD само по време на игра</string>
     <string name="hud_only_during_game_hint">Скривай HUD, когато не се засичат кадри от играта.</string>
+    <string name="steam_store_close_steam">Първо затворете Steam</string>
+    <string name="steam_store_session_wait">Първо поставете на пауза изтеглянето от Steam</string>
+    <string name="steam_store_linux_build">Тази игра инсталира версията си за Linux. Инсталирайте я от Steam.</string>
 </resources>

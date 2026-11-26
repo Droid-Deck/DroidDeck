@@ -139,6 +139,7 @@ import androidx.compose.foundation.layout.offset
 internal class GameRef(val appId: Int?, val store: Store?, val storeId: String?) {
     fun game(games: List<Library.SteamGame>): Library.SteamGame? = when {
         appId != null -> games.firstOrNull { it.appId == appId }
+        store == Store.STEAM && storeId != null -> games.firstOrNull { Library.fromSteamClient(it) && it.appId.toString() == storeId }
         store != null && storeId != null -> games.firstOrNull { it.source == store.id && it.storeId == storeId }
         else -> null
     }
@@ -182,7 +183,7 @@ internal fun GameDetail(
     if (nothing) return
     val source = game?.source ?: store?.id ?: Library.SOURCE_STEAM
     val title = game?.name ?: item?.title ?: installed?.sidecar?.title ?: id.orEmpty()
-    val favoriteKey = if (store != null && id != null) "${store.id}:$id" else game?.let { GameRef.key(it) } ?: key
+    val favoriteKey = if (store == Store.STEAM && id != null) "app:$id" else if (store != null && id != null) "${store.id}:$id" else game?.let { GameRef.key(it) } ?: key
     val scores = if (source != Library.ADDED) rememberGameScores(title.takeIf { it.isNotBlank() && it != id }) else null
     val achievements = remember(store, id, item?.accessible, installed) {
         when {

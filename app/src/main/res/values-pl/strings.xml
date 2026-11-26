@@ -4161,4 +4161,7 @@
     <string name="theme_custom_error">Błąd</string>
     <string name="hud_only_during_game">Pokazuj HUD tylko podczas gry</string>
     <string name="hud_only_during_game_hint">Ukryj HUD, gdy nie wykryto klatek gry.</string>
+    <string name="steam_store_close_steam">Najpierw zamknij Steam</string>
+    <string name="steam_store_session_wait">Najpierw wstrzymaj pobieranie ze Steam</string>
+    <string name="steam_store_linux_build">Ta gra instaluje swoją wersję dla Linuksa. Zainstaluj ją ze Steama.</string>
 </resources>
