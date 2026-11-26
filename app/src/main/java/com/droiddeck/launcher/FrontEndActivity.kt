@@ -91,7 +91,8 @@ import com.droiddeck.launcher.stores.DroidDeckLibraryExport
 import com.droiddeck.launcher.input.SecondScreenDisplay
 import com.droiddeck.launcher.input.SecondScreenDisplays
 
-class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPetHost {
+class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPetHost,
+    com.droiddeck.launcher.stores.steam.SteamClientSignInHost {
     override fun attachBaseContext(newBase: android.content.Context) {
         super.attachBaseContext(newBase)
         com.droiddeck.launcher.core.AppLanguage.applyTo(this, newBase)
@@ -139,6 +140,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var switchDeadline = 0L
     private var showResetSettings by mutableStateOf(false)
     private var lowSpace by mutableStateOf<Long?>(null)
+    private var steamStoreSignInAfterSpaceWarning = false
+    private var steamStoreSignInActionHandled = false
     private var showNonAdreno by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var glThread by mutableStateOf(true)
     private var noGlError by mutableStateOf(true)
@@ -1991,9 +1994,20 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         free,
                         warn = lowStorageWarning,
                         onWarnChange = { on -> SessionPrefs.setLowStorageWarning(this, on); lowStorageWarning = on },
-                        onFreeUp = { lowSpace = null; com.droiddeck.launcher.storage.StorageState.requestOpen() },
-                        onPlay = { lowSpace = null; com.droiddeck.launcher.storage.StorageState.lowSpaceDismissed = true; startSteamSession() },
-                        onDismiss = { lowSpace = null },
+                        onFreeUp = {
+                            lowSpace = null
+                            steamStoreSignInAfterSpaceWarning = false
+                            com.droiddeck.launcher.storage.StorageState.requestOpen()
+                        },
+                        onPlay = {
+                            lowSpace = null
+                            com.droiddeck.launcher.storage.StorageState.lowSpaceDismissed = true
+                            if (steamStoreSignInAfterSpaceWarning) {
+                                steamStoreSignInAfterSpaceWarning = false
+                                launchSteamStoreSignInSession()
+                            } else startSteamSession()
+                        },
+                        onDismiss = { lowSpace = null; steamStoreSignInAfterSpaceWarning = false },
                     )
                 }
                 com.droiddeck.launcher.ui.HandCameraHost(
@@ -2074,6 +2088,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.action == com.droiddeck.launcher.stores.steam.SteamClientSignIn.ACTION_OPEN) {
+            steamStoreSignInActionHandled = false
+            if (handleSteamStoreSignInIntent(intent)) return
+        }
         supersedeUncommittedLaunch()
         if (intent.action == SteamIntegration.ACTION_SETUP) {
             gameLinkReading = false
@@ -2317,6 +2335,59 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         refreshAddedGames()
         if (catalog == null) loadDesktopCatalog()
         if (!busy) Thread({ checkCatalog() }, "catalog").start()
+        com.droiddeck.launcher.stores.steam.SteamClientSignIn.finishIfSessionEnded(this)
+        handleSteamStoreSignInIntent(intent)
+    }
+
+    override fun startSteamStoreSignIn(): Boolean {
+        if (SessionState.running) {
+            if (SessionState.mode != SessionService.MODE_STEAM || SessionState.stopRequested) {
+                android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
+                return false
+            }
+            val sessionId = SessionState.sessionId ?: return false
+            if (!com.droiddeck.launcher.stores.steam.SteamClientSignIn.arm(this, targetSessionId = sessionId)) return false
+            return runCatching {
+                startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+                true
+            }.getOrElse {
+                com.droiddeck.launcher.stores.steam.SteamClientSignIn.clear(this)
+                android.util.Log.w("SteamClientSignIn", "could not resume Steam (${it.javaClass.simpleName})")
+                false
+            }
+        }
+        if (SessionState.phase !in SESSION_ENDED) {
+            android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
+            return false
+        }
+
+        val storage = com.droiddeck.launcher.storage.StorageState
+        val free = storage.freeBytes(this)
+        if (storage.shouldWarnLowSpace(SessionPrefs.lowStorageWarning(this), storage.lowSpaceDismissed, false, free)) {
+            steamStoreSignInAfterSpaceWarning = true
+            lowSpace = free
+            storage.refresh(this)
+            return false
+        }
+        return launchSteamStoreSignInSession()
+    }
+
+    private fun launchSteamStoreSignInSession(): Boolean {
+        if (!com.droiddeck.launcher.stores.steam.SteamClientSignIn.arm(this, baselineSessionId = SessionState.sessionId)) return false
+        val intent = Intent(this, SessionActivity::class.java)
+            .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
+            .putExtra(SessionActivity.EXTRA_RETURN_HOME, false)
+        val started = startSession(intent, steamSession = true)
+        if (!started) com.droiddeck.launcher.stores.steam.SteamClientSignIn.clear(this)
+        return started
+    }
+
+    private fun handleSteamStoreSignInIntent(intent: Intent?): Boolean {
+        if (intent?.action != com.droiddeck.launcher.stores.steam.SteamClientSignIn.ACTION_OPEN || steamStoreSignInActionHandled) return false
+        steamStoreSignInActionHandled = true
+        startSteamStoreSignIn()
+        return true
     }
 
     override fun onStart() {

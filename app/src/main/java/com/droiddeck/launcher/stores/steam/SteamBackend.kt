@@ -3,7 +3,6 @@ package com.droiddeck.launcher.stores.steam
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.content.Intent
 import com.droiddeck.launcher.frontend.SteamOwnedLibrary
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.CatalogItem
@@ -11,18 +10,13 @@ import com.droiddeck.launcher.stores.InstalledStoreGame
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreBackend
 import com.droiddeck.launcher.stores.StoreLibraryCache
-import com.droiddeck.launcher.stores.StoreLoginActivity
 import com.droiddeck.launcher.stores.StoresState
 
 object SteamBackend : StoreBackend {
     override val store: Store = Store.STEAM
 
     override fun signIn(context: Context) {
-        context.startActivity(
-            Intent(context, StoreLoginActivity::class.java)
-                .putExtra(StoreLoginActivity.EXTRA_STORE, store.id)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-        )
+        SteamClientSignIn.open(context)
     }
 
     override fun signOut(context: Context) {
