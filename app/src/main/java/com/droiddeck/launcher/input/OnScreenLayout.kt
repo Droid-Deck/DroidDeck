@@ -75,7 +75,7 @@ object OnScreenLayout {
         }
         if (dock != null || !kit.steam) {
             if (dock == null) return ordered
-            return scaleDocked(ordered, ControllerPrefs.read(context).size / 100f, width, height, safe)
+            return scaleDocked(context, ordered, ControllerPrefs.read(context).size / 100f, width, height, safe)
         }
         return FloatingSteamOverlay(width, height, safe, context.resources.displayMetrics.density)
             .place(ordered, lowerShortcuts = generated, rearButtons = rearButtons, trackpads = trackpads)
