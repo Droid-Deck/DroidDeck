@@ -699,6 +699,30 @@ static HRESULT __stdcall gs_async_name(gs_async *self, hstring_t *out)
     return S_OK;
 }
 
+typedef HRESULT (WINAPI *gs_pfn_CoGetApartmentType)(int *apt_type, int *apt_qual);
+
+static gs_pfn_CoGetApartmentType g_gs_get_apt_fn = NULL;
+static INIT_ONCE g_gs_get_apt_once = INIT_ONCE_STATIC_INIT;
+
+static BOOL CALLBACK gs_get_apt_init_cb(PINIT_ONCE once, PVOID param, PVOID *ctx)
+{
+    HMODULE m = GetModuleHandleW(L"combase.dll");
+    (void)once; (void)param; (void)ctx;
+    if (!m) m = GetModuleHandleW(L"ole32.dll");
+    if (!m) m = LoadLibraryW(L"ole32.dll");
+    if (m) g_gs_get_apt_fn = (gs_pfn_CoGetApartmentType)(void *)GetProcAddress(m, "CoGetApartmentType");
+    return TRUE;
+}
+
+static int gs_caller_is_mta(void)
+{
+    int apt_type = -1, apt_qual = 0;
+    InitOnceExecuteOnce(&g_gs_get_apt_once, gs_get_apt_init_cb, NULL, NULL);
+    if (g_gs_get_apt_fn && SUCCEEDED(g_gs_get_apt_fn(&apt_type, &apt_qual)))
+        return (apt_type == 1 || apt_type == 2);
+    return 0;
+}
+
 static HRESULT __stdcall gs_async_put_Completed(gs_async *self, void *handler)
 {
     void *old = NULL;
@@ -708,7 +732,7 @@ static HRESULT __stdcall gs_async_put_Completed(gs_async *self, void *handler)
     INT32 final_status = 1;
 
     if (self->done_ev) {
-        if (handler) {
+        if (handler && !gs_caller_is_mta()) {
             void *agile = NULL;
             /* Non-agile STA delegates need apartment marshaling for the MTA worker. */
             if (FAILED(gs_unk_qi(handler, &gs_iid_agile, &agile)) || !agile) {
@@ -3235,12 +3259,19 @@ static HRESULT __stdcall gs_cont_CreateBlobInfoQuery(gs_container *self, hstring
 {
     gs_bquery *q;
     if (!out) return E_POINTER;
+    *out = NULL;
     q = (gs_bquery *)calloc(1, sizeof(gs_bquery));
     if (!q) return E_OUTOFMEMORY;
     q->vtbl = gs_bq_vtable;
     q->refs = 1;
     q->dir = gs_wcsdup(self->dir);
     q->prefix = gs_wcsdup(gs_hstr_raw(prefix));
+    if (!q->dir || !q->prefix) {
+        free(q->dir);
+        free(q->prefix);
+        free(q);
+        return E_OUTOFMEMORY;
+    }
     *out = q;
     return S_OK;
 }
@@ -3373,6 +3404,7 @@ static HRESULT __stdcall gs_prov_DeleteContainerAsync(gs_provider *self, hstring
     }
     res = gs_res_new(&gs_iid_op_result, "Windows.Gaming.XboxLive.Storage.GameSaveOperationResult",
                      status, NULL);
+    if (!res) return E_OUTOFMEMORY;
     *out = gs_async_new_obj(&gs_iid_async_op_result,
                             "Windows.Foundation.IAsyncOperation`1<GameSaveOperationResult>", res);
     gs_res_Release(res);
@@ -3383,12 +3415,19 @@ static HRESULT __stdcall gs_prov_CreateQueryWithName(gs_provider *self, hstring_
 {
     gs_cquery *q;
     if (!out) return E_POINTER;
+    *out = NULL;
     q = (gs_cquery *)calloc(1, sizeof(gs_cquery));
     if (!q) return E_OUTOFMEMORY;
     q->vtbl = gs_cq_vtable;
     q->refs = 1;
     q->root = gs_wcsdup(self->root);
     q->prefix = gs_wcsdup(gs_hstr_raw(prefix));
+    if (!q->root || !q->prefix) {
+        free(q->root);
+        free(q->prefix);
+        free(q);
+        return E_OUTOFMEMORY;
+    }
     *out = q;
     return S_OK;
 }

@@ -8525,6 +8525,14 @@ static HRESULT xbl_devaddr_from_bytes(const unsigned char *data, UINT32 len, voi
         memcpy(obj->snapshot, data, len);
         obj->snapshot_len = len;
         obj->is_valid = TRUE;
+        {
+            char hex[80];
+            UINT32 hi, show = len < 24 ? len : 24;
+            for (hi = 0; hi < show; hi++)
+                snprintf(hex + hi * 2, sizeof(hex) - hi * 2, "%02x", (unsigned)data[hi]);
+            hex[show * 2] = '\0';
+            svc_tracef("xbl_devaddr from_bytes len=%u hex=%s", len, hex);
+        }
     }
     *out = obj;
     return S_OK;
@@ -8575,10 +8583,18 @@ static HRESULT __stdcall xbl_devaddr_CreateFromSnapshotBytes(svc_object *self, U
     return xbl_devaddr_from_bytes(buf, len, out);
 }
 
+static unsigned char g_xbl_local_ipv4[4];
+static void xbl_detect_local_ipv4_once(void);
+
 static HRESULT __stdcall xbl_devaddr_GetLocal(svc_object *self, void **out)
 {
     (void)self;
     if (!out) return E_POINTER;
+    xbl_detect_local_ipv4_once();
+    /* Update the primary local IPv4 TLV entry inside the 72-byte Windows 10 SDA snapshot. */
+    if (xbl_devaddr_local.snapshot_len >= 67 && xbl_devaddr_local.snapshot[62] == 0x01) {
+        memcpy(xbl_devaddr_local.snapshot + 63, g_xbl_local_ipv4, 4);
+    }
     svc_trace("xbl_devaddr GetLocal");
     svc_AddRef(&xbl_devaddr_local.base);
     *out = &xbl_devaddr_local;
@@ -8603,12 +8619,429 @@ static const void *xbl_devaddr_statics_vtable[] = {
     (const void *)xbl_devaddr_get_MaxSnapshotBytesSize,
 };
 
-/* ---------------- Windows.Networking.XboxLive.XboxLiveEndpointPairTemplate */
+/* ---------------- Windows.Networking.HostName & XboxLiveEndpointPairTemplate */
+
+static const GUID svc_iid_hostname = {
+    0xbf8ecaad, 0xed96, 0x49a7, {0x90, 0x84, 0xd4, 0x16, 0xca, 0xe8, 0x8d, 0xcb}};
+
+typedef struct {
+    svc_object base;
+    WCHAR name[96];
+    INT32 type; /* 0 = DomainName, 1 = Ipv4, 2 = Ipv6 */
+} xbl_hostname_object;
+
+static HRESULT __stdcall xbl_hostname_QI(xbl_hostname_object *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_hostname) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
+        *out = self;
+        svc_AddRef(&self->base);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+static HRESULT __stdcall xbl_hostname_get_IPInformation(xbl_hostname_object *self, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    *out = NULL;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_hostname_get_RawName(xbl_hostname_object *self, hstring_t *out)
+{
+    if (!out) return E_POINTER;
+    *out = svc_string(self->name);
+    return S_OK;
+}
+static HRESULT __stdcall xbl_hostname_get_DisplayName(xbl_hostname_object *self, hstring_t *out)
+{
+    if (!out) return E_POINTER;
+    *out = svc_string(self->name);
+    return S_OK;
+}
+static HRESULT __stdcall xbl_hostname_get_CanonicalName(xbl_hostname_object *self, hstring_t *out)
+{
+    if (!out) return E_POINTER;
+    *out = svc_string(self->name);
+    return S_OK;
+}
+static HRESULT __stdcall xbl_hostname_get_Type(xbl_hostname_object *self, INT32 *out)
+{
+    if (!out) return E_POINTER;
+    *out = self->type;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_hostname_IsEqual(xbl_hostname_object *self, xbl_hostname_object *other,
+                                              BOOLEAN *out)
+{
+    if (!out) return E_POINTER;
+    *out = (other && other->base.vtbl == self->base.vtbl &&
+            _wcsicmp(self->name, other->name) == 0) ? TRUE : FALSE;
+    return S_OK;
+}
+
+static const void *xbl_hostname_vtable[] = {
+    (const void *)xbl_hostname_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)xbl_hostname_get_IPInformation,
+    (const void *)xbl_hostname_get_RawName,
+    (const void *)xbl_hostname_get_DisplayName,
+    (const void *)xbl_hostname_get_CanonicalName,
+    (const void *)xbl_hostname_get_Type,
+    (const void *)xbl_hostname_IsEqual,
+};
+
+static xbl_hostname_object *xbl_hostname_new(const WCHAR *name, INT32 type)
+{
+    xbl_hostname_object *obj = (xbl_hostname_object *)calloc(1, sizeof(*obj));
+    if (!obj) return NULL;
+    obj->base.vtbl = xbl_hostname_vtable;
+    obj->base.refs = 1;
+    obj->base.name = "Windows.Networking.HostName";
+    if (name) wcsncpy(obj->name, name, (sizeof(obj->name) / sizeof(obj->name[0])) - 1);
+    obj->type = type;
+    return obj;
+}
+
+/* Detect the host's primary outbound IPv4 address via a non-sending UDP connect(). */
+static unsigned char g_xbl_local_ipv4[4] = {192, 168, 1, 100};
+static LONG g_xbl_local_ipv4_ready = 0;
+
+static void xbl_detect_local_ipv4_once(void)
+{
+    typedef int (WINAPI *pfn_WSAStartup)(WORD, void *);
+    typedef UINT_PTR (WINAPI *pfn_socket)(int, int, int);
+    typedef int (WINAPI *pfn_connect)(UINT_PTR, const void *, int);
+    typedef int (WINAPI *pfn_getsockname)(UINT_PTR, void *, int *);
+    typedef int (WINAPI *pfn_closesocket)(UINT_PTR);
+    HMODULE ws2;
+    pfn_WSAStartup fn_start;
+    pfn_socket fn_sock;
+    pfn_connect fn_conn;
+    pfn_getsockname fn_gsn;
+    pfn_closesocket fn_close;
+    unsigned char wsa_data[512];
+    UINT_PTR s;
+    unsigned char dst[16];
+    unsigned char local[16];
+    int llen = (int)sizeof(local);
+
+    if (InterlockedCompareExchange(&g_xbl_local_ipv4_ready, 1, 0) != 0)
+        return;
+
+    ws2 = LoadLibraryW(L"ws2_32.dll");
+    if (!ws2) return;
+    fn_start = (pfn_WSAStartup)(void *)GetProcAddress(ws2, "WSAStartup");
+    fn_sock = (pfn_socket)(void *)GetProcAddress(ws2, "socket");
+    fn_conn = (pfn_connect)(void *)GetProcAddress(ws2, "connect");
+    fn_gsn = (pfn_getsockname)(void *)GetProcAddress(ws2, "getsockname");
+    fn_close = (pfn_closesocket)(void *)GetProcAddress(ws2, "closesocket");
+    if (!fn_start || !fn_sock || !fn_conn || !fn_gsn || !fn_close) return;
+
+    memset(wsa_data, 0, sizeof wsa_data);
+    if (fn_start(0x0202, wsa_data) != 0) return;
+
+    s = fn_sock(2 /* AF_INET */, 2 /* SOCK_DGRAM */, 17 /* IPPROTO_UDP */);
+    if (s == (UINT_PTR)-1) return;
+
+    memset(dst, 0, sizeof dst);
+    dst[0] = 2; dst[1] = 0;      /* AF_INET */
+    dst[2] = 0; dst[3] = 80;     /* port 80 */
+    dst[4] = 1; dst[5] = 1; dst[6] = 1; dst[7] = 1; /* 1.1.1.1 */
+    memset(local, 0, sizeof local);
+    if (fn_conn(s, dst, (int)sizeof dst) == 0 &&
+        fn_gsn(s, local, &llen) == 0 &&
+        llen >= 8 && local[0] == 2 && local[1] == 0 &&
+        (local[4] != 0 || local[5] != 0 || local[6] != 0 || local[7] != 0)) {
+        memcpy(g_xbl_local_ipv4, local + 4, 4);
+        svc_tracef("xbl_devaddr local ipv4=%u.%u.%u.%u",
+                   (unsigned)g_xbl_local_ipv4[0], (unsigned)g_xbl_local_ipv4[1],
+                   (unsigned)g_xbl_local_ipv4[2], (unsigned)g_xbl_local_ipv4[3]);
+    }
+    fn_close(s);
+}
+
+static int xbl_ipv4_is_public(const unsigned char ip[4])
+{
+    if (ip[0] == 0 || ip[0] == 10 || ip[0] == 127) return 0;
+    if (ip[0] == 169 && ip[1] == 254) return 0;
+    if (ip[0] == 172 && ip[1] >= 16 && ip[1] <= 31) return 0;
+    if (ip[0] == 192 && ip[1] == 168) return 0;
+    if (ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127) return 0;
+    if (ip[0] >= 224) return 0;
+    return 1;
+}
+
+typedef struct {
+    int family; /* 2 = AF_INET, 23 = AF_INET6, 0 = none */
+    unsigned char ip4[4];
+    unsigned char ip6[16];
+} xbl_decoded_ip;
+
+/* Extract the best routable IPv4/IPv6 address from a Windows 10 XboxLiveDeviceAddress
+ * binary snapshot (version=1 + 16-byte header + count + TLV records 0x01=IPv4 / 0x02=IPv6). */
+static int xbl_sda_extract_ip(const unsigned char *data, UINT32 len, xbl_decoded_ip *out)
+{
+    int have_pub4 = 0, have_priv4 = 0, have_teredo4 = 0, have_ip6 = 0;
+    unsigned char pub4[4] = {0}, priv4[4] = {0}, teredo4[4] = {0}, ip6[16] = {0};
+
+    memset(out, 0, sizeof(*out));
+    if (!data || len < 6) return 0;
+
+    if (len >= 19 && data[0] == 0x01 && data[1] == 0x00) {
+        UINT32 count = data[17];
+        UINT32 pos = 18;
+        UINT32 i;
+        for (i = 0; i < count && pos < len; i++) {
+            unsigned char tag = data[pos++];
+            if (tag == 0x01 && pos + 4 <= len) {
+                const unsigned char *a = data + pos;
+                if (xbl_ipv4_is_public(a)) {
+                    if (!have_pub4) { memcpy(pub4, a, 4); have_pub4 = 1; }
+                } else if (a[0] != 0 && a[0] != 127) {
+                    if (!have_priv4) { memcpy(priv4, a, 4); have_priv4 = 1; }
+                }
+                pos += 4;
+            } else if (tag == 0x02 && pos + 16 <= len) {
+                const unsigned char *a6 = data + pos;
+                if (a6[0] == 0x20 && a6[1] == 0x01 && a6[2] == 0x00 && a6[3] == 0x00) {
+                    unsigned char dec[4] = {
+                        (unsigned char)(a6[12] ^ 0xff), (unsigned char)(a6[13] ^ 0xff),
+                        (unsigned char)(a6[14] ^ 0xff), (unsigned char)(a6[15] ^ 0xff)
+                    };
+                    if (xbl_ipv4_is_public(dec) && !have_teredo4) {
+                        memcpy(teredo4, dec, 4);
+                        have_teredo4 = 1;
+                    }
+                }
+                if (!have_ip6) { memcpy(ip6, a6, 16); have_ip6 = 1; }
+                pos += 16;
+            } else {
+                break;
+            }
+        }
+    }
+
+    if (have_pub4) {
+        out->family = 2;
+        memcpy(out->ip4, pub4, 4);
+        return 1;
+    }
+    if (have_teredo4) {
+        out->family = 2;
+        memcpy(out->ip4, teredo4, 4);
+        return 1;
+    }
+    if (have_priv4) {
+        out->family = 2;
+        memcpy(out->ip4, priv4, 4);
+        return 1;
+    }
+    if (have_ip6) {
+        out->family = 23;
+        memcpy(out->ip6, ip6, 16);
+        return 1;
+    }
+    return 0;
+}
+
+static void xbl_write_sockaddr_bytes(const xbl_decoded_ip *ip, UINT16 port,
+                                     UINT32 len, unsigned char *buf)
+{
+    if (!buf || !len) return;
+    memset(buf, 0, len);
+    if (ip->family == 2 && len >= 16) {
+        buf[0] = 2; buf[1] = 0; /* AF_INET */
+        buf[2] = (unsigned char)((port >> 8) & 0xff);
+        buf[3] = (unsigned char)(port & 0xff);
+        memcpy(buf + 4, ip->ip4, 4);
+    } else if (ip->family == 23 && len >= 28) {
+        buf[0] = 23; buf[1] = 0; /* AF_INET6 */
+        buf[2] = (unsigned char)((port >> 8) & 0xff);
+        buf[3] = (unsigned char)(port & 0xff);
+        memcpy(buf + 8, ip->ip6, 16);
+    }
+}
+
+static UINT16 xbl_parse_port_w(const WCHAR *s, UINT16 fallback)
+{
+    unsigned long v;
+    if (!s || !s[0]) return fallback;
+    v = wcstoul(s, NULL, 10);
+    return (v > 0 && v <= 65535) ? (UINT16)v : fallback;
+}
+
+typedef struct {
+    char name[64];
+    INT32 socket_kind; /* 0 = Datagram (Udp), 1 = Stream (Tcp) */
+    UINT16 port_lower;
+    UINT16 port_upper;
+} xbl_sock_desc;
+
+typedef struct {
+    WCHAR name[128];
+    INT32 socket_kind;
+    UINT16 init_lower;
+    UINT16 init_upper;
+    UINT16 acc_lower;
+    UINT16 acc_upper;
+} xbl_manifest_tmpl;
+
+static xbl_manifest_tmpl g_xbl_manifest_tmpls[32];
+static UINT32 g_xbl_manifest_tmpl_count = 0;
+static LONG g_xbl_manifest_loaded = 0;
+
+static int xbl_xml_attr(const char *tag, const char *attr, char *out, size_t cap)
+{
+    char needle[80];
+    const char *p, *q;
+    size_t n;
+    snprintf(needle, sizeof needle, "%s=\"", attr);
+    p = strstr(tag, needle);
+    if (!p) return 0;
+    p += strlen(needle);
+    q = strchr(p, '"');
+    if (!q) return 0;
+    n = (size_t)(q - p);
+    if (n >= cap) n = cap - 1;
+    memcpy(out, p, n);
+    out[n] = '\0';
+    return 1;
+}
+
+static void xbl_parse_port_range(const char *s, UINT16 *lo, UINT16 *hi)
+{
+    unsigned long a = 0, b = 0;
+    const char *dash;
+    if (!s || !s[0]) { *lo = 0; *hi = 0; return; }
+    dash = strchr(s, '-');
+    a = strtoul(s, NULL, 10);
+    b = dash ? strtoul(dash + 1, NULL, 10) : a;
+    if (a > 65535) a = 65535;
+    if (b > 65535) b = 65535;
+    if (b < a) b = a;
+    *lo = (UINT16)a;
+    *hi = (UINT16)b;
+}
+
+static void xbl_load_network_manifest_once(void)
+{
+    WCHAR exe_path[MAX_PATH * 2];
+    WCHAR walk[MAX_PATH * 2];
+    WCHAR mf_path[MAX_PATH * 2];
+    DWORD n;
+    int depth;
+
+    if (InterlockedCompareExchange(&g_xbl_manifest_loaded, 1, 0) != 0)
+        return;
+
+    n = GetModuleFileNameW(NULL, exe_path, (DWORD)(sizeof(exe_path) / sizeof(exe_path[0])));
+    if (n == 0 || n >= sizeof(exe_path) / sizeof(exe_path[0])) return;
+    wcsncpy(walk, exe_path, sizeof(walk) / sizeof(walk[0]) - 1);
+    walk[sizeof(walk) / sizeof(walk[0]) - 1] = 0;
+
+    for (depth = 0; depth < 6; depth++) {
+        WCHAR *slash = wcsrchr(walk, L'\\');
+        HANDLE fh;
+        if (!slash) break;
+        *slash = 0;
+        if (_snwprintf(mf_path, sizeof(mf_path) / sizeof(mf_path[0]),
+                       L"%ls\\networkmanifest.xml", walk) <= 0)
+            break;
+        fh = CreateFileW(mf_path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                         NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (fh != INVALID_HANDLE_VALUE) {
+            char *xml = (char *)malloc(65536);
+            DWORD got = 0;
+            if (xml && ReadFile(fh, xml, 65535, &got, NULL) && got > 0) {
+                xbl_sock_desc descs[48];
+                UINT32 ndesc = 0;
+                const char *p;
+                xml[got] = '\0';
+
+                /* Pass 1: <SocketDescription ...> */
+                p = xml;
+                while (ndesc < 48 && (p = strstr(p, "<SocketDescription")) != NULL) {
+                    const char *end = strchr(p, '>');
+                    char tag[512];
+                    size_t tl;
+                    char name[64] = "", proto[16] = "", port_s[32] = "";
+                    if (!end) break;
+                    tl = (size_t)(end - p);
+                    if (tl >= sizeof tag) tl = sizeof(tag) - 1;
+                    memcpy(tag, p, tl);
+                    tag[tl] = '\0';
+                    if (xbl_xml_attr(tag, "Name", name, sizeof name)) {
+                        snprintf(descs[ndesc].name, sizeof descs[ndesc].name, "%s", name);
+                        xbl_xml_attr(tag, "SecureIpProtocol", proto, sizeof proto);
+                        descs[ndesc].socket_kind = (_stricmp(proto, "Tcp") == 0) ? 1 : 0;
+                        xbl_xml_attr(tag, "BoundPort", port_s, sizeof port_s);
+                        xbl_parse_port_range(port_s, &descs[ndesc].port_lower, &descs[ndesc].port_upper);
+                        ndesc++;
+                    }
+                    p = end + 1;
+                }
+
+                /* Pass 2: <SecureDeviceAssociationTemplate ...> */
+                p = xml;
+                while (g_xbl_manifest_tmpl_count < 32 &&
+                       (p = strstr(p, "<SecureDeviceAssociationTemplate")) != NULL) {
+                    const char *end = strchr(p, '>');
+                    char tag[512];
+                    size_t tl;
+                    char tname[128] = "", init_n[64] = "", acc_n[64] = "";
+                    if (!end) break;
+                    tl = (size_t)(end - p);
+                    if (tl >= sizeof tag) tl = sizeof(tag) - 1;
+                    memcpy(tag, p, tl);
+                    tag[tl] = '\0';
+                    if (xbl_xml_attr(tag, "Name", tname, sizeof tname)) {
+                        xbl_manifest_tmpl *mt = &g_xbl_manifest_tmpls[g_xbl_manifest_tmpl_count];
+                        UINT32 di;
+                        memset(mt, 0, sizeof(*mt));
+                        MultiByteToWideChar(CP_UTF8, 0, tname, -1, mt->name, 127);
+                        xbl_xml_attr(tag, "InitiatorSocketDescription", init_n, sizeof init_n);
+                        xbl_xml_attr(tag, "AcceptorSocketDescription", acc_n, sizeof acc_n);
+                        for (di = 0; di < ndesc; di++) {
+                            if (_stricmp(descs[di].name, init_n) == 0) {
+                                mt->socket_kind = descs[di].socket_kind;
+                                mt->init_lower = descs[di].port_lower;
+                                mt->init_upper = descs[di].port_upper;
+                            }
+                            if (_stricmp(descs[di].name, acc_n) == 0) {
+                                mt->socket_kind = descs[di].socket_kind;
+                                mt->acc_lower = descs[di].port_lower;
+                                mt->acc_upper = descs[di].port_upper;
+                            }
+                        }
+                        svc_tracef("networkmanifest tmpl[%u]: %s kind=%d init=%u-%u acc=%u-%u",
+                                   g_xbl_manifest_tmpl_count, tname, mt->socket_kind,
+                                   (unsigned)mt->init_lower, (unsigned)mt->init_upper,
+                                   (unsigned)mt->acc_lower, (unsigned)mt->acc_upper);
+                        g_xbl_manifest_tmpl_count++;
+                    }
+                    p = end + 1;
+                }
+            }
+            free(xml);
+            CloseHandle(fh);
+            break;
+        }
+    }
+}
 
 static const GUID svc_iid_xbl_ept_statics = {
     0x1e13137b, 0x737b, 0x4a23, {0xbc, 0x64, 0x08, 0x70, 0xf7, 0x56, 0x55, 0xba}};
 static const GUID svc_iid_xbl_ept = {
     0x6b286ecf, 0x3457, 0x40ce, {0xb9, 0xa1, 0xc0, 0xcf, 0xe0, 0x21, 0x3e, 0xa7}};
+static const GUID svc_iid_xbl_ept_vecview = {
+    0x1128b50b, 0x3ac4, 0x543e, {0x9d, 0x7e, 0xd7, 0x96, 0xc6, 0x22, 0x66, 0x69}};
+static const GUID svc_iid_xbl_ept_iterable = {
+    0x9fce55c3, 0x5580, 0x581a, {0x85, 0xb5, 0x88, 0xdd, 0x5e, 0x9d, 0x4f, 0xf7}};
+static const GUID svc_iid_xbl_ept_iterator = {
+    0x515331c6, 0x39e1, 0x5cc7, {0x84, 0x54, 0x7f, 0x1c, 0x8b, 0xcb, 0xa1, 0x8e}};
 static const GUID svc_iid_xbl_ep_result = {
     0xd9a8bb95, 0x2aab, 0x4d1e, {0x97, 0x94, 0x33, 0xec, 0xc0, 0xdc, 0xf0, 0xfe}};
 static const GUID svc_iid_xbl_ep = {
@@ -8619,6 +9052,11 @@ static const GUID svc_iid_async_op_xbl_ep_result = {
 typedef struct {
     svc_object base;
     WCHAR name[128];
+    INT32 socket_kind;
+    UINT16 init_lower;
+    UINT16 init_upper;
+    UINT16 acc_lower;
+    UINT16 acc_upper;
 } xbl_ept_object;
 
 typedef struct {
@@ -8685,14 +9123,33 @@ static HRESULT __stdcall xbl_ep_DeleteAsync(xbl_ep_object *self, void **out)
 }
 static HRESULT __stdcall xbl_ep_GetRemoteSocketAddressBytes(xbl_ep_object *self, UINT32 len, unsigned char *buf)
 {
-    (void)self;
-    if (buf && len) memset(buf, 0, len);
+    xbl_decoded_ip ip;
+    UINT16 port = xbl_parse_port_w(self->remote_port, self->tmpl && self->tmpl->acc_lower ? self->tmpl->acc_lower : 3074);
+    memset(&ip, 0, sizeof ip);
+    if (self->remote && xbl_sda_extract_ip(self->remote->snapshot, self->remote->snapshot_len, &ip)) {
+        xbl_write_sockaddr_bytes(&ip, port, len, buf);
+        svc_tracef("xbl_ep GetRemoteSocketAddressBytes len=%u fam=%d ip4=%u.%u.%u.%u port=%u",
+                   len, ip.family, (unsigned)ip.ip4[0], (unsigned)ip.ip4[1],
+                   (unsigned)ip.ip4[2], (unsigned)ip.ip4[3], (unsigned)port);
+    } else {
+        svc_tracef("xbl_ep GetRemoteSocketAddressBytes len=%u remote_len=%u (no decoded ip)",
+                   len, self->remote ? self->remote->snapshot_len : 0);
+        if (buf && len) memset(buf, 0, len);
+    }
     return S_OK;
 }
 static HRESULT __stdcall xbl_ep_GetLocalSocketAddressBytes(xbl_ep_object *self, UINT32 len, unsigned char *buf)
 {
-    (void)self;
-    if (buf && len) memset(buf, 0, len);
+    xbl_decoded_ip ip;
+    UINT16 port = xbl_parse_port_w(self->local_port, self->tmpl && self->tmpl->init_lower ? self->tmpl->init_lower : 0);
+    xbl_detect_local_ipv4_once();
+    memset(&ip, 0, sizeof ip);
+    ip.family = 2;
+    memcpy(ip.ip4, g_xbl_local_ipv4, 4);
+    xbl_write_sockaddr_bytes(&ip, port, len, buf);
+    svc_tracef("xbl_ep GetLocalSocketAddressBytes len=%u ip4=%u.%u.%u.%u port=%u",
+               len, (unsigned)ip.ip4[0], (unsigned)ip.ip4[1],
+               (unsigned)ip.ip4[2], (unsigned)ip.ip4[3], (unsigned)port);
     return S_OK;
 }
 static HRESULT __stdcall xbl_ep_get_State(xbl_ep_object *self, INT32 *out)
@@ -8717,9 +9174,27 @@ static HRESULT __stdcall xbl_ep_get_RemoteDeviceAddress(xbl_ep_object *self, voi
 }
 static HRESULT __stdcall xbl_ep_get_RemoteHostName(xbl_ep_object *self, void **out)
 {
-    (void)self;
+    xbl_decoded_ip ip;
+    WCHAR host[96];
     if (!out) return E_POINTER;
     *out = NULL;
+    if (self->remote && xbl_sda_extract_ip(self->remote->snapshot, self->remote->snapshot_len, &ip)) {
+        if (ip.family == 2) {
+            _snwprintf(host, 95, L"%u.%u.%u.%u",
+                       (unsigned)ip.ip4[0], (unsigned)ip.ip4[1],
+                       (unsigned)ip.ip4[2], (unsigned)ip.ip4[3]);
+            host[95] = 0;
+            *out = xbl_hostname_new(host, 1);
+            return *out ? S_OK : E_OUTOFMEMORY;
+        } else if (ip.family == 23) {
+            _snwprintf(host, 95, L"%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+                       ip.ip6[0], ip.ip6[1], ip.ip6[2], ip.ip6[3], ip.ip6[4], ip.ip6[5], ip.ip6[6], ip.ip6[7],
+                       ip.ip6[8], ip.ip6[9], ip.ip6[10], ip.ip6[11], ip.ip6[12], ip.ip6[13], ip.ip6[14], ip.ip6[15]);
+            host[95] = 0;
+            *out = xbl_hostname_new(host, 2);
+            return *out ? S_OK : E_OUTOFMEMORY;
+        }
+    }
     return S_OK;
 }
 static HRESULT __stdcall xbl_ep_get_RemotePort(xbl_ep_object *self, hstring_t *out)
@@ -8730,15 +9205,21 @@ static HRESULT __stdcall xbl_ep_get_RemotePort(xbl_ep_object *self, hstring_t *o
 }
 static HRESULT __stdcall xbl_ep_get_LocalHostName(xbl_ep_object *self, void **out)
 {
+    WCHAR host[64];
     (void)self;
     if (!out) return E_POINTER;
-    *out = NULL;
-    return S_OK;
+    xbl_detect_local_ipv4_once();
+    _snwprintf(host, 63, L"%u.%u.%u.%u",
+               (unsigned)g_xbl_local_ipv4[0], (unsigned)g_xbl_local_ipv4[1],
+               (unsigned)g_xbl_local_ipv4[2], (unsigned)g_xbl_local_ipv4[3]);
+    host[63] = 0;
+    *out = xbl_hostname_new(host, 1);
+    return *out ? S_OK : E_OUTOFMEMORY;
 }
 static HRESULT __stdcall xbl_ep_get_LocalPort(xbl_ep_object *self, hstring_t *out)
 {
     if (!out) return E_POINTER;
-    *out = svc_string(self->local_port[0] ? self->local_port : L"3074");
+    *out = svc_string(self->local_port[0] ? self->local_port : L"0");
     return S_OK;
 }
 
@@ -8867,7 +9348,9 @@ static HRESULT xbl_ept_create_pair_impl(xbl_ept_object *self, void *dev_addr,
     pair->remote = (xbl_devaddr_object *)dev_addr;
     if (pair->remote) svc_AddRef(&pair->remote->base);
     if (ip && ip[0]) wcsncpy(pair->local_port, ip, 15);
+    else if (self->init_lower) _snwprintf(pair->local_port, 15, L"%u", (unsigned)self->init_lower);
     if (ap && ap[0]) wcsncpy(pair->remote_port, ap, 15);
+    else if (self->acc_lower) _snwprintf(pair->remote_port, 15, L"%u", (unsigned)self->acc_lower);
     pair->state = 4; /* XboxLiveEndpointPairState_Ready */
 
     res->base.vtbl = xbl_ep_result_vtable;
@@ -8910,26 +9393,33 @@ static HRESULT __stdcall xbl_ept_get_Name(xbl_ept_object *self, hstring_t *out)
 }
 static HRESULT __stdcall xbl_ept_get_SocketKind(xbl_ept_object *self, INT32 *out)
 {
-    (void)self;
     if (!out) return E_POINTER;
-    *out = 0; /* Datagram */
+    *out = self->socket_kind; /* 0 = Datagram, 1 = Stream */
     return S_OK;
 }
 static HRESULT __stdcall xbl_ept_get_InitiatorLower(xbl_ept_object *self, UINT16 *out)
 {
-    (void)self; if (!out) return E_POINTER; *out = 0; return S_OK;
+    if (!out) return E_POINTER;
+    *out = self->init_lower;
+    return S_OK;
 }
 static HRESULT __stdcall xbl_ept_get_InitiatorUpper(xbl_ept_object *self, UINT16 *out)
 {
-    (void)self; if (!out) return E_POINTER; *out = 0; return S_OK;
+    if (!out) return E_POINTER;
+    *out = self->init_upper;
+    return S_OK;
 }
 static HRESULT __stdcall xbl_ept_get_AcceptorLower(xbl_ept_object *self, UINT16 *out)
 {
-    (void)self; if (!out) return E_POINTER; *out = 3074; return S_OK;
+    if (!out) return E_POINTER;
+    *out = self->acc_lower;
+    return S_OK;
 }
 static HRESULT __stdcall xbl_ept_get_AcceptorUpper(xbl_ept_object *self, UINT16 *out)
 {
-    (void)self; if (!out) return E_POINTER; *out = 3074; return S_OK;
+    if (!out) return E_POINTER;
+    *out = self->acc_upper;
+    return S_OK;
 }
 static HRESULT __stdcall xbl_ept_get_EndpointPairs(xbl_ept_object *self, void **out)
 {
@@ -8958,6 +9448,198 @@ static const void *xbl_ept_vtable[] = {
     (const void *)xbl_ept_get_EndpointPairs,
 };
 
+static xbl_ept_object *xbl_ept_from_manifest(const WCHAR *name)
+{
+    xbl_ept_object *obj;
+    UINT32 i;
+    xbl_load_network_manifest_once();
+    obj = (xbl_ept_object *)calloc(1, sizeof(*obj));
+    if (!obj) return NULL;
+    obj->base.vtbl = xbl_ept_vtable;
+    obj->base.refs = 1;
+    obj->base.name = "Windows.Networking.XboxLive.XboxLiveEndpointPairTemplate";
+    obj->acc_lower = 3074;
+    obj->acc_upper = 3074;
+    if (name) {
+        wcsncpy(obj->name, name, 127);
+        for (i = 0; i < g_xbl_manifest_tmpl_count; i++) {
+            if (_wcsicmp(g_xbl_manifest_tmpls[i].name, name) == 0) {
+                obj->socket_kind = g_xbl_manifest_tmpls[i].socket_kind;
+                obj->init_lower = g_xbl_manifest_tmpls[i].init_lower;
+                obj->init_upper = g_xbl_manifest_tmpls[i].init_upper;
+                obj->acc_lower = g_xbl_manifest_tmpls[i].acc_lower;
+                obj->acc_upper = g_xbl_manifest_tmpls[i].acc_upper;
+                break;
+            }
+        }
+    }
+    return obj;
+}
+
+typedef struct {
+    svc_object base;
+    UINT32 index;
+} xbl_ept_iter_object;
+
+static HRESULT __stdcall xbl_ept_iter_QI(xbl_ept_iter_object *self, const GUID *id, void **out)
+{
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_xbl_ept_iterator) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
+        *out = self;
+        svc_AddRef(&self->base);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+static HRESULT __stdcall xbl_ept_iter_Current(xbl_ept_iter_object *self, void **out)
+{
+    if (!out) return E_POINTER;
+    if (self->index >= g_xbl_manifest_tmpl_count) {
+        *out = NULL;
+        return E_BOUNDS;
+    }
+    *out = xbl_ept_from_manifest(g_xbl_manifest_tmpls[self->index].name);
+    return *out ? S_OK : E_OUTOFMEMORY;
+}
+static HRESULT __stdcall xbl_ept_iter_HasCurrent(xbl_ept_iter_object *self, BOOLEAN *out)
+{
+    if (!out) return E_POINTER;
+    *out = self->index < g_xbl_manifest_tmpl_count ? TRUE : FALSE;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ept_iter_MoveNext(xbl_ept_iter_object *self, BOOLEAN *out)
+{
+    if (self->index < g_xbl_manifest_tmpl_count) self->index++;
+    if (out) *out = self->index < g_xbl_manifest_tmpl_count ? TRUE : FALSE;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ept_iter_GetMany(xbl_ept_iter_object *self, UINT32 cap,
+                                              void **items, UINT32 *actual)
+{
+    UINT32 n = 0;
+    while (n < cap && self->index < g_xbl_manifest_tmpl_count) {
+        items[n] = xbl_ept_from_manifest(g_xbl_manifest_tmpls[self->index].name);
+        if (!items[n]) break;
+        n++;
+        self->index++;
+    }
+    if (actual) *actual = n;
+    return S_OK;
+}
+static const void *xbl_ept_iter_vtable[] = {
+    (const void *)xbl_ept_iter_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)xbl_ept_iter_Current,
+    (const void *)xbl_ept_iter_HasCurrent,
+    (const void *)xbl_ept_iter_MoveNext,
+    (const void *)xbl_ept_iter_GetMany,
+};
+
+static svc_object xbl_ept_vec_singleton;
+static svc_object xbl_ept_iter_factory;
+
+static HRESULT __stdcall xbl_ept_vec_QI(svc_object *self, const GUID *id, void **out);
+static HRESULT __stdcall xbl_ept_vec_First(svc_object *self, void **out)
+{
+    xbl_ept_iter_object *it;
+    (void)self;
+    if (!out) return E_POINTER;
+    xbl_load_network_manifest_once();
+    it = (xbl_ept_iter_object *)calloc(1, sizeof(*it));
+    if (!it) return E_OUTOFMEMORY;
+    it->base.vtbl = xbl_ept_iter_vtable;
+    it->base.refs = 1;
+    it->base.name = "Windows.Foundation.Collections.IIterator`1<Windows.Networking.XboxLive.XboxLiveEndpointPairTemplate>";
+    *out = it;
+    return S_OK;
+}
+static const void *xbl_ept_iterable_vtable[] = {
+    (const void *)xbl_ept_vec_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)xbl_ept_vec_First,
+};
+static HRESULT __stdcall xbl_ept_vec_GetAt(svc_object *self, UINT32 index, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    xbl_load_network_manifest_once();
+    if (index >= g_xbl_manifest_tmpl_count) {
+        *out = NULL;
+        return E_BOUNDS;
+    }
+    *out = xbl_ept_from_manifest(g_xbl_manifest_tmpls[index].name);
+    return *out ? S_OK : E_OUTOFMEMORY;
+}
+static HRESULT __stdcall xbl_ept_vec_get_Size(svc_object *self, UINT32 *out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    xbl_load_network_manifest_once();
+    *out = g_xbl_manifest_tmpl_count;
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ept_vec_IndexOf(svc_object *self, void *item, UINT32 *index, BOOLEAN *found)
+{
+    UINT32 i;
+    xbl_ept_object *e = (xbl_ept_object *)item;
+    (void)self;
+    xbl_load_network_manifest_once();
+    if (index) *index = 0;
+    if (found) *found = FALSE;
+    if (e) {
+        for (i = 0; i < g_xbl_manifest_tmpl_count; i++) {
+            if (_wcsicmp(g_xbl_manifest_tmpls[i].name, e->name) == 0) {
+                if (index) *index = i;
+                if (found) *found = TRUE;
+                break;
+            }
+        }
+    }
+    return S_OK;
+}
+static HRESULT __stdcall xbl_ept_vec_GetMany(svc_object *self, UINT32 start, UINT32 cap,
+                                             void **items, UINT32 *actual)
+{
+    UINT32 n = 0;
+    (void)self;
+    xbl_load_network_manifest_once();
+    while (n < cap && start + n < g_xbl_manifest_tmpl_count) {
+        items[n] = xbl_ept_from_manifest(g_xbl_manifest_tmpls[start + n].name);
+        if (!items[n]) break;
+        n++;
+    }
+    if (actual) *actual = n;
+    return S_OK;
+}
+static const void *xbl_ept_vec_vtable[] = {
+    (const void *)xbl_ept_vec_QI, (const void *)svc_AddRef, (const void *)svc_Release,
+    (const void *)svc_get_iids, (const void *)svc_get_class_name, (const void *)svc_get_trust,
+    (const void *)xbl_ept_vec_GetAt,
+    (const void *)xbl_ept_vec_get_Size,
+    (const void *)xbl_ept_vec_IndexOf,
+    (const void *)xbl_ept_vec_GetMany,
+};
+static HRESULT __stdcall xbl_ept_vec_QI(svc_object *self, const GUID *id, void **out)
+{
+    (void)self;
+    if (!out) return E_POINTER;
+    if (IsEqualIID(id, &svc_iid_xbl_ept_vecview) || IsEqualIID(id, &svc_iid_unknown) ||
+        IsEqualIID(id, &svc_iid_inspectable) || IsEqualIID(id, &svc_iid_agile_object)) {
+        *out = &xbl_ept_vec_singleton;
+        svc_AddRef(&xbl_ept_vec_singleton);
+        return S_OK;
+    }
+    if (IsEqualIID(id, &svc_iid_xbl_ept_iterable)) {
+        *out = &xbl_ept_iter_factory;
+        svc_AddRef(&xbl_ept_iter_factory);
+        return S_OK;
+    }
+    *out = NULL;
+    return E_NOINTERFACE;
+}
+
 static HRESULT __stdcall xbl_ept_statics_QI(svc_object *self, const GUID *id, void **out)
 {
     if (!out) return E_POINTER;
@@ -8979,12 +9661,8 @@ static HRESULT __stdcall xbl_ept_GetTemplateByName(svc_object *self, hstring_t n
     (void)self;
     if (!out) return E_POINTER;
     svc_trace_w("xbl_ept GetTemplateByName", w ? w : L"(null)");
-    obj = (xbl_ept_object *)calloc(1, sizeof(*obj));
+    obj = xbl_ept_from_manifest(w);
     if (!obj) return E_OUTOFMEMORY;
-    obj->base.vtbl = xbl_ept_vtable;
-    obj->base.refs = 1;
-    obj->base.name = "Windows.Networking.XboxLive.XboxLiveEndpointPairTemplate";
-    if (w) wcsncpy(obj->name, w, 127);
     *out = obj;
     return S_OK;
 }
@@ -8993,9 +9671,10 @@ static HRESULT __stdcall xbl_ept_get_Templates(svc_object *self, void **out)
 {
     (void)self;
     if (!out) return E_POINTER;
-    svc_trace("xbl_ept get_Templates");
-    *out = &package_deps;
-    svc_AddRef(&package_deps);
+    xbl_load_network_manifest_once();
+    svc_tracef("xbl_ept get_Templates count=%u", g_xbl_manifest_tmpl_count);
+    svc_AddRef(&xbl_ept_vec_singleton);
+    *out = &xbl_ept_vec_singleton;
     return S_OK;
 }
 
@@ -12212,6 +12891,10 @@ void uwp_services_install(void)
     }
     INSTALL(xbl_ept_static, xbl_ept_statics_vtable,
             "Windows.Networking.XboxLive.XboxLiveEndpointPairTemplate");
+    INSTALL(xbl_ept_vec_singleton, xbl_ept_vec_vtable,
+            "Windows.Foundation.Collections.IVectorView`1<Windows.Networking.XboxLive.XboxLiveEndpointPairTemplate>");
+    INSTALL(xbl_ept_iter_factory, xbl_ept_iterable_vtable,
+            "Windows.Foundation.Collections.IIterable`1<Windows.Networking.XboxLive.XboxLiveEndpointPairTemplate>");
     INSTALL(resctx_static, resctx_statics_vtable,
             "Windows.ApplicationModel.Resources.Core.ResourceContext");
     INSTALL(resctx_static2, resctx_statics2_vtable,

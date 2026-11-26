@@ -283,7 +283,6 @@ def register_com_classes(proton, prefix, env, dll, clsids):
             failed = True
     if failed:
         print('droiddeck-xbox: COM class registration failed; launching without it', file=sys.stderr)
-        return {}
     return previous
 
 
@@ -713,8 +712,12 @@ def xml_local_tag(element):
     return tag.rsplit('}', 1)[-1] if '}' in tag else tag
 
 
-def uwp_view_app(folder):
-    """True when the package's manifest starts an Application through a view EntryPoint rather than FullTrust."""
+def _norm_manifest_rel(path_text):
+    return str(path_text or '').replace('\\', '/').lstrip('./').lower()
+
+
+def uwp_view_app(folder, exe=None):
+    """True when the launched manifest Application starts through a view EntryPoint rather than FullTrust."""
     try:
         text = (Path(folder) / 'AppxManifest.xml').read_text(encoding='utf-8', errors='replace')
     except OSError:
@@ -722,15 +725,34 @@ def uwp_view_app(folder):
     root = parse_manifest_xml(text)
     if root is None:
         return False
+    target_rel = None
+    target_name = None
+    if exe:
+        exe_path = Path(exe)
+        rel = relative_to_package(exe_path, folder)
+        if rel is None:
+            view_root = next((p for p in exe_path.parents if p.name.startswith('droiddeck-xbox-')), None)
+            if view_root is not None:
+                rel = relative_to_package(exe_path, view_root)
+        target_rel = _norm_manifest_rel(rel) if rel is not None else _norm_manifest_rel(exe)
+        target_name = exe_path.name.lower()
+    apps = []
     for applications in root:
         if xml_local_tag(applications) != 'Applications':
             continue
         for app in applications:
-            if xml_local_tag(app) != 'Application':
-                continue
-            entry = (app.attrib.get('EntryPoint') or '').strip()
-            if entry and entry.split(',')[0].strip() != 'Windows.FullTrustApplication':
-                return True
+            if xml_local_tag(app) == 'Application':
+                apps.append(app)
+    if target_rel:
+        matched = [a for a in apps if _norm_manifest_rel(a.attrib.get('Executable')) == target_rel]
+        if not matched and target_name:
+            matched = [a for a in apps if Path((a.attrib.get('Executable') or '').replace('\\', '/')).name.lower() == target_name]
+        if matched:
+            apps = matched
+    for app in apps:
+        entry = (app.attrib.get('EntryPoint') or '').strip()
+        if entry and entry.split(',')[0].strip().lower() != 'windows.fulltrustapplication':
+            return True
     return False
 
 
@@ -979,10 +1001,12 @@ def launch(command, env):
             except Exception as error:
                 print('droiddeck-xbox: PlayFab save proxy skipped (%s)' % error, file=sys.stderr)
             # Only a view package needs the app model; asking for its host costs nothing else.
-            view = uwp_view_app(folder)
+            view = uwp_view_app(folder, reply['exe'])
             trace(env, 'package starts a view: %s' % view)
             if view:
                 owned_env['DROIDDECK_XBOX_UWP_HOST'] = '1'
+            else:
+                owned_env.pop('DROIDDECK_XBOX_UWP_HOST', None)
             return wine([reply['exe']], owned_env, folder)
     finally:
         stopped.set()

@@ -1781,7 +1781,128 @@ static const char *normalize_xbox_rps_ticket(const char *ticket)
 }
 
 /* Fetch MSA RPS ticket from DroidDeck's live xodus-service via XODUS_BRIDGE_PORT/KEY. */
-static int fetch_msa_ticket_locked(int force_refresh)
+static int json_extract_str(const char *json, const char *key, char *out, size_t cap);
+static char g_xbox_client_id[128];
+static int g_xbox_client_id_loaded = 0;
+
+static int is_valid_msa_app_id(const char *s)
+{
+    size_t i, n;
+    if (!s || !s[0]) return 0;
+    if (_stricmp(s, "PleaseChangeMe") == 0) return 0;
+    n = strlen(s);
+    if (n < 8 || n >= 120) return 0;
+    for (i = 0; i < n; i++) {
+        char c = s[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
+              (c >= 'A' && c <= 'Z') || c == '-'))
+            return 0;
+    }
+    return 1;
+}
+
+static int read_xml_tag_value(const char *xml, const char *open_tag, const char *close_tag,
+                              char *out, size_t cap)
+{
+    const char *p, *e;
+    size_t n;
+    if (!xml || !open_tag || !close_tag || !out || cap < 2) return 0;
+    out[0] = '\0';
+    p = strstr(xml, open_tag);
+    if (!p) return 0;
+    p += strlen(open_tag);
+    while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+    e = strstr(p, close_tag);
+    if (!e) return 0;
+    while (e > p && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r' || e[-1] == '\n')) e--;
+    n = (size_t)(e - p);
+    if (n == 0 || n >= cap) return 0;
+    memcpy(out, p, n);
+    out[n] = '\0';
+    return 1;
+}
+
+static const char *get_xbox_client_id_locked(void)
+{
+    char env_id[128];
+    DWORD n;
+    WCHAR exe_path[MAX_PATH * 2];
+    WCHAR walk[MAX_PATH * 2];
+    WCHAR cfg_path[MAX_PATH * 2];
+    int depth;
+
+    if (g_xbox_client_id_loaded)
+        return g_xbox_client_id[0] ? g_xbox_client_id : XODUS_XBOX_CLIENT_ID;
+    g_xbox_client_id_loaded = 1;
+    snprintf(g_xbox_client_id, sizeof g_xbox_client_id, "%s", XODUS_XBOX_CLIENT_ID);
+
+    n = GetEnvironmentVariableA("DROIDDECK_XBOX_MSA_APP_ID", env_id, sizeof env_id);
+    if (n > 0 && n < sizeof env_id && is_valid_msa_app_id(env_id)) {
+        snprintf(g_xbox_client_id, sizeof g_xbox_client_id, "%s", env_id);
+        auth_log("using MSAAppId from env: %s", g_xbox_client_id);
+        return g_xbox_client_id;
+    }
+
+    n = GetModuleFileNameW(NULL, exe_path, (DWORD)(sizeof(exe_path) / sizeof(exe_path[0])));
+    if (n == 0 || n >= sizeof(exe_path) / sizeof(exe_path[0]))
+        return g_xbox_client_id;
+    wcsncpy(walk, exe_path, sizeof(walk) / sizeof(walk[0]) - 1);
+    walk[sizeof(walk) / sizeof(walk[0]) - 1] = 0;
+
+    for (depth = 0; depth < 6; depth++) {
+        WCHAR *slash = wcsrchr(walk, L'\\');
+        HANDLE fh;
+        if (!slash) break;
+        *slash = 0;
+
+        if (_snwprintf(cfg_path, sizeof(cfg_path) / sizeof(cfg_path[0]),
+                       L"%ls\\MicrosoftGame.config", walk) > 0) {
+            fh = CreateFileW(cfg_path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                             NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (fh != INVALID_HANDLE_VALUE) {
+                char buf[16384];
+                DWORD got = 0;
+                BOOL ok = ReadFile(fh, buf, sizeof(buf) - 1, &got, NULL);
+                CloseHandle(fh);
+                if (ok && got > 0) {
+                    char found[128];
+                    buf[got] = '\0';
+                    if (read_xml_tag_value(buf, "<MSAAppId>", "</MSAAppId>", found, sizeof found) &&
+                        is_valid_msa_app_id(found)) {
+                        snprintf(g_xbox_client_id, sizeof g_xbox_client_id, "%s", found);
+                        auth_log("using MSAAppId from MicrosoftGame.config: %s", g_xbox_client_id);
+                        return g_xbox_client_id;
+                    }
+                }
+            }
+        }
+
+        if (_snwprintf(cfg_path, sizeof(cfg_path) / sizeof(cfg_path[0]),
+                       L"%ls\\xboxservices.config", walk) > 0) {
+            fh = CreateFileW(cfg_path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                             NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (fh != INVALID_HANDLE_VALUE) {
+                char buf[8192];
+                DWORD got = 0;
+                BOOL ok = ReadFile(fh, buf, sizeof(buf) - 1, &got, NULL);
+                CloseHandle(fh);
+                if (ok && got > 0) {
+                    char found[128];
+                    buf[got] = '\0';
+                    if (json_extract_str(buf, "MSAAppId", found, sizeof found) &&
+                        is_valid_msa_app_id(found)) {
+                        snprintf(g_xbox_client_id, sizeof g_xbox_client_id, "%s", found);
+                        auth_log("using MSAAppId from xboxservices.config: %s", g_xbox_client_id);
+                        return g_xbox_client_id;
+                    }
+                }
+            }
+        }
+    }
+    return g_xbox_client_id;
+}
+
+static int fetch_msa_ticket_for_client_locked(const char *client_id)
 {
     char port_str[32], key[256];
     DWORD port_len, key_len;
@@ -1789,9 +1910,7 @@ static int fetch_msa_ticket_locked(int force_refresh)
     SOCKET s = INVALID_SOCKET;
     struct sockaddr_in addr;
     DWORD timeout_ms = 20000;
-    const char *req_xml =
-        "<MSATokenRequest><ClientId>" XODUS_XBOX_CLIENT_ID "</ClientId>"
-        "<AllowUi>false</AllowUi><MSAFullTrust>false</MSAFullTrust></MSATokenRequest>";
+    char req_xml[512];
     uint8_t hdr[8];
     uint32_t magic;
     uint16_t mtype, msize;
@@ -1799,8 +1918,10 @@ static int fetch_msa_ticket_locked(int force_refresh)
     char exp_str[64];
     time_t now = time(NULL);
 
-    if (!force_refresh && g_msa_ticket[0] && now + 120 < g_msa_expiry)
-        return 1;
+    snprintf(req_xml, sizeof req_xml,
+             "<MSATokenRequest><ClientId>%s</ClientId>"
+             "<AllowUi>false</AllowUi><MSAFullTrust>false</MSAFullTrust></MSATokenRequest>",
+             (client_id && client_id[0]) ? client_id : XODUS_XBOX_CLIENT_ID);
 
     port_len = GetEnvironmentVariableA("XODUS_BRIDGE_PORT", port_str, sizeof port_str);
     key_len = GetEnvironmentVariableA("XODUS_BRIDGE_KEY", key, sizeof key);
@@ -1899,9 +2020,31 @@ static int fetch_msa_ticket_locked(int force_refresh)
         snprintf(g_cached_non_roamable_id, sizeof g_cached_non_roamable_id, "%s", g_msa_account_id);
 
     free(resp);
-    auth_log("acquired MSA ticket from xodus-service (len=%u device_rps=%u exp=%lld)",
+    auth_log("acquired MSA ticket from xodus-service (client=%s len=%u device_rps=%u exp=%lld)",
+             (client_id && client_id[0]) ? client_id : XODUS_XBOX_CLIENT_ID,
              (unsigned)strlen(g_msa_ticket), (unsigned)strlen(g_device_rps), (long long)g_msa_expiry);
     return 1;
+}
+
+static int fetch_msa_ticket_locked(int force_refresh)
+{
+    time_t now = time(NULL);
+    const char *cid = get_xbox_client_id_locked();
+    if (!force_refresh && g_msa_ticket[0] && now + 120 < g_msa_expiry)
+        return 1;
+    if (fetch_msa_ticket_for_client_locked(cid))
+        return 1;
+    /* Retry once after a short delay in case xodus-service is still warming up. */
+    Sleep(300);
+    if (fetch_msa_ticket_for_client_locked(cid))
+        return 1;
+    /* If a title-specific MSAAppId failed, fall back to the default Xbox App ClientId. */
+    if (_stricmp(cid, XODUS_XBOX_CLIENT_ID) != 0) {
+        auth_log("MSAAppId %s failed; falling back to default ClientId %s", cid, XODUS_XBOX_CLIENT_ID);
+        snprintf(g_xbox_client_id, sizeof g_xbox_client_id, "%s", XODUS_XBOX_CLIENT_ID);
+        return fetch_msa_ticket_for_client_locked(XODUS_XBOX_CLIENT_ID);
+    }
+    return 0;
 }
 
 /* Minimal JSON string helper: appends JSON-escaped src into dst. */
@@ -2028,6 +2171,26 @@ static size_t encode_b64(const uint8_t *in, size_t len, char *out, size_t cap, i
     }
     if (cap)     out[w] = '\0';
     return w;
+}
+
+static int is_strict_base64(const char *in, size_t len)
+{
+    size_t i;
+    int pad = 0;
+    if (!in || len == 0 || (len % 4) != 0) return 0;
+    for (i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)in[i];
+        if (c == '=') {
+            pad++;
+            if (pad > 2 || i < len - 2) return 0;
+        } else {
+            if (pad) return 0;
+            if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                  (c >= '0' && c <= '9') || c == '+' || c == '/'))
+                return 0;
+        }
+    }
+    return 1;
 }
 
 static size_t decode_b64_to_buf(const char *in, uint8_t **out_buf)
@@ -2403,28 +2566,32 @@ static int fetch_xbl_user_token_locked(int force_refresh)
         resp = NULL;
 
         if (g_xbl_device_token[0]) {
+            const char *cid = get_xbox_client_id_locked();
+            char esc_cid[256];
             json_escape(esc_ticket, 10240, g_msa_ticket);
             json_escape(esc_dev, 10240, g_xbl_device_token);
+            json_escape(esc_cid, sizeof esc_cid, cid);
             snprintf(body, 24576,
-                     "{\"AccessToken\":\"%s\",\"AppId\":\"" XODUS_XBOX_CLIENT_ID "\","
+                     "{\"AccessToken\":\"%s\",\"AppId\":\"%s\","
                      "\"DeviceToken\":\"%s\",\"Sandbox\":\"RETAIL\","
                      "\"SiteName\":\"user.auth.xboxlive.com\",\"UseModernGamertag\":true,"
                      "\"ProofKey\":%s}",
-                     esc_ticket, esc_dev, g_proof_key_json);
+                     esc_ticket, esc_cid, esc_dev, g_proof_key_json);
             if (https_post_json_ex(L"sisu.xboxlive.com", L"/authorize", body, 0, 1, &status, &resp) &&
                 status == 200 &&
                 json_extract_nested_str(resp, "UserToken", "Token", g_xbl_user_token, sizeof g_xbl_user_token) &&
                 g_xbl_user_token[0]) {
                 json_extract_nested_str(resp, "TitleToken", "Token", g_xbl_title_token, sizeof g_xbl_title_token);
                 g_xbl_user_expiry = now + 36000;
-                auth_log("SISU authorized: user_len=%u title_len=%u device_len=%u",
+                auth_log("SISU authorized (app=%s): user_len=%u title_len=%u device_len=%u",
+                         cid,
                          (unsigned)strlen(g_xbl_user_token),
                          (unsigned)strlen(g_xbl_title_token),
                          (unsigned)strlen(g_xbl_device_token));
                 ok = 1;
                 goto done;
             } else {
-                auth_log("sisu/authorize failed HTTP %lu", (unsigned long)status);
+                auth_log("sisu/authorize failed HTTP %lu (app=%s)", (unsigned long)status, cid);
             }
             free(resp);
             resp = NULL;
@@ -2629,19 +2796,45 @@ static int acquire_xsts_entry(const char *rp_in, int force_refresh, xsts_entry *
 
         if (status != 200) {
             char origin[256];
-            auth_log("xsts/authorize failed HTTP %lu for rp=%s dt=%d tt=%d",
-                     (unsigned long)status, rp, has_dt, has_tt);
+            char xerr[64] = "";
+            if (resp) {
+                const char *xe = strstr(resp, "\"XErr\"");
+                if (xe) {
+                    const char *col = strchr(xe, ':');
+                    if (col) {
+                        size_t xi = 0;
+                        col++;
+                        while (*col == ' ' || *col == '\t') col++;
+                        while (*col && *col != ',' && *col != '}' && xi + 1 < sizeof xerr) xerr[xi++] = *col++;
+                        xerr[xi] = '\0';
+                    }
+                }
+            }
+            auth_log("xsts/authorize failed HTTP %lu xerr=%s for rp=%s dt=%d tt=%d",
+                     (unsigned long)status, xerr[0] ? xerr : "none", rp, has_dt, has_tt);
             free(resp);
             resp = NULL;
-            if (has_tt && _stricmp(rp, "http://xboxlive.com") == 0) {
-                snprintf(body, 32768,
-                         "{\"RelyingParty\":\"%s\",\"TokenType\":\"JWT\","
-                         "\"Properties\":{\"SandboxId\":\"RETAIL\",\"DeviceToken\":\"%s\","
-                         "\"UserTokens\":[\"%s\"]}}",
-                         esc_rp, esc_dt, esc_ut);
-                if (!https_post_json_ex(L"xsts.auth.xboxlive.com", L"/xsts/authorize", body, 1, use_sig, &status, &resp) ||
-                    status != 200) {
-                    free(resp); resp = NULL;
+            if (has_tt) {
+                if (has_dt) {
+                    snprintf(body, 32768,
+                             "{\"RelyingParty\":\"%s\",\"TokenType\":\"JWT\","
+                             "\"Properties\":{\"SandboxId\":\"RETAIL\",\"DeviceToken\":\"%s\","
+                             "\"UserTokens\":[\"%s\"]}}",
+                             esc_rp, esc_dt, esc_ut);
+                    if (!https_post_json_ex(L"xsts.auth.xboxlive.com", L"/xsts/authorize", body, 1, use_sig, &status, &resp) ||
+                        status != 200) {
+                        free(resp); resp = NULL;
+                    }
+                }
+                if (!resp) {
+                    snprintf(body, 32768,
+                             "{\"RelyingParty\":\"%s\",\"TokenType\":\"JWT\","
+                             "\"Properties\":{\"UserTokens\":[\"%s\"],\"SandboxId\":\"RETAIL\"}}",
+                             esc_rp, esc_ut);
+                    if (!https_post_json_ex(L"xsts.auth.xboxlive.com", L"/xsts/authorize", body, 1, 0, &status, &resp) ||
+                        status != 200) {
+                        free(resp); resp = NULL;
+                    }
                 }
             }
             if (!resp && origin_only(rp, origin, sizeof origin)) {
@@ -4287,7 +4480,7 @@ typedef struct {
     char sub_rp[256];
 } nsal_endpoint;
 
-static nsal_endpoint g_nsal_eps[64];
+static nsal_endpoint g_nsal_eps[256];
 static int g_nsal_count = 0;
 static int g_nsal_loaded = 0;
 
@@ -4332,7 +4525,7 @@ static void parse_nsal_json_locked(const char *json)
     const char *eps = strstr(json, "\"EndPoints\"");
     if (!eps) eps = strstr(json, "\"Endpoints\"");
     if (eps) p = eps;
-    while (*p && g_nsal_count < 64) {
+    while (*p && g_nsal_count < 256) {
         const char *obj = strchr(p, '{');
         const char *end;
         int depth = 0, in_str = 0;
@@ -4373,68 +4566,213 @@ static void parse_nsal_json_locked(const char *json)
     }
 }
 
+static int read_title_id_from_config(char *out, size_t cap)
+{
+    WCHAR exe_path[MAX_PATH * 2];
+    WCHAR walk[MAX_PATH * 2];
+    WCHAR cfg_path[MAX_PATH * 2];
+    DWORD n;
+    int depth;
+
+    if (!out || cap < 16) return 0;
+    out[0] = '\0';
+    n = GetModuleFileNameW(NULL, exe_path, (DWORD)(sizeof(exe_path) / sizeof(exe_path[0])));
+    if (n == 0 || n >= sizeof(exe_path) / sizeof(exe_path[0])) return 0;
+    wcsncpy(walk, exe_path, sizeof(walk) / sizeof(walk[0]) - 1);
+    walk[sizeof(walk) / sizeof(walk[0]) - 1] = 0;
+
+    for (depth = 0; depth < 6; depth++) {
+        WCHAR *slash = wcsrchr(walk, L'\\');
+        HANDLE fh;
+        if (!slash) break;
+        *slash = 0;
+        if (_snwprintf(cfg_path, sizeof(cfg_path) / sizeof(cfg_path[0]),
+                       L"%ls\\xboxservices.config", walk) < 0)
+            break;
+        fh = CreateFileW(cfg_path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                         NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+        if (fh != INVALID_HANDLE_VALUE) {
+            char buf[8192];
+            DWORD got = 0;
+            BOOL ok = ReadFile(fh, buf, sizeof(buf) - 1, &got, NULL);
+            CloseHandle(fh);
+            if (ok && got > 0) {
+                const char *k;
+                buf[got] = '\0';
+                k = strstr(buf, "\"TitleId\"");
+                if (k) {
+                    const char *colon = strchr(k + 9, ':');
+                    if (colon) {
+                        const char *v = colon + 1;
+                        while (*v == ' ' || *v == '\t' || *v == '\r' || *v == '\n') v++;
+                        if (*v == '"') {
+                            char tmp[64];
+                            size_t ti = 0;
+                            v++;
+                            while (*v && *v != '"' && ti + 1 < sizeof tmp) tmp[ti++] = *v++;
+                            tmp[ti] = '\0';
+                            if (tmp[0]) {
+                                unsigned long long num = 0;
+                                char *endp = NULL;
+                                if (tmp[0] == '0' && (tmp[1] == 'x' || tmp[1] == 'X'))
+                                    num = strtoull(tmp + 2, &endp, 16);
+                                else {
+                                    int has_hex = 0;
+                                    size_t j;
+                                    for (j = 0; tmp[j]; j++) {
+                                        if ((tmp[j] >= 'a' && tmp[j] <= 'f') ||
+                                            (tmp[j] >= 'A' && tmp[j] <= 'F'))
+                                            has_hex = 1;
+                                    }
+                                    num = strtoull(tmp, &endp, has_hex ? 16 : 10);
+                                }
+                                if (num > 0) {
+                                    snprintf(out, cap, "%llu", num);
+                                    return 1;
+                                }
+                            }
+                        } else if (*v >= '0' && *v <= '9') {
+                            unsigned long long num = strtoull(v, NULL, 10);
+                            if (num > 0) {
+                                snprintf(out, cap, "%llu", num);
+                                return 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (_snwprintf(cfg_path, sizeof(cfg_path) / sizeof(cfg_path[0]),
+                       L"%ls\\MicrosoftGame.config", walk) > 0) {
+            fh = CreateFileW(cfg_path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                             NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (fh != INVALID_HANDLE_VALUE) {
+                char buf[16384];
+                DWORD got = 0;
+                BOOL ok = ReadFile(fh, buf, sizeof(buf) - 1, &got, NULL);
+                CloseHandle(fh);
+                if (ok && got > 0) {
+                    char tmp[64];
+                    buf[got] = '\0';
+                    if (read_xml_tag_value(buf, "<TitleId>", "</TitleId>", tmp, sizeof tmp) && tmp[0]) {
+                        unsigned long long num = 0;
+                        char *endp = NULL;
+                        /* MicrosoftGame.config TitleId is hexadecimal (optionally 0x-prefixed). */
+                        if (tmp[0] == '0' && (tmp[1] == 'x' || tmp[1] == 'X'))
+                            num = strtoull(tmp + 2, &endp, 16);
+                        else
+                            num = strtoull(tmp, &endp, 16);
+                        if (num > 0) {
+                            snprintf(out, cap, "%llu", num);
+                            return 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+static int nsal_fetch_path(const char *path_a, const char *auth_hdr)
+{
+    char sig[128] = "";
+    char *hdr_a = (char *)malloc(9000);
+    WCHAR *hdr_w = NULL;
+    WCHAR path_w[256];
+    DWORD status = 0, rlen = 0;
+    BYTE *resp = NULL;
+    int got_ok = 0;
+    int wlen;
+
+    if (!hdr_a) return 0;
+    if (MultiByteToWideChar(CP_UTF8, 0, path_a, -1, path_w,
+                            (int)(sizeof(path_w) / sizeof(path_w[0]))) <= 0) {
+        free(hdr_a);
+        return 0;
+    }
+    if (auth_hdr && auth_hdr[0]) {
+        EnterCriticalSection(&g_auth_lock);
+        sign_xbox_request_locked(1, "GET", path_a, auth_hdr, NULL, 0, sig);
+        LeaveCriticalSection(&g_auth_lock);
+        snprintf(hdr_a, 9000,
+                 "x-xbl-contract-version: 1\r\nAuthorization: %s\r\n%s%s%s",
+                 auth_hdr, sig[0] ? "Signature: " : "", sig, sig[0] ? "\r\n" : "");
+    } else {
+        snprintf(hdr_a, 9000, "x-xbl-contract-version: 1\r\n");
+    }
+    wlen = MultiByteToWideChar(CP_UTF8, 0, hdr_a, -1, NULL, 0);
+    if (wlen > 0) {
+        hdr_w = (WCHAR *)malloc((size_t)wlen * sizeof(WCHAR));
+        if (hdr_w) MultiByteToWideChar(CP_UTF8, 0, hdr_a, -1, hdr_w, wlen);
+    }
+    if (hdr_w && auth_http_once(L"GET", L"title.mgt.xboxlive.com", INTERNET_DEFAULT_HTTPS_PORT,
+                                path_w, hdr_w, NULL, 0, &status, &resp, &rlen)) {
+        auth_log("NSAL %s HTTP %lu len=%lu", path_a, (unsigned long)status, (unsigned long)rlen);
+        if (status == 200 && resp && rlen > 0) {
+            EnterCriticalSection(&g_auth_lock);
+            parse_nsal_json_locked((const char *)resp);
+            LeaveCriticalSection(&g_auth_lock);
+            got_ok = 1;
+        }
+    }
+    free(resp);
+    free(hdr_w);
+    free(hdr_a);
+    return got_ok;
+}
+
 static int nsal_resolve_relying_party(const char *url, char *rp_out, size_t cap)
 {
     char host[128];
-    int i;
+    int i, best = -1;
+    size_t best_len = 0;
     if (!extract_url_host(url, host, sizeof host)) return 0;
 
+    auth_init_once();
     EnterCriticalSection(&g_auth_lock);
     if (!g_nsal_loaded) {
+        char title_id[32];
+        xsts_entry xbl;
         g_nsal_loaded = 1;
         LeaveCriticalSection(&g_auth_lock);
-        xsts_entry xbl;
+
         memset(&xbl, 0, sizeof xbl);
-        if (acquire_xsts_entry("http://xboxlive.com", 0, &xbl)) {
+        acquire_xsts_entry("http://xboxlive.com", 0, &xbl);
+
+        if (xbl.token[0]) {
             char *auth_hdr = (char *)malloc(8400);
-            char sig[128] = "";
-            char *hdr_a = (char *)malloc(9000);
-            WCHAR *hdr_w = NULL;
-            DWORD status = 0, rlen = 0;
-            BYTE *resp = NULL;
-            if (auth_hdr && hdr_a) {
-                int wlen;
+            if (auth_hdr) {
                 snprintf(auth_hdr, 8400, "XBL3.0 x=%s;%s", xbl.uhs, xbl.token);
-                EnterCriticalSection(&g_auth_lock);
-                sign_xbox_request_locked(1, "GET", "/titles/current/endpoints", auth_hdr, NULL, 0, sig);
-                LeaveCriticalSection(&g_auth_lock);
-                snprintf(hdr_a, 9000,
-                         "x-xbl-contract-version: 1\r\nAuthorization: %s\r\n%s%s%s",
-                         auth_hdr, sig[0] ? "Signature: " : "", sig, sig[0] ? "\r\n" : "");
-                wlen = MultiByteToWideChar(CP_UTF8, 0, hdr_a, -1, NULL, 0);
-                if (wlen > 0) {
-                    hdr_w = (WCHAR *)malloc((size_t)wlen * sizeof(WCHAR));
-                    if (hdr_w) MultiByteToWideChar(CP_UTF8, 0, hdr_a, -1, hdr_w, wlen);
+                if (read_title_id_from_config(title_id, sizeof title_id)) {
+                    char tpath[128];
+                    snprintf(tpath, sizeof tpath, "/titles/%s/endpoints", title_id);
+                    auth_log("NSAL config TitleId=%s", title_id);
+                    nsal_fetch_path(tpath, auth_hdr);
                 }
-                if (hdr_w && auth_http_once(L"GET", L"title.mgt.xboxlive.com", INTERNET_DEFAULT_HTTPS_PORT,
-                                            L"/titles/current/endpoints", hdr_w, NULL, 0,
-                                            &status, &resp, &rlen)) {
-                    auth_log("NSAL /titles/current/endpoints HTTP %lu len=%lu",
-                             (unsigned long)status, (unsigned long)rlen);
-                    if (status == 200 && resp && rlen > 0) {
-                        EnterCriticalSection(&g_auth_lock);
-                        parse_nsal_json_locked((const char *)resp);
-                        LeaveCriticalSection(&g_auth_lock);
-                    }
-                }
-                free(resp);
-                free(hdr_w);
+                nsal_fetch_path("/titles/current/endpoints", auth_hdr);
+                free(auth_hdr);
             }
-            free(hdr_a);
-            free(auth_hdr);
         }
+        nsal_fetch_path("/titles/default/endpoints?type=1", NULL);
         EnterCriticalSection(&g_auth_lock);
     }
 
     for (i = 0; i < g_nsal_count; i++) {
         if (nsal_host_matches(g_nsal_eps[i].host, host)) {
             const char *chosen = g_nsal_eps[i].sub_rp[0] ? g_nsal_eps[i].sub_rp : g_nsal_eps[i].rp;
-            if (chosen[0]) {
-                snprintf(rp_out, cap, "%s", chosen);
-                LeaveCriticalSection(&g_auth_lock);
-                return 1;
+            size_t hlen = strlen(g_nsal_eps[i].host);
+            if (chosen[0] && hlen >= best_len) {
+                best = i;
+                best_len = hlen;
             }
         }
+    }
+    if (best >= 0) {
+        const char *chosen = g_nsal_eps[best].sub_rp[0] ? g_nsal_eps[best].sub_rp : g_nsal_eps[best].rp;
+        snprintf(rp_out, cap, "%s", chosen);
+        LeaveCriticalSection(&g_auth_lock);
+        return 1;
     }
     LeaveCriticalSection(&g_auth_lock);
     return 0;
@@ -4472,11 +4810,11 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
     }
 
     normalize_relying_party(prop_target, prop_url, rp, sizeof rp);
-    if (!is_msa_provider && !rp_is_xboxlive_equiv(rp) && prop_url && prop_url[0]) {
+    if (!is_msa_provider && prop_url && prop_url[0]) {
         char nsal_rp[256] = "";
         if (nsal_resolve_relying_party(prop_url, nsal_rp, sizeof nsal_rp) && nsal_rp[0]) {
             snprintf(rp, sizeof rp, "%s", nsal_rp);
-        } else {
+        } else if (!rp_is_xboxlive_equiv(rp)) {
             /* Endpoint not mapped to a custom RP in NSAL: use canonical Xbox Live RP. */
             snprintf(rp, sizeof rp, "http://xboxlive.com");
         }
@@ -4495,8 +4833,19 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
             }
             LeaveCriticalSection(&req->props->lock);
         }
+        char safe_url[256];
+        size_t ulen = 0;
+        safe_url[0] = '\0';
+        if (prop_url) {
+            while (prop_url[ulen] && prop_url[ulen] != '?' && prop_url[ulen] != '#' &&
+                   ulen + 1 < sizeof safe_url) {
+                safe_url[ulen] = prop_url[ulen];
+                ulen++;
+            }
+            safe_url[ulen] = '\0';
+        }
         auth_log("WebAuthenticationCoreManager token request rp=%s url=%s target=%s refresh=%d msa=%d keys=[%s]",
-                 rp, prop_url ? prop_url : "", prop_target ? prop_target : "", force_refresh, is_msa_provider, kbuf);
+                 rp, safe_url, prop_target ? prop_target : "", force_refresh, is_msa_provider, kbuf);
     }
 
     if (res) {
@@ -4594,15 +4943,25 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
                             body_len = decode_b64_to_buf(prop_body_b64, &dec_body);
                             body_ptr = dec_body;
                         } else if (prop_body_str && prop_body_str[0]) {
-                            body_ptr = prop_body_str;
-                            body_len = strlen(prop_body_str);
+                            size_t slen = strlen(prop_body_str);
+                            /* XSAPI UWP (Microsoft.Xbox.Services.dll) Base64-encodes RequestBody
+                             * via utility::conversions::to_base64 before inserting it into
+                             * WebTokenRequest.Properties["RequestBody"]. Decode valid Base64
+                             * payloads back to raw bytes before hashing; fall back to raw UTF-8
+                             * for callers passing plain text/JSON directly. */
+                            if (is_strict_base64(prop_body_str, slen)) {
+                                body_len = decode_b64_to_buf(prop_body_str, &dec_body);
+                                body_ptr = dec_body;
+                            } else {
+                                body_ptr = prop_body_str;
+                                body_len = slen;
+                            }
                         }
                         if (!rp_is_xboxlive_equiv(rp)) {
                             auth_log("custom rp=%s sig body_b64=%d body_len=%zu",
                                      rp, prop_body_b64 != NULL, body_len);
                         }
                         if (body_len > 8192) body_len = 8192;
-                        sig_out[0] = '\0';
                         EnterCriticalSection(&g_auth_lock);
                         has_sig = sign_xbox_request_locked(1, prop_method ? prop_method : "GET",
                                                           path_q, header_tok, body_ptr, body_len, sig_out);
@@ -5091,6 +5450,9 @@ static int acquire_device_xsts_entry(int force_refresh, xsts_entry *out)
     }
     json_extract_str(resp, "uhs", entry->uhs, sizeof entry->uhs);
     json_extract_str(resp, "xid", entry->xuid, sizeof entry->xuid);
+    json_extract_str(resp, "gtg", entry->gamertag, sizeof entry->gamertag);
+    json_extract_str(resp, "agg", entry->age_group, sizeof entry->age_group);
+    json_extract_str(resp, "prv", entry->privileges, sizeof entry->privileges);
     if (!entry->xuid[0] && g_cached_xuid[0])
         snprintf(entry->xuid, sizeof entry->xuid, "%s", g_cached_xuid);
     else if (entry->xuid[0])
@@ -5105,7 +5467,7 @@ static int acquire_device_xsts_entry(int force_refresh, xsts_entry *out)
     }
     g_device_xsts_cache = *entry;
     *out = *entry;
-    auth_log("acquired device XSTS token for connected storage (has_xuid=%d has_uhs=%d len=%u)",
+    auth_log("acquired device XSTS token (has_xuid=%d has_uhs=%d len=%u)",
              entry->xuid[0] != '\0', entry->uhs[0] != '\0', (unsigned)strlen(entry->token));
     ok = 1;
 

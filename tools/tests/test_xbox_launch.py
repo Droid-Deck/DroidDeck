@@ -659,3 +659,32 @@ class ComClassRegistrationTest(unittest.TestCase):
             with patch('subprocess.run', return_value=type('Result', (), {'returncode': 1})()):
                 xbox['restore_com_classes']('/proton', prefix, {}, {self.XHR_CLSID: None})
 
+    def test_failed_com_import_keeps_snapshot_for_restore(self):
+        with tempfile.TemporaryDirectory() as folder:
+            prefix = Path(folder)
+            (prefix / 'system.reg').write_text(
+                '[Software\\\\Classes\\\\CLSID\\\\' + self.XHR_CLSID + '\\\\InprocServer32]\n'
+                '@="C:\\\\windows\\\\system32\\\\msxml6.dll"\n',
+                encoding='utf-8',
+            )
+            with patch('subprocess.run', return_value=type('Result', (), {'returncode': 1})()):
+                previous = xbox['register_com_classes'](
+                    '/proton', prefix, {}, 'uwp-host.dll', [self.XHR_CLSID]
+                )
+            self.assertEqual(previous, {self.XHR_CLSID: ('C:\\windows\\system32\\msxml6.dll', None)})
+
+    def test_uwp_view_app_matches_launched_executable(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'AppxManifest.xml').write_text(
+                '<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10">'
+                '<Applications>'
+                '<Application Id="Desktop" Executable="Bin\\Desktop.exe" EntryPoint="Windows.FullTrustApplication"/>'
+                '<Application Id="Game" Executable="Game.exe" EntryPoint="Game.App"/>'
+                '</Applications>'
+                '</Package>',
+                encoding='utf-8',
+            )
+            self.assertFalse(xbox['uwp_view_app'](root, str(root / 'Bin' / 'Desktop.exe')))
+            self.assertTrue(xbox['uwp_view_app'](root, str(root / 'Game.exe')))
+

@@ -103,13 +103,40 @@ static const WCHAR *xhr2_trace_url(const WCHAR *url, WCHAR *buf, size_t cap)
     return buf;
 }
 
+typedef HRESULT (WINAPI *xhr2_pfn_CoGetApartmentType)(int *apt_type, int *apt_qual);
+
+static xhr2_pfn_CoGetApartmentType g_xhr2_get_apt_fn = NULL;
+static INIT_ONCE g_xhr2_get_apt_once = INIT_ONCE_STATIC_INIT;
+
+static BOOL CALLBACK xhr2_get_apt_init_cb(PINIT_ONCE once, PVOID param, PVOID *ctx)
+{
+    HMODULE m = GetModuleHandleW(L"combase.dll");
+    (void)once; (void)param; (void)ctx;
+    if (!m) m = GetModuleHandleW(L"ole32.dll");
+    if (!m) m = LoadLibraryW(L"ole32.dll");
+    if (m) g_xhr2_get_apt_fn = (xhr2_pfn_CoGetApartmentType)(void *)GetProcAddress(m, "CoGetApartmentType");
+    return TRUE;
+}
+
+static int xhr2_caller_is_mta(void)
+{
+    int apt_type = -1, apt_qual = 0;
+    InitOnceExecuteOnce(&g_xhr2_get_apt_once, xhr2_get_apt_init_cb, NULL, NULL);
+    if (g_xhr2_get_apt_fn && SUCCEEDED(g_xhr2_get_apt_fn(&apt_type, &apt_qual))) {
+        /* APTTYPE_MTA (1) or APTTYPE_NA (2): shares the worker's MTA directly. */
+        return (apt_type == 1 || apt_type == 2);
+    }
+    return 0;
+}
+
 static IStream *xhr2_marshal_if(void *iface, const GUID *iid)
 {
     IUnknown *unk = (IUnknown *)iface;
     void *agile = NULL;
     IStream *stm = NULL;
     if (!unk) return NULL;
-    /* Agile / free-threaded interfaces can be called directly from the MTA worker. */
+    /* Same-apartment MTA callers and agile objects can be invoked directly by the MTA worker. */
+    if (xhr2_caller_is_mta()) return NULL;
     if (SUCCEEDED(unk->lpVtbl->QueryInterface(unk, &XHR2_IID_IAgileObject, &agile)) && agile) {
         ((IUnknown *)agile)->lpVtbl->Release((IUnknown *)agile);
         return NULL;
@@ -472,10 +499,14 @@ static int parse_http_url(const WCHAR *url, int *is_https, WCHAR *host, size_t h
     host[hlen] = 0;
 
     if (*p == L':') {
-        unsigned long pv = wcstoul(p + 1, (WCHAR **)&p, 10);
-        if (pv == 0 || pv > 65535) return 0;
+        const WCHAR *endp = NULL;
+        unsigned long pv = wcstoul(p + 1, (WCHAR **)&endp, 10);
+        if (endp == p + 1 || pv == 0 || pv > 65535) return 0;
+        p = endp;
         *port = (WORD)pv;
     }
+
+    if (*p != 0 && *p != L'/' && *p != L'?' && *p != L'#') return 0;
 
     if (*p == L'/') {
         path_start = p;
@@ -535,25 +566,16 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
     url = xhr2_wcsdup(self->url);
     cb_stm = self->cb_stream;
     self->cb_stream = NULL;
-    if (!cb_stm) {
-        cb = self->cb;
-        if (cb) cb->lpVtbl->AddRef(cb);
-    }
+    cb = self->cb;
+    if (cb) cb->lpVtbl->AddRef(cb);
     custom_stm = self->custom_stream_m;
     self->custom_stream_m = NULL;
-    if (!custom_stm) {
-        custom_stream = self->custom_stream;
-        if (custom_stream) custom_stream->lpVtbl->AddRef(custom_stream);
-    }
+    custom_stream = self->custom_stream;
+    if (custom_stream) custom_stream->lpVtbl->AddRef(custom_stream);
     req_body_stm = self->req_body_stream;
     self->req_body_stream = NULL;
-    if (!req_body_stm) {
-        req_body = self->req_body;
-        self->req_body = NULL;
-    } else if (self->req_body) {
-        self->req_body->lpVtbl->Release(self->req_body);
-        self->req_body = NULL;
-    }
+    req_body = self->req_body;
+    self->req_body = NULL;
     req_body_len = self->req_body_len;
     self->req_body_len = 0;
     timeout_ms = self->timeout_ms ? self->timeout_ms : 30000;
@@ -574,20 +596,26 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
 
     if (cb_stm) {
         void *p = NULL;
-        if (SUCCEEDED(CoGetInterfaceAndReleaseStream(cb_stm, &XHR2_IID_IXMLHTTPRequest2Callback, &p)))
+        if (SUCCEEDED(CoGetInterfaceAndReleaseStream(cb_stm, &XHR2_IID_IXMLHTTPRequest2Callback, &p)) && p) {
+            if (cb) cb->lpVtbl->Release(cb);
             cb = (xhr2_cb_if *)p;
+        }
         cb_stm = NULL;
     }
     if (custom_stm) {
         void *p = NULL;
-        if (SUCCEEDED(CoGetInterfaceAndReleaseStream(custom_stm, &XHR2_IID_ISequentialStream, &p)))
+        if (SUCCEEDED(CoGetInterfaceAndReleaseStream(custom_stm, &XHR2_IID_ISequentialStream, &p)) && p) {
+            if (custom_stream) custom_stream->lpVtbl->Release(custom_stream);
             custom_stream = (xhr2_seq_stream_if *)p;
+        }
         custom_stm = NULL;
     }
     if (req_body_stm) {
         void *p = NULL;
-        if (SUCCEEDED(CoGetInterfaceAndReleaseStream(req_body_stm, &XHR2_IID_ISequentialStream, &p)))
+        if (SUCCEEDED(CoGetInterfaceAndReleaseStream(req_body_stm, &XHR2_IID_ISequentialStream, &p)) && p) {
+            if (req_body) req_body->lpVtbl->Release(req_body);
             req_body = (xhr2_seq_stream_if *)p;
+        }
         req_body_stm = NULL;
     }
 
@@ -672,7 +700,7 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
         goto fail;
     }
     if (g_in.set_opt) {
-        DWORD t = timeout_ms > 60000 ? 60000 : timeout_ms;
+        DWORD t = timeout_ms ? timeout_ms : 30000;
         g_in.set_opt(h_sess, 2 /* INTERNET_OPTION_CONNECT_TIMEOUT */, &t, sizeof t);
         g_in.set_opt(h_sess, 5 /* INTERNET_OPTION_SEND_TIMEOUT */, &t, sizeof t);
         g_in.set_opt(h_sess, 6 /* INTERNET_OPTION_RECEIVE_TIMEOUT */, &t, sizeof t);
@@ -901,7 +929,7 @@ static HRESULT __stdcall xhr2_Abort(xhr2_obj *self)
 static HRESULT __stdcall xhr2_SetCookie(xhr2_obj *self, const void *cookie, DWORD *state)
 {
     (void)self; (void)cookie;
-    if (state) *state = 0;
+    if (state) *state = 5 /* XHR_COOKIE_STATE_REJECTED */;
     return S_OK;
 }
 
