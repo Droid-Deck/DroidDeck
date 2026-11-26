@@ -1088,7 +1088,13 @@ static int stays_in_plain_bind(const char *host, const char *rel) {
         if (b->identity || !is_path_prefix(host, b->src, b->src_len)) continue;
         if (!best || b->src_len > best->src_len) best = b;
     }
-    return best && !climbs_past_root(host + best->src_len, rel) && bind_holds_no_links(best);
+    if (!best) return 0;
+    for (int i = 0; i < g_nbinds; i++) {
+        struct ddnatv_bind *b = &g_binds[i];
+        if (b != best && !b->identity && b->dst_len > best->dst_len && is_path_prefix(b->dst, best->dst, best->dst_len))
+            return 0;
+    }
+    return !climbs_past_root(host + best->src_len, rel) && bind_holds_no_links(best);
 }
 
 static const char *map_parent_walk(int dirfd, const char *rel, char *buf, size_t size) {

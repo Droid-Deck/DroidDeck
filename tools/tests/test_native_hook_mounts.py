@@ -195,7 +195,7 @@ class NativeHookMountTest(unittest.TestCase):
             if syscalls and not shutil.which("strace"):
                 self.skipTest("no strace")
             if syscalls:
-                cmd = ["strace", "-f", "-qq", "-e", "trace=readlinkat"]
+                cmd = ["strace", "-f", "-qq", "-e", "trace=readlinkat,newfstatat,fstatat64,statx"]
                 cmd += [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
             else:
                 cmd = []
@@ -498,6 +498,12 @@ class NativeHookMountTest(unittest.TestCase):
                 self.assertEqual(path in stats, relative, (path, kind, stats))
             for path in ("../../../etc/hostname", "sub/../../../../etc/hostname"):
                 self.assertNotIn(path, stats, (path, kind))
+        nested = f"{binds}|{self.library}:/mnt/links/real/sub"
+        table = [("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1")]
+        result, log = self.run_probe("cd:/mnt/links/real", "sub/deeper/../game.txt", binds=nested, mounts=table,
+                                     syscalls=True)
+        stats = [m.group(1) for m in re.finditer(r'(?:fstatat|statx)\([^,"]*,\s*"([^"]*)"', log)]
+        self.assertNotIn("sub/deeper/../game.txt", stats)
 
 
 if __name__ == "__main__":
