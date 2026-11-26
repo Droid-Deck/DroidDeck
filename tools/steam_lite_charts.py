@@ -23,6 +23,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import steam_lite_bench as bench  # noqa: E402
 
 NOT_CLIENT = bench.NOT_CLIENT
+# ApplicationExitInfo.REASON_LOW_MEMORY, as `dumpsys activity exit-info` prints it.
+LOW_MEMORY = "3"
 
 ORDER = ["stock", "1", "2", "3", "l1", "softcomp", "softcomp+l1", "gc", "moderate", "critical", "pause", "freeze",
          "gc+critical"]
@@ -33,14 +35,15 @@ NAMES = {"stock": "stock", "1": "L1 conservative", "2": "L2 balanced", "3": "L3 
 def runs(device_dir: Path) -> list[dict]:
     rows = []
     for events in sorted(device_dir.glob("*/events.json")):
-        if json.loads(events.read_text()).get("kind") in ("oom", "flags"):
-            continue
         try:
             samples, ev = bench.load(events.parent)
-        except (OSError, ValueError):
-            continue
-        if samples:
+            if ev.get("kind") in ("oom", "flags") or "profile" not in ev or not samples:
+                continue
             row = bench.summarize(samples, ev)
+        except (OSError, ValueError, KeyError, statistics.StatisticsError) as error:
+            print("skipping %s: %s" % (events.parent, error), file=sys.stderr)
+            continue
+        if row:
             row["run"] = events.parent.name
             row["app"] = ev.get("app")
             rows.append(row)
@@ -209,27 +212,48 @@ def chart_oom(device: str, device_dir: Path, out: Path) -> list[Path]:
     return made
 
 
+def median_of(values) -> float | None:
+    known = [v for v in values if v is not None]
+    return statistics.median(known) if known else None
+
+
+def role_pss(item: dict, role: str | None) -> float | None:
+    """Summed PSS of one role (all client roles for None) in MiB; None when none of it was readable."""
+    rows = [r for r in item["processes"] if r["role"] not in NOT_CLIENT and (role is None or r["role"] == role)]
+    known = [r["Pss"] for r in rows if r.get("Pss") is not None]
+    return sum(known) / 1024 if known else None
+
+
+def flag_sample(item: dict) -> dict:
+    return {"total": role_pss(item, None), "renderer": role_pss(item, "renderer"),
+            "browser": role_pss(item, "browser"), "gpu": sum((item.get("gpu") or {}).values()) / 1048576}
+
+
+def flag_runs(device_dir: Path):
+    for events_path in sorted(device_dir.glob("**/flags-*/events.json")):
+        try:
+            events = json.loads(events_path.read_text())
+            items = [json.loads(x) for x in (events_path.parent / "samples.jsonl").read_text().splitlines()
+                     if x.strip()]
+        except (OSError, ValueError) as error:
+            print("skipping %s: %s" % (events_path.parent, error), file=sys.stderr)
+            continue
+        if items and "variant" in events:
+            yield events_path, events, items
+
+
 def chart_flags(device: str, device_dir: Path, out: Path) -> list[Path]:
     rows = []
-    for events_path in sorted(device_dir.glob("**/flags-*/events.json")):
-        events = json.loads(events_path.read_text())
-        lines = (events_path.parent / "samples.jsonl").read_text().splitlines()
-        for line in lines:
-            item = json.loads(line)
-            roles = {}
-            for r in item["processes"]:
-                if r["role"] not in NOT_CLIENT:
-                    roles[r["role"]] = roles.get(r["role"], 0) + (r.get("Pss") or 0)
-            rows.append({"profile": events["variant"], "total": sum(roles.values()) / 1024,
-                         "renderer": roles.get("renderer", 0) / 1024, "browser": roles.get("browser", 0) / 1024,
-                         "gpu": sum((item.get("gpu") or {}).values()) / 1048576,
-                         "run": events_path.parent.name})
+    for events_path, events, items in flag_runs(device_dir):
+        for item in items:
+            rows.append({"profile": events["variant"], **flag_sample(item),
+                         "run": events_path.parent.relative_to(device_dir).as_posix()})
     if not rows:
         return []
     per_run = {}
     for r in rows:
         per_run.setdefault(r["run"], []).append(r)
-    medians = [{"profile": rs[0]["profile"], **{k: statistics.median(x[k] for x in rs)
+    medians = [{"profile": rs[0]["profile"], **{k: median_of(x[k] for x in rs)
                                                   for k in ("total", "renderer", "browser", "gpu")}}
                for rs in per_run.values()]
     variants = list(dict.fromkeys(r["profile"] for r in medians))
@@ -362,44 +386,41 @@ def tables(device: str, device_dir: Path) -> str:
     """Markdown tables of every measurement in device_dir, medians with the full range."""
     out = []
     flags = {}
-    for events_path in sorted(device_dir.glob("**/flags-*/events.json")):
-        events = json.loads(events_path.read_text())
-        rows = [json.loads(x) for x in (events_path.parent / "samples.jsonl").read_text().splitlines() if x.strip()]
-        if not rows:
-            continue
-        def med(key):
-            vals = []
-            for item in rows:
-                if key == "gpu":
-                    vals.append(sum((item.get("gpu") or {}).values()) / 1048576)
-                else:
-                    vals.append(sum(r.get("Pss") or 0 for r in item["processes"] if r["role"] not in NOT_CLIENT
-                                    and (key == "total" or r["role"] == key)) / 1024)
-            return statistics.median(vals)
-        flags.setdefault(events["variant"], []).append({k: med(k) for k in ("total", "renderer", "browser", "gpu")})
+    for _, events, items in flag_runs(device_dir):
+        samples = [flag_sample(item) for item in items]
+        flags.setdefault(events["variant"], []).append(
+            {k: median_of(x[k] for x in samples) for k in ("total", "renderer", "browser", "gpu")})
     if flags:
         out.append("**%s: library idle per web helper variant** (one fresh session per run, median of its samples; "
                    "cells are median (min-max) over runs, MiB)\n" % device)
         out.append("| Variant | Runs | Client tree PSS | Renderer PSS | Browser PSS | KGSL GPU (not in PSS) |")
         out.append("| --- | --- | --- | --- | --- | --- |")
         for variant, runs_ in flags.items():
-            out.append("| %s | %d | %s | %s | %s | %s |" % (variant, len(runs_), *[fmt([r[k] for r in runs_])
-                                                                          for k in ("total", "renderer", "browser", "gpu")]))
+            out.append("| %s | %d | %s | %s | %s | %s |" % (
+                variant, len(runs_), *[fmt([r[k] for r in runs_ if r[k] is not None])
+                                       for k in ("total", "renderer", "browser", "gpu")]))
         out.append("")
-    trials = {}
+    by_app = {}
     for events_path in sorted(device_dir.glob("oom-*/events.json")):
-        events = json.loads(events_path.read_text())
-        trials.setdefault(events.get("arm") or events["profile"], []).append(events)
-    if trials:
-        out.append("**%s: save load in app %s** (fresh session per trial; a trial counts once the load started)\n"
-                   % (device, next(iter(trials.values()))[0]["app"]))
-        out.append("| Arm | Trials loaded | Survived 90 s | Killed (lmkd) | Seconds from Continue to kill |")
-        out.append("| --- | --- | --- | --- | --- |")
+        try:
+            events = json.loads(events_path.read_text())
+        except (OSError, ValueError) as error:
+            print("skipping %s: %s" % (events_path.parent, error), file=sys.stderr)
+            continue
+        arms = by_app.setdefault(events.get("app"), {})
+        arms.setdefault(events.get("arm") or events.get("profile"), []).append(events)
+    for app, trials in by_app.items():
+        out.append("**%s: save load in app %s** (fresh session per trial; a trial counts once the load started; "
+                   "a kill is an Android `LOW_MEMORY` exit)\n" % (device, app))
+        out.append("| Arm | Trials loaded | Survived 90 s | Killed (lmkd) | Stopped otherwise | "
+                   "Seconds from Continue to kill |")
+        out.append("| --- | --- | --- | --- | --- | --- |")
         for arm, group in trials.items():
             valid = [e for e in group if e.get("loaded")]
-            killed = [e for e in valid if not e.get("survived")]
-            out.append("| %s | %d of %d | %d | %d | %s |" % (
-                arm, len(valid), len(group), sum(1 for e in valid if e.get("survived")), len(killed),
+            stopped = [e for e in valid if not e.get("survived")]
+            killed = [e for e in stopped if (e.get("exit") or {}).get("reason") == LOW_MEMORY]
+            out.append("| %s | %d of %d | %d | %d | %d | %s |" % (
+                arm, len(valid), len(group), len(valid) - len(stopped), len(killed), len(stopped) - len(killed),
                 fmt([e["died_after_s"] for e in killed if e.get("died_after_s") is not None])))
         out.append("")
     for path in sorted(device_dir.glob("ablate-*.jsonl")):

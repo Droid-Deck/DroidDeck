@@ -47,6 +47,7 @@ SWAPPED_SKIP_KB = 32 * 1024
 PAGEOUT_BUDGET_KB = 1024 * 1024
 PAGEOUT_TIMEOUT = 6.0
 READBACK_TIMEOUT = 8.0
+READBACK_ATTEMPTS = 3
 GC_RELEASE_WAIT = 2.0
 HOLD = Path("/tmp/.dd-zram.hold")
 UI_ORIGIN = "https://steamloopback.host/"
@@ -406,11 +407,26 @@ class Actions:
         self.frozen = set()
         self.motion = set()
         self.hidden = set()
+        self.deadline = None
+
+    def release(self, held, targets, method, params):
+        """Undo a held intervention; targets whose undo failed stay held for the next restore."""
+        present = {t.get("id") for t in targets}
+        mine = [t for t in targets if t.get("id") in held]
+        out = self.each(mine, method, params)
+        for target in mine:
+            if isinstance(out.get(target.get("title") or "?"), int):
+                held.discard(target.get("id"))
+        held.intersection_update(present)
+        return out
 
     def each(self, targets, method, params=None, remember=None):
         out = {}
         for target in targets:
             start = self.clock()
+            if self.deadline is not None and start > self.deadline:
+                out[target.get("title") or "?"] = "skipped: pass budget spent"
+                continue
             try:
                 self.client.call(target, method, params)
                 out[target.get("title") or "?"] = round((self.clock() - start) * 1000)
@@ -444,13 +460,14 @@ class Actions:
 
     def resume(self, targets):
         mine = [t for t in targets if t.get("id") in self.paused]
-        out = self.each(mine, "Animation.setPlaybackRate", {"playbackRate": 1})
+        out = self.release(self.paused, targets, "Animation.setPlaybackRate", {"playbackRate": 1})
         for target in mine:
+            if target.get("id") in self.paused:
+                continue
             try:
                 self.client.call(target, "Animation.disable")
             except CdpError:
                 pass
-        self.paused.clear()
         return out
 
     def freeze(self, targets):
@@ -458,10 +475,7 @@ class Actions:
         return self.each(independent, "Page.setWebLifecycleState", {"state": "frozen"}, self.frozen)
 
     def thaw(self, targets):
-        mine = [t for t in targets if t.get("id") in self.frozen]
-        out = self.each(mine, "Page.setWebLifecycleState", {"state": "active"})
-        self.frozen.clear()
-        return out
+        return self.release(self.frozen, targets, "Page.setWebLifecycleState", {"state": "active"})
 
     def reduce_motion(self, targets):
         ui = [t for t in targets if is_ui(t)]
@@ -469,10 +483,7 @@ class Actions:
                          {"features": [{"name": "prefers-reduced-motion", "value": "reduce"}]}, self.motion)
 
     def full_motion(self, targets):
-        mine = [t for t in targets if t.get("id") in self.motion]
-        out = self.each(mine, "Emulation.setEmulatedMedia", {"features": []})
-        self.motion.clear()
-        return out
+        return self.release(self.motion, targets, "Emulation.setEmulatedMedia", {"features": []})
 
     def window_state(self, targets, state):
         """Browser.setWindowBounds on the client's own top-level window (not its popups)."""
@@ -539,16 +550,23 @@ class ZramHold:
         self.inode = None
 
     def __enter__(self):
+        self.inode = None
         try:
             fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            try:
-                if self.request:
-                    os.write(fd, self.request.encode())
-                self.inode = os.fstat(fd).st_ino
-            finally:
-                os.close(fd)
         except OSError:
-            self.inode = None
+            return self
+        try:
+            inode = os.fstat(fd).st_ino
+            if self.request:
+                os.write(fd, self.request.encode())
+            self.inode = inode
+        except OSError:
+            try:
+                os.unlink(self.path)
+            except OSError:
+                pass
+        finally:
+            os.close(fd)
         return self
 
     @property
@@ -571,6 +589,7 @@ class Pager:
 
     def __init__(self, hold_path=HOLD, proc=Path("/proc"), clock=time.monotonic, nap=time.sleep,
                  signal_pid=None, pids=None):
+        self.attempts = 0
         self.hold_path = Path(hold_path)
         self.proc = proc
         self.clock = clock
@@ -626,7 +645,7 @@ class Pager:
         pids = self.pids()
         before = self.swapped(pids)
         if not pids or before < 1024:
-            self.out_kb = 0
+            self.out_kb, self.attempts = 0, 0
             return {"skipped": "nothing in zRAM", "kB": before}
         with ZramHold(self.hold_path, "0") as hold:
             if not hold.mine:
@@ -642,7 +661,9 @@ class Pager:
                 now = self.swapped(pids)
                 steady = steady + 1 if now >= last else 0
                 last = now
-        self.out_kb = 0
+        self.attempts += 1
+        if last < max(1024, before // 4) or self.attempts >= READBACK_ATTEMPTS:
+            self.out_kb, self.attempts = 0, 0
         return {"before kB": before, "after kB": last}
 
 
@@ -781,7 +802,8 @@ class Supervisor:
             self.low_since = None
 
     def still_hidden(self):
-        self.read_focus()
+        if self.read_focus() is None:
+            return False
         app, games = self.game_app()
         return app is not None and app in games and app != STEAM_CLIENT
 
@@ -813,20 +835,28 @@ class Supervisor:
         if visual and "freeze" in self.on:
             steps.append(("freeze", lambda: self.actions.freeze(found)))
         outcome = {}
-        with self.hold():
-            for name, step in steps:
-                if not self.still_hidden():
-                    outcome["cancelled"] = "the client came to the front before %s" % name
-                    break
-                if self.clock() - start > PASS_BUDGET:
-                    outcome["cancelled"] = "pass budget spent before %s" % name
-                    break
-                outcome[name] = step()
+        deadline = start + PASS_BUDGET
+        self.actions.deadline = deadline
+        try:
+            with self.hold():
+                for name, step in steps:
+                    if not self.still_hidden():
+                        outcome["cancelled"] = "the client came to the front before %s" % name
+                        break
+                    if self.clock() > deadline:
+                        outcome["cancelled"] = "pass budget spent before %s" % name
+                        break
+                    outcome[name] = step()
+        finally:
+            self.actions.deadline = None
         if reclaim and "pageout" in self.on and "cancelled" not in outcome:
             if "gc" in outcome:
                 self.nap(GC_RELEASE_WAIT)
-            if self.still_hidden():
-                outcome["pageout"] = self.pager.pageout(PAGEOUT_BUDGET_KB)
+            left = deadline - self.clock()
+            if left <= 0:
+                outcome["cancelled"] = "pass budget spent before pageout"
+            elif self.still_hidden():
+                outcome["pageout"] = self.pager.pageout(PAGEOUT_BUDGET_KB, timeout=min(PAGEOUT_TIMEOUT, left))
             else:
                 outcome["cancelled"] = "the client came to the front before pageout"
         if not self.still_hidden():
@@ -875,6 +905,11 @@ def run(agent_dir):
         return cached["targets"]
 
     def stop(*_):
+        try:
+            if supervisor.pager.out_kb:
+                log("read back on exit: %s" % json.dumps(supervisor.pager.readback()))
+        except Exception as error:
+            log("read back on exit failed: %s" % error)
         try:
             if actions.holding():
                 cached["at"] = None

@@ -77,7 +77,9 @@ class Device:
 
     def profile(self, name: str) -> None:
         body = json.dumps(PROFILES[name])
-        self.sh('printf %s "$1" > "$DD_LAUNCH_DIR/agent/steam-lite.json"', body)
+        reply = self.guest("sh", "-c", 'printf %s "$1" > "$DD_LAUNCH_DIR/agent/steam-lite.json"', "sh", body)
+        if reply.get("exitCode") != 0:
+            raise RuntimeError("could not switch the profile to %s: %s" % (name, json.dumps(reply)[:300]))
 
     def mark(self, text: str) -> None:
         self.sh('printf %s "$1" > ' + REMOTE + "/mark", text)
@@ -138,12 +140,13 @@ with open(out, "w") as stream:
 def ablate(dev: Device, actions: list[str], waits: list[float], out: Path, label: str) -> list[dict]:
     """One action at a time: a sample before it, then one after each wait (seconds since the action)."""
     total = len(actions) * (max(waits) + 20) + 30
+    remote = "%s/ablate-%s-%d.jsonl" % (REMOTE, label, int(time.time()))
     dev.sh("mkdir -p " + REMOTE)
     reply = dev.ctl("guest", "--timeout", str(min(600, total)), "--stdin", ABLATE, "--", "python3", "-", LITE,
-            REMOTE + "/ablate.jsonl", ",".join(actions), ",".join(str(w) for w in waits), timeout=min(600, total))
+                    remote, ",".join(actions), ",".join(str(w) for w in waits), timeout=min(600, total))
     if reply.get("exitCode") != 0:
-        print(json.dumps({"guest": reply}), file=sys.stderr)
-    lines = [json.loads(x) for x in dev.fetch(REMOTE + "/ablate.jsonl").splitlines() if x.strip()]
+        raise RuntimeError("the ablation failed in the guest: %s" % json.dumps(reply)[:400])
+    lines = [json.loads(x) for x in dev.fetch(remote).splitlines() if x.strip()]
     out.mkdir(parents=True, exist_ok=True)
     with open(out / (label + ".jsonl"), "w") as stream:
         for item in lines:
@@ -179,14 +182,22 @@ def wait_focus(dev: Device, want, timeout: float) -> float | None:
     return None
 
 
-def running(dev: Device) -> bool:
-    return bool((dev.ctl("state", timeout=40).get("session") or {}).get("running"))
+def running(dev: Device, tries: int = 3) -> bool | None:
+    """Whether a session runs; None when the device could not be asked."""
+    for attempt in range(tries):
+        state = dev.ctl("state", timeout=40)
+        if state.get("ok") and isinstance(state.get("session"), dict):
+            return bool(state["session"].get("running"))
+        time.sleep(1 + attempt)
+    return None
 
 
 def ensure_steam(dev: Device, fresh: bool = False) -> None:
-    if fresh and running(dev):
+    if fresh and running(dev) is not False:
         dev.ctl("stop", "--timeout", "90", timeout=100)
-    if not running(dev):
+        if running(dev) is not False:
+            raise RuntimeError("the old session did not stop")
+    if running(dev) is not True:
         dev.adb("shell", "monkey -p com.droiddeck.launcher -c android.intent.category.LAUNCHER 1")
         time.sleep(6)
         dev.ctl("wake", timeout=30)
@@ -279,7 +290,7 @@ def oom_trial(dev: Device, app: str, profile: str, run_dir: Path, args) -> dict:
         lowest = base
         died = False
         while time.monotonic() - started < args.load_check:
-            if not running(dev):
+            if running(dev) is False:
                 died = True
                 break
             now = system_available(dev)
@@ -298,14 +309,14 @@ def oom_trial(dev: Device, app: str, profile: str, run_dir: Path, args) -> dict:
     load_t = load_attempts[-1]["t"] if load_attempts else time.time()
     events["load_t"] = load_t
     before_load = base
-    alive = running(dev)
+    alive = running(dev) is not False
     if alive:
         dev.ctl("screenshot", str(run_dir / "after-inputs.png"), timeout=60)
     else:
         events["died_after_s"] = round(time.time() - load_t, 1)
     while alive and time.time() - load_t < args.watch:
         time.sleep(5)
-        if not running(dev):
+        if running(dev) is False:
             alive = False
             events["died_after_s"] = round(time.time() - load_t, 1)
             break
@@ -383,7 +394,8 @@ def flags_run(dev: Device, variant: str, run_dir: Path, args) -> dict:
         for r in item["processes"]:
             if r["role"] not in NOT_CLIENT:
                 roles[r["role"]] = roles.get(r["role"], 0) + (r.get("Pss") or 0)
-        rows.append({"total": sum(roles.values()) / 1024, "renderer": roles.get("renderer", 0) / 1024,
+        rows.append({"total": sum(roles.values()) / 1024,
+                     "renderer": roles["renderer"] / 1024 if roles.get("renderer") else None,
                      "browser": roles.get("browser", 0) / 1024,
                      "gpu": sum((item.get("gpu") or {}).values()) / 1048576})
     return {"variant": variant, "applied": events["helper_cmdline_has"],
@@ -411,6 +423,8 @@ def cycle(dev: Device, app: str, profile: str, run_dir: Path, args) -> dict:
         launched = dev.ctl("launch", app, "--wait", "--timeout", str(args.launch_timeout), timeout=args.launch_timeout)
         events["launch_s"] = round(time.monotonic() - t0, 2) if launched.get("ok") else None
         events["launch_error"] = None if launched.get("ok") else launched.get("error") or launched.get("message")
+        if not launched.get("ok"):
+            raise RuntimeError("the game did not launch: %s" % events["launch_error"])
         dev.mark("game")
         time.sleep(max(0, args.game - args.pacing))
         pacing = dev.ctl("pacing", "--seconds", str(args.pacing), timeout=args.pacing + 30)
@@ -448,6 +462,8 @@ def fresh_session(dev: Device, env: dict) -> bool:
     for key, value in env.items():
         dev.ctl("env", "set", "--persistent", "%s=%s" % (key, value), timeout=30)
     dev.ctl("stop", "--timeout", "60", timeout=80)
+    if running(dev) is not False:
+        return False
     dev.adb("shell", "monkey -p com.droiddeck.launcher -c android.intent.category.LAUNCHER 1")
     time.sleep(5)
     return bool(dev.ctl("start", "steam", "--wait", "--timeout", "300", timeout=320).get("ok"))
@@ -494,11 +510,16 @@ def steady(dev: Device, level: str, app: str, out: Path) -> dict:
     """One fresh session at one level: library, a game in front for 80 s, three overlay round trips, library."""
     out.mkdir(parents=True, exist_ok=True)
     run = {"level": level, "app": app, "started": fresh_session(dev, {"DD_STEAM_LITE": level})}
+    if not run["started"]:
+        raise RuntimeError("Steam did not start for level %s" % level)
     time.sleep(30)
     run["idle"] = snapshot(dev, "library idle")
     t0 = time.monotonic()
     run["launch_ok"] = bool(dev.ctl("launch", app, "--wait", "--timeout", "180", timeout=200).get("ok"))
     run["launch_s"] = round(time.monotonic() - t0, 1)
+    if not run["launch_ok"]:
+        (out / "run.json").write_text(json.dumps(run, indent=1))
+        raise RuntimeError("app %s did not take focus" % app)
     time.sleep(60)
     a = snapshot(dev, "game +60s")
     time.sleep(20)
@@ -531,6 +552,8 @@ def library(dev: Device, soft: str, out: Path) -> dict:
     """The settled library (90 s after start) with the web helper composited on the GPU or in software."""
     out.mkdir(parents=True, exist_ok=True)
     run = {"soft": soft, "started": fresh_session(dev, {"DD_STEAM_SOFT_COMPOSITING": soft})}
+    if not run["started"]:
+        raise RuntimeError("Steam did not start with DD_STEAM_SOFT_COMPOSITING=%s" % soft)
     time.sleep(90)
     a = snapshot(dev, "library +90s")
     time.sleep(20)
@@ -585,8 +608,9 @@ def summarize(samples: list[dict], events: dict) -> dict:
             tail = pss[len(pss) // 2:]
             row[name + "_pss_mib"] = round(statistics.median(tail) / 1024, 1)
             row[name + "_pss_peak_mib"] = round(max(pss) / 1024, 1)
-            row[name + "_web_pss_mib"] = round(statistics.median([t["pss"] for t in web[len(web) // 2:]
-                                                                   if t["pss"] is not None]) / 1024, 1)
+            web_tail = [t["pss"] for t in web[len(web) // 2:] if t["pss"] is not None]
+            if web_tail:
+                row[name + "_web_pss_mib"] = round(statistics.median(web_tail) / 1024, 1)
         row[name + "_swappss_mib"] = round(statistics.median([t["swap"] for t in trees[len(trees) // 2:]]) / 1024, 1)
         avail = [s["memory"].get("MemAvailable") for s in group if s["memory"].get("MemAvailable")]
         if avail:
@@ -636,7 +660,7 @@ def report(root: Path) -> list[dict]:
             samples, events = load(events_path.parent)
         except (OSError, ValueError):
             continue
-        if not samples:
+        if not samples or events.get("kind") in ("oom", "flags") or "profile" not in events:
             continue
         row = summarize(samples, events)
         row["run"] = str(events_path.parent.relative_to(root))
@@ -713,6 +737,7 @@ def main(argv=None) -> int:
     p_report.add_argument("root", type=Path)
     args = parser.parse_args(argv)
     dev = Device(args.serial)
+    failed = 0
     if args.command == "info":
         print(json.dumps(info(dev, args.out), indent=1))
         return 0
@@ -722,16 +747,24 @@ def main(argv=None) -> int:
             counts[level] = counts.get(level, 0) + 1
             name = "%s-%d" % ("stock" if level == "stock" else "l" + level, counts[level])
             print("== steady", name, flush=True)
-            steady(dev, level, args.app, args.out / name)
-        return 0
+            try:
+                steady(dev, level, args.app, args.out / name)
+            except Exception as error:
+                failed += 1
+                print("run failed: %r" % error, flush=True)
+        return 1 if failed else 0
     if args.command == "library":
         counts = {}
         for soft in args.order.split(","):
             counts[soft] = counts.get(soft, 0) + 1
             name = "%s-%d" % ("softcomp" if soft == "1" else "default", counts[soft])
             print("== library", name, flush=True)
-            library(dev, soft, args.out / name)
-        return 0
+            try:
+                library(dev, soft, args.out / name)
+            except Exception as error:
+                failed += 1
+                print("run failed: %r" % error, flush=True)
+        return 1 if failed else 0
     if args.command == "flags":
         try:
             for i in range(args.repeat):
@@ -741,10 +774,11 @@ def main(argv=None) -> int:
                         print(json.dumps(flags_run(dev, variant, args.out / ("flags-%s-r%d" % (variant, i + 1)), args)),
                               flush=True)
                     except Exception as error:
+                        failed += 1
                         print("run failed: %r" % error, flush=True)
         finally:
             set_variant(dev, "default")
-        return 0
+        return 1 if failed else 0
     if args.command in ("cycle", "oom"):
         for item in getattr(args, "env", None) or []:
             dev.ctl("env", "set", "--persistent", item, timeout=30)
@@ -770,7 +804,10 @@ def main(argv=None) -> int:
                         for key, value in env.items():
                             dev.ctl("env", "set", "--persistent", "%s=%s" % (key, value), timeout=30)
                         args.arm, args.env = name, ["%s=%s" % kv for kv in env.items()]
-                    run_dir = args.out / ("oom-%s-%s-r%d" % (args.app, args.arm or name, i + 1))
+                    arm = args.arm or name
+                    if args.arm and not arms and len(names) > 1:
+                        arm = "%s-%s" % (args.arm, name)
+                    run_dir = args.out / ("oom-%s-%s-r%d" % (args.app, arm, i + 1))
                     events = oom_trial(dev, args.app, profile, run_dir, args)
                     print(json.dumps({k: events.get(k) for k in ("arm", "profile", "loaded", "survived",
                                                                  "died_after_s", "exit", "launch_s")}), flush=True)
@@ -778,8 +815,9 @@ def main(argv=None) -> int:
                     cycle(dev, args.app, name, run_dir, args)
                     print(json.dumps(summarize(*load(run_dir))), flush=True)
             except Exception as error:
+                failed += 1
                 print("run failed: %r" % error, flush=True)
-        return 0
+        return 1 if failed else 0
     if args.command == "ablate":
         rows = ablate(dev, args.actions.split(","), [float(w) for w in args.waits.split(",")], args.out, args.label)
         for row in rows:

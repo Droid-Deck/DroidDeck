@@ -209,6 +209,26 @@ class ActionsTest(unittest.TestCase):
         self.actions.freeze([SHARED, popup, STORE])
         self.assertEqual([t for t, _, _ in self.log], ['w'])
 
+    def test_a_failed_thaw_stays_held_for_the_next_restore(self):
+        log = []
+        c = client(log, broken=('Page.setWebLifecycleState',))
+        actions = Actions(c, clock=lambda: 0.0)
+        actions.frozen = {'w'}
+        actions.thaw(TARGETS)
+        self.assertEqual(actions.frozen, {'w'})
+        self.assertTrue(actions.holding())
+
+    def test_a_closed_target_is_no_longer_held(self):
+        self.actions.frozen = {'gone'}
+        self.actions.thaw(TARGETS)
+        self.assertEqual(self.actions.frozen, set())
+
+    def test_calls_past_the_deadline_are_skipped(self):
+        self.actions.deadline = -1.0
+        out = self.actions.gc(TARGETS)
+        self.assertEqual(self.log, [])
+        self.assertTrue(all(str(v).startswith('skipped') for v in out.values()))
+
     def test_only_page_targets_are_listed(self):
         self.assertEqual([t['id'] for t in self.client.targets()], ['s', 'b', 'q', 'w'])
 
@@ -229,7 +249,7 @@ class FakePager:
         self.out_kb = 0
         self.calls = []
 
-    def pageout(self, budget):
+    def pageout(self, budget, timeout=None):
         self.calls.append(('pageout', budget))
         self.out_kb = 100 * 1024
         return {'kB': self.out_kb}
@@ -451,6 +471,20 @@ class SupervisorTest(unittest.TestCase):
         sup.tick(self.targets)
         self.assertEqual(self.pager.calls, [])
 
+    def test_unreadable_focus_cancels_a_pass(self):
+        sup = self.make('3', '+pause')
+        self.focus(1234, [769, 1234])
+        sup.tick(self.targets)
+        self.now += SETTLE
+
+        def gc_then_lose_focus(targets):
+            (self.dir / 'focus.json').unlink()
+            return {}
+        self.actions.gc = gc_then_lose_focus
+        sup.tick(self.targets)
+        self.assertIn('cancelled', sup.history[-1]['outcome'])
+        self.assertNotIn('Animation.setPlaybackRate', self.methods())
+
     def test_game_exit_returns_to_ui(self):
         sup = self.make('2')
         self.focus(1234, [769, 1234])
@@ -505,6 +539,17 @@ class PagerTest(unittest.TestCase):
         out = self.pager(lambda pid: None).pageout(4096)
         self.assertIn('skipped', out)
         self.assertEqual((self.signalled, self.hold.read_text()), ([], '1'))
+
+    def test_an_incomplete_readback_stays_pending_until_the_retry_cap(self):
+        for pid in (10, 11):
+            (self.proc / str(pid) / 'status').write_text('VmSwap:\t8192 kB\n')
+        pager = self.pager(lambda pid: None)
+        pager.out_kb = 16384
+        for attempt in range(MODULE['READBACK_ATTEMPTS'] - 1):
+            pager.readback()
+            self.assertEqual(pager.out_kb, 16384)
+        pager.readback()
+        self.assertEqual(pager.out_kb, 0)
 
     def test_readback_asks_for_everything_back(self):
         def swapped_then_back(pid):

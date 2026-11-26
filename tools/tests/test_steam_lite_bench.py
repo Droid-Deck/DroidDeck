@@ -50,5 +50,45 @@ class AccountingTest(unittest.TestCase):
         self.assertEqual(out['idle_web_cpu_pct'], 10.0)
 
 
+class FakeDevice:
+    def __init__(self, replies):
+        self.replies = list(replies)
+
+    def ctl(self, *args, timeout=0):
+        return self.replies.pop(0)
+
+
+class HarnessTest(unittest.TestCase):
+    def setUp(self):
+        self.sleep = bench.time.sleep
+        bench.time.sleep = lambda s: None
+        self.addCleanup(setattr, bench.time, 'sleep', self.sleep)
+
+    def test_an_unanswered_state_query_is_not_a_stopped_session(self):
+        self.assertIsNone(bench.running(FakeDevice([{'ok': False}] * 3)))
+        self.assertIs(bench.running(FakeDevice([{'ok': False}, {'ok': True, 'session': {'running': False}}])), False)
+        self.assertIs(bench.running(FakeDevice([{'ok': True, 'session': {'running': True}}])), True)
+
+    def test_unreadable_web_pss_keeps_the_phase(self):
+        samples = [sample(t, 'idle', [row(1, 'client', 1024, 0), row(2, 'renderer', None, 0)]) for t in range(4)]
+        out = bench.summarize(samples, {'profile': 'stock'})
+        self.assertEqual(out['idle_pss_mib'], 1.0)
+        self.assertNotIn('idle_web_pss_mib', out)
+
+    def test_report_only_summarizes_cycle_runs(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for name, events in (('flags-default-r1', {'kind': 'flags', 'variant': 'default'}),
+                                 ('cycle-r1', {'profile': '1', 'app': '1'})):
+                (root / name).mkdir()
+                (root / name / 'events.json').write_text(json.dumps(events))
+                (root / name / 'samples.jsonl').write_text(
+                    json.dumps(sample(0, 'idle', [row(1, 'client', 1024, 0)])) + '\n')
+            rows = bench.report(root)
+        self.assertEqual([r['profile'] for r in rows], ['1'])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1,11 +1,11 @@
-**duo-lite-plus: save load in app 1388870** (fresh session per trial; a trial counts once the load started)
+**duo-lite-plus: save load in app 1388870** (fresh session per trial; a trial counts once the load started; a kill is an Android `LOW_MEMORY` exit)
 
-| Arm | Trials loaded | Survived 90 s | Killed (lmkd) | Seconds from Continue to kill |
-| --- | --- | --- | --- | --- |
-| l1 | 2 of 2 | 0 | 2 | 33 (32-33) |
-| softcomp+l1 | 3 of 3 | 0 | 3 | 30 (17-30) |
-| softcomp | 2 of 2 | 0 | 2 | 24 (17-31) |
-| stock | 2 of 3 | 0 | 2 | 30 (29-32) |
+| Arm | Trials loaded | Survived 90 s | Killed (lmkd) | Stopped otherwise | Seconds from Continue to kill |
+| --- | --- | --- | --- | --- | --- |
+| l1 | 2 of 2 | 0 | 2 | 0 | 33 (32-33) |
+| softcomp+l1 | 3 of 3 | 0 | 3 | 0 | 30 (17-30) |
+| softcomp | 2 of 2 | 0 | 2 | 0 | 24 (17-31) |
+| stock | 2 of 3 | 0 | 2 | 0 | 30 (29-32) |
 
 **duo-lite-plus bully-browser-target: one intervention at a time** (change from the sample just before it, MiB; negative = freed)
 
