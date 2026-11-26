@@ -425,3 +425,22 @@ at a pointer that never left the top-left corner. Steam picks Disabled for some 
 cursor followed the mouse while every click landed at (0,0). In Disabled the nested pointer now warps the X pointer as
 in the other modes; real fingers are still ignored. `tools/tests/test_gamescope_disabled_touch_mouse.py` compiles the
 branch from this patch.
+
+## 0142 Steam is entered at the corner it is reset to
+
+When Steam's window takes focus with `bResetToCorner`, gamescope parks the pointer in its bottom-right corner so
+nothing in Big Picture is hovered and the controller owns the UI. Upstream fe7f21c (3.16.24) moved
+`wlserver_mousefocus` ahead of that reset, so the window is first entered under the current pointer, then warped to
+its centre (`wlserver_mousewarp`, synthetic), then moved to the corner. SteamOS's 3.16.23 still resets before focus,
+so its motions reach no window and the X pointer stays at (0,0). On upstream 3.16.29 they reach Steam: on a Steam Deck
+the pointer is at (1279,799) right after focus. The Deck shows no hover because Big Picture's page exists about 1 s
+before the reset. On a Retroid Pocket Duo the page is created at the same moment, Chromium keeps the centre position
+as its hover, and the second library tile stayed highlighted on every start (4 of 4).
+
+Steam is now entered at the corner. The centre is still stored in `mouse_surface_cursorx/y`, so the gamepad cursor
+starts there as before, but no motion is sent for it. The fake pointer position stays in the corner. Only the
+`bResetToCorner` path changes. Other windows are entered under the pointer as upstream does.
+
+With the patch, the Duo starts with only the bottom bar under the parked pointer hovered and controller focus on the
+first tile (4 of 4 starts), and returns from a game the same way (3 of 3). Making 0100 ignore the X server's initial
+pointer instead was tried and rejected: the centre motion still arrived, and the header or search bar ended up hovered.

@@ -1188,6 +1188,22 @@ class LaunchTest(FexTestCase):
         thunks = json.loads((self.home / ".local/share/droiddeck-fex/config/ThunksConfig.json").read_text())
         self.assertEqual(thunks, {"ThunksDB": {"GL": 1, "Vulkan": 1}})
 
+    def test_wayland_and_egl_thunks_turn_on_only_when_the_build_ships_all_of_them(self):
+        guest = self.tmp / "guest-thunks"
+        guest.mkdir()
+        fex = {"host_thunks": "/h", "guest_thunks": str(guest), "thunks_db": "/db"}
+        thunks_file = self.home / ".local/share/droiddeck-fex/config/ThunksConfig.json"
+        for name in ("libwayland-client-guest.so", "libEGL-guest.so"):
+            (guest / name).write_bytes(b"")
+        FEX["write_config"](fex, "/root")
+        self.assertEqual({"GL": 1, "Vulkan": 1}, json.loads(thunks_file.read_text())["ThunksDB"])
+        (guest / "libwayland-egl-guest.so").write_bytes(b"")
+        FEX["write_config"](fex, "/root")
+        expected = {"GL": 1, "Vulkan": 1, "WaylandClient": 1, "EGL": 1, "WaylandEGL": 1}
+        self.assertEqual(expected, json.loads(thunks_file.read_text())["ThunksDB"])
+        config = json.loads((self.home / ".local/share/droiddeck-fex/config/Config.json").read_text())
+        self.assertEqual(expected, config["ThunksDB"])
+
     def test_host_libc_tunables_stay_on_the_host(self):
         guest = FEX["guest_environment"]({"portable": True}, {"GLIBC_TUNABLES": "glibc.pthread.rseq=0"})
         self.assertNotIn("GLIBC_TUNABLES", guest)
@@ -1429,6 +1445,43 @@ class AppInfoTest(unittest.TestCase):
             for app in ("4427310", "3127680", "4183110"):
                 self.manifest(steam, app)
             self.assertEqual(downloads(str(steam)), [])
+
+    def test_valve_proton_on_demand_waits_for_a_title_that_uses_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp)
+            for app in ("3127680", "1628350", "4183110"):
+                self.manifest(steam, app)
+            downloads, needed, tool = self.COMPAT["tool_downloads"], self.COMPAT["valve_proton_needed"], self.COMPAT["TOOL"]
+            own = steam / "compatibilitytools.d/DroidDeck-Proton 11-14.1"
+            with mock.patch.dict(os.environ, {"DD_VALVE_PROTON": "0"}):
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                ge = steam / "compatibilitytools.d/GE-Proton10-25"
+                ge.mkdir(parents=True)
+                (ge / "droiddeck-proton-wrap").write_text("")
+                (ge / "compatibilitytool.vdf").write_text(
+                    '"compatibilitytools" { "compat_tools" { "GE-Proton10-25" { "install_path" "." } } }')
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                own.mkdir(parents=True)
+                (own / "droiddeck-proton-wrap").write_text("")
+                (own / "compatibilitytool.vdf").write_text(
+                    '"compatibilitytools" { "compat_tools" { "DroidDeck-Proton-11-14.1" { "install_path" "." } } }')
+                self.assertEqual(downloads(str(steam)), [])
+                self.assertFalse(needed(str(steam), {"DroidDeck-Proton-11-14.1", None}))
+                self.assertTrue(needed(str(steam), {"DroidDeck-Proton-11-14.1", tool}))
+                self.assertTrue(needed(str(steam), {"proton-experimental-arm64"}))
+                self.assertEqual(downloads(str(steam), True), [("4427310", "install")])
+                config = steam / "config/config.vdf"
+                config.parent.mkdir()
+                config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { '
+                                  '"0" { "name" "DroidDeck-Proton-11-14.1" "config" "" "priority" "75" } '
+                                  '"10" { "name" "%s" "config" "" "priority" "250" } } } } } }' % tool)
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                config.unlink()
+                self.manifest(steam, "4427310", flags="6")
+                self.assertEqual(downloads(str(steam), False), [("4427310", "update")])
+            with mock.patch.dict(os.environ, {"DD_VALVE_PROTON": "1"}):
+                (steam / "steamapps/appmanifest_4427310.acf").unlink()
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
 
     def test_titles_with_a_valve_pick_are_found_installed_or_not(self):
         def deck(oslist, runtime, kind="game"):

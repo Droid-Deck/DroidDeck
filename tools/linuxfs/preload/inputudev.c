@@ -419,9 +419,11 @@ static void *real_dlsym(void);
  * searches, so the handle the program opened is the only way back to the real implementation. */
 static _Atomic(void *) udev_handle;
 
-__attribute__((visibility("hidden"))) void bl_inputudev_note_dlopen(const char *path, void *handle) {
-  if (handle != NULL && path != NULL && strstr(path, "libudev") != NULL)
-    atomic_store_explicit(&udev_handle, handle, memory_order_release);
+__attribute__((visibility("hidden"))) void bl_inputudev_note_dlopen(const char *path, void *handle,
+                                                                   void *(*open)(const char *, int)) {
+  if (handle == NULL || path == NULL || strstr(path, "libudev") == NULL) return;
+  if (open(path, RTLD_LAZY | RTLD_NOLOAD | RTLD_NODELETE) == NULL) return;
+  atomic_store_explicit(&udev_handle, handle, memory_order_release);
 }
 
 static void *next_symbol(const char *name) {

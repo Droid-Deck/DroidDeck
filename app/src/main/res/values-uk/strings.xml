@@ -928,6 +928,7 @@
     <string name="setup_reset_settings_session_running">Зупиніть сеанс перед скиданням налаштувань.</string>
     <string name="setup_reset_settings_partial">Налаштування скинуто, але не всі. Подробиці в журналах.</string>
     <string name="setup_offline">Офлайн-режим</string>
+    <string name="setup_offline_auto">Автоматичний офлайн-режим</string>
     <string name="setup_sign_in_first">Спершу увійдіть у Steam</string>
     <string name="setup_launcher">Лаунчер</string>
     <string name="setup_language">Мова</string>

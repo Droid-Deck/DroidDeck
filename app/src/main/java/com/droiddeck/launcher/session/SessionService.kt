@@ -669,6 +669,8 @@ class SessionService : Service() {
         guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=100")
         guest.add("WINE_OFFSCREEN_CHECK_MS=100")
         guest.add("DD_REFRESH=" + Math.round(SessionState.refreshHz))
+        guest.add("DD_DEVICE_NAME=" + android.os.Build.MODEL)
+        com.droiddeck.launcher.gpu.SocNames.plainName().takeIf { it.isNotEmpty() }?.let { guest.add("DD_SOC_NAME=$it") }
         guest.add("DD_LOG=" + sessionLog.path)
         guest.add("DD_DEBUG_DIR=" + sessionDir.path)
         if (EnhancedDiagnostics.isActive(this, sessionDir)) guest.add("DROIDDECK_ENHANCED_DIAGNOSTICS=1")
@@ -694,7 +696,7 @@ class SessionService : Service() {
             val added = SessionEvents.step("added-games-scan") { com.droiddeck.launcher.frontend.AddedGames.scan(this) }
             val listing = SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added) }
             guest.add("DD_ADDED_GAMES=" + listing.path)
-            if (OfflineMode.enabled(this)) guest.add("DD_STEAM_OFFLINE=1")
+            if (OfflineMode.active(this)) guest.add("DD_STEAM_OFFLINE=1")
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("DD_LOSSLESS_OWNED=1")
             if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
@@ -813,6 +815,11 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "desktop language pack: $it") }
         }
 
+        if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) {
+            val steamOffline = SteamOfflineFollow()
+            steamOffline.attach(this)
+            components.add(steamOffline)
+        }
         val networkLink = LinuxNetworkLinkComponent(this, root)
         networkLink.attach(this)
         networkLink.publish()
@@ -1002,6 +1009,7 @@ class SessionService : Service() {
         ))
         guest.add("TZ=" + java.util.TimeZone.getDefault().id)
         if (SessionState.mode == MODE_STEAM) SessionPrefs.pendingShaderPrecache(this)?.let { guest.add("DD_SHADER_PRECACHE=" + if (it) "1" else "0") }
+        guest.add("DD_VALVE_PROTON=" + if (SessionPrefs.ownProtonFirst(this)) "0" else "1")
         guest.add("XDG_RUNTIME_DIR=" + LinuxRuntime.GUEST_RUNTIME_DIR)
         guest.add("XDG_SESSION_TYPE=wayland")
         guest.add("WAYLAND_DISPLAY=wayland-0")
@@ -1033,6 +1041,9 @@ class SessionService : Service() {
         )
         (if (bridge || venus) null else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
+        // DroidDeck-Bionic games load an Android driver build; this is the one the display uses, for a runtime driver
+        // that has none.
+        guest.add("DROIDDECK_DISPLAY_DRIVER=" + com.droiddeck.launcher.gpu.TurnipDriver(this).effectiveId())
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno() && lastXwaylandCrashed()) {
             guest.add("XWAYLAND_NO_GLAMOR=1")
             Log.w(TAG, "xwayland: the last session's Xwayland crashed; glamor off for this one (XWAYLAND_NO_GLAMOR=1)")
@@ -1264,6 +1275,7 @@ class SessionService : Service() {
             components.add(hwmon)
             binds.add(hwmon.dir.path + ":/sys/class/hwmon")
         }
+        binds.addAll(CpuCacheSysfs.binds(File(filesDir, "session/sys/cpu-cache")))
         val cpuStat = CpuStatComponent(File(filesDir, "session/proc-stat"))
         if (cpuStat.prepare()) {
             cpuStat.attach(this)

@@ -919,6 +919,7 @@
     <string name="setup_reset_settings_session_running">หยุดเซสชันก่อนรีเซ็ตการตั้งค่า</string>
     <string name="setup_reset_settings_partial">รีเซ็ตการตั้งค่าแล้ว แต่ไม่ทั้งหมด รายละเอียดอยู่ในล็อก</string>
     <string name="setup_offline">โหมดออฟไลน์</string>
+    <string name="setup_offline_auto">โหมดออฟไลน์อัตโนมัติ</string>
     <string name="setup_sign_in_first">ลงชื่อเข้าใช้ Steam ก่อน</string>
     <string name="setup_launcher">ตัวเปิดแอป</string>
     <string name="setup_language">ภาษา</string>

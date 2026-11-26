@@ -58,6 +58,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -102,6 +103,7 @@ class FrontEndState(
     val desktopPresent: Boolean = desktopInstalled,
     val offlineAccount: String?,
     val offline: Boolean,
+    val offlineAuto: Boolean = true,
     val frameGenLabel: String,
     val romsDir: String?,
     val logsEnabled: Boolean,
@@ -272,6 +274,7 @@ class FrontEndActions(
     val onClearLogs: () -> Unit = {},
     val onResetSettings: () -> Unit = {},
     val onOffline: () -> Unit,
+    val onOfflineAuto: () -> Unit = {},
     val onPageBack: () -> Unit = {},
     val onTheme: (String) -> Unit = {},
     val onLanguage: (String) -> Unit = {},
@@ -764,12 +767,31 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             focusManager.clearFocus(force = true)
             onRailSelect(key)
         }, a)
+        val stepScope = androidx.compose.runtime.rememberCoroutineScope()
+        val pageKeyNow = androidx.compose.runtime.rememberUpdatedState(s.pageKey)
+        var railHold by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
         val tabStep = androidx.compose.runtime.rememberUpdatedState { step: Int ->
             if (!processSettingsPageVisible) {
                 val keys = navigationKeys(s)
                 keys.getOrNull(keys.indexOf(railSelectionNow.value) + step)?.let { key ->
                     PageSwipe.direction = step
-                    onRailSelect(key)
+                    if (s.dualScreen) { onRailSelect(key); return@let }
+                    showRailPage(key, false)
+                    if (inputModeManager.inputMode != InputMode.Keyboard) inputModeManager.requestInputMode(InputMode.Keyboard)
+                    val since = MainTabSteps.otherKeys
+                    val owner = selected
+                    val ownPage = if (key == "components") "components" else null
+                    railHold?.cancel()
+                    // Pages focus their own first control as they appear; the ring stays on the rail until another key moves it.
+                    railHold = stepScope.launch {
+                        var pageShown = false
+                        repeat(RAIL_HOLD_FRAMES) {
+                            withFrameNanos { }
+                            if (MainTabSteps.otherKeys != since || selected != owner) return@launch
+                            if (pageKeyNow.value == ownPage) pageShown = true else if (pageShown) return@launch
+                            if (frontFocus.focusedRail != key) runCatching { frontFocus.railFor(key).requestFocus() }
+                        }
+                    }
                 }
             }
         }
@@ -900,4 +922,7 @@ internal object ChildProcessSetup {
 
 internal object MainTabSteps {
     @Volatile var handler: ((Int) -> Unit)? = null
+    @Volatile var otherKeys = 0
 }
+
+private const val RAIL_HOLD_FRAMES = 60

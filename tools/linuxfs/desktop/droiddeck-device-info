@@ -1,0 +1,27 @@
+#!/bin/sh
+# The device tree on Android handhelds names the SoC vendor's reference board ("Kera MTP") and an
+# internal codename for the CPU, so the device and SoC names come from Android through the session.
+case "$1" in
+    host)
+        if [ -n "$DD_DEVICE_NAME" ]; then
+            printf '%s\n' "$DD_DEVICE_NAME"
+        else
+            tr -d '\0' < /proc/device-tree/model 2>/dev/null
+            echo
+        fi
+        ;;
+    cpu)
+        name=${DD_SOC_NAME:-$(cat /sys/devices/soc0/machine 2>/dev/null)}
+        cores=$(getconf _NPROCESSORS_CONF)
+        mhz=$(cat /sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_max_freq 2>/dev/null | sort -n | tail -n 1)
+        if [ -n "$mhz" ]; then
+            printf '%s (%s) @ %s GHz\n' "$name" "$cores" "$(awk -v k="$mhz" 'BEGIN { printf "%.2f", k / 1000000 }')"
+        else
+            printf '%s (%s)\n' "$name" "$cores"
+        fi
+        ;;
+    *)
+        echo "usage: droiddeck-device-info host|cpu" >&2
+        exit 2
+        ;;
+esac

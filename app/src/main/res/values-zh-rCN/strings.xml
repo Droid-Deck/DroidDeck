@@ -919,6 +919,7 @@
     <string name="setup_reset_settings_session_running">请先停止会话再重置设置。</string>
     <string name="setup_reset_settings_partial">设置已重置，但部分内容未能重置。详情请查看日志。</string>
     <string name="setup_offline">离线模式</string>
+    <string name="setup_offline_auto">自动离线模式</string>
     <string name="setup_sign_in_first">请先登录 Steam</string>
     <string name="setup_launcher">启动器</string>
     <string name="setup_language">语言</string>

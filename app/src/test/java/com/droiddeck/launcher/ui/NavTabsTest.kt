@@ -48,6 +48,21 @@ class NavTabsTest {
         assertTrue(NavTabs.isDefault())
     }
 
+    @Test fun appsFollowsTheHomeAppOnEachChangeAndOtherwiseKeepsTheUsersChoice() {
+        NavTabs.syncHomeApps(ctx, false)
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "android-apps"))
+        NavTabs.syncHomeApps(ctx, true)
+        assertEquals(TabPlace.BAR, NavTabs.place(state(), "android-apps"))
+        NavTabs.setHidden(ctx, "android-apps", true)
+        NavTabs.syncHomeApps(ctx, true)
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "android-apps"))
+        NavTabs.syncHomeApps(ctx, false)
+        NavTabs.syncHomeApps(ctx, true)
+        assertEquals(TabPlace.BAR, NavTabs.place(state(), "android-apps"))
+        NavTabs.syncHomeApps(ctx, false)
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "android-apps"))
+    }
+
     @Test fun showingMusicOnceKeepsItShownAfterReload() {
         place("soundtracks", TabPlace.BAR)
         NavTabs.load(ctx)
@@ -219,12 +234,12 @@ class NavTabsTest {
                 }
             }
         }
-        val last = navigationKeys(state()).last { it != NavTabs.MORE }
+        val last = NavTabs.listed(state()).last { it !in NavTabs.shelved }
         compose.onNodeWithTag("tab-row-$last").requestFocus()
         compose.onNodeWithTag("tab-row-$last").performKeyPress(pad(android.view.KeyEvent.KEYCODE_BUTTON_Y))
         compose.onNodeWithTag("tab-row-$last").performKeyPress(pad(android.view.KeyEvent.KEYCODE_DPAD_DOWN))
         compose.onNodeWithTag("tab-row-$last").performKeyPress(pad(android.view.KeyEvent.KEYCODE_BUTTON_Y))
-        compose.runOnIdle { assertEquals(last, NavTabs.more(state()).first()) }
+        compose.runOnIdle { assertTrue(last in NavTabs.shelved) }
         compose.onNodeWithTag("tab-shown-desktop").performClick()
         compose.runOnIdle { assertFalse("desktop" in navigationKeys(state())) }
         compose.onNodeWithTag("tab-shown-setup").performClick()

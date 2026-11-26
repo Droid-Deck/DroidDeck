@@ -922,6 +922,7 @@
     <string name="setup_reset_settings_session_running">Спри сесията, преди да нулираш настройките.</string>
     <string name="setup_reset_settings_partial">Настройките са нулирани, но не всички. Подробностите са в логовете.</string>
     <string name="setup_offline">Офлайн режим</string>
+    <string name="setup_offline_auto">Автоматичен офлайн режим</string>
     <string name="setup_sign_in_first">Първо влезте в Steam</string>
     <string name="setup_launcher">Лаунчър</string>
     <string name="setup_language">Език</string>

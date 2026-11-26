@@ -66,6 +66,14 @@ ensure_machine_id() {
 } 2>/dev/null
 ensure_machine_id
 
+write_document_store_service() {
+  [ -x /usr/local/bin/droiddeck-documents ] || return 0
+  mkdir -p /usr/local/share/dbus-1/services &&
+    printf '[D-BUS Service]\nName=org.freedesktop.portal.Documents\nExec=/usr/local/bin/droiddeck-documents\n' \
+      > /usr/local/share/dbus-1/services/org.freedesktop.portal.Documents.service
+} 2>/dev/null
+write_document_store_service
+
 write_system_bus_config() {
   mkdir -p /run/dbus /usr/local/share/droiddeck
   cat > /usr/local/share/droiddeck/system-bus.conf <<'BUSCONF'
@@ -1161,7 +1169,10 @@ case $mode in
         "${DD_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam" &&
         echo "$DD_SHADER_PRECACHE" > "$HOME/.dd-shader-precache-applied" || true
     fi
-    if [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ]; then
+    if [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ] &&
+      ! steam-compatibility "$steam_root" --valve-proton-needed; then
+      step "leaving Valve's ARM64 Proton until a title needs it"
+    elif [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ]; then
       step "asking the client to fetch the ARM64 Proton"
       set -- "$@" steam://install/4427310
       (

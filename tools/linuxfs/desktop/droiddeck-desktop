@@ -28,10 +28,103 @@ find "$XDG_RUNTIME_DIR" -mindepth 1 -maxdepth 1 ! -name 'wayland-0*' ! -name 'ke
 chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null
 mkdir -p /tmp/.X11-unix /tmp/.ICE-unix && chmod 1777 /tmp/.X11-unix /tmp/.ICE-unix 2>/dev/null
 export DD_DESKTOP=1
+sh /usr/local/bin/droiddeck-diversion-stub /usr/bin/pkexec /usr/local/bin/pkexec migrate
+sh /usr/local/bin/droiddeck-diversion-stub /usr/lib/snapd/snap-confine /usr/local/bin/droiddeck-snap-confine migrate
 ln -sf /usr/local/bin/droiddeck-steam-launch /usr/local/bin/steamdeck-steam 2>/dev/null
 ln -sf /usr/local/bin/droiddeck-steam-shim /usr/local/bin/steam 2>/dev/null
 python3 /usr/local/bin/droiddeck-desktop-games 2>&1 | sed 's/^/[games] /'
 python3 /usr/local/bin/droiddeck-desktop-programs 2>&1 | sed 's/^/[programs] /'
+# Plasma lays out the SteamOS panel only for a profile without one. The layout is written at every
+# start, and a panel made before this version (Kubuntu's own, or the first SteamOS one without the
+# pager, clock and Plasma's stock pins) is set aside once so Plasma lays out the current one.
+dd_layout=/usr/share/plasma/look-and-feel/com.valve.vapor.desktop/contents/layouts
+dd_layout_installed=0
+if [ -d "$dd_layout" ]; then
+  if cat > "$dd_layout/org.kde.plasma.desktop-layout.js" <<'LAYOUT'
+var desktops = desktopsForActivity(currentActivity());
+for (var i = 0; i < desktops.length; i++) {
+    desktops[i].wallpaperPlugin = "org.kde.image";
+    desktops[i].currentConfigGroup = ["Wallpaper", "org.kde.image", "General"];
+    desktops[i].writeConfig("Image", "file:///usr/share/wallpapers/DroidDeck");
+}
+
+var panel = new Panel;
+var panelScreen = panel.screen;
+panel.location = "bottom";
+panel.height = 2 * Math.ceil(gridUnit * 2.5 / 2);
+
+const maximumAspectRatio = 21 / 9;
+if (panel.formFactor === "horizontal") {
+    const geo = screenGeometry(panelScreen);
+    const maximumWidth = Math.ceil(geo.height * maximumAspectRatio);
+    if (geo.width > maximumWidth) {
+        panel.alignment = "center";
+        panel.minimumLength = maximumWidth;
+        panel.maximumLength = maximumWidth;
+    }
+}
+
+var kickoff = panel.addWidget("org.kde.plasma.kickoff");
+kickoff.currentConfigGroup = ["Shortcuts"];
+kickoff.writeConfig("global", "Alt+F1");
+kickoff.currentConfigGroup = ["General"];
+kickoff.writeConfig("icon", "distributor-logo-steamdeck");
+kickoff.writeConfig("favorites", [
+    "preferred://browser",
+    "applications:org.kde.dolphin.desktop",
+    "applications:org.kde.konsole.desktop",
+    "applications:org.kde.kate.desktop",
+    "applications:org.kde.discover.desktop",
+    "applications:systemsettings.desktop",
+]);
+
+panel.addWidget("org.kde.plasma.pager");
+
+var tasks = panel.addWidget("org.kde.plasma.icontasks");
+tasks.currentConfigGroup = ["General"];
+tasks.writeConfig("launchers", [
+    "applications:steamdeck-steam.desktop",
+    "applications:systemsettings.desktop",
+    "applications:org.kde.discover.desktop",
+    "preferred://filemanager",
+    "preferred://browser",
+    "applications:org.kde.konsole.desktop",
+    "applications:org.kde.kate.desktop",
+]);
+
+panel.addWidget("org.kde.plasma.marginsseparator");
+
+const inputMethodLanguages = ["as", "bn", "bo", "brx", "doi", "gu", "hi", "ja", "kn", "ko", "kok", "ks", "lep", "mai",
+    "ml", "mni", "mr", "ne", "or", "pa", "sa", "sat", "sd", "si", "ta", "te", "th", "ur", "vi", "zh_CN", "zh_TW"];
+if (inputMethodLanguages.indexOf(languageId) != -1) {
+    panel.addWidget("org.kde.plasma.kimpanel");
+}
+
+var tray = panel.addWidget("org.kde.plasma.systemtray");
+var trayId = tray.readConfig("SystrayContainmentId");
+if (trayId) {
+    var trayContainment = desktopById(trayId);
+    trayContainment.currentConfigGroup = ["General"];
+    trayContainment.writeConfig("scaleIconsToFit", true);
+}
+var clock = panel.addWidget("org.kde.plasma.digitalclock");
+clock.currentConfigGroup = ["Appearance"];
+clock.writeConfig("dateFormat", "isoDate");
+panel.addWidget("org.kde.plasma.showdesktop");
+LAYOUT
+  then
+    dd_layout_installed=1
+  fi
+fi
+dd_panel_rc="${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"
+dd_panel_stamp="${XDG_CONFIG_HOME:-$HOME/.config}/droiddeck-panel-layout"
+if [ "$dd_layout_installed" -eq 1 ] && [ "$(cat "$dd_panel_stamp" 2>/dev/null)" != steamos-2 ]; then
+  dd_panel_backup="$dd_panel_rc.before-steamos-2"
+  [ -e "$dd_panel_backup" ] && dd_panel_backup="$dd_panel_backup.$$"
+  if [ ! -f "$dd_panel_rc" ] || mv "$dd_panel_rc" "$dd_panel_backup"; then
+    mkdir -p "$(dirname "$dd_panel_stamp")" && echo steamos-2 > "$dd_panel_stamp"
+  fi
+fi
 # startplasma applies this file over the session environment, and keeps what an earlier session wrote.
 kwriteconfig6 --file plasma-localerc --group Formats --key LANG "${LANG:-C.UTF-8}"
 if [ -n "${LANGUAGE:-}" ]; then

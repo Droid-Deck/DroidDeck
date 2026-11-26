@@ -917,6 +917,7 @@
     <string name="setup_log_export_failed">Impossibile salvare i log di sessione.</string>
     <string name="setup_log_delete_failed">Impossibile eliminare i log di sessione.</string>
     <string name="setup_offline">Modalità offline</string>
+    <string name="setup_offline_auto">Modalità offline automatica</string>
     <string name="setup_sign_in_first">Accedi prima a Steam</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Lingua</string>

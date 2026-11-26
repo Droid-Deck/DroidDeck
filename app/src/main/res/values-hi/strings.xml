@@ -922,6 +922,7 @@
     <string name="setup_reset_settings_session_running">सेटिंग रीसेट करने से पहले सेशन रोकें।</string>
     <string name="setup_reset_settings_partial">सेटिंग रीसेट हुईं, पर सभी नहीं। विवरण लॉग में हैं।</string>
     <string name="setup_offline">ऑफ़लाइन मोड</string>
+    <string name="setup_offline_auto">स्वचालित ऑफ़लाइन मोड</string>
     <string name="setup_sign_in_first">पहले Steam में साइन इन करें</string>
     <string name="setup_launcher">लॉन्चर</string>
     <string name="setup_language">भाषा</string>

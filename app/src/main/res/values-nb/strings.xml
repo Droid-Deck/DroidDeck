@@ -922,6 +922,7 @@
     <string name="setup_reset_settings_session_running">Stopp økten før du tilbakestiller innstillinger.</string>
     <string name="setup_reset_settings_partial">Innstillingene ble tilbakestilt, men ikke alle. Detaljene står i loggen.</string>
     <string name="setup_offline">Frakoblet modus</string>
+    <string name="setup_offline_auto">Automatisk frakoblet modus</string>
     <string name="setup_sign_in_first">Logg inn på Steam først</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Språk</string>

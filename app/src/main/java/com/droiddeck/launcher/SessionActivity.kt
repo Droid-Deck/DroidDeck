@@ -2834,6 +2834,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
 
     private fun installProton(): String? {
         uiHandler.post { loading.percent = -1; loading.say(getString(PROTON_LINES.downloading), PROTON_LINES.topic, readable = true) }
+        if (com.droiddeck.launcher.session.SessionPrefs.ownProtonFirst(this)) return installOwnProton()
         val catalog = com.droiddeck.launcher.runtime.DesktopCatalog
         val cancellation = com.droiddeck.launcher.core.Downloader.Cancellation { SessionState.stopRequested }
         SessionState.installCancellation = cancellation
@@ -2841,6 +2842,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             val entry = catalog.fetch(catalog.STEAM_SEED_URL, cancellation)?.firstOrNull { it.id == catalog.PROTON_SEED_ID }
                 ?: return if (cancellation.asBoolean) "cancelled" else "catalog unreachable"
             catalog.install(this, entry, cancellation, progressFor(PROTON_LINES, entry.size / 1_000_000))
+        } finally {
+            if (SessionState.installCancellation === cancellation) SessionState.installCancellation = null
+        }
+    }
+
+    private fun installOwnProton(): String? {
+        val extras = com.droiddeck.launcher.session.ProtonExtras
+        while ((extras.prefetching || extras.installInProgress) && !SessionState.stopRequested) {
+            try { Thread.sleep(250) } catch (_: InterruptedException) { Thread.currentThread().interrupt(); return "interrupted" }
+        }
+        if (SessionState.stopRequested) return "cancelled"
+        if (!com.droiddeck.launcher.runtime.DesktopCatalog.ownProtonMissing(this)) return null
+        val cancellation = com.droiddeck.launcher.core.Downloader.Cancellation { SessionState.stopRequested }
+        SessionState.installCancellation = cancellation
+        return try {
+            extras.install(this, extras.tools.first { it.id == extras.OWN }, cancellation) { label, percent ->
+                uiHandler.post { loading.percent = percent; loading.say(label, PROTON_LINES.topic, readable = true) }
+            }.also { if (it == null) com.droiddeck.launcher.session.Onboarding.recheck(this) }
         } finally {
             if (SessionState.installCancellation === cancellation) SessionState.installCancellation = null
         }
@@ -3395,13 +3414,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 if (status == 0) SessionState.takeRelaunch()?.let { next ->
                     next.putExtra(EXTRA_RETURN_HOME, intent.getBooleanExtra(EXTRA_RETURN_HOME, false))
                     next.putExtra(EXTRA_LINK_TASK, intent.getIntExtra(EXTRA_LINK_TASK, -1))
-                    setIntent(next)
-                    recreate()
+                    relaunch(next)
                     return@runOnUiThread
                 }
                 showEnded(status, hint)
             }
         }, "session-end-hint").start()
+    }
+
+    // recreate() keeps this window, and Compose content added to it afterwards never recomposes, so the
+    // loading screen of the next session stays up over a running session. A new instance gets its own window.
+    // This instance finishes first because the activity is singleTask and would otherwise take the intent itself.
+    private fun relaunch(next: Intent) {
+        closeAtOnce = true
+        super.finish()
+        startActivity(next)
+        overridePendingTransition(0, 0)
     }
 
     private fun showEnded(status: Int, hint: EndHint?) {
@@ -5158,10 +5186,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var sessionTouchDown = false
     private var screenTapsClick = true
 
-    private fun onScreenMouseButtonShown(): Boolean = listOfNotNull(
+    private fun onScreenLeftMouseButtonShown(): Boolean = listOfNotNull(
         onScreenControls?.inputSurface, bottomInputControls?.inputSurface, unfoldedPanel?.inputSurface, unfoldedDeckSurface,
         secondScreenPresentation?.controlsView, swappedInputSurface,
-    ).any { it.isShown && inputProfile.showsMouseButton(it.inputRole, it.shownElements, stockInputProfile) }
+    ).any { it.isShown && inputProfile.showsLeftMouseButton(it.inputRole, it.shownElements, stockInputProfile) }
 
     override fun onTouchEvent(event: MotionEvent): Boolean = inSurfaceSpace(event) { handleTouch(event) }
 
@@ -5197,7 +5225,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val snapshot = fingerTouchSnapshot(uiBlocking)
         val route = com.droiddeck.launcher.input.TouchRouter.decide(snapshot)
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            screenTapsClick = !onScreenMouseButtonShown()
+            screenTapsClick = !onScreenLeftMouseButtonShown()
             if (::touchpad.isInitialized) touchpad.clicks = screenTapsClick
             if (::scrollTouch.isInitialized) scrollTouch.clicks = screenTapsClick
         }
@@ -6031,8 +6059,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 Log.w(TAG, "ignoring agent start while session phase is ${SessionState.phase}")
                 return
             }
-            setIntent(intent)
-            recreate()
+            relaunch(android.content.Intent(intent).setClass(this, SessionActivity::class.java))
             return
         }
         if (this.intent.getBooleanExtra(EXTRA_RETURN_HOME, false)) intent.putExtra(EXTRA_RETURN_HOME, true)

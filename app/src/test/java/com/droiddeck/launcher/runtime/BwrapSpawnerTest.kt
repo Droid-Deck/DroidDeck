@@ -61,9 +61,11 @@ class BwrapSpawnerTest {
             "DDNATV_ROOT" to rootfs, "DDNATV_BINDS" to "/dev:/dev", "HOME" to "/root",
             "SPA_PLUGIN_DIR" to "/usr/local/lib/droiddeck-pipewire/lib/spa-0.2",
             "LD_PRELOAD" to "/run/droiddeck-preload/libddsession.so:$rootfs/usr/local/lib/libddsession.so:$rootfs/usr/lib/libddnatv-hook.so",
+            "DROIDDECK_FDS" to "droiddeck-fds-1",
         )
         BwrapSpawner.withoutRootfsSettings(env, rootfs)
-        assertEquals(mapOf("HOME" to "/root", "LD_PRELOAD" to "/run/droiddeck-preload/libddsession.so"), env)
+        assertEquals(mapOf("HOME" to "/root", "LD_PRELOAD" to "/run/droiddeck-preload/libddsession.so",
+            "DROIDDECK_FDS" to "droiddeck-fds-1"), env)
         val onlySession = mutableMapOf("LD_PRELOAD" to "$rootfs/usr/lib/libddnatv-hook.so")
         BwrapSpawner.withoutRootfsSettings(onlySession, rootfs)
         assertTrue(onlySession.isEmpty())
