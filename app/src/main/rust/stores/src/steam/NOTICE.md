@@ -42,6 +42,8 @@ Date of modification: 2026-11-07.
   session), `library`, `plan` (depot selection), `register` (app manifests, shared depots,
   `libraryfolders.vdf`, takeover of half-finished client downloads, uninstall), `kv` (Valve
   KeyValues writer), `install` (download orchestration) and a new JNI layer (`jni`).
+- `library` records the depots the account's packages grant, and `plan` installs only those
+  (the client skips the rest, e.g. edition-only depots); `plan` flags apps with a Linux build.
 - Not ported: QR and password sign-in, auth sessions, friends, chat and chat images, persona,
   lobbies, cloud, user stats, achievements, inventory, published files and workshop, app and
   ownership tickets, playing-session control, the Wine bridge, the other stores' downloaders,

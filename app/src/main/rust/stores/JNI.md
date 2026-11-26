@@ -377,7 +377,7 @@ What `nativeStart` would install for `appId` with `language` (Steam's language n
 
 ```json
 {"ok":true,"appId":291550,"name":"Brawlhalla","installDir":"Brawlhalla","buildId":26465982,
- "language":"english","downloadBytes":…,"installBytes":1594368732,
+ "language":"english","linuxBuild":false,"downloadBytes":…,"installBytes":1594368732,
  "depots":[{"depotId":291551,"manifestId":"4224536525702420323","size":1565156559,"dlcAppId":0}],
  "shared":[{"depotId":228988,"fromAppId":228980,"manifestId":"6645201662696499616","size":29212173}]}
 ```
@@ -386,13 +386,16 @@ Selection (what the client picks for a Windows game run through Proton): `config
 containing `windows`; `config.osarch` empty or `64` (`32` only when no `64` depot exists);
 `config.language` empty or the language (english when the game has no depot for the requested
 language but has english ones; the answer's `language` is the one used); no `lowviolence`
-depots; DLC depots (`dlcappid`) only when the DLC is owned; `depotfromapp`/`sharedinstall`
+depots; for an owned app, only depots one of the account's packages grants (`depotids`), as
+the client installs no other; DLC depots (`dlcappid`) only when the DLC is owned; `depotfromapp`/`sharedinstall`
 depots are listed under `shared` with the owning app (e.g. 228980 Steamworks Common
 Redistributables), whose public manifest they use. Manifest gids are the public branch's, sizes
 come from PICS, `buildId` is the public branch's. `installBytes`/`downloadBytes` include the
 shared depots (they are not checked against what is already installed here). Errors:
 `not_signed_in`, `not_owned`, `appinfo unavailable`, `no installable Windows depot`. A free app
-the account does not own yet is planned without asking for its license.
+the account does not own yet is planned without asking for its license. `linuxBuild` is true
+when `common.oslist` lists `linux`: the client then installs the Linux build unless the game is
+mapped to a Proton, so the caller checks that mapping before installing.
 
 ### `nativeStart`
 

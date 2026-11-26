@@ -23,14 +23,16 @@ pub struct Game {
 pub struct Library {
     /// Every app id the account's licenses grant (games, DLC, tools …).
     pub owned_apps: HashSet<u32>,
+    /// Every depot id the account's licenses grant; the client installs no other depot of an app.
+    pub owned_depots: HashSet<u32>,
     games: Option<Vec<Game>>,
 }
 
-pub fn package_app_ids(buffer: &[u8]) -> Vec<u32> {
+fn package_ids(buffer: &[u8], key: &str) -> Vec<u32> {
     let Some((_id, root)) = vdf::parse_binary_package(buffer) else {
         return Vec::new();
     };
-    root.child("appids")
+    root.child(key)
         .map(|node| {
             node.children
                 .iter()
@@ -39,6 +41,14 @@ pub fn package_app_ids(buffer: &[u8]) -> Vec<u32> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+pub fn package_app_ids(buffer: &[u8]) -> Vec<u32> {
+    package_ids(buffer, "appids")
+}
+
+pub fn package_depot_ids(buffer: &[u8]) -> Vec<u32> {
+    package_ids(buffer, "depotids")
 }
 
 /// A library entry for an app, or `None` when it is not a game.
@@ -104,6 +114,7 @@ impl Library {
         let mut package_ids: Vec<u32> = tokens.keys().copied().collect();
         package_ids.sort_unstable();
         let mut owned_apps = HashSet::new();
+        let mut owned_depots = HashSet::new();
         for batch in package_ids.chunks(PACKAGE_BATCH) {
             let request = batch
                 .iter()
@@ -117,6 +128,7 @@ impl Library {
                 .ok_or_else(|| "package info request failed".to_string())?;
             for package in &response.packages {
                 owned_apps.extend(package_app_ids(&package.buffer));
+                owned_depots.extend(package_depot_ids(&package.buffer));
             }
         }
         crate::steam::log(&format!(
@@ -127,6 +139,7 @@ impl Library {
         ));
         Ok(Library {
             owned_apps,
+            owned_depots,
             games: None,
         })
     }
@@ -186,6 +199,7 @@ impl Library {
     pub fn with_games(&self, games: Vec<Game>) -> Library {
         Library {
             owned_apps: self.owned_apps.clone(),
+            owned_depots: self.owned_depots.clone(),
             games: Some(games),
         }
     }

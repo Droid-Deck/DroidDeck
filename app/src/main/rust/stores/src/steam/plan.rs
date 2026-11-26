@@ -50,6 +50,9 @@ pub struct AppPlan {
     pub build_id: u64,
     /// The language written to the app manifest (the requested one, or english, see above).
     pub language: String,
+    /// The app ships a Linux build (`common.oslist`). The client installs it, not these Windows
+    /// depots, unless the game is mapped to a Proton; the caller checks that mapping.
+    pub linux_build: bool,
     pub depots: Vec<PlannedDepot>,
     pub shared_refs: Vec<SharedRef>,
     pub shared: Vec<SharedDepot>,
@@ -74,6 +77,7 @@ impl AppPlan {
             "installDir": self.install_dir,
             "buildId": self.build_id,
             "language": self.language,
+            "linuxBuild": self.linux_build,
             "downloadBytes": self.download_bytes(),
             "installBytes": self.install_bytes(),
             "depots": self.depots.iter().map(|d| json!({
@@ -236,6 +240,7 @@ pub fn plan_app(
     app_id: u32,
     appinfo: &KVNode,
     owned_apps: &HashSet<u32>,
+    owned_depots: Option<&HashSet<u32>>,
     language: &str,
 ) -> Result<AppPlan, String> {
     let appinfo = appinfo_root(appinfo);
@@ -246,6 +251,9 @@ pub fn plan_app(
         install_dir: app_install_dir(appinfo),
         build_id: public_build_id(appinfo),
         language: language.clone(),
+        linux_build: str_at(appinfo, &["common", "oslist"])
+            .split(',')
+            .any(|os| os.trim().eq_ignore_ascii_case("linux")),
         ..Default::default()
     };
     if plan.install_dir.is_empty() {
@@ -272,15 +280,19 @@ pub fn plan_app(
         if dlc != 0 && !owned_apps.contains(&dlc) {
             continue;
         }
+        let from_app = uint_at(depot, &["depotfromapp"]) as u32;
+        let shared_install = str_at(depot, &["sharedinstall"]) == "1";
+        let is_shared = from_app != 0 || shared_install;
+        if !is_shared && owned_depots.is_some_and(|owned| !owned.contains(&depot_id)) {
+            continue;
+        }
         let candidate = Candidate {
             depot_id,
             node: depot,
             arch: arch_of(config),
             language: language_of(config),
         };
-        let from_app = uint_at(depot, &["depotfromapp"]) as u32;
-        let shared_install = str_at(depot, &["sharedinstall"]) == "1";
-        if from_app != 0 || shared_install {
+        if is_shared {
             shared.push(candidate);
         } else {
             own.push(candidate);
@@ -539,7 +551,7 @@ pub mod tests {
     #[test]
     fn picks_windows_64bit_language_and_shared_depots_like_the_client() {
         let info = parse(BRAWLHALLA);
-        let mut plan = plan_app(291550, &info, &HashSet::new(), "english").unwrap();
+        let mut plan = plan_app(291550, &info, &HashSet::new(), None, "english").unwrap();
         assert_eq!(plan.name, "Brawlhalla");
         assert_eq!(plan.install_dir, "Brawlhalla");
         assert_eq!(plan.build_id, 26465982);
@@ -575,7 +587,7 @@ pub mod tests {
     fn owned_dlc_german_and_32bit_fallback() {
         let info = parse(BRAWLHALLA);
         let owned: HashSet<u32> = [291560].into_iter().collect();
-        let plan = plan_app(291550, &info, &owned, "german").unwrap();
+        let plan = plan_app(291550, &info, &owned, None, "german").unwrap();
         let ids: Vec<u32> = plan.depots.iter().map(|d| d.depot_id).collect();
         assert_eq!(ids, vec![291551, 291554, 291556]);
         assert_eq!(plan.depots[2].dlc_app_id, 291560);
@@ -583,7 +595,7 @@ pub mod tests {
         let only32 = parse(
             r#""appinfo" { "config" { "installdir" "X" } "depots" { "1" { "config" { "osarch" "32" } "manifests" { "public" "5" } "maxsize" "10" } } }"#,
         );
-        let plan = plan_app(1, &only32, &HashSet::new(), "english").unwrap();
+        let plan = plan_app(1, &only32, &HashSet::new(), None, "english").unwrap();
         assert_eq!(plan.depots[0].depot_id, 1);
         assert_eq!(plan.depots[0].manifest_id, 5);
         assert_eq!(plan.depots[0].size, 10);
@@ -597,7 +609,7 @@ pub mod tests {
                 "2" { "config" { "language" "english" } "manifests" { "public" { "gid" "2" "size" "1" } } }
                 "3" { "config" { "language" "german" } "manifests" { "public" { "gid" "3" "size" "1" } } } } }"#,
         );
-        let plan = plan_app(9, &info, &HashSet::new(), "koreana").unwrap();
+        let plan = plan_app(9, &info, &HashSet::new(), None, "koreana").unwrap();
         assert_eq!(plan.language, "english");
         let ids: Vec<u32> = plan.depots.iter().map(|d| d.depot_id).collect();
         assert_eq!(ids, vec![1, 2]);
@@ -605,8 +617,35 @@ pub mod tests {
             9,
             &parse(r#""appinfo" { "depots" { } }"#),
             &HashSet::new(),
+            None,
             "english"
         )
         .is_err());
+    }
+
+    #[test]
+    fn skips_depots_the_licenses_do_not_grant() {
+        let info = parse(
+            r#""appinfo" { "config" { "installdir" "X" } "depots" {
+                "11" { "config" { "oslist" "windows" } "manifests" { "public" { "gid" "1" "size" "1" } } }
+                "12" { "config" { "oslist" "windows" } "manifests" { "public" { "gid" "2" "size" "1" } } }
+                "13" { "config" { "oslist" "windows" } "depotfromapp" "228980" "sharedinstall" "1" } } }"#,
+        );
+        let owned: HashSet<u32> = [11].into_iter().collect();
+        let plan = plan_app(10, &info, &HashSet::new(), Some(&owned), "english").unwrap();
+        let ids: Vec<u32> = plan.depots.iter().map(|d| d.depot_id).collect();
+        assert_eq!(ids, vec![11]);
+        assert_eq!(plan.shared_refs.len(), 1);
+        let all = plan_app(10, &info, &HashSet::new(), None, "english").unwrap();
+        assert_eq!(all.depots.len(), 2);
+    }
+
+    #[test]
+    fn flags_a_linux_build() {
+        let info = parse(
+            r#""appinfo" { "common" { "oslist" "windows,linux" } "config" { "installdir" "X" } "depots" {
+                "1" { "config" { "oslist" "windows" } "manifests" { "public" { "gid" "1" "size" "1" } } } } }"#,
+        );
+        assert!(plan_app(1, &info, &HashSet::new(), None, "english").unwrap().linux_build);
     }
 }

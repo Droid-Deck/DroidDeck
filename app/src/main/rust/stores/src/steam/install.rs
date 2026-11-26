@@ -84,7 +84,15 @@ pub fn build_plan(
             }
         }
     }
-    let mut plan = crate::steam::plan::plan_app(app_id, &appinfo, &library.owned_apps, language)?;
+    // An app planned without its license (a free one, for sizes) has no granted depots to go by.
+    let owned_depots = library.owns(app_id).then_some(&library.owned_depots);
+    let mut plan = crate::steam::plan::plan_app(
+        app_id,
+        &appinfo,
+        &library.owned_apps,
+        owned_depots,
+        language,
+    )?;
     crate::steam::plan::resolve_shared(&mut plan, &|from| session.app_info(from));
     Ok(plan)
 }
