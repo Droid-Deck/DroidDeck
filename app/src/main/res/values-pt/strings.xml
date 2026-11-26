@@ -4128,4 +4128,5 @@
     <string name="drawer_antialiasing">Suavização de serrilhado</string>
     <string name="hud_only_during_game">Mostrar o HUD somente durante o jogo</string>
     <string name="hud_only_during_game_hint">Ocultar o HUD quando nenhum quadro do jogo for detectado.</string>
+    <string name="theme_custom_warning">Aviso</string>
 </resources>

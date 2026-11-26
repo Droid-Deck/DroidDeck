@@ -4121,4 +4121,5 @@
     <string name="theme_custom_error">Error</string>
     <string name="hud_only_during_game">Mostrar el HUD solo durante una partida</string>
     <string name="hud_only_during_game_hint">Ocultar el HUD cuando no se detecten fotogramas del juego.</string>
+    <string name="theme_custom_warning">Advertencia</string>
 </resources>

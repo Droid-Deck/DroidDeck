@@ -4161,4 +4161,5 @@
     <string name="theme_custom_error">Chyba</string>
     <string name="hud_only_during_game">Zobrazovat HUD pouze během hry</string>
     <string name="hud_only_during_game_hint">Skrýt HUD, když nejsou detekovány snímky hry.</string>
+    <string name="theme_custom_warning">Varování</string>
 </resources>

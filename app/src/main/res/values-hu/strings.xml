@@ -4081,4 +4081,5 @@
     <string name="theme_custom_error">Hiba</string>
     <string name="hud_only_during_game">HUD megjelenítése csak játék közben</string>
     <string name="hud_only_during_game_hint">HUD elrejtése, ha nem észlelhetők játék képkockái.</string>
+    <string name="theme_custom_warning">Figyelmeztetés</string>
 </resources>

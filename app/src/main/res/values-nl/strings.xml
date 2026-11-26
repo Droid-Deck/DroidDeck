@@ -4081,4 +4081,5 @@
     <string name="theme_custom_error">Fout</string>
     <string name="hud_only_during_game">HUD alleen tijdens een game weergeven</string>
     <string name="hud_only_during_game_hint">Verberg de HUD wanneer er geen gameframes worden gedetecteerd.</string>
+    <string name="theme_custom_warning">Waarschuwing</string>
 </resources>

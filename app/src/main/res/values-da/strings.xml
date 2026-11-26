@@ -4081,4 +4081,5 @@
     <string name="theme_custom_error">Fejl</string>
     <string name="hud_only_during_game">Vis kun HUD under spil</string>
     <string name="hud_only_during_game_hint">Skjul HUD, når der ikke registreres spilbilleder.</string>
+    <string name="theme_custom_warning">Advarsel</string>
 </resources>

@@ -4161,4 +4161,5 @@
     <string name="theme_custom_error">Помилка</string>
     <string name="hud_only_during_game">Показувати HUD лише під час гри</string>
     <string name="hud_only_during_game_hint">Приховувати HUD, коли кадри гри не виявляються.</string>
+    <string name="theme_custom_warning">Попередження</string>
 </resources>

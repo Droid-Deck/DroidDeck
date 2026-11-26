@@ -4051,4 +4051,5 @@
     <string name="theme_custom_error">오류</string>
     <string name="hud_only_during_game">게임 중에만 HUD 표시</string>
     <string name="hud_only_during_game_hint">게임 프레임이 감지되지 않으면 HUD 숨기기.</string>
+    <string name="theme_custom_warning">경고</string>
 </resources>

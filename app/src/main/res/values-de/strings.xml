@@ -4081,4 +4081,5 @@
     <string name="theme_custom_error">Fehler</string>
     <string name="hud_only_during_game">HUD nur während eines Spiels anzeigen</string>
     <string name="hud_only_during_game_hint">HUD ausblenden, wenn keine Spielframes erkannt werden.</string>
+    <string name="theme_custom_warning">Warnung</string>
 </resources>

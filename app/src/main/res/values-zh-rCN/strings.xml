@@ -4051,4 +4051,5 @@
     <string name="theme_custom_error">错误</string>
     <string name="hud_only_during_game">仅在游戏期间显示 HUD</string>
     <string name="hud_only_during_game_hint">未检测到游戏帧时隐藏 HUD。</string>
+    <string name="theme_custom_warning">警告</string>
 </resources>

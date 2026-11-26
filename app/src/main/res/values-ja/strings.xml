@@ -4051,4 +4051,5 @@
     <string name="theme_custom_error">エラー</string>
     <string name="hud_only_during_game">ゲーム中のみHUDを表示</string>
     <string name="hud_only_during_game_hint">ゲームのフレームが検出されないときはHUDを非表示にする。</string>
+    <string name="theme_custom_warning">警告</string>
 </resources>

@@ -4161,4 +4161,5 @@
     <string name="theme_custom_error">Błąd</string>
     <string name="hud_only_during_game">Pokazuj HUD tylko podczas gry</string>
     <string name="hud_only_during_game_hint">Ukryj HUD, gdy nie wykryto klatek gry.</string>
+    <string name="theme_custom_warning">Ostrzeżenie</string>
 </resources>

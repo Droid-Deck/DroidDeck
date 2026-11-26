@@ -4162,4 +4162,5 @@
     <string name="theme_custom_error">Ошибка</string>
     <string name="hud_only_during_game">Показывать HUD только во время игры</string>
     <string name="hud_only_during_game_hint">Скрывать HUD, когда кадры игры не обнаруживаются.</string>
+    <string name="theme_custom_warning">Предупреждение</string>
 </resources>
