@@ -4051,4 +4051,7 @@
     <string name="theme_custom_error">오류</string>
     <string name="hud_only_during_game">게임 중에만 HUD 표시</string>
     <string name="hud_only_during_game_hint">게임 프레임이 감지되지 않으면 HUD 숨기기.</string>
+    <string name="steam_store_close_steam">먼저 Steam을 닫으세요</string>
+    <string name="steam_store_session_wait">먼저 Steam 다운로드를 일시 중지하세요</string>
+    <string name="steam_store_linux_build">이 게임은 Linux 버전을 설치합니다. Steam에서 설치하세요.</string>
 </resources>

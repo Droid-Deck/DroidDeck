@@ -159,6 +159,7 @@ object DownloadQueue {
     }
 
     fun holdPaused(key: String) = synchronized(lock) { heldPaused.add(key) }
+    fun dropHeld(key: String) = synchronized(lock) { heldPaused.remove(key) }
     private var running = 0
 
     fun parallel(context: Context): Int = SessionPrefs.gameStoresParallel(context)

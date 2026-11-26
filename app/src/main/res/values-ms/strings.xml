@@ -4051,4 +4051,7 @@
     <string name="theme_custom_error">Ralat</string>
     <string name="hud_only_during_game">Paparkan HUD hanya semasa bermain</string>
     <string name="hud_only_during_game_hint">Sembunyikan HUD apabila bingkai permainan tidak dikesan.</string>
+    <string name="steam_store_close_steam">Tutup Steam dahulu</string>
+    <string name="steam_store_session_wait">Jeda muat turun Steam dahulu</string>
+    <string name="steam_store_linux_build">Permainan ini memasang versi Linuxnya. Pasang daripada Steam.</string>
 </resources>

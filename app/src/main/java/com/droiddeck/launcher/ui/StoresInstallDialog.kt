@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,7 +47,10 @@ import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.StoreInstallRoot
 import com.droiddeck.launcher.stores.StoreLanguage
+import com.droiddeck.launcher.stores.StoreSizes
 import com.droiddeck.launcher.stores.StoresState
+import com.droiddeck.launcher.stores.steam.SteamClient
+import com.droiddeck.launcher.stores.steam.SteamStore
 import com.droiddeck.launcher.stores.formatBytes
 import com.droiddeck.launcher.stores.gog.GogDownloadManager
 import kotlinx.coroutines.Dispatchers
@@ -126,6 +130,61 @@ internal fun InstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
                         SessionPrefs.setStoresInstallTarget(ctx, t.root.absolutePath)
                         StoresState.install(ctx, item, t.root, if (askLanguage) chosen else null)
                         close()
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun SteamInstallWhereDialog(item: CatalogItem, onDismiss: () -> Unit) {
+    val ctx = LocalContext.current
+    val colors = MaterialTheme.colorScheme
+    val shown = rememberShown(onDismiss)
+    val close = { shown.targetState = false }
+    val targets by produceState<List<SteamClient.Target>?>(null, item.key) {
+        value = withContext(Dispatchers.IO) { runCatching { SteamClient.targets(ctx) }.getOrDefault(emptyList()) }
+    }
+    val needed by produceState(StoreSizes.size(item), item.key) {
+        val bytes = withContext(Dispatchers.IO) { runCatching { SteamStore.plannedBytes(ctx, item) }.getOrDefault(0L) }
+        if (bytes > 0L) value = bytes
+    }
+    val list = targets
+    val focus = remember(list?.size) { List(list?.size ?: 0) { FocusRequester() } }
+    LaunchedEffect(focus) { if (focus.isNotEmpty()) focusWithinFrames({ false }) { focus[0] } }
+    AppDialog(shown, close, "steamInstallWhere", wide = false, maxWidth = 440.dp) {
+        Rise(0) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    stringResource(R.string.stores_install_title, item.title), fontSize = 15.sp, color = colors.onBackground,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                )
+                Text(
+                    stringResource(R.string.common_cancel), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant,
+                    modifier = Modifier.clip(Shape12).focusGlide().clickable(role = Role.Button, onClick = close).controllerConfirm(onClick = close).padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
+        }
+        Rise(1) {
+            when {
+                list == null -> androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().height(3.dp))
+                list.isEmpty() -> Note(stringResource(R.string.game_sync_err_steam_library))
+                else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    list.forEachIndexed { i, t ->
+                        val isLow = StoreInstallRoot.insufficientSpace(needed, t.freeBytes)
+                        val freeText = when {
+                            t.freeBytes < 0L -> stringResource(R.string.stores_target_free_unknown)
+                            isLow -> stringResource(R.string.stores_storage_low, formatBytes(t.freeBytes), formatBytes(needed))
+                            else -> stringResource(R.string.stores_target_free, formatBytes(t.freeBytes))
+                        }
+                        TargetRow(
+                            label = t.label, free = freeText, removable = t.removable, folder = t.folder, focus = focus[i],
+                            modifier = Modifier.fillMaxWidth(), warning = isLow,
+                        ) {
+                            SteamStore.install(ctx, item, t)
+                            close()
+                        }
                     }
                 }
             }
