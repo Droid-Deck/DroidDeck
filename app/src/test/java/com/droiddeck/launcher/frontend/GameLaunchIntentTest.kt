@@ -22,13 +22,13 @@ class GameLaunchIntentTest {
 
     @Test fun aLinkIsReplayedOnlyWhenANewProcessRestoresItOrRecentsReopensIt() {
         val link = Intent(Intent.ACTION_VIEW)
-        assertFalse(GameLaunchIntent.replayed(link, restored = false, createdInProcess = false))
-        assertFalse(GameLaunchIntent.replayed(link, restored = false, createdInProcess = true))
-        assertFalse(GameLaunchIntent.replayed(link, restored = true, createdInProcess = true))
-        assertTrue(GameLaunchIntent.replayed(link, restored = true, createdInProcess = false))
+        assertFalse(GameLaunchIntent.replayed(link, restored = false, savedProcess = null, process = "b"))
+        assertFalse(GameLaunchIntent.replayed(link, restored = true, savedProcess = "b", process = "b"))
+        assertTrue(GameLaunchIntent.replayed(link, restored = true, savedProcess = "a", process = "b"))
+        assertTrue(GameLaunchIntent.replayed(link, restored = true, savedProcess = null, process = "b"))
         val fromRecents = Intent(link).addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)
-        assertTrue(GameLaunchIntent.replayed(fromRecents, restored = false, createdInProcess = true))
-        assertTrue(GameLaunchIntent.replayed(fromRecents, restored = false, createdInProcess = false))
+        assertTrue(GameLaunchIntent.replayed(fromRecents, restored = false, savedProcess = null, process = "b"))
+        assertTrue(GameLaunchIntent.replayed(fromRecents, restored = true, savedProcess = "b", process = "b"))
     }
 
     @Test fun longAndStringIdsPreserveUnsignedShortcutIds() {
