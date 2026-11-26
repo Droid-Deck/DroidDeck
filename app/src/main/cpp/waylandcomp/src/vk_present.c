@@ -613,8 +613,6 @@ int vkp_zoom_pan_cursor(double ox, double oy) {
         return 0;
     }
 
-    /* Keep the actual cursor position even when it is outside the viewport.
-     * Clamp the resulting image offsets below, not the cursor coordinates. */
     cursor_x = (ox - g_map.off_x) / g_map.kx;
     cursor_y = (oy - g_map.off_y) / g_map.ky;
 
