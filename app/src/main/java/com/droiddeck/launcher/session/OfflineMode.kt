@@ -68,6 +68,7 @@ object OfflineMode {
         SteamOfflineFollow.request()
     }
 
+    @Synchronized
     fun setAuto(context: Context, on: Boolean) {
         val manual = if (on) false else active(context)
         prefs(context).edit().putBoolean(AUTO_KEY, on).commit()
@@ -87,8 +88,15 @@ object OfflineMode {
         val byNetwork = prefs(context).getBoolean(NETWORK_KEY, false)
         val offline = write(context, root, afterNetworkChange(saved(context, root), isOnline(context)))
         val result = switchLive(context, offline)
-        if (result == null && !offline && byNetwork) prefs(context).edit().putBoolean(NETWORK_KEY, true).apply()
+        if (result == null && !offline && byNetwork) restoreNetworkOffline(context)
         return result
+    }
+
+    @Synchronized
+    internal fun restoreNetworkOffline(context: Context) {
+        val prefs = prefs(context)
+        if (!auto(context) || prefs.getBoolean(KEY, false) || prefs.getBoolean(NETWORK_KEY, false)) return
+        prefs.edit().putBoolean(NETWORK_KEY, true).apply()
     }
 
     private fun isOnline(context: Context) = com.droiddeck.launcher.frontend.AutoComponents.isOnline(context)
@@ -98,6 +106,7 @@ object OfflineMode {
         return manual(steamWants(context, root), prefs.getBoolean(NETWORK_KEY, false), prefs.getBoolean(KEY, false))
     }
 
+    @Synchronized
     private fun remember(context: Context, manual: Boolean): Boolean {
         val online = isOnline(context)
         val auto = auto(context)

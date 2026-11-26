@@ -167,6 +167,19 @@ class OfflineModeTest {
     }
 
     @Test
+    fun aManualChoiceMadeAfterAFailedReturnIsNotMarkedAutomatic() {
+        network(online = false)
+        assertTrue(OfflineMode.apply(context, root))
+        network(online = true)
+        OfflineMode.setAuto(context, false)
+        OfflineMode.setEnabled(context, true)
+        OfflineMode.restoreNetworkOffline(context)
+        assertTrue(OfflineMode.enabled(context))
+        assertTrue(OfflineMode.apply(context, root))
+        assertEquals("1", steamWants())
+    }
+
+    @Test
     fun autoIsOnByDefaultAndManualModeIgnoresTheNetwork() {
         assertTrue(OfflineMode.auto(context))
         OfflineMode.setAuto(context, false)
