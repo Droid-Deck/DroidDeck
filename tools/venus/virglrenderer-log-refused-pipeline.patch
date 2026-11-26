@@ -1,0 +1,32 @@
+diff --git a/src/venus/vkr_pipeline.c b/src/venus/vkr_pipeline.c
+index 76709b9..4dbd0f6 100644
+--- a/src/venus/vkr_pipeline.c
++++ b/src/venus/vkr_pipeline.c
+@@ -114,8 +114,12 @@ vkr_dispatch_vkCreateGraphicsPipelines(struct vn_dispatch_context *dispatch,
+    struct vkr_device *dev = vkr_device_from_handle(args->device);
+    struct object_array arr;
+ 
+-   if (vkr_graphics_pipeline_create_array(ctx, args, &arr) < VK_SUCCESS)
++   const VkResult result = vkr_graphics_pipeline_create_array(ctx, args, &arr);
++   if (result < VK_SUCCESS) {
++      vkr_log("vkCreateGraphicsPipelines failed with %d for %u pipelines", result,
++              args->createInfoCount);
+       return;
++   }
+ 
+    vkr_pipeline_add_array(ctx, dev, &arr, args->pPipelines);
+ }
+@@ -129,8 +133,12 @@ vkr_dispatch_vkCreateComputePipelines(struct vn_dispatch_context *dispatch,
+    struct vkr_device *dev = vkr_device_from_handle(args->device);
+    struct object_array arr;
+ 
+-   if (vkr_compute_pipeline_create_array(ctx, args, &arr) < VK_SUCCESS)
++   const VkResult result = vkr_compute_pipeline_create_array(ctx, args, &arr);
++   if (result < VK_SUCCESS) {
++      vkr_log("vkCreateComputePipelines failed with %d for %u pipelines", result,
++              args->createInfoCount);
+       return;
++   }
+ 
+    vkr_pipeline_add_array(ctx, dev, &arr, args->pPipelines);
+ }

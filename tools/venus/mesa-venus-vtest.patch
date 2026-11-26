@@ -1,5 +1,5 @@
 diff --git a/src/virtio/vulkan/vn_device.c b/src/virtio/vulkan/vn_device.c
-index f42b9f9..6ed3051 100644
+index f42b9f9..73f91e9 100644
 --- a/src/virtio/vulkan/vn_device.c
 +++ b/src/virtio/vulkan/vn_device.c
 @@ -45,6 +45,7 @@ vn_queue_fini(struct vn_queue *queue)
@@ -18,6 +18,16 @@ index f42b9f9..6ed3051 100644
  
     if (dev->physical_device->emulate_second_queue ==
            queue_info->queueFamilyIndex &&
+@@ -613,7 +615,8 @@ vn_CreateDevice(VkPhysicalDevice physicalDevice,
+       vn_log(instance, "%s", physical_dev->base.vk.properties.driverInfo);
+    }
+ 
+-   vn_tls_set_async_pipeline_create();
++   if (!VN_DEBUG(VTEST))
++      vn_tls_set_async_pipeline_create();
+ 
+    *pDevice = vn_device_to_handle(dev);
+ 
 diff --git a/src/virtio/vulkan/vn_device_memory.c b/src/virtio/vulkan/vn_device_memory.c
 index 8b6eb4c..be146b6 100644
 --- a/src/virtio/vulkan/vn_device_memory.c
