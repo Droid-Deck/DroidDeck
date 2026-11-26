@@ -1,0 +1,121 @@
+{
+ "level": "2",
+ "app": "12200",
+ "idle": {
+  "label": "library idle",
+  "t": 1795730328.2203002,
+  "mono": 88030.648405583,
+  "tck": 100,
+  "pss": 1035,
+  "renderer": 349,
+  "swappss": 0,
+  "gpu": 668,
+  "avail": 3625,
+  "ticks": {
+   "26928": 2093,
+   "27080": 1846
+  },
+  "lite_ticks": 14
+ },
+ "launch_ok": true,
+ "launch_s": 11.3,
+ "game": {
+  "label": "game +80s",
+  "t": 1795730421.200217,
+  "mono": 88123.628322423,
+  "tck": 100,
+  "pss": 796,
+  "renderer": 283,
+  "swappss": 216,
+  "gpu": 676,
+  "avail": 2863,
+  "ticks": {
+   "26928": 2717,
+   "27080": 2677
+  },
+  "lite_ticks": 13
+ },
+ "web_cpu_pct": 2.7,
+ "lite_cpu_pct": -0.05,
+ "status": {
+  "state": "game",
+  "app": 12200,
+  "level": null,
+  "interventions": [
+   "gc",
+   "moderate",
+   "pageout",
+   "pause"
+  ],
+  "passes": 1,
+  "history": [
+   {
+    "t": 1795730345.31,
+    "state": "game",
+    "app": 12200,
+    "why": "enter",
+    "outcome": {
+     "skipped-reclaim": "123 MB of the client is already in zRAM"
+    }
+   },
+   {
+    "t": 1795730345.335,
+    "state": "game",
+    "app": 12200,
+    "why": "enter",
+    "outcome": {
+     "pause": {
+      "notificationtoasts_uid2": 1,
+      "QuickAccess_uid2": 1,
+      "MainMenu_uid2": 1,
+      "Steam Big Picture Mode": 1
+     },
+     "ms": 97
+    }
+   }
+  ],
+  "unsupported": []
+ },
+ "overlay_open_s": [
+  4.13,
+  4.05,
+  4.07
+ ],
+ "overlay_close_s": [
+  4.09,
+  4.05,
+  4.06
+ ],
+ "after_overlay": {
+  "label": "after overlay",
+  "t": 1795730462.9182022,
+  "mono": 88165.346306574,
+  "tck": 100,
+  "pss": 817,
+  "renderer": 357,
+  "swappss": 184,
+  "gpu": 174,
+  "avail": 3253,
+  "ticks": {
+   "26928": 3659,
+   "27080": 3964
+  },
+  "lite_ticks": 13
+ },
+ "back": {
+  "label": "library after quit",
+  "t": 1795730480.6113908,
+  "mono": 88183.039495265,
+  "tck": 100,
+  "pss": 1035,
+  "renderer": 407,
+  "swappss": 0,
+  "gpu": 245,
+  "avail": 3922,
+  "ticks": {
+   "26928": 3896,
+   "27080": 4326
+  },
+  "lite_ticks": 12
+ }
+}

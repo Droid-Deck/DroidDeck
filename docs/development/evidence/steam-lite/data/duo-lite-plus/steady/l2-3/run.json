@@ -1,0 +1,123 @@
+{
+ "level": "2",
+ "app": "12200",
+ "idle": {
+  "label": "library idle",
+  "t": 1795731241.423692,
+  "mono": 88943.851796849,
+  "tck": 100,
+  "pss": 1092,
+  "renderer": 468,
+  "swappss": 0,
+  "gpu": 219,
+  "avail": 3934,
+  "ticks": {
+   "8499": 2023,
+   "8653": 1770
+  },
+  "lite_ticks": 12
+ },
+ "launch_ok": true,
+ "launch_s": 11.3,
+ "game": {
+  "label": "game +80s",
+  "t": 1795731334.4063036,
+  "mono": 89036.834408689,
+  "tck": 100,
+  "pss": 674,
+  "renderer": 235,
+  "swappss": 226,
+  "gpu": 166,
+  "avail": 3360,
+  "ticks": {
+   "8499": 2637,
+   "8653": 2922
+  },
+  "lite_ticks": 30
+ },
+ "web_cpu_pct": 2.8,
+ "lite_cpu_pct": 0.1,
+ "status": {
+  "state": "game",
+  "app": 12200,
+  "level": null,
+  "interventions": [
+   "gc",
+   "moderate",
+   "pageout",
+   "pause"
+  ],
+  "passes": 1,
+  "history": [
+   {
+    "t": 1795731261.058,
+    "state": "game",
+    "app": 12200,
+    "why": "enter",
+    "outcome": {
+     "gc": {
+      "SharedJSContext": 336
+     },
+     "moderate": {
+      "SharedJSContext": 1
+     },
+     "pause": {
+      "notificationtoasts_uid2": 1,
+      "QuickAccess_uid2": 1,
+      "MainMenu_uid2": 1,
+      "Steam Big Picture Mode": 1
+     },
+     "pageout": {
+      "kB": 447376,
+      "processes": 5,
+      "answered": 5
+     },
+     "ms": 3502
+    }
+   }
+  ],
+  "unsupported": []
+ },
+ "overlay_open_s": [
+  4.07,
+  4.04,
+  4.03
+ ],
+ "overlay_close_s": [
+  4.08,
+  4.04,
+  4.05
+ ],
+ "after_overlay": {
+  "label": "after overlay",
+  "t": 1795731376.2544672,
+  "mono": 89078.682574558,
+  "tck": 100,
+  "pss": 885,
+  "renderer": 402,
+  "swappss": 101,
+  "gpu": 118,
+  "avail": 3269,
+  "ticks": {
+   "8499": 3598,
+   "8653": 4029
+  },
+  "lite_ticks": 38
+ },
+ "back": {
+  "label": "library after quit",
+  "t": 1795731393.9186745,
+  "mono": 89096.346778823,
+  "tck": 100,
+  "pss": 1043,
+  "renderer": 433,
+  "swappss": 0,
+  "gpu": 165,
+  "avail": 3986,
+  "ticks": {
+   "8499": 3824,
+   "8653": 4383
+  },
+  "lite_ticks": 38
+ }
+}

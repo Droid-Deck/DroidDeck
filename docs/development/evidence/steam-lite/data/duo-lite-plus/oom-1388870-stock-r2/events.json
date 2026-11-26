@@ -1,0 +1,65 @@
+{
+ "profile": "stock",
+ "app": "1388870",
+ "started": 1795727147.7406435,
+ "kind": "oom",
+ "env": [
+  "DD_STEAM_SOFT_COMPOSITING=0"
+ ],
+ "arm": "stock",
+ "launch_s": 16.21,
+ "status_in_game": {
+  "state": "ui",
+  "app": null,
+  "interventions": [
+   "gc",
+   "moderate"
+  ],
+  "passes": 0,
+  "history": [],
+  "unsupported": []
+ },
+ "load_attempts": [
+  {
+   "attempt": 1,
+   "t": 1795727212.6426082,
+   "died": false,
+   "drop_mib": 0
+  },
+  {
+   "attempt": 2,
+   "t": 1795727256.9352186,
+   "died": false,
+   "drop_mib": 0
+  },
+  {
+   "attempt": 3,
+   "t": 1795727299.9988506,
+   "died": false,
+   "drop_mib": 0
+  },
+  {
+   "attempt": 4,
+   "t": 1795727344.24206,
+   "died": false,
+   "drop_mib": 0
+  }
+ ],
+ "loaded": false,
+ "load_t": 1795727344.24206,
+ "survived": true,
+ "available_before_load_mib": 1914,
+ "exit": null,
+ "status_after_load": {
+  "state": "ui",
+  "app": null,
+  "interventions": [
+   "gc",
+   "moderate"
+  ],
+  "passes": 0,
+  "history": [],
+  "unsupported": []
+ },
+ "finished": 1795727439.4827628
+}

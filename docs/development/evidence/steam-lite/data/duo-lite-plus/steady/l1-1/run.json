@@ -1,0 +1,110 @@
+{
+ "level": "1",
+ "app": "12200",
+ "idle": {
+  "label": "library idle",
+  "t": 1795729133.0585527,
+  "mono": 86835.48665781,
+  "tck": 100,
+  "pss": 1069,
+  "renderer": 463,
+  "swappss": 0,
+  "gpu": 219,
+  "avail": 3967,
+  "ticks": {
+   "9021": 2060,
+   "9176": 1745
+  },
+  "lite_ticks": 16
+ },
+ "launch_ok": true,
+ "launch_s": 12.3,
+ "game": {
+  "label": "game +80s",
+  "t": 1795729227.1558955,
+  "mono": 86929.58400017,
+  "tck": 100,
+  "pss": 883,
+  "renderer": 310,
+  "swappss": 0,
+  "gpu": 186,
+  "avail": 3198,
+  "ticks": {
+   "9021": 2653,
+   "9176": 2701
+  },
+  "lite_ticks": 13
+ },
+ "web_cpu_pct": 2.2,
+ "lite_cpu_pct": 0.05,
+ "status": {
+  "state": "game",
+  "app": 12200,
+  "level": null,
+  "interventions": [
+   "gc",
+   "moderate"
+  ],
+  "passes": 1,
+  "history": [
+   {
+    "t": 1795729150.7,
+    "state": "game",
+    "app": 12200,
+    "why": "enter",
+    "outcome": {
+     "gc": {
+      "SharedJSContext": 376
+     },
+     "moderate": {
+      "SharedJSContext": 2
+     },
+     "ms": 445
+    }
+   }
+  ],
+  "unsupported": []
+ },
+ "overlay_open_s": [
+  4.21,
+  4.09,
+  4.11
+ ],
+ "overlay_close_s": [
+  4.21,
+  3.79,
+  4.1
+ ],
+ "after_overlay": {
+  "label": "after overlay",
+  "t": 1795729269.2851465,
+  "mono": 86971.713250987,
+  "tck": 100,
+  "pss": 857,
+  "renderer": 305,
+  "swappss": 0,
+  "gpu": 113,
+  "avail": 3276,
+  "ticks": {
+   "9021": 3857,
+   "9176": 3771
+  },
+  "lite_ticks": 13
+ },
+ "back": {
+  "label": "library after quit",
+  "t": 1795729287.078582,
+  "mono": 86989.506686866,
+  "tck": 100,
+  "pss": 899,
+  "renderer": 320,
+  "swappss": 0,
+  "gpu": 161,
+  "avail": 4060,
+  "ticks": {
+   "9021": 4075,
+   "9176": 4099
+  },
+  "lite_ticks": 12
+ }
+}

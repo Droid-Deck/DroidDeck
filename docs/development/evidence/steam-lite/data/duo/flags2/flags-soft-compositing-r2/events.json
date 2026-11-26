@@ -1,0 +1,12 @@
+{
+ "kind": "flags",
+ "variant": "soft-compositing",
+ "env": {
+  "DD_WEBHELPER_ARGS": "--no-zygote --in-process-gpu -AudioServiceOutOfProcess",
+  "DD_STEAM_SOFT_COMPOSITING": "1",
+  "DD_STEAM_CEF_GPU": "1"
+ },
+ "helper_cmdline": "sh -c xargs -0 echo < /proc/$(pgrep -f 'steamwebhelper -nocrash' | head -1)/cmdline sh",
+ "helper_cmdline_has": [],
+ "started": 1795725762.2853498
+}

@@ -1,0 +1,105 @@
+{
+ "props": {
+  "ro.product.model": "Retroid Pocket Duo Lite Plus",
+  "ro.product.manufacturer": "Moorechip",
+  "ro.soc.model": "CQ7790S",
+  "ro.build.version.release": "16",
+  "ro.build.fingerprint": "qti/sun/sun:16/BQ2A.260427.001-BP2A.250705.008/eng.RPDLPl.20261118.233915:user/dev-keys"
+ },
+ "meminfo": "MemTotal:        7576260 kB\nSwapTotal:       6291452 kB\n",
+ "package": "    versionCode=20 minSdk=26 targetSdk=34\n    versionName=0.7.11\n",
+ "env": "DD_STEAM_CLIENT_ARCH=arm64\nDD_STEAM_LITE=1\nDD_ZRAM=1\n",
+ "counters": "Filename\t\t\t\tType\t\tSize\t\tUsed\t\tPriority\n/dev/block/zram0                        partition\t6291452\t\t1252088\t\t32758\nzram0\n1280966656 337602136 347062272        0 977297408    35855   137520     5785   217712\nsome avg10=0.25 avg60=0.12 avg300=0.02 total=27157796\nfull avg10=0.25 avg60=0.11 avg300=0.02 total=22151062\n1372\n1416\n1599\n",
+ "probe": {
+  "version": {
+   "Browser": "Chrome/126.0.6478.183",
+   "Protocol-Version": "1.3",
+   "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Valve Steam Client Safari/537.36",
+   "V8-Version": "12.6.228.28",
+   "WebKit-Version": "537.36 (@2e81dea53f5ecdc1c057e4c70ecd66151987296a)"
+  },
+  "targets": [
+   {
+    "title": "notificationtoasts_uid2",
+    "type": "page",
+    "ui": true,
+    "origin": ""
+   },
+   {
+    "title": "QuickAccess_uid2",
+    "type": "page",
+    "ui": true,
+    "origin": ""
+   },
+   {
+    "title": "MainMenu_uid2",
+    "type": "page",
+    "ui": true,
+    "origin": ""
+   },
+   {
+    "title": "Steam Big Picture Mode",
+    "type": "page",
+    "ui": true,
+    "origin": ""
+   },
+   {
+    "title": "SharedJSContext",
+    "type": "page",
+    "ui": true,
+    "origin": "steamloopback.host"
+   }
+  ],
+  "methods": {
+   "Runtime.getHeapUsage": "ok",
+   "Memory.getDOMCounters": "ok",
+   "Performance.enable": "ok",
+   "Performance.getMetrics": [
+    "AdSubframes",
+    "ArrayBufferContents",
+    "AudioHandlers",
+    "AudioWorkletProcessors",
+    "ContextLifecycleStateObservers",
+    "DetachedScriptStates",
+    "DevToolsCommandDuration",
+    "Documents",
+    "DomContentLoaded",
+    "FirstMeaningfulPaint",
+    "Frames",
+    "JSEventListeners",
+    "JSHeapTotalSize",
+    "JSHeapUsedSize",
+    "LayoutCount",
+    "LayoutDuration",
+    "LayoutObjects",
+    "MediaKeySessions",
+    "MediaKeys",
+    "NavigationStart",
+    "Nodes",
+    "ProcessTime",
+    "RTCPeerConnections",
+    "RecalcStyleCount",
+    "RecalcStyleDuration",
+    "ResourceFetchers",
+    "Resources",
+    "ScriptDuration",
+    "TaskDuration",
+    "TaskOtherDuration",
+    "ThreadTime",
+    "Timestamp",
+    "UACSSResources",
+    "V8CompileDuration",
+    "V8PerContextDatas",
+    "WorkerGlobalScopes"
+   ],
+   "Performance.disable": "ok",
+   "HeapProfiler.enable": "ok",
+   "HeapProfiler.disable": "ok",
+   "Animation.enable": "ok",
+   "Animation.getPlaybackRate": "ok",
+   "Animation.disable": "ok",
+   "Emulation.setEmulatedMedia": "ok",
+   "Page.getFrameTree": "ok"
+  }
+ }
+}

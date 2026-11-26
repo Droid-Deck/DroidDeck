@@ -1,0 +1,3 @@
+== 1 run 1
+{"profile": "1", "survived": false, "died_after_s": 17.2, "exit": {"timestamp": "2026-11-26 15:12:03.471", "reason": "3", "importance": "100", "pss": "177MB", "rss": "200MB"}, "launch_s": 16.41}
+== 3 run 1

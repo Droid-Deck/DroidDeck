@@ -1,0 +1,59 @@
+{
+ "profile": "1",
+ "app": "1388870",
+ "started": 1795726348.8576179,
+ "kind": "oom",
+ "env": [
+  "DD_STEAM_SOFT_COMPOSITING=0"
+ ],
+ "arm": "l1",
+ "launch_s": 16.46,
+ "status_in_game": {
+  "state": "game",
+  "app": 1388870,
+  "interventions": [
+   "gc",
+   "moderate"
+  ],
+  "passes": 1,
+  "history": [
+   {
+    "t": 1795726392.535,
+    "state": "game",
+    "app": 1388870,
+    "why": "enter",
+    "outcome": {
+     "gc": {
+      "SharedJSContext": 401
+     },
+     "moderate": {
+      "SharedJSContext": 5
+     },
+     "ms": 503
+    }
+   }
+  ],
+  "unsupported": []
+ },
+ "load_attempts": [
+  {
+   "attempt": 1,
+   "t": 1795726414.4582286,
+   "died": false,
+   "drop_mib": 710
+  }
+ ],
+ "loaded": true,
+ "load_t": 1795726414.4582286,
+ "died_after_s": 32.5,
+ "survived": false,
+ "available_before_load_mib": 1823,
+ "exit": {
+  "timestamp": "2026-11-26 15:54:07.845",
+  "reason": "3",
+  "importance": "100",
+  "pss": "191MB",
+  "rss": "184MB"
+ },
+ "finished": 1795726476.985651
+}

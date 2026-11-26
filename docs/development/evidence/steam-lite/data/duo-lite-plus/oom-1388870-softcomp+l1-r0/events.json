@@ -1,0 +1,65 @@
+{
+ "profile": "1",
+ "app": "1388870",
+ "started": 1795725890.9713573,
+ "kind": "oom",
+ "env": [
+  "DD_STEAM_SOFT_COMPOSITING=1"
+ ],
+ "arm": "softcomp+l1",
+ "launch_s": 15.77,
+ "status_in_game": {
+  "state": "game",
+  "app": 1388870,
+  "interventions": [
+   "gc",
+   "moderate"
+  ],
+  "passes": 1,
+  "history": [
+   {
+    "t": 1795725933.302,
+    "state": "game",
+    "app": 1388870,
+    "why": "enter",
+    "outcome": {
+     "gc": {
+      "SharedJSContext": 387
+     },
+     "moderate": {
+      "SharedJSContext": 1
+     },
+     "ms": 463
+    }
+   }
+  ],
+  "unsupported": []
+ },
+ "load_attempts": [
+  {
+   "attempt": 1,
+   "t": 1795725956.1843152,
+   "drop_mib": 0
+  },
+  {
+   "attempt": 2,
+   "t": 1795725982.3269596,
+   "drop_mib": 58,
+   "died": true
+  }
+ ],
+ "loaded": true,
+ "load_t": 1795725982.3269596,
+ "died_after_s": 17.2,
+ "survived": false,
+ "available_before_load_mib": 2009,
+ "exit": {
+  "timestamp": "2026-11-26 15:46:39.556",
+  "reason": "3",
+  "importance": "100",
+  "pss": "151MB",
+  "rss": "227MB"
+ },
+ "finished": 1795726124.7355504,
+ "note": "loaded and killed ~17 s after the second Continue tap (exit-info 15:46:39.6, tap 15:46:22.3); the 12 s check missed the delayed load start"
+}

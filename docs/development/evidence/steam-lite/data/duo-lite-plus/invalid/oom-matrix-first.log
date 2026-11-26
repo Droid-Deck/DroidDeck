@@ -1,0 +1,3 @@
+== softcomp+l1 run 1
+{"arm": "softcomp+l1", "profile": "1", "loaded": false, "survived": false, "died_after_s": 117.4, "exit": {"timestamp": "2026-11-26 15:46:39.556", "reason": "3", "importance": "100", "pss": "151MB", "rss": "227MB"}, "launch_s": 15.77}
+== l1 run 1
