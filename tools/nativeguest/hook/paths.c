@@ -394,9 +394,29 @@ struct mount_scan {
     int best_fuse;
     char best_name[256];
     int nested_links;
+    int incomplete;
     int lower_count;
     char lower[16][256];
 };
+
+static int is_volume_fuse_point(const char *point, const char *name) {
+    static const char *const roots[] = {"/mnt/user/", "/mnt/installer/", "/mnt/androidwritable/"};
+    const char *rest = NULL;
+    if (strncmp(point, "/storage/", 9) == 0) {
+        rest = point + 9;
+    } else {
+        for (size_t i = 0; i < sizeof(roots) / sizeof(roots[0]) && !rest; i++) {
+            size_t len = strlen(roots[i]);
+            if (strncmp(point, roots[i], len) != 0) continue;
+            const char *p = point + len;
+            if (*p < '0' || *p > '9') return 0;
+            while (*p >= '0' && *p <= '9') p++;
+            if (*p != '/') return 0;
+            rest = p + 1;
+        }
+    }
+    return rest && rest == name && name[0];
+}
 
 static void mount_scan_line(struct mount_scan *scan, char *line) {
     char *field[5];
@@ -432,7 +452,7 @@ static void mount_scan_line(struct mount_scan *scan, char *line) {
     if (!covers || (point_len < scan->best_len && scan->best_len != 0)) return;
     scan->best_len = point_len;
     scan->best_plain = plain;
-    scan->best_fuse = strcmp(type, "fuse") == 0 && strcmp(source, "/dev/fuse") == 0;
+    scan->best_fuse = strcmp(type, "fuse") == 0 && strcmp(source, "/dev/fuse") == 0 && is_volume_fuse_point(point, name);
     ddnatv_copy_cstr(scan->best_name, sizeof(scan->best_name), strlen(name) < sizeof(scan->best_name) ? name : "");
 }
 
@@ -482,12 +502,13 @@ static int mount_holds_no_links(const char *src, size_t src_len) {
                 line[used++] = c;
             } else {
                 skipping = 1;
+                scan->incomplete = 1;
             }
         }
     }
     raw_close_fd(fd);
     int none = 0;
-    if (n == 0 && scan->best_len && !scan->nested_links) {
+    if (n == 0 && used == 0 && !scan->incomplete && scan->best_len && !scan->nested_links) {
         if (scan->best_plain) none = 1;
         else if (scan->best_fuse && scan->best_name[0])
             for (int i = 0; i < scan->lower_count && !none; i++) none = strcmp(scan->lower[i], scan->best_name) == 0;

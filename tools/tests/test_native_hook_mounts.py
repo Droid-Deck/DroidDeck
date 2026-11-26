@@ -398,19 +398,22 @@ class NativeHookMountTest(unittest.TestCase):
                   [("/", "ext4", "/dev/root"), (real, "fuse", "/dev/fuse")],
                   [("/", "ext4", "/dev/root"), ("/mnt/media_rw/other", "exfat", "/dev/sdb1"), (real, "fuse", "/dev/fuse")],
                   [("/", "ext4", "/dev/root"), ("/mnt/media_rw/" + os.path.basename(real), "exfat", "/dev/sdb1"),
-                   (real, "fuse", "/dev/sdb9")]]
+                   (real, "fuse", "/dev/sdb9")],
+                  [("/", "ext4", "/dev/root"), ("/mnt/media_rw/" + os.path.basename(real), "exfat", "/dev/sdb1"),
+                   (real, "fuse", "/dev/fuse")],
+                  [("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1"),
+                   (f"{real}/real", "ext4", "/dev/" + "x" * 5000)]]
         for table in tables:
             result = self.run_probe(*paths, binds=binds, mounts=table)
             for path, want in paths.items():
                 self.assertEqual(result[path], want, (path, table))
 
     def test_mounts_on_filesystems_without_links_skip_the_link_walk(self):
-        real, parent, name = self.links_volume()
+        real, parent, _ = self.links_volume()
         binds = f"{self.links}:/mnt/links"
         tables = [[("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1")],
                   [("/", "ext4", "/dev/root"), (parent, "vfat", "/dev/sdb1")],
-                  [("/", "ext4", "/dev/root"), (real, "vfat", "/dev/sdb1"), (f"{real}/real", "exfat", "/dev/sdc1")],
-                  [("/", "ext4", "/dev/root"), (f"/mnt/media_rw/{name}", "exfat", "/dev/sdb1"), (real, "fuse", "/dev/fuse")]]
+                  [("/", "ext4", "/dev/root"), (real, "vfat", "/dev/sdb1"), (f"{real}/real", "exfat", "/dev/sdc1")]]
         for table in tables:
             result = self.run_probe("/mnt/links/guest", "/mnt/links/real/up/sub/file.txt",
                                     "/mnt/links/real/sub/file.txt", "/mnt/links/real/missing",
