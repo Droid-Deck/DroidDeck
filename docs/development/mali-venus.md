@@ -155,6 +155,8 @@ The SPIR-V version the driver gets:
   When the driver reports no render node, the layer reports the stand-in node's numbers
   (`DD_DRM_STANDIN=/dev/mali0`, bound into the guest as `/dev/dri/renderD<minor>`). The
   extension stays unlisted, and the layer is off in gamescope, so gamescope keeps its no-DRM path.
+  Venus gets the stand-in node only in Desktop sessions. Steam and program sessions keep running
+  without one, so their Xwayland, Zink and gamescope paths stay as they were.
 
 Files:
 - `layer.c`: loader plumbing, feature and limit reporting, device creation, the hook table.

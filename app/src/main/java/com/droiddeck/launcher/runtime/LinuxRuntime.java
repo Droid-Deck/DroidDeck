@@ -364,9 +364,14 @@ public final class LinuxRuntime {
 
     public static String gpuStandIn(Context context) {
         return gpuStandIn(path -> new File(path).exists(),
-                () -> com.droiddeck.launcher.core.DeviceSupport.INSTANCE.openDriverActive(context)
-                        || com.droiddeck.launcher.session.VenusComponent.wanted(context),
+                () -> maliGuestDriver(com.droiddeck.launcher.core.DeviceSupport.INSTANCE.openDriverActive(context),
+                        () -> com.droiddeck.launcher.session.VenusComponent.wanted(context),
+                        com.droiddeck.launcher.session.SessionState.INSTANCE.getMode()),
                 () -> com.droiddeck.launcher.core.DeviceSupport.INSTANCE.vkBridge(context));
+    }
+
+    static boolean maliGuestDriver(boolean openDriver, java.util.function.BooleanSupplier venus, String sessionMode) {
+        return openDriver || (com.droiddeck.launcher.session.SessionService.MODE_DESKTOP.equals(sessionMode) && venus.getAsBoolean());
     }
 
     static String gpuStandIn(java.util.function.Predicate<String> exists, java.util.function.BooleanSupplier maliGuestDriver,

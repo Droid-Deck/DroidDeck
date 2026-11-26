@@ -1,8 +1,11 @@
 package com.droiddeck.launcher.runtime
 
 import android.app.Application
+import com.droiddeck.launcher.session.SessionService
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -42,5 +45,24 @@ class LinuxRuntimeGpuStandInTest {
         var asked = false
         LinuxRuntime.gpuStandIn({ it == kgsl }, { asked = true; true }, { asked = true; true })
         assertEquals(false, asked)
+    }
+
+    @Test fun venusGetsTheMaliNodeOnlyOnDesktop() {
+        assertTrue(LinuxRuntime.maliGuestDriver(false, { true }, SessionService.MODE_DESKTOP))
+        assertFalse(LinuxRuntime.maliGuestDriver(false, { true }, SessionService.MODE_STEAM))
+        assertFalse(LinuxRuntime.maliGuestDriver(false, { true }, SessionService.MODE_RUN))
+        assertFalse(LinuxRuntime.maliGuestDriver(false, { false }, SessionService.MODE_DESKTOP))
+    }
+
+    @Test fun openDriverPairGetsTheMaliNodeInEveryMode() {
+        for (mode in listOf(SessionService.MODE_STEAM, SessionService.MODE_DESKTOP, SessionService.MODE_RUN)) {
+            assertTrue(LinuxRuntime.maliGuestDriver(true, { false }, mode))
+        }
+    }
+
+    @Test fun venusIsNotAskedOutsideDesktop() {
+        var asked = false
+        LinuxRuntime.maliGuestDriver(false, { asked = true; true }, SessionService.MODE_STEAM)
+        assertFalse(asked)
     }
 }
