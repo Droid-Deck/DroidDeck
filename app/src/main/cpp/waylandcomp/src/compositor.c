@@ -224,6 +224,8 @@ struct surface {
     struct wl_resource *dmabuf;
     struct dmabuf_buffer *dmabuf_buf;
     struct wl_listener dmabuf_destroy;
+    struct wl_resource *pixel;
+    struct wl_listener pixel_destroy;
     const void *last_dmabuf;
     int buf_w, buf_h, has_content;
     int buf_alpha;
@@ -444,7 +446,7 @@ static int buffer_shown_elsewhere(struct wl_resource *buffer, const struct surfa
     struct surface *o;
     if (!buffer) return 0;
     wl_list_for_each(o, &g_surfaces, link)
-        if (o != except && o->dmabuf == buffer) return 1;
+        if (o != except && (o->dmabuf == buffer || o->pixel == buffer)) return 1;
     return 0;
 }
 
@@ -817,6 +819,27 @@ static void drop_dmabuf(struct surface *s, int paced) {
     s->dmabuf_buf = NULL;
 }
 
+static void on_pixel_destroyed(struct wl_listener *l, void *data) {
+    struct surface *s = wl_container_of(l, s, pixel_destroy);
+    wl_list_remove(&s->pixel_destroy.link);
+    s->pixel = NULL;
+}
+
+static void hold_pixel(struct surface *s, struct wl_resource *buffer) {
+    if (s->pixel == buffer) return;
+    s->pixel = buffer;
+    s->pixel_destroy.notify = on_pixel_destroyed;
+    wl_resource_add_destroy_listener(buffer, &s->pixel_destroy);
+}
+
+static void drop_pixel(struct surface *s) {
+    struct wl_resource *buffer = s->pixel;
+    if (!buffer) return;
+    wl_list_remove(&s->pixel_destroy.link);
+    s->pixel = NULL;
+    if (!buffer_shown_elsewhere(buffer, s)) send_buffer_release(buffer);
+}
+
 static void on_dmabuf_destroyed(struct wl_listener *l, void *data) {
     struct surface *s = wl_container_of(l, s, dmabuf_destroy);
     wl_list_remove(&s->dmabuf_destroy.link);
@@ -962,14 +985,13 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
         droiddeck_on_compositor_frame();
 }
 
-static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resource *buffer) {
+static void take_pixel(struct surface *s, const uint8_t bgra[4]) {
     if (s->shm_img && (vkp_image_width(s->shm_img) != 1 || vkp_image_height(s->shm_img) != 1)) {
         vkp_image_destroy(s->shm_img);
         s->shm_img = NULL;
     }
     if (!s->shm_img) s->shm_img = vkp_image_create_shm(1, 1);
     if (s->shm_img) vkp_image_upload_shm(s->shm_img, bgra, 4);
-    send_buffer_release(buffer);
     s->buf_w = 1;
     s->buf_h = 1;
     s->buf_alpha = bgra[3] != 0xff;
@@ -1385,6 +1407,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
 
         surface_drop_idle(s);
         buf_trace_attach(buffer);
+        if (s->pixel != buffer) drop_pixel(s);
         if (s->role == ROLE_CURSOR) {
             if (!buffer) {
                 cursor_publish_hidden();
@@ -1401,7 +1424,8 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
             take_shm(s, shm, buffer);
         } else if (single_pixel_buffer_get(buffer, pixel)) {
             drop_dmabuf(s, 1);
-            take_pixel(s, pixel, buffer);
+            take_pixel(s, pixel);
+            hold_pixel(s, buffer);
         } else {
             drop_dmabuf(s, 1);
             s->has_content = 0;
@@ -1494,6 +1518,7 @@ static void surface_resource_destroy(struct wl_resource *r) {
     if (s->pending_buffer) wl_list_remove(&s->pending_buffer_destroy.link);
     pending_releases_forget_surface(s);
     drop_dmabuf(s, 0);
+    drop_pixel(s);
     ahb_swapchain_surface_gone(s);
     vkp_image_destroy(s->shm_img);
     wl_resource_for_each_safe(cb, cbtmp, &s->pending_frames) wl_resource_destroy(cb);
@@ -1630,6 +1655,7 @@ static void subsurface_resource_destroy(struct wl_resource *r) {
     s->role = ROLE_NONE;
     s->has_content = 0;
     drop_dmabuf(s, 1);
+    drop_pixel(s);
     schedule_render();
 }
 
