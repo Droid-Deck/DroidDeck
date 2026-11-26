@@ -154,7 +154,7 @@ new file mode 100755
 index 0000000..d43c5fc
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1523 @@
+@@ -0,0 +1,1527 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -1271,26 +1271,28 @@ index 0000000..d43c5fc
 +
 +fn declares_application(folder: &Path) -> bool {
 +    use quick_xml::events::Event;
-+    for name in [LEGACY_MANIFEST, MANIFEST] {
++    for (name, expected) in [
++        (LEGACY_MANIFEST, "Application"),
++        (MANIFEST, "Application"),
++        ("MicrosoftGame.config", "Executable"),
++    ] {
 +        let Ok(text) = std::fs::read_to_string(folder.join(name)) else { continue };
 +        let mut reader = quick_xml::Reader::from_str(&text);
 +        loop {
 +            match reader.read_event() {
 +                Ok(Event::Start(tag)) | Ok(Event::Empty(tag))
-+                    if tag.local_name().as_ref() == "Application" => return true,
++                    if tag.local_name().as_ref() == expected => return true,
 +                Ok(Event::Eof) | Err(_) => break,
 +                Ok(_) => {}
 +            }
 +        }
 +    }
-+    // MicrosoftGame.config uses Executable rather than an Appx Application element.
-+    std::fs::read_to_string(folder.join("MicrosoftGame.config"))
-+        .ok()
-+        .is_some_and(|text| opens_element(&text.to_ascii_lowercase(), "<executable"))
++    false
 +}
 +
 +/// Whether [text] opens [tag] as its own element, so `<Application Id=` and an attribute on the next
-+/// line count and `<Applications>` does not.
++/// line count and `<Applications>` does not. Used by the focused parser test only.
++#[cfg(test)]
 +fn opens_element(text: &str, tag: &str) -> bool {
 +    text.match_indices(tag).any(|(at, _)| {
 +        text[at + tag.len()..].chars().next().is_some_and(|next| next.is_whitespace() || next == '>' || next == '/')
@@ -1550,6 +1552,8 @@ index 0000000..d43c5fc
 +    fn application_scan_ignores_application_elements_inside_comments() {
 +        let root = scratch("commented-app");
 +        std::fs::write(root.join(LEGACY_MANIFEST), r#"<Package><!-- <Application Id="fake"/> --><Applications/></Package>"#).unwrap();
++        assert!(!declares_application(&root));
++        std::fs::write(root.join("MicrosoftGame.config"), r#"<Game><!-- <Executable Name="fake.exe"/> --></Game>"#).unwrap();
 +        assert!(!declares_application(&root));
 +        std::fs::remove_dir_all(&root).ok();
 +    }
