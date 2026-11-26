@@ -703,6 +703,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     @Volatile private var frameGenInventoryLastAttemptAt = 0L
     private val frameGenInventoryRetryScheduled = java.util.concurrent.atomic.AtomicBoolean()
     private val frameGenInventoryRefreshScheduled = java.util.concurrent.atomic.AtomicBoolean()
+    @Volatile private var frameGenInventoryRefreshDue = false
 
     @Volatile private var appliedFrameGenMode: FrameGen.Mode? = null
     @Volatile private var appliedFrameGenHz: Float? = null
@@ -3191,6 +3192,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
     }
 
+    private fun scheduleFrameGenInventoryRefresh() {
+        if (!frameGenInventoryRefreshScheduled.compareAndSet(false, true)) return
+        uiHandler.postDelayed({
+            frameGenInventoryRefreshScheduled.set(false)
+            if (frameGenActivityActive && !isFinishing && !isDestroyed) {
+                frameGenInventoryRefreshDue = true
+                applyFrameGen()
+            }
+        }, 15_000L)
+    }
+
     private fun frameGenModeForActiveGame(request: Int): FrameGen.Mode {
         if (SessionState.mode == SessionService.MODE_RUN) {
             val activeAppId = (
@@ -3203,6 +3215,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val cachedIds = LibraryCache.load(this)
             .mapNotNull { it.profileKey.toLongOrNull() }
             .toSet()
+
+        if (frameGenInventoryRefreshDue) {
+            val focusedAppId = AgentGuest.focus(this)?.let { snapshot ->
+                snapshot.optLong("focusedApp").takeIf { snapshot.has("focusedApp") }
+            }
+            val stillKnown = synchronized(frameGenInventoryLock) {
+                frameGenInventoryRefreshDue = false
+                val known = frameGenInventoryIds
+                val keep = known != null && focusedAppId != null &&
+                    AgentGuest.focusedInstalledSteamAppId(focusedAppId, cachedIds + known) != null
+                if (!keep) {
+                    frameGenInventoryIds = null
+                    frameGenInventoryLastAttemptAt = 0L
+                }
+                keep
+            }
+            if (stillKnown) scheduleFrameGenInventoryRefresh()
+        }
 
         var inventoryRevision = drawerGameInventoryRevision
         var ids = synchronized(frameGenInventoryLock) {
@@ -3267,18 +3297,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         }
                     }
                     if (published) {
-                        if (frameGenInventoryRefreshScheduled.compareAndSet(false, true)) {
-                            uiHandler.postDelayed({
-                                frameGenInventoryRefreshScheduled.set(false)
-                                if (frameGenActivityActive && !isFinishing && !isDestroyed) {
-                                    synchronized(frameGenInventoryLock) {
-                                        frameGenInventoryIds = null
-                                        frameGenInventoryLastAttemptAt = 0L
-                                    }
-                                    applyFrameGen()
-                                }
-                            }, 15_000L)
-                        }
+                        scheduleFrameGenInventoryRefresh()
                         if (frameGenRequests.get() != request) {
                             applyFrameGen()
                         }
