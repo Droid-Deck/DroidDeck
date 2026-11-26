@@ -434,3 +434,11 @@ A Steam Deck never shows one for its touchscreen: Big Picture sets Passthrough, 
 finger (`bFromTouch`, set by `0131` for `wlserver_touchdown` and non-nested `wlserver_touchmotion`) no longer un-hide it.
 The nested mouse, the touchpad and controller cursors still do, so a game's own controller cursor stays visible.
 `tools/tests/test_gamescope_touch_cursor_hidden.py` compiles the condition from this patch.
+
+## 0143 steamcompmgr: X pointer motion under a finger keeps the cursor hidden
+
+Xwayland emulates a pointer from the first touch, so the X pointer follows a finger even in Passthrough, and
+`MouseCursor::updatePosition` un-hid the cursor whenever the polled X pointer moved: with the cursor drawn inside
+gamescope it showed under the finger for a moment after every touch. `wlserver_touchdown`, `wlserver_touchup` and a
+finger's `wlserver_touchmotion` (not the nested mouse, which passes `bAlwaysWarpCursor`) stamp the time, and X pointer
+motion within 300 ms of a finger event no longer un-hides it. A mouse or controller moving the pointer still does.

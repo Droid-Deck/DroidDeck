@@ -1,0 +1,76 @@
+diff --git a/src/wlserver.cpp b/src/wlserver.cpp
+--- a/src/wlserver.cpp
++++ b/src/wlserver.cpp
+@@ -1,3 +1,4 @@
++#include <atomic>
+ #include <cmath>
+ #include <xkbcommon/xkbcommon-keysyms.h>
+ #define _GNU_SOURCE 1
+@@ -3283,10 +3284,21 @@
+ 	*y = ty;
+ }
+ 
++static std::atomic<uint64_t> s_ulLastFingerTime{ 0 };
++
++bool wlserver_finger_recent()
++{
++	const uint64_t ulLast = s_ulLastFingerTime.load();
++	return ulLast != 0 && get_time_in_nanos() - ulLast < 300'000'000ul;
++}
++
+ void wlserver_touchmotion( double x, double y, int touch_id, uint32_t time, bool bAlwaysWarpCursor, gamescope::IBackendConnector* connector )
+ {
+ 	assert( wlserver_is_lock_held() );
+ 
++	if ( !bAlwaysWarpCursor )
++		s_ulLastFingerTime = get_time_in_nanos();
++
+ 	if ( wlserver.mouse_focus_surface != NULL )
+ 	{
+ 		double tx = x;
+@@ -3358,6 +3370,8 @@
+ {
+ 	assert( wlserver_is_lock_held() );
+ 
++	s_ulLastFingerTime = get_time_in_nanos();
++
+ 	if ( wlserver.mouse_focus_surface != NULL )
+ 	{
+ 		double tx = x;
+@@ -3415,6 +3429,8 @@
+ {
+ 	assert( wlserver_is_lock_held() );
+ 
++	s_ulLastFingerTime = get_time_in_nanos();
++
+ 	// Release whatever the touch pressed even if its surface is gone, or the seat keeps the button down.
+ 	bool bReleasedAny = false;
+ 	for ( int i = 0; i < WLSERVER_BUTTON_COUNT; i++ )
+diff --git a/src/wlserver.hpp b/src/wlserver.hpp
+--- a/src/wlserver.hpp
++++ b/src/wlserver.hpp
+@@ -280,6 +280,7 @@
+ void wlserver_mousebutton( int button, bool press, uint32_t time );
+ void wlserver_mousewheel( double x, double y, uint32_t time );
+ bool wlserver_input_held();
++bool wlserver_finger_recent();
+ void wlserver_drag_anchor_move( struct wlr_surface *surface, int x, int y, int base_x, int base_y );
+ 
+ void wlserver_touchmotion( double x, double y, int touch_id, uint32_t time, bool bAlwaysWarpCursor = false, gamescope::IBackendConnector* connector = nullptr );
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -2101,8 +2101,11 @@
+ 	{
+ 		m_x = root_x;
+ 		m_y = root_y;
+-		wlserver.ulLastMovedCursorTime = get_time_in_nanos();
+-		wlserver.bCursorHidden = !wlserver.bCursorHasImage;
++		if ( !wlserver_finger_recent() )
++		{
++			wlserver.ulLastMovedCursorTime = get_time_in_nanos();
++			wlserver.bCursorHidden = !wlserver.bCursorHasImage;
++		}
+ 		hasRepaintNonBasePlane = true;
+ 	}
+ }
