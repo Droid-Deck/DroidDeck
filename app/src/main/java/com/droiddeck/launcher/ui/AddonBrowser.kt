@@ -273,7 +273,7 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     var text by remember { mutableStateOf("") }
     var category by remember { mutableStateOf<WowAddonCatalog.Category?>(null) }
     var sort by remember { mutableStateOf(WowAddonCatalog.Sort.POPULAR) }
-    var source by remember { mutableStateOf(AddonSource.WOWI) }
+    var source by remember { mutableStateOf(if (curseForge != null) AddonSource.CURSE else AddonSource.WOWI) }
     val curse = if (source == AddonSource.CURSE && link != null) curseForge else null
     LaunchedEffect(link) { link?.refresh() }
     var notice by remember { mutableStateOf<Int?>(null) }
@@ -425,8 +425,8 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         }
         val sourceChip: @Composable () -> Unit = {
             if (curseForge != null) BrowseDropdown(sourceName) { first, done ->
-                MenuItem(stringResource(R.string.addons_source_wowi), source == AddonSource.WOWI, focusRequester = first) { source = AddonSource.WOWI; done() }
-                MenuItem(stringResource(R.string.addons_source_curse), source == AddonSource.CURSE) { source = AddonSource.CURSE; done() }
+                MenuItem(stringResource(R.string.addons_source_wowi), curse == null, focusRequester = first) { source = AddonSource.WOWI; done() }
+                MenuItem(stringResource(R.string.addons_source_curse), curse != null) { source = AddonSource.CURSE; done() }
             }
         }
         val categoryChip: @Composable () -> Unit = {
