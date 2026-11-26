@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import base64
+import ctypes
 import json
 import math
 import re
@@ -19,6 +20,7 @@ import urllib.parse
 from pathlib import Path
 
 VERSION = 1
+PR_SET_CHILD_SUBREAPER = 36
 OUTPUT_CAP = 256 * 1024
 REQUEST_CAP = 256 * 1024
 RESPONSE_CAP = 1024 * 1024
@@ -1238,7 +1240,17 @@ def answer(agent_dir, path):
     write_json(agent_dir / "resp" / (rid + ".json"), result)
 
 
+def stop_adopting_orphans():
+    # libddsession makes every session process a child subreaper. The agent never reaps adopted orphans, so
+    # SteamVR left zombies that its helper's stop counted as still running. The session shell above reaps them.
+    try:
+        ctypes.CDLL(None, use_errno=True).prctl(PR_SET_CHILD_SUBREAPER, 0, 0, 0, 0)
+    except (OSError, AttributeError):
+        pass
+
+
 def serve(agent_dir, focus=True, poll=0.1):
+    stop_adopting_orphans()
     (agent_dir / "req").mkdir(parents=True, exist_ok=True)
     (agent_dir / "resp").mkdir(parents=True, exist_ok=True)
     can_focus = focus and bool(os.environ.get("DISPLAY"))

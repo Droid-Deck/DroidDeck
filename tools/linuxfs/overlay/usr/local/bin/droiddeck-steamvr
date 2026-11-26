@@ -14,7 +14,16 @@ chmod 700 "$state"
 PKG_URL=https://steamdeck-packages.steamos.cloud/archlinux-deckard-hotfixes/release/0.3.x/deckard-steamvr-rel-r25358740%2B28b72a4f-1-aarch64.pkg.tar.zst
 PKG_SHA256=90a600775eb3e8856dc475f83166a93a290a0b1f3b4e82a69c8e2a8f06b9ddc9
 
-running() { pgrep -x vrserver >/dev/null 2>&1; }
+alive() {
+    for p in $(pgrep -x "$1"); do
+        case "$(awk '/^State:/ { print $2 }' "/proc/$p/status" 2>/dev/null)" in
+        Z|'') ;;
+        *) return 0 ;;
+        esac
+    done
+    return 1
+}
+running() { alive vrserver; }
 installed() { [ -x "$steamvr/bin/linuxarm64/vrstartup" ]; }
 quest_settings() {
     backup=$HOME/.local/share/droiddeck/steamvr-quest-settings.json
@@ -50,7 +59,7 @@ unregister() {
 }
 
 idle() {
-    [ ! -f "$state/active" ] && ! running && ! pgrep -x vrstartup >/dev/null 2>&1 &&
+    [ ! -f "$state/active" ] && ! running && ! alive vrstartup &&
         ( flock -n 9 ) 9>"$state/start.lock"
 }
 
@@ -61,7 +70,7 @@ stop() {
     done
     for p in $(pgrep -f "$steamvr/bin/linuxarm64/vrcompositor-launcher"); do kill "$p" 2>/dev/null; done
     attempts=0
-    while pgrep -x 'vrserver|vrcompositor' >/dev/null 2>&1; do
+    while alive 'vrserver|vrcompositor'; do
         attempts=$((attempts + 1))
         if [ "$attempts" = 10 ]; then
             for p in $(pgrep -x 'vrserver|vrcompositor'); do kill -KILL "$p" 2>/dev/null; done
@@ -122,7 +131,7 @@ start)
     flock -n 9 || { echo "SteamVR start already in progress"; exit 0; }
     installed || { echo "SteamVR is not installed (droiddeck-steamvr install)"; exit 1; }
     [ -f "$driver/bin/linuxarm64/driver_droiddeck.so" ] || { echo "the Cardboard driver is missing from $driver"; exit 1; }
-    if [ -f "$state/active" ] && { running || pgrep -x vrstartup >/dev/null 2>&1; }; then
+    if [ -f "$state/active" ] && { running || alive vrstartup; }; then
         echo "DroidDeck SteamVR is already running"
         exit 0
     fi
