@@ -1669,7 +1669,7 @@ pub mod amazon {
     pub mod auth {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../app/src/main/rust/stores/src/amazon/auth.rs"
+            "/src/amazon_auth.rs"
         ));
     }
     pub mod distribution {
