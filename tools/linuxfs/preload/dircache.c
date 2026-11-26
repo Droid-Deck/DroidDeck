@@ -694,7 +694,7 @@ static void finish(struct handle *h) {
 #define NTFS3_MAGIC 0x7366746e
 #define SDCARDFS_MAGIC 0x5dca2df5
 
-struct scan { DIR *key; char *path; char *names[PREFETCH_BATCH]; int n; };
+struct scan { char *path; char *names[PREFETCH_BATCH]; int n; };
 
 static pthread_mutex_t qlock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t qwake = PTHREAD_COND_INITIALIZER;
@@ -702,6 +702,7 @@ static char *queue[PREFETCH_QUEUE];
 static int qtop, qcount;
 static int workers;
 static struct scan *scans[PREFETCH_SCANS];
+static DIR *scan_keys[PREFETCH_SCANS];
 static struct { dev_t dev; ino_t ino; } seen[PREFETCH_SEEN];
 static int nseen, seen_at;
 
@@ -719,7 +720,10 @@ static void prefetch_fork(void) {
   pthread_cond_init(&qwake, NULL);
   for (int i = 0; i < PREFETCH_QUEUE; i++) queue[i] = NULL;
   qtop = qcount = workers = 0;
-  for (int i = 0; i < PREFETCH_SCANS; i++) scans[i] = NULL;
+  for (int i = 0; i < PREFETCH_SCANS; i++) {
+    scans[i] = NULL;
+    scan_keys[i] = NULL;
+  }
   nseen = seen_at = 0;
 }
 
@@ -841,8 +845,7 @@ static void flush_scan(struct scan *s) {
 
 static int scan_slot(DIR *key) {
   for (int i = 0; i < PREFETCH_SCANS; i++) {
-    struct scan *s = __atomic_load_n(&scans[i], __ATOMIC_ACQUIRE);
-    if (s && s->key == key) return i;
+    if (__atomic_load_n(&scan_keys[i], __ATOMIC_ACQUIRE) == key) return i;
   }
   return -1;
 }
@@ -851,7 +854,8 @@ static void end_scan(DIR *key) {
   int i = scan_slot(key);
   if (i < 0) return;
   struct scan *s = scans[i];
-  __atomic_store_n(&scans[i], NULL, __ATOMIC_RELEASE);
+  scans[i] = NULL;
+  __atomic_store_n(&scan_keys[i], NULL, __ATOMIC_RELEASE);
   flush_scan(s);
   free(s->path);
   free(s);
@@ -868,11 +872,11 @@ static void begin_scan(DIR *key, int fd) {
     free(s);
     return;
   }
-  s->key = key;
   pthread_mutex_lock(&qlock);
   for (int i = 0; i < PREFETCH_SCANS; i++) {
-    if (scans[i] == NULL) {
-      __atomic_store_n(&scans[i], s, __ATOMIC_RELEASE);
+    if (__atomic_load_n(&scan_keys[i], __ATOMIC_ACQUIRE) == NULL) {
+      scans[i] = s;
+      __atomic_store_n(&scan_keys[i], key, __ATOMIC_RELEASE);
       s = NULL;
       break;
     }
