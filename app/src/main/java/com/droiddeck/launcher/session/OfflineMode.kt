@@ -84,9 +84,9 @@ object OfflineMode {
     }
 
     fun follow(context: Context): Boolean? {
-        if (!auto(context)) return false
         val root = LinuxRuntime.rootDir(context)
         val (byNetwork, offline) = synchronized(this) {
+            if (!auto(context)) return false
             prefs(context).getBoolean(NETWORK_KEY, false) to
                 write(context, root, afterNetworkChange(saved(context, root), isOnline(context)))
         }
