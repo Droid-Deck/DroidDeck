@@ -549,7 +549,7 @@ impl Launcher {
         ui.add_space(4.0);
         ui.heading(RichText::new("Tus cuentas").size(27.0).strong());
         ui.add_space(4.0);
-        ui.label(RichText::new("Iniciá sesión desde acá. Al abrir el launcher, las cuentas con token se sincronizan. Para Steam y Game Jolt usá Actualizar todas; sus sesiones se verifican en la ventana web aislada.").color(MUTED));
+        ui.label(RichText::new("Conectá cada tienda desde su ventana web. Steam muestra el QR en el formulario cuando no hay una sesión guardada; si ya ves tu usuario, pulsá Sincronizar biblioteca con DroidDeck.").color(MUTED));
         ui.add_space(18.0);
         let rows = accounts::stores().to_vec();
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {

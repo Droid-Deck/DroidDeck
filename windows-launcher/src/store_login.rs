@@ -236,17 +236,18 @@ fn bridge_script(store: &str, extra: &str) -> String {
         r##"
 (() => {{
   const store = {store_json};
-  let added = false;
   const send = async () => {{
     const payload = {{ store, url: location.href, body: document.body?.innerText || "", storage: "", data: {{}} }};
     try {{ payload.storage = JSON.stringify(Object.fromEntries(Array.from({{ length: localStorage.length }}, (_, i) => localStorage.key(i)).filter(k => k && /loginData|rememberMe|lastProfile/i.test(k)).map(k => [k, localStorage.getItem(k)]))); }} catch (_) {{}}
     if (store === "steam") {{
       const [ownedResponse, profileResponse] = await Promise.all([fetch("https://store.steampowered.com/dynamicstore/userdata/?v=1", {{ credentials: "include" }}), fetch("https://store.steampowered.com/my/", {{ credentials: "include" }})]);
+      if (!ownedResponse.ok || !profileResponse.ok) throw new Error("No se pudo leer la cuenta de Steam. Revisá la conexión e intentá de nuevo.");
       const owned = await ownedResponse.json(); const html = await profileResponse.text();
-      const steamId = html.match(/g_steamID\s*=\s*["'](\d+)["']/)?.[1] || "";
+      const steamId = html.match(/g_steamID\s*=\s*["'](\d+)["']/)?.[1] || html.match(/data-miniprofile=["'](\d+)["']/)?.[1] || document.querySelector('a[href*="/profiles/"]')?.href.match(/\/profiles\/(\d+)/)?.[1] || "";
       const list = owned.rgOwnedApps;
-      const ids = Array.isArray(list) ? list : list && typeof list === "object" ? Object.keys(list).map(Number) : [];
-      if (!steamId) throw new Error("Steam todavía no confirmó que iniciaste sesión. Revisá el login y probá otra vez.");
+      const ids = Array.isArray(list) ? list.map(Number).filter(Number.isFinite) : list && typeof list === "object" ? Object.keys(list).map(Number).filter(Number.isFinite) : null;
+      if (!steamId || !/^\d+$/.test(steamId)) throw new Error("Iniciá sesión en Steam o escaneá el QR de la página y después sincronizá la biblioteca.");
+      if (!ids) throw new Error("Steam confirmó la sesión, pero no devolvió la biblioteca. Volvé a iniciar sesión y probá otra vez.");
       payload.data = {{ steamId, displayName: document.querySelector("#account_pulldown")?.textContent?.trim() || steamId, ids }};
     }} else if (store === "gamejolt") {{
       const search = await fetch("/site-api/web/search/games?q=a", {{ credentials: "include" }}).then(r => r.json());
@@ -263,16 +264,26 @@ fn bridge_script(store: &str, extra: &str) -> String {
     }}
     window.ipc.postMessage(JSON.stringify(payload));
   }};
+  const buttonId = "droiddeck-store-connect";
   const add = () => {{
-    if (!document.body || added || window.top !== window.self) return;
-    const button = document.createElement("button"); added = true;
-    button.textContent = store === "steam" || store === "gamejolt" ? "Sincronizar biblioteca con DroidDeck" : "Ya inicié sesión · Conectar";
+    if (!document.body || window.top !== window.self || document.getElementById(buttonId)) return;
+    const button = document.createElement("button");
+    button.id = buttonId;
+    const actionLabel = store === "steam" || store === "gamejolt" ? "Sincronizar biblioteca con DroidDeck" : "Ya inicié sesión · Conectar";
+    button.textContent = actionLabel;
+    button.title = store === "steam" ? "Si Steam ya muestra tu usuario, sincronizá directamente. Si no, iniciá sesión o escaneá el QR de Steam y volvé a pulsar." : "Completá el inicio de sesión y luego conectá la cuenta.";
     Object.assign(button.style, {{ position: "fixed", zIndex: "2147483647", top: "12px", right: "16px", padding: "12px 18px", border: "0", borderRadius: "9px", background: "#20a4f3", color: "#07111a", font: "600 14px Segoe UI, sans-serif", boxShadow: "0 5px 18px #0009", cursor: "pointer" }});
-    button.onclick = async () => {{ button.disabled = true; button.textContent = "Verificando cuenta…"; try {{ await send(); }} catch (e) {{ button.disabled = false; button.textContent = e?.message || "No se pudo validar · Reintentar"; }} }};
+    button.onclick = async () => {{ button.disabled = true; button.textContent = "Verificando cuenta…"; button.title = ""; try {{ await send(); }} catch (e) {{ const message = e?.message || "No se pudo validar la cuenta. Intentá otra vez."; button.disabled = false; button.textContent = store === "steam" && message.startsWith("Iniciá sesión") ? "Iniciá sesión o escaneá el QR y reintentá" : "No se pudo validar · Reintentar"; button.title = message; }} }};
     document.body.appendChild(button);
   }};
-  new MutationObserver(add).observe(document.documentElement, {{ childList: true, subtree: true }});
-  setInterval(add, 600);
+  const observe = () => {{
+    new MutationObserver(add).observe(document.documentElement || document, {{ childList: true, subtree: true }});
+    add();
+  }};
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", observe, {{ once: true }});
+  else observe();
+  const retry = setInterval(add, 250);
+  setTimeout(() => clearInterval(retry), 10000);
 }})();
 "##
     )
@@ -354,4 +365,20 @@ fn rockstar_bridge_script(extra: &str) -> String {
 }})();
 "##
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::bridge_script;
+
+    #[test]
+    fn steam_bridge_mounts_after_dom_ready_and_explains_qr_login() {
+        let script = bridge_script("steam", "");
+
+        assert!(script.contains("DOMContentLoaded"));
+        assert!(script.contains("document.documentElement || document"));
+        assert!(script.contains("droiddeck-store-connect"));
+        assert!(script.contains("Sincronizar biblioteca con DroidDeck"));
+        assert!(script.contains("escaneá el QR de la página"));
+    }
 }

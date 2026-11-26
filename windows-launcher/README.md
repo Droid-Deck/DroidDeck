@@ -6,6 +6,8 @@ Launcher nativo escrito en Rust para reunir juegos de PC de las tiendas conectad
 
 Abrí **Cuentas de tiendas**, elegí **Conectar cuenta** y completá el login en la ventana integrada. El catálogo se sincroniza al terminar y vuelve a actualizarse al iniciar el launcher o con **Actualizar todas**.
 
+Steam usa el formulario oficial dentro de esa ventana. Si el perfil aislado ya tiene una sesión abierta, no aparece el QR: pulsá **Sincronizar biblioteca con DroidDeck**. Si no hay sesión, iniciá sesión o escaneá el QR que muestra Steam y luego sincronizá. El launcher detecta la sesión y agrega los juegos instalados y no instalados.
+
 La integración de bibliotecas de cuenta está disponible para:
 
 - Steam, Epic Games, EA app, GOG, Ubisoft Connect, Amazon Games, Rockstar Games y Game Jolt.
