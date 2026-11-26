@@ -20,6 +20,22 @@ class GameLaunchIntentTest {
         }
     }
 
+    @Test fun aLinkIsReplayedOnlyWhenANewProcessRestoresItOrRecentsReopensIt() {
+        val link = Intent(Intent.ACTION_VIEW)
+        assertFalse(GameLaunchIntent.replayed(link, restored = false, savedProcess = null, process = "b"))
+        assertFalse(GameLaunchIntent.replayed(link, restored = true, savedProcess = "b", process = "b"))
+        assertTrue(GameLaunchIntent.replayed(link, restored = true, savedProcess = "a", process = "b"))
+        assertTrue(GameLaunchIntent.replayed(link, restored = true, savedProcess = null, process = "b"))
+        val fromRecents = Intent(link).addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)
+        assertTrue(GameLaunchIntent.replayed(fromRecents, restored = false, savedProcess = null, process = "b"))
+        assertTrue(GameLaunchIntent.replayed(fromRecents, restored = true, savedProcess = "b", process = "b"))
+        val settings = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("droiddeck://settings/storage"))
+            .addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)
+        assertFalse(GameLaunchIntent.replayed(settings, restored = true, savedProcess = "a", process = "b"))
+        assertTrue(GameLaunchIntent.replayed(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("droiddeck://game/620")),
+            restored = true, savedProcess = "a", process = "b"))
+    }
+
     @Test fun longAndStringIdsPreserveUnsignedShortcutIds() {
         listOf("2147483648", "18446744073709551615").forEach { id ->
             assertEquals(id, GameLaunchIntent.readExtras(Intent(GameLaunchIntent.ACTION).putExtra("app_id", id))?.id)
