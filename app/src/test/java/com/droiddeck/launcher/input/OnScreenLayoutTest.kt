@@ -683,6 +683,12 @@ class OnScreenLayoutTest {
             val normal = at(1f)
             for (scale in listOf(.8f, 1.25f)) {
                 val placed = at(scale)
+                for (control in listOf(InputControl.A, InputControl.B, InputControl.X, InputControl.Y, InputControl.LS, InputControl.RS)) {
+                    val before = normal.at(control)
+                    val after = placed.at(control)
+                    assertEquals("$kit $scale ${control.id} aspect ratio", before.width / before.height,
+                        after.width / after.height, .02f)
+                }
                 assertEquals("$kit $scale", normal.at(InputControl.A).width * scale, placed.at(InputControl.A).width, .002f)
                 assertEquals("$kit $scale", normal.at(InputControl.LS).height * scale, placed.at(InputControl.LS).height, .002f)
                 if (scale > 1f) for (cluster in listOf(face, dpad)) {
