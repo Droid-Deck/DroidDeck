@@ -38,7 +38,7 @@ class Palette(
     val background: Color, val surface: Color, val surfaceVariant: Color, val line: Color, val line2: Color,
     val onBackground: Color, val onSurfaceVariant: Color,
     val primary: Color, val primary2: Color, val onPrimary: Color, val signal: Color,
-    val good: Color, val error: Color = Color(0xFFFF8A80),
+    val good: Color, val error: Color = Color(0xFFFF8A80), val warning: Color = Color(0xFFFFB547),
 )
 
 data class CustomThemeColors(
@@ -54,6 +54,7 @@ data class CustomThemeColors(
     val signal: Int = 0xFF1A9FFF.toInt(),
     val good: Int = 0xFF4CD37F.toInt(),
     val error: Int = 0xFFFF8A80.toInt(),
+    val warning: Int = 0xFFFFB547.toInt(),
 )
 
 object Themes {
@@ -73,6 +74,13 @@ object Themes {
 
     var customColors by mutableStateOf(CustomThemeColors())
         private set
+
+    var warningColor by mutableStateOf(Color(0xFFFFB547))
+        private set
+
+    fun updateWarningColor(color: Color) {
+        warningColor = color
+    }
 
     const val RGB_SPEEDS = 10
     const val DEFAULT_RGB_SPEED = 3
@@ -144,6 +152,7 @@ object Themes {
             "signal" -> current.copy(signal = color)
             "good" -> current.copy(good = color)
             "error" -> current.copy(error = color)
+            "warning" -> current.copy(warning = color)
             else -> return
         }
         setCustomColors(context, updated)
@@ -164,6 +173,7 @@ object Themes {
         signal = Color(colors.signal),
         good = Color(colors.good),
         error = Color(colors.error),
+        warning = Color(colors.warning),
     )
 
     fun current(context: Context): Palette {
@@ -232,6 +242,7 @@ fun DroidDeckTheme(theme: String? = null, appScale: Int = AppUiPrefs.DEFAULT_SCA
     val id = theme ?: SessionPrefs.theme(LocalContext.current)
     if (id == Themes.INNER_GAMER) InnerGamerHue(Themes.rgbSpeed)
     val p = Themes.byId(id)
+    SideEffect { Themes.updateWarningColor(p.warning) }
     val scheme = darkColorScheme(
         primary = p.primary, onPrimary = p.onPrimary, secondary = p.onSurfaceVariant,
         background = p.background, onBackground = p.onBackground,

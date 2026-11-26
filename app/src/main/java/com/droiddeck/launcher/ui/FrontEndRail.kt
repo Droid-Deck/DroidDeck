@@ -97,7 +97,7 @@ import androidx.compose.ui.layout.onPlaced
 import com.droiddeck.launcher.core.PhantomProcessLimit
 
 
-internal val AttentionAmber = Color(0xFFFFB547)
+internal val AttentionAmber: Color get() = Themes.warningColor
 
 @Composable
 internal fun BottomBar(
