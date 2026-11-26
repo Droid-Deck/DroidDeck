@@ -934,6 +934,7 @@
     <string name="setup_reset_settings_session_running">أوقف الجلسة قبل إعادة تعيين الإعدادات.</string>
     <string name="setup_reset_settings_partial">أُعيد تعيين الإعدادات، لكن ليس كلها. التفاصيل في السجلات.</string>
     <string name="setup_offline">وضع عدم الاتصال</string>
+    <string name="setup_offline_auto">وضع عدم الاتصال التلقائي</string>
     <string name="setup_sign_in_first">سجّل الدخول إلى Steam أولًا</string>
     <string name="setup_launcher">المشغّل</string>
     <string name="setup_language">اللغة</string>
@@ -4240,4 +4241,7 @@
     <string name="theme_custom_error">خطأ</string>
     <string name="hud_only_during_game">عرض HUD أثناء اللعب فقط</string>
     <string name="hud_only_during_game_hint">إخفاء HUD عند عدم اكتشاف إطارات اللعبة.</string>
+    <string name="steam_store_close_steam">أغلق Steam أولاً</string>
+    <string name="steam_store_session_wait">أوقف تنزيل Steam مؤقتًا أولاً</string>
+    <string name="steam_store_linux_build">تثبّت هذه اللعبة إصدار Linux الخاص بها. ثبّتها من Steam.</string>
 </resources>

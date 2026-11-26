@@ -46,4 +46,11 @@ class XboxCloudTest {
     @Test fun cloudLaunchUrlUsesTheStreamingEdition() {
         assertEquals("https://www.xbox.com/play/launch/ball-x-pit/9BBBBBBBBBBB", XboxCatalog.cloudUrl("9AAAAAAAAAAA", "BALL x PIT", "9BBBBBBBBBBB"))
     }
+
+    @Test fun titleNameKeyDropsEditionWords() {
+        assertEquals("FORZAHORIZON6", XboxCloudSession.nameKey("Forza Horizon 6 Standard Edition"))
+        assertEquals("FORTNITE", XboxCloudSession.nameKey("Fortnite"))
+        assertEquals("HALOINFINITE", XboxCloudSession.nameKey("Halo Infinite (Xbox Series X|S)"))
+        assertEquals("STARFIELD", XboxCloudSession.nameKey("Starfield Premium Edition for Windows"))
+    }
 }

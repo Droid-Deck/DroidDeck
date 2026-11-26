@@ -11,6 +11,7 @@ SOURCE = SCRIPT.read_text()
 START = SOURCE.index("fex_install() {")
 END = SOURCE.index("\n}\n", START) + 3
 FEX_INSTALL = SOURCE[START:END]
+THUNK_DIRS = (("share/fex-emu/GuestThunks_32", "libGL-guest.so"), ("lib/fex-emu/HostThunks_32", "libGL-host.so"))
 
 HARNESS = textwrap.dedent("""\
     set -eu
@@ -37,8 +38,24 @@ class FexInstallTest(unittest.TestCase):
         (new / "lib").mkdir()
         (new / "lib/libxxhash.so.0").write_text("lib\n")
         self.pkg = base / "fex.tzst"
-        subprocess.run(f"tar -C '{base / 'pkg'}' -c . | zstd -q -o '{self.pkg}'", shell=True, check=True)
+        self.pack()
+
+    def pack(self):
+        base = Path(self.temp.name)
+        subprocess.run(f"tar -C '{base / 'pkg'}' -c . | zstd -q -f -o '{self.pkg}'", shell=True, check=True)
         self.sha = hashlib.sha256(self.pkg.read_bytes()).hexdigest()
+
+    def add_old_thunks(self):
+        old, new = self.root / "usr/local", Path(self.temp.name) / "pkg/usr/local"
+        for side, name in THUNK_DIRS:
+            (new / side).mkdir(parents=True)
+            (new / side / name).write_text("new thunk\n")
+            (old / side).mkdir(parents=True)
+            (old / side / name).write_text("old thunk\n")
+            (old / side / "libwayland-client-thunk.so").write_text("stale\n")
+        (old / "share/fex-emu/GuestThunks").mkdir()
+        (old / "share/fex-emu/GuestThunks/libkept-guest.so").write_text("kept\n")
+        self.pack()
 
     def install(self, installed_loads, sha=None):
         body = FEX_INSTALL.replace("local tag=$1 sha=$2 urls=$3 dst=/ ", "local tag=$1 sha=$2 urls=$3 dst=$ROOT/ ")
@@ -78,6 +95,27 @@ class FexInstallTest(unittest.TestCase):
         self.assertIn("putting the previous files back", err)
         self.assertEqual("old FEX\n", (self.root / "usr/local/bin/FEX").read_text())
         self.assertFalse((self.root / "usr/local/lib/libxxhash.so.0").exists())
+
+    def test_thunks_the_new_build_no_longer_ships_are_removed(self):
+        self.add_old_thunks()
+        self.assertEqual("OK", self.install(installed_loads=True)[0])
+        for side, name in THUNK_DIRS:
+            with self.subTest(side=side):
+                self.assertEqual("new thunk\n", (self.root / "usr/local" / side / name).read_text())
+                self.assertFalse((self.root / "usr/local" / side / "libwayland-client-thunk.so").exists())
+
+    def test_a_thunk_folder_the_new_build_does_not_ship_is_left_alone(self):
+        self.add_old_thunks()
+        self.assertEqual("OK", self.install(installed_loads=True)[0])
+        self.assertEqual("kept\n", (self.root / "usr/local/share/fex-emu/GuestThunks/libkept-guest.so").read_text())
+
+    def test_a_failed_install_puts_removed_thunks_back(self):
+        self.add_old_thunks()
+        self.assertEqual("FAILED", self.install(installed_loads=False)[0])
+        for side, name in THUNK_DIRS:
+            with self.subTest(side=side):
+                self.assertEqual("old thunk\n", (self.root / "usr/local" / side / name).read_text())
+                self.assertEqual("stale\n", (self.root / "usr/local" / side / "libwayland-client-thunk.so").read_text())
 
     def test_an_archive_that_does_not_match_installs_nothing(self):
         result, err = self.install(installed_loads=True, sha="0" * 64)

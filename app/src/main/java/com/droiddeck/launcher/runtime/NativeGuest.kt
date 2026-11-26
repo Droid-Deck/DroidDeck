@@ -169,8 +169,15 @@ object NativeGuest {
                 }
             }
 
+    private const val RELINK_STAMP = "etc/droiddeck/native-symlinks"
+
+    @JvmStatic
+    fun relinkAfterProot(root: File) {
+        File(root, RELINK_STAMP).delete()
+    }
+
     private val HOST_LINK_TARGETS = listOf("/proc", "/dev", "/sys", "/sdcard", "/storage", "/data", "/system", "/vendor", "/apex",
-        "/system_ext", "/product", "/odm", "/linkerconfig", "/mnt")
+        "/system_ext", "/product", "/odm", "/linkerconfig", "/mnt", "/root/Storage")
 
     /**
      * Symbolic links the kernel follows by itself (ld.so, Steam, anything that skips the hook) read
@@ -178,9 +185,9 @@ object NativeGuest {
      * which reads the target inside the rootfs, so each is rewritten as a relative link, which
      * resolves the same way under proot and without it. Rerun when the runtime changes.
      */
-    fun relinkAbsoluteSymlinks(context: Context, root: File): Int {
-        val stamp = File(root, "etc/droiddeck/native-symlinks")
-        val version = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installedVersion(context).orEmpty() + "/2"
+    fun relinkAbsoluteSymlinks(context: Context, root: File, commands: () -> Sequence<List<String>> = ::procCommands): Int {
+        val stamp = File(root, RELINK_STAMP)
+        val version = com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.installedVersion(context).orEmpty() + "/3"
         if (stamp.isFile && stamp.readText() == version) return 0
         val rootPath = root.toPath()
         var rewritten = 0
@@ -206,10 +213,19 @@ object NativeGuest {
 
             override fun visitFileFailed(file: java.nio.file.Path, exc: java.io.IOException) = java.nio.file.FileVisitResult.CONTINUE
         })
-        stamp.parentFile?.mkdirs()
-        stamp.writeText(version)
+        if (!prootRunning(LinuxRuntime.prootBinary(context).path, commands())) {
+            stamp.parentFile?.mkdirs()
+            stamp.writeText(version)
+        }
         return rewritten
     }
+
+    internal fun prootRunning(proot: String, commands: Sequence<List<String>>): Boolean =
+        commands.any { args -> args.take(2).any { it == proot } }
+
+    private fun procCommands(): Sequence<List<String>> = (File("/proc").listFiles() ?: emptyArray()).asSequence()
+        .filter { it.name.all(Char::isDigit) }
+        .mapNotNull { runCatching { File(it, "cmdline").readText().split('\u0000') }.getOrNull() }
 
     /**
      * The guest path that host path [target] stands for in a session with [binds] ("src:dst"), or null

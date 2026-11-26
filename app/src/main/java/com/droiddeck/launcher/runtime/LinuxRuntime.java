@@ -199,6 +199,7 @@ public final class LinuxRuntime {
     }
 
     public static List<String> prootPrefix(Context context, File root, String cwd, boolean fakeRoot) {
+        NativeGuest.relinkAfterProot(root);
         List<String> cmd = new ArrayList<>();
         cmd.addAll(com.droiddeck.launcher.core.HostProcess.dataExecutable(prootBinary(context).getPath()));
         cmd.add("--kill-on-exit");

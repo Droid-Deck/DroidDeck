@@ -924,6 +924,7 @@
     <string name="setup_log_export_failed">Não foi possível salvar os registros de sessão.</string>
     <string name="setup_log_delete_failed">Não foi possível excluir os registros de sessão.</string>
     <string name="setup_offline">Modo offline</string>
+    <string name="setup_offline_auto">Modo offline automático</string>
     <string name="setup_sign_in_first">Inicie sessão na Steam primeiro</string>
     <string name="setup_launcher">Inicializador</string>
     <string name="setup_language">Idioma</string>
@@ -4127,4 +4128,7 @@
     <string name="drawer_antialiasing">Suavização de serrilhado</string>
     <string name="hud_only_during_game">Mostrar o HUD somente durante o jogo</string>
     <string name="hud_only_during_game_hint">Ocultar o HUD quando nenhum quadro do jogo for detectado.</string>
+    <string name="steam_store_close_steam">Feche o Steam primeiro</string>
+    <string name="steam_store_session_wait">Pause o download do Steam primeiro</string>
+    <string name="steam_store_linux_build">Este jogo instala sua versão para Linux. Instale-o pelo Steam.</string>
 </resources>

@@ -922,6 +922,7 @@
     <string name="setup_reset_settings_session_running">Pysäytä istunto ennen asetusten palauttamista.</string>
     <string name="setup_reset_settings_partial">Asetukset palautettiin, mutta ei kaikkia. Tiedot ovat lokeissa.</string>
     <string name="setup_offline">Offline-tila</string>
+    <string name="setup_offline_auto">Automaattinen offline-tila</string>
     <string name="setup_sign_in_first">Kirjaudu Steamiin ensin</string>
     <string name="setup_launcher">Käynnistin</string>
     <string name="setup_language">Kieli</string>
@@ -4080,4 +4081,7 @@
     <string name="theme_custom_error">Virhe</string>
     <string name="hud_only_during_game">Näytä HUD vain pelin aikana</string>
     <string name="hud_only_during_game_hint">Piilota HUD, kun pelin ruutuja ei havaita.</string>
+    <string name="steam_store_close_steam">Sulje Steam ensin</string>
+    <string name="steam_store_session_wait">Keskeytä Steam-lataus ensin</string>
+    <string name="steam_store_linux_build">Tämä peli asentaa Linux-versionsa. Asenna se Steamista.</string>
 </resources>

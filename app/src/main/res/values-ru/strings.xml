@@ -928,6 +928,7 @@
     <string name="setup_reset_settings_session_running">Остановите сессию перед сбросом настроек.</string>
     <string name="setup_reset_settings_partial">Настройки сброшены, но некоторые части сбросить не удалось. Подробности в журналах.</string>
     <string name="setup_offline">Автономный режим</string>
+    <string name="setup_offline_auto">Автоматический автономный режим</string>
     <string name="setup_sign_in_first">Сначала войдите в Steam</string>
     <string name="setup_launcher">Лаунчер</string>
     <string name="setup_language">Язык</string>
@@ -4161,4 +4162,7 @@
     <string name="theme_custom_error">Ошибка</string>
     <string name="hud_only_during_game">Показывать HUD только во время игры</string>
     <string name="hud_only_during_game_hint">Скрывать HUD, когда кадры игры не обнаруживаются.</string>
+    <string name="steam_store_close_steam">Сначала закройте Steam</string>
+    <string name="steam_store_session_wait">Сначала приостановите загрузку Steam</string>
+    <string name="steam_store_linux_build">Эта игра устанавливает свою версию для Linux. Установите её из Steam.</string>
 </resources>

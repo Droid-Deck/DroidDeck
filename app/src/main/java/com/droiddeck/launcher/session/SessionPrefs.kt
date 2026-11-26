@@ -448,6 +448,13 @@ object SessionPrefs {
         prefs(context).edit().putString("navTabHidden", keys.joinToString(",")).apply()
     }
 
+    fun appsTabHomeSeen(context: Context): Boolean? =
+        prefs(context).takeIf { it.contains("appsTabHomeSeen") }?.getBoolean("appsTabHomeSeen", false)
+
+    fun setAppsTabHomeSeen(context: Context, seen: Boolean) {
+        prefs(context).edit().putBoolean("appsTabHomeSeen", seen).apply()
+    }
+
     private fun idList(raw: String?): List<String> = raw.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
     val STORES_SORTS = listOf("lastPlayed", "recentlyInstalled", "titleAsc", "titleDesc", "sizeDesc", "sizeAsc", "releaseDateDesc")
@@ -838,6 +845,15 @@ object SessionPrefs {
 
     fun returnAfterGame(context: Context): Boolean = prefs(context).getBoolean("returnAfterGame", true)
 
+    fun valveProtonOnDemand(context: Context): Boolean = prefs(context).getBoolean("valveProtonOnDemand", true)
+
+    fun setValveProtonOnDemand(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("valveProtonOnDemand", on).apply()
+    }
+
+    /** DroidDeck-Proton is the Proton placed before the client starts; Valve's ARM64 Proton waits for a title that needs it. */
+    fun ownProtonFirst(context: Context): Boolean = valveProtonOnDemand(context) && !ProtonExtras.declined(context)
+
     fun setReturnAfterGame(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("returnAfterGame", on).apply()
     }
@@ -1042,7 +1058,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootFastPath", on).apply()
     }
 
-    fun cursorComposite(context: Context): Boolean = prefs(context).getBoolean("cursorComposite", false)
+    fun cursorComposite(context: Context): Boolean = prefs(context).getBoolean("cursorComposite", true)
 
     fun setCursorComposite(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("cursorComposite", on).apply()

@@ -922,6 +922,7 @@
     <string name="setup_reset_settings_session_running">सेटिंग रीसेट करने से पहले सेशन रोकें।</string>
     <string name="setup_reset_settings_partial">सेटिंग रीसेट हुईं, पर सभी नहीं। विवरण लॉग में हैं।</string>
     <string name="setup_offline">ऑफ़लाइन मोड</string>
+    <string name="setup_offline_auto">स्वचालित ऑफ़लाइन मोड</string>
     <string name="setup_sign_in_first">पहले Steam में साइन इन करें</string>
     <string name="setup_launcher">लॉन्चर</string>
     <string name="setup_language">भाषा</string>
@@ -4080,4 +4081,7 @@
     <string name="theme_custom_error">त्रुटि</string>
     <string name="hud_only_during_game">HUD केवल गेम के दौरान दिखाएँ</string>
     <string name="hud_only_during_game_hint">गेम के फ़्रेम का पता न चलने पर HUD छिपाएँ।</string>
+    <string name="steam_store_close_steam">पहले Steam बंद करें</string>
+    <string name="steam_store_session_wait">पहले Steam डाउनलोड रोकें</string>
+    <string name="steam_store_linux_build">यह गेम अपना Linux संस्करण इंस्टॉल करता है। इसे Steam से इंस्टॉल करें।</string>
 </resources>

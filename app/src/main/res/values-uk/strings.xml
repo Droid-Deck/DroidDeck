@@ -928,6 +928,7 @@
     <string name="setup_reset_settings_session_running">Зупиніть сеанс перед скиданням налаштувань.</string>
     <string name="setup_reset_settings_partial">Налаштування скинуто, але не всі. Подробиці в журналах.</string>
     <string name="setup_offline">Офлайн-режим</string>
+    <string name="setup_offline_auto">Автоматичний офлайн-режим</string>
     <string name="setup_sign_in_first">Спершу увійдіть у Steam</string>
     <string name="setup_launcher">Лаунчер</string>
     <string name="setup_language">Мова</string>
@@ -4160,4 +4161,7 @@
     <string name="theme_custom_error">Помилка</string>
     <string name="hud_only_during_game">Показувати HUD лише під час гри</string>
     <string name="hud_only_during_game_hint">Приховувати HUD, коли кадри гри не виявляються.</string>
+    <string name="steam_store_close_steam">Спочатку закрийте Steam</string>
+    <string name="steam_store_session_wait">Спочатку призупиніть завантаження Steam</string>
+    <string name="steam_store_linux_build">Ця гра встановлює свою версію для Linux. Установіть її зі Steam.</string>
 </resources>

@@ -919,6 +919,7 @@
     <string name="setup_reset_settings_session_running">หยุดเซสชันก่อนรีเซ็ตการตั้งค่า</string>
     <string name="setup_reset_settings_partial">รีเซ็ตการตั้งค่าแล้ว แต่ไม่ทั้งหมด รายละเอียดอยู่ในล็อก</string>
     <string name="setup_offline">โหมดออฟไลน์</string>
+    <string name="setup_offline_auto">โหมดออฟไลน์อัตโนมัติ</string>
     <string name="setup_sign_in_first">ลงชื่อเข้าใช้ Steam ก่อน</string>
     <string name="setup_launcher">ตัวเปิดแอป</string>
     <string name="setup_language">ภาษา</string>
@@ -4050,4 +4051,7 @@
     <string name="theme_custom_error">ข้อผิดพลาด</string>
     <string name="hud_only_during_game">แสดง HUD เฉพาะขณะเล่นเกม</string>
     <string name="hud_only_during_game_hint">ซ่อน HUD เมื่อไม่พบเฟรมของเกม</string>
+    <string name="steam_store_close_steam">ปิด Steam ก่อน</string>
+    <string name="steam_store_session_wait">หยุดการดาวน์โหลด Steam ชั่วคราวก่อน</string>
+    <string name="steam_store_linux_build">เกมนี้ติดตั้งเวอร์ชัน Linux ของตัวเอง ให้ติดตั้งจาก Steam</string>
 </resources>

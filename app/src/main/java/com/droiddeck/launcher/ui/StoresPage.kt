@@ -1031,6 +1031,7 @@ internal fun storePalette(base: Palette, store: Store?): Palette {
         Store.UBISOFT -> Color(0xFF2E7DFF) to Color(0xFF1A5BD6)
         Store.EA -> Color(0xFFFF4747) to Color(0xFFE03030)
         Store.ROCKSTAR -> Color(0xFFFCAF17) to Color(0xFFD98E00)
+        Store.STEAM -> Color(0xFF1A9FFF) to Color(0xFF0F6FC0)
         null -> return base
     }
     val on = if (accent.luminance() > 0.18f) Color(0xFF0B0B0D) else Color.White
@@ -1323,6 +1324,6 @@ internal fun openUrl(ctx: android.content.Context, url: String) {
 }
 
 internal fun launchStoreGame(store: Store, id: String, s: FrontEndState, a: FrontEndActions) {
-    val game = s.steamGames.firstOrNull { it.source == store.id && it.storeId == id }
+    val game = GameRef(null, store, id).game(s.steamGames)
     if (game != null) a.onSteamGame(game) else a.onStoreGame(store, id)
 }
