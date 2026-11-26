@@ -63,6 +63,7 @@ struct instance {
     void *key;
     VkInstance handle;
     bool active;
+    bool zink; /* the engine is Mesa's Zink */
     PFN_vkGetInstanceProcAddr gipa;
     PFN_vkDestroyInstance DestroyInstance;
     PFN_vkEnumerateDeviceExtensionProperties EnumerateDeviceExtensionProperties;

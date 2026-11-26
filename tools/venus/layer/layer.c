@@ -344,12 +344,31 @@ static void report_limits(VkPhysicalDeviceLimits *limits, uint32_t gaps)
     }
 }
 
+/* Mali's driver crashes compiling Zink's geometry shaders (SIGSEGV at 0x40 in
+ * cmpbe_v2_compile_multiple_shaders) and takes the render server and the application with it; a plain
+ * one draws nothing. Zink draws GL_QUADS through one; without the feature Mesa splits quads into
+ * triangles itself. DXVK needs the feature for D3D10 and 11, so only Zink loses it.
+ * DROIDDECK_MALI_COMPAT_NO_GS=0 keeps it for Zink, =1 hides it from every application. */
+static bool hide_geometry_shader(struct instance *inst, VkPhysicalDevice physical_device)
+{
+    const char *setting = getenv("DROIDDECK_MALI_COMPAT_NO_GS");
+    if (setting && *setting)
+        return strcmp(setting, "1") == 0;
+    if (!inst->zink)
+        return false;
+    VkPhysicalDeviceProperties properties;
+    inst->GetPhysicalDeviceProperties(physical_device, &properties);
+    return properties.vendorID == 0x13b5; /* ARM */
+}
+
 static VKAPI_ATTR void VKAPI_CALL GetPhysicalDeviceFeatures(VkPhysicalDevice physical_device,
                                                             VkPhysicalDeviceFeatures *features)
 {
     struct instance *inst = instance_from_handle(physical_device);
     inst->GetPhysicalDeviceFeatures(physical_device, features);
     report_features(features, physical_device_gaps(inst, physical_device));
+    if (hide_geometry_shader(inst, physical_device))
+        features->geometryShader = VK_FALSE;
 }
 
 static VKAPI_ATTR void VKAPI_CALL GetPhysicalDeviceFeatures2(VkPhysicalDevice physical_device,
@@ -363,6 +382,8 @@ static VKAPI_ATTR void VKAPI_CALL GetPhysicalDeviceFeatures2(VkPhysicalDevice ph
     inst->GetPhysicalDeviceFeatures2(physical_device, features);
     relink(dropped, dropped_count);
     report_features(&features->features, gaps);
+    if (hide_geometry_shader(inst, physical_device))
+        features->features.geometryShader = VK_FALSE;
     if (tracing()) {
         char chain[512] = "";
         size_t used = 0;
@@ -463,6 +484,8 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateInstance(const VkInstanceCreateInfo 
     inst->key = dispatch_key(*instance);
     inst->handle = *instance;
     inst->active = wanted();
+    const char *engine = info->pApplicationInfo ? info->pApplicationInfo->pEngineName : NULL;
+    inst->zink = engine && strcmp(engine, "mesa zink") == 0;
     inst->gipa = gipa;
     pthread_mutex_init(&inst->lock, NULL);
 #define LOAD(name) inst->name = (PFN_vk##name)gipa(*instance, "vk" #name);
@@ -624,6 +647,9 @@ static VKAPI_ATTR VkResult VKAPI_CALL CreateDevice(VkPhysicalDevice physical_dev
     if (properties.limits.maxFragmentInputComponents < components)
         components = properties.limits.maxFragmentInputComponents;
     dev->max_varying_locations = components / 4;
+    if (inst->active && hide_geometry_shader(inst, physical_device))
+        layer_log("geometryShader is hidden from %s: the driver crashes compiling geometry shaders",
+                  inst->zink ? "Zink" : "every application");
 
     pthread_mutex_lock(&global_lock);
     dev->next = devices;

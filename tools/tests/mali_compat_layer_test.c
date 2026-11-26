@@ -203,10 +203,16 @@ static void test_handle_map_null_key(void)
     map_free(&map);
 }
 
+static int zink_instance_table;
+static struct object mock_zink_instance = {&zink_instance_table};
+static struct object mock_zink_arm = {&zink_instance_table}, mock_zink_other = {&zink_instance_table};
+
 static VkResult VKAPI_CALL mock_create_instance(const VkInstanceCreateInfo *info, const VkAllocationCallbacks *allocator,
                                                 VkInstance *instance)
 {
-    *instance = (VkInstance)&mock_instance;
+    const VkApplicationInfo *app = info->pApplicationInfo;
+    bool zink = app && app->pEngineName && !strcmp(app->pEngineName, "mesa zink");
+    *instance = (VkInstance)(zink ? &mock_zink_instance : &mock_instance);
     return VK_SUCCESS;
 }
 
@@ -223,6 +229,7 @@ static void VKAPI_CALL mock_features(VkPhysicalDevice physical, VkPhysicalDevice
 {
     memset(features, 0, sizeof(*features));
     features->dualSrcBlend = physical == (VkPhysicalDevice)&mock_capable;
+    features->geometryShader = VK_TRUE;
 }
 
 static void VKAPI_CALL mock_features2(VkPhysicalDevice physical, VkPhysicalDeviceFeatures2 *features)
@@ -234,6 +241,7 @@ static void VKAPI_CALL mock_properties(VkPhysicalDevice physical, VkPhysicalDevi
 {
     memset(properties, 0, sizeof(*properties));
     strcpy(properties->deviceName, "mock");
+    properties->vendorID = physical == (VkPhysicalDevice)&mock_zink_arm ? 0x13b5 : 0;
     properties->limits.maxFragmentDualSrcAttachments = physical == (VkPhysicalDevice)&mock_capable;
 }
 
@@ -383,6 +391,44 @@ static VkResult create_device(VkPhysicalDevice physical, const void *chain, cons
 static void destroy_device(VkDevice device)
 {
     ((PFN_vkDestroyDevice)layer_gdpa(device, "vkDestroyDevice"))(device, NULL);
+}
+
+static void test_geometry_shader_hidden_from_zink(void)
+{
+    VkPhysicalDeviceFeatures features;
+    PFN_vkGetPhysicalDeviceFeatures plain_features =
+        (PFN_vkGetPhysicalDeviceFeatures)layer_gipa((VkInstance)&mock_instance, "vkGetPhysicalDeviceFeatures");
+    plain_features((VkPhysicalDevice)&mock_lacking, &features);
+    assert(features.geometryShader);
+
+    VkApplicationInfo app = {.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO, .pEngineName = "mesa zink"};
+    VkLayerInstanceLink link = {NULL, mock_gipa, NULL};
+    VkLayerInstanceCreateInfo loader = {VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO, NULL, VK_LAYER_LINK_INFO, {&link}};
+    VkInstanceCreateInfo info = {.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, .pNext = &loader,
+                                 .pApplicationInfo = &app};
+    VkInstance zink;
+    assert(((PFN_vkCreateInstance)layer_gipa(NULL, "vkCreateInstance"))(&info, NULL, &zink) == VK_SUCCESS);
+    assert(zink == (VkInstance)&mock_zink_instance);
+    PFN_vkGetPhysicalDeviceFeatures zink_features =
+        (PFN_vkGetPhysicalDeviceFeatures)layer_gipa(zink, "vkGetPhysicalDeviceFeatures");
+    PFN_vkGetPhysicalDeviceFeatures2 zink_features2 =
+        (PFN_vkGetPhysicalDeviceFeatures2)layer_gipa(zink, "vkGetPhysicalDeviceFeatures2");
+    zink_features((VkPhysicalDevice)&mock_zink_arm, &features);
+    assert(!features.geometryShader && features.dualSrcBlend);
+    VkPhysicalDeviceFeatures2 queried = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+    zink_features2((VkPhysicalDevice)&mock_zink_arm, &queried);
+    assert(!queried.features.geometryShader && queried.features.dualSrcBlend);
+    zink_features((VkPhysicalDevice)&mock_zink_other, &features);
+    assert(features.geometryShader);
+
+    setenv("DROIDDECK_MALI_COMPAT_NO_GS", "0", 1);
+    zink_features((VkPhysicalDevice)&mock_zink_arm, &features);
+    assert(features.geometryShader);
+    setenv("DROIDDECK_MALI_COMPAT_NO_GS", "1", 1);
+    plain_features((VkPhysicalDevice)&mock_lacking, &features);
+    assert(!features.geometryShader);
+    unsetenv("DROIDDECK_MALI_COMPAT_NO_GS");
+    ((PFN_vkDestroyInstance)layer_gipa(zink, "vkDestroyInstance"))(zink, NULL);
 }
 
 static const VkPipelineColorBlendAttachmentState dual_attachment = {
@@ -587,6 +633,7 @@ int main(int argc, char **argv)
     PFN_vkCreateInstance create_instance = (PFN_vkCreateInstance)layer_gipa(NULL, "vkCreateInstance");
     assert(create_instance(&info, NULL, &instance) == VK_SUCCESS);
 
+    test_geometry_shader_hidden_from_zink();
     test_lacking_device();
     test_capable_device();
     test_depth_compare_op();
