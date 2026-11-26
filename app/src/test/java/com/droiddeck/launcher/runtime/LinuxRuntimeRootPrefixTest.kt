@@ -86,6 +86,28 @@ class LinuxRuntimeRootPrefixTest {
         assertTrue(Files.isDirectory(storage))
     }
 
+    @Test fun aWalkDuringALiveProotRunLeavesTheNextNativeStartToWalkAgain() {
+        val home = File(root, "root").apply { mkdirs() }
+        File(root, "root/.local/share/Steam").mkdirs()
+        val proot = LinuxRuntime.prootBinary(context).path
+        LinuxRuntime.prootPrefix(context, root, "/root")
+        NativeGuest.relinkAbsoluteSymlinks(context, root) { sequenceOf(listOf("/system/bin/linker64", proot, "--kill-on-exit")) }
+        val steam = File(home, "steam").toPath()
+        Files.createSymbolicLink(steam, Paths.get("/root/.local/share/Steam"))
+
+        assertEquals(1, NativeGuest.relinkAbsoluteSymlinks(context, root) { emptySequence() })
+        assertEquals(Paths.get(".local/share/Steam"), Files.readSymbolicLink(steam))
+        assertEquals(0, NativeGuest.relinkAbsoluteSymlinks(context, root) { emptySequence() })
+    }
+
+    @Test fun onlyTheProotTracerCountsAsALiveProotRun() {
+        val proot = "/data/app/x/lib/arm64/libproot.so"
+        assertTrue(NativeGuest.prootRunning(proot, sequenceOf(listOf("/system/bin/linker64", proot, "-r", "/rootfs"))))
+        assertTrue(NativeGuest.prootRunning(proot, sequenceOf(listOf(proot, "-r", "/rootfs"))))
+        assertFalse(NativeGuest.prootRunning(proot, sequenceOf(listOf("/usr/bin/bash", "-c", proot))))
+        assertFalse(NativeGuest.prootRunning(proot, sequenceOf(listOf("$proot.old"), emptyList())))
+    }
+
     @Test fun packageLinksAFakeRootProotRunMadeAreRelinkedToo() {
         val bin = File(root, "usr/bin").apply { mkdirs() }
         File(root, "usr/share/tool").mkdirs()
