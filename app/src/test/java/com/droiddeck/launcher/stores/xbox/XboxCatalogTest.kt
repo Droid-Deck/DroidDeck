@@ -239,4 +239,15 @@ class XboxCatalogTest {
         val merged = mergeEditions(listOf(pass, owned)).single()
         assertEquals(third, merged.id); assertTrue(merged.owned)
     }
+
+    @Test fun nonLatinTitlesStaySeparateEditions() {
+        val third = "9CCCCCCCCCCC"
+        val cloud = XboxCloudCatalog(gamePass = setOf(game, parent, third), all = setOf(game, parent, third))
+        val first = XboxCatalog.product(product(game, "Xbox.One"), mapOf(game to "gamepass"), cloud)!!.copy(title = "原神")
+        val second = XboxCatalog.product(product(parent, "Xbox.One"), mapOf(parent to "gamepass"), cloud)!!.copy(title = "逆転裁判")
+        val pc = XboxCatalog.product(product(third, "Windows.Desktop"), mapOf(third to "gamepass"), cloud)!!.copy(title = "鉄拳")
+        val merged = mergeEditions(listOf(first, second, pc))
+        assertEquals(setOf(game, parent, third), merged.map { it.id }.toSet())
+        assertFalse(merged.single { it.id == third }.extra["cloudId"] in setOf(game, parent))
+    }
 }

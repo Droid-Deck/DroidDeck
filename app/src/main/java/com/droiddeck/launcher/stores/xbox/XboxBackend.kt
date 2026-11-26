@@ -63,8 +63,9 @@ object XboxBackend : StoreBackend {
                 // The PC entitlement list leaves out console purchases and free games; the streaming service lists them.
                 val titles = runCatching { XboxCloudSession.titleList(XboxCloudSession.get(app, account), fresh = true) }
                     .onFailure { StoresState.logLine("Xbox: cloud titles unavailable (${it.javaClass.simpleName})") }.getOrNull()
-                val added = titles?.entitled.orEmpty().filter { it !in licenses }
-                    .associateWith { if (cloud?.gamePass?.contains(it) == true) "gamepass" else "owned" }
+                // Without the Game Pass lists an entitled title cannot be told apart from a purchase, so none are added.
+                val added = if (cloud == null) emptyMap<String, String>() else titles?.entitled.orEmpty().filter { it !in licenses }
+                    .associateWith { if (it in cloud.gamePass) "gamepass" else "owned" }
                 StoresState.logLine("Xbox: cloud titles=${titles?.ids?.size ?: -1} entitled=${titles?.entitled?.size ?: -1} " +
                     "added=${added.size} (owned ${added.values.count { it == "owned" }}, gamepass ${added.values.count { it == "gamepass" }})")
                 val entitlements = licenses + added

@@ -33,6 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Brush
@@ -107,6 +111,7 @@ private fun LaunchArt(images: List<String>, title: String, visible: Boolean, onC
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = 30.dp)
                     .clip(RoundedCornerShape(50)).background(Color(0x99000000))
                     .pointerInput(Unit) { detectTapGestures { onCancel() } }
+                    .semantics(mergeDescendants = true) { role = Role.Button; onClick { onCancel(); true } }
                     .padding(start = 8.dp, end = 18.dp, top = 8.dp, bottom = 8.dp)) {
                 Box(Modifier.size(28.dp).clip(CircleShape).background(Color(0xFFE5484D)), contentAlignment = Alignment.Center) {
                     Text("B", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)

@@ -215,7 +215,7 @@ val CatalogItem.xboxCloudId: String get() = extra["cloudId"]?.takeIf { it.isNotE
 // One card per title: a cloud-only edition folds into the PC card (which then streams, and counts as owned when
 // the cloud edition is); cloud-only editions with the same title become one card, owned first.
 internal fun mergeEditions(games: List<CatalogItem>): List<CatalogItem> {
-    fun key(title: String) = title.lowercase().replace(Regex("[^a-z0-9]+"), "")
+    fun key(title: String) = title.lowercase().filter { it.isLetterOrDigit() }.ifEmpty { title.lowercase().trim() }
     val pcKeys = games.filter { it.xboxPc }.map { key(it.title) }.toSet()
     val cloudOnly = games.filter { !it.xboxPc && it.xboxCloud }.groupBy { key(it.title) }
         .mapValues { (_, list) -> list.sortedByDescending { it.owned }.first() }
