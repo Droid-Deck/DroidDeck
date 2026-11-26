@@ -72,7 +72,7 @@ class XboxCloudPlayerActivity : ComponentActivity() {
         setContentView(root)
         val requested = intent.getStringExtra("product").orEmpty()
         art = XboxLaunchArt(this) { diag("cloud player $it") }
-        root.addView(art.view(intent.getStringExtra("title").orEmpty()), FrameLayout.LayoutParams(-1, -1))
+        root.addView(art.view(intent.getStringExtra("title").orEmpty()) { cancelLaunch() }, FrameLayout.LayoutParams(-1, -1))
         artStatus = TextView(this).apply {
             setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER; setShadowLayer(10f, 0f, 0f, Color.BLACK); visibility = View.GONE
         }
@@ -143,6 +143,12 @@ class XboxCloudPlayerActivity : ComponentActivity() {
         fun call(id: Int, op: String, arg: String) {
             signalling.execute {
                 val reply = runCatching { handle(op, arg) }.getOrElse { XboxCloudSession.Reply(0, it.javaClass.simpleName) }
+                if (closed && op == "start") {
+                    val active = session; val path = sessionPath
+                    if (active != null && path != null) runCatching { XboxCloudSession.request(active, "DELETE", "/$path") }
+                        .onSuccess { diag("cloud player cancelled: session closed ${it.status}") }
+                    return@execute
+                }
                 if (reply.status !in 200..299) diag("cloud player $op: ${reply.status} ${reply.body.take(300)}")
                 else if (op != "state" && op != "keepalive") diag("cloud player $op: ${reply.status}")
                 runOnUiThread { web?.evaluateJavascript("window.__ddResolve($id, ${reply.status}, ${JSONObject.quote(reply.body)})", null) }
@@ -194,6 +200,8 @@ class XboxCloudPlayerActivity : ComponentActivity() {
         art.hide()
         runOnUiThread { artStatus.visibility = View.GONE }
     }
+
+    private fun cancelLaunch() { if (!isFinishing) { diag("cloud player launch cancelled"); finish() } }
 
     private fun showNotice(text: String, withButtons: Boolean) {
         notice?.let { root.removeView(it) }
@@ -294,6 +302,10 @@ class XboxCloudPlayerActivity : ComponentActivity() {
                 return true
             }
             return super.dispatchKeyEvent(event)
+        }
+        if (art.shown && (event.keyCode == KeyEvent.KEYCODE_BUTTON_B || event.keyCode == KeyEvent.KEYCODE_BACK)) {
+            if (event.action == KeyEvent.ACTION_UP) cancelLaunch()
+            return true
         }
         if (notice == null && guideKey(event)) return true
         if (event.keyCode == KeyEvent.KEYCODE_BACK) {

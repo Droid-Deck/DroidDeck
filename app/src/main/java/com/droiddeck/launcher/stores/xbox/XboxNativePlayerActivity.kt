@@ -106,7 +106,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
         surfaceView = SurfaceView(this)
         root.addView(surfaceView, FrameLayout.LayoutParams(-1, -1))
         art = XboxLaunchArt(this) { log(it) }
-        root.addView(art.view(intent.getStringExtra("title").orEmpty()), FrameLayout.LayoutParams(-1, -1))
+        root.addView(art.view(intent.getStringExtra("title").orEmpty()) { cancelLaunch() }, FrameLayout.LayoutParams(-1, -1))
         art.load(intent.getStringExtra("product").orEmpty())
         status = TextView(this).apply { setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER; setShadowLayer(10f, 0f, 0f, Color.BLACK) }
         root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { bottomMargin = 120 })
@@ -144,6 +144,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
     private fun log(text: String) = com.droiddeck.launcher.stores.StoresState.logLine("Xbox: native player: ${text.take(240)}")
     private fun show(text: String) = runOnUiThread { status.text = text; status.visibility = if (text.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE }
     private fun hideArt() { if (art.shown) { art.hide(); show("") } }
+    private fun cancelLaunch() { if (!isFinishing) { log("launch cancelled"); finish() } }
 
     private fun fail(stage: String, detail: String) {
         log("failed at $stage: $detail")
@@ -247,6 +248,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
 
         show("Starting the game on Xbox Cloud Gaming…")
         expect("start", signals.start())
+        if (closed) { runCatching { signals.stop() }.onSuccess { log("cancelled: session closed ${it?.status}") }; return }
         var connected = false
         var waited = 0
         while (!closed) {
@@ -443,6 +445,10 @@ class XboxNativePlayerActivity : ComponentActivity() {
                 return true
             }
             return super.dispatchKeyEvent(event)
+        }
+        if (art.shown && (event.keyCode == KeyEvent.KEYCODE_BUTTON_B || event.keyCode == KeyEvent.KEYCODE_BACK)) {
+            if (event.action == KeyEvent.ACTION_UP) cancelLaunch()
+            return true
         }
         if (isGuide(event)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {

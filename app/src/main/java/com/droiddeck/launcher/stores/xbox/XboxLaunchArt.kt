@@ -9,6 +9,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -24,6 +30,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -34,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.stores.Store
 import com.droiddeck.launcher.stores.StoreAccounts
 import com.droiddeck.launcher.ui.DroidDeckTheme
@@ -47,8 +59,8 @@ internal class XboxLaunchArt(private val activity: Activity, private val log: (S
     @Volatile var shown = true
         private set
 
-    fun view(title: String): ComposeView = ComposeView(activity).apply {
-        setContent { DroidDeckTheme { LaunchArt(urls, title, visible) } }
+    fun view(title: String, onCancel: () -> Unit): ComposeView = ComposeView(activity).apply {
+        setContent { DroidDeckTheme { LaunchArt(urls, title, visible, onCancel) } }
     }
 
     fun load(product: String) {
@@ -72,7 +84,7 @@ internal class XboxLaunchArt(private val activity: Activity, private val log: (S
 }
 
 @Composable
-private fun LaunchArt(images: List<String>, title: String, visible: Boolean) {
+private fun LaunchArt(images: List<String>, title: String, visible: Boolean, onCancel: () -> Unit) {
     AnimatedVisibility(visible, enter = fadeIn(tween(400)), exit = fadeOut(tween(700))) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             var index by remember { mutableIntStateOf(0) }
@@ -90,7 +102,17 @@ private fun LaunchArt(images: List<String>, title: String, visible: Boolean) {
                 0f to Color(0x66000000), 0.45f to Color(0x22000000), 0.78f to Color(0xB3000000), 1f to Color(0xF2000000))))
             Text(title, style = MaterialTheme.typography.headlineSmall, color = Color.White, maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.align(Alignment.BottomStart).padding(start = 40.dp, end = 40.dp, bottom = 34.dp))
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 40.dp, end = 220.dp, bottom = 34.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 40.dp, bottom = 30.dp)
+                    .clip(RoundedCornerShape(50)).background(Color(0x99000000))
+                    .pointerInput(Unit) { detectTapGestures { onCancel() } }
+                    .padding(start = 8.dp, end = 18.dp, top = 8.dp, bottom = 8.dp)) {
+                Box(Modifier.size(28.dp).clip(CircleShape).background(Color(0xFFE5484D)), contentAlignment = Alignment.Center) {
+                    Text("B", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
+                Text(stringResource(R.string.common_cancel), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
