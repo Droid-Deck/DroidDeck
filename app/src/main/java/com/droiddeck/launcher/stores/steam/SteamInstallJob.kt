@@ -27,7 +27,6 @@ internal class SteamInstallJob(
     private val started = AtomicBoolean(false)
     @Volatile private var discard = false
     @Volatile private var installDir: String? = null
-    @Volatile private var libraryHost: File? = null
     @Volatile private var createdDir = false
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
@@ -35,7 +34,7 @@ internal class SteamInstallJob(
         try {
             return install(handle)
         } finally {
-            if (discard) SteamStore.discardPartial(app, appId, libraryGuest, libraryHost, installDir, createdDir)
+            if (discard) SteamStore.discardPartial(app, appId, libraryGuest, installDir, createdDir)
         }
     }
 
@@ -45,7 +44,6 @@ internal class SteamInstallJob(
         val engine = SteamClient.engineLibraries(app)
         val target = engine.libraries.firstOrNull { SteamClient.sameLibrary(app, it.first, libraryGuest) }
             ?: throw IllegalStateException(app.getString(R.string.game_sync_err_steam_library))
-        libraryHost = target.second
         val signIn = SteamEngine.signIn(app)
         if (!signIn.optBoolean("ok")) {
             SteamStore.signInFailed(app, signIn.optString("error"))
@@ -137,7 +135,7 @@ internal class SteamInstallJob(
         cancelled.set(true)
         if (!deleteFiles) return
         discard = true
-        if (!started.get()) SteamStore.discardPartial(app, appId, libraryGuest, null, null, SteamStore.createdFolder(app, appId, libraryGuest))
+        if (!started.get()) SteamStore.discardPartial(app, appId, libraryGuest, null, SteamStore.createdFolder(app, appId, libraryGuest))
     }
 
     private companion object {

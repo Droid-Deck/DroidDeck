@@ -334,9 +334,9 @@ internal object SteamStore {
      * Removes what a cancelled download left; a finished install stays. The game folder goes only when this download made it
      * ([createdDir]) and no other installed game uses it.
      */
-    internal fun discardPartial(context: Context, appId: Int, guest: String, host: File?, installDir: String?, createdDir: Boolean) {
+    internal fun discardPartial(context: Context, appId: Int, guest: String, installDir: String?, createdDir: Boolean) {
         // An unmounted library keeps its journal and ownership record, so a later cancel can still clean it up.
-        val library = host ?: runCatching {
+        val library = runCatching {
             SteamClient.engineLibraries(context).libraries.firstOrNull { SteamClient.sameLibrary(context, it.first, guest) }?.second
         }.getOrNull() ?: return
         forgetJournal(context, appId, guest)
