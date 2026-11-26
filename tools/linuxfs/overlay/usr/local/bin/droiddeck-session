@@ -699,6 +699,7 @@ case $mode in
     steam_x64=0
     [ "${DD_STEAM_CLIENT_ARCH:-}" = x86_64 ] && steam_x64=1
     steam_cef_gpu=1
+    [ "${DD_STEAM_CEF_GPU:-1}" != 0 ] || steam_cef_gpu=0
     if [ "$steam_x64" = 1 ]; then
       step "checking the Steam client's arm64 parts (first run downloads them, ~1-2 min)"
       _dd_x64_repair=0
@@ -1131,6 +1132,16 @@ case $mode in
        && [ "${DD_STEAM_UI:-}" != desktop ] && [ -x /usr/local/bin/droiddeck-launcher-cores ]; then
       /usr/local/bin/droiddeck-launcher-cores "$DD_LAUNCH_DIR/agent/focus.json" 2>&1 &
     fi
+    case ${DD_STEAM_LITE:-0} in
+      0|stock|off) ;;
+      *)
+        if [ -n "${DD_LAUNCH_DIR:-}" ] && [ -z "${DD_DESKTOP:-}" ] && [ "${DD_STEAM_UI:-}" != desktop ] &&
+           command -v droiddeck-steam-lite >/dev/null 2>&1; then
+          step "Steam Lite Runtime experiment: ${DD_STEAM_LITE}${DD_STEAM_LITE_SWITCHES:+ ($DD_STEAM_LITE_SWITCHES)}"
+          droiddeck-steam-lite run 2>&1 &
+        fi
+        ;;
+    esac
     if [ "${DD_PACE_CORES:-1}" != 0 ] && [ -n "${DROIDDECK_HUD_FRAMES:-}" ] && [ -z "${DD_DESKTOP:-}" ] \
        && [ -x /usr/local/bin/droiddeck-pace-cores ]; then
       /usr/local/bin/droiddeck-pace-cores "$DROIDDECK_HUD_FRAMES" 2>&1 &
