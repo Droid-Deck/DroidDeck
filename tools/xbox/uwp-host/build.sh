@@ -12,5 +12,6 @@ mkdir -p "$(dirname "$out")"
     "$repo/tools/xbox/uwp-host/uwp-services.c" \
     "$repo/tools/xbox/uwp-host/uwp-auth.c" \
     "$repo/tools/xbox/uwp-host/uwp-gamesave.c" \
+    "$repo/tools/xbox/uwp-host/uwp-json.c" \
     -lkernel32 -lmsvcrt -lole32 -loleaut32 -luser32 -lgdi32 -luuid
 ls -l "$out"

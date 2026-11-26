@@ -2203,6 +2203,7 @@ extern void uwp_auth_install(void);
 extern int uwp_auth_lookup(const WCHAR *class_name, void **factory);
 extern void uwp_gamesave_install(void);
 extern int uwp_gamesave_lookup(const WCHAR *class_name, void **factory);
+extern int uwp_json_lookup(const WCHAR *class_name, void **factory);
 
 static host_object factories[sizeof(classes) / sizeof(classes[0])];
 
@@ -2314,6 +2315,7 @@ __declspec(dllexport) HRESULT __stdcall DllGetActivationFactory(hstring_t class_
     if (uwp_services_lookup(name, factory)) return S_OK;
     if (uwp_auth_lookup(name, factory)) return S_OK;
     if (uwp_gamesave_lookup(name, factory)) return S_OK;
+    if (uwp_json_lookup(name, factory)) return S_OK;
     trace_text("no host for class", name);
     return CLASS_E_CLASSNOTAVAILABLE;
 }

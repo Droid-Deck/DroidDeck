@@ -74,7 +74,10 @@ UWP_CLASSES = ('Windows.ApplicationModel.Core.CoreApplication', 'Windows.UI.Core
                'Windows.Networking.PushNotifications.PushNotificationChannelManager',
                'Windows.Networking.XboxLive.XboxLiveDeviceAddress',
                'Windows.ApplicationModel.ExtendedExecution.ExtendedExecutionSession',
-               'Windows.Networking.Sockets.MessageWebSocket')
+               'Windows.Networking.Sockets.MessageWebSocket',
+               'Windows.Data.Json.JsonObject',
+               'Windows.Data.Json.JsonArray',
+               'Windows.Data.Json.JsonValue')
 VIEW_DRIVES = 'xwvutsrqponmlkjihgfe'
 
 

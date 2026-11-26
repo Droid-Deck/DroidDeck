@@ -350,6 +350,32 @@ class XboxLaunchTest(unittest.TestCase):
                 xbox['register_classes']('/selected/proton', prefix, {}, {'uwp-host.dll': (name,)})
             child.assert_not_called()
 
+    def test_uwp_classes_override_windows_data_json_to_uwp_host(self):
+        json_classes = (
+            'Windows.Data.Json.JsonObject',
+            'Windows.Data.Json.JsonArray',
+            'Windows.Data.Json.JsonValue',
+        )
+        for cls in json_classes:
+            self.assertIn(cls, xbox['UWP_CLASSES'])
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root)
+            key = xbox['CLASS_KEY'].replace('\\', '\\\\')
+            section = '[%s%s] 1\n"DllPath"="C:\\\\windows\\\\system32\\\\%s"\n\n'
+            (prefix / 'system.reg').write_text(''.join(
+                section % (key, other, dll)
+                for dll, names in xbox['CLASSES'].items() for other in names))
+            imported = []
+            def run(argv, **kwargs):
+                imported.append(Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le'))
+                return subprocess.CompletedProcess(argv, 0)
+            with patch('subprocess.run', side_effect=run):
+                xbox['register_classes']('/selected/proton', prefix, {}, {'uwp-host.dll': xbox['UWP_CLASSES']})
+            self.assertEqual(len(imported), 1)
+            for cls in json_classes:
+                self.assertIn('[HKEY_LOCAL_MACHINE\\Software\\Microsoft\\WindowsRuntime\\ActivatableClassId\\%s]\r\n'
+                              '"DllPath"="C:\\\\windows\\\\system32\\\\uwp-host.dll"' % cls, imported[0])
+
     def test_failed_class_registration_is_reported_and_launch_continues(self):
         with tempfile.TemporaryDirectory() as root:
             prefix = Path(root)
