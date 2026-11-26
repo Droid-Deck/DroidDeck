@@ -183,6 +183,10 @@ pub fn run(
     if !register::library_registered(&req.steam_root, &req.game_library.guest) {
         return fail("library_not_in_libraryfolders");
     }
+    let adopted = register::adopt_staged(&req.game_library, req.app_id, &plan.install_dir);
+    if adopted > 0 {
+        log(&format!("adopted {adopted} file(s) the client had staged"));
+    }
     let takeover = match register::takeover(&req.game_library, req.app_id, plan.build_id) {
         Ok(t) => t,
         Err(err) => return fail(format!("takeover: {err}")),
@@ -307,6 +311,11 @@ pub fn run(
     };
     let ca = req.ca_bundle_path.as_str();
 
+    if let Err(err) =
+        register::write_started_acf(&req.game_library, &plan, session.steam_id, now_unix())
+    {
+        return fail(format!("app manifest: {err}"));
+    }
     progress.phase(PHASE_DOWNLOADING);
     let game_dir = req.game_library.common_dir(&plan.install_dir);
     for (prepared, _) in &game_depots {

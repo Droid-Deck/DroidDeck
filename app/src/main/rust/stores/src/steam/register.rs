@@ -121,11 +121,71 @@ pub fn takeover(
             took_over = true;
         }
     }
+    let prefix = format!("state_{app_id}_");
+    if let Ok(entries) = fs::read_dir(steamapps.join("downloading")) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with(&prefix) && name.ends_with(".patch") {
+                let _ = fs::remove_file(entry.path());
+            }
+        }
+    }
     Ok(if took_over {
         Takeover::TookOver
     } else {
         Takeover::Fresh
     })
+}
+
+/// Moves the files a stopped client download staged in `downloading/<appid>` (full-size files at
+/// their final offsets) into the install folder where that file is not there yet, so resuming
+/// verifies their chunks instead of fetching them again. What stays behind goes with the takeover.
+/// Returns how many files were moved.
+pub fn adopt_staged(library: &LibraryRoot, app_id: u32, install_dir: &str) -> usize {
+    if !is_plain_name(install_dir) {
+        return 0;
+    }
+    let installed = kv::parse_file(&library.acf_path(app_id))
+        .is_some_and(|acf| kv::get_u64(&acf, "StateFlags") & STATE_FULLY_INSTALLED != 0);
+    if installed {
+        return 0;
+    }
+    let staging = library.steamapps().join("downloading").join(app_id.to_string());
+    let target = library.common_dir(install_dir);
+    let mut moved = 0;
+    let mut pending = vec![staging.clone()];
+    while let Some(dir) = pending.pop() {
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let Ok(meta) = fs::symlink_metadata(&path) else {
+                continue;
+            };
+            if meta.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            if !meta.is_file() {
+                continue;
+            }
+            let Ok(rel) = path.strip_prefix(&staging) else {
+                continue;
+            };
+            let dest = target.join(rel);
+            if fs::symlink_metadata(&dest).is_ok() {
+                continue;
+            }
+            let Some(parent) = dest.parent() else {
+                continue;
+            };
+            if fs::create_dir_all(parent).is_ok() && fs::rename(&path, &dest).is_ok() {
+                moved += 1;
+            }
+        }
+    }
+    moved
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -298,6 +358,49 @@ pub fn write_game_acf(library: &LibraryRoot, reg: &GameRegistration<'_>) -> Resu
         "language",
         reg.plan.language.as_str(),
     );
+    fs::create_dir_all(library.steamapps()).map_err(|err| format!("mkdir steamapps: {err}"))?;
+    kv::write_file(&path, &root)
+}
+
+/// Before any file lands, records the install the way the client does when it starts one
+/// (`StateFlags` 1026: update required and started, nothing installed yet), so a paused or
+/// interrupted download shows in the client as a resumable install. Leaves an existing manifest.
+pub fn write_started_acf(
+    library: &LibraryRoot,
+    plan: &AppPlan,
+    owner_steam_id: u64,
+    now: u64,
+) -> Result<(), String> {
+    let path = library.acf_path(plan.app_id);
+    if path.exists() {
+        return Ok(());
+    }
+    let mut root = kv::object("AppState");
+    let build = plan.build_id.to_string();
+    kv::set(&mut root, "appid", plan.app_id.to_string());
+    kv::set(&mut root, "Universe", "1");
+    kv::set(&mut root, "name", plan.name.as_str());
+    kv::set(&mut root, "StateFlags", "1026");
+    kv::set(&mut root, "installdir", plan.install_dir.as_str());
+    kv::set(&mut root, "LastUpdated", now.to_string());
+    kv::set(&mut root, "LastPlayed", "0");
+    kv::set(&mut root, "SizeOnDisk", "0");
+    kv::set(&mut root, "StagingSize", "0");
+    kv::set(&mut root, "buildid", "0");
+    kv::set(&mut root, "LastOwner", owner_steam_id.to_string());
+    kv::set(&mut root, "DownloadType", "1");
+    kv::set(&mut root, "UpdateResult", "0");
+    kv::set(&mut root, "BytesToDownload", plan.download_bytes().to_string());
+    kv::set(&mut root, "BytesDownloaded", "0");
+    kv::set(&mut root, "BytesToStage", plan.install_bytes().to_string());
+    kv::set(&mut root, "BytesStaged", "0");
+    kv::set(&mut root, "TargetBuildID", build.as_str());
+    kv::set(&mut root, "AutoUpdateBehavior", "0");
+    kv::set(&mut root, "AllowOtherDownloadsWhileRunning", "0");
+    kv::set(&mut root, "ScheduledAutoUpdate", "0");
+    kv::object_mut(&mut root, "InstalledDepots");
+    kv::set(kv::object_mut(&mut root, "UserConfig"), "language", plan.language.as_str());
+    kv::set(kv::object_mut(&mut root, "MountedConfig"), "language", plan.language.as_str());
     fs::create_dir_all(library.steamapps()).map_err(|err| format!("mkdir steamapps: {err}"))?;
     kv::write_file(&path, &root)
 }
@@ -1100,5 +1203,51 @@ mod tests {
         assert!(pos("InstallScripts") < pos("UserConfig"));
         assert!(text.ends_with("\t\"UserConfig\"\n\t{\n\t}\n\t\"MountedConfig\"\n\t{\n\t}\n}\n"));
         let _ = fs::remove_dir_all(&fx.base);
+    }
+
+    #[test]
+    fn a_started_install_reads_as_unfinished_and_leaves_a_manifest_alone() {
+        let dir = std::env::temp_dir().join(format!("dd-started-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let library = LibraryRoot { host: dir.clone(), guest: "/lib".to_string() };
+        let plan = AppPlan {
+            app_id: 42,
+            name: "Game".to_string(),
+            install_dir: "Game".to_string(),
+            build_id: 7,
+            language: "english".to_string(),
+            ..Default::default()
+        };
+        write_started_acf(&library, &plan, 1, 2).unwrap();
+        let acf = kv::parse_file(&library.acf_path(42)).unwrap();
+        assert_eq!(kv::get_u64(&acf, "StateFlags"), 1026);
+        assert_eq!(kv::get_u64(&acf, "TargetBuildID"), 7);
+        assert_eq!(takeover(&library, 42, 7).unwrap(), Takeover::Fresh);
+        fs::write(library.acf_path(42), "\"AppState\"\n{\n\t\"StateFlags\"\t\t\"4\"\n}\n").unwrap();
+        write_started_acf(&library, &plan, 1, 2).unwrap();
+        assert_eq!(kv::get_u64(&kv::parse_file(&library.acf_path(42)).unwrap(), "StateFlags"), 4);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn staged_client_files_move_into_the_install_folder_without_replacing_files_there() {
+        let dir = std::env::temp_dir().join(format!("dd-adopt-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let library = LibraryRoot { host: dir.clone(), guest: "/lib".to_string() };
+        let staging = library.steamapps().join("downloading/42");
+        fs::create_dir_all(staging.join("sub")).unwrap();
+        fs::write(staging.join("a.bin"), b"client").unwrap();
+        fs::write(staging.join("sub/b.bin"), b"client").unwrap();
+        let common = library.common_dir("Game");
+        fs::create_dir_all(&common).unwrap();
+        fs::write(common.join("a.bin"), b"ours").unwrap();
+        assert_eq!(adopt_staged(&library, 42, "Game"), 1);
+        assert_eq!(fs::read(common.join("a.bin")).unwrap(), b"ours");
+        assert_eq!(fs::read(common.join("sub/b.bin")).unwrap(), b"client");
+        assert_eq!(adopt_staged(&library, 42, ".."), 0);
+        fs::write(staging.join("c.bin"), b"client").unwrap();
+        fs::write(library.acf_path(42), "\"AppState\"\n{\n\t\"StateFlags\"\t\t\"6\"\n}\n").unwrap();
+        assert_eq!(adopt_staged(&library, 42, "Game"), 0);
+        let _ = fs::remove_dir_all(&dir);
     }
 }

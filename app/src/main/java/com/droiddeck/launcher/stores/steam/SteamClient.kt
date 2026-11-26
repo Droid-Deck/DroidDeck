@@ -99,9 +99,9 @@ internal object SteamClient {
             libraries.firstOrNull { it.first.guest == library.guest }?.second ?: library.host
     }
 
-    fun engineLibraries(context: Context): EngineLibraries {
+    fun engineLibraries(context: Context, arch: String = activeArch(context)): EngineLibraries {
         val view = engineView(context)
-        return EngineLibraries(libraries(context).filter { it.host.isDirectory }.map { it to view(it.host) })
+        return EngineLibraries(libraries(context, arch).filter { it.host.isDirectory }.map { it to view(it.host) })
     }
 
     fun targets(context: Context): List<Target> {

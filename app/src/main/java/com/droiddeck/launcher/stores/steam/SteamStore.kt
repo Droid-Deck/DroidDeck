@@ -252,9 +252,23 @@ internal object SteamStore {
         val app = context.applicationContext
         val appId = item.id.toIntOrNull() ?: return
         val guest = item.extra[LIBRARY] ?: return
-        SavedQueue.remember(app, item, null)
-        val entry = DownloadEntry(Store.STEAM, item.id, item.title, cover = item.imageUrl, location = item.extra[LIBRARY_LABEL].orEmpty())
-        DownloadQueue.enqueue(app, entry) { SteamInstallJob(app, appId, guest) }
+        work.execute {
+            // Either client may have finished the install from where this download was paused.
+            if (installedByAClient(app, appId)) {
+                DownloadQueue.dropHeld(key(appId))
+                StoresState.logLine("Steam: \"${item.title}\" was finished by Steam; its saved download is dropped")
+                return@execute
+            }
+            StoresState.post {
+                SavedQueue.remember(app, item, null)
+                val entry = DownloadEntry(Store.STEAM, item.id, item.title, cover = item.imageUrl, location = item.extra[LIBRARY_LABEL].orEmpty())
+                DownloadQueue.enqueue(app, entry) { SteamInstallJob(app, appId, guest) }
+            }
+        }
+    }
+
+    private fun installedByAClient(context: Context, appId: Int): Boolean = listOf("arm64", SteamClient.X86_64).any { arch ->
+        runCatching { appId in SteamLibraryFolders.installed(SteamClient.libraries(context, arch)) }.getOrDefault(false)
     }
 
     /** Removes a game like the client does; [fallback] deletes it when the engine cannot (no engine, or a library it does not map). */
@@ -274,13 +288,19 @@ internal object SteamStore {
                 return@Thread
             }
             val answer = try { runCatching {
-                val libraries = SteamClient.libraries(app)
                 val apps = manifest?.parentFile?.let(::canonical)
-                val chosen = if (apps == null) libraries else libraries.filter { canonical(File(it.host, "steamapps")) == apps }
-                val game = SteamLibraryFolders.installed(chosen)[appId]
-                val engine = SteamClient.engineLibraries(app)
-                val answer = if (game == null) SteamEngine.failure(SteamEngine.MISSING)
-                    else SteamEngine.uninstall(appId, SteamClient.root(app).absolutePath, engine.hostOf(game.library).absolutePath, game.library.guest, engine.json)
+                // The game may sit in the other client's library; that client's files are the ones to update.
+                val active = SteamClient.activeArch(app)
+                val found = listOf(active, if (active == SteamClient.X86_64) "arm64" else SteamClient.X86_64).firstNotNullOfOrNull { arch ->
+                    val libraries = SteamClient.libraries(app, arch)
+                    val chosen = if (apps == null) libraries else libraries.filter { canonical(File(it.host, "steamapps")) == apps }
+                    SteamLibraryFolders.installed(chosen)[appId]?.let { arch to it }
+                }
+                val answer = if (found == null) SteamEngine.failure(SteamEngine.MISSING) else {
+                    val (arch, game) = found
+                    val engine = SteamClient.engineLibraries(app, arch)
+                    SteamEngine.uninstall(appId, SteamClient.root(app, arch).absolutePath, engine.hostOf(game.library).absolutePath, game.library.guest, engine.json)
+                }
                 when {
                     answer.optString("error") != SteamEngine.MISSING -> answer
                     fallback() -> JSONObject().put("ok", true)
@@ -350,6 +370,7 @@ internal object SteamStore {
         }
         if (dir != null && createdDir && !shared) StoreInstalls.deleteTree(File(apps, "common/$dir"))
         StoreInstalls.deleteTree(File(apps, "downloading/$appId"))
+        File(apps, "downloading").listFiles { f -> f.name.startsWith("state_${appId}_") && f.name.endsWith(".patch") }?.forEach { it.delete() }
         if (manifest != null) acf.delete()
         forgetJournal(context, appId, guest)
         StoresState.logLine("Steam: removed the unfinished download of $appId")
