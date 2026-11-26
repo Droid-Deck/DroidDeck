@@ -482,6 +482,23 @@ class NativeHookMountTest(unittest.TestCase):
             self.assertNotEqual(self.readlinks_of(log, f"{self.links}/guest"), [], table)
             self.assertNotEqual(self.readlinks_of(log, f"{self.root}/etc/hostname"), [], table)
 
+    def test_relative_parent_walks_inside_mounts_without_links_stay_relative(self):
+        real, _, _ = self.links_volume()
+        binds = f"{self.links}:/mnt/links"
+        paths = {"sub/deeper/../file.txt": ["1", "deep"], "sub/deeper/more/../more/leaf.txt": ["1", "leaf"],
+                 "../real/sub/file.txt": ["1", "deep"], "../../../etc/hostname": ["1", "rootfs"],
+                 "sub/../../../../etc/hostname": ["1", "rootfs"]}
+        for kind, relative in (("exfat", True), ("ext4", False)):
+            table = [("/", "ext4", "/dev/root"), (real, kind, "/dev/sdb1")]
+            result, log = self.run_probe("cd:/mnt/links/real", *paths, binds=binds, mounts=table, syscalls=True)
+            for path, want in paths.items():
+                self.assertEqual(result[path], want, (path, kind))
+            stats = [m.group(1) for m in re.finditer(r'(?:fstatat|statx)\([^,"]*,\s*"([^"]*)"', log)]
+            for path in ("sub/deeper/../file.txt", "sub/deeper/more/../more/leaf.txt", "../real/sub/file.txt"):
+                self.assertEqual(path in stats, relative, (path, kind, stats))
+            for path in ("../../../etc/hostname", "sub/../../../../etc/hostname"):
+                self.assertNotIn(path, stats, (path, kind))
+
 
 if __name__ == "__main__":
     unittest.main()

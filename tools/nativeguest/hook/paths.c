@@ -1081,6 +1081,16 @@ static void ddnatv_build_at_dirs(void) {
 }
 
 #if defined(__aarch64__)
+static int stays_in_plain_bind(const char *host, const char *rel) {
+    struct ddnatv_bind *best = NULL;
+    for (int i = 0; i < g_nbinds; i++) {
+        struct ddnatv_bind *b = &g_binds[i];
+        if (b->identity || !is_path_prefix(host, b->src, b->src_len)) continue;
+        if (!best || b->src_len > best->src_len) best = b;
+    }
+    return best && !climbs_past_root(host + best->src_len, rel) && bind_holds_no_links(best);
+}
+
 static const char *map_parent_walk(int dirfd, const char *rel, char *buf, size_t size) {
     char link[32], host[PATH_MAX], dir_buf[PATH_MAX], guest[PATH_MAX];
     if (dirfd == AT_FDCWD) ddnatv_copy_cstr(link, sizeof(link), "/proc/self/cwd");
@@ -1088,6 +1098,7 @@ static const char *map_parent_walk(int dirfd, const char *rel, char *buf, size_t
     long n = raw_readlinkat(AT_FDCWD, link, host, sizeof(host) - 1);
     if (n <= 0 || host[0] != '/') return NULL;
     host[n] = '\0';
+    if (stays_in_plain_bind(host, rel)) return NULL;
     const char *dir = guest_path_of_host_dir(host, dir_buf, sizeof(dir_buf));
     if (!dir || strcmp(dir, host) == 0) return NULL;
     if (get_rootfs_subpath(host) && !climbs_past_root(dir, rel)) return NULL;
