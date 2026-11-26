@@ -35,6 +35,15 @@ internal object SteamClient {
 
     private fun aliases(arch: String) = listOf(guestRoot(arch), "${guestHome(arch)}/.steam/steam", "${guestHome(arch)}/.steam/root")
 
+    /** [guest] names [library]; the main library also answers to the client's other spellings of its root. */
+    fun sameLibrary(context: Context, library: SteamLibraryFolders.Library, guest: String): Boolean {
+        if (library.guest == guest) return true
+        if (!library.main) return false
+        val arch = activeArch(context)
+        val wanted = SteamLibraryFolders.normalize(guest) ?: return false
+        return (aliases(arch) + guestRoot(arch)).mapNotNull(SteamLibraryFolders::normalize).contains(wanted)
+    }
+
     fun root(context: Context, arch: String = activeArch(context)): File = SessionPrefs.steamRoot(context, arch)
 
     fun registry(context: Context, arch: String = activeArch(context)): File =

@@ -15,6 +15,7 @@ import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.frontend.SteamHidden
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.stores.Store
 
 internal const val LIBRARY_HIDDEN = "hidden"
 internal val HIDDEN_DOT = androidx.compose.ui.graphics.Color(0xFF9AA0A6)
@@ -50,7 +51,8 @@ internal object LibraryHidden {
 
     fun isHidden(key: String, game: Library.SteamGame?): Boolean = key in keys || steamId(game)?.let { it in steam } == true
 
-    fun isHidden(entry: LibraryEntry): Boolean = isHidden(entry.favoriteKey, entry.game)
+    fun isHidden(entry: LibraryEntry): Boolean =
+        isHidden(entry.favoriteKey, entry.game) || entry.item?.takeIf { it.store == Store.STEAM }?.id?.toLongOrNull()?.let { it in steam } == true
 
     fun set(context: Context, key: String, game: Library.SteamGame?, hidden: Boolean): Boolean {
         val id = steamId(game)

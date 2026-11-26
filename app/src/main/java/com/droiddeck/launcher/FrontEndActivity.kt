@@ -1259,6 +1259,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun startAfterSession(next: Intent) {
+        if (com.droiddeck.launcher.stores.steam.SteamStore.blocksSession(next)) {
+            android.widget.Toast.makeText(this, R.string.steam_store_session_wait, android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
         SessionService.stop(this)
         awaitSessionEnd(next, android.os.SystemClock.uptimeMillis() + SESSION_SWITCH_WAIT_MS)
     }
@@ -3097,7 +3101,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 }
                 val target = com.droiddeck.launcher.frontend.GameRemoval.steamFiles(g) ?: return
                 if (Library.fromSteamClient(g)) {
-                    com.droiddeck.launcher.stores.steam.SteamStore.uninstall(this, g.appId, fallback = { com.droiddeck.launcher.frontend.GameRemoval.delete(target) }) { refreshAddedGames(); refresh() }
+                    com.droiddeck.launcher.stores.steam.SteamStore.uninstall(this, g.appId, target.manifest, fallback = { com.droiddeck.launcher.frontend.GameRemoval.delete(target) }) { refreshAddedGames(); refresh() }
                     return
                 }
                 Thread({
@@ -3541,9 +3545,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         retryMs = GATE_LAUNCH_RETRY_MS,
     )
 
-    /** The conditions under which a Steam start waits instead of being refused: setup, a runtime or desktop install, or a storage cleanup. */
+    /** The conditions under which a Steam start waits instead of being refused: setup, a runtime or desktop install, a storage cleanup, or a Steam store download. */
     private fun steamStartBusy(): Boolean = busy || LinuxRuntimeInstaller.isBusy() || com.droiddeck.launcher.session.Onboarding.settling() ||
-        (SessionState.installing != null && !SessionState.running) || com.droiddeck.launcher.storage.StorageState.cleaning
+        (SessionState.installing != null && !SessionState.running) || com.droiddeck.launcher.storage.StorageState.cleaning ||
+        (!SessionState.running && com.droiddeck.launcher.stores.steam.SteamStore.downloading())
 
     private fun refreshPhantomStatus() {
         phantomProcessStatus = PhantomProcessLimit.read(this)

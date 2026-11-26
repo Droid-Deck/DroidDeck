@@ -43,6 +43,9 @@ internal object SteamStore {
     private const val LIBRARY = "library"
     private const val LIBRARY_LABEL = "libraryLabel"
     private val SIGNED_OUT = setOf("no_saved_login", "remember_me_off", "decrypt_failed")
+    private val REFUSED = Regex("logon_failed: eresult=(-?\\d+).*")
+    /** InvalidPassword, AccessDenied, AccountNotFound, Revoked, Expired, AccountLogonDenied. */
+    private val REFUSALS = setOf(5, 15, 18, 26, 27, 63)
 
     var installed by mutableStateOf<Map<Int, SteamLibraryFolders.Installed>>(emptyMap())
         private set
@@ -61,7 +64,8 @@ internal object SteamStore {
 
     internal const val LINUX_BUILD = "linux_build"
 
-    private val plans = ConcurrentHashMap<Int, Plan>()
+    /** Each plan with the language it was made for. */
+    private val plans = ConcurrentHashMap<Int, Pair<String, Plan>>()
     private val work = Executors.newSingleThreadExecutor { r -> Thread(r, "steam-store") }
     @Volatile private var rejectedThisRun: String? = null
 
@@ -76,7 +80,9 @@ internal object SteamStore {
         StoresState.post { Toast.makeText(app, text, Toast.LENGTH_LONG).show() }
     }
 
-    internal fun isSignInError(error: String) = error in SIGNED_OUT || error.startsWith("logon_failed")
+    /** Steam refusing the saved login; a connection failure or a throttled logon leaves the account as it is. */
+    internal fun isSignInError(error: String) =
+        error in SIGNED_OUT || REFUSED.matchEntire(error)?.groupValues?.get(1)?.toIntOrNull() in REFUSALS
 
     internal fun errorText(context: Context, answer: JSONObject): String {
         val error = answer.optString("error")
@@ -89,36 +95,46 @@ internal object SteamStore {
         }
     }
 
-    private fun fingerprint(context: Context): String {
+    internal fun fingerprint(context: Context): String {
         val users = SteamClient.loginUsers(context)
         val registry = SteamClient.registry(context)
         return "${SteamClient.activeArch(context)}:${users.lastModified()}:${users.length()}:${registry.lastModified()}:${registry.length()}"
     }
 
-    private fun savedAccount(context: Context): String? {
+    private fun savedAccount(context: Context): SteamLibraryFolders.SavedAccount? {
         val print = fingerprint(context)
         if (print == rejectedThisRun || print == prefs(context).getString("rejected", null)) return null
-        return runCatching { SteamLibraryFolders.savedAccount(SteamClient.loginUsers(context).readText()) }.getOrNull()
+        return runCatching { SteamLibraryFolders.savedLogin(SteamClient.loginUsers(context).readText()) }.getOrNull()
     }
 
-    /** Mirrors the client's saved sign-in into the store account; reads storage. */
+    /** Mirrors the client's saved sign-in into the store account; reads storage. A new name for the same account only relabels it. */
     fun syncAccount(context: Context): Boolean {
-        val name = savedAccount(context)
-        if (name == StoreAccounts.signedInAs(context, Store.STEAM)) return false
-        if (name == null) StoreAccounts.clear(context, Store.STEAM)
-        else StoreAccounts.write(context, Store.STEAM, JSONObject().put("display_name", name))
+        val saved = savedAccount(context)
+        val stored = StoreAccounts.read(context, Store.STEAM)
+        val storedId = stored?.optString("steam_id").orEmpty()
+        if (saved != null && saved.id == storedId) {
+            if (saved.name != stored?.optString("display_name")) {
+                StoreAccounts.write(context, Store.STEAM, JSONObject().put("display_name", saved.name).put("steam_id", saved.id))
+            }
+            return false
+        }
+        if (saved == null && stored == null) return false
+        if (saved == null) StoreAccounts.clear(context, Store.STEAM)
+        else StoreAccounts.write(context, Store.STEAM, JSONObject().put("display_name", saved.name).put("steam_id", saved.id))
+        plans.clear()
         SteamEngine.forget()
         StoresState.post {
             StoresState.library.remove(Store.STEAM)
             StoresState.problems.remove(Store.STEAM)
         }
-        Log.i(TAG, if (name == null) "no saved Steam sign-in" else "Steam sign-in found")
+        Log.i(TAG, if (saved == null) "no saved Steam sign-in" else "Steam sign-in found")
         return true
     }
 
     internal fun signInFailed(context: Context, error: String) {
         if (error == SteamEngine.MISSING) return
         val print = fingerprint(context)
+        if (SteamEngine.attempted?.let { it != print } == true) return
         rejectedThisRun = print
         if (error in SIGNED_OUT) prefs(context).edit().putString("rejected", print).apply()
         StoreAccounts.clear(context, Store.STEAM)
@@ -138,6 +154,8 @@ internal object SteamStore {
         }
     }
 
+    private val scans = java.util.concurrent.atomic.AtomicLong()
+
     private class Read(val modified: Long, val length: Long, val text: String)
     private val manifests = ConcurrentHashMap<String, Read>()
 
@@ -152,8 +170,10 @@ internal object SteamStore {
 
     /** Owned games count as installed when an appmanifest with StateFlags 4 is in one of the active client's libraries. */
     fun scanInstalled(context: Context) {
+        val scan = scans.incrementAndGet()
         val found = SteamLibraryFolders.installed(SteamClient.libraries(context), ::readManifest)
         StoresState.post {
+            if (scan != scans.get()) return@post
             if (found != installed) installed = found
             for ((id, game) in found) if (game.sizeOnDisk > 0 && StoreSizes.onDisk[key(id)] != game.sizeOnDisk) StoreSizes.onDisk[key(id)] = game.sizeOnDisk
         }
@@ -166,7 +186,7 @@ internal object SteamStore {
     /** A Steam store download holds every session that could start the Steam client. */
     fun blocksSession(intent: Intent?): Boolean {
         val mode = intent?.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
-        return mode != SessionService.MODE_RUN && downloading()
+        return mode != SessionService.MODE_RUN && (downloading() || StoresState.uninstalling.keys.any { it.startsWith("${Store.STEAM.id}:") })
     }
 
     internal fun syncLibrary(context: Context, force: Boolean) {
@@ -221,11 +241,11 @@ internal object SteamStore {
 
     /** Reaches the network; call off the main thread. */
     internal fun plan(context: Context, appId: Int, language: String = SteamClient.language(context)): Pair<Plan?, JSONObject> {
-        val plan = plans[appId] ?: run {
+        val plan = plans[appId]?.takeIf { it.first == language }?.second ?: run {
             val answer = SteamEngine.plan(context, appId, language)
             val error = answer.optString("error")
             if (isSignInError(error)) signInFailed(context, error)
-            Plan.of(answer)?.also { plans[appId] = it } ?: return null to answer
+            Plan.of(answer)?.also { plans[appId] = language to it } ?: return null to answer
         }
         if (plan.linuxBuild && !protonMapped(context, appId)) return null to SteamEngine.failure(LINUX_BUILD)
         return plan to JSONObject().put("ok", true)
@@ -255,7 +275,7 @@ internal object SteamStore {
             toast(app, R.string.steam_store_close_steam)
             return
         }
-        val plan = plans[appId]
+        val plan = plans[appId]?.second
         val needed = plan?.installBytes ?: 0L
         val tagged = item.copy(extra = item.extra + mapOf(LIBRARY to target.library.guest, LIBRARY_LABEL to target.label))
         val entry = DownloadEntry(
@@ -281,7 +301,7 @@ internal object SteamStore {
     }
 
     /** Removes a game like the client does; [fallback] deletes it when the engine cannot (no engine, or a library it does not map). */
-    fun uninstall(context: Context, appId: Int, fallback: () -> Unit, onDone: () -> Unit = {}) {
+    fun uninstall(context: Context, appId: Int, manifest: File?, fallback: () -> Boolean, onDone: () -> Unit = {}) {
         val app = context.applicationContext
         if (SteamClient.clientMayRun()) {
             toast(app, R.string.steam_store_close_steam)
@@ -292,11 +312,18 @@ internal object SteamStore {
         StoresState.uninstalling[key] = 0f
         Thread({
             val answer = runCatching {
-                val game = SteamLibraryFolders.installed(SteamClient.libraries(app))[appId]
+                val libraries = SteamClient.libraries(app)
+                val apps = manifest?.parentFile?.let(::canonical)
+                val chosen = if (apps == null) libraries else libraries.filter { canonical(File(it.host, "steamapps")) == apps }
+                val game = SteamLibraryFolders.installed(chosen)[appId]
                 val engine = SteamClient.engineLibraries(app)
                 val answer = if (game == null) SteamEngine.failure(SteamEngine.MISSING)
                     else SteamEngine.uninstall(appId, SteamClient.root(app).absolutePath, engine.hostOf(game.library).absolutePath, game.library.guest, engine.json)
-                if (answer.optString("error") == SteamEngine.MISSING) { fallback(); JSONObject().put("ok", true) } else answer
+                when {
+                    answer.optString("error") != SteamEngine.MISSING -> answer
+                    fallback() -> JSONObject().put("ok", true)
+                    else -> SteamEngine.failure("remove_failed")
+                }
             }.getOrElse { SteamEngine.failure(it.javaClass.simpleName) }
             val ok = answer.optBoolean("ok")
             StoresState.logLine(if (ok) "Steam: uninstalled $appId" else "Steam: uninstall of $appId failed: ${answer.optString("error")}")
@@ -310,18 +337,29 @@ internal object SteamStore {
         }, "steam-uninstall").start()
     }
 
-    /** Removes what a cancelled download left; a finished install stays. */
-    internal fun discardPartial(context: Context, appId: Int, guest: String, host: File?, installDir: String?) {
+    private fun canonical(file: File): String = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
+
+    /** An earlier run of this download left its journal, so the game folder is its own. */
+    internal fun resuming(context: Context, appId: Int): Boolean = File(context.filesDir, "$JOURNAL/$appId").list()?.isNotEmpty() == true
+
+    /**
+     * Removes what a cancelled download left; a finished install stays. The game folder goes only when this download made it
+     * ([createdDir]) and no other installed game uses it.
+     */
+    internal fun discardPartial(context: Context, appId: Int, guest: String, host: File?, installDir: String?, createdDir: Boolean) {
         File(context.filesDir, "$JOURNAL/$appId").deleteRecursively()
         val library = host ?: runCatching {
-            SteamClient.engineLibraries(context).libraries.firstOrNull { it.first.guest == guest }?.second
+            SteamClient.engineLibraries(context).libraries.firstOrNull { SteamClient.sameLibrary(context, it.first, guest) }?.second
         }.getOrNull() ?: return
         val apps = File(library, "steamapps")
         val acf = File(apps, "appmanifest_$appId.acf")
         val manifest = acf.takeIf { it.isFile }?.let { f -> runCatching { SteamStorage.parseManifest(f, f.readText()) }.getOrNull() }
         if (manifest?.installed == true) return
-        val dir = (installDir ?: manifest?.installDir ?: plans[appId]?.installDir)?.takeIf { validDir(it) }
-        if (dir != null) StoreInstalls.deleteTree(File(apps, "common/$dir"))
+        val dir = (installDir ?: manifest?.installDir ?: plans[appId]?.second?.installDir)?.takeIf { validDir(it) }
+        val shared = dir != null && apps.listFiles { f -> f.name.startsWith("appmanifest_") && f.name != acf.name }.orEmpty().any { f ->
+            runCatching { SteamStorage.parseManifest(f, f.readText()) }.getOrNull()?.installDir == dir
+        }
+        if (dir != null && createdDir && !shared) StoreInstalls.deleteTree(File(apps, "common/$dir"))
         StoreInstalls.deleteTree(File(apps, "downloading/$appId"))
         if (manifest != null) acf.delete()
         StoresState.logLine("Steam: removed the unfinished download of $appId")

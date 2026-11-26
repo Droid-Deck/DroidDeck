@@ -842,13 +842,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             finish()
             return
         }
-        if (savedInstanceState == null && !SessionState.running && com.droiddeck.launcher.stores.steam.SteamStore.blocksSession(intent)) {
+        if (!SessionState.running && com.droiddeck.launcher.stores.steam.SteamStore.blocksSession(intent)) {
             runtimeRemovalBlocked = true
             android.widget.Toast.makeText(this, R.string.steam_store_session_wait, android.widget.Toast.LENGTH_SHORT).show()
             finish()
             return
         }
-        if (savedInstanceState == null && !SessionState.running) {
+        if (savedInstanceState == null && !SessionState.running && !com.droiddeck.launcher.stores.steam.SteamStore.downloading()) {
             // The Steam client signs in itself; the store's own sign-in must not overlap it.
             Thread({ com.droiddeck.launcher.stores.steam.SteamEngine.forget() }, "steam-store-signout").start()
         }

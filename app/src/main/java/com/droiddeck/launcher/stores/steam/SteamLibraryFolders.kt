@@ -89,7 +89,8 @@ internal object SteamLibraryFolders {
         val mains = (aliases + mainGuest).mapNotNull(::normalize).toSet()
         val listed = if (folders.any { normalize(it.path) in mains }) folders else listOf(Folder(mainGuest, "")) + folders
         val out = ArrayList<Library>()
-        for (f in listed) {
+        // The main library first, so an entry reaching the same folder under another path cannot take its place.
+        for (f in listed.sortedByDescending { normalize(it.path) in mains }) {
             val guest = normalize(f.path) ?: continue
             val main = guest in mains
             val host = if (main) mainHost else hostFor(guest, mounts, rootfs) ?: continue
@@ -117,17 +118,22 @@ internal object SteamLibraryFolders {
         return out
     }
 
-    /** The account the client signs in with by itself: remembered, the most recent one first. */
-    fun savedAccount(loginUsers: String): String? {
+    data class SavedAccount(val id: String, val name: String)
+
+    fun savedAccount(loginUsers: String): String? = savedLogin(loginUsers)?.name
+
+    /** The account the client signs in with by itself: remembered, the most recent one first. [SavedAccount.id] is its SteamID64. */
+    fun savedLogin(loginUsers: String): SavedAccount? {
         val users = LinkedHashMap<String, HashMap<String, String>>()
         walk(loginUsers, pair = { blocks, key, value ->
             if (blocks.size == 2 && blocks[0].equals("users", ignoreCase = true)) users.getOrPut(blocks[1]) { HashMap() }[key.lowercase()] = value
         })
-        val remembered = users.values.filter { it["rememberpassword"] == "1" }
-        val user = remembered.firstOrNull { it["mostrecent"] == "1" }
-            ?: remembered.maxByOrNull { it["timestamp"]?.toLongOrNull() ?: 0L }
+        val remembered = users.entries.filter { it.value["rememberpassword"] == "1" }
+        val (id, user) = remembered.firstOrNull { it.value["mostrecent"] == "1" }
+            ?: remembered.maxByOrNull { it.value["timestamp"]?.toLongOrNull() ?: 0L }
             ?: return null
-        return user["personaname"]?.takeIf { it.isNotBlank() } ?: user["accountname"]?.takeIf { it.isNotBlank() }
+        val name = user["personaname"]?.takeIf { it.isNotBlank() } ?: user["accountname"]?.takeIf { it.isNotBlank() } ?: return null
+        return SavedAccount(id, name)
     }
 
     fun language(registry: String): String? {

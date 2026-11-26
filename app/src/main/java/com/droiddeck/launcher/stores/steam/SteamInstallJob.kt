@@ -28,13 +28,14 @@ internal class SteamInstallJob(
     @Volatile private var discard = false
     @Volatile private var installDir: String? = null
     @Volatile private var libraryHost: File? = null
+    @Volatile private var createdDir = false
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
         started.set(true)
         try {
             return install(handle)
         } finally {
-            if (discard) SteamStore.discardPartial(app, appId, libraryGuest, libraryHost, installDir)
+            if (discard) SteamStore.discardPartial(app, appId, libraryGuest, libraryHost, installDir, createdDir)
         }
     }
 
@@ -42,7 +43,7 @@ internal class SteamInstallJob(
         handle.stage(DownloadStage.MANIFEST)
         if (SteamClient.clientMayRun()) throw IllegalStateException(app.getString(R.string.steam_store_close_steam))
         val engine = SteamClient.engineLibraries(app)
-        val target = engine.libraries.firstOrNull { it.first.guest == libraryGuest }
+        val target = engine.libraries.firstOrNull { SteamClient.sameLibrary(app, it.first, libraryGuest) }
             ?: throw IllegalStateException(app.getString(R.string.game_sync_err_steam_library))
         libraryHost = target.second
         val signIn = SteamEngine.signIn(app)
@@ -54,6 +55,7 @@ internal class SteamInstallJob(
         val (plan, planned) = SteamStore.plan(app, appId, language)
         if (plan == null) throw IllegalStateException(SteamStore.errorText(app, planned))
         installDir = plan.installDir
+        createdDir = !File(target.second, "steamapps/common/${plan.installDir}").exists() || SteamStore.resuming(app, appId)
         if (plan.installBytes > 0) handle.diskSize(plan.installBytes)
         if (cancelled.get()) return null
 
@@ -92,7 +94,7 @@ internal class SteamInstallJob(
         }
         val native = try {
             SteamNative.nativeStart(
-                appId, language, SteamClient.root(app).absolutePath, target.second.absolutePath, libraryGuest, engine.json,
+                appId, language, SteamClient.root(app).absolutePath, target.second.absolutePath, target.first.guest, engine.json,
                 journal.absolutePath, "", tier.networkWindow.coerceIn(1, 128), tier.processWorkers, listener,
             )
         } catch (e: UnsatisfiedLinkError) {
@@ -136,7 +138,7 @@ internal class SteamInstallJob(
         cancelled.set(true)
         if (!deleteFiles) return
         discard = true
-        if (!started.get()) SteamStore.discardPartial(app, appId, libraryGuest, null, null)
+        if (!started.get()) SteamStore.discardPartial(app, appId, libraryGuest, null, null, SteamStore.resuming(app, appId))
     }
 
     private companion object {

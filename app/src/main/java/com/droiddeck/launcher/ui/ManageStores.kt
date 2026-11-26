@@ -85,7 +85,10 @@ internal object StoreTabsState {
         libraryHidden = SessionPrefs.libraryTabsHidden(context) + listOfNotNull(LIBRARY_HIDDEN.takeUnless { SessionPrefs.libraryShowHidden(context) })
     }
 
-    /** [ids] may hold the Library's own tabs among the stores; each one's place is kept as the tab it follows. */
+    /**
+     * [ids] may hold the Library's own tabs among the stores; each one's place is kept as the tab it follows. A store [ids]
+     * leaves out (the Steam store, which the Library shows as its own Steam tab) keeps its index.
+     */
     fun reorder(context: android.content.Context, ids: List<String>) {
         if (ids.any { it in LIBRARY_OWN_TABS }) {
             val places = libraryPlacesOf(ids)
@@ -93,7 +96,8 @@ internal object StoreTabsState {
             SessionPrefs.setLibraryTabPlaces(context, places)
         }
         val byId = tabs.associateBy { it.store.id }
-        val order = ids.mapNotNull { byId[it] }
+        val order = ids.mapNotNull { byId[it] }.toMutableList()
+        tabs.forEachIndexed { i, tab -> if (tab.store.id !in ids) order.add(i.coerceAtMost(order.size), tab) }
         if (order.map { it.store } != tabs.map { it.store }) {
             tabs = order
             save(context, arranged = true)

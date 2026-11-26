@@ -231,6 +231,7 @@ class SteamLibraryFoldersTest {
             }
         """.trimIndent()
         assertEquals("Player", SteamLibraryFolders.savedAccount(users))
+        assertEquals(SteamLibraryFolders.SavedAccount("76561190000000002", "Player"), SteamLibraryFolders.savedLogin(users))
         assertEquals("Old One", SteamLibraryFolders.savedAccount(users.replace("\"MostRecent\"\t\t\"1\"", "\"MostRecent\"\t\t\"0\"").replace("\"1700000000\"", "\"1500000000\"")))
         assertEquals("player", SteamLibraryFolders.savedAccount(users.replace("\"PersonaName\"\t\t\"Player\"", "\"PersonaName\"\t\t\"\"").replace("\"Old One\"", "\"\"").replace("\"1600000000\"", "\"1\"")))
         assertNull(SteamLibraryFolders.savedAccount(users.replace("\"RememberPassword\"\t\t\"1\"", "\"RememberPassword\"\t\t\"0\"")))

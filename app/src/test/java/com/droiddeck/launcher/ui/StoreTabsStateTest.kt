@@ -31,6 +31,16 @@ class StoreTabsStateTest {
         assertEquals(moved, StoreTabsState.tabs.map { it.store.id })
     }
 
+    @Test fun aLibraryReorderWithoutTheSteamStoreKeepsItsPlace() {
+        val ids = StoreTabsState.tabs.map { it.store.id }
+        val at = ids.indexOf(Store.STEAM.id)
+        val rest = ids - Store.STEAM.id
+        StoreTabsState.reorder(ctx, listOf(rest[1], rest[0]) + rest.drop(2))
+        val after = StoreTabsState.tabs.map { it.store.id }
+        assertEquals(at, after.indexOf(Store.STEAM.id))
+        assertEquals(listOf(rest[1], rest[0]) + rest.drop(2), after - Store.STEAM.id)
+    }
+
     @Test fun hidingIsSavedButTheLastShownStoreStays() {
         assertTrue(StoreTabsState.setShown(ctx, Store.GOG, false))
         assertTrue(Store.GOG.id in SessionPrefs.storesTabHidden(ctx))

@@ -20,6 +20,9 @@ internal object SteamEngine {
 
     private val lock = Any()
     @Volatile private var signedIn = false
+    /** The saved login the last sign-in attempt read, so a refusal rejects that login and not one saved since. */
+    @Volatile var attempted: String? = null
+        private set
     private var failed: JSONObject? = null
     private var failedAt = 0L
 
@@ -47,6 +50,7 @@ internal object SteamEngine {
                 .put(SessionPrefs.steamRoot(context, "arm64").absolutePath)
                 .put(SessionPrefs.steamRoot(context, SteamClient.X86_64).absolutePath)
             val registry = SteamClient.registry(context).absolutePath
+            attempted = SteamStore.fingerprint(context)
             val answer = call("signIn") { SteamNative.nativeSignIn(roots.toString(), registry, "") }
             signedIn = answer.optBoolean("ok")
             failed = if (signedIn) null else answer
