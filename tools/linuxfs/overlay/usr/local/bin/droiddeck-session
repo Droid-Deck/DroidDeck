@@ -30,12 +30,30 @@ dd_spawn() {
   "$@" &
   dd_spawned=$!
 }
+dd_session_pid=$$
+# Runs function $1 (with its arguments) in the background in a new bash that first loads this shell's
+# variables, functions and options: a background subshell, but an exec'd program, which the native
+# hook can hand to its own process (DD_HANDOFF "bash+dd-job"). $! is its pid, as for ( ... ) &.
+dd_job() {
+  local state
+  if [ -n "${DD_HANDOFF:-}" ] && state=$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/.dd-job.XXXXXX" 2>/dev/null); then
+    {
+      declare -p | grep -Ev '^declare -[a-zA-Z]*r|^declare -[-a-zA-Z]* (BASH[A-Z_]*|FUNCNAME|GROUPS|DIRSTACK|PIPESTATUS|COPROC|LINENO|_)='
+      declare -f
+      shopt -p
+      set +o
+    } > "$state" 2>/dev/null
+    /bin/bash -c 'source "$1" 2>/dev/null; rm -f "$1"; shift; "$@"' dd-job "$state" "$@" &
+  else
+    "$@" &
+  fi
+}
 # Long-lived programs the session's guests start run in their own processes too
 # (tools/nativeguest/hook/handoff.c). Not Steam, its web helper's browser process (gamescope finds a
 # window's app by walking its process's parents) or its utility processes (the client only accepts
 # its transport from its own children).
 if [ "${DD_SPAWN_DAEMONS:-1}" = 1 ] && [ -n "${DD_SPAWN:-}" ]; then
-  export DD_HANDOFF=${DD_HANDOFF-xdg-desktop-portal:xdg-permission-store:xdg-desktop-portal-gtk:at-spi-bus-launcher:at-spi2-registryd:plasma_waitforname:python3:pipewire:wireplumber:PluginLoader:PluginLoader.real:xprop+-spy:gnudd:steamwebhelper+--type=renderer:wine:wine-preloader:wine64:wine64-preloader:wineserver}
+  export DD_HANDOFF=${DD_HANDOFF-xdg-desktop-portal:xdg-permission-store:xdg-desktop-portal-gtk:at-spi-bus-launcher:at-spi2-registryd:plasma_waitforname:bash+dd-job:droiddeck-log-writer:gamescope:gamescopereaper:droiddeck-session+steam:Xwayland:dbus-launch:droiddeck-agent:droiddeck-launcher-cores:droiddeck-pace-cores:droiddeck-documents:droiddeck-steam-games+watch:droiddeck-steam-compat:dbus-daemon+--nofork:proton:pipewire:wireplumber:PluginLoader:PluginLoader.real:xprop+-spy:gnudd:steamwebhelper+--type=renderer:wine:wine-preloader:wine64:wine64-preloader:wineserver}
 else
   unset DD_HANDOFF
 fi
@@ -49,8 +67,12 @@ if [ -n "${DD_LOG:-}" ] && [ -z "${DD_INSIDE:-}" ]; then
   if [ "$(stat -c %s "$DD_LOG" 2>/dev/null || echo 0)" -gt 8388608 ]; then
     mv -f "$DD_LOG" "$DD_LOG.1"
   fi
-  dd=$(command -v gnudd || echo dd)
-  exec > >({ "$dd" of="$DD_LOG" oflag=append conv=notrunc iflag=count_bytes count="${DD_LOG_CAP:-268435456}" bs=65536 status=none; cat >/dev/null; }) 2>&1
+  if [ -x /usr/local/bin/droiddeck-log-writer ]; then
+    exec > >(exec /usr/local/bin/droiddeck-log-writer "$DD_LOG" "${DD_LOG_CAP:-268435456}") 2>&1
+  else
+    dd=$(command -v gnudd || echo dd)
+    exec > >({ "$dd" of="$DD_LOG" oflag=append conv=notrunc iflag=count_bytes count="${DD_LOG_CAP:-268435456}" bs=65536 status=none; cat >/dev/null; }) 2>&1
+  fi
   echo "== droiddeck-session $(date) mode=$mode $*"
   echo "== uid=$(id -u) size=${DD_WIDTH:-?}x${DD_HEIGHT:-?} icd=${VK_ICD_FILENAMES:-none}"
   echo "== gamescope: $(gamescope --version 2>&1 | head -1) at $(command -v gamescope)"
@@ -635,6 +657,9 @@ dd_stretch_game_screen() {
 export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
 reap_orphans() {
   local round p stat pid left
+  # Started by the app as an Android process of its own: its parent is zygote, whose other
+  # children are the app's processes.
+  case "$(tr -d '\0' < "/proc/$PPID/cmdline" 2>/dev/null)" in zygote*) return 0 ;; esac
   for round in 1 2 3 4 5; do
     left=
     for p in /proc/[0-9]*; do
@@ -796,7 +821,7 @@ case $mode in
     fi
     if [ "${DD_ZRAM:-0}" = 1 ]; then
       step "zRAM compression: on"
-      (
+      _dd_job_zram() {
         dd_zram_scan() {
           _dd_game=0 _dd_pids=() _dd_others=() _dd_apps=
           local _d _c _args _name _a _id _fex _lower _bnet=() _bnet_game=0
@@ -1141,7 +1166,7 @@ case $mode in
         _dd_sample_at= _dd_freed=0 _dd_client_out=0 _dd_note_client=0 _dd_note_session=0
         _dd_trim_at=-30 _dd_back_at=-30 _dd_forced_at=-10 _dd_full_at=-60 _dd_noted_at=-5
         _dd_rest=0 _dd_rest_until=0 _dd_rest_available=0
-        while kill -0 $$ 2>/dev/null; do
+        while kill -0 "$dd_session_pid" 2>/dev/null; do
           dd_memory_tick
           if [ "$_dd_available" -ge 0 ] &&
              { [ "$_dd_available" -lt $((_dd_mem_total * 2 / 5)) ] || [ "$_dd_rate" -ge $((16 * 1024)) ]; }; then
@@ -1150,7 +1175,8 @@ case $mode in
             nap 5
           fi
         done
-      ) &
+      }
+      dd_job _dd_job_zram
     fi
     if [ "${DD_LAUNCHER_CORES:-1}" != 0 ] && [ -n "${DD_LAUNCH_DIR:-}" ] && [ -z "${DD_DESKTOP:-}" ] \
        && [ "${DD_STEAM_UI:-}" != desktop ] && [ -x /usr/local/bin/droiddeck-launcher-cores ]; then
@@ -1242,7 +1268,7 @@ case $mode in
         ) &
       fi
     fi
-    [ -z "${DD_DESKTOP:-}" ] && (
+    _dd_job_properties() {
       stretch=0 restore=0
       [ "${DD_STRETCHED:-0}" = 1 ] && stretch=1
       [ "${DD_RESTORE_ON_RESUME:-1}" = 1 ] && restore=1
@@ -1321,8 +1347,9 @@ case $mode in
               && echo "== stretch 16:9 to panel: the client sized the game screen to the output ($DD_STRETCH_OUTPUT), set to $DD_STRETCH_GAME"
             ;;
         esac
-      done < <(xprop -spy -root "${atoms[@]}" 2>/dev/null)
-    ) &
+      done < <(exec xprop -spy -root "${atoms[@]}" 2>/dev/null)
+    }
+    [ -n "${DD_DESKTOP:-}" ] || dd_job _dd_job_properties
     steam_hold_launch() {
       local game=$1 shortcut= waited=0 status=0
       _dd_focused() { xprop -root GAMESCOPE_FOCUSED_APP 2>/dev/null | sed -n 's/.*= *//p'; }
@@ -1481,7 +1508,7 @@ case $mode in
     if [ -f "$HOME/.droiddeck-decky-enabled" ] && [ -x "$decky_loader" ]; then
       decky_arch=$(cat "$HOME/homebrew/services/.droiddeck-decky-arch" 2>/dev/null || echo unknown)
       if [ "$decky_arch" = arm64 ] || { [ "$decky_arch" = x86_64 ] && /usr/local/bin/droiddeck-fex prepare >/dev/null; }; then
-        (
+        _dd_job_decky() {
           decky_child=
           decky_stop() { [ -z "$decky_child" ] || kill "$decky_child" 2>/dev/null; [ -z "$decky_child" ] || wait "$decky_child" 2>/dev/null; exit 0; }
           trap decky_stop TERM INT HUP
@@ -1505,7 +1532,8 @@ case $mode in
             echo "== Decky: loader exited with status $decky_status; restart $((decky_exits + 1))/5 in ${decky_delay}s"
             sleep "$decky_delay"
           done
-        ) &
+        }
+        dd_job _dd_job_decky
         decky_supervisor=$!
         echo "== Decky: session supervisor started ($decky_arch)"
       else
@@ -1706,7 +1734,7 @@ case $mode in
       rm -f "$DD_LAUNCH_DIR/steam-stop" "$DD_LAUNCH_DIR/steam-game" "$DD_LAUNCH_DIR/steam-game.tmp"
       requests=1
     fi
-    (
+    _dd_job_requests() {
       tick=0
       beat=0
       library_job=
@@ -1884,7 +1912,8 @@ case $mode in
           fi
         fi
       done
-    ) &
+    }
+    dd_job _dd_job_requests
     stop_watcher=$!
     if [ "${DD_VENUS:-0}" = 1 ] && [ -x /usr/local/bin/droiddeck-glprobe ] && [ "${GALLIUM_DRIVER:-}" = zink ]; then
       LIBGL_DEBUG=verbose MESA_LOG_LEVEL=debug timeout 20 /usr/local/bin/droiddeck-glprobe 2>&1 | grep -v drirc | head -60 | sed 's/^/== glprobe: /'

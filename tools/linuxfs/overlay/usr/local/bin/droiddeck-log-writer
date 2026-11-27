@@ -1,0 +1,8 @@
+#!/bin/bash
+# Appends stdin to a session log up to a byte cap, then reads and drops the rest, so that the session
+# writing into it never gets SIGPIPE. A program of its own, rather than a subshell of the session, so
+# that the native hook can start it outside the app's counted child processes.
+# usage: droiddeck-log-writer FILE CAP_BYTES
+dd=$(command -v gnudd || echo dd)
+"$dd" of="$1" oflag=append conv=notrunc iflag=count_bytes count="$2" bs=65536 status=none
+exec cat >/dev/null

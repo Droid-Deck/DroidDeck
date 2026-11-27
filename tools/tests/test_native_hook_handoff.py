@@ -71,12 +71,18 @@ class FakeSpawner(threading.Thread):
                 conn, _ = self.sock.accept()
             except OSError:
                 return
-            header, fds, _, _ = socket.recv_fds(conn, 4, 256)
+            header = b""
+            while len(header) < 4:
+                header += conn.recv(4 - len(header))
             length = struct.unpack(">I", header)[0]
             payload = b""
             while len(payload) < length:
                 payload += conn.recv(length - len(payload))
             request = json.loads(payload)
+            fds = []
+            while len(fds) < len(request["fds"]) + 1:
+                _, chunk, _, _ = socket.recv_fds(conn, 1, request["fdchunks"])
+                fds.extend(chunk)
             self.requests.append(request)
             table = fds[request["table"]]
             program = str(self.root) + request["file"]

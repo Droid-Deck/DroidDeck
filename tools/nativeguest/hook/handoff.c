@@ -51,16 +51,30 @@ static const char *ddh_env(char *const envp[], const char *name) {
 }
 
 // In the parent, before fork(): the table the children write to.
-static void ddh_prepare(void) {
-    if (g_ddh || !getenv("DD_SPAWN")) return;
+static void ddh_prepare_failed(const char *step) {
+    if (!getenv("DD_HANDOFF_DEBUG")) return;
+    char line[96];
+    int len = snprintf(line, sizeof(line), "ddnatv handoff: %d no table: %s errno %d\n", (int)getpid(), step, errno);
+    if (len > 0) syscall(SYS_write, 2, line, (size_t)len);
+}
+
+// The table the children write to: at start when DD_SPAWN is set, else at the first fork() (a
+// shell that exports DD_SPAWN itself has no sign of it in its own environment).
+static void ddh_prepare(int any) {
+    if (g_ddh || (!any && !getenv("DD_SPAWN"))) return;
     int fd = (int)syscall(SYS_memfd_create, "ddnatv-handoff", 1 /* MFD_CLOEXEC */);
-    if (fd < 0) return;
+    if (fd < 0) {
+        ddh_prepare_failed("memfd_create");
+        return;
+    }
     if (ftruncate(fd, sizeof(struct ddh_table)) != 0) {
+        ddh_prepare_failed("ftruncate");
         close(fd);
         return;
     }
     void *p = mmap(NULL, sizeof(struct ddh_table), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (p == MAP_FAILED) {
+        ddh_prepare_failed("mmap");
         close(fd);
         return;
     }
@@ -94,10 +108,129 @@ static void ddh_find_parent_table(void) {
     }
 }
 
+// The worker's binder fds (DDH_WORKER_PID names the worker's process). Only that process may hold
+// them: a child holding a copy keeps the worker alive in the system's eyes after its program exits.
+static int g_ddh_binder[8];
+static int g_ddh_nbinder;
+static pid_t g_ddh_worker;
+
+static void ddh_unkeep(int fd) {
+    for (int i = 0; i < g_kept_fd_count; i++) {
+        if (g_kept_fds[i] != fd) continue;
+        memmove(&g_kept_fds[i], &g_kept_fds[i + 1], (size_t)(g_kept_fd_count - i - 1) * sizeof(int));
+        g_kept_fd_count--;
+        return;
+    }
+}
+
+static void ddh_keep(int fd) {
+    if (g_kept_fd_count >= DDNATV_MAX_KEPT_FDS || is_kept_fd(fd)) return;
+    int i = g_kept_fd_count;
+    while (i > 0 && g_kept_fds[i - 1] > fd) {
+        g_kept_fds[i] = g_kept_fds[i - 1];
+        i--;
+    }
+    g_kept_fds[i] = fd;
+    g_kept_fd_count++;
+}
+
+static void ddh_drop_worker_binder(void) {
+    if (g_ddh_nbinder == 0 || getpid() == g_ddh_worker) return;
+    for (int i = 0; i < g_ddh_nbinder; i++) {
+        ddh_unkeep(g_ddh_binder[i]);
+        syscall(SYS_close, g_ddh_binder[i]);
+    }
+    g_ddh_nbinder = 0;
+    g_kept_from_cloexec = 0;
+}
+
+static void ddh_find_worker_binder(void) {
+    const char *worker = getenv("DDH_WORKER_PID");
+    if (!worker) return;
+    g_ddh_worker = (pid_t)atoi(worker);
+    char path[64], target[32];
+    for (int fd = 3; fd < 4096 && g_ddh_nbinder < 8; fd++) {
+        snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
+        long len = syscall(SYS_readlinkat, AT_FDCWD, path, target, sizeof(target) - 1);
+        if (len <= 0) continue;
+        target[len] = 0;
+        if (strstr(target, "binder")) g_ddh_binder[g_ddh_nbinder++] = fd;
+    }
+    if (getpid() == g_ddh_worker) {
+        // The program closing every fd it did not open (gamescope does) would end the worker.
+        for (int i = 0; i < g_ddh_nbinder; i++) ddh_keep(g_ddh_binder[i]);
+        if (g_ddh_nbinder > 0) g_kept_from_cloexec = 1;
+    }
+    ddh_drop_worker_binder();
+}
+
+// In the program a worker runs for a handed-off child (DDH_TABLE "FD:SLOT:PARENT"): its exit status
+// goes into the parent's table here; the app reports it from Android's exit record only when the
+// program never got to exit() (a signal, _exit()).
+static struct ddh_table *g_ddh_report;
+static int g_ddh_report_slot = -1;
+static pid_t g_ddh_report_parent;
+
+static void ddh_report_exit(int status, void *unused) {
+    (void)unused;
+    if (!g_ddh_report || getpid() != g_ddh_worker) return;
+    struct ddh_entry *e = &g_ddh_report->e[g_ddh_report_slot];
+    e->status = (status & 0xff) << 8;
+    __atomic_store_n(&e->state, DDH_EXITED, __ATOMIC_RELEASE);
+    if (g_ddh_report_parent > 0) syscall(SYS_kill, g_ddh_report_parent, SIGCHLD);
+}
+
+static void ddh_setup_report(void) {
+    const char *spec = getenv("DDH_TABLE");
+    if (!spec || g_ddh_worker != getpid()) return;
+    int fd = -1, slot = -1, parent = 0;
+    if (sscanf(spec, "%d:%d:%d", &fd, &slot, &parent) != 3 || slot < 0 || slot >= DDH_SLOTS) return;
+    struct ddh_table *t = mmap(NULL, sizeof(struct ddh_table), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (t == MAP_FAILED || t->magic != DDH_MAGIC) return;
+    g_ddh_report = t;
+    g_ddh_report_slot = slot;
+    g_ddh_report_parent = parent;
+    on_exit(ddh_report_exit, NULL);
+}
+
+// In a program a worker started: the state its forked parent had, sent along with the exec.
+static void ddh_apply_inherited(void) {
+    const char *ign = getenv("DDH_SIGIGN");
+    if (ign) {
+        unsigned long mask = strtoul(ign, NULL, 10);
+        for (int sig = 1; sig < 32; sig++) {
+            if (sig == SIGKILL || sig == SIGSTOP) continue;
+            struct sigaction sa;
+            if (sigaction(sig, NULL, &sa) != 0) continue;
+            int want = (mask >> (sig - 1)) & 1;
+            if (want && sa.sa_handler != SIG_IGN) signal(sig, SIG_IGN);
+            else if (!want && sa.sa_handler == SIG_IGN) signal(sig, SIG_DFL);
+        }
+        unsetenv("DDH_SIGIGN");
+    }
+    const char *nofile = getenv("DDH_NOFILE");
+    if (nofile) {
+        struct rlimit lim;
+        if (getrlimit(RLIMIT_NOFILE, &lim) == 0) {
+            rlim_t want = (rlim_t)strtoull(nofile, NULL, 10);
+            lim.rlim_cur = want < lim.rlim_max ? want : lim.rlim_max;
+            setrlimit(RLIMIT_NOFILE, &lim);
+        }
+        unsetenv("DDH_NOFILE");
+    }
+    const char *mask = getenv("DDH_UMASK");
+    if (mask) {
+        umask((mode_t)strtoul(mask, NULL, 10));
+        unsetenv("DDH_UMASK");
+    }
+}
+
 __attribute__((constructor)) static void ddh_init(void) {
-    if (!getenv("DD_SPAWN")) return;
+    ddh_apply_inherited();
+    ddh_find_worker_binder();
+    ddh_setup_report();
     ddh_find_parent_table();
-    ddh_prepare();
+    ddh_prepare(0);
 }
 
 static int ddh_has_arg(char *const argv[], const char *prefix, size_t len) {
@@ -182,6 +315,7 @@ static void ddh_putarray(struct ddh_buf *b, char *const v[]) {
 }
 
 #define DDH_MAX_FDS 240
+#define DDH_FDS_PER_CHUNK 60
 
 // The fds the program would have inherited: every open fd without FD_CLOEXEC.
 static int ddh_open_fds(int *fds, int max) {
@@ -207,6 +341,15 @@ static int ddh_open_fds(int *fds, int max) {
             if (fd == dir) continue;
             int flags = (int)syscall(SYS_fcntl, fd, F_GETFD);
             if (flags < 0 || (flags & FD_CLOEXEC)) continue;
+            // A worker's binder fd, inherited from the worker this process runs in: it keeps that
+            // worker alive and must not take the place of the new worker's own.
+            char link[64], target[32];
+            snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+            long tlen = syscall(SYS_readlinkat, AT_FDCWD, link, target, sizeof(target) - 1);
+            if (tlen > 0) {
+                target[tlen] = 0;
+                if (strstr(target, "binder")) continue;
+            }
             if (n == max) {
                 syscall(SYS_close, dir);
                 return -1;
@@ -272,18 +415,33 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
         table = g_ddh_up;
         table_fd = g_ddh_up_fd;
     } else {
-        ddh_debug(envp, "not a child its parent can track:", filename);
+        if (ddh_env(envp, "DD_HANDOFF_DEBUG")) {
+            char why[160];
+            snprintf(why, sizeof(why), "not a child its parent can track (table %d owner %d up %d up-owner %d ppid %d):",
+                     g_ddh != NULL, (int)g_ddh_owner, g_ddh_up != NULL, g_ddh_up ? g_ddh_up->pad[0] : 0, (int)getppid());
+            ddh_debug(envp, why, filename);
+        }
         return;
     }
     const char *sock = ddh_env(envp, "DD_SPAWN");
     const char *list = ddh_env(envp, "DD_HANDOFF");
-    if (!sock || !list || access(filename, X_OK) != 0) return;
+    if (!sock || !list) return;
+    if (access(filename, X_OK) != 0) {
+        ddh_debug(envp, "not executable here:", filename);
+        return;
+    }
     // Whatever this exec becomes can still hand off its own exec (a wrapper, a script).
     syscall(SYS_fcntl, table_fd, F_SETFD, 0);
     char shebang[256];
     const char *interp = NULL;
+    // "python3 SCRIPT" and "sh SCRIPT" are matched by the script's name too
+    const char *script = argv && argv[0] && argv[1] && argv[1][0] != '-' ? ddh_base(argv[1]) : NULL;
     if (!ddh_listed(list, ddh_base(filename), argv) && !(argv && ddh_listed(list, ddh_base(argv[0]), argv)) &&
-        !((interp = ddh_interpreter(filename, shebang, sizeof(shebang))) && ddh_listed(list, interp, argv))) return;
+        !(script && ddh_listed(list, script, argv)) &&
+        !((interp = ddh_interpreter(filename, shebang, sizeof(shebang))) && ddh_listed(list, interp, argv))) {
+        ddh_debug(envp, "not listed:", filename);
+        return;
+    }
 
     int fds[DDH_MAX_FDS + 1];
     int nfds = ddh_open_fds(fds, DDH_MAX_FDS);
@@ -302,6 +460,17 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     pid_t me = getpid(), parent = getppid();
     char cwd[PATH_MAX];
     if (!getcwd(cwd, sizeof(cwd))) strcpy(cwd, "/");
+    // What the program would have inherited here and a worker does not have: ignored signals, the
+    // open-files limit, the umask (ddh_apply_inherited() restores them in the program).
+    unsigned long ignored = 0;
+    for (int sig = 1; sig < 32; sig++) {
+        struct sigaction sa;
+        if (sigaction(sig, NULL, &sa) == 0 && sa.sa_handler == SIG_IGN) ignored |= 1UL << (sig - 1);
+    }
+    struct rlimit nofile = {0, 0};
+    getrlimit(RLIMIT_NOFILE, &nofile);
+    mode_t mask = umask(0);
+    umask(mask);
 
     struct ddh_buf b = {0};
     for (int pass = 0; pass < 2; pass++) {
@@ -319,7 +488,9 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
             if (i) ddh_put(&b, ",", 1);
             ddh_putint(&b, fds[i]);
         }
-        ddh_puts(&b, "],\"table\":");
+        ddh_puts(&b, "],\"fdchunks\":");
+        ddh_putint(&b, DDH_FDS_PER_CHUNK);
+        ddh_puts(&b, ",\"table\":");
         ddh_putint(&b, nfds);
         ddh_puts(&b, ",\"slot\":");
         ddh_putint(&b, slot);
@@ -327,6 +498,12 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
         ddh_putint(&b, parent);
         ddh_puts(&b, ",\"child\":");
         ddh_putint(&b, me);
+        ddh_puts(&b, ",\"sigign\":");
+        ddh_putint(&b, (long)ignored);
+        ddh_puts(&b, ",\"nofile\":");
+        ddh_putint(&b, (long)nofile.rlim_cur);
+        ddh_puts(&b, ",\"umask\":");
+        ddh_putint(&b, (long)mask);
         ddh_puts(&b, "}");
         if (pass == 0) {
             b.cap = b.len + 4;
@@ -349,16 +526,30 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
         if (syscall(SYS_connect, s, &addr, alen) == 0) {
             uint32_t len = (uint32_t)b.len;
             unsigned char header[4] = {(unsigned char)(len >> 24), (unsigned char)(len >> 16), (unsigned char)(len >> 8), (unsigned char)len};
-            struct iovec iov[2] = {{header, 4}, {b.p, b.len}};
-            char control[CMSG_SPACE(sizeof(int) * (DDH_MAX_FDS + 1))];
-            struct msghdr msg = {.msg_iov = iov, .msg_iovlen = 2, .msg_control = control,
-                                 .msg_controllen = CMSG_SPACE(sizeof(int) * (nfds + 1))};
-            struct cmsghdr *cm = CMSG_FIRSTHDR(&msg);
-            cm->cmsg_level = SOL_SOCKET;
-            cm->cmsg_type = SCM_RIGHTS;
-            cm->cmsg_len = CMSG_LEN(sizeof(int) * (nfds + 1));
-            memcpy(CMSG_DATA(cm), fds, sizeof(int) * (nfds + 1));
-            if (syscall(SYS_sendmsg, s, &msg, MSG_NOSIGNAL) == (long)(b.len + 4)) {
+            long sent = 0;
+            while (sent < (long)(b.len + 4)) {
+                long more = sent < 4 ? syscall(SYS_sendto, s, header + sent, 4 - sent, MSG_NOSIGNAL, NULL, 0)
+                                     : syscall(SYS_sendto, s, b.p + (sent - 4), b.len + 4 - sent, MSG_NOSIGNAL, NULL, 0);
+                if (more <= 0) break;
+                sent += more;
+            }
+            // Then the fds, at most DDH_FDS_PER_CHUNK with each byte: the app's LocalSocket takes
+            // no more than 64 fds in one read.
+            for (int at = 0; sent == (long)(b.len + 4) && at < nfds + 1; at += DDH_FDS_PER_CHUNK) {
+                int count = nfds + 1 - at < DDH_FDS_PER_CHUNK ? nfds + 1 - at : DDH_FDS_PER_CHUNK;
+                char marker = 'F';
+                struct iovec iov = {&marker, 1};
+                char control[CMSG_SPACE(sizeof(int) * DDH_FDS_PER_CHUNK)];
+                struct msghdr msg = {.msg_iov = &iov, .msg_iovlen = 1, .msg_control = control,
+                                     .msg_controllen = CMSG_SPACE(sizeof(int) * count)};
+                struct cmsghdr *cm = CMSG_FIRSTHDR(&msg);
+                cm->cmsg_level = SOL_SOCKET;
+                cm->cmsg_type = SCM_RIGHTS;
+                cm->cmsg_len = CMSG_LEN(sizeof(int) * count);
+                memcpy(CMSG_DATA(cm), fds + at, sizeof(int) * count);
+                if (syscall(SYS_sendmsg, s, &msg, MSG_NOSIGNAL) != 1) sent = -1;
+            }
+            if (sent == (long)(b.len + 4)) {
                 char reply[64];
                 size_t got = 0;
                 while (got < sizeof(reply) - 1) {
@@ -541,10 +732,38 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
     return 0;
 }
 
+// Whether pgid is zygote's process group, which every process of the app is in until it starts a
+// session of its own: signalling it would reach the app itself.
+static int ddh_app_group(pid_t pgid) {
+    char path[32], name[16] = "";
+    snprintf(path, sizeof(path), "/proc/%d/cmdline", (int)pgid);
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    long n = syscall(SYS_read, fd, name, sizeof(name) - 1);
+    syscall(SYS_close, fd);
+    return n > 0 && strncmp(name, "zygote", 6) == 0;
+}
+
 int kill(pid_t pid, int sig) {
     if (g_ddh && pid > 0) {
         struct ddh_entry *e = ddh_find(pid);
         if (e && __atomic_load_n(&e->state, __ATOMIC_ACQUIRE) == DDH_HANDED) pid = e->real;
+    }
+    // -1 is every process this one may signal, the app's own among them
+    if (sig != 0 && (pid == -1 || (pid <= 0 && ddh_app_group(pid == 0 ? getpgrp() : -pid)))) {
+        errno = EPERM;
+        return -1;
+    }
+    if (sig != 0 && getenv("DD_HANDOFF_DEBUG")) {
+        char line[160], comm[32] = "?";
+        int fd = (int)syscall(SYS_openat, AT_FDCWD, "/proc/self/comm", O_RDONLY | O_CLOEXEC);
+        if (fd >= 0) {
+            long n = syscall(SYS_read, fd, comm, sizeof(comm) - 1);
+            if (n > 0) comm[n - 1] = 0;
+            syscall(SYS_close, fd);
+        }
+        int len = snprintf(line, sizeof(line), "ddnatv handoff: %d (%s) kill(%d, %d)\n", (int)getpid(), comm, (int)pid, sig);
+        if (len > 0) syscall(SYS_write, 2, line, (size_t)len);
     }
     return (int)syscall(SYS_kill, pid, sig);
 }

@@ -28,17 +28,18 @@ object SessionLogCapture {
             out.flush()
             writer = out
             this.target = target
-            pid = HostProcess.start(
+            pid = HostProcess.startUncounted(
                 command(Process.myPid(), sinceMillis),
                 null, target.parentFile, null,
-            ) { line ->
-                synchronized(this) {
-                    try {
-                        writer?.apply { write(line); newLine(); flush() }
-                    } catch (e: Exception) {
+                onLine = { line ->
+                    synchronized(this) {
+                        try {
+                            writer?.apply { write(line); newLine(); flush() }
+                        } catch (e: Exception) {
+                        }
                     }
-                }
-            }
+                },
+            )
             if (pid == -1) {
                 out.write("logcat could not be started; this ROM may not hand an app its own entries.\n")
                 out.flush()

@@ -862,10 +862,10 @@ class SessionService : Service() {
         watchLaunchRequests(sessionRoot)
         watchSyncWanted(root)
         EsyncPacks.fetchInBackground(this, root)
-        val pid = SessionEvents.step("guest-launch") { HostProcess.start(line, hostEnv.asArray(), root, { status ->
+        val pid = SessionEvents.step("guest-launch") { HostProcess.startUncounted(line, hostEnv.asArray(), root, { status ->
             if (gen != sessionGen) {
                 Log.i(TAG, "an earlier session's process ended ($status); the current one carries on")
-                return@start
+                return@startUncounted
             }
             val program = programStatus(sessionRoot)
             Log.i(TAG, "session ended: $status" + if (program != null) " (program $program)" else "")
@@ -1526,8 +1526,9 @@ class SessionService : Service() {
     private fun teardown(prootPid: Int, expectedStartTime: Long? = null) {
         fun stillSameProcess(): Boolean = expectedStartTime == null || readStat(prootPid)?.second == expectedStartTime
         if (!stillSameProcess()) return
-        if (expectedStartTime == null) com.droiddeck.launcher.runtime.GuestWorkers.stopAll()
-        val tree = descendants(prootPid)
+        // The session's programs that run in worker processes are not descendants of its root.
+        val workers = if (expectedStartTime == null) com.droiddeck.launcher.runtime.GuestWorkers.guestPids() else emptyList()
+        val tree = descendants(prootPid) + workers.flatMap { pid -> listOfNotNull(readStat(pid)?.let { Pair(pid, it.second) }) + descendants(pid) }
         if (!stillSameProcess()) return
         saveWineRegistries(tree)
         android.os.Process.sendSignal(prootPid, 15)
@@ -1544,6 +1545,7 @@ class SessionService : Service() {
             killed++
         }
         if (killed > 0) Log.i(TAG, "swept $killed process(es) proot left behind")
+        if (expectedStartTime == null) com.droiddeck.launcher.runtime.GuestWorkers.stopGuests()
     }
 
     private fun clearCachedApps() {

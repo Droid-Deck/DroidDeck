@@ -89,7 +89,7 @@ public class DirectAudioRelayComponent extends SessionPart {
             }
         }
         final java.io.PrintWriter log = out;
-        pid = HostProcess.start(command.toString(), env.toArray(new String[0]),
+        pid = HostProcess.startUncounted(command.toString(), env.toArray(new String[0]),
                 app().getFilesDir(), null,
                 line -> {
                     Log.i(TAG, line);

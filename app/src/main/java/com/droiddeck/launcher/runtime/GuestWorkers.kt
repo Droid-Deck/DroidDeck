@@ -51,31 +51,45 @@ open class GuestWorker : Service() {
 
     private fun exec(argv: Array<String>, env: Array<String>, fds: List<ParcelFileDescriptor?>, targets: IntArray) {
         try {
-            keepBinderOpen()
+            val top = targets.maxOrNull() ?: 2
+            val binderTop = keepBinderOpen(maxOf(BINDER_FDS, top + 1))
             // Out of the way first, so that placing one fd cannot overwrite another not yet placed.
-            val moved = fds.map { pfd -> pfd?.let { Os.fcntlInt(it.fileDescriptor, OsConstants.F_DUPFD, MOVED_FDS) } }
+            val above = maxOf(MOVED_FDS, top + 1, binderTop + 1)
+            val moved = fds.map { pfd -> pfd?.let { Os.fcntlInt(it.fileDescriptor, OsConstants.F_DUPFD, above) } }
             moved.forEachIndexed { i, fd ->
                 if (fd == null || i >= targets.size) return@forEachIndexed
                 val source = ParcelFileDescriptor.adoptFd(fd).also { kept.add(it) }.fileDescriptor
                 Os.dup2(source, targets[i])
                 Os.fcntlInt(source, OsConstants.F_SETFD, OsConstants.FD_CLOEXEC)
             }
-            Os.execve(argv[0], argv, env)
+            // A session of its own: in zygote's process group, a program signalling its group
+            // (kill(0, sig)) would reach every process of the app.
+            runCatching { Os.setsid() }
+            // The native hook closes the binder fds in every other process (hook/handoff.c).
+            Os.execve(argv[0], argv, env.filterNot { it.startsWith("DDH_WORKER_PID=") }.toTypedArray() +
+                "DDH_WORKER_PID=${Process.myPid()}")
         } catch (e: ErrnoException) {
             Log.e(TAG, "could not exec ${argv.firstOrNull()}", e)
         }
         Process.killProcess(Process.myPid())
     }
 
-    /** Binder fds stay open across the exec, above the numbers the program's fds go to. */
-    private fun keepBinderOpen() {
+    /**
+     * Binder fds stay open across the exec, at [from] or above, where no fd of the program goes.
+     * Returns the highest fd used.
+     */
+    private fun keepBinderOpen(from: Int): Int {
+        var highest = from - 1
         File("/proc/self/fd").listFiles()?.forEach { link ->
             val target = runCatching { Os.readlink(link.path) }.getOrNull() ?: return@forEach
             if (!target.contains("binder")) return@forEach
-            val fd = ParcelFileDescriptor.adoptFd(link.name.toIntOrNull() ?: return@forEach)
-            kept.add(fd)
-            Os.fcntlInt(fd.fileDescriptor, OsConstants.F_DUPFD, BINDER_FDS)
+            // A copy, not adoptFd(): some of these fds are owned (fdsan) by a ParcelFileDescriptor.
+            val copy = runCatching { ParcelFileDescriptor.fromFd(link.name.toIntOrNull() ?: return@forEach) }.getOrNull()
+                ?: return@forEach
+            highest = maxOf(highest, Os.fcntlInt(copy.fileDescriptor, OsConstants.F_DUPFD, from))
+            copy.close()
         }
+        return highest
     }
 
     companion object {
@@ -185,12 +199,16 @@ object GuestWorkers {
         GuestWorker63::class.java,
     )
 
-    private class Slot(val index: Int, val connection: ServiceConnection) {
+    private class Slot(val index: Int, val connection: ServiceConnection, val guest: Boolean) {
         @Volatile var pid = -1
     }
 
     private val slots = arrayOfNulls<Slot>(classes.size)
     @Volatile private var server: Thread? = null
+
+    /** The app, once [attach] or [serve] ran in its main process; null before. */
+    @Volatile var context: Context? = null
+        private set
 
     fun socketName(context: Context): String = "droiddeck-spawn." + context.packageName + "." + Process.myUid()
 
@@ -204,7 +222,11 @@ object GuestWorkers {
 
     /** As [start], with the fds in [fds] placed at the numbers in [targets]. */
     fun start(context: Context, argv: List<String>, env: List<String>, fds: List<ParcelFileDescriptor>, targets: IntArray,
-              onExit: (Int) -> Unit): Int {
+              onExit: (Int) -> Unit): Int = start(context, argv, env, fds, targets, false, onExit)
+
+    /** [guest]: one of the session's guest programs, which [guestPids] lists and [stopGuests] ends. */
+    private fun start(context: Context, argv: List<String>, env: List<String>, fds: List<ParcelFileDescriptor>, targets: IntArray,
+                      guest: Boolean, onExit: (Int) -> Unit): Int {
         val app = context.applicationContext
         val connected = CountDownLatch(1)
         var service: IBinder? = null
@@ -225,7 +247,7 @@ object GuestWorkers {
 
                 override fun onBindingDied(name: ComponentName) = release(app, index, onExit)
             }
-            slot = Slot(index, connection)
+            slot = Slot(index, connection, guest)
             slots[index] = slot
         }
         val intent = Intent(app, classes[slot.index])
@@ -277,17 +299,26 @@ object GuestWorkers {
         return -1
     }
 
-    /** Kills every worker's program; for session teardown. */
-    fun stopAll() {
-        val pids = synchronized(slots) { slots.mapNotNull { it?.pid?.takeIf { pid -> pid > 0 } } }
+    /** The pids of the session's guest programs running in workers. */
+    fun guestPids(): List<Int> = synchronized(slots) { slots.mapNotNull { s -> s?.takeIf { it.guest }?.pid?.takeIf { it > 0 } } }
+
+    /** Ends the session's guest programs that are still running; for session teardown. */
+    fun stopGuests() {
+        val pids = guestPids()
+        if (pids.isEmpty()) return
         pids.forEach { Process.sendSignal(it, OsConstants.SIGTERM) }
         Thread.sleep(500)
         pids.forEach { Process.killProcess(it) }
     }
 
     /** Listens for `droiddeck-spawn` requests from the session's guests. */
+    fun attach(context: Context) {
+        this.context = context.applicationContext
+    }
+
     fun serve(context: Context) {
         val app = context.applicationContext
+        this.context = app
         synchronized(this) {
             if (server != null) return
             server = Thread({
@@ -299,7 +330,13 @@ object GuestWorkers {
                 }
                 while (true) {
                     val client = runCatching { socket.accept() }.getOrNull() ?: continue
-                    Thread({ handle(app, client) }, "guest-spawn").start()
+                    Thread({
+                        try {
+                            handle(app, client)
+                        } catch (e: Throwable) {
+                            Log.w(TAG, "spawn request failed", e)
+                        }
+                    }, "guest-spawn").start()
                 }
             }, "guest-spawn-server").apply { isDaemon = true; start() }
         }
@@ -310,26 +347,51 @@ object GuestWorkers {
             if (client.peerCredentials.uid != Process.myUid()) return
             val input = DataInputStream(client.inputStream)
             val payload = ByteArray(input.readInt()).also { input.readFully(it) }
-            val received = client.ancillaryFileDescriptors.orEmpty()
-            val fds = received.map { ParcelFileDescriptor.dup(it) }
-            received.forEach { runCatching { Os.close(it) } }
             val request = JSONObject(String(payload))
+            val fds = ArrayList<ParcelFileDescriptor>()
+            fun take() {
+                val received = client.ancillaryFileDescriptors.orEmpty()
+                received.forEach { fds.add(ParcelFileDescriptor.dup(it)) }
+                received.forEach { runCatching { Os.close(it) } }
+            }
+            if (request.has("fdchunks")) {
+                // The hook sends its fds after the request, a chunk with each byte (hook/handoff.c)
+                val total = (request.optJSONArray("fds")?.length() ?: 0) + (if (request.has("table")) 1 else 0)
+                while (fds.size < total) {
+                    if (input.read() < 0) throw java.io.EOFException("fds ended at ${fds.size} of $total")
+                    take()
+                }
+            } else {
+                take()
+            }
             val argv = request.getJSONArray("argv").let { a -> List(a.length()) { a.getString(it) } }
             val env = LinkedHashMap<String, String>()
             request.optJSONObject("env")?.let { o -> o.keys().forEach { env[it] = o.getString(it) } }
             request.optJSONArray("envlist")?.let { a ->
                 for (i in 0 until a.length()) a.getString(i).split('=', limit = 2).let { if (it.size == 2) env[it[0]] = it[1] }
             }
+            // What the hook told the program that asked (it may run in a worker itself) is not this one's
+            env.keys.removeAll { it.startsWith("DDH_") }
             val cwd = request.optString("cwd", "/")
             val wait = request.optBoolean("wait", false)
             val file = request.optString("file", "")
             // The handoff table (the hook's) comes last among the fds; the rest go to these numbers.
             val tableIndex = request.optInt("table", -1)
             val numbers = request.optJSONArray("fds")?.let { a -> IntArray(a.length()) { a.getInt(it) } } ?: IntArray(3) { it }
-            val table = fds.getOrNull(tableIndex)
+            val table = fds.getOrNull(tableIndex)?.takeIf { pfd ->
+                runCatching { Os.readlink("/proc/self/fd/${pfd.fd}") }.getOrNull()?.contains("ddnatv-handoff") == true
+            }
             val slot = request.optInt("slot", -1)
             val parent = request.optInt("parent", -1)
-            val programFds = fds.filterIndexed { i, _ -> i != tableIndex }
+            var programFds = fds.filterIndexed { i, _ -> i != tableIndex }
+            var targets = numbers
+            if (table != null && slot >= 0) {
+                // The program reports its own exit status into the table (hook/handoff.c)
+                val tableFd = (numbers.maxOrNull() ?: 2) + 1
+                programFds = programFds + table
+                targets = numbers + tableFd
+                env["DDH_TABLE"] = "$tableFd:$slot:$parent"
+            }
             val root = env["DDNATV_ROOT"]?.let(::File)
             val out = client.outputStream
             if (root == null || argv.isEmpty()) {
@@ -346,14 +408,18 @@ object GuestWorkers {
             }
             val command = NativeGuest.command(root, shell, args)
             env["DDNATV_REAL_EXE"] = File(root, shell.removePrefix("/")).path
+            // The hook restores these in the program (tools/nativeguest/hook/handoff.c).
+            if (request.has("sigign")) env["DDH_SIGIGN"] = request.getLong("sigign").toString()
+            if (request.has("nofile")) env["DDH_NOFILE"] = request.getLong("nofile").toString()
+            if (request.has("umask")) env["DDH_UMASK"] = request.getLong("umask").toString()
             val exited = CountDownLatch(1)
             var status = -1
-            val pid = start(app, command, env.map { (k, v) -> "$k=$v" }, programFds, numbers) { code ->
+            val pid = start(app, command, env.map { (k, v) -> "$k=$v" }, programFds, targets, true) { code ->
                 status = code
                 if (table != null && slot >= 0) reportExit(table, slot, code, parent)
                 exited.countDown()
             }
-            programFds.forEach { runCatching { it.close() } }
+            programFds.filter { it !== table }.forEach { runCatching { it.close() } }
             if (pid <= 0) table?.let { runCatching { it.close() } }
             out.write(if (pid > 0) "pid $pid\n".toByteArray() else "error no worker\n".toByteArray())
             out.flush()
@@ -371,7 +437,11 @@ object GuestWorkers {
         runCatching {
             val entry = 64L + slot * 32L
             val word = java.nio.ByteBuffer.allocate(4).order(java.nio.ByteOrder.nativeOrder())
-            Os.pwrite(table.fileDescriptor, word.putInt(0, if (status < 0) 9 else status).also { it.rewind() }, entry + 16)
+            Os.pread(table.fileDescriptor, word, entry + 12)
+            if (word.getInt(0) == 2) return@runCatching  // the program wrote its own status
+            word.clear()
+            // An exit Android has no record of is reported as a failure, not as a signal.
+            Os.pwrite(table.fileDescriptor, word.putInt(0, if (status < 0) 1 shl 8 else status).also { it.rewind() }, entry + 16)
             Os.pwrite(table.fileDescriptor, word.putInt(0, 2).also { it.rewind() }, entry + 12)
             if (parent > 0) Process.sendSignal(parent, OsConstants.SIGCHLD)
         }.onFailure { Log.w(TAG, "could not report an exit to the guest's parent", it) }
