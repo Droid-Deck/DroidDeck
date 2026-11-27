@@ -115,10 +115,11 @@ internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier)
         account = { host ->
             SettingsGroup(stringResource(R.string.setup_account)) {
                 ToggleRow(
-                    host, "offline", stringResource(R.string.setup_offline),
+                    host, "offline-auto", stringResource(R.string.setup_offline_auto),
                     s.offlineAccount?.let { if (it.isEmpty()) stringResource(R.string.setup_signed_in_unnamed) else stringResource(R.string.setup_signed_in, it) } ?: stringResource(R.string.setup_sign_in_first),
-                    s.offline, enabled = s.offlineAccount != null,
-                ) { a.onOffline() }
+                    s.offlineAuto, enabled = s.offlineAccount != null,
+                ) { a.onOfflineAuto() }
+                if (!s.offlineAuto) ToggleRow(host, "offline", stringResource(R.string.setup_offline), null, s.offline, enabled = s.offlineAccount != null) { a.onOffline() }
             }
         },
     )

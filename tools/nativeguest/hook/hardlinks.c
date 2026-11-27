@@ -445,12 +445,15 @@ static void load_app_ids(void) {
     __atomic_store_n(&g_app_uid, uid, __ATOMIC_RELAXED);
 }
 
+#define ANDROID_MEDIA_RW_GID ((gid_t)1023)
+
 static void present_owner_as_root(uid_t *uid, gid_t *gid) {
     if (__atomic_load_n(&g_app_uid, __ATOMIC_RELAXED) == (uid_t)-1) load_app_ids();
     uid_t app_uid = __atomic_load_n(&g_app_uid, __ATOMIC_RELAXED);
     gid_t app_gid = __atomic_load_n(&g_app_gid, __ATOMIC_RELAXED);
     if (app_uid == (uid_t)-1) return;
     if (uid && *uid == app_uid) *uid = 0;
+    if (uid && gid && *gid == ANDROID_MEDIA_RW_GID) *uid = 0;
     if (gid && *gid == app_gid) *gid = 0;
 }
 

@@ -36,7 +36,10 @@ static void init_ddnatv_hook(void) {
             }
         }
     }
-    ddnatv_load_binds(getenv("DDNATV_BINDS"));
+    ddnatv_load_binds(getenv("DDNATV_BINDS"), getenv("DDNATV_BINDS_KERNEL"));
+    const char *mount_table = getenv("DDNATV_MOUNTINFO");
+    if (mount_table && mount_table[0] == '/' && strlen(mount_table) < sizeof(g_mount_table))
+        ddnatv_copy_cstr(g_mount_table, sizeof(g_mount_table), mount_table);
     const char *exec_loader = getenv("DDNATV_EXEC");
     if (exec_loader && exec_loader[0] == '/' && strlen(exec_loader) < sizeof(g_exec_loader))
         ddnatv_copy_cstr(g_exec_loader, sizeof(g_exec_loader), exec_loader);
@@ -225,6 +228,7 @@ static void adopt_forwarded_fds(void) {
 
 __attribute__((constructor(103))) static void init_ddnatv_hook_early(int argc, char **argv) {
     adopt_forwarded_fds();
+    ddnatv_resolve_libc();
     init_ddnatv_hook();
     compact_loader_args(argc, argv);
     // The kernel names the process after what it executed, the rootfs ld.so: process monitors, and
@@ -776,13 +780,16 @@ static const char *rewrite_path_follow(const char *path, char *buffer, size_t bu
             if (!best || b->src_len > best->src_len) best = b;
         }
         if (!best) {
+#if defined(__aarch64__)
+            t_plain_host = NULL;
+#endif
             const char *host = rewrite_path_in_root(path, buffer, bufsize);
 #if defined(__aarch64__)
             // A link in the rootfs with an absolute guest target that the hook did not write (one made
             // under proot, or copied from Proton's template prefix, as Wine's "z:" -> "/") is followed
             // by the kernel on Android's own tree: Wine found no drive for any path and gave games
             // \\?\unix\ names, which an NW.js game could not load its DLLs from.
-            if (is_android_host_path(path)) return host;
+            if (is_android_host_path(path) || known_plain(host)) return host;
             char target[PATH_MAX];
             long n = raw_readlinkat(AT_FDCWD, host, target, sizeof(target) - 1);
             if (n <= 0 || target[0] != '/') return host;
@@ -805,7 +812,9 @@ static const char *rewrite_path_follow(const char *path, char *buffer, size_t bu
         path = from_source;
     }
     char guest[PATH_MAX];
-    const char *followed = follow_guest_link(path, guest, sizeof(guest));
+    buffer[0] = '\0';
+    const char *followed = follow_guest_link_host(path, guest, sizeof(guest), buffer, bufsize);
+    if (followed == path && buffer[0]) return buffer;
     char mapped[PATH_MAX];
     const char *host = rewrite_path_in_root(followed, mapped, sizeof(mapped));
     // the result may be `followed` or `path` itself, which can live here

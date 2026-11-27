@@ -55,6 +55,12 @@ class VkDmabufQuarantineTest(unittest.TestCase):
             helpers += ['static void release_due_buffers(void);', 'static void arm_release_timer(void);',
                         function(comp, 'sync_holder')]
             names.insert(names.index('on_release_timer'), 'release_due_buffers')
+        depth = re.search(r'^#define RELEASE_PACE_DEPTH \d+$', comp, re.M)
+        if depth:
+            helpers += [depth.group(0),
+                        'static void describe(const struct surface *s, char *out, size_t size) '
+                        '{ (void)s; if (size) out[0] = 0; }',
+                        'static void droiddeck_log(const char *tag, const char *fmt, ...) { (void)tag; (void)fmt; }']
         if re.search(r'\bvolatile int g_release_unpaced;', comp):
             # Releases stay paced in these scenarios (fps limit -1 sends them at once).
             helpers.insert(0, 'static int g_release_unpaced;')

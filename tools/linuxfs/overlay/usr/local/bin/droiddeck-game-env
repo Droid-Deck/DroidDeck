@@ -1530,9 +1530,13 @@ def game_logs(command, env, app_id, now=None):
     except OSError as error:
         print("droiddeck-game-env: no game log folder (%s)" % error, file=sys.stderr)
         return env
+    proton_log = env.get("PROTON_LOG", "")
+    asked = proton_log not in ("", "0")
     result = dict(env)
+    if not asked:
+        result.setdefault("WINEDEBUG", "-all,err+all")
     result.update({
-        "PROTON_LOG": "1",
+        "PROTON_LOG": proton_log if asked else "1",
         "PROTON_LOG_DIR": str(folder),
         "DXVK_LOG_PATH": str(folder),
         "DXVK_LOG_LEVEL": env.get("DXVK_LOG_LEVEL", "info"),

@@ -95,7 +95,7 @@ abstract class StoreAchievements(val source: String, val label: String) {
             private set
         fun invalidate() { revision++ }
 
-        private val all: List<StoreAchievements> by lazy { listOf(GogAchievements, EpicAchievements) }
+        private val all: List<StoreAchievements> by lazy { listOf(GogAchievements, EpicAchievements, SteamAchievements) }
 
         fun forSource(source: String?): StoreAchievements? = all.firstOrNull { it.source == source }
     }

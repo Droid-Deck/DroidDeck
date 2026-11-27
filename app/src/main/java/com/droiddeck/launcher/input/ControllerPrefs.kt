@@ -20,7 +20,7 @@ object ControllerPrefs {
 
     val opacities = listOf(40, 60, 80, 100)
 
-    val sizes = listOf(80, 90, 100, 110, 125)
+    val sizes = listOf(80, 85, 90, 95, 100, 105, 110, 115, 120, 125)
 
     val deadZones = listOf(0, 5, 8, 12, 15, 20, 25)
     const val DEFAULT_DEAD_ZONE_PERCENT = 12

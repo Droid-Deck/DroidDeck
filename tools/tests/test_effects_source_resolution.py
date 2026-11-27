@@ -262,7 +262,7 @@ static void record_draw(int cmd, const struct vkp_draw *draw, const VkImageBlit 
     copy_count++; copied = *blit;
     copied_w = draw->dw; copied_h = draw->dh; target_w = w; target_h = h;
 }
-static void vkp_effects_set_formats(int input, int output) {}
+static void vkp_effects_set_formats(int input, int output, int scene_is_pq) {}
 static VkImage vkp_effects_run(int cmd, int source, int w, int h, int ow, int oh, int *rw, int *rh) {
     effects_count++; effects_w = w; effects_h = h; output_w = ow; output_h = oh;
     if (!hdr_count) assert(g_scene.w == w && g_scene.h == h);

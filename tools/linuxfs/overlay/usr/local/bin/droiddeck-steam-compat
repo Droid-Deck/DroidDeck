@@ -966,6 +966,7 @@ class Helper:
         self.fex_asked = set()
         self.tools_asked = {}
         self.tools_checked = None
+        self.valve_names = None
         self.vr_launch = None
         self.chooser = None
         self.controls_state = None
@@ -1256,6 +1257,10 @@ class Helper:
                 page.compat("set(%d, %s)" % (int(app), json.dumps(tool if tool is not None else "")))
                 say("%s -> %s" % ("default" if app == "0" else "app %s" % app,
                                    tool if tool is not None else "Steam native default"))
+            names = set(dict(current, **changes).values()) | {default}
+            if COMPAT["uses_valve_proton"](names) and not COMPAT["uses_valve_proton"](self.valve_names or ()):
+                self.tools_checked = None
+            self.valve_names = names
             state.update(
                 auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
                 native_choices=sorted(refused_native | {app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]}),
@@ -1276,7 +1281,8 @@ class Helper:
         self.tools_checked = now
         if COMPAT["game_running"]():
             return
-        for app, action in COMPAT["tool_downloads"](self.steam_root):
+        needed = COMPAT["valve_proton_needed"](self.steam_root, self.valve_names)
+        for app, action in COMPAT["tool_downloads"](self.steam_root, needed):
             if now - self.tools_asked.get(app, -TOOL_RETRY_SECONDS) < TOOL_RETRY_SECONDS:
                 continue
             self.tools_asked[app] = now

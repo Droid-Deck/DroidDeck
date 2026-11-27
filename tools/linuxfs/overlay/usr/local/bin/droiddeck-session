@@ -778,7 +778,7 @@ case $mode in
           for _d in /proc/[0-9]*; do
             [ "${_d##*/}" != "$BASHPID" ] || continue
             _args=()
-            while IFS= read -r -d '' _c; do _args+=("$_c"); done 2>/dev/null < "$_d/cmdline" || true
+            mapfile -d '' -t _args 2>/dev/null < "$_d/cmdline" || true
             [ "${#_args[@]}" -gt 0 ] || continue
             _name=${_args[0]} _fex=0
             if [ "${#_args[@]}" -gt 1 ]; then
@@ -1169,7 +1169,10 @@ case $mode in
         "${DD_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam" &&
         echo "$DD_SHADER_PRECACHE" > "$HOME/.dd-shader-precache-applied" || true
     fi
-    if [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ]; then
+    if [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ] &&
+      ! steam-compatibility "$steam_root" --valve-proton-needed; then
+      step "leaving Valve's ARM64 Proton until a title needs it"
+    elif [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ]; then
       step "asking the client to fetch the ARM64 Proton"
       set -- "$@" steam://install/4427310
       (

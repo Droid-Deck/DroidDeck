@@ -38,8 +38,9 @@ python3 /usr/local/bin/droiddeck-desktop-programs 2>&1 | sed 's/^/[programs] /'
 # start, and a panel made before this version (Kubuntu's own, or the first SteamOS one without the
 # pager, clock and Plasma's stock pins) is set aside once so Plasma lays out the current one.
 dd_layout=/usr/share/plasma/look-and-feel/com.valve.vapor.desktop/contents/layouts
+dd_layout_installed=0
 if [ -d "$dd_layout" ]; then
-  cat > "$dd_layout/org.kde.plasma.desktop-layout.js" <<'LAYOUT'
+  if cat > "$dd_layout/org.kde.plasma.desktop-layout.js" <<'LAYOUT'
 var desktops = desktopsForActivity(currentActivity());
 for (var i = 0; i < desktops.length; i++) {
     desktops[i].wallpaperPlugin = "org.kde.image";
@@ -111,10 +112,13 @@ clock.currentConfigGroup = ["Appearance"];
 clock.writeConfig("dateFormat", "isoDate");
 panel.addWidget("org.kde.plasma.showdesktop");
 LAYOUT
+  then
+    dd_layout_installed=1
+  fi
 fi
 dd_panel_rc="${XDG_CONFIG_HOME:-$HOME/.config}/plasma-org.kde.plasma.desktop-appletsrc"
 dd_panel_stamp="${XDG_CONFIG_HOME:-$HOME/.config}/droiddeck-panel-layout"
-if [ "$(cat "$dd_panel_stamp" 2>/dev/null)" != steamos-2 ]; then
+if [ "$dd_layout_installed" -eq 1 ] && [ "$(cat "$dd_panel_stamp" 2>/dev/null)" != steamos-2 ]; then
   dd_panel_backup="$dd_panel_rc.before-steamos-2"
   [ -e "$dd_panel_backup" ] && dd_panel_backup="$dd_panel_backup.$$"
   if [ ! -f "$dd_panel_rc" ] || mv "$dd_panel_rc" "$dd_panel_backup"; then

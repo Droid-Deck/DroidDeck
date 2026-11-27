@@ -56,6 +56,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -139,6 +140,7 @@ import androidx.compose.foundation.layout.offset
 internal class GameRef(val appId: Int?, val store: Store?, val storeId: String?) {
     fun game(games: List<Library.SteamGame>): Library.SteamGame? = when {
         appId != null -> games.firstOrNull { it.appId == appId }
+        store == Store.STEAM && storeId != null -> games.firstOrNull { Library.fromSteamClient(it) && it.appId.toString() == storeId }
         store != null && storeId != null -> games.firstOrNull { it.source == store.id && it.storeId == storeId }
         else -> null
     }
@@ -182,7 +184,7 @@ internal fun GameDetail(
     if (nothing) return
     val source = game?.source ?: store?.id ?: Library.SOURCE_STEAM
     val title = game?.name ?: item?.title ?: installed?.sidecar?.title ?: id.orEmpty()
-    val favoriteKey = if (store != null && id != null) "${store.id}:$id" else game?.let { GameRef.key(it) } ?: key
+    val favoriteKey = if (store == Store.STEAM && id != null) "app:$id" else if (store != null && id != null) "${store.id}:$id" else game?.let { GameRef.key(it) } ?: key
     val scores = if (source != Library.ADDED) rememberGameScores(title.takeIf { it.isNotBlank() && it != id }) else null
     val achievements = remember(store, id, item?.accessible, installed) {
         when {
@@ -224,10 +226,22 @@ internal fun GameDetail(
         val t = tab ?: return@LaunchedEffect
         if (!inPage) focusWithinFrames({ onStrip }) { tabFocus.getValue(t) }
     }
+    var steppedTo by remember(key) { mutableStateOf<GameTab?>(null) }
+    LaunchedEffect(steppedTo, tab) {
+        val t = steppedTo ?: return@LaunchedEffect
+        if (t != tab) {
+            steppedTo = null
+            return@LaunchedEffect
+        }
+        focusSoon { tabFocus.getValue(t) }
+        steppedTo = null
+    }
     fun cycle(step: Int) {
         if (tabs.size < 2) return
         val at = tabs.indexOf(tab).coerceAtLeast(0)
-        picked = tabs[(at + step + tabs.size) % tabs.size]
+        val next = tabs[(at + step + tabs.size) % tabs.size]
+        picked = next
+        if (inPage) steppedTo = next
     }
     val art: Any? = game?.hero ?: item?.imageUrl ?: installed?.sidecar?.hero ?: installed?.sidecar?.cover
     val artModel: Any? = if (art is String) cardArtRequest(art, item?.tallImageUrl) else art
@@ -1068,8 +1082,36 @@ private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, ses
                     runCatching { CurseForgeApp.byFolder(link.installed(context, target, scanKey)) }.getOrDefault(emptyMap())
                 }
             }
+            val progress = remember(target.addOns) { mutableStateMapOf<String, Int>() }
+            val curseOf = { item: WowAddons.Installed -> link?.let { l -> managed[item.name.lowercase()]?.let { it to l } } }
+            val outdated = names.filter { item -> curseOf(item)?.first?.update ?: (updates[item.name] != null) }
+            val scope = rememberCoroutineScope()
             if (targets.size > 1) SectionLabel(target.flavor)
             MenuItem(stringResource(R.string.addons_download), checked = false) { browsing = target }
+            if (outdated.size > 1 && !SessionState.running) MenuItem(
+                stringResource(R.string.store_update_all, outdated.size), checked = false, enabled = progress.isEmpty(),
+            ) {
+                val plan = outdated.groupBy { item -> curseOf(item)?.first?.id?.let { "curse:$it" } ?: "folder:${item.name}" }.values.map { group ->
+                    Triple(group.map { it.name }, updates[group.first().name], curseOf(group.first()))
+                }
+                plan.forEach { (folders) -> folders.forEach { progress[it] = 0 } }
+                val owned = plan.flatMap { it.first }.toMutableSet()
+                scope.launch {
+                    try {
+                        plan.forEach { (folders, wowi, curse) ->
+                            val name = folders.first()
+                            val (message, ok) = updateAddon(context, name, wowi.takeIf { curse == null }, target, curse) { pct ->
+                                scope.launch { folders.forEach { progress[it] = pct } }
+                            }
+                            folders.forEach { progress.remove(it) }
+                            owned.removeAll(folders.toSet())
+                            if (!ok && message != null) android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    } finally {
+                        owned.forEach { progress.remove(it) }
+                    }
+                }
+            }
             MenuItem(
                 stringResource(R.string.games_import_addons), checked = false,
                 detail = pluralStringResource(R.plurals.games_addons_count, names.size, names.size),
@@ -1078,7 +1120,7 @@ private fun AddonsTab(g: Library.SteamGame, targets: List<WowAddons.Target>, ses
                 target.addOns.mkdirs()
                 a.onBrowseFiles(target.addOns)
             }
-            names.forEach { item -> key(target.addOns, item.name) { AddonRow(item, updates[item.name], target, a, link?.let { l -> managed[item.name.lowercase()]?.let { it to l } }) } }
+            names.forEach { item -> key(target.addOns, item.name) { AddonRow(item, updates[item.name], target, a, progress, curseOf(item)) } }
         }
     }
 }
@@ -1132,12 +1174,12 @@ private fun CurseForgeEntry(a: FrontEndActions) {
 }
 
 @Composable
-internal fun AddonRow(item: WowAddons.Installed, wowiUpdate: WowAddonCatalog.Addon?, target: WowAddons.Target, a: FrontEndActions, curse: Pair<CurseForgeApp.Project, CurseLink>? = null) {
+internal fun AddonRow(item: WowAddons.Installed, wowiUpdate: WowAddonCatalog.Addon?, target: WowAddons.Target, a: FrontEndActions, progresses: MutableMap<String, Int>, curse: Pair<CurseForgeApp.Project, CurseLink>? = null) {
     val name = item.name
     val update = wowiUpdate.takeIf { curse == null }
     val outdated = update != null || curse?.first?.update == true
     var asking by remember(target.addOns, name) { mutableStateOf(false) }
-    var progress by remember(target.addOns, name) { mutableStateOf<Int?>(null) }
+    val progress = progresses[name]
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val delete = stringResource(R.string.common_delete)
@@ -1152,29 +1194,37 @@ internal fun AddonRow(item: WowAddons.Installed, wowiUpdate: WowAddonCatalog.Add
             )
         }
         if (outdated && !SessionState.running) IconAction(Icons.Outlined.Download, stringResource(R.string.common_update), "addon:update:${target.flavor}:$name", enabled = progress == null) {
-            progress = 0
+            progresses[name] = 0
             scope.launch {
-                val message = withContext(Dispatchers.IO) {
-                    if (curse != null) {
-                        val (project, link) = curse
-                        val done = runCatching { link.change(context, target) { CurseForgeApp.update(context, it.inspector, it.guid, project.id) } }.getOrDefault(false)
-                        WowAddons.changed()
-                        if (done) context.getString(R.string.user_apps_updated, name) else context.getString(R.string.stores_dl_failed_reason, name)
-                    } else update?.let { installAddon(context, it, target) { pct -> scope.launch { progress = pct } }.first }
+                try {
+                    val message = updateAddon(context, name, update, target, curse) { pct -> scope.launch { progresses[name] = pct } }.first
+                    if (message != null) android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                } finally {
+                    progresses.remove(name)
                 }
-                progress = null
-                if (message != null) android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
             }
         }
-        if (!SessionState.running) IconAction(Icons.Outlined.Delete, if (curse != null) stringResource(R.string.common_uninstall) else delete, "addon:delete:${target.flavor}:$name", danger = true) { asking = true }
+        if (!SessionState.running) IconAction(Icons.Outlined.Delete, if (curse != null) stringResource(R.string.common_uninstall) else delete, "addon:delete:${target.flavor}:$name", danger = true, enabled = progress == null) { asking = true }
     }
     if (asking) ConfirmDialog(
         title = if (curse != null) stringResource(R.string.stores_uninstall_title, name) else stringResource(R.string.games_delete_addon_title, name),
         text = stringResource(R.string.games_delete_addon_body),
         confirm = if (curse != null) stringResource(R.string.common_uninstall) else delete,
-        onConfirm = { a.onAddonDelete(target, name) },
+        onConfirm = { asking = false; if (progresses[name] == null) a.onAddonDelete(target, name) },
         onDismiss = { asking = false },
     )
+}
+
+private suspend fun updateAddon(
+    context: android.content.Context, name: String, update: WowAddonCatalog.Addon?, target: WowAddons.Target,
+    curse: Pair<CurseForgeApp.Project, CurseLink>?, onProgress: (Int) -> Unit,
+): Pair<String?, Boolean> = withContext(Dispatchers.IO) {
+    if (curse != null) {
+        val (project, link) = curse
+        val done = runCatching { link.change(context, target) { CurseForgeApp.update(context, it.inspector, it.guid, project.id) } }.getOrDefault(false)
+        WowAddons.changed()
+        (if (done) context.getString(R.string.user_apps_updated, name) else context.getString(R.string.stores_dl_failed_reason, name)) to done
+    } else update?.let { installAddon(context, it, target, onProgress).let { (message, version) -> message to (version != null) } } ?: (null to false)
 }
 
 @Composable

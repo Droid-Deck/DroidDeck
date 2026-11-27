@@ -273,7 +273,8 @@ public final class PadBridge {
     static boolean isSystemVirtualInputName(String name) {
         if (name == null) return false;
         String lower = name.trim().toLowerCase(java.util.Locale.ROOT);
-        return lower.startsWith("uinput-") || lower.startsWith("uinput_");
+        // Xiaomi's "ui-input-xiaomi" is a system uinput device that also reports gamepad sources.
+        return lower.startsWith("uinput-") || lower.startsWith("uinput_") || lower.equals("ui-input-xiaomi");
     }
 
     public static boolean isFromController(InputDevice device) {

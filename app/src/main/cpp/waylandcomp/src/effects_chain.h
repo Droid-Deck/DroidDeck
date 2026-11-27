@@ -23,7 +23,7 @@ void vkp_effects_destroy(void);
 
 void vkp_effects_forget_image(VkImage img);
 
-void vkp_effects_set_formats(VkFormat scene_fmt, VkFormat target_fmt);
+void vkp_effects_set_formats(VkFormat scene_fmt, VkFormat target_fmt, int scene_is_pq);
 
 void vkp_effects_set_scaling(int mode);
 void vkp_effects_set_upscale_sharpness(int pct);

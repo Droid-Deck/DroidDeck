@@ -754,12 +754,17 @@ jobs:
             ln -sfn "$(cd "$jars" && pwd)" "$m2"
             echo "cache=true" >> "$GITHUB_OUTPUT"
           fi
-      - name: Cache Robolectric's Android jars
+      - name: Restore Robolectric's Android jars
+        id: robolectric-cache
         if: steps.robolectric-jars.outputs.cache == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ../robolectric-jars
-          key: robolectric-android-all-v2-${{ steps.robolectric.outputs.version }}
+          key: robolectric-android-all-v3-${{ steps.robolectric.outputs.version }}-${{ github.run_id }}
+          restore-keys: robolectric-android-all-v3-${{ steps.robolectric.outputs.version }}-
+      - name: Count the restored Robolectric jars
+        if: steps.robolectric-jars.outputs.cache == 'true'
+        run: echo "ROBOLECTRIC_JARS_BEFORE=$(find "$GITHUB_WORKSPACE/../robolectric-jars" -name '*.jar' | wc -l)" >> "$GITHUB_ENV"
       - name: Unit tests
         id: unit-tests
         env:
@@ -769,6 +774,34 @@ jobs:
           set -o pipefail
           mkdir -p app/build
           ./gradlew testReleaseUnitTest --console=plain --info --stacktrace -Drobolectric.logging=stderr -PndkVersion="$NDK_VERSION" 2>&1 | tee app/build/unit-tests.log
+
+      # actions/cache only saves when the job succeeds, so a run whose tests died on a Maven 429 never filled the cache.
+      # Save the complete jars even after a failed test step, when this run added some; a partial download is dropped first.
+      - name: Save Robolectric's Android jars
+        id: robolectric-jars-final
+        if: always() && steps.robolectric-jars.outputs.cache == 'true'
+        run: |
+          python3 - <<'PY'
+          import glob, os, zipfile
+          root = os.path.join(os.environ['GITHUB_WORKSPACE'], '..', 'robolectric-jars')
+          for f in glob.glob(os.path.join(root, '**', '*'), recursive=True):
+              if not os.path.isfile(f):
+                  continue
+              try:
+                  ok = f.endswith('.jar') and zipfile.ZipFile(f).testzip() is None
+              except Exception:
+                  ok = False
+              if not ok:
+                  os.remove(f)
+          PY
+          after=$(find "$GITHUB_WORKSPACE/../robolectric-jars" -name '*.jar' | wc -l)
+          [ "$after" -gt "${ROBOLECTRIC_JARS_BEFORE:-0}" ] && echo "save=true" >> "$GITHUB_OUTPUT" || true
+      - name: Store Robolectric's Android jars
+        if: always() && steps.robolectric-jars-final.outputs.save == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ../robolectric-jars
+          key: robolectric-android-all-v3-${{ steps.robolectric.outputs.version }}-${{ github.run_id }}
 
       - name: Upload unit test diagnostics
         id: unit-test-diagnostics
