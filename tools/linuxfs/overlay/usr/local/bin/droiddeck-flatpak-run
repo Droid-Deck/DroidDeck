@@ -12,14 +12,57 @@ if [ -n "${DD_INSIDE:-}" ] || [ -n "${GAMESCOPE_WAYLAND_DISPLAY:-}" ]; then
   export XDG_SESSION_TYPE=x11
   socket=(--nosocket=wayland --socket=x11)
 fi
-app=
-for arg in "$@"; do
-  case $arg in -*) ;; *) app=$arg; break ;; esac
-done
+source "${BASH_SOURCE[0]%/*}/droiddeck-chromium-desktop"
 gpu=("${BASH_SOURCE[0]%/*}/droiddeck-game-gpu")
+options=() installation=() branch=() command= inspect=1
+while (($#)); do
+  arg=$1
+  case $arg in
+    --arch|--installation|--branch|--command)
+      (($# >= 2)) || break
+      options+=("$1" "$2")
+      arg=$1=$2
+      shift 2 ;;
+    --) options+=("$1"); shift; break ;;
+    -*) options+=("$1"); shift ;;
+    *) break ;;
+  esac
+  case $arg in
+    --user|-u) installation+=(--user) ;;
+    --system|--arch=*|--installation=*) installation+=("$arg") ;;
+    --branch=*) branch=("${arg#*=}") ;;
+    --command=*) command=${arg#*=} ;;
+    --file-forwarding) ;;
+    *) inspect=0 ;;
+  esac
+done
+app=${1:-}
 location=
-[ -n "$app" ] && location=$(flatpak info --show-location "$app" 2>/dev/null)
-[ -n "$location" ] && gpu+=(--for "$location/files")
+if [[ -n $app ]]; then
+  shift
+  location=$(flatpak info "${installation[@]}" --show-location "$app" "${branch[@]}" 2>/dev/null)
+fi
+graphics=()
+if [[ -n $location ]]; then
+  gpu+=(--for "$location/files")
+  if ((inspect)) && dd_mali_wayland_desktop && dd_chromium_bundle "$location/files"; then
+    # Flatpak desktop exports can name the default command explicitly.
+    default_command=$(sed -n '/^\[Application\]$/,/^\[/{s/^command=//p;}' "$location/metadata" 2>/dev/null)
+    if [[ -n $default_command && ( -z $command || $command == "$default_command" ) ]]; then
+      sockets=$(flatpak info "${installation[@]}" --show-permissions "$app" "${branch[@]}" 2>/dev/null |
+        sed -n '/^\[Context\]$/,/^\[/{s/^sockets=//p;}')
+      if [[ ";${sockets%;};" == *';wayland;'* ]]; then
+        dd_chromium_wayland_flags "$@"
+        graphics=("${dd_wayland_flags[@]}")
+      fi
+    fi
+  fi
+fi
+if [[ -n $app ]]; then
+  set -- "${options[@]}" "$app" "${graphics[@]}" "$@"
+else
+  set -- "${options[@]}" "$@"
+fi
 echo "== flatpak run ${socket[*]} $*"
 if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-run-session >/dev/null 2>&1; then
   exec "${gpu[@]}" -- dbus-run-session -- flatpak run "${socket[@]}" "$@"

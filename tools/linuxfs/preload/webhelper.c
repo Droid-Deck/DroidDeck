@@ -33,6 +33,19 @@ static const char *env_value(char *const envp[], const char *variable) {
   return NULL;
 }
 
+static int env_set(char *const envp[], const char *name) {
+  const char *value = env_value(envp, name);
+  return value && *value;
+}
+
+static int mali_wayland_desktop(char *const envp[]) {
+  const char *standin = env_value(envp, "DD_MALI_RENDER_STANDIN");
+  const char *session = env_value(envp, "XDG_SESSION_TYPE");
+  return standin && !strcmp(standin, "1") && session && !strcmp(session, "wayland") &&
+         env_set(envp, "WAYLAND_DISPLAY") && !env_set(envp, "DD_INSIDE") &&
+         !env_set(envp, "GAMESCOPE_WAYLAND_DISPLAY") && !env_set(envp, "DD_DESKTOP_GPU_CHILD");
+}
+
 static int electron_node_mode(char *const envp[]) {
   const char *mode = env_value(envp, "ELECTRON_RUN_AS_NODE");
   return mode && *mode;
@@ -79,22 +92,36 @@ static int started_by_its_own_app(const char *path) {
 
 static char *const *chromium_argv(const char *path, char *const argv[], char *const envp[]) {
   if (!path || !argv || !argv[0]) return argv;
-  int argc = 0, sandbox = 1, ozone = 0;
+  int argc = 0, sandbox = 1, switches = 1, render_node = 0, headless = 0;
+  const char *platform = NULL;
   for (; argv[argc]; argc++) {
     if (!argc) continue;
-    if (!strncmp(argv[argc], "--type=", 7)) return argv;
-    if (!strcmp(argv[argc], "--no-sandbox")) sandbox = 0;
-    if (!strncmp(argv[argc], "--ozone-platform=", 17)) ozone = 1;
+    const char *arg = argv[argc];
+    if (!strcmp(arg, "--no-sandbox")) sandbox = 0;
+    if (!strcmp(arg, "--")) switches = 0;
+    if (!switches) continue;
+    if (!strncmp(arg, "--type=", 7)) return argv;
+    if (!strncmp(arg, "--ozone-platform=", 17) || !strcmp(arg, "--ozone-platform")) platform = arg;
+    if (!strncmp(arg, "--render-node-override=", 23) || !strcmp(arg, "--render-node-override")) render_node = 1;
+    if (!strcmp(arg, "--headless") || !strncmp(arg, "--headless=", 11)) headless = 1;
   }
-  const char *display = env_value(envp, "DISPLAY");
-  int x11 = !ozone && display && *display;
-  if ((!sandbox && !x11) || !beside_chrome_sandbox(path) || started_by_its_own_app(path)) return argv;
-  char **out = calloc((size_t)argc + 3, sizeof *out);
+  if (!beside_chrome_sandbox(path) || started_by_its_own_app(path)) return argv;
+  int desktop = mali_wayland_desktop(envp);
+  const char *ozone = NULL;
+  if (!platform) {
+    if (desktop && !headless) ozone = "--ozone-platform=wayland";
+    if (!desktop && env_set(envp, "DISPLAY")) ozone = "--ozone-platform=x11";
+  }
+  int skip_render_probe = desktop && !headless && !render_node &&
+                          (!platform || !strcmp(platform, "--ozone-platform=wayland"));
+  if (!sandbox && !ozone && !skip_render_probe) return argv;
+  char **out = calloc((size_t)argc + 4, sizeof *out);
   if (!out) return argv;
   int n = 0;
   out[n++] = argv[0];
   if (sandbox) out[n++] = (char *)"--no-sandbox";
-  if (x11) out[n++] = (char *)"--ozone-platform=x11";
+  if (ozone) out[n++] = (char *)ozone;
+  if (skip_render_probe) out[n++] = (char *)"--render-node-override=";
   for (int i = 1; i < argc; i++) out[n++] = argv[i];
   return out;
 }

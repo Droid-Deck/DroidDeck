@@ -28,6 +28,9 @@ find "$XDG_RUNTIME_DIR" -mindepth 1 -maxdepth 1 ! -name 'wayland-0*' ! -name 'ke
 chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null
 mkdir -p /tmp/.X11-unix /tmp/.ICE-unix && chmod 1777 /tmp/.X11-unix /tmp/.ICE-unix 2>/dev/null
 export DD_DESKTOP=1
+source /usr/local/bin/droiddeck-chromium-desktop
+unset DD_MALI_RENDER_STANDIN
+if dd_mali_render_standin /dev; then export DD_MALI_RENDER_STANDIN=1; fi
 sh /usr/local/bin/droiddeck-diversion-stub /usr/bin/pkexec /usr/local/bin/pkexec migrate
 sh /usr/local/bin/droiddeck-diversion-stub /usr/lib/snapd/snap-confine /usr/local/bin/droiddeck-snap-confine migrate
 ln -sf /usr/local/bin/droiddeck-steam-launch /usr/local/bin/steamdeck-steam 2>/dev/null

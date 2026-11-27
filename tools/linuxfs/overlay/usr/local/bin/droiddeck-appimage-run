@@ -17,9 +17,13 @@ if [ -s /etc/ld.so.preload ]; then
   export LD_PRELOAD="${preload%:}${LD_PRELOAD:+:$LD_PRELOAD}" SHARUN_ALLOW_LD_PRELOAD=1
 fi
 flags=()
-if [ -n "$(find -H "$APPDIR" -maxdepth 4 \( -name chrome-sandbox -o -name chrome_100_percent.pak -o -name v8_context_snapshot.bin \) -print -quit 2>/dev/null)" ]; then
+source "${BASH_SOURCE[0]%/*}/droiddeck-chromium-desktop"
+if dd_chromium_bundle "$APPDIR"; then
   flags+=(--no-sandbox)
-  if [ -n "${DISPLAY:-}" ]; then
+  if dd_mali_wayland_desktop; then
+    dd_chromium_wayland_flags "$@"
+    flags+=("${dd_wayland_flags[@]}")
+  elif [ -n "${DISPLAY:-}" ]; then
     export XDG_SESSION_TYPE=x11
     unset WAYLAND_DISPLAY
     flags+=(--ozone-platform=x11)
@@ -97,6 +101,7 @@ rm -f "$started"
 image_running() {
   local p exe arg cwd
   for p in /proc/[0-9]*; do
+    [ -e "$p/exe" ] || continue
     exe=$(readlink "$p/exe" 2>/dev/null) || continue
     case $exe in "$APPDIR"/*) return 0 ;; esac
     case $exe in

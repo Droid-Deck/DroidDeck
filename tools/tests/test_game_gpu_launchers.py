@@ -53,6 +53,40 @@ class GameGpuLaunchersTest(unittest.TestCase):
     def flatpak(self, session=SESSION):
         return self.run_env(["bash", str(BIN / "droiddeck-flatpak-run"), "--command=app", "org.example.App"], session)
 
+    def test_flatpak_graphics_flags_follow_the_ref_only_for_the_approved_browser_command(self):
+        self.chromium()
+        (self.app / "metadata").write_text("[Application]\ncommand=browser\n")
+        permissions = self.tmp / "permissions"
+        args_file = self.tmp / "argv"
+        (self.tools / "flatpak").write_text(
+            '#!/bin/sh\ncase " $* " in\n'
+            '  *" --show-location "*) echo "%s";;\n'
+            '  *" --show-permissions "*) cat "%s";;\n'
+            '  *) printf "%%s\\n" "$@" > "%s"; exec "%s";;\nesac\n' %
+            (self.app, permissions, args_file, self.report))
+        desktop = {"DD_MALI_RENDER_STANDIN": "1", "WAYLAND_DISPLAY": "wayland-1", "XDG_SESSION_TYPE": "wayland"}
+        before = ["--user", "--branch=stable", "--arch=aarch64", "--file-forwarding"]
+        ref = "org.example.App"
+        files = ["@@u", "file:///a b", "@@"]
+        defaults = ["--ozone-platform=wayland", "--render-node-override="]
+        for sockets, opts, args, added in [
+            ("x11;wayland;", ["--command=browser"], files, defaults),
+            ("wayland;", ["--command", "browser", "--branch", "stable"], files, defaults),
+            ("x11;", [], files, []),
+            ("!wayland;x11;", [], files, []),
+            ("wayland;", ["--command=sh"], ["-c", "true"], []),
+            ("wayland;", ["--nosocket=wayland"], files, []),
+            ("wayland;", [], ["--ozone-platform=x11"], []),
+            ("wayland;", [], [defaults[0], "--render-node-override=/dev/other"], []),
+        ]:
+            with self.subTest(sockets=sockets, opts=opts, args=args):
+                permissions.write_text("[Context]\nsockets=%s\n" % sockets)
+                self.run_env(["bash", str(BIN / "droiddeck-flatpak-run"), *before, *opts, ref, *args], desktop)
+                self.assertEqual(["run", *before, *opts, ref, *added, *args], args_file.read_text().splitlines())
+        (self.app / "files/lib/browser/chrome_100_percent.pak").unlink()
+        self.run_env(["bash", str(BIN / "droiddeck-flatpak-run"), ref, *files], desktop)
+        self.assertEqual(["run", ref, *files], args_file.read_text().splitlines())
+
     def test_the_wrapper_gives_a_program_the_game_setting(self):
         self.assertEqual({key: "unset" for key in KEYS}, self.wrapper())
         self.assertEqual("gmem", self.wrapper(session={"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "gmem"})["TU_DEBUG"])

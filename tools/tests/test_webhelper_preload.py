@@ -10,18 +10,24 @@ PRELOAD = Path(__file__).resolve().parents[1] / "linuxfs/preload"
 PROGRAM = r"""
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 char *const *dd_webhelper_argv(const char *path, char *const argv[], char *const envp[]);
-int main(int argc, char **argv) {
+int main(int argc, char **argv, char **environ) {
   const char *mode = getenv("TEST_NODE_MODE_CHILD");
   static char node[64];
   snprintf(node, sizeof node, "ELECTRON_RUN_AS_NODE=%s", mode ? mode : "");
   const char *x = getenv("TEST_DISPLAY");
   static char display[64];
   snprintf(display, sizeof display, "DISPLAY=%s", x ? x : "");
-  char *node_env[] = {node, x ? display : NULL, NULL};
-  char *plain_env[] = {"PATH=/usr/bin", x ? display : NULL, NULL};
-  char *const *envp = mode ? node_env : plain_env;
-  char *const *out = dd_webhelper_argv(argv[1], argv + 1, (char *const *)envp);
+  int count = 0, n = 0;
+  while (environ[count]) count++;
+  char *envp[count + 3];
+  envp[n++] = mode ? node : "PATH=/usr/bin";
+  if (x) envp[n++] = display;
+  for (int i = 0; i < count; i++)
+    if (!strncmp(environ[i], "TEST_CHILD_", 11)) envp[n++] = environ[i] + 11;
+  envp[n] = NULL;
+  char *const *out = dd_webhelper_argv(argv[1], argv + 1, envp);
   for (int i = 0; out[i]; i++) printf("%s\n", out[i]);
   return 0;
 }
@@ -45,8 +51,10 @@ class WebhelperPreloadTest(unittest.TestCase):
     def tearDownClass(cls):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
-    def argv(self, *args, spec=None, node_child=False, parent_node=False, display=None):
+    def argv(self, *args, spec=None, node_child=False, parent_node=False, display=None, session=None):
         env = {k: v for k, v in os.environ.items() if k not in ("DD_WEBHELPER_ARGS", "TEST_DISPLAY")}
+        env = {k: v for k, v in env.items() if not k.startswith("TEST_CHILD_")}
+        env.update({"TEST_CHILD_" + key: value for key, value in (session or {}).items()})
         if display is not None:
             env["TEST_DISPLAY"] = display
         env.pop("ELECTRON_RUN_AS_NODE", None)
@@ -126,7 +134,7 @@ class WebhelperPreloadTest(unittest.TestCase):
         handler = self.chromium("chrome-app", "chrome_crashpad_handler")
         browser = self.tmp / "chrome-app/chrome"
         shutil.copy(self.program, browser)
-        out = subprocess.run([str(browser), handler, "--database=/tmp/x"], env={"TEST_DISPLAY": ":0"},
+        out = subprocess.run([str(browser), handler, "--database=/tmp/x"], env={"TEST_DISPLAY": ":0", "ELECTRON_RUN_AS_NODE": "1"},
                              capture_output=True, text=True, check=True).stdout.splitlines()
         self.assertEqual([handler, "--database=/tmp/x"], out)
 
@@ -135,7 +143,8 @@ class WebhelperPreloadTest(unittest.TestCase):
         editor = self.tmp / "editor-app/code"
         self.chromium("editor-app", "code")
         shutil.copy(self.program, editor)
-        out = subprocess.run([str(editor), other], env={}, capture_output=True, text=True, check=True).stdout.splitlines()
+        out = subprocess.run([str(editor), other], env={"ELECTRON_RUN_AS_NODE": "1"},
+                             capture_output=True, text=True, check=True).stdout.splitlines()
         self.assertEqual([other, "--no-sandbox"], out)
 
     def test_with_an_x_display_chromium_apps_use_x11(self):
@@ -152,6 +161,35 @@ class WebhelperPreloadTest(unittest.TestCase):
 
     def test_other_programs_with_an_x_display_are_left_alone(self):
         self.assertEqual(self.argv("/usr/bin/steam", display=":0"), ["/usr/bin/steam"])
+
+    def test_mali_desktop_chromium_uses_wayland_without_probing_the_standin(self):
+        chrome = self.chromium("mali-browser", "chrome")
+        desktop = {"DD_MALI_RENDER_STANDIN": "1", "XDG_SESSION_TYPE": "wayland", "WAYLAND_DISPLAY": "wayland-1"}
+        wayland, node = "--ozone-platform=wayland", "--render-node-override="
+        for args, added in [
+            ([], [wayland, node]),
+            ([wayland], [node]),
+            (["--render-node-override=/dev/custom"], [wayland]),
+            ([wayland, node], []),
+            (["--ozone-platform=x11"], []),
+            (["--headless=new"], []),
+            (["--", "--ozone-platform=x11"], [wayland, node]),
+        ]:
+            with self.subTest(args=args):
+                self.assertEqual(self.argv(chrome, "--no-sandbox", *args, display=":0", session=desktop),
+                                 [chrome, *added, "--no-sandbox", *args])
+        self.assertEqual(self.argv(chrome, "--type=renderer", session=desktop), [chrome, "--type=renderer"])
+        self.assertEqual(self.argv(chrome, session=desktop, node_child=True), [chrome])
+        self.assertEqual(self.argv("/usr/bin/true", session=desktop), ["/usr/bin/true"])
+
+    def test_nested_sessions_and_desktops_without_a_wayland_socket_keep_x11(self):
+        chrome = self.chromium("mali-nested", "chrome")
+        session = {"DD_MALI_RENDER_STANDIN": "1", "XDG_SESSION_TYPE": "wayland"}
+        for extra in ({}, {"WAYLAND_DISPLAY": "w", "GAMESCOPE_WAYLAND_DISPLAY": "g"},
+                      {"WAYLAND_DISPLAY": "w", "DD_INSIDE": "1"}, {"WAYLAND_DISPLAY": "w", "DD_DESKTOP_GPU_CHILD": "1"}):
+            with self.subTest(extra=extra):
+                self.assertEqual(self.argv(chrome, display=":0", session={**session, **extra}),
+                                 [chrome, "--no-sandbox", "--ozone-platform=x11"])
 
     def test_stock_turns_it_off(self):
         args = [WEBHELPER, "--enable-features=A"]
