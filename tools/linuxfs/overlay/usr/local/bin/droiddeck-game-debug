@@ -3,6 +3,7 @@ import contextlib
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import threading
@@ -72,6 +73,50 @@ def apply_game_debug_logs(env, config=None, debug_dir=None):
         "WINEDEBUG": game_debug_channels(env.get("WINEDEBUG"), env.get("PROTON_LOG")),
     })
     return result
+
+
+# Proton appends its log through one inherited descriptor and never limits it; a game that loops on an
+# exception wrote 3 GB per run. Truncating keeps the first part and frees the rest, and Proton's
+# appends continue from the new end.
+PROTON_LOG_CAP = 64 * 1024 * 1024
+PROTON_LOG_CHECK_S = 2
+CAP_WATCH = r"""
+import os, stat, sys, time
+pid, limit, every, paths = int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3]), sys.argv[4:]
+while os.path.isdir("/proc/%d" % pid):
+    for path in paths:
+        try:
+            info = os.lstat(path)
+            if stat.S_ISREG(info.st_mode) and info.st_size > limit:
+                os.truncate(path, limit)
+        except OSError:
+            pass
+    time.sleep(every)
+"""
+
+
+def proton_log_paths(env):
+    if env.get("PROTON_LOG", "0") in ("", "0"):
+        return []
+    folder = env.get("PROTON_LOG_DIR") or env.get("HOME") or os.environ.get("HOME") or "/root"
+    paths = [os.path.join(folder, "steam-proton.log")]
+    if env.get("SteamGameId"):
+        paths.insert(0, os.path.join(folder, "steam-%s.log" % env["SteamGameId"]))
+    return paths
+
+
+def cap_proton_log(env, pid=None, limit=PROTON_LOG_CAP, every=PROTON_LOG_CHECK_S, popen=subprocess.Popen):
+    """Keep Proton's log under `limit` bytes while process `pid` (this launcher, which becomes Proton) runs."""
+    paths = proton_log_paths(env)
+    if not paths:
+        return None
+    try:
+        return popen([sys.executable, "-c", CAP_WATCH, str(pid or os.getpid()), str(limit), str(every)] + paths,
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
+    except OSError as error:
+        print("droiddeck-game-env: Proton log size limit unavailable (%s)" % error, file=sys.stderr)
+        return None
 
 
 def capped_log(path, limit, mirror=False):

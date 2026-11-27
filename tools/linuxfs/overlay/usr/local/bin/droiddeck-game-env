@@ -1748,6 +1748,8 @@ def main():
                 except OSError as undo:
                     print("droiddeck-game-env: DiRT telemetry fix: prefix ws2_32 not put back (%s); Wine uses its own copy "
                           "and the next launch puts the file back" % undo, file=sys.stderr)
+    if len(command) > 1 and command[1] == "waitforexitandrun":
+        GAME_DEBUG["cap_proton_log"](env)
     sync = load_sync()
     launch, launch_env = select_sync(command, env, sync)
     if launch[0] != command[0]:
