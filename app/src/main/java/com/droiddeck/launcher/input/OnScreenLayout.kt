@@ -81,7 +81,6 @@ object OnScreenLayout {
     }
 
     private fun scaleDocked(context: Context, elements: List<InputSurfaceElement>, scale: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {
-        if (scale == 1f) return elements
         val usableWidth = (width - safe.left - safe.right).coerceAtLeast(1).toFloat() / width
         val usableHeight = (height - safe.top - safe.bottom).coerceAtLeast(1).toFloat() / height
         val leftBound = safe.left.toFloat() / width
@@ -96,7 +95,7 @@ object OnScreenLayout {
                 .coerceIn(leftBound, (rightBound - w).coerceAtLeast(leftBound))
             val y = (element.y + element.height / 2f - h / 2f)
                 .coerceIn(topBound, (bottomBound - h).coerceAtLeast(topBound))
-            element.copy(x = x, y = y, width = w, height = h).bounded()
+            element.copy(x = x, y = y, width = w, height = h)
         }.toMutableList()
         if (scale > 1f) {
             val gap = 4f / width
