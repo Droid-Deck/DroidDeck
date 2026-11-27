@@ -266,6 +266,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     InputCommand.KEYBOARD -> if (role == InputRole.PRIMARY || secondScreenPresentation?.showKeyboard() != true) togglePcKeyboard()
                     InputCommand.STEAM -> tapSteamButton()
                     InputCommand.QUICK_ACCESS -> tapQam()
+                    InputCommand.GAME_ZOOM_IN -> {
+                        gameZoom = (gameZoom + 0.25f).coerceAtMost(3.0f)
+                        runCatching { WaylandCompositor.nativeSetZoom(gameZoom) }
+                    }
+                    InputCommand.GAME_ZOOM_OUT -> {
+                        gameZoom = (gameZoom - 0.25f).coerceAtLeast(1.0f)
+                        runCatching { WaylandCompositor.nativeSetZoom(gameZoom) }
+                    }
                 }
             }
         }
