@@ -21,8 +21,14 @@ static loader_android_create_namespace_t loader_android_create_namespace;
 
 static bool lib_loaded;
 
+static void resolve_linker_symbols();
 
 bool linkernsbypass_load_status() {
+    static const bool resolved{[]() {
+        resolve_linker_symbols();
+        return true;
+    }()};
+    (void)resolved;
     return lib_loaded;
 }
 
@@ -118,7 +124,13 @@ static void *align_ptr(void *ptr) {
     return reinterpret_cast<void *>(reinterpret_cast<uintptr_t>(ptr) & ~(getpagesize() - 1));
 }
 
-__attribute__((constructor)) static void resolve_linker_symbols() {
+static bool unguard_page(const void *code) {
+    auto page{align_ptr(const_cast<void *>(code))};
+    return mprotect(page, getpagesize(), PROT_WRITE | PROT_READ | PROT_EXEC) == 0 ||
+           mprotect(page, getpagesize(), PROT_READ | PROT_EXEC) == 0;
+}
+
+static void resolve_linker_symbols() {
     using loader_dlopen_t = void *(*)(const char *, int, const void *);
 
     if (android_get_device_api_level() < 28)
@@ -139,16 +151,21 @@ __attribute__((constructor)) static void resolve_linker_symbols() {
         };
         static_assert(sizeof(BranchLinked) == 4, "BranchLinked is wrong size");
 
-        mprotect(align_ptr(reinterpret_cast<void *>(&dlopen)), getpagesize(), PROT_WRITE | PROT_READ | PROT_EXEC);
+        constexpr int maxWrapperInstrs{32};
+
+        if (!unguard_page(reinterpret_cast<const void *>(&dlopen)))
+            return static_cast<loader_dlopen_t>(nullptr);
 
         auto blInstr{reinterpret_cast<BranchLinked *>(&dlopen)};
-        while (!blInstr->Verify())
-            blInstr++;
+        for (int i{}; !blInstr->Verify(); i++, blInstr++)
+            if (i == maxWrapperInstrs)
+                return static_cast<loader_dlopen_t>(nullptr);
 
         return reinterpret_cast<loader_dlopen_t>(blInstr + blInstr->offset);
     }()};
 
-    mprotect(align_ptr(reinterpret_cast<void *>(&loader_dlopen)), getpagesize(), PROT_WRITE | PROT_READ | PROT_EXEC);
+    if (!loader_dlopen || !unguard_page(reinterpret_cast<const void *>(loader_dlopen)))
+        return;
 
     auto ldHandle{loader_dlopen("ld-android.so", RTLD_LAZY, reinterpret_cast<void *>(&dlopen))};
     if (!ldHandle)

@@ -51,6 +51,11 @@ __attribute__((visibility("default"))) void *hook_android_dlopen_ext(const char 
         return fallback();
     }
 
+    if (!linkernsbypass_load_status()) {
+        LOGI("hook_android_dlopen_ext: hook failed: linkernsbypass failed to load!");
+        return fallback();
+    }
+
     auto driverNs{android_create_namespace(filename, hook_params->customDriverDir.c_str(),
                                            hook_params->hookLibDir.c_str(), ANDROID_NAMESPACE_TYPE_SHARED,
                                            nullptr, extinfo->library_namespace)};
@@ -132,6 +137,9 @@ __attribute__((visibility("default"))) void *hook_android_dlopen_ext(const char 
 
 __attribute__((visibility("default"))) void *hook_android_load_sphal_library(const char *filename, int flags) {
     LOGI("hook_android_load_sphal_library: filename: %s", filename);
+
+    if (!linkernsbypass_load_status())
+        return nullptr;
 
     for (const char *name : {"sphal", "vendor", "default"}) {
         if (auto vendorNs{android_get_exported_namespace(name)}) {
