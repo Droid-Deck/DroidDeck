@@ -152,6 +152,10 @@ static void destroyScratch(const DeviceDispatch* dd, VkDevice dev, VkDescriptorP
     S = ScratchState{};
 }
 
+void FrameGen::destroyScratchResources() {
+    destroyScratch(dd_, device_, descPool_);
+}
+
 void FrameGen::configure(const Config& c) {
     cfg_ = c; cfg_.sanitize();
     int want = flowFinestForPreset(cfg_.perfPreset);
