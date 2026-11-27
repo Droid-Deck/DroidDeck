@@ -1270,7 +1270,7 @@ object SessionPrefs {
             oldValue = logsEnabled(context),
             newValue = on,
             newEffective = gameDebugLogsEffective(context, on, gameDebugLogsEnabled(context)),
-        )
+        ).also { if (it) BuildWatermarkSetting.notifyChanged(context) }
     }
 
     fun gameDebugLogsEnabled(context: Context): Boolean =
@@ -1283,7 +1283,13 @@ object SessionPrefs {
             oldValue = gameDebugLogsEnabled(context),
             newValue = on,
             newEffective = gameDebugLogsEffective(context, logsEnabled(context), on),
-        )
+        ).also { if (it) BuildWatermarkSetting.notifyChanged(context) }
+    }
+
+    /** The setting lasts for the session that started with it on; the next session's start republishes the environment. */
+    internal fun expireGameDebugLogs(context: Context) {
+        prefs(context).edit().putBoolean("gameDebugLogsEnabled", false).apply()
+        runCatching { BuildWatermarkSetting.notifyChanged(context) }
     }
 
     private fun setLogPreference(

@@ -34,8 +34,8 @@ class DroidDeckHudPanelTest {
         assertEquals(DroidDeckHudSize.MINIMAL, DroidDeckHudSize.from(DroidDeckHudConfig.DEFAULTS["hudSize"]))
     }
 
-    @Test fun theHudStartsLocked() {
-        assertEquals("1", DroidDeckHudConfig.DEFAULTS["hudLocked"])
+    @Test fun theHudStartsUnlocked() {
+        assertEquals("0", DroidDeckHudConfig.DEFAULTS["hudLocked"])
     }
 
     @Test fun aLongPressCollapsesTheHudUnlessTheUserChoseToLockWithIt() {
