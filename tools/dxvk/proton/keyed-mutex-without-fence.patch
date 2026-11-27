@@ -1,0 +1,101 @@
+diff --git a/src/dxvk/dxvk_image.cpp b/src/dxvk/dxvk_image.cpp
+index 5bcb22a..e98547d 100644
+--- a/src/dxvk/dxvk_image.cpp
++++ b/src/dxvk/dxvk_image.cpp
+@@ -54,75 +54,81 @@ namespace dxvk {
+ 
+   HRESULT DxvkKeyedMutex::AcquireSync(UINT64 key, DWORD  milliseconds) {
+     if (m_owned.load(std::memory_order_acquire))
+       return DXGI_ERROR_INVALID_CALL;
+ 
+     LARGE_INTEGER timeout = { };
+     timeout.QuadPart = int64_t(milliseconds) * -10000;
+ 
+     D3DKMT_ACQUIREKEYEDMUTEX acquire = { };
+     acquire.hKeyedMutex = m_kmtLocal;
+     acquire.Key = key;
+     acquire.pTimeout = milliseconds == INFINITE ? nullptr : &timeout;
+ 
+     NTSTATUS status = D3DKMTAcquireKeyedMutex(&acquire);
+ 
+     if (status == STATUS_TIMEOUT)
+       return WAIT_TIMEOUT;
+     if (status)
+       return DXGI_ERROR_INVALID_CALL;
+ 
+-    VkSemaphore semaphore = m_fence->handle();
++    if (m_fence) {
++      VkSemaphore semaphore = m_fence->handle();
+ 
+-    VkSemaphoreWaitInfo info = { VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
+-    info.semaphoreCount = 1;
+-    info.pSemaphores = &semaphore;
+-    info.pValues = &acquire.FenceValue;
++      VkSemaphoreWaitInfo info = { VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
++      info.semaphoreCount = 1;
++      info.pSemaphores = &semaphore;
++      info.pValues = &acquire.FenceValue;
+ 
+-    if (m_vkd->vkWaitSemaphores(m_vkd->device(), &info, -1)) {
+-      Logger::warn("DxvkKeyedMutex::AcquireSync: Failed to wait semaphore");
+-      return DXGI_ERROR_INVALID_CALL;
++      if (m_vkd->vkWaitSemaphores(m_vkd->device(), &info, -1)) {
++        Logger::warn("DxvkKeyedMutex::AcquireSync: Failed to wait semaphore");
++        return DXGI_ERROR_INVALID_CALL;
++      }
+     }
+ 
+     m_fenceValue = acquire.FenceValue;
+     m_owned.store(true, std::memory_order_release);
+     return S_OK;
+   }
+ 
+ 
+   HRESULT DxvkKeyedMutex::ReleaseSync(UINT64 key) {
+     if (!m_owned.load(std::memory_order_acquire))
+       return DXGI_ERROR_INVALID_CALL;
+ 
+-    VkSemaphoreSignalInfo info = { VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO };
+-    info.semaphore = m_fence->handle();
+-    info.value = m_fenceValue + 1;
++    uint64_t fenceValue = m_fenceValue;
+ 
+-    if (m_vkd->vkSignalSemaphore(m_vkd->device(), &info)) {
+-      Logger::warn("D3D11DXGIKeyedMutex::ReleaseSync: Failed to signal semaphore");
+-      return DXGI_ERROR_INVALID_CALL;
++    if (m_fence) {
++      VkSemaphoreSignalInfo info = { VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO };
++      info.semaphore = m_fence->handle();
++      info.value = ++fenceValue;
++
++      if (m_vkd->vkSignalSemaphore(m_vkd->device(), &info)) {
++        Logger::warn("D3D11DXGIKeyedMutex::ReleaseSync: Failed to signal semaphore");
++        return DXGI_ERROR_INVALID_CALL;
++      }
+     }
+ 
+     D3DKMT_RELEASEKEYEDMUTEX release = { };
+     release.hKeyedMutex = m_kmtLocal;
+     release.Key = key;
+-    release.FenceValue = m_fenceValue + 1;
++    release.FenceValue = fenceValue;
+ 
+     if (D3DKMTReleaseKeyedMutex(&release)) {
+       Logger::warn("D3D11DXGIKeyedMutex::ReleaseSync: Failed to release mutex.");
+       return DXGI_ERROR_INVALID_CALL;
+     }
+ 
+     m_owned.store(false, std::memory_order_release);
+     return S_OK;
+   }
+ 
+ 
+   DxvkImage::DxvkImage(
+           DxvkDevice*           device,
+     const DxvkImageCreateInfo&  createInfo,
+           DxvkMemoryAllocator&  allocator,
+           VkMemoryPropertyFlags memFlags)
+   : DxvkPagedResource(allocator),
+     m_vkd           (device->vkd()),
+     m_properties    (memFlags),
+     m_shaderStages  (util::shaderStages(createInfo.stages)),

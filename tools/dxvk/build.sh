@@ -28,6 +28,7 @@ done
 python3 "$root/tools/dxvk/check_present_sync.py" "$work/source/src/dxvk/dxvk_presenter.cpp"
 python3 "$root/tools/dxvk/check_hud_storage_format.py" "$work/source/src/dxvk/hud/shaders/hud_frame_time_eval.comp"
 python3 "$root/tools/dxvk/check_d3d9_single_sample.py" "$work/source"
+python3 "$root/tools/dxvk/check_keyed_mutex_fence.py" "$work/source/src/dxvk/dxvk_image.cpp"
 for arch in 32 64; do
   meson setup "$work/build$arch" "$work/source" --cross-file "$work/source/build-win$arch.txt" \
     --buildtype release --prefix "$out" --bindir "x$arch" --libdir "x$arch" -Db_ndebug=if-release --strip
