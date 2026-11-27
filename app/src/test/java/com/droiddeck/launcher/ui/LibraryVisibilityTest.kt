@@ -18,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
@@ -137,12 +138,11 @@ class LibraryVisibilityTest {
     }
 
     @Test fun aSwitchedOffStoreLeavesTheChipsButItsGamesStayUnderAll() {
-        SessionPrefs.setStoresTabOrder(ctx, listOf("epic", "gog"))
         SessionPrefs.setStoresTabHidden(ctx, setOf("gog"))
         show()
         val steam = compose.onNodeWithTag("library-source-${Store.STEAM.id}").fetchSemanticsNode().boundsInRoot.left
         val epic = compose.onNodeWithTag("library-source-epic").fetchSemanticsNode().boundsInRoot.left
-        assertTrue(steam < epic)
+        assertTrue("Steam should precede Epic by default (steam=$steam, epic=$epic)", steam < epic)
         compose.onNodeWithTag("library-source-gog").assertDoesNotExist()
         compose.onNodeWithTag("library-not-installed").performClick()
         compose.mainClock.advanceTimeBy(1_000)
@@ -204,8 +204,11 @@ class LibraryVisibilityTest {
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithTag("library-battlenet-open").assertIsDisplayed().performClick()
         assertEquals(1, opened)
-        compose.onNodeWithTag("library-source-steam").performClick()
+        compose.onNodeWithTag("library-source-${Store.STEAM.id}").performScrollTo()
         compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithTag("library-source-${Store.STEAM.id}").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        assertEquals(Store.STEAM.id, LibraryView.source)
         compose.onNodeWithTag("library-battlenet-open").assertDoesNotExist()
     }
 
