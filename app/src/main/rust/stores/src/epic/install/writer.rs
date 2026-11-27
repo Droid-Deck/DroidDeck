@@ -564,7 +564,7 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
         }
         ready
     };
-    let outcome = std::thread::scope(|scope| {
+    let (outcome, cancelled) = std::thread::scope(|scope| {
         let admitter = std::thread::Builder::new()
             .name("epic-admit".into())
             .spawn_scoped(scope, || {
@@ -573,7 +573,7 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
             });
         if let Err(e) = admitter {
             engine.fail(format!("could not start the install thread: {e}"));
-            return None;
+            return (None, false);
         }
         let outcome = if items.is_empty() {
             None
@@ -584,15 +584,16 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
             let mut c = engine.coord.lock().expect("coord lock");
             c.fetch_done = true;
         }
+        let cancelled = stop.load(Ordering::SeqCst);
         if outcome.as_ref().is_some_and(|o| !o.ok()) {
             stop.store(true, Ordering::SeqCst);
         }
         engine.wake.notify_all();
-        outcome
+        (outcome, cancelled)
     });
 
     let failure = engine.failure.lock().expect("failure lock").take().filter(|m| !m.is_empty());
-    let fetch_error = outcome.as_ref().and_then(|o| o.error.clone());
+    let fetch_error = outcome.as_ref().and_then(|o| o.error.clone()).filter(|_| !cancelled);
     let complete = failure.is_none() && engine.files_done.load(Ordering::Relaxed) == input.files.len();
 
     if !complete {
@@ -631,11 +632,11 @@ fetches={} refetches={} peak_cache_mib={} hosts={}",
     if complete {
         return Ok(Stats { bytes_written: written, files_written: input.files.len() });
     }
-    if stop.load(Ordering::SeqCst) {
-        return Err(Stop::Cancelled);
-    }
     if let Some(message) = fetch_error {
         return Err(Stop::Failed(format!("Download failed: {}", tidy_fetch_error(&message))));
+    }
+    if stop.load(Ordering::SeqCst) {
+        return Err(Stop::Cancelled);
     }
     Err(Stop::Failed("The download ended before every file was written".into()))
 }
