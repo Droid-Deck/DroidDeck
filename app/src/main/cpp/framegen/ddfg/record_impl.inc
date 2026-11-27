@@ -58,6 +58,26 @@ static void wImg(const ddfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet s
     w.dstSet = set; w.dstBinding = binding; w.descriptorCount = 1; w.descriptorType = type; w.pImageInfo = &ii;
     dd->UpdateDescriptorSets(dev, 1, &w, 0, nullptr);
 }
+static void wImgBatch(const ddfg::DeviceDispatch* dd, VkDevice dev,
+                        const VkDescriptorSet* sets, const uint32_t* bindings,
+                        const VkDescriptorType* types, const VkImageView* views,
+                        const VkSampler* samplers, const VkImageLayout* layouts,
+                        uint32_t count) {
+    VkDescriptorImageInfo infos[3]{};
+    VkWriteDescriptorSet writes[3]{};
+    for (uint32_t i = 0; i < count; ++i) {
+        infos[i].imageView = views[i];
+        infos[i].sampler = samplers[i];
+        infos[i].imageLayout = layouts[i];
+        writes[i] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+        writes[i].dstSet = sets[i];
+        writes[i].dstBinding = bindings[i];
+        writes[i].descriptorCount = 1;
+        writes[i].descriptorType = types[i];
+        writes[i].pImageInfo = &infos[i];
+    }
+    dd->UpdateDescriptorSets(dev, count, writes, 0, nullptr);
+}
 static void wUbo(const ddfg::DeviceDispatch* dd, VkDevice dev, VkDescriptorSet set, uint32_t binding,
                  VkBuffer buf, VkDeviceSize range) {
     VkDescriptorBufferInfo bi{}; bi.buffer = buf; bi.range = range;
@@ -306,8 +326,16 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
             }
         }
 
-        wImg(dd_, device_, g_scratch.sLumaCurr, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, currView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-        wImg(dd_, device_, g_scratch.sLumaPrev, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, prevView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        const VkDescriptorSet lumaSets[] = {g_scratch.sLumaCurr, g_scratch.sLumaPrev};
+        const uint32_t lumaBindings[] = {32, 32};
+        const VkDescriptorType lumaTypes[] = {
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER};
+        const VkImageView lumaViews[] = {currView, prevView};
+        const VkSampler lumaSamplers[] = {linear_, linear_};
+        const VkImageLayout lumaLayouts[] = {
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        wImgBatch(dd_, device_, lumaSets, lumaBindings, lumaTypes, lumaViews,
+                  lumaSamplers, lumaLayouts, 2);
     }
 
     SynthUBO su{cfg_.flowScale, alpha, cfg_.beta, cfg_.lambda, cfg_.epsilon, cfg_.photoScale, 0, 0,
@@ -315,9 +343,20 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
     if (g_scratch.synthUboPtr[synthSlot]) std::memcpy(g_scratch.synthUboPtr[synthSlot], &su, sizeof(su));
 
     const VkDescriptorSet synthSet = g_scratch.sSynth[synthSlot];
-    wImg(dd_, device_, synthSet, 32, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, prevView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    wImg(dd_, device_, synthSet, 33, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, currView, linear_, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    wImg(dd_, device_, synthSet, 48, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, outView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL);
+    const VkDescriptorSet synthSets[] = {synthSet, synthSet, synthSet};
+    const uint32_t synthBindings[] = {32, 33, 48};
+    const VkDescriptorType synthTypes[] = {
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE};
+    const VkImageView synthViews[] = {prevView, currView, outView};
+    const VkSampler synthSamplers[] = {linear_, linear_, VK_NULL_HANDLE};
+    const VkImageLayout synthLayouts[] = {
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_IMAGE_LAYOUT_GENERAL};
+    wImgBatch(dd_, device_, synthSets, synthBindings, synthTypes, synthViews,
+              synthSamplers, synthLayouts, 3);
 
     auto disp = [&](const Pipe& p, VkDescriptorSet set, VkExtent2D e) {
         dd_->CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, p.pipeline);
