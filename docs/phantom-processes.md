@@ -5,9 +5,9 @@ Research log for removing DroidDeck's requirement to turn off "Restrict child pr
 Android must not kill a Steam session for having too many Linux processes, and the user must not
 need developer options.
 
-Status: **two gaps in Android's process counting are confirmed on Android 15 (emulator)**; both
-are in identical code on Android 12 through 16. Verification on the Thor (Android 13) and a
-DroidDeck prototype are next. The experiments are in `tools/phantomlab` (see the end).
+Status: **two gaps in Android's process counting are confirmed on the AYN Thor (Android 13,
+kernel 5.15) and the Android 15 emulator**; both are in identical code on Android 12 through 16.
+A DroidDeck prototype is next. The experiments are in `tools/phantomlab` (see the end).
 
 ## How Android counts and kills
 
@@ -58,23 +58,26 @@ Two independent reasons, either of which is enough:
   skipped outright by the `app.appZygote` check, by design ("doesn't have its own acct entry").
   This one survives even if Google fixes the path.
 
-Measured on the Android 15 x86_64 emulator, kernel 6.6, `max_phantom_processes=4`, monitoring on:
+Measured with `max_phantom_processes=4` and monitoring on, children killed by Android:
 
-| Where the children were forked | Children | Phantoms Android listed | Killed |
+| Where the children were forked | Children | Thor (Android 13) | Emulator (Android 15) |
 |---|---|---|---|
-| Main app process (control) | 10 | 10 | 6 ("Trimming phantom processes") |
+| Main app process (control) | 10 | 6 ("Trimming phantom processes") | 6 |
+| plain `isolatedProcess` service (uid 99000+) | 10 | 0 | 0 |
 | `isolatedProcess` + `useAppZygote` service (uid 90000) | 40 | 0 | 0 |
-| plain `isolatedProcess` service (uid 99000) | 10 | 0 | 0 |
 
 `cgroup.procs` of `/sys/fs/cgroup/uid_90000/pid_<service>` held all 41 pids the whole time; the
 phantom list (`dumpsys activity processes`, "All Active App Child Processes") only ever showed the
-main process's children.
+main process's children. With the limit at 4, the Thor also trimmed another app's `logcat` child,
+as expected for the device-wide count.
 
 ## Gap 2: a process that execs in place is an app process, not a phantom
 
 An `android:process` service process can `execve()` a Linux program in place. If it first clears
 `FD_CLOEXEC` on its binder fd, the binder node stays alive, so AMS never sees the process die. The
 pid stays in `mPidsSelfLocked` and is never counted. Its own children are counted as usual.
+
+Same results on the Thor and the emulator:
 
 | Worker `:wN` | Result |
 |---|---|
@@ -122,6 +125,11 @@ Measured from both isolated variants (domain `isolated_app`) against the normal 
 | `mmap(PROT_EXEC)` of a memfd, anonymous RWX (JIT) | ✅ | ✅ |
 | GPU device (`/dev/kgsl-3d0`, `/dev/mali0`) | ✅ | ❌ (`neverallow`, also for passed fds) |
 | signal or read `/proc` of the app's processes | ✅ | ❌ (`EPERM`, `EACCES`) |
+
+This table is the emulator (stock, enforcing policy). **The Thor's ROM runs `isolated_app`
+permissive** (every isolated denial logs `permissive=1`; `untrusted_app` is enforcing): there an
+isolated process could also create inet sockets and open `/dev/kgsl-3d0`. That is an AYN quirk and
+must not be relied on; design for the enforcing column.
 
 Isolated processes can talk to each other through abstract unix sockets. Everything else in the
 app's world (files, sockets to the app's servers, the GPU) has to be brokered through fds.
@@ -174,7 +182,8 @@ main process of one worker (Gap 2): full app privileges, direct GPU, normal sign
 
 ### C. Plan
 
-1. Verify both gaps on the Thor (Android 13, 5.15) and one Android 14 device.
+1. ~~Verify both gaps on the Thor (Android 13, 5.15)~~ done; still to do on one stock Android 14+
+   phone with an enforcing `isolated_app`.
 2. B for the processes DroidDeck and the session script start themselves (no pid translation).
    Measure the session's count.
 3. A for the Steam client tree if 2 is not enough. Only GPU, Wine and game processes then stay in
