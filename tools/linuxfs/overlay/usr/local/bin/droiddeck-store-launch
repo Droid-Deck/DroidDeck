@@ -324,6 +324,16 @@ def cloud_on(sidecar):
 def exited(argv, code=0):
     found = find_store_game(argv)
     launch_dir = os.environ.get("DD_LAUNCH_DIR", "")
+    compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
+    if found is None and launch_dir and compat_data and steam_ea_link(argv):
+        try:
+            game = str(json.loads((Path(compat_data) / STEAM_EA_STATE).read_text()).get("id") or "")
+        except (OSError, ValueError, AttributeError):
+            game = ""
+        if game:
+            ask(Path(launch_dir) / "stores", {"op": "ea-exited", "store": "ea", "id": game}, timeout=1.0)
+            log("steam ea %s exited" % game)
+        return 0
     if found is not None and launch_dir and str(found[1].get("store")) == "rockstar":
         ask(Path(launch_dir) / "stores", {"op": "rockstar-exited", "store": "rockstar", "id": str(found[1].get("id"))}, timeout=1.0)
         compat_data = os.environ.get("STEAM_COMPAT_DATA_PATH")
@@ -1552,7 +1562,7 @@ def write_licenses(compat_data, licenses):
     return written
 
 
-def prepare_ea(folder, sidecar, compat_data, launch_dir):
+def prepare_ea(folder, sidecar, compat_data, launch_dir, steam=None):
     game = str(sidecar.get("id"))
     proton = os.environ.get("DD_STORE_PROTON", "")
     made = create_prefix(compat_data, proton)
@@ -1561,16 +1571,149 @@ def prepare_ea(folder, sidecar, compat_data, launch_dir):
     hardware, probe = ea_hardware(compat_data, proton) if ready else ({}, "no-prefix")
     answer = None
     if launch_dir:
-        answer = ask(Path(launch_dir) / "stores", {"op": "ea-prepare", "store": "ea", "id": game, "hardware": hardware}, timeout=40.0)
+        request = {"op": "ea-prepare", "store": "ea", "id": game, "hardware": hardware}
+        if steam is not None:
+            request["steam"] = steam
+        answer = ask(Path(launch_dir) / "stores", request, timeout=40.0)
     sidecar = sidecar_at(Path(folder)) or sidecar
     log("ea %s prefix=%s stub=%s hardware=%s registry=%s touchup=%s" % (
         game, made, stub, probe, ea_registry(folder, sidecar, compat_data, proton), ea_touchup(folder, sidecar, compat_data, proton)))
     if answer is None:
         log("ea %s session=no reason=%s" % (game, "timeout" if launch_dir else "no-channel"))
-        return
+        return None
     written = write_licenses(compat_data, answer.get("licenses"))
     log("ea %s session=%s reason=%s lsx=%s licence=%s files=%d" % (
         game, "yes" if answer.get("ok") else "no", answer.get("reason", ""), answer.get("lsx"), answer.get("license", ""), written))
+    return answer
+
+
+STEAM_EA_LINK = re.compile(r"(?i)^steam2ea://launchgame/([0-9]+)")
+STEAM_EA_LAUNCHER = "droiddeck-ea-steam.bat"
+STEAM_EA_ENV = ".droiddeck-ea-steam-env"
+STEAM_EA_STATE = ".droiddeck-ea-steam.json"
+STEAM_EA_CLIENT = "drive_c/Program Files/Electronic Arts/EA Desktop/EA Desktop/EADesktop.exe"
+STEAM_EA_OFFER = re.compile(r"^(Origin\.OFR\.[0-9]+\.[0-9]+)\.dat$", re.IGNORECASE)
+REPLACED = 13
+
+
+def steam_ea_link(argv):
+    for raw in argv:
+        if STEAM_EA_LINK.match(raw.strip().strip('"')):
+            return raw
+    return None
+
+
+def ea_manifest(folder):
+    path = find_case(folder, "__Installer/installerdata.xml")
+    if path is None or not path.is_file():
+        return None
+    import xml.etree.ElementTree as ET
+    try:
+        text = decode_output(path.read_bytes()).lstrip("\ufeff")
+        root = ET.fromstring(re.sub(r"^\s*<\?xml[^>]*\?>", "", text))
+    except (OSError, ET.ParseError):
+        return None
+    contents = [e.text.strip() for e in root.iter("contentID") if e.text and e.text.strip()]
+    launchers = []
+    for runtime in root.iter("runtime"):
+        for launcher in runtime.iter("launcher"):
+            path_text = (launcher.findtext("filePath") or "").strip()
+            if path_text:
+                launchers.append((path_text, (launcher.findtext("parameters") or "").strip(), (launcher.findtext("trial") or "0").strip() == "1"))
+    launcher = next((l for l in launchers if not l[2]), launchers[0] if launchers else None)
+    version = root.find("buildMetaData/gameVersion")
+    titles = {e.get("locale"): (e.text or "").strip() for e in root.iter("gameTitle") if e.get("locale")}
+    exe = None
+    if launcher is not None:
+        relative = re.sub(r"^\[[^\]]*\]", "", launcher[0]).replace("{installLocation}", "").lstrip("\\/")
+        exe = find_case(folder, relative)
+    return {
+        "contentIds": contents,
+        "exe": exe if exe is not None and exe.is_file() else None,
+        "parameters": launcher[1] if launcher else "",
+        "version": version.get("version", "") if version is not None else "",
+        "title": titles.get("en_US") or next(iter(titles.values()), "") or Path(folder).name,
+    }
+
+
+def steam_ea_offers(folder):
+    loc = find_case(folder, "__Installer/LOC")
+    try:
+        names = sorted(p.name for p in loc.iterdir()) if loc is not None and loc.is_dir() else []
+    except OSError:
+        names = []
+    return [m.group(1) for m in map(STEAM_EA_OFFER.match, names) if m]
+
+
+def batch_text(value):
+    return value.replace("%", "%%").replace('"', "")
+
+
+def batch_arguments(value):
+    return re.sub(r"[\x00-\x1f]+", " ", value).replace("%", "%%")
+
+
+def steam_ea_launcher(folder, exe, parameters, compat_data):
+    env = windows_path(str(Path(compat_data) / STEAM_EA_ENV))
+    lines = [
+        "@echo off",
+        "setlocal",
+        "rem Written by DroidDeck: starts Steam's copy of an EA game without the EA app.",
+        'cd /d "%s"' % batch_text(windows_path(str(exe.parent))),
+        'if not exist "%s" goto run' % batch_text(env),
+        'for /f "usebackq tokens=1,* delims==" %%%%a in ("%s") do set "%%%%a=%%%%b"' % batch_text(env),
+        'del "%s"' % batch_text(env),
+        ":run",
+        'if exist "%s" start "" "%s"' % (EA_STUB, EA_STUB),
+        '"%s"%s %%*' % (batch_text(windows_path(str(exe))), " " + batch_arguments(parameters) if parameters else ""),
+        'set "DD_RC=%errorlevel%"',
+        "taskkill /f /im Origin.exe >nul 2>&1",
+        "exit /b %DD_RC%",
+    ]
+    return "\r\n".join(lines) + "\r\n"
+
+
+def prepare_steam_ea(argv, compat_data, launch_dir):
+    """Steam's copies of EA games start through the EA app, which does not install here: start the game itself."""
+    folder = Path(os.environ.get("STEAM_COMPAT_INSTALL_PATH") or os.getcwd())
+    if not compat_data:
+        log("steam ea: no prefix, left to the EA app")
+        return 0
+    if (Path(compat_data) / "pfx" / STEAM_EA_CLIENT).is_file():
+        log("steam ea: the EA app is installed in this prefix, left to it")
+        return 0
+    manifest = ea_manifest(folder)
+    offers = steam_ea_offers(folder)
+    if manifest is None or manifest["exe"] is None or not manifest["contentIds"] or not offers:
+        log("steam ea: %s has no EA manifest, launcher or offer, left to the EA app" % folder)
+        return 0
+    if not launch_dir:
+        log("steam ea: no channel to DroidDeck, left to the EA app")
+        return 0
+    exe = manifest["exe"]
+    sidecar = {"store": "ea", "id": offers[0], "title": manifest["title"],
+               "extra": {"contentIds": ",".join(manifest["contentIds"]), "displayName": manifest["title"], "locale": "en_US"}}
+    steam = {"folder": str(folder), "offers": offers, "contentIds": manifest["contentIds"], "title": manifest["title"],
+             "version": manifest["version"], "locale": "en_US", "exe": str(exe.relative_to(folder))}
+    answer = prepare_ea(folder, sidecar, compat_data, launch_dir, steam)
+    env = answer.get("env") if answer and answer.get("ok") else None
+    if not isinstance(env, dict):
+        log("steam ea: no EA session (%s), left to the EA app" % ((answer or {}).get("reason") or "no answer"))
+        return 0
+    data = Path(compat_data)
+    try:
+        secret = data / (STEAM_EA_ENV + ".tmp")
+        secret.write_bytes("".join("%s=%s\r\n" % (k, v) for k, v in env.items()
+                                   if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(k)) and "\n" not in str(v)).encode())
+        os.chmod(secret, 0o600)
+        os.replace(secret, data / STEAM_EA_ENV)
+        (data / STEAM_EA_LAUNCHER).write_bytes(steam_ea_launcher(folder, exe, manifest["parameters"], compat_data).encode())
+        (data / STEAM_EA_STATE).write_text(json.dumps({"id": str(answer.get("id") or offers[0])}))
+    except OSError as error:
+        log("steam ea: launcher not written (%s), left to the EA app" % type(error).__name__)
+        return 0
+    log("steam ea: %s starts %s directly as %s" % (manifest["title"], exe.name, answer.get("id") or offers[0]))
+    return REPLACED
 
 
 def gog_support_actions(folder):
@@ -1705,6 +1848,8 @@ def main(argv):
         return RAN if subprocess.call(command) == 0 else RAN_FAILED
     found = find_store_game(argv)
     if found is None:
+        if steam_ea_link(argv):
+            return prepare_steam_ea(argv, os.environ.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/"), os.environ.get("DD_LAUNCH_DIR", ""))
         return 0
     folder, sidecar = found
     store, game = str(sidecar.get("store")), str(sidecar.get("id"))

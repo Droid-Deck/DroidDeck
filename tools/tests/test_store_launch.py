@@ -452,6 +452,107 @@ class Launchers(unittest.TestCase):
         self.assertEqual(-2, rc)
 
 
+    def test_a_steam_ea_link_is_swapped_for_droiddecks_launcher_and_reports_its_exit(self):
+        with tempfile.TemporaryDirectory() as root:
+            hook = Path(root) / 'hook'
+            record = Path(root) / 'ran'
+            hook.write_text('#!/bin/sh\necho "$@" >> "%s"\n' % record)
+            hook.chmod(0o755)
+            setup = compat.DD_STORE_SETUP.replace('/usr/local/bin/droiddeck-store-launch', str(hook)).replace(
+                '[ -x %s ] || return 0' % hook, '[ -x %s ] || return 0; verb=waitforexitandrun' % hook)
+            setup = setup.replace('  %s "$@"\n  rc=$?' % hook, '  %s "$@"\n  rc=13' % hook)
+            script = setup + '\nverb=waitforexitandrun\ndd_store_launch steam2ea://launchgame/1237970 -dev\nDD_STORE_ARGS=(steam2ea://launchgame/1237970 -dev)\ndd_run %s proton waitforexitandrun Steam2EA://launchgame/1237970 -dev\n' % hook
+            done = subprocess.run(['bash', '-c', script], env=dict(os.environ, STEAM_COMPAT_DATA_PATH=root + '/'), timeout=20)
+            self.assertEqual(0, done.returncode)
+            lines = record.read_text().splitlines()
+            self.assertEqual('proton waitforexitandrun %s/droiddeck-ea-steam.bat -dev' % root, lines[1])
+            self.assertEqual('--exited --code 0 steam2ea://launchgame/1237970 -dev', lines[2])
+
+
+MANIFEST = """<?xml version='1.0' encoding='utf-8'?>
+<DiPManifest version="4.0">
+  <buildMetaData><gameVersion version="1.0.1.3" /></buildMetaData>
+  <contentIDs><contentID>1039093</contentID></contentIDs>
+  <runtime>
+    <launcher uid="1-2"><filePath>[HKEY_LOCAL_MACHINE\\SOFTWARE\\Respawn\\Titanfall2\\Install Dir]Titanfall2.exe</filePath><parameters /><trial>0</trial></launcher>
+    <launcher uid="2-2"><filePath>[HKEY_LOCAL_MACHINE\\SOFTWARE\\Respawn\\Titanfall2\\Install Dir]Titanfall2_trial.exe</filePath><parameters /><trial>1</trial></launcher>
+  </runtime>
+  <gameTitles><gameTitle locale="en_US">Titanfall 2</gameTitle></gameTitles>
+</DiPManifest>
+"""
+
+
+class SteamEa(unittest.TestCase):
+    def steam_copy(self, root):
+        folder = Path(root) / 'steamapps/common/Titanfall2'
+        (folder / '__Installer/LOC').mkdir(parents=True)
+        (folder / '__Installer/installerdata.xml').write_bytes(b'\xff\xfe' + MANIFEST.encode('utf-16-le'))
+        (folder / '__Installer/LOC/Origin.OFR.50.0001456.dat').write_text('')
+        (folder / '__Installer/LOC/Origin.OFR.50.0001452.dat').write_text('')
+        (folder / 'Titanfall2.exe').write_text('')
+        (folder / 'Titanfall2_trial.exe').write_text('')
+        data = Path(root) / 'compatdata/1237970'
+        (data / 'pfx').mkdir(parents=True)
+        return folder, data
+
+    def test_the_manifest_names_the_full_game_its_content_and_version(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder, _ = self.steam_copy(root)
+            manifest = store.ea_manifest(folder)
+            self.assertEqual(folder / 'Titanfall2.exe', manifest['exe'])
+            self.assertEqual(['1039093'], manifest['contentIds'])
+            self.assertEqual('1.0.1.3', manifest['version'])
+            self.assertEqual('Titanfall 2', manifest['title'])
+            self.assertEqual(['Origin.OFR.50.0001452', 'Origin.OFR.50.0001456'], store.steam_ea_offers(folder))
+
+    def test_a_steam_ea_launch_gets_a_session_and_a_launcher_that_reads_it_once(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder, data = self.steam_copy(root)
+            asked = []
+            answer = {'ok': True, 'id': 'Origin.OFR.50.0001452', 'env': {'EALsxPort': '3216', 'ContentId': '1039093'}}
+            prepare = lambda *a: asked.append(a) or answer
+            env = {'STEAM_COMPAT_INSTALL_PATH': str(folder), 'STEAM_COMPAT_DATA_PATH': str(data), 'DD_LAUNCH_DIR': str(Path(root) / 'session')}
+            with patch.dict(os.environ, env), patch.object(store, 'prepare_ea', side_effect=prepare):
+                self.assertEqual(store.REPLACED, store.main(['steam2ea://launchgame/1237970?platform=steam&theme=tf2']))
+            steam = asked[0][4]
+            self.assertEqual(['Origin.OFR.50.0001452', 'Origin.OFR.50.0001456'], steam['offers'])
+            self.assertEqual(['1039093'], steam['contentIds'])
+            self.assertEqual('Titanfall2.exe', steam['exe'])
+            self.assertEqual(b'EALsxPort=3216\r\nContentId=1039093\r\n', (data / store.STEAM_EA_ENV).read_bytes())
+            bat = (data / store.STEAM_EA_LAUNCHER).read_text()
+            envfile = store.windows_path(str(data / store.STEAM_EA_ENV))
+            self.assertIn('cd /d "%s"' % store.windows_path(str(folder)), bat)
+            self.assertIn('for /f "usebackq tokens=1,* delims==" %%%%a in ("%s") do set "%%%%a=%%%%b"' % envfile, bat)
+            self.assertIn('del "%s"' % envfile, bat)
+            self.assertIn('"%s" %%*' % store.windows_path(str(folder / 'Titanfall2.exe')), bat)
+            self.assertEqual({'id': 'Origin.OFR.50.0001452'}, json.loads((data / store.STEAM_EA_STATE).read_text()))
+            asked.clear()
+            record = lambda channel, request, timeout=5.0, claim=False: asked.append(request)
+            with patch.dict(os.environ, env), patch.object(store, 'ask', side_effect=record):
+                self.assertEqual(0, store.main(['--exited', 'steam2ea://launchgame/1237970']))
+            self.assertEqual([{'op': 'ea-exited', 'store': 'ea', 'id': 'Origin.OFR.50.0001452'}], asked)
+
+    def test_the_manifests_launch_parameters_keep_their_quotes(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder, data = self.steam_copy(root)
+            bat = store.steam_ea_launcher(folder, folder / 'Titanfall2.exe', '-config "game profile.cfg" -rate 50%', str(data))
+            self.assertIn('Titanfall2.exe" -config "game profile.cfg" -rate 50%% %*', bat)
+
+    def test_steam_keeps_the_link_when_droiddeck_cannot_start_the_game(self):
+        with tempfile.TemporaryDirectory() as root:
+            folder, data = self.steam_copy(root)
+            env = {'STEAM_COMPAT_INSTALL_PATH': str(folder), 'STEAM_COMPAT_DATA_PATH': str(data), 'DD_LAUNCH_DIR': str(Path(root) / 'session')}
+            link = ['steam2ea://launchgame/1237970']
+            with patch.dict(os.environ, env), patch.object(store, 'prepare_ea', return_value={'ok': False, 'reason': 'signed-out'}):
+                self.assertEqual(0, store.main(link))
+            client = data / 'pfx' / store.STEAM_EA_CLIENT
+            client.parent.mkdir(parents=True)
+            client.write_text('')
+            with patch.dict(os.environ, env), patch.object(store, 'prepare_ea', side_effect=AssertionError('the EA app is installed')):
+                self.assertEqual(0, store.main(link))
+            self.assertFalse((data / store.STEAM_EA_LAUNCHER).exists())
+
+
 if __name__ == '__main__':
     unittest.main()
 
