@@ -703,6 +703,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     @Volatile private var frameGenInventoryLastAttemptAt = 0L
     private val frameGenInventoryRetryScheduled = java.util.concurrent.atomic.AtomicBoolean()
     private val frameGenInventoryRefreshScheduled = java.util.concurrent.atomic.AtomicBoolean()
+    @Volatile private var frameGenInventoryRefreshDue = false
+    @Volatile private var frameGenInventoryMissedAppId = 0L
 
     @Volatile private var appliedFrameGenMode: FrameGen.Mode? = null
     @Volatile private var appliedFrameGenHz: Float? = null
@@ -3191,6 +3193,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
     }
 
+    private fun scheduleFrameGenInventoryRefresh() {
+        if (!frameGenInventoryRefreshScheduled.compareAndSet(false, true)) return
+        uiHandler.postDelayed({
+            frameGenInventoryRefreshScheduled.set(false)
+            if (frameGenActivityActive && !isFinishing && !isDestroyed) {
+                frameGenInventoryRefreshDue = true
+                applyFrameGen()
+            }
+        }, 15_000L)
+    }
+
     private fun frameGenModeForActiveGame(request: Int): FrameGen.Mode {
         if (SessionState.mode == SessionService.MODE_RUN) {
             val activeAppId = (
@@ -3204,7 +3217,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             .mapNotNull { it.profileKey.toLongOrNull() }
             .toSet()
 
+        if (frameGenInventoryRefreshDue) {
+            val focusedAppId = AgentGuest.focus(this)?.let { snapshot ->
+                snapshot.optLong("focusedApp").takeIf { snapshot.has("focusedApp") }
+            }
+            val stillKnown = synchronized(frameGenInventoryLock) {
+                frameGenInventoryRefreshDue = false
+                val known = frameGenInventoryIds
+                val keep = known != null && focusedAppId != null &&
+                    AgentGuest.focusedInstalledSteamAppId(focusedAppId, cachedIds + known) != null
+                if (!keep) {
+                    frameGenInventoryIds = null
+                    frameGenInventoryLastAttemptAt = 0L
+                }
+                keep
+            }
+            if (stillKnown) scheduleFrameGenInventoryRefresh()
+        }
+
         var inventoryRevision = drawerGameInventoryRevision
+        var scannedNow = false
         var ids = synchronized(frameGenInventoryLock) {
             if (frameGenInventoryRevision != inventoryRevision) {
                 frameGenInventoryIds = null
@@ -3264,21 +3296,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                             ids = cachedIds + currentIds
                             frameGenInventoryIds = ids
                             published = true
+                            scannedNow = true
                         }
                     }
                     if (published) {
-                        if (frameGenInventoryRefreshScheduled.compareAndSet(false, true)) {
-                            uiHandler.postDelayed({
-                                frameGenInventoryRefreshScheduled.set(false)
-                                if (frameGenActivityActive && !isFinishing && !isDestroyed) {
-                                    synchronized(frameGenInventoryLock) {
-                                        frameGenInventoryIds = null
-                                        frameGenInventoryLastAttemptAt = 0L
-                                    }
-                                    applyFrameGen()
-                                }
-                            }, 15_000L)
-                        }
+                        scheduleFrameGenInventoryRefresh()
                         if (frameGenRequests.get() != request) {
                             applyFrameGen()
                         }
@@ -3296,7 +3318,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val activeAppId = AgentGuest.activeSteamAppId(
             this, cachedIds + (ids ?: emptySet())
         )
-        if (activeAppId == null) return FrameGen.Mode.OFF
+        if (activeAppId == null) {
+            val focusedAppId = AgentGuest.focus(this)?.optLong("focusedApp", 0L) ?: 0L
+            val rescan = !scannedNow && focusedAppId > 0 && synchronized(frameGenInventoryLock) {
+                val retained = frameGenInventoryIds
+                if (retained != null && focusedAppId !in retained &&
+                    focusedAppId != frameGenInventoryMissedAppId
+                ) {
+                    frameGenInventoryMissedAppId = focusedAppId
+                    frameGenInventoryIds = null
+                    frameGenInventoryLastAttemptAt = 0L
+                    true
+                } else {
+                    false
+                }
+            }
+            if (rescan) uiHandler.post { if (!isFinishing && !isDestroyed) applyFrameGen() }
+            return FrameGen.Mode.OFF
+        }
         return FrameGen.mode(this, activeAppId.toString())
     }
 
