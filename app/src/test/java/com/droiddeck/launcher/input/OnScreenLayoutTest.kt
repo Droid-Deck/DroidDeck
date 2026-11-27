@@ -96,6 +96,115 @@ class OnScreenLayoutTest {
         }
     }
 
+    @Test fun changingControllerSizeRegeneratesAnUneditedBuiltInLandscapeOverlay() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val layout = gamepad()
+        val w = 1200
+        val h = 540
+        ControllerPrefs.setSize(context, 100)
+        val original = OnScreenLayout.elements(context, layout, w, h, Rect())
+        ControllerPrefs.setSize(context, 115)
+        val resized = OnScreenLayout.elements(context, layout, w, h, Rect())
+        assertNotEquals(original.single { it.id == "legacy:a" }.width, resized.single { it.id == "legacy:a" }.width, .0001f)
+        assertNotEquals(original.single { it.id == "legacy:ls" }.height, resized.single { it.id == "legacy:ls" }.height, .0001f)
+    }
+
+    @Test fun unchangedSizeDoesNotCollapseCoincidentEditedPortraitControls() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val stock = gamepad()
+        val coincident = stock.elements.map { element ->
+            if (element.id == "legacy:a" || element.id == "legacy:b") {
+                element.copy(x = .2f, y = .2f, width = .1f, height = .1f)
+            } else element
+        }
+        val edited = stock.copy(elements = coincident, aspect = .5f)
+        ControllerPrefs.setSize(context, 100)
+        val placed = OnScreenLayout.elements(
+            context, edited, 540, 1080, Rect(),
+            dock = OnScreenLayout.Dock(true, false),
+        )
+        assertTrue(placed.at(InputControl.A).width > 0f)
+        assertTrue(placed.at(InputControl.B).width > 0f)
+    }
+
+    @Test fun changingControllerSizeResizesDefaultDockedControlsWithoutASavedLayout() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val layout = gamepad()
+        val w = 1200
+        val h = 540
+        val dock = OnScreenLayout.Dock(false, false)
+        ControllerPrefs.setSize(context, 100)
+        val original = OnScreenLayout.elements(context, layout, w, h, Rect(), dock = dock)
+        ControllerPrefs.setSize(context, 125)
+        val resized = OnScreenLayout.elements(context, layout, w, h, Rect(), dock = dock)
+        assertNotEquals(original.at(InputControl.LS).width, resized.at(InputControl.LS).width, .0001f)
+        assertNotEquals(original.at(InputControl.A).height, resized.at(InputControl.A).height, .0001f)
+        assertInside(resized, w, h)
+    }
+
+    @Test fun changingControllerSizeRegeneratesSavedLandscapeBuiltInOverlay() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val layout = gamepad().copy(aspect = 2f)
+        val w = 1200
+        val h = 540
+        ControllerPrefs.setSize(context, 100)
+        val original = OnScreenLayout.elements(context, layout, w, h, Rect())
+        ControllerPrefs.setSize(context, 125)
+        val resized = OnScreenLayout.elements(context, layout, w, h, Rect())
+        assertNotEquals(original.at(InputControl.A).width, resized.at(InputControl.A).width, .0001f)
+    }
+
+    @Test fun enlargedDefaultDockedControlsDoNotOverlapTheActionButtonAndRightStick() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        ControllerPrefs.setSize(context, 125)
+        val placed = OnScreenLayout.elements(
+            context, gamepad(), 1200, 540, Rect(),
+            dock = OnScreenLayout.Dock(false, false),
+        )
+        val stick = placed.at(InputControl.RS)
+        val button = placed.at(InputControl.A)
+        val overlapX = minOf(stick.x + stick.width, button.x + button.width) - maxOf(stick.x, button.x)
+        val overlapY = minOf(stick.y + stick.height, button.y + button.height) - maxOf(stick.y, button.y)
+        assertFalse("RS and A hit rectangles must not overlap", overlapX > 0f && overlapY > 0f)
+    }
+
+    @Test fun changingControllerSizeResizesDockedControlsWithASavedLayout() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val layout = gamepad()
+        val w = 1200
+        val h = 540
+        ControllerPrefs.setLayout(context, w, h, mapOf("ls" to (.12f to .7f)))
+        val dock = OnScreenLayout.Dock(false, false)
+        ControllerPrefs.setSize(context, 100)
+        val original = OnScreenLayout.elements(context, layout, w, h, Rect(), dock = dock)
+        ControllerPrefs.setSize(context, 120)
+        val resized = OnScreenLayout.elements(context, layout, w, h, Rect(), dock = dock)
+        val before = original.single { it.id == "legacy:a" }
+        val after = resized.single { it.id == "legacy:a" }
+        assertTrue(after.width > before.width)
+        assertTrue(after.height > before.height)
+        assertEquals(before.x + before.width / 2f, after.x + after.width / 2f, .001f)
+        assertEquals(before.y + before.height / 2f, after.y + after.height / 2f, .001f)
+        assertEquals(mapOf("ls" to (.12f to .7f)), ControllerPrefs.layout(context, w, h))
+    }
+
+    @Test fun enlargedDockedControlsStayInsideSafeAreaAndKeepShoulderGaps() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val w = 1080
+        val h = 200
+        val safe = Rect(20, 0, 20, 24)
+        ControllerPrefs.setLayout(context, w, h, mapOf("ls" to (.12f to .7f)))
+        ControllerPrefs.setSize(context, 125)
+        val placed = OnScreenLayout.elements(context, gamepad(), w, h, safe, dock = OnScreenLayout.Dock(false, false))
+        assertInside(placed, w, h, safe)
+        for ((left, right) in listOf(InputControl.LT to InputControl.LB, InputControl.RB to InputControl.RT)) {
+            val a = placed.single { it.control == left }
+            val b = placed.single { it.control == right }
+            assertTrue("$left should remain left of $right", a.x + a.width <= b.x)
+            assertTrue("$left and $right should retain a gap", (b.x - a.x - a.width) * w >= 3.5f)
+        }
+    }
+
     @Test @Config(qualifiers = "w745dp-h343dp-land-420dpi")
     fun aBuiltInGamepadSavedAtTheDisplaySizeRegeneratesForTheMeasuredSurface() {
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
@@ -574,6 +683,12 @@ class OnScreenLayoutTest {
             val normal = at(1f)
             for (scale in listOf(.8f, 1.25f)) {
                 val placed = at(scale)
+                for (control in listOf(InputControl.A, InputControl.B, InputControl.X, InputControl.Y, InputControl.LS, InputControl.RS)) {
+                    val before = normal.at(control)
+                    val after = placed.at(control)
+                    assertEquals("$kit $scale ${control.id} aspect ratio", before.width / before.height,
+                        after.width / after.height, .02f)
+                }
                 assertEquals("$kit $scale", normal.at(InputControl.A).width * scale, placed.at(InputControl.A).width, .002f)
                 assertEquals("$kit $scale", normal.at(InputControl.LS).height * scale, placed.at(InputControl.LS).height, .002f)
                 if (scale > 1f) for (cluster in listOf(face, dpad)) {
@@ -698,5 +813,35 @@ class OnScreenLayoutTest {
             assertFalse(kit.artwork(added))
             assertFalse(kit.artwork(layout.elements.first { it.control == InputControl.A }.copy(image = "picture")))
         }
+    }
+
+    @Test
+    fun dockedSizeAppliesWithoutAKitAndToThePortraitCluster() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
+        val stock = gamepad()
+        val dock = OnScreenLayout.Dock(false, false)
+
+        ControllerPrefs.setSize(context, 100)
+        val defaultNormal = OnScreenLayout.elements(context, stock, 1200, 540, Rect(), dock = dock)
+        ControllerPrefs.setSize(context, 125)
+        val defaultLarge = OnScreenLayout.elements(context, stock, 1200, 540, Rect(), dock = dock)
+        assertTrue(defaultLarge.at(InputControl.A).width > defaultNormal.at(InputControl.A).width)
+
+        val portraitEdited = stock.copy(
+            elements = stock.elements.map {
+                if (it.control == InputControl.A) it.copy(x = it.x + .07f) else it
+            },
+            aspect = .5f,
+        )
+        val portraitDock = OnScreenLayout.Dock(true, false)
+        ControllerPrefs.setSize(context, 100)
+        val clusterNormal = OnScreenLayout.elements(
+            context, portraitEdited, 540, 1200, Rect(), dock = portraitDock,
+        )
+        ControllerPrefs.setSize(context, 125)
+        val clusterLarge = OnScreenLayout.elements(
+            context, portraitEdited, 540, 1200, Rect(), dock = portraitDock,
+        )
+        assertTrue(clusterLarge.at(InputControl.A).width > clusterNormal.at(InputControl.A).width)
     }
 }
