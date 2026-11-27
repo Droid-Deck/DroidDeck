@@ -315,6 +315,15 @@ class RockstarTest {
         assertEquals("ThirdParty/Steam/steam_api64.dll", build.files[1].path)
     }
 
+    @Test fun theSocialClubInstallerIsTakenFromTheLauncherBuild() {
+        fun file(path: String) = RockstarFile("1", "1", path, 1, "", emptyList())
+        val launcher = RockstarBuild("1", "1", false, listOf(file("Launcher.exe"),
+            file("Redistributables/SocialClub/old/social-club-setup.exe"), file("Redistributables/SocialClub/Social-Club-Setup.exe")))
+        assertEquals("Redistributables/SocialClub/Social-Club-Setup.exe", RockstarManifest.sdkInstaller(launcher)?.path)
+        assertNull(RockstarManifest.sdkInstaller(RockstarBuild("1", "1", false, listOf(file("Launcher.exe"), file("Social-Club-Setup.exe.sig")))))
+        assertEquals("Redistributables/Social-Club-Setup.exe", RockstarLaunch.SDK_INSTALLER)
+    }
+
     @Test fun pathsThatLeaveTheInstallAreRefused() {
         assertNull(RockstarManifest.safePath("..\\..\\Windows\\x.dll"))
         assertNull(RockstarManifest.safePath("C:\\x.dll"))
