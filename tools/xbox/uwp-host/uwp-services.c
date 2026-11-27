@@ -8414,13 +8414,14 @@ static HRESULT __stdcall xbl_devaddr_remove_SnapshotChanged(xbl_devaddr_object *
     return S_OK;
 }
 
-static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBase64(xbl_devaddr_object *self, hstring_t *out)
-{
+static void xbl_prepare_local_snapshot(void);
+
+static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBase64(xbl_devaddr_object *self, hstring_t *out){
     unsigned char encoded[1400];
     WCHAR wide[1400];
     unsigned len, i;
     if (!out) return E_POINTER;
-    if (self == &xbl_devaddr_local) xbl_name_device_once();
+    if (self == &xbl_devaddr_local) xbl_prepare_local_snapshot();
     svc_tracef("xbl_devaddr GetSnapshotAsBase64 len=%u valid=%d", self->snapshot_len, (int)self->is_valid);
     if (!self->snapshot_len) {
         *out = svc_string(L"");
@@ -8437,7 +8438,7 @@ static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBuffer(xbl_devaddr_object *sel
 {
     winrt_buffer *buf;
     if (!out) return E_POINTER;
-    if (self == &xbl_devaddr_local) xbl_name_device_once();
+    if (self == &xbl_devaddr_local) xbl_prepare_local_snapshot();
     svc_tracef("xbl_devaddr GetSnapshotAsBuffer len=%u valid=%d", self->snapshot_len, (int)self->is_valid);
     buf = buffer_from_bytes(self->snapshot, self->snapshot_len);
     if (!buf) return E_OUTOFMEMORY;
@@ -8448,7 +8449,7 @@ static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBuffer(xbl_devaddr_object *sel
 static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBytes(xbl_devaddr_object *self, UINT32 cap,
                                                         unsigned char *buf, UINT32 *written)
 {
-    if (self == &xbl_devaddr_local) xbl_name_device_once();
+    if (self == &xbl_devaddr_local) xbl_prepare_local_snapshot();
     svc_tracef("xbl_devaddr GetSnapshotAsBytes cap=%u len=%u valid=%d", cap, self->snapshot_len, (int)self->is_valid);
     if (written) *written = self->snapshot_len;
     if (buf && cap > 0 && self->snapshot_len > 0) {
@@ -8588,7 +8589,11 @@ static HRESULT __stdcall xbl_devaddr_CreateFromSnapshotBytes(svc_object *self, U
 }
 
 static unsigned char g_xbl_local_ipv4[4];
+static unsigned char g_xbl_local_ipv6[16];
+static int g_xbl_local_ipv6_ok;
 static void xbl_detect_local_ipv4_once(void);
+static void xbl_sda_rewrite_addresses(void);
+static void xbl_prepare_local_snapshot(void);
 extern const char *uwp_auth_device_token(void);
 
 /* Name this device from the device token Xbox Live actually issued it.
@@ -8628,23 +8633,20 @@ static void xbl_name_device_once(void)
     svc_tracef("xbl_devaddr host id named from the device token");
 }
 
+/* Everything the local snapshot needs before anyone reads it: this device's real
+ * addresses, then the host ID from its real credential. Cheap after the first call. */
+static void xbl_prepare_local_snapshot(void)
+{
+    xbl_detect_local_ipv4_once();
+    xbl_name_device_once();
+    xbl_sda_rewrite_addresses();
+}
+
 static HRESULT __stdcall xbl_devaddr_GetLocal(svc_object *self, void **out)
 {
     (void)self;
     if (!out) return E_POINTER;
-    xbl_detect_local_ipv4_once();
-    xbl_name_device_once();
-    /* Put the host's real address in both IPv4 records of the 72-byte Windows 10
-       SDA snapshot. Native Windows repeats the addresses it actually owns, so a
-       peer that reads the second record is given a routable address instead of
-       the 10.0.2.15 this snapshot shipped with -- an address nothing on either
-       network can reach. */
-    if (xbl_devaddr_local.snapshot_len >= 72) {
-        if (xbl_devaddr_local.snapshot[62] == 0x01)
-            memcpy(xbl_devaddr_local.snapshot + 63, g_xbl_local_ipv4, 4);
-        if (xbl_devaddr_local.snapshot[67] == 0x01)
-            memcpy(xbl_devaddr_local.snapshot + 68, g_xbl_local_ipv4, 4);
-    }
+    xbl_prepare_local_snapshot();
     svc_trace("xbl_devaddr GetLocal");
     svc_AddRef(&xbl_devaddr_local.base);
     *out = &xbl_devaddr_local;
@@ -8755,8 +8757,11 @@ static xbl_hostname_object *xbl_hostname_new(const WCHAR *name, INT32 type)
     return obj;
 }
 
-/* Detect the host's primary outbound IPv4 address via a non-sending UDP connect(). */
-static unsigned char g_xbl_local_ipv4[4] = {192, 168, 1, 100};
+/* Detect the host's primary outbound IPv4 and IPv6 addresses via non-sending UDP
+ * connect() calls. The addresses start at zero rather than at a made-up value: if
+ * detection ever fails, "no address known" is the truth, while a plausible-looking
+ * literal names a machine this is not. */
+static unsigned char g_xbl_local_ipv4[4] = {0, 0, 0, 0};
 static LONG g_xbl_local_ipv4_ready = 0;
 
 static void xbl_detect_local_ipv4_once(void)
@@ -8777,6 +8782,10 @@ static void xbl_detect_local_ipv4_once(void)
     unsigned char dst[16];
     unsigned char local[16];
     int llen = (int)sizeof(local);
+    UINT_PTR s6;
+    unsigned char dst6[28];
+    unsigned char local6[28];
+    int llen6 = (int)sizeof(local6);
 
     if (InterlockedCompareExchange(&g_xbl_local_ipv4_ready, 1, 0) != 0)
         return;
@@ -8811,6 +8820,39 @@ static void xbl_detect_local_ipv4_once(void)
                    (unsigned)g_xbl_local_ipv4[2], (unsigned)g_xbl_local_ipv4[3]);
     }
     fn_close(s);
+
+    /* The same trick over IPv6: connect() to a global resolver on UDP port 80 and
+       read back the source address the stack would use. A failure here is ordinary
+       (most networks are IPv4 only), so the IPv4 record still carries the address.
+       Link-local and loopback results are discarded -- they name no peer. */
+    s6 = fn_sock(23 /* AF_INET6 */, 2 /* SOCK_DGRAM */, 17 /* IPPROTO_UDP */);
+    if (s6 != (UINT_PTR)-1) {
+        memset(dst6, 0, sizeof dst6);
+        dst6[0] = 23; dst6[1] = 0;                 /* AF_INET6 */
+        dst6[2] = 0;  dst6[3] = 80;                /* port 80 */
+        dst6[8] = 0x20; dst6[9] = 0x01;            /* 2001:4860:4860::8888 */
+        dst6[10] = 0x48; dst6[11] = 0x60;
+        dst6[12] = 0x48; dst6[13] = 0x60;
+        dst6[22] = 0x88; dst6[23] = 0x88;
+        memset(local6, 0, sizeof local6);
+        if (fn_conn(s6, dst6, (int)sizeof dst6) == 0 &&
+            fn_gsn(s6, local6, &llen6) == 0 &&
+            llen6 >= 24 && local6[0] == 23 && local6[1] == 0 &&
+            !(local6[8] == 0xfe && (local6[9] & 0xc0) == 0x80)) {
+            int all_zero = 1, i;
+            for (i = 8; i < 24; i++)
+                if (local6[i]) { all_zero = 0; break; }
+            if (!all_zero) {
+                memcpy(g_xbl_local_ipv6, local6 + 8, 16);
+                g_xbl_local_ipv6_ok = 1;
+                svc_tracef("xbl_devaddr local ipv6=%02x%02x:%02x%02x:...:%02x%02x",
+                           (unsigned)local6[8], (unsigned)local6[9],
+                           (unsigned)local6[10], (unsigned)local6[11],
+                           (unsigned)local6[22], (unsigned)local6[23]);
+            }
+        }
+        fn_close(s6);
+    }
 }
 
 static int xbl_ipv4_is_public(const unsigned char ip[4])
@@ -8822,6 +8864,56 @@ static int xbl_ipv4_is_public(const unsigned char ip[4])
     if (ip[0] == 100 && ip[1] >= 64 && ip[1] <= 127) return 0;
     if (ip[0] >= 224) return 0;
     return 1;
+}
+
+/* Rewrite every address record in the local snapshot to an address this device
+ * actually has.
+ *
+ * The snapshot this shim starts from is a real Windows 10 one, which is what makes
+ * its record layout correct -- but the addresses inside it belong to whichever
+ * machine produced it: 100.104.199.117 (carrier-grade NAT), 172.28.144.1,
+ * 192.168.1.100 and 10.0.2.15, plus a Teredo and a ULA IPv6. Publishing those tells
+ * every peer to reach a stranger's machine, and 100.104.199.117 is not private in
+ * the RFC 1918 sense, so it reads as a routable public address and is preferred over
+ * the one record the earlier code patched. Peers then send to an address that is not
+ * ours and the room stays empty.
+ *
+ * Only the record list is touched; the header bytes and the record count keep the
+ * shape the title's parser expects. Called on every hand-out, so it is idempotent
+ * and cheap.
+ */
+static void xbl_sda_rewrite_addresses(void)
+{
+    unsigned char *d = xbl_devaddr_local.snapshot;
+    UINT32 len = xbl_devaddr_local.snapshot_len;
+    UINT32 count, pos, i;
+
+    if (len < 19 || d[0] != 0x01 || d[1] != 0x00) return;
+    count = d[17];
+    pos = 18;
+    for (i = 0; i < count && pos < len; i++) {
+        unsigned char tag = d[pos++];
+        if (tag == 0x01 && pos + 4 <= len) {
+            memcpy(d + pos, g_xbl_local_ipv4, 4);
+            pos += 4;
+        } else if (tag == 0x02 && pos + 16 <= len) {
+            if (g_xbl_local_ipv6_ok) {
+                memcpy(d + pos, g_xbl_local_ipv6, 16);
+            } else {
+                /* No IPv6 on this device. State the IPv4 address in its
+                   IPv4-mapped form (::ffff:a.b.c.d), which dual-stack stacks
+                   route as IPv4, rather than leaving an address that belongs
+                   to a different machine. */
+                memset(d + pos, 0, 10);
+                d[pos + 10] = 0xff;
+                d[pos + 11] = 0xff;
+                memcpy(d + pos + 12, g_xbl_local_ipv4, 4);
+            }
+            pos += 16;
+        } else {
+            break;
+        }
+    }
 }
 
 typedef struct {
@@ -13052,7 +13144,11 @@ void uwp_services_install(void)
            accepts our local secureDeviceAddress instead of rejecting an empty
            string. The host ID is left zero here and filled in from this device's
            real Xbox Live device token once one exists (xbl_name_device_once); a
-           literal name would be an identity this device does not actually have. */
+           literal name would be an identity this device does not actually have.
+           The addresses below are only a template: every record is overwritten
+           with an address this device really owns before the snapshot is handed
+           out (xbl_sda_rewrite_addresses). They stay legible here as a worked
+           example of the record layout, not as values the title ever sees. */
         static const unsigned char default_sda[72] = {
             0x01, 0x00, 0x0e, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
