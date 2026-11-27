@@ -615,7 +615,7 @@ class SessionService : Service() {
         runCatching { SessionEvents.step("components-republish") { ComponentsManager.republish(this) } }
             .onSuccess { if (it) Log.i(TAG, "component selections published for the installed Proton builds") }
             .onFailure { Log.w(TAG, "component selections", it) }
-        if (steamHere) {
+        if (windowsGames()) {
             runCatching { SessionEvents.step("components-forced") { ComponentsManager.ensureForcedPackages(this) } }
                 .onSuccess { if (it != null) Log.i(TAG, it) }
                 .onFailure { Log.w(TAG, "forced components", it) }
@@ -1141,12 +1141,13 @@ class SessionService : Service() {
         }
         Log.i(TAG, "vkbridge: on (${com.droiddeck.launcher.core.DeviceSupport.gpuName(this)}, ${SessionPrefs.vkBridgeMode(this)} mode), socket $socket")
     }
-    private fun noSteamGame(): Boolean =
-        SessionState.mode == MODE_RUN && SessionState.program in setOf(NoSteamLaunch.PROTON_RUN, NoSteamLaunch.EPIC, NoSteamLaunch.BATTLENET)
+    private fun noSteamGame(): Boolean = NoSteamLaunch.running(SessionState.mode, SessionState.program)
+
+    private fun windowsGames(): Boolean = NoSteamLaunch.windowsGames(SessionState.mode, SessionState.program)
 
     private fun startAudio(guest: MutableList<String>, sessionDir: File, directAudioPack: Boolean): PulseAudioComponent {
         val wantsDirectAudio = directAudioPack &&
-            (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || noSteamGame()) &&
+            windowsGames() &&
             SessionPrefs.directAudio(this)
         val wantsMic = SessionPrefs.micEnabled(this) &&
             checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED

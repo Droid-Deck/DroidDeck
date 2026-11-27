@@ -13,6 +13,12 @@ object NoSteamLaunch {
 
     class Command(val program: String, val args: List<String>, val name: String)
 
+    fun running(mode: String, program: String?): Boolean =
+        mode == SessionService.MODE_RUN && program in setOf(PROTON_RUN, EPIC, BATTLENET)
+
+    fun windowsGames(mode: String, program: String?): Boolean =
+        mode == SessionService.MODE_STEAM || mode == SessionService.MODE_DESKTOP || running(mode, program)
+
     fun scope(game: Library.SteamGame): String? = when {
         game.library == Library.EPIC_LAUNCHER -> EpicClient.shortcutAppId.toString()
         game.library == Library.BATTLENET_LAUNCHER -> com.droiddeck.launcher.runtime.BattleNet.APP_ID.toString()
