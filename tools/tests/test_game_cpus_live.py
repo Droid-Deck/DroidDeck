@@ -25,7 +25,7 @@ class LiveGameCpusTest(unittest.TestCase):
 
     def run_setup(self, live=None, **extra):
         if live is not None:
-            self.live.write_text(live)
+            self.live.write_bytes(live.encode())
         setup = COMPAT["DD_GAME_CPUS_SETUP"].replace("/root/.config/droiddeck/game-cores", str(self.live))
         script = setup + '\ndd_game_cpus\necho "taskset=${DD_TASKSET:-}"\necho "cpus=${DD_GAME_CPUS-unset}"\n'
         env = {key: value for key, value in os.environ.items() if not key.startswith("DD_")}
@@ -54,7 +54,7 @@ class LiveGameCpusTest(unittest.TestCase):
             self.assertEqual(self.run_setup(partial, DD_GAME_CPUS="4,5"), ["taskset=taskset -c 4,5", "cpus=4,5"], partial)
 
     def test_an_unreadable_value_keeps_the_session_value(self):
-        for bad in ("3;rm\n", "6-\n", "-3\n", "3,,4\n", "3,\n", "3\n4\n", "3\n4", "\n3\n"):
+        for bad in ("3;rm\n", "6-\n", "-3\n", "3,,4\n", "3,\n", "3\n4\n", "3\n4", "\n3\n", "3\0,4\n", "\0\n"):
             self.assertEqual(self.run_setup(bad, DD_GAME_CPUS="4,5"), ["taskset=taskset -c 4,5", "cpus=4,5"], bad)
 
     def test_the_file_is_found_whatever_home_the_client_runs_with(self):
