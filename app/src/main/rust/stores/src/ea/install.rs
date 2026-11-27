@@ -807,12 +807,12 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
         return Err(Stop::Failed(message));
     }
     if !placed_all {
+        if cancel.load(Ordering::SeqCst) {
+            return Err(Stop::Cancelled);
+        }
         if let Some(error) = outcome.as_ref().and_then(|o| o.error.clone()) {
             ev.log(&format!("download failed: {error}"));
             return Err(Stop::Failed("A file failed to download".into()));
-        }
-        if cancel.load(Ordering::SeqCst) {
-            return Err(Stop::Cancelled);
         }
         return Err(Stop::Failed("The download ended before every file was written".into()));
     }

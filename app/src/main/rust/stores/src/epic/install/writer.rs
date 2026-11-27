@@ -631,11 +631,11 @@ fetches={} refetches={} peak_cache_mib={} hosts={}",
     if complete {
         return Ok(Stats { bytes_written: written, files_written: input.files.len() });
     }
-    if let Some(message) = fetch_error {
-        return Err(Stop::Failed(format!("Download failed: {}", tidy_fetch_error(&message))));
-    }
     if stop.load(Ordering::SeqCst) {
         return Err(Stop::Cancelled);
+    }
+    if let Some(message) = fetch_error {
+        return Err(Stop::Failed(format!("Download failed: {}", tidy_fetch_error(&message))));
     }
     Err(Stop::Failed("The download ended before every file was written".into()))
 }
