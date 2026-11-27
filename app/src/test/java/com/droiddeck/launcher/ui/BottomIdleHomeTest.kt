@@ -4,7 +4,12 @@ import com.droiddeck.launcher.frontend.Library
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33])
 class BottomIdleHomeTest {
     private val games = listOf(
         Library.SteamGame(620, "Portal 2", null, "", lastPlayed = 100),
@@ -30,5 +35,17 @@ class BottomIdleHomeTest {
     @Test
     fun nothingPlayedAndNothingSelected() {
         assertNull(IdleHome.pick(listOf(Library.SteamGame(1, "A", null, "")), null))
+    }
+
+    @Test
+    fun readsSteamsOverviewOfTheHighlightedGame() {
+        val o = IdleHome.parseOverview("""{"name":"Sonic Mania","minutes":864,"last":1764000000}""")!!
+        assertEquals("Sonic Mania", o.name)
+        assertEquals(864L, o.minutes)
+        assertEquals(1764000000L, o.lastPlayed)
+        assertNull(IdleHome.parseOverview(null))
+        assertNull(IdleHome.parseOverview("""{"name":""}"""))
+        assertNull(IdleHome.parseOverview("nope"))
+        assertEquals(true, IdleHome.overviewExpression(584400).contains("GetAppOverviewByAppID?.(584400)"))
     }
 }

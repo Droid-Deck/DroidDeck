@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,6 +74,7 @@ internal object MirrorRegion {
 }
 
 private const val FRAME_MS = 66L
+private const val COMPOSED_SETTLE_MS = 250L
 private const val EDIT_WIDTH = 960
 private const val EDIT_HEIGHT = 540
 private const val LIVE_LONGEST = 720
@@ -84,6 +86,10 @@ internal fun BottomMirrorPage(actions: BottomPageActions) {
     if (copy == null) {
         MirrorNote(stringResource(R.string.bottom_mirror_no_frame))
         return
+    }
+    DisposableEffect(Unit) {
+        actions.holdComposed(true)
+        onDispose { actions.holdComposed(false) }
     }
     val game = actions.runningGame() ?: "steam"
     var region by remember(game) { mutableStateOf(MirrorRegion.parse(SessionPrefs.mirrorRegion(context, game))) }
@@ -139,6 +145,7 @@ private fun MirrorEditor(
     var end by remember { mutableStateOf<Offset?>(null) }
     var picked by remember { mutableStateOf(current) }
     LaunchedEffect(Unit) {
+        delay(COMPOSED_SETTLE_MS)
         val bitmap = capture(copy, null, EDIT_WIDTH, EDIT_HEIGHT)
         failed = bitmap == null
         still = bitmap?.asImageBitmap()

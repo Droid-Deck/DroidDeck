@@ -21,17 +21,9 @@ import com.droiddeck.launcher.stores.SteamAchievements
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
-private const val GAME_POLL_MS = 2_000L
-
 @Composable
 internal fun BottomAchievementsPage(runningGame: () -> String?) {
-    var appId by remember { mutableStateOf(runningGame()?.toLongOrNull()) }
-    LaunchedEffect(Unit) {
-        while (isActive) {
-            appId = runningGame()?.toLongOrNull()
-            delay(GAME_POLL_MS)
-        }
-    }
+    val appId = rememberShownGame(runningGame)
     val game = remember(appId) { appId?.let(SteamAchievements::game) }
     val state = rememberAchievements(game)
     if (game == null || state == null) {

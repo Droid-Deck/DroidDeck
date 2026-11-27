@@ -56,8 +56,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.coroutines.resume
 
-private const val GAME_POLL_MS = 2_000L
-
 private sealed class GuideList {
     object Loading : GuideList()
     object Failed : GuideList()
@@ -67,13 +65,7 @@ private sealed class GuideList {
 @Composable
 internal fun BottomGuidesPage(runningGame: () -> String?) {
     val context = LocalContext.current
-    var appId by remember { mutableStateOf(runningGame()?.toLongOrNull()) }
-    LaunchedEffect(Unit) {
-        while (isActive) {
-            appId = runningGame()?.toLongOrNull()
-            delay(GAME_POLL_MS)
-        }
-    }
+    val appId = rememberShownGame(runningGame)
     val id = appId
     if (id == null) {
         PageNote(stringResource(R.string.bottom_guides_no_game))

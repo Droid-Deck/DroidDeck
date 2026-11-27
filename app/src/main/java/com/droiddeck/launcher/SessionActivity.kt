@@ -4650,6 +4650,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         runningGame = { gestureGame },
         quick = { drawerActions },
         copyRegion = ::copyGameRegion,
+        holdComposed = ::holdComposedOutput,
         screenOff = { secondScreenPresentation?.screenOff() },
     ))
 
@@ -5967,13 +5968,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (zeroCopyActive()) {
             WaylandCompositor.nativeSetZeroCopy(false)
             val restore = java.util.concurrent.atomic.AtomicBoolean(false)
-            val back = { if (restore.compareAndSet(false, true)) WaylandCompositor.nativeSetZeroCopy(true) }
+            val back = { if (restore.compareAndSet(false, true)) WaylandCompositor.nativeSetZeroCopy(composedHolds == 0) }
             uiHandler.postDelayed({ capturePausedFrame(manual = true, onDone = back) }, ZERO_COPY_SETTLE_MS)
             uiHandler.postDelayed({ back() }, ZERO_COPY_RESTORE_MS)
         } else {
             capturePausedFrame(manual = true)
         }
         SessionService.pause(this)
+    }
+
+    private var composedHolds = 0
+
+    private fun holdComposedOutput(hold: Boolean) {
+        composedHolds = (composedHolds + if (hold) 1 else -1).coerceAtLeast(0)
+        if (zeroCopyActive()) WaylandCompositor.nativeSetZeroCopy(composedHolds == 0)
     }
 
     private fun zeroCopyActive(): Boolean =

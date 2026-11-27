@@ -58,7 +58,30 @@ internal object IdleHome {
         return games.filter { it.lastPlayed > 0 }.maxByOrNull { it.lastPlayed }?.let { it to false }
     }
 
+    class Overview(val name: String, val minutes: Long, val lastPlayed: Long)
+
+    fun overviewExpression(appId: Long): String = "(() => { const o = globalThis.appStore?.GetAppOverviewByAppID?.($appId); " +
+        "return o ? JSON.stringify({name: o.display_name, minutes: o.minutes_playtime_forever, last: o.rt_last_time_played}) : null; })()"
+
+    fun parseOverview(json: String?): Overview? = runCatching {
+        val o = org.json.JSONObject(json ?: return null)
+        Overview(o.optString("name").ifEmpty { return null }, o.optLong("minutes"), o.optLong("last"))
+    }.getOrNull()
+
+    private fun overview(context: Context, appId: Long): Overview? = runCatching {
+        val answer = AgentGuest.steamEval(context, overviewExpression(appId), 4_000)
+        if (!answer.optBoolean("ok")) null else parseOverview(answer.opt("value")?.takeIf { it != org.json.JSONObject.NULL }?.toString())
+    }.getOrNull()
+
     fun load(context: Context, games: List<Library.SteamGame>, selected: Long?): IdleGame? {
+        if (selected != null) overview(context, selected)?.let { o ->
+            val id = selected.toInt()
+            val art = games.firstOrNull { it.appId == id }?.let { it.hero ?: it.art } ?: runCatching {
+                Library.steamCacheImage(File(SessionPrefs.activeSteamRoot(context), "appcache/librarycache"), id,
+                    listOf("library_hero.jpg", "library_600x900.jpg", "header.jpg"))
+            }.getOrNull()
+            return IdleGame(id, o.name, art, o.minutes, o.lastPlayed, highlighted = true)
+        }
         val (game, highlighted) = pick(games, selected) ?: return null
         val stats = runCatching { SteamLocalConfig.appStats(SessionPrefs.activeSteamRoot(context), game.appId) }.getOrNull()
         return IdleGame(
@@ -71,6 +94,20 @@ internal object IdleHome {
 }
 
 private const val SELECTION_MS = 2_000L
+
+@Composable
+internal fun rememberShownGame(runningGame: () -> String?): Long? {
+    val context = LocalContext.current
+    var appId by remember { mutableStateOf(runningGame()?.toLongOrNull()) }
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            appId = runningGame()?.toLongOrNull()
+                ?: withContext(Dispatchers.IO) { runCatching { AgentGuest.selectedSteamAppId(context) }.getOrNull() }
+            delay(SELECTION_MS)
+        }
+    }
+    return appId
+}
 
 @Composable
 internal fun BottomIdleHome(modifier: Modifier = Modifier) {
