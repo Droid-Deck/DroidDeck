@@ -2137,6 +2137,7 @@
     <string name="bottom_guides_maps_empty">Ingen fastgjorte kort endnu</string>
     <string name="bottom_guides_map_name">Kort %1$d</string>
     <string name="bottom_guides_saved_empty">Ingen gemte sider endnu</string>
+    <string name="bottom_mirror_options">Spejlindstillinger</string>
     <string name="bottom_mirror_region">Område</string>
     <string name="bottom_mirror_top">Øverste skærm</string>
     <string name="bottom_mirror_scaling">Skalering</string>

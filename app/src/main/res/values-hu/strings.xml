@@ -2137,6 +2137,7 @@
     <string name="bottom_guides_maps_empty">Még nincs kitűzött térkép</string>
     <string name="bottom_guides_map_name">%1$d. térkép</string>
     <string name="bottom_guides_saved_empty">Még nincs mentett oldal</string>
+    <string name="bottom_mirror_options">Tükrözés beállításai</string>
     <string name="bottom_mirror_region">Terület</string>
     <string name="bottom_mirror_top">Felső képernyő</string>
     <string name="bottom_mirror_scaling">Méretezés</string>

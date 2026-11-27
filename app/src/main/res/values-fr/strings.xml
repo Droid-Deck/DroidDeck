@@ -2161,6 +2161,7 @@
     <string name="bottom_guides_maps_empty">Aucune carte épinglée</string>
     <string name="bottom_guides_map_name">Carte %1$d</string>
     <string name="bottom_guides_saved_empty">Aucune page enregistrée</string>
+    <string name="bottom_mirror_options">Options du miroir</string>
     <string name="bottom_mirror_region">Zone</string>
     <string name="bottom_mirror_top">Écran du haut</string>
     <string name="bottom_mirror_scaling">Mise à l’échelle</string>

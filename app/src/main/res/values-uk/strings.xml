@@ -2187,6 +2187,7 @@
     <string name="bottom_guides_maps_empty">Ще немає закріплених мап</string>
     <string name="bottom_guides_map_name">Мапа %1$d</string>
     <string name="bottom_guides_saved_empty">Ще немає збережених сторінок</string>
+    <string name="bottom_mirror_options">Параметри дзеркала</string>
     <string name="bottom_mirror_region">Область</string>
     <string name="bottom_mirror_top">Верхній екран</string>
     <string name="bottom_mirror_scaling">Масштабування</string>

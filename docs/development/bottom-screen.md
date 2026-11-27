@@ -149,7 +149,7 @@ Rearrangeable tiles on the dashboard: FPS limit, 60/120 Hz, per-screen brightnes
 
 ### 6. Region mirror from our compositor
 
-**Status:** milestone 1 built as its own bottom-screen panel (Mirror in the panel picker): the live region on the left, and Region, Top screen (shown, hidden or dimmed) and Scaling as settings rows on the right. Checked on a Retroid Pocket Duo Lite Plus; see the region mirror doc.
+**Status:** milestone 1 built as its own bottom-screen panel (Mirror in the panel picker): the live region fills the panel, and Region, Top screen (shown, hidden or dimmed) and Scaling open as a card from the bar's options button. Checked on a Retroid Pocket Duo Lite Plus; see the region mirror doc.
 
 Crop rectangles of the game image (minimap, HUD, ability bars) onto the bottom screen, saved per game, optionally hidden on the top screen. Other Thor tools need MediaProjection or a privileged helper and cannot hide the original; our compositor has the game image before display, so it can do both with no permission prompt. Recommended path: a second output in `vk_present` that blits region sub-rectangles, with zero-copy layers later.
 

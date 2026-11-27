@@ -2113,6 +2113,7 @@
     <string name="bottom_guides_maps_empty">Belum ada peta yang disematkan</string>
     <string name="bottom_guides_map_name">Peta %1$d</string>
     <string name="bottom_guides_saved_empty">Belum ada halaman tersimpan</string>
+    <string name="bottom_mirror_options">Opsi cermin</string>
     <string name="bottom_mirror_region">Area</string>
     <string name="bottom_mirror_top">Layar atas</string>
     <string name="bottom_mirror_scaling">Penskalaan</string>

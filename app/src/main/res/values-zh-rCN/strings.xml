@@ -2190,6 +2190,7 @@
     <string name="bottom_guides_maps_empty">还没有固定的地图</string>
     <string name="bottom_guides_map_name">地图 %1$d</string>
     <string name="bottom_guides_saved_empty">还没有保存的页面</string>
+    <string name="bottom_mirror_options">镜像选项</string>
     <string name="bottom_mirror_region">区域</string>
     <string name="bottom_mirror_top">上屏</string>
     <string name="bottom_mirror_scaling">缩放</string>

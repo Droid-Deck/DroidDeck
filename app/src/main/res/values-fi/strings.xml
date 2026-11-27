@@ -2137,6 +2137,7 @@
     <string name="bottom_guides_maps_empty">Ei vielä kiinnitettyjä karttoja</string>
     <string name="bottom_guides_map_name">Kartta %1$d</string>
     <string name="bottom_guides_saved_empty">Ei vielä tallennettuja sivuja</string>
+    <string name="bottom_mirror_options">Peilauksen asetukset</string>
     <string name="bottom_mirror_region">Alue</string>
     <string name="bottom_mirror_top">Ylänäyttö</string>
     <string name="bottom_mirror_scaling">Skaalaus</string>

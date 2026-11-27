@@ -2237,6 +2237,7 @@
     <string name="bottom_guides_maps_empty">لا توجد خرائط مثبتة بعد</string>
     <string name="bottom_guides_map_name">خريطة %1$d</string>
     <string name="bottom_guides_saved_empty">لا توجد صفحات محفوظة بعد</string>
+    <string name="bottom_mirror_options">خيارات المرآة</string>
     <string name="bottom_mirror_region">المنطقة</string>
     <string name="bottom_mirror_top">الشاشة العلوية</string>
     <string name="bottom_mirror_scaling">التحجيم</string>

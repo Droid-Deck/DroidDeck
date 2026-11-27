@@ -2419,6 +2419,7 @@
     <string name="bottom_guides_maps_empty">No pinned maps yet</string>
     <string name="bottom_guides_map_name">Map %1$d</string>
     <string name="bottom_guides_saved_empty">No saved pages yet</string>
+    <string name="bottom_mirror_options">Mirror options</string>
     <string name="bottom_mirror_region">Region</string>
     <string name="bottom_mirror_top">Top screen</string>
     <string name="bottom_mirror_scaling">Scaling</string>

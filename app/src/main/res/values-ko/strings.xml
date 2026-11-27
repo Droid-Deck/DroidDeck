@@ -2113,6 +2113,7 @@
     <string name="bottom_guides_maps_empty">고정한 지도가 아직 없습니다</string>
     <string name="bottom_guides_map_name">지도 %1$d</string>
     <string name="bottom_guides_saved_empty">저장한 페이지가 아직 없습니다</string>
+    <string name="bottom_mirror_options">미러 옵션</string>
     <string name="bottom_mirror_region">영역</string>
     <string name="bottom_mirror_top">위 화면</string>
     <string name="bottom_mirror_scaling">스케일링</string>

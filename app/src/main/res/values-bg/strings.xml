@@ -2137,6 +2137,7 @@
     <string name="bottom_guides_maps_empty">Още няма закачени карти</string>
     <string name="bottom_guides_map_name">Карта %1$d</string>
     <string name="bottom_guides_saved_empty">Още няма запазени страници</string>
+    <string name="bottom_mirror_options">Настройки на огледалото</string>
     <string name="bottom_mirror_region">Област</string>
     <string name="bottom_mirror_top">Горен екран</string>
     <string name="bottom_mirror_scaling">Мащабиране</string>

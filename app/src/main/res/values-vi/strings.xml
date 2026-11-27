@@ -2113,6 +2113,7 @@
     <string name="bottom_guides_maps_empty">Chưa có bản đồ nào được ghim</string>
     <string name="bottom_guides_map_name">Bản đồ %1$d</string>
     <string name="bottom_guides_saved_empty">Chưa có trang nào được lưu</string>
+    <string name="bottom_mirror_options">Tùy chọn phản chiếu</string>
     <string name="bottom_mirror_region">Vùng</string>
     <string name="bottom_mirror_top">Màn hình trên</string>
     <string name="bottom_mirror_scaling">Thu phóng</string>

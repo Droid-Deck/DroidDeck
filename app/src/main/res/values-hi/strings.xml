@@ -2137,6 +2137,7 @@
     <string name="bottom_guides_maps_empty">अभी कोई पिन किया नक्शा नहीं</string>
     <string name="bottom_guides_map_name">नक्शा %1$d</string>
     <string name="bottom_guides_saved_empty">अभी कोई सहेजा पेज नहीं</string>
+    <string name="bottom_mirror_options">मिरर विकल्प</string>
     <string name="bottom_mirror_region">क्षेत्र</string>
     <string name="bottom_mirror_top">ऊपर की स्क्रीन</string>
     <string name="bottom_mirror_scaling">स्केलिंग</string>

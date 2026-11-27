@@ -2137,6 +2137,7 @@
     <string name="bottom_guides_maps_empty">Inga fästa kartor än</string>
     <string name="bottom_guides_map_name">Karta %1$d</string>
     <string name="bottom_guides_saved_empty">Inga sparade sidor än</string>
+    <string name="bottom_mirror_options">Spegelalternativ</string>
     <string name="bottom_mirror_region">Område</string>
     <string name="bottom_mirror_top">Övre skärm</string>
     <string name="bottom_mirror_scaling">Skalning</string>

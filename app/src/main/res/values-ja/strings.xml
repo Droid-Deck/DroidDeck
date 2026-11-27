@@ -2113,6 +2113,7 @@
     <string name="bottom_guides_maps_empty">ピン留めしたマップはまだありません</string>
     <string name="bottom_guides_map_name">マップ %1$d</string>
     <string name="bottom_guides_saved_empty">保存したページはまだありません</string>
+    <string name="bottom_mirror_options">ミラーの設定</string>
     <string name="bottom_mirror_region">範囲</string>
     <string name="bottom_mirror_top">上画面</string>
     <string name="bottom_mirror_scaling">スケーリング</string>

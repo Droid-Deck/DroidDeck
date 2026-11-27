@@ -18,6 +18,7 @@ import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.LightMode
+import androidx.compose.material.icons.outlined.Tune
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
@@ -427,7 +428,12 @@ class SecondScreenPresentation(
                 model(listOf(BarExtra(context.getString(R.string.bottom_qam_layout, context.getString(fit.label)), vector = fit.icon,
                     tag = "bottom-qam-layout") { QamFit.choose(context, fit.next) }) + extras)
             }
-            SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.GUIDES, SecondScreenMode.MIRROR,
+            SecondScreenMode.MIRROR -> model(listOf(BarExtra(context.getString(R.string.bottom_mirror_options), vector = Icons.Outlined.Tune,
+                active = MirrorOptions.open.value, tag = "bottom-mirror-options-toggle") {
+                brightnessOpen.value = false
+                MirrorOptions.open.value = !MirrorOptions.open.value
+            }) + extras)
+            SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.GUIDES,
             SecondScreenMode.COMPANION, SecondScreenMode.ART -> model(extras)
             SecondScreenMode.TERMINAL -> model(listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard,
                 tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }) + extras)

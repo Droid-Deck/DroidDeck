@@ -2232,6 +2232,7 @@
     <string name="bottom_guides_maps_empty">Aún no hay mapas fijados</string>
     <string name="bottom_guides_map_name">Mapa %1$d</string>
     <string name="bottom_guides_saved_empty">Aún no hay páginas guardadas</string>
+    <string name="bottom_mirror_options">Opciones de espejo</string>
     <string name="bottom_mirror_region">Región</string>
     <string name="bottom_mirror_top">Pantalla superior</string>
     <string name="bottom_mirror_scaling">Escalado</string>

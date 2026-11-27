@@ -2187,6 +2187,7 @@
     <string name="bottom_guides_maps_empty">Zatím žádné připnuté mapy</string>
     <string name="bottom_guides_map_name">Mapa %1$d</string>
     <string name="bottom_guides_saved_empty">Zatím žádné uložené stránky</string>
+    <string name="bottom_mirror_options">Možnosti zrcadlení</string>
     <string name="bottom_mirror_region">Oblast</string>
     <string name="bottom_mirror_top">Horní obrazovka</string>
     <string name="bottom_mirror_scaling">Škálování</string>

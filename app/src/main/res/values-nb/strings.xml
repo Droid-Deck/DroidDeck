@@ -2137,6 +2137,7 @@
     <string name="bottom_guides_maps_empty">Ingen festede kart ennå</string>
     <string name="bottom_guides_map_name">Kart %1$d</string>
     <string name="bottom_guides_saved_empty">Ingen lagrede sider ennå</string>
+    <string name="bottom_mirror_options">Speilvalg</string>
     <string name="bottom_mirror_region">Område</string>
     <string name="bottom_mirror_top">Øvre skjerm</string>
     <string name="bottom_mirror_scaling">Skalering</string>

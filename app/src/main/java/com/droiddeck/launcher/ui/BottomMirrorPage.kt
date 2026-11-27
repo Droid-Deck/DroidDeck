@@ -4,17 +4,25 @@ import android.graphics.Bitmap
 import android.graphics.RectF
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,27 +45,21 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.platform.testTag
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.border
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.fillMaxHeight
 import com.droiddeck.launcher.session.SessionPrefs
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 internal enum class MirrorHide(val id: String, val label: Int) {
     OFF("off", R.string.bottom_mirror_hide_off),
@@ -144,20 +146,25 @@ internal fun MirrorPanel(actions: BottomPageActions) {
         }
     }
     val pal = LocalPalette.current
-    Row(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Box(
-            Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(Color.Black)
-                .border(1.dp, pal.line, RoundedCornerShape(14.dp)),
-            contentAlignment = Alignment.Center,
+    DisposableEffect(Unit) { onDispose { MirrorOptions.open.value = false } }
+    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+        val f = frame
+        if (f != null) Image(f, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
+            filterQuality = if (sharp) FilterQuality.None else FilterQuality.Medium)
+        else if (failed) MirrorNote(stringResource(R.string.bottom_mirror_no_frame))
+        if (MirrorOptions.open.value) Box(
+            Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, indication = null) { MirrorOptions.open.value = false },
+            contentAlignment = Alignment.TopEnd,
         ) {
-            val f = frame
-            if (f != null) Image(f, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
-                filterQuality = if (sharp) FilterQuality.None else FilterQuality.Medium)
-            else if (failed) MirrorNote(stringResource(R.string.bottom_mirror_no_frame))
-        }
-        Column(Modifier.width(260.dp).fillMaxHeight().verticalScroll(rememberScrollState())) {
+            val shape = RoundedCornerShape(16.dp)
+            Column(
+                Modifier.padding(12.dp).width(380.dp).testTag("bottom-mirror-options").clip(shape).background(MaterialTheme.colorScheme.background)
+                    .border(1.dp, pal.line, shape).clickable(remember { MutableInteractionSource() }, indication = null) {}
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
             SettingsGroup(stringResource(R.string.bottom_page_mirror)) {
-                ActionRow(stringResource(R.string.bottom_mirror_region), null, stringResource(R.string.game_env_edit), onClick = { editing = true },
+                ActionRow(stringResource(R.string.bottom_mirror_region), null, stringResource(R.string.game_env_edit),
+                    onClick = { MirrorOptions.open.value = false; editing = true },
                     modifier = Modifier.testTag("bottom-mirror-edit"))
                 ChoiceRow(host, "mirror-hide", stringResource(R.string.bottom_mirror_top), null,
                     MirrorHide.entries.map { it to stringResource(it.label) }, hide) {
@@ -169,8 +176,14 @@ internal fun MirrorPanel(actions: BottomPageActions) {
                     sharp = it
                 }
             }
+            }
         }
     }
+}
+
+/** Whether the mirror's options card is open, toggled from the bar so the mirror keeps the whole panel. */
+internal object MirrorOptions {
+    val open = androidx.compose.runtime.mutableStateOf(false)
 }
 
 @Composable

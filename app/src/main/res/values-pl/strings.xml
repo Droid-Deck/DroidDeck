@@ -2187,6 +2187,7 @@
     <string name="bottom_guides_maps_empty">Brak przypiętych map</string>
     <string name="bottom_guides_map_name">Mapa %1$d</string>
     <string name="bottom_guides_saved_empty">Brak zapisanych stron</string>
+    <string name="bottom_mirror_options">Opcje lustra</string>
     <string name="bottom_mirror_region">Obszar</string>
     <string name="bottom_mirror_top">Górny ekran</string>
     <string name="bottom_mirror_scaling">Skalowanie</string>

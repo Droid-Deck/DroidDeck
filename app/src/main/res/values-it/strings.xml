@@ -2153,6 +2153,7 @@
     <string name="bottom_guides_maps_empty">Nessuna mappa fissata</string>
     <string name="bottom_guides_map_name">Mappa %1$d</string>
     <string name="bottom_guides_saved_empty">Nessuna pagina salvata</string>
+    <string name="bottom_mirror_options">Opzioni specchio</string>
     <string name="bottom_mirror_region">Area</string>
     <string name="bottom_mirror_top">Schermo superiore</string>
     <string name="bottom_mirror_scaling">Scalatura</string>

@@ -2129,6 +2129,7 @@
     <string name="bottom_guides_maps_empty">Henüz sabitlenmiş harita yok</string>
     <string name="bottom_guides_map_name">Harita %1$d</string>
     <string name="bottom_guides_saved_empty">Henüz kaydedilmiş sayfa yok</string>
+    <string name="bottom_mirror_options">Ayna seçenekleri</string>
     <string name="bottom_mirror_region">Bölge</string>
     <string name="bottom_mirror_top">Üst ekran</string>
     <string name="bottom_mirror_scaling">Ölçekleme</string>

@@ -2129,6 +2129,7 @@
     <string name="bottom_guides_maps_empty">Noch keine angehefteten Karten</string>
     <string name="bottom_guides_map_name">Karte %1$d</string>
     <string name="bottom_guides_saved_empty">Noch keine gespeicherten Seiten</string>
+    <string name="bottom_mirror_options">Spiegeloptionen</string>
     <string name="bottom_mirror_region">Bereich</string>
     <string name="bottom_mirror_top">Oberer Bildschirm</string>
     <string name="bottom_mirror_scaling">Skalierung</string>

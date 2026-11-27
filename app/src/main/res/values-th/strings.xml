@@ -2113,6 +2113,7 @@
     <string name="bottom_guides_maps_empty">ยังไม่มีแผนที่ที่ปักหมุด</string>
     <string name="bottom_guides_map_name">แผนที่ %1$d</string>
     <string name="bottom_guides_saved_empty">ยังไม่มีหน้าที่บันทึก</string>
+    <string name="bottom_mirror_options">ตัวเลือกการสะท้อน</string>
     <string name="bottom_mirror_region">พื้นที่</string>
     <string name="bottom_mirror_top">จอบน</string>
     <string name="bottom_mirror_scaling">การปรับขนาด</string>

@@ -2188,6 +2188,7 @@
     <string name="bottom_guides_maps_empty">Пока нет закреплённых карт</string>
     <string name="bottom_guides_map_name">Карта %1$d</string>
     <string name="bottom_guides_saved_empty">Пока нет сохранённых страниц</string>
+    <string name="bottom_mirror_options">Параметры зеркала</string>
     <string name="bottom_mirror_region">Область</string>
     <string name="bottom_mirror_top">Верхний экран</string>
     <string name="bottom_mirror_scaling">Масштабирование</string>

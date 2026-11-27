@@ -2162,6 +2162,7 @@
     <string name="bottom_guides_maps_empty">Nicio hartă fixată încă</string>
     <string name="bottom_guides_map_name">Harta %1$d</string>
     <string name="bottom_guides_saved_empty">Nicio pagină salvată încă</string>
+    <string name="bottom_mirror_options">Opțiuni oglindă</string>
     <string name="bottom_mirror_region">Zonă</string>
     <string name="bottom_mirror_top">Ecranul de sus</string>
     <string name="bottom_mirror_scaling">Scalare</string>

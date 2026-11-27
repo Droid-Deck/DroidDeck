@@ -2112,6 +2112,7 @@
     <string name="bottom_guides_maps_empty">尚未釘選地圖</string>
     <string name="bottom_guides_map_name">地圖 %1$d</string>
     <string name="bottom_guides_saved_empty">尚未儲存頁面</string>
+    <string name="bottom_mirror_options">鏡像選項</string>
     <string name="bottom_mirror_region">區域</string>
     <string name="bottom_mirror_top">上螢幕</string>
     <string name="bottom_mirror_scaling">縮放</string>

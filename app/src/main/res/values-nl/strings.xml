@@ -2137,6 +2137,7 @@
     <string name="bottom_guides_maps_empty">Nog geen vastgezette kaarten</string>
     <string name="bottom_guides_map_name">Kaart %1$d</string>
     <string name="bottom_guides_saved_empty">Nog geen opgeslagen pagina\'s</string>
+    <string name="bottom_mirror_options">Spiegelopties</string>
     <string name="bottom_mirror_region">Gebied</string>
     <string name="bottom_mirror_top">Bovenste scherm</string>
     <string name="bottom_mirror_scaling">Schalen</string>
