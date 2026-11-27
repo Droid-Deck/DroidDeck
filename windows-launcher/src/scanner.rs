@@ -60,7 +60,7 @@ fn scan_steam(issues: &mut Vec<String>) -> Vec<Game> {
                 for capture in path_pattern.captures_iter(&text) {
                     let value = decode_vdf(&capture[1]);
                     let path = PathBuf::from(value);
-                    if path.join("steamapps").is_dir() {
+                    if scan_directory(&path.join("steamapps"), "Steam library", issues) {
                         libraries.insert(path);
                     }
                 }
@@ -337,6 +337,20 @@ fn record_scan_error(label: &str, path: &Path, error: &std::io::Error, issues: &
             "No se pudo leer {label} {}: {error}",
             path.display()
         ));
+    }
+}
+
+fn scan_directory(path: &Path, label: &str, issues: &mut Vec<String>) -> bool {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_dir() => true,
+        Ok(_) => {
+            issues.push(format!("{label} no es una carpeta: {}", path.display()));
+            false
+        }
+        Err(error) => {
+            record_scan_error(label, path, &error, issues);
+            false
+        }
     }
 }
 

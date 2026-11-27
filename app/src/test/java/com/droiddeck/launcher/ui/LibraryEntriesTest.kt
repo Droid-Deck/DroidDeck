@@ -38,6 +38,20 @@ class LibraryEntriesTest {
         assertEquals(listOf(Store.STEAM.id), librarySources(entries, listOf(Store.STEAM.id, "epic")))
     }
 
+    @Test fun steamClientCatalogGamesRemainVisibleWithoutOwnedRowsAndDeduplicateByAppId() {
+        val accountGame = Library.SteamGame(620, "Portal 2", null, Library.NOT_INSTALLED)
+        val catalog = mapOf(Store.STEAM to listOf(
+            owned(Store.STEAM, "620", "Portal 2 from catalog"),
+            owned(Store.STEAM, "440", "Team Fortress 2"),
+        ))
+
+        val entries = libraryEntries(listOf(accountGame), catalog, emptySet())
+
+        assertEquals(listOf("app:620", "app:steamstore:440"), entries.map { it.key })
+        assertEquals("Portal 2", entries.first().title)
+        assertFalse(entries.last().installed)
+    }
+
     @Test fun theEpicLauncherIsNotAGame() {
         val launcher = Library.SteamGame(0, Library.EPIC_LAUNCHER_NAME, null, Library.EPIC_LAUNCHER)
         assertEquals(emptyList<String>(), libraryEntries(listOf(launcher), emptyMap(), emptySet()).map { it.key })
@@ -104,9 +118,9 @@ class LibraryEntriesTest {
     @Test fun theLibrarysOwnTabsSitAfterTheTabTheyFollow() {
         val entries = listOf("added", "gog", "steam", "epic", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
         val order = listOf("xbox", "epic", "gog")
-        assertEquals(listOf(Store.STEAM.id, "xbox", "added", "epic", "gog"), librarySources(entries, order, places = listOf("added" to "xbox")))
-        assertEquals(listOf("added", Store.STEAM.id, "xbox", "epic", "gog"), librarySources(entries, order, places = listOf("added" to "", "favorites" to "added", "steam" to "favorites")))
-        assertEquals(listOf(Store.STEAM.id, "xbox", "epic", "gog", "added"), librarySources(entries, order, places = listOf("favorites" to "epic", "steam" to "favorites", "added" to "nope")))
+        assertEquals(listOf(Store.STEAM.id, "xbox", "added", "epic", "gog"), librarySources(entries, order, places = listOf("added" to "xbox"), steamFirstByDefault = true))
+        assertEquals(listOf("added", Store.STEAM.id, "xbox", "epic", "gog"), librarySources(entries, order, places = listOf("added" to "", "favorites" to "added", "steam" to "favorites"), steamFirstByDefault = true))
+        assertEquals(listOf(Store.STEAM.id, "xbox", "epic", "gog", "added"), librarySources(entries, order, places = listOf("favorites" to "epic", "steam" to "favorites", "added" to "nope"), steamFirstByDefault = true))
     }
 
     @Test fun legacyCustomTabPlacementStillFollowsTheSteamStoreTab() {
@@ -135,7 +149,21 @@ class LibraryEntriesTest {
 
     @Test fun aSteamLibraryGameUsesItsSingleStoreTabAndOtherEmptySourcesKeepTheirPlace() {
         val entries = listOf("steam", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
-        assertEquals(listOf(Store.STEAM.id, "xbox", "itch", "gamejolt"), librarySources(entries, listOf("xbox", "itch", "gamejolt"), setOf("itch", "gamejolt")))
+        assertEquals(listOf(Store.STEAM.id, "xbox", "itch", "gamejolt"), librarySources(entries, listOf("xbox", "itch", "gamejolt"), setOf("itch", "gamejolt"), steamFirstByDefault = true))
+    }
+
+    @Test fun aCustomizedStoreOrderKeepsSteamInItsSavedPosition() {
+        val entries = listOf("epic", "steam", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
+        assertEquals(
+            listOf("epic", Store.STEAM.id, "xbox"),
+            librarySources(entries, listOf("epic", Store.STEAM.id, "xbox"), steamFirstByDefault = false),
+        )
+    }
+
+    @Test fun legacySteamStoreIdsAreCanonicalizedWhenArrangingTabs() {
+        val arranged = com.droiddeck.launcher.stores.arrangeStoreTabs(listOf("epic", "steam-account"), setOf("steam-account"))
+        assertFalse(arranged.single { it.store == Store.STEAM }.shown)
+        assertEquals(1, arranged.count { it.store == Store.STEAM })
     }
 
     @Test fun gameKeysNameEitherAnAppOrAStoreProduct() {

@@ -207,6 +207,7 @@
     <string name="user_apps_update_failed">Updating the app failed</string>
     <string name="user_apps_icon_failed">That icon could not be read</string>
     <string name="user_apps_saved">%1$s saved</string>
+    <string name="stores_library_export_failed">Could not export the library. Choose another destination and try again.</string>
     <string name="user_apps_edit">Edit</string>
     <string name="user_apps_check_updates">Check for updates</string>
     <string name="user_apps_checking_updates">Checking for updates…</string>

@@ -6,6 +6,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.zip.GZIPOutputStream
 import org.junit.After
+import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -23,6 +24,11 @@ class SteamPicsTest {
     private val app get() = RuntimeEnvironment.getApplication()
 
     private val recorded: String get() = javaClass.classLoader!!.getResource("steam-pics/app_2054970.vdf")!!.readText()
+
+    @Before fun clearAppInfoCache() {
+        File(app.filesDir, "steam-appinfo.json").delete()
+        File(app.filesDir, "steam-appinfo.json.new").delete()
+    }
 
     @After fun tearDown() { SteamAppInfo.pics = { SteamPics.lookup(it) } }
 
@@ -60,16 +66,19 @@ class SteamPicsTest {
     }
 
     @Test fun answersAreKeptAndAMissIsAskedAgainOnlyAfterAWeek() {
+        val context = app
         val calls = ArrayList<List<Int>>()
-        SteamAppInfo.pics = { ids -> calls.add(ids); mapOf(2054970 to SteamPics.infoFromKeyValues(recorded), 7 to null) }
-        assertTrue(SteamAppInfo.lookup(app, listOf(2054970, 7)))
+        val answer = requireNotNull(SteamPics.infoFromKeyValues(recorded))
+        SteamAppInfo.pics = { ids -> calls.add(ids); mapOf(2054970 to answer, 7 to null) }
+        assertTrue(SteamAppInfo.lookup(context, listOf(2054970, 7)))
         assertEquals(listOf(listOf(2054970, 7)), calls)
-        assertEquals(listOf("228988"), SteamAppInfo.info(app, 2054970)!!.sharedDepots)
-        assertNull(SteamAppInfo.info(app, 7))
-        assertFalse(SteamAppInfo.lookup(app, listOf(2054970, 7)))
+        assertEquals("hit", SteamAppInfo.state(context, 2054970))
+        assertEquals(listOf("228988"), SteamAppInfo.info(context, 2054970)!!.sharedDepots)
+        assertNull(SteamAppInfo.info(context, 7))
+        assertFalse(SteamAppInfo.lookup(context, listOf(2054970, 7)))
         assertEquals(1, calls.size)
-        assertEquals("hit", SteamAppInfo.state(app, 2054970))
-        assertEquals("miss", SteamAppInfo.state(app, 7))
+        assertEquals("hit", SteamAppInfo.state(context, 2054970))
+        assertEquals("miss", SteamAppInfo.state(context, 7))
     }
 
     @Test fun noNetworkWhenTheClientsCacheHasTheApp() {

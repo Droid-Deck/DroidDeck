@@ -114,6 +114,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var flood by mutableStateOf<PendingFlood?>(null)
     private var floodProgress by androidx.compose.runtime.mutableFloatStateOf(0f)
     private class PendingFlood(val from: androidx.compose.ui.geometry.Rect, val intent: Intent)
+    private enum class SessionLaunchDisposition { NONE, REFUSED, DEFERRED, DISPATCHED }
+    private var sessionLaunchDisposition = SessionLaunchDisposition.NONE
     private class CompatLaunch(val intent: Intent, val loading: com.droiddeck.launcher.session.LoadingState, var menuInstall: Boolean)
     private var compatLaunch by mutableStateOf<CompatLaunch?>(null)
     private var compatFlood by mutableStateOf<androidx.compose.ui.graphics.Color?>(null)
@@ -238,6 +240,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var integrationState by mutableStateOf(SteamIntegration.State())
     private var integrationFocus by mutableStateOf<SteamIntegration.Feature?>(null)
     private var pendingSessionLogExport: File? = null
+    private var pendingLibraryExportFile: File? = null
+    private var libraryExportInProgress = false
     private val wifiLocationReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             refreshWifiDiscovery()
@@ -333,27 +337,68 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
     }
     private val pickLibraryExport = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@registerForActivityResult
-        val contents = DroidDeckLibraryExport.json(steamGames + steamOwnedGames, steamOwnedGames)
+        val export = pendingLibraryExportFile.also { pendingLibraryExportFile = null }
+        libraryExportInProgress = false
+        if (uri == null) {
+            export?.delete()
+            return@registerForActivityResult
+        }
         Thread({
             val saved = runCatching {
-                contentResolver.openOutputStream(uri)?.use { it.write(contents.toByteArray(Charsets.UTF_8)) }
+                val source = export?.takeIf { it.isFile } ?: error("Prepared library export is missing")
+                contentResolver.openOutputStream(uri)?.use { output -> source.inputStream().buffered().use { it.copyTo(output) } }
                     ?: error("Could not open destination")
             }.isSuccess
+            export?.delete()
             ui.post {
-                if (saved) android.widget.Toast.makeText(this,
-                    getString(R.string.user_apps_saved, getString(R.string.stores_tab_library)), android.widget.Toast.LENGTH_LONG).show()
-                else Log.w(TAG, "could not export the DroidDeck library")
+                android.widget.Toast.makeText(this,
+                    if (saved) getString(R.string.user_apps_saved, getString(R.string.stores_tab_library))
+                    else getString(R.string.stores_library_export_failed), android.widget.Toast.LENGTH_LONG).show()
+                if (!saved) Log.w(TAG, "could not export the DroidDeck library")
             }
         }, "save-droiddeck-library").start()
     }
 
     private fun exportDroidDeckLibrary() {
+        if (libraryExportInProgress) return
+        libraryExportInProgress = true
         Thread({
             val owned = runCatching { SteamOwnedLibrary.sync(this) }.getOrDefault(emptyList())
             ui.post {
-                if (!shortcutPicker) steamOwnedGames = owned
-                pickLibraryExport.launch("DroidDeck-library.json")
+                if (isFinishing || isDestroyed) {
+                    libraryExportInProgress = false
+                    return@post
+                }
+                val contents = runCatching { DroidDeckLibraryExport.json(steamGames + owned, owned) }.getOrElse {
+                    libraryExportInProgress = false
+                    android.widget.Toast.makeText(this, R.string.stores_library_export_failed, android.widget.Toast.LENGTH_LONG).show()
+                    Log.w(TAG, "could not prepare the DroidDeck library export (${it.javaClass.simpleName})")
+                    return@post
+                }
+                Thread({
+                    val file = runCatching {
+                        File.createTempFile("droiddeck-library-", ".json", cacheDir).apply {
+                            writeText(contents, Charsets.UTF_8)
+                        }
+                    }.getOrElse {
+                        ui.post {
+                            libraryExportInProgress = false
+                            android.widget.Toast.makeText(this, R.string.stores_library_export_failed, android.widget.Toast.LENGTH_LONG).show()
+                            Log.w(TAG, "could not save the prepared DroidDeck library export (${it.javaClass.simpleName})")
+                        }
+                        return@Thread
+                    }
+                    ui.post {
+                        if (isFinishing || isDestroyed) {
+                            file.delete()
+                            libraryExportInProgress = false
+                        } else {
+                            pendingLibraryExportFile?.delete()
+                            pendingLibraryExportFile = file
+                            pickLibraryExport.launch("DroidDeck-library.json")
+                        }
+                    }
+                }, "prepare-droiddeck-library-export").start()
             }
         }, "prepare-droiddeck-library").start()
     }
@@ -713,7 +758,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
     private var romsDir by mutableStateOf<String?>(null)
     private var steamGames by mutableStateOf<List<Library.SteamGame>>(emptyList())
-    private var steamOwnedGames by mutableStateOf<List<Library.SteamGame>>(emptyList())
     private var steamGamesX64 by mutableStateOf(false)
     @Volatile private var componentSweepDone = false
     @Volatile private var componentSweepSession: String? = null
@@ -790,8 +834,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var gameSpaceOffered = false
 
     override fun startActivity(intent: Intent?) {
+        val isSessionIntent = intent?.component?.className == SessionActivity::class.java.name
+        if (isSessionIntent) sessionLaunchDisposition = SessionLaunchDisposition.REFUSED
         val compat = protons.protonBusyId != null || ProtonExtras.installInProgress
-        if (intent?.component?.className == SessionActivity::class.java.name) {
+        if (isSessionIntent) {
             if (compatLaunch != null) return
             when {
                 busy || LinuxRuntimeInstaller.isBusy() -> {
@@ -814,16 +860,24 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             val from = com.droiddeck.launcher.ui.LaunchOrigin.take()
             if (from != null && !SessionState.running && com.droiddeck.launcher.ui.Motion.scale != 0f) {
                 flood = PendingFlood(from, intent)
+                sessionLaunchDisposition = SessionLaunchDisposition.DEFERRED
                 return
             }
             com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
             if (compat) {
                 waitForCompat(intent)
+                if (compatLaunch?.intent?.component?.className == SessionActivity::class.java.name) {
+                    sessionLaunchDisposition = SessionLaunchDisposition.DEFERRED
+                }
                 return
             }
         }
         super.startActivity(intent)
-        if (intent?.component?.className == SessionActivity::class.java.name) overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
+        if (isSessionIntent) {
+            sessionLaunchDisposition = SessionLaunchDisposition.DISPATCHED
+            allowSteamStoreSignIn(intent)
+            overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
+        }
     }
 
     private fun launchFlooded(f: PendingFlood) {
@@ -836,12 +890,26 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 (protons.protonBusyId != null || ProtonExtras.installInProgress)) {
                 compatFlood = com.droiddeck.launcher.ui.Themes.byId(theme).signal
                 waitForCompat(f.intent)
+                if (compatLaunch?.intent?.getBooleanExtra(com.droiddeck.launcher.stores.steam.SteamClientSignIn.EXTRA_STORE_SIGN_IN, false) != true) {
+                    cancelSteamStoreSignIn(f.intent)
+                }
+            } else {
+                cancelSteamStoreSignIn(f.intent)
             }
             return
         }
         val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
-        super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
-        overridePendingTransition(0, 0)
+        flood = null
+        floodProgress = 0f
+        com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+        try {
+            super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
+            allowSteamStoreSignIn(f.intent)
+            overridePendingTransition(0, 0)
+        } catch (error: Exception) {
+            cancelSteamStoreSignIn(f.intent)
+            Log.w(TAG, "could not launch the queued session (${error.javaClass.simpleName})")
+        }
     }
 
     private fun waitForCompat(next: Intent, menuInstall: Boolean = protons.protonBusyId != null) {
@@ -887,6 +955,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun cancelCompatLaunch() {
+        compatLaunch?.intent?.let(::cancelSteamStoreSignIn)
         compatLaunchPoll?.let(ui::removeCallbacks)
         compatLaunchPoll = null
         compatLaunch = null
@@ -1370,7 +1439,13 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         val handoff = if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_RESTARTED, false)) LauncherHandoff.take() else null
         val saved = savedInstanceState ?: handoff
         steamStoreSignInActionHandled = saved?.getBoolean(STATE_STEAM_STORE_SIGN_IN_HANDLED) == true
+        steamStoreSignInAfterSpaceWarning = saved?.getBoolean(STATE_STEAM_SIGN_IN_AFTER_SPACE_WARNING) == true
+        lowSpace = saved?.takeIf { steamStoreSignInAfterSpaceWarning && it.containsKey(STATE_STEAM_SIGN_IN_LOW_SPACE) }
+            ?.getLong(STATE_STEAM_SIGN_IN_LOW_SPACE)
         pendingSessionLogExport = saved?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
+        pendingLibraryExportFile = saved?.getString(KEY_PENDING_LIBRARY_EXPORT)?.takeIf { File(it).name == it }
+            ?.let { File(cacheDir, it).takeIf(File::isFile) }
+        libraryExportInProgress = pendingLibraryExportFile != null
         queuedLaunch.restore(
             saved?.let { androidx.core.os.BundleCompat.getParcelable(it, STATE_PENDING_GATE_LAUNCH, Intent::class.java) },
             saved?.getLong(STATE_PENDING_GATE_LAUNCH_AT, 0L) ?: 0L, System.currentTimeMillis(),
@@ -1524,7 +1599,6 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         storesSort = storesSort,
                         storesView = storesView,
                         storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
-                        ownedSteamGames = steamOwnedGames,
                     ),
                     FrontEndActions(
                         onPlay = { playSteam() },
@@ -1545,9 +1619,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             } else startSessionOrWait(next)
                         },
                         onSteamLibraryRefresh = {
-                            SteamOwnedLibrary.syncAsync(this, force = true) { steamId, games ->
-                                if (!shortcutPicker && steamId != null) steamOwnedGames = games
-                            }
+                            SteamOwnedLibrary.syncAsync(this, force = true)
                         },
                         onExportLibrary = { exportDroidDeckLibrary() },
                         onPlayDesktopUi = {
@@ -2096,13 +2168,14 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        supersedeUncommittedLaunch()
+        gameLinkReading = false
+        gameLinkTried = false
         if (intent.action == com.droiddeck.launcher.stores.steam.SteamClientSignIn.ACTION_OPEN) {
             steamStoreSignInActionHandled = false
             if (handleSteamStoreSignInIntent(intent)) return
         }
-        supersedeUncommittedLaunch()
         if (intent.action == SteamIntegration.ACTION_SETUP) {
-            gameLinkReading = false
             syncDualPanel()
             readIntegrationIntent(intent)
             return
@@ -2355,15 +2428,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             }
             val sessionId = SessionState.sessionId ?: return false
             if (!com.droiddeck.launcher.stores.steam.SteamClientSignIn.arm(this, targetSessionId = sessionId)) return false
-            return runCatching {
-                startActivity(Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
-                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
-                true
-            }.getOrElse {
-                com.droiddeck.launcher.stores.steam.SteamClientSignIn.clear(this)
-                android.util.Log.w("SteamClientSignIn", "could not resume Steam (${it.javaClass.simpleName})")
-                false
-            }
+            val resume = Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
+                .putExtra(com.droiddeck.launcher.stores.steam.SteamClientSignIn.EXTRA_STORE_SIGN_IN, true)
+                .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            return launchSessionActivity(resume) != SessionLaunchDisposition.REFUSED
         }
         if (SessionState.phase !in SESSION_ENDED) {
             android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
@@ -2386,6 +2454,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         val intent = Intent(this, SessionActivity::class.java)
             .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_STEAM)
             .putExtra(SessionActivity.EXTRA_RETURN_HOME, false)
+            .putExtra(com.droiddeck.launcher.stores.steam.SteamClientSignIn.EXTRA_STORE_SIGN_IN, true)
         val started = startSession(intent, steamSession = true)
         if (!started) com.droiddeck.launcher.stores.steam.SteamClientSignIn.clear(this)
         return started
@@ -2430,10 +2499,15 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun saveLauncherState(outState: Bundle) {
         outState.putBoolean(STATE_STEAM_STORE_SIGN_IN_HANDLED, steamStoreSignInActionHandled)
+        if (steamStoreSignInAfterSpaceWarning && lowSpace != null) {
+            outState.putBoolean(STATE_STEAM_SIGN_IN_AFTER_SPACE_WARNING, true)
+            outState.putLong(STATE_STEAM_SIGN_IN_LOW_SPACE, lowSpace!!)
+        }
         outState.putString(STATE_PROCESS, PROCESS)
         outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
         outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
         pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
+        pendingLibraryExportFile?.takeIf { it.isFile }?.let { outState.putString(KEY_PENDING_LIBRARY_EXPORT, it.name) }
         queuedLaunch.launch?.let {
             outState.putParcelable(STATE_PENDING_GATE_LAUNCH, it)
             outState.putLong(STATE_PENDING_GATE_LAUNCH_AT, queuedLaunch.queuedAt)
@@ -2503,6 +2577,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         getSystemService(android.hardware.input.InputManager::class.java)?.unregisterInputDeviceListener(secondScreenTouchListener)
         launcherStarted = false
         com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
+        flood?.let { cancelSteamStoreSignIn(it.intent) }
         flood = null
         returning = null
         floodProgress = 0f
@@ -3439,11 +3514,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun refresh() {
-        if (shortcutPicker) steamOwnedGames = emptyList()
-        else if (ready || com.droiddeck.launcher.stores.StoreAccounts.signedInAs(this, com.droiddeck.launcher.stores.Store.STEAM) != null) {
-            SteamOwnedLibrary.syncAsync(this) { steamId, games ->
-                if (!shortcutPicker && steamId != null) steamOwnedGames = games
-            }
+        if (!shortcutPicker && (ready || com.droiddeck.launcher.stores.StoreAccounts.signedInAs(this, com.droiddeck.launcher.stores.Store.STEAM) != null)) {
+            SteamOwnedLibrary.syncAsync(this)
         }
         val listX64 = SessionPrefs.activeSteamClientArch(this) == "x86_64"
         if (listX64 != steamGamesX64) {
@@ -3616,8 +3688,35 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
         val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.canDraw(this)
         if (warn && available != null) { showNonAdreno = available; return false }
-        startActivity(intent)
-        return true
+        return launchSessionActivity(intent) != SessionLaunchDisposition.REFUSED
+    }
+
+    private fun launchSessionActivity(intent: Intent): SessionLaunchDisposition {
+        sessionLaunchDisposition = SessionLaunchDisposition.NONE
+        return try {
+            startActivity(intent)
+            sessionLaunchDisposition.also { disposition ->
+                if (disposition == SessionLaunchDisposition.REFUSED || disposition == SessionLaunchDisposition.NONE) {
+                    cancelSteamStoreSignIn(intent)
+                }
+            }
+        } catch (error: Exception) {
+            cancelSteamStoreSignIn(intent)
+            Log.w(TAG, "could not start a session (${error.javaClass.simpleName})")
+            SessionLaunchDisposition.REFUSED
+        }
+    }
+
+    private fun allowSteamStoreSignIn(intent: Intent?) {
+        if (intent?.getBooleanExtra(com.droiddeck.launcher.stores.steam.SteamClientSignIn.EXTRA_STORE_SIGN_IN, false) == true) {
+            SteamOwnedLibrary.allowClientSessionImport(this)
+        }
+    }
+
+    private fun cancelSteamStoreSignIn(intent: Intent?) {
+        if (intent?.getBooleanExtra(com.droiddeck.launcher.stores.steam.SteamClientSignIn.EXTRA_STORE_SIGN_IN, false) == true) {
+            com.droiddeck.launcher.stores.steam.SteamClientSignIn.clear(this)
+        }
     }
 
     private var notificationsDone: ((Boolean) -> Unit)? = null
@@ -3820,7 +3919,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         private const val GATE_LAUNCH_MS = 15 * 60_000L
         private const val GATE_LAUNCH_RETRY_MS = 2_000L
         private const val KEY_PENDING_SESSION_LOG_EXPORT = "pending_session_log_export"
+        private const val KEY_PENDING_LIBRARY_EXPORT = "pending_library_export"
         private const val STATE_GAME_SPACE_OFFERED = "game_space_offered"
+        private const val STATE_STEAM_SIGN_IN_AFTER_SPACE_WARNING = "steam_sign_in_after_space_warning"
+        private const val STATE_STEAM_SIGN_IN_LOW_SPACE = "steam_sign_in_low_space"
         private const val TAG = "MainActivity"
         private const val MEDIA_SETTLE_MS = 1500L
         private const val COMPONENT_RESTORE_MS = 60_000L

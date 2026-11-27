@@ -197,7 +197,6 @@ class FrontEndState(
     val storesSort: String = SessionPrefs.STORES_SORTS.first(),
     val storesView: String = SessionPrefs.DEFAULT_STORES_VIEW,
     val storeDownloadsActive: Int = 0,
-    val ownedSteamGames: List<Library.SteamGame> = emptyList(),
     val updates: UpdatesState = UpdatesState(),
 )
 

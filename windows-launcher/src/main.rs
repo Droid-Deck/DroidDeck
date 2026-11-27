@@ -18,7 +18,7 @@ use eframe::egui::{
 use model::{Game, normalize_title};
 use std::process::Command;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     fs,
     path::PathBuf,
     sync::{
@@ -41,6 +41,7 @@ const BLUE_LIGHT: Color32 = Color32::from_rgb(87, 194, 255);
 const GREEN: Color32 = Color32::from_rgb(113, 203, 149);
 const CARD_W: f32 = 184.0;
 const CARD_H: f32 = 326.0;
+const MAX_CACHED_COVER_TEXTURES: usize = 72;
 
 #[derive(Clone, Copy)]
 enum UiIcon {
@@ -451,6 +452,7 @@ struct Launcher {
     store_filter: String,
     paths: Paths,
     textures: HashMap<String, TextureHandle>,
+    texture_order: VecDeque<String>,
     logo_texture: Option<TextureHandle>,
     requested_covers: HashSet<String>,
     cover_retry_after: HashMap<String, f64>,
@@ -508,6 +510,7 @@ impl Launcher {
             store_filter: "all".to_owned(),
             paths,
             textures: HashMap::new(),
+            texture_order: VecDeque::new(),
             logo_texture,
             requested_covers: HashSet::new(),
             cover_retry_after: HashMap::new(),
@@ -841,7 +844,6 @@ impl Launcher {
         match self.persist() {
             Ok(()) => self.notice = Some("Juego agregado".into()),
             Err(error) => {
-                self.catalog_blocked = Some(error.clone());
                 self.notice = Some(format!(
                     "El juego quedó en la biblioteca actual, pero no se pudo guardar: {error}"
                 ));
@@ -935,10 +937,17 @@ impl Launcher {
             self.requested_covers.remove(&key);
             if let Some(image) = image {
                 self.cover_retry_after.remove(&key);
+                self.texture_order.retain(|cached| cached != &key);
                 self.textures.insert(
                     key.clone(),
-                    ctx.load_texture(key, image, TextureOptions::LINEAR),
+                    ctx.load_texture(key.clone(), image, TextureOptions::LINEAR),
                 );
+                self.texture_order.push_back(key);
+                while self.texture_order.len() > MAX_CACHED_COVER_TEXTURES {
+                    if let Some(expired) = self.texture_order.pop_front() {
+                        self.textures.remove(&expired);
+                    }
+                }
                 ctx.request_repaint();
             } else {
                 let retry_at = ctx.input(|input| input.time) + 60.0;
@@ -1539,7 +1548,10 @@ impl Launcher {
                                 .size(10.0)
                                 .color(MUTED),
                         );
-                        if ui.button("Reintentar limpieza").clicked() {
+                        if ui
+                            .add_enabled(!busy, egui::Button::new("Reintentar limpieza"))
+                            .clicked()
+                        {
                             #[cfg(windows)]
                             self.retry_webview_cleanup(id);
                         }

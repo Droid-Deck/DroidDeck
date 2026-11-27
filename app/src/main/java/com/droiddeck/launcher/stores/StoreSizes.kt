@@ -139,7 +139,7 @@ object StoreSizes {
             AmazonManifest.parse(bytes).totalInstallSize
         }
         Store.EA -> com.droiddeck.launcher.stores.ea.EaSizes.size(context, item)
-        Store.STEAM, Store.GOG, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> 0L
+        Store.GOG, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> 0L
         Store.ITCH -> com.droiddeck.launcher.stores.itch.ItchLibrary.size(context, item)
         Store.GAMEJOLT -> com.droiddeck.launcher.stores.gamejolt.GameJoltBuilds.size(context, item)
         Store.STEAM -> com.droiddeck.launcher.stores.steam.SteamStore.plannedBytes(context, item)

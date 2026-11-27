@@ -185,12 +185,13 @@ internal fun librarySources(
     entries: List<LibraryEntry>, order: List<String>, always: Set<String> = emptySet(), favorites: Set<String> = emptySet(),
     hidden: (LibraryEntry) -> Boolean = { false }, offStores: Set<String> = emptySet(),
     places: List<Pair<String, String?>> = DEFAULT_LIBRARY_PLACES, offTabs: Set<String> = setOf(LIBRARY_HIDDEN),
+    steamFirstByDefault: Boolean = false,
 ): List<String> {
     val tabs = arrangeStoreTabs(order, offStores)
     val shown = tabs.filter { it.shown }.map { it.store.id }.toSet() + LIBRARY_OWN_TABS - offTabs
     val placed = placeLibraryTabs(tabs.map { it.store.id }, places)
     val steam = Store.STEAM.id.takeIf { id -> tabs.any { it.store.id == id && it.shown } }
-    val ordered = if (steam == null) placed else {
+    val ordered = if (steam == null || !steamFirstByDefault) placed else {
         val withoutSteam = placed.filterNot { it == steam }
         val firstStore = withoutSteam.indexOfFirst { it !in LIBRARY_OWN_TABS }.takeIf { it >= 0 } ?: 0
         withoutSteam.take(firstStore) + steam + withoutSteam.drop(firstStore)
@@ -367,8 +368,8 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
     remember { SoundtrackCollections.load(ctx) }
     val savedSnapshot = SoundtrackCollections.snapshot
     val favoritesLabel = stringResource(R.string.soundtracks_favorites)
-    val accountSteamGames = if (s.shortcutPicker) emptyList() else (s.ownedSteamGames + SteamOwnedLibrary.games).distinctBy { it.appId }
-    val libraryOwned = if (s.shortcutPicker) owned else owned - Store.STEAM
+    val accountSteamGames = if (s.shortcutPicker) emptyList() else SteamOwnedLibrary.games
+    val libraryOwned = owned
     val all = remember(soundMode, s.steamGames, accountSteamGames, s.soundtracks, s.soundtracksEnabled, cloudRows, libraryOwned, installedStore, savedSnapshot, favoritesLabel, preview) {
         if (soundMode) s.soundtracks.map { LibraryEntry("sound:${it.appId}", it.source, it.name, it, null, true) } +
             (if (s.soundtracks.isEmpty() && savedSnapshot.favorites.isEmpty() && savedSnapshot.collections.isEmpty()) emptyList() else SoundtrackCollections.games(ctx, favoritesLabel, skipEmptyFavorites = true))
@@ -415,6 +416,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         offStores = if (soundMode) emptySet() else storeTabs.filterNot { it.shown }.map { it.store.id }.toSet(),
         places = if (soundMode) DEFAULT_LIBRARY_PLACES else StoreTabsState.libraryPlaces,
         offTabs = if (soundMode) setOf(LIBRARY_HIDDEN) else StoreTabsState.libraryHidden,
+        steamFirstByDefault = !SessionPrefs.storesTabOrderCustomized(ctx),
     )
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()

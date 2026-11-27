@@ -1,6 +1,6 @@
 use eframe::egui::Color32;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -201,14 +201,22 @@ fn normalize_windows_path(value: &str) -> String {
 
 pub fn merge_games(rows: Vec<Game>) -> Vec<Game> {
     let mut merged = BTreeMap::<String, Game>::new();
+    let mut local_scan_keys = HashSet::new();
     for mut game in rows {
         if game.title.trim().is_empty() {
             continue;
         }
         game.normalize();
         let key = game.key.clone();
+        let is_local_scan = game.imported_from == "local-scan";
         if let Some(existing) = merged.get_mut(&key) {
-            existing.installed |= game.installed;
+            if is_local_scan {
+                local_scan_keys.insert(key.clone());
+                existing.installed = game.installed;
+                existing.local_target.clone_from(&game.local_target);
+            } else if !local_scan_keys.contains(&key) {
+                existing.installed |= game.installed;
+            }
             existing.owned |= game.owned;
             existing.subscription |= game.subscription;
             if existing.local_target.is_empty() {
@@ -227,6 +235,9 @@ pub fn merge_games(rows: Vec<Game>) -> Vec<Game> {
                 existing.store_url = game.store_url;
             }
         } else {
+            if is_local_scan {
+                local_scan_keys.insert(key.clone());
+            }
             merged.insert(key, game);
         }
     }
@@ -265,5 +276,66 @@ mod tests {
         assert_eq!(first.key, same.key);
         assert_ne!(first.key, second.key);
         assert_eq!(2, merge_games(vec![first, same, second]).len());
+    }
+
+    fn steam_scan(installed: bool) -> Game {
+        Game {
+            key: "steam:42".into(),
+            store: "steam".into(),
+            store_id: "42".into(),
+            app_id: "42".into(),
+            title: "Example".into(),
+            installed,
+            local_target: installed
+                .then(|| "steam://run/42".into())
+                .unwrap_or_default(),
+            imported_from: "local-scan".into(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn local_scan_install_state_wins_over_owned_catalog_state_in_either_order() {
+        let catalog = Game {
+            key: "steam:42".into(),
+            store: "steam".into(),
+            store_id: "42".into(),
+            app_id: "42".into(),
+            title: "Example".into(),
+            owned: true,
+            installed: false,
+            ..Default::default()
+        };
+
+        for games in [
+            vec![catalog.clone(), steam_scan(true)],
+            vec![steam_scan(true), catalog.clone()],
+        ] {
+            let merged = merge_games(games);
+            assert_eq!(1, merged.len());
+            assert!(merged[0].owned);
+            assert!(merged[0].installed);
+            assert_eq!("steam://run/42", merged[0].local_target);
+        }
+    }
+
+    #[test]
+    fn local_scan_can_clear_a_stale_installed_catalog_entry() {
+        let catalog = Game {
+            key: "steam:42".into(),
+            store: "steam".into(),
+            store_id: "42".into(),
+            app_id: "42".into(),
+            title: "Example".into(),
+            owned: true,
+            installed: true,
+            local_target: "steam://run/42".into(),
+            ..Default::default()
+        };
+
+        let merged = merge_games(vec![catalog, steam_scan(false)]);
+        assert!(!merged[0].installed);
+        assert!(merged[0].local_target.is_empty());
+        assert!(merged[0].owned);
     }
 }

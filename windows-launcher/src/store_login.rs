@@ -129,6 +129,9 @@ pub fn run(store: &str) -> Result<(), String> {
     event_loop
         .run_app(&mut app)
         .map_err(|e| format!("Falló la ventana de inicio de sesión: {e}"))?;
+    let extra = app.extra.clone();
+    drop(app.webview.take());
+    drop(app.window.take());
     if let Some(error) = app.error {
         return Err(error);
     }
@@ -138,7 +141,7 @@ pub fn run(store: &str) -> Result<(), String> {
     let mut capture: LoginCapture = serde_json::from_str(&raw)
         .map_err(|_| "La tienda devolvió datos de inicio de sesión ilegibles".to_owned())?;
     capture.store = store.to_owned();
-    let result = store_api::connect(capture, &app.extra)?;
+    let result = store_api::connect(capture, &extra)?;
     let output = serde_json::to_string(&result).map_err(|e| e.to_string())?;
     println!("{output}");
     Ok(())
@@ -244,9 +247,7 @@ fn callback_for(store: &str, url: &str) -> bool {
         "amazon" => url::Url::parse(url).is_ok_and(|parsed| {
             parsed.scheme() == "https"
                 && parsed.host_str() == Some("www.amazon.com")
-                && parsed.query_pairs().any(|(key, value)| {
-                    key == crate::store_api::amazon::auth::CODE_PARAMETER && !value.is_empty()
-                })
+                && crate::store_api::amazon::auth::code_from_url(url).is_some()
         }),
         "ea" => {
             url.starts_with("qrc:///html/login_successful.html")

@@ -2,6 +2,7 @@ package com.droiddeck.launcher.stores
 
 import android.content.Context
 import android.util.Log
+import android.util.AtomicFile
 import androidx.annotation.VisibleForTesting
 import org.json.JSONObject
 import java.io.File
@@ -20,16 +21,30 @@ object StoreAccounts {
 
     fun dir(context: Context, store: Store): File = File(File(context.filesDir, "stores"), store.id).apply { mkdirs() }
 
+    @Synchronized
     fun credentialsFile(context: Context, store: Store): File {
         val current = File(dir(context, store), FILE)
         if (store == Store.STEAM && !current.exists()) {
-            val previous = File(File(File(context.filesDir, "stores"), "steam-account"), FILE)
-            if (previous.isFile) runCatching {
-                previous.copyTo(current, overwrite = false)
-                previous.delete()
-            }
+            val previous = legacySteamCredentials(context)
+            if (previous.isFile) runCatching { migrate(previous, current) }
         }
         return current
+    }
+
+    private fun legacySteamCredentials(context: Context) = File(File(File(context.filesDir, "stores"), "steam-account"), FILE)
+
+    private fun migrate(previous: File, current: File) {
+        val contents = previous.readBytes()
+        val atomic = AtomicFile(current)
+        val output = atomic.startWrite()
+        try {
+            output.write(contents)
+            atomic.finishWrite(output)
+            previous.delete()
+        } catch (error: Exception) {
+            atomic.failWrite(output)
+            throw error
+        }
     }
 
     private val unavailable = java.util.concurrent.ConcurrentHashMap.newKeySet<Store>()
@@ -86,10 +101,18 @@ object StoreAccounts {
     @Synchronized
     fun clear(context: Context, store: Store) {
         unavailable.remove(store)
-        credentialsFile(context, store).delete()
-        File(credentialsFile(context, store).path + ".tmp").delete()
+        val current = File(dir(context, store), FILE)
+        val files = mutableListOf(current)
+        if (store == Store.STEAM) files += legacySteamCredentials(context)
+        files.forEach { file ->
+            file.delete()
+            File(file.path + ".tmp").delete()
+            File(file.path + ".bak").delete()
+            File(file.path + ".new").delete()
+        }
     }
 
+    @Synchronized
     fun encryptAll(context: Context) {
         Store.entries.forEach { store ->
             File(credentialsFile(context, store).path + ".tmp").delete()

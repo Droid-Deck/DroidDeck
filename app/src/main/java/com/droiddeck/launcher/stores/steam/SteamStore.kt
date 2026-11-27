@@ -121,9 +121,25 @@ internal object SteamStore {
             }
             return false
         }
-        if (saved == null && stored == null) return false
-        if (saved == null) StoreAccounts.clear(context, Store.STEAM)
-        else StoreAccounts.write(context, Store.STEAM, JSONObject().put("display_name", saved.name).put("steam_id", saved.id))
+        if (saved == null && stored == null) {
+            SteamOwnedLibrary.accountChanged(null)
+            return false
+        }
+        if (saved == null && !stored?.optString("steam_login_secure").isNullOrBlank()) {
+            SteamOwnedLibrary.accountChanged(stored?.optString("steam_id")?.takeIf { it.isNotBlank() })
+            plans.clear()
+            SteamEngine.forget()
+            SteamBackend.resetClientCatalog()
+            Log.i(TAG, "Steam client sign-in unavailable; keeping the valid web session")
+            return true
+        }
+        if (saved == null) {
+            StoreAccounts.clear(context, Store.STEAM)
+            SteamOwnedLibrary.accountChanged(null)
+        } else {
+            SteamOwnedLibrary.accountChanged(saved.id)
+            StoreAccounts.write(context, Store.STEAM, JSONObject().put("display_name", saved.name).put("steam_id", saved.id))
+        }
         plans.clear()
         SteamEngine.forget()
         SteamBackend.resetCatalog()
@@ -141,13 +157,9 @@ internal object SteamStore {
         if (SteamEngine.attempted?.let { it != print } == true) return
         rejectedThisRun = print
         if (error in SIGNED_OUT) prefs(context).edit().putString("rejected", print).apply()
-        StoreAccounts.clear(context, Store.STEAM)
-        SteamBackend.resetCatalog()
+        SteamEngine.forget()
+        SteamBackend.resetClientCatalog()
         StoresState.logLine("Steam: the saved sign-in was not accepted ($error)")
-        StoresState.post {
-            StoresState.accounts.remove(Store.STEAM)
-            StoresState.library.remove(Store.STEAM)
-        }
     }
 
     fun downloading(): Boolean = StoresState.latestDownloads.any {
@@ -387,7 +399,9 @@ internal object SteamStore {
 internal object SteamBackend : StoreBackend {
     private val catalogLock = Any()
     private val syncSequence = AtomicLong()
+    private var catalogRevision = 0L
     private var catalogSteamId: String? = null
+    private var clientCatalogSteamId: String? = null
     private var clientItems = emptyList<CatalogItem>()
     private var ownedItems = emptyList<CatalogItem>()
     private var hasClientCatalog = false
@@ -422,22 +436,25 @@ internal object SteamBackend : StoreBackend {
     override fun syncLibrary(context: Context, force: Boolean) {
         val app = context.applicationContext
         SteamStore.syncAccount(app)
-        val request = syncSequence.incrementAndGet()
+        val clientSteamId = StoreAccounts.read(app, Store.STEAM)?.optString("steam_id")?.takeIf { it.isNotBlank() }
+        val request = synchronized(catalogLock) { syncSequence.incrementAndGet() }
         val pending = AtomicInteger(2)
-        StoresState.post { StoresState.status[store] = app.getString(R.string.stores_sync_library) }
+        StoresState.post {
+            synchronized(catalogLock) {
+                if (syncSequence.get() == request) StoresState.status[store] = app.getString(R.string.stores_sync_library)
+            }
+        }
         SteamStore.syncLibrary(app, force) { items, error ->
-            if (syncSequence.get() == request) {
-                if (items != null) updateClientCatalog(items)
-                else if (error != null) StoresState.post {
-                    synchronized(catalogLock) {
-                        if (!hasOwnedCatalog) StoresState.problems[store] = error
-                    }
+            if (items != null) updateClientCatalog(request, clientSteamId, items)
+            else if (error != null) StoresState.post {
+                synchronized(catalogLock) {
+                    if (syncSequence.get() == request && !hasOwnedCatalog) StoresState.problems[store] = error
                 }
             }
             finishSync(request, pending)
         }
         SteamOwnedLibrary.syncAsync(app, force) { steamId, games ->
-            if (steamId != null && syncSequence.get() == request) {
+            if (steamId != null) {
                 val items = games.map { game ->
                     CatalogItem(
                         store = store,
@@ -449,19 +466,32 @@ internal object SteamBackend : StoreBackend {
                         owned = true,
                     )
                 }
-                updateOwnedCatalog(steamId, items)
+                updateOwnedCatalog(request, steamId, items)
             }
             finishSync(request, pending)
         }
     }
 
-    private fun updateClientCatalog(items: List<CatalogItem>) = synchronized(catalogLock) {
+    private fun updateClientCatalog(request: Long, steamId: String?, items: List<CatalogItem>) = synchronized(catalogLock) {
+        if (syncSequence.get() != request) return@synchronized
+        clientCatalogSteamId = steamId
+        if (catalogSteamId != null && catalogSteamId != steamId) {
+            clientItems = emptyList()
+            hasClientCatalog = false
+            publishCatalogLocked(request)
+            return@synchronized
+        }
         clientItems = items
         hasClientCatalog = true
-        publishCatalogLocked()
+        publishCatalogLocked(request)
     }
 
-    private fun updateOwnedCatalog(steamId: String, items: List<CatalogItem>) = synchronized(catalogLock) {
+    private fun updateOwnedCatalog(request: Long, steamId: String, items: List<CatalogItem>) = synchronized(catalogLock) {
+        if (syncSequence.get() != request) return@synchronized
+        if (hasClientCatalog && clientCatalogSteamId != steamId) {
+            clientItems = emptyList()
+            hasClientCatalog = false
+        }
         if (catalogSteamId != null && catalogSteamId != steamId) {
             clientItems = emptyList()
             hasClientCatalog = false
@@ -469,38 +499,70 @@ internal object SteamBackend : StoreBackend {
         catalogSteamId = steamId
         ownedItems = items
         hasOwnedCatalog = true
-        publishCatalogLocked()
+        publishCatalogLocked(request)
     }
 
-    private fun publishCatalogLocked() {
+    private fun publishCatalogLocked(request: Long) {
         if (!hasClientCatalog && !hasOwnedCatalog) return
         val merged = combineSteamCatalog(ownedItems, clientItems)
+        val revision = ++catalogRevision
         StoresState.post {
-            StoresState.problems.remove(store)
-            StoresState.library[store] = merged
+            synchronized(catalogLock) {
+                if (syncSequence.get() != request || catalogRevision != revision) return@synchronized
+                StoresState.problems.remove(store)
+                StoresState.library[store] = merged
+            }
         }
     }
 
     private fun finishSync(request: Long, pending: AtomicInteger) {
-        if (pending.decrementAndGet() == 0 && syncSequence.get() == request) {
-            StoresState.post { StoresState.status.remove(store) }
+        if (pending.decrementAndGet() == 0) {
+            StoresState.post {
+                synchronized(catalogLock) {
+                    if (syncSequence.get() == request) StoresState.status.remove(store)
+                }
+            }
         }
     }
 
     internal fun resetCatalog() {
-        syncSequence.incrementAndGet()
-        SteamStore.cancelLibrarySync()
-        synchronized(catalogLock) {
+        val (request, revision) = synchronized(catalogLock) {
+            val request = syncSequence.incrementAndGet()
             catalogSteamId = null
+            clientCatalogSteamId = null
             clientItems = emptyList()
             ownedItems = emptyList()
             hasClientCatalog = false
             hasOwnedCatalog = false
+            request to ++catalogRevision
+        }
+        SteamStore.cancelLibrarySync()
+        synchronized(catalogLock) {
+            if (syncSequence.get() != request) return
         }
         StoresState.post {
-            StoresState.library.remove(store)
-            StoresState.status.remove(store)
-            StoresState.problems.remove(store)
+            synchronized(catalogLock) {
+                if (syncSequence.get() != request || catalogRevision != revision) return@synchronized
+                StoresState.library.remove(store)
+                StoresState.status.remove(store)
+                StoresState.problems.remove(store)
+            }
+        }
+    }
+
+    internal fun resetClientCatalog() {
+        synchronized(catalogLock) {
+            clientItems = emptyList()
+            hasClientCatalog = false
+            clientCatalogSteamId = null
+            val request = syncSequence.get()
+            val revision = ++catalogRevision
+            if (hasOwnedCatalog) publishCatalogLocked(request)
+            else StoresState.post {
+                synchronized(catalogLock) {
+                    if (syncSequence.get() == request && catalogRevision == revision) StoresState.library.remove(store)
+                }
+            }
         }
     }
 

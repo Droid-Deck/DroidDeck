@@ -15,6 +15,7 @@ interface SteamClientSignInHost {
 
 internal object SteamClientSignIn {
     const val ACTION_OPEN = "com.droiddeck.launcher.OPEN_STEAM_STORE_SIGN_IN"
+    const val EXTRA_STORE_SIGN_IN = "com.droiddeck.launcher.extra.STEAM_STORE_SIGN_IN"
 
     private const val TAG = "SteamClientSignIn"
     private const val PREFS = "stores"

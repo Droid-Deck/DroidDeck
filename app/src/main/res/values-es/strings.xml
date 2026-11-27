@@ -178,6 +178,7 @@
     <string name="user_apps_update_failed">No se pudo actualizar la app</string>
     <string name="user_apps_icon_failed">No se pudo leer ese icono</string>
     <string name="user_apps_saved">%1$s guardada</string>
+    <string name="stores_library_export_failed">No se pudo exportar la biblioteca. Elegí otra ubicación e intentá de nuevo.</string>
     <string name="user_apps_edit">Editar</string>
     <string name="user_apps_check_updates">Buscar actualizaciones</string>
     <string name="user_apps_checking_updates">Buscando actualizaciones…</string>

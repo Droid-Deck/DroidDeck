@@ -12,6 +12,8 @@ use std::{
 };
 
 const AGENT: &str = "DroidDeckLauncher/0.3";
+const STEAM_ENRICHMENT_TIMEOUT: Duration = Duration::from_secs(20);
+const STEAM_DETAIL_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct LoginCapture {
@@ -174,18 +176,20 @@ fn steam_games(ids: Vec<String>) -> Vec<Game> {
     let (tx, rx) = mpsc::channel();
     let job_tx = tx.clone();
     let mut pending = ids.into_iter();
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let deadline = Instant::now() + STEAM_ENRICHMENT_TIMEOUT;
     let mut in_flight = 0;
-    let schedule = |id: String, tx: mpsc::Sender<(String, SteamDetail)>| {
+    let schedule = |id: String, tx: mpsc::Sender<(String, SteamDetail)>, deadline: Instant| {
         pool.execute(move || {
-            let result = steam_detail(&id);
+            let result = steam_detail_timeout(Instant::now(), deadline)
+                .map(|timeout| steam_detail_with_timeout(&id, timeout))
+                .unwrap_or(SteamDetail::Failed);
             let _ = tx.send((id, result));
         });
     };
     for _ in 0..8 {
         if let Some(id) = pending.next() {
             in_flight += 1;
-            schedule(id, job_tx.clone());
+            schedule(id, job_tx.clone(), deadline);
         }
     }
     drop(tx);
@@ -210,21 +214,37 @@ fn steam_games(ids: Vec<String>) -> Vec<Game> {
         if Instant::now() < deadline {
             if let Some(id) = pending.next() {
                 in_flight += 1;
-                schedule(id, job_tx.clone());
+                schedule(id, job_tx.clone(), deadline);
             }
         }
     }
     pool.join();
+    for (id, result) in rx.try_iter() {
+        match result {
+            SteamDetail::Game(item) => {
+                games.insert(id, item);
+            }
+            SteamDetail::Excluded => {
+                games.remove(&id);
+            }
+            SteamDetail::Failed => {}
+        }
+    }
     let mut games: Vec<Game> = games.into_values().collect();
     games.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
     games
 }
 
-fn steam_detail(id: &str) -> SteamDetail {
+fn steam_detail_timeout(now: Instant, deadline: Instant) -> Option<Duration> {
+    let remaining = deadline.saturating_duration_since(now);
+    (!remaining.is_zero()).then_some(remaining.min(STEAM_DETAIL_TIMEOUT))
+}
+
+fn steam_detail_with_timeout(id: &str, timeout: Duration) -> SteamDetail {
     let Ok(http) = Client::builder()
         .user_agent(AGENT)
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(10))
+        .connect_timeout(timeout.min(Duration::from_secs(5)))
+        .timeout(timeout)
         .build()
     else {
         return SteamDetail::Failed;
@@ -273,6 +293,27 @@ fn steam_detail(id: &str) -> SteamDetail {
         )
         .with_fallback_cover(cover),
     )
+}
+
+#[cfg(test)]
+mod steam_deadline_tests {
+    use super::{STEAM_DETAIL_TIMEOUT, steam_detail_timeout};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn steam_detail_requests_never_extend_past_the_enrichment_deadline() {
+        let now = Instant::now();
+
+        assert_eq!(
+            Some(STEAM_DETAIL_TIMEOUT),
+            steam_detail_timeout(now, now + Duration::from_secs(30))
+        );
+        assert_eq!(
+            Some(Duration::from_millis(250)),
+            steam_detail_timeout(now, now + Duration::from_millis(250))
+        );
+        assert_eq!(None, steam_detail_timeout(now, now));
+    }
 }
 
 trait FallbackCover {
@@ -347,13 +388,6 @@ fn epic_from_token(mut token: Value) -> Result<ConnectedStore, String> {
         .and_then(Value::as_str)
         .ok_or("Epic no devolvió un token")?
         .to_owned();
-    let games = epic_list(&access)?;
-    let name = token
-        .get("displayName")
-        .and_then(Value::as_str)
-        .or_else(|| token.get("account_id").and_then(Value::as_str))
-        .unwrap_or("Epic Games")
-        .to_owned();
     token["expiresAt"] = json!(
         now_ms()
             + token
@@ -362,6 +396,13 @@ fn epic_from_token(mut token: Value) -> Result<ConnectedStore, String> {
                 .unwrap_or(7200)
                 * 1000
     );
+    let games = epic_list(&access)?;
+    let name = token
+        .get("displayName")
+        .and_then(Value::as_str)
+        .or_else(|| token.get("account_id").and_then(Value::as_str))
+        .unwrap_or("Epic Games")
+        .to_owned();
     Ok(ConnectedStore {
         account: account("epic", name, token)?,
         games,
@@ -388,7 +429,11 @@ fn epic_list(token: &str) -> Result<Vec<Game>, String> {
             .map_err(|e| format!("Epic rechazó la biblioteca: {e}"))?
             .json()
             .map_err(|_| "Epic devolvió una biblioteca ilegible".to_owned())?;
-        if let Some(records) = body.get("records").and_then(Value::as_array) {
+        let records = body
+            .get("records")
+            .and_then(Value::as_array)
+            .ok_or("Epic devolvió una página de biblioteca inválida")?;
+        {
             for record in records {
                 let title = record
                     .get("appName")
@@ -607,9 +652,10 @@ fn gog_list(token: &str) -> Result<Vec<Game>, String> {
             .map_err(|e| format!("GOG rechazó la biblioteca: {e}"))?
             .json()
             .map_err(|_| "GOG devolvió una biblioteca ilegible".to_owned())?;
-        let Some(products) = data.get("products").and_then(Value::as_array) else {
-            break;
-        };
+        let products = data
+            .get("products")
+            .and_then(Value::as_array)
+            .ok_or("GOG devolvió una página de biblioteca inválida")?;
         if products.is_empty() {
             break;
         }
@@ -1260,7 +1306,7 @@ fn gamejolt_connect(data: Value) -> Result<ConnectedStore, String> {
         data.get("games")
             .and_then(Value::as_array)
             .cloned()
-            .unwrap_or_default(),
+            .ok_or("Game Jolt devolvió una biblioteca inválida")?,
     );
     Ok(ConnectedStore {
         account: account("gamejolt", display, secret)?,
@@ -1355,7 +1401,7 @@ fn itch_list(key: &str) -> Result<Vec<Game>, String> {
             .and_then(Value::as_array)
             .or_else(|| body.get("ownedKeys").and_then(Value::as_array))
             .cloned()
-            .unwrap_or_default();
+            .ok_or("itch.io devolvió una página de biblioteca inválida")?;
         if rows.is_empty() {
             break;
         }
@@ -1457,9 +1503,12 @@ fn rockstar_connect(raw_url: &str, extra: &str, data: Value) -> Result<Connected
         {
             request = request.header(reqwest::header::COOKIE, cookie);
         }
-        let response = request
-            .send()
-            .map_err(|e| format!("No se pudo validar la cuenta de Rockstar: {e}"))?;
+        let response = request.send().map_err(|e| {
+            format!(
+                "No se pudo validar la cuenta de Rockstar: {}",
+                e.without_url()
+            )
+        })?;
         if !response.status().is_success() {
             return Err(format!(
                 "Rockstar rechazó el inicio de sesión (HTTP {})",
