@@ -1190,8 +1190,10 @@ static int ddh_spawn_forked(pid_t *pid, const char *path, const posix_spawn_file
                             const posix_spawnattr_t *attr, char *const argv[], char *const envp[]) {
     if (fa) {
         const struct ddh_spawn_action *a = (const struct ddh_spawn_action *)fa->__actions;
+        // A terminal action stays with glibc, which blocks signals around the file actions: here a
+        // SIGTTOU could stop the child at tcsetpgrp() with the parent waiting on its report.
         for (int i = 0; i < fa->__used; i++) {
-            if ((unsigned)a[i].tag > DDH_DO_TCSETPGRP) return -1;
+            if ((unsigned)a[i].tag >= DDH_DO_TCSETPGRP) return -1;
         }
     }
     int report[2];
@@ -1228,7 +1230,8 @@ static int ddh_spawn_forked(pid_t *pid, const char *path, const posix_spawn_file
     while (n < 0 && errno == EINTR);
     close(report[0]);
     if (n == (ssize_t)sizeof(err)) {
-        waitpid(child, NULL, 0);
+        while (waitpid(child, NULL, 0) < 0 && errno == EINTR) {
+        }
         return err;
     }
     if (pid) *pid = child;

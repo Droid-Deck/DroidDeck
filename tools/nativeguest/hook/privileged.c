@@ -442,6 +442,9 @@ int setns(int fd, int nstype) {
 #ifndef CLOSE_RANGE_CLOEXEC
 #define CLOSE_RANGE_CLOEXEC (1U << 2)
 #endif
+#ifndef CLOSE_RANGE_UNSHARE
+#define CLOSE_RANGE_UNSHARE (1U << 1)
+#endif
 
 static int close_range_all(unsigned int first, unsigned int last, int flags);
 
@@ -452,13 +455,15 @@ static int close_range_part(unsigned int first, unsigned int last, void *flags) 
 int close_range(unsigned int first, unsigned int last, int flags) {
     if (!(flags & CLOSE_RANGE_CLOEXEC)) forget_proc_root_range(first, last);
     // Close-on-exec only (CLOSE_RANGE_CLOEXEC) leaves the translator's files open
-    if (flags & CLOSE_RANGE_CLOEXEC) {
-        if (g_cloexec_kept_count > 0)
-            return for_each_range_without(first, last, g_cloexec_kept_fds, g_cloexec_kept_count, close_range_part, &flags);
-    } else if (g_kept_fd_count > 0) {
-        return for_each_range_without(first, last, g_kept_fds, g_kept_fd_count, close_range_part, &flags);
+    const int *kept = (flags & CLOSE_RANGE_CLOEXEC) ? g_cloexec_kept_fds : g_kept_fds;
+    int kept_count = (flags & CLOSE_RANGE_CLOEXEC) ? g_cloexec_kept_count : g_kept_fd_count;
+    if (kept_count == 0) return close_range_all(first, last, flags);
+    // The table is unshared once, even when every fd in the range is kept (no fd has the top number)
+    if (flags & CLOSE_RANGE_UNSHARE) {
+        if (close_range_all(~0U, ~0U, CLOSE_RANGE_UNSHARE) != 0) return -1;
+        flags &= ~CLOSE_RANGE_UNSHARE;
     }
-    return close_range_all(first, last, flags);
+    return for_each_range_without(first, last, kept, kept_count, close_range_part, &flags);
 }
 
 // glibc's closefrom() makes the close_range system call itself, past the function above

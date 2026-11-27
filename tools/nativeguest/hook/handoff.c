@@ -16,6 +16,8 @@
 #define DDH_CLAIMED 3
 #define DDH_HANDED 1
 #define DDH_EXITED 2
+#define DDH_TAKEN 4       // its exit is being reported to one waiter
+#define DDH_NO_STATUS INT32_MIN
 #define DDH_MAGIC 0x6464686f
 #define DDH_TABLE_FD 800
 
@@ -383,6 +385,7 @@ static void ddh_linger(int flush) {
 static void ddh_register_group(void);
 static void ddh_unregister_group(void);
 static pid_t ddh_logical_pgrp(void);
+static pid_t ddh_logical_group(pid_t real);
 static long ddh_start_time(pid_t pid);
 
 // From exit() (on_exit, arg 1) or _exit() (arg NULL) in a worker's own process.
@@ -701,6 +704,12 @@ static int ddh_program_listed(const char *list, const char *filename, char *cons
 // Whether a posix_spawn() of this program should be handed off: glibc's spawn child makes the exec
 // system call itself, past ddh_try(), so such a spawn is started with fork() and execve() instead.
 static int ddh_spawn_wanted(const char *path, char *const argv[], char *const envp[]) {
+    // the hook's exec ends these at once, its posix_spawn() runs them (exec.c): spawned as before
+    static const char *const exec_stubs[] = {"mandb", "mandb.real", "update-mime-database", "update-desktop-database",
+                                             "install-info", "install-sgmlcatalog"};
+    for (size_t i = 0; path && i < sizeof(exec_stubs) / sizeof(exec_stubs[0]); i++) {
+        if (strcmp(ddh_base(path), exec_stubs[i]) == 0) return 0;
+    }
     const char *list = ddh_env(envp, "DD_HANDOFF");
     return path && ddh_env(envp, "DD_SPAWN") && list && ddh_program_listed(list, path, argv);
 }
@@ -782,9 +791,18 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     e->child = me;
     e->parent = parent;
     e->real = 0;
-    e->pad[1] = getpgrp();  // the group waitpid(0) and waitpid(-GROUP) pick it by
+    // One look at the group: waitpid(0) and waitpid(-GROUP) pick the child by it, and the request
+    // names the group it stands for from it (the parent can move this child meanwhile).
+    pid_t real_group = getpgrp();
+    e->pad[1] = real_group;
+    e->status = DDH_NO_STATUS;
     char cwd[PATH_MAX];
-    if (!getcwd(cwd, sizeof(cwd))) strcpy(cwd, "/");
+    // A directory with no name (removed) cannot be sent: the exec stays here, in it.
+    if (!getcwd(cwd, sizeof(cwd))) {
+        __atomic_store_n(&e->state, DDH_FREE, __ATOMIC_RELEASE);
+        ddh_debug(envp, "no name for the working directory:", filename);
+        return;
+    }
     // What the program would have inherited here and a worker does not have: ignored signals, the
     // open-files limit, the umask (ddh_apply_inherited() restores them in the program).
     unsigned long ignored = 0;
@@ -799,6 +817,7 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     sigset_t blocked;
     pid_t anchor = getenv("DDH_WORKER_PID") ? (pid_t)atoi(getenv("DDH_WORKER_PID")) : parent;
     long parent_start = ddh_start_time(parent), anchor_start = ddh_start_time(anchor);
+    pid_t group = ddh_logical_group(real_group);
     unsigned long blocked_bits = 0;
     if (sigprocmask(SIG_BLOCK, NULL, &blocked) == 0) {
         for (int sig = 1; sig <= 64 && sig < NSIG; sig++) {
@@ -839,7 +858,7 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
         ddh_puts(&b, ",\"umask\":");
         ddh_putint(&b, (long)mask);
         ddh_puts(&b, ",\"pgid\":");
-        ddh_putint(&b, (long)ddh_logical_pgrp());
+        ddh_putint(&b, (long)group);
         ddh_puts(&b, ",\"sigmask\":");
         ddh_putint(&b, (long)blocked_bits);
         ddh_puts(&b, ",\"anchor\":");
@@ -936,10 +955,19 @@ static struct ddh_entry *ddh_find(pid_t child) {
     for (int i = 0; i < DDH_SLOTS; i++) {
         struct ddh_entry *e = &g_ddh->e[i];
         int st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
-        if ((st == DDH_HANDED || st == DDH_EXITED) && e->parent == me && e->child == child) return e;
+        if ((st == DDH_HANDED || st == DDH_EXITED || st == DDH_TAKEN) && e->parent == me && e->child == child) return e;
     }
     return NULL;
 }
+
+// Takes e's exit for one waiter (EXITED to TAKEN): 0 when another waiter has it.
+static int ddh_take(struct ddh_entry *e) {
+    int expected = DDH_EXITED;
+    return __atomic_compare_exchange_n(&e->state, &expected, DDH_TAKEN, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+}
+
+// Gives a taken exit back, for a later wait (its forked child is not reaped yet).
+static void ddh_untake(struct ddh_entry *e) { __atomic_store_n(&e->state, DDH_EXITED, __ATOMIC_RELEASE); }
 
 // Whether a wait for pid (-1: any child, 0: one in our group, -G: one in group G) takes e's child.
 static int ddh_selects(const struct ddh_entry *e, pid_t pid) {
@@ -954,7 +982,7 @@ static int ddh_any_live(pid_t pid) {
     for (int i = 0; i < DDH_SLOTS; i++) {
         struct ddh_entry *e = &g_ddh->e[i];
         int st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
-        if ((st == DDH_HANDED || st == DDH_EXITED) && e->parent == me && ddh_selects(e, pid)) return 1;
+        if ((st == DDH_HANDED || st == DDH_EXITED || st == DDH_TAKEN) && e->parent == me && ddh_selects(e, pid)) return 1;
     }
     return 0;
 }
@@ -996,8 +1024,11 @@ static void ddh_check_gone(void) {
             continue;
         }
         if (now.tv_sec + 1 - e->pad[0] >= 3) {
-            e->status = SIGKILL;
-            __atomic_store_n(&e->state, DDH_EXITED, __ATOMIC_RELEASE);
+            // only where no status was written (the app's or the program's own wins)
+            int32_t none = DDH_NO_STATUS;
+            __atomic_compare_exchange_n(&e->status, &none, SIGKILL, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+            int expected = DDH_HANDED;
+            __atomic_compare_exchange_n(&e->state, &expected, DDH_EXITED, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
         }
     }
 }
@@ -1065,22 +1096,32 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
         struct ddh_entry *e = pid > 0 ? ddh_find(pid) : NULL;
         if (pid > 0 && e) {
             if (!e->reaped && real(pid, NULL, WNOHANG, NULL) == pid) e->reaped = 1;
-            if (__atomic_load_n(&e->state, __ATOMIC_ACQUIRE) == DDH_EXITED) {
+            if (ddh_take(e)) {
                 // the forked child is between its last write and its exit: reap it first, or a later
                 // wait() would report its pid a second time (not blocking for WNOHANG: then later)
-                if (!e->reaped && !ddh_reap_shim(real, pid, options)) return (options & WNOHANG) ? 0 : -1;
+                if (!e->reaped && !ddh_reap_shim(real, pid, options)) {
+                    ddh_untake(e);
+                    return (options & WNOHANG) ? 0 : -1;
+                }
                 if (ru) memset(ru, 0, sizeof(*ru));
                 ddh_release(e, status);
                 return pid;
             }
             if (options & WNOHANG) return 0;
-            if (interrupted) return -1;
+            if (interrupted) {
+                errno = EINTR;
+                return -1;
+            }
             interrupted = ddh_nap() != 0;
             continue;
         }
         if (pid <= 0 && (e = ddh_exited(pid))) {
+            if (!ddh_take(e)) continue;  // another waiter has it
             pid_t child = e->child;
-            if (!e->reaped && !ddh_reap_shim(real, child, options)) return (options & WNOHANG) ? 0 : -1;
+            if (!e->reaped && !ddh_reap_shim(real, child, options)) {
+                ddh_untake(e);
+                return (options & WNOHANG) ? 0 : -1;
+            }
             if (ru) memset(ru, 0, sizeof(*ru));
             ddh_release(e, status);
             return child;
@@ -1179,12 +1220,13 @@ static long ddh_start_time(pid_t pid) {
 }
 
 // The group a process stands for: its worker's (DDH_PGID) while it is in the group its worker leads.
-static pid_t ddh_logical_pgrp(void) {
-    pid_t real = getpgrp();
+static pid_t ddh_logical_group(pid_t real) {
     const char *worker = getenv("DDH_WORKER_PID"), *group = getenv("DDH_PGID");
     if (worker && group && real == (pid_t)atoi(worker)) return (pid_t)atoi(group);
     return real;
 }
+
+static pid_t ddh_logical_pgrp(void) { return ddh_logical_group(getpgrp()); }
 
 static char g_ddh_group_entry[96];
 static int g_ddh_parent_entry;

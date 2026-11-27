@@ -1,6 +1,7 @@
 import errno
 import json
 import os
+import shutil
 import signal
 import socket
 import struct
@@ -122,20 +123,31 @@ class FakeSpawner(threading.Thread):
             self.requests.append(request)
             table = fds[request["table"]]
             program = str(self.root) + request["file"]
-            proc = subprocess.Popen(list(self.prefix) + [program] + request["argv"][1:])
-            conn.sendall(b"pid %d\n" % proc.pid)
-            # the hook takes the program on with "go"; without it the program must not run
+            # As a worker does: a process whose pid goes back first, which runs the program only
+            # once the hook takes it on with "go"
+            gate_r, gate_w = os.pipe()
+            pid = os.fork()
+            if pid == 0:
+                os.close(gate_w)
+                if os.read(gate_r, 1) == b"1":
+                    argv = list(self.prefix) + [program] + request["argv"][1:]
+                    os.execv(argv[0] if os.path.isabs(argv[0]) else shutil.which(argv[0]), argv)
+                os._exit(127)
+            os.close(gate_r)
+            conn.sendall(b"pid %d\n" % pid)
             went = not request.get("ack") or self.read(conn, 3) == b"go\n"
             conn.close()
             for fd in fds:
                 if fd != table:
                     os.close(fd)
+            if went:
+                os.write(gate_w, b"1")
+            os.close(gate_w)
             if not went:
-                proc.kill()
-                proc.wait()
+                os.waitpid(pid, 0)
                 os.close(table)
                 continue
-            threading.Thread(target=self.report, args=(proc, table, request), daemon=True).start()
+            threading.Thread(target=self.report, args=(pid, table, request), daemon=True).start()
 
     @staticmethod
     def read(conn, size):
@@ -148,8 +160,8 @@ class FakeSpawner(threading.Thread):
         return data
 
     @staticmethod
-    def report(proc, table, request):
-        code = proc.wait()
+    def report(pid, table, request):
+        code = os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
         status = (-code) & 0x7F if code < 0 else (code & 0xFF) << 8
         entry = 64 + request["slot"] * 32
         os.pwrite(table, struct.pack("<i", status), entry + 16)

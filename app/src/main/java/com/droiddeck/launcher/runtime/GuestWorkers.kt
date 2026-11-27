@@ -57,7 +57,8 @@ open class GuestWorker : Service() {
                     val ready = Os.poll(arrayOf(poll), GO_TIMEOUT_MS)
                     val got = if (ready > 0) Os.read(go.fileDescriptor, ByteArray(1), 0, 1) else -1
                     why = "poll $ready revents ${poll.revents} read $got"
-                    got == 1
+                    // and the answer the app waits for before it reports the launch as started
+                    got == 1 && Os.write(go.fileDescriptor, byteArrayOf(1), 0, 1) == 1
                 }.getOrElse { why = it.toString(); false }
                 go.close()
                 if (committed) exec(argv, env, fds, targets, fillBinderFd)
@@ -134,7 +135,8 @@ open class GuestWorker : Service() {
         const val RUN = IBinder.FIRST_CALL_TRANSACTION
         /** An argument, or a variable's whole value, in an app launch: replaced by the number of its kept binder fd. */
         const val BINDER_FD_TOKEN = "@DDH_WORKER_BINDER_FD@"
-        private const val GO_TIMEOUT_MS = 2000
+        // Longer than the app may wait for the hook's "go" (GuestWorkers.ACK_TIMEOUT_MS) before it commits
+        private const val GO_TIMEOUT_MS = 15000
         private val BINDER_DEVICES = setOf("/dev/binder", "/dev/hwbinder", "/dev/vndbinder")
         private const val BINDER_FDS = 900
         private const val MOVED_FDS = 1200
@@ -265,6 +267,7 @@ object GuestWorkers {
     private val warming = java.util.concurrent.atomic.AtomicBoolean(false)
     private const val WARM_WORKERS = 2
     private const val ACK_TIMEOUT_MS = 5000
+    private const val ANSWER_TIMEOUT_MS = 5000
     private val connections = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "guest-worker-binder").apply { isDaemon = true } }
     @Volatile private var server: Thread? = null
 
@@ -328,14 +331,15 @@ object GuestWorkers {
         slot.session = owner
         slot.onExit = onExit
         refill(app)
-        // The worker execs once a byte comes through this pipe: after the reply has reached us, so
+        // The worker execs once a byte comes through this socket: after the reply has reached us, so
         // that its exec does not cut the reply off, and after the slot is marked started. Closed
         // without one, the worker ends without running the program (the caller starts it another way).
+        // It answers with a byte of its own: without that it gave up waiting, and nothing runs.
         var go: Array<ParcelFileDescriptor>? = null
         val data = Parcel.obtain()
         val reply = Parcel.obtain()
         try {
-            go = ParcelFileDescriptor.createPipe()
+            go = ParcelFileDescriptor.createSocketPair()
             data.writeStringArray(argv.toTypedArray())
             data.writeStringArray(env.toTypedArray())
             data.writeInt(fds.size)
@@ -362,6 +366,14 @@ object GuestWorkers {
                 return -1
             }
             Os.write(go[1].fileDescriptor, byteArrayOf(1), 0, 1)
+            val answer = StructPollfd().apply { fd = go[1].fileDescriptor; events = OsConstants.POLLIN.toShort() }
+            val accepted = Os.poll(arrayOf(answer), ANSWER_TIMEOUT_MS) > 0 && Os.read(go[1].fileDescriptor, ByteArray(1), 0, 1) == 1
+            if (!accepted) {
+                Log.w(TAG, "worker ${slot.index} did not take ${argv.firstOrNull()} on")
+                slot.started = false
+                release(app, slot)
+                return -1
+            }
         } catch (e: Exception) {
             Log.w(TAG, "worker ${slot.index} refused ${argv.firstOrNull()}", e)
             release(app, slot)
@@ -460,16 +472,21 @@ object GuestWorkers {
     private fun exitStatus(app: Context, pid: Int): Int {
         if (pid <= 0 || android.os.Build.VERSION.SDK_INT < 30) return -1
         val am = app.getSystemService(ActivityManager::class.java)
+        var recorded = false
         repeat(20) {
             am.getHistoricalProcessExitReasons(app.packageName, pid, 1).firstOrNull()?.let {
+                recorded = true
                 // an exit code only when the process exited itself; a signal number otherwise (a native crash)
-                return if (it.reason == android.app.ApplicationExitInfo.REASON_EXIT_SELF) (it.status and 0xff) shl 8
-                else if (it.status in 1..64) it.status and 0x7f
-                else OsConstants.SIGKILL  // killed by Android with no signal recorded, not a clean exit
+                if (it.reason == android.app.ApplicationExitInfo.REASON_EXIT_SELF) return (it.status and 0xff) shl 8
+                if (it.status in 1..64) return it.status and 0x7f
+                // Android records the death first and the zygote's status later (as UNKNOWN, 0, then
+                // EXIT_SELF): a reason without a status may still be completed
+                if (it.reason != android.app.ApplicationExitInfo.REASON_UNKNOWN) return OsConstants.SIGKILL
             }
             Thread.sleep(50)
         }
-        return -1
+        // killed by Android with no signal recorded, not a clean exit
+        return if (recorded) OsConstants.SIGKILL else -1
     }
 
     /** The pids of session [of]'s guest programs running in workers. */

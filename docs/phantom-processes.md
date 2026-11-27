@@ -45,7 +45,9 @@ Source: `frameworks/base/services/core/java/com/android/server/am/PhantomProcess
    at `PROCESS_STATE_HOME` or below (backgrounded, no foreground service) and a phantom used
    "excessive" CPU, `killPhantomProcessGroupLocked` kills every phantom of that app **and the app**.
 
-`settings_enable_monitor_phantom_procs=false` (the developer option) switches off both. Raising
+`settings_enable_monitor_phantom_procs=false` (the developer option) switches off both on Android
+12L and later; Android 12 does not have the setting, and there only the `device_config` limit below
+applies. Raising
 `max_phantom_processes` through `device_config` (shell only) avoids only the first: the
 excessive-CPU check still runs while monitoring is on.
 
@@ -449,6 +451,12 @@ adb shell settings get global settings_enable_monitor_phantom_procs
 adb shell device_config get activity_manager max_phantom_processes
 adb shell device_config get_sync_disabled_for_tests
 ```
+
+Android 12 and some Android 13 builds have no `get_sync_disabled_for_tests`; there `adb shell
+device_config is_sync_disabled_for_tests` answers only true or false, so it cannot tell `persistent`
+from `until_reboot`. Note `none` when it says false. When it says true, sync was already off and
+stays off with `persistent`; if it was `until_reboot`, a reboot after the lab no longer turns it
+back on, so set `until_reboot` again yourself if you know that was the mode.
 
 ```
 tools/phantomlab/build.sh                          # build/phantomlab.apk, debug-signed

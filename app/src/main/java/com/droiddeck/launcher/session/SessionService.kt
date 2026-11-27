@@ -706,9 +706,13 @@ class SessionService : Service() {
         // this session's worker number: the shared field may be a newer session's by the time it is used
         var ownWorkers = 0
         if (com.droiddeck.launcher.runtime.GuestWorkers.enabled(this)) {
-            ownWorkers = com.droiddeck.launcher.runtime.GuestWorkers.serve(this)
-            guestWorkerSession = ownWorkers
-            guest.add("DD_SPAWN=" + com.droiddeck.launcher.runtime.GuestWorkers.socketName(this))
+            // Under the lock a stop takes its number with: a stop either comes first (and this session
+            // starts no workers) or owns them
+            ownWorkers = synchronized(stopLock) {
+                if (gen != sessionGen || !SessionState.running) 0
+                else com.droiddeck.launcher.runtime.GuestWorkers.serve(this).also { guestWorkerSession = it }
+            }
+            if (ownWorkers > 0) guest.add("DD_SPAWN=" + com.droiddeck.launcher.runtime.GuestWorkers.socketName(this))
         }
         // Proton builds up to 11.12 report X11 text fields under this name.
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
@@ -2337,8 +2341,11 @@ class SessionService : Service() {
             return
         }
         completeNativeSleep()
+        var workers = 0
         val (ended, endedArch) = synchronized(stopLock) {
             if (gen != null && gen != sessionGen) return
+            // as it is when running is cleared: startup registers its workers under this lock too
+            workers = guestWorkerSession
             cancelQueuedSteamGame()
             gameExitWatchToken++
             // also when startup stopped before the guest ran
@@ -2398,7 +2405,6 @@ class SessionService : Service() {
         FakeInputWriter.releaseAllRingSlots()
         com.droiddeck.launcher.input.SteamTouchDevice.release()
         val steamClientMayRun = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
-        val workers = guestWorkerSession
         val finishAfterTeardown: () -> Unit = {
             if (prootPid > 1 || auxiliary.isNotEmpty()) {
                 Thread({
@@ -2406,6 +2412,7 @@ class SessionService : Service() {
                     com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
                     auxiliary.forEach { (pid, started) -> teardown(pid, started) }
                     if (prootPid > 1) teardown(prootPid, workerSession = workers)
+                    else com.droiddeck.launcher.runtime.GuestWorkers.stopGuests(workers)
                     killGuestLeftovers()
                     pruneSystemVulkanRuntime()
                     finishSessionStop(status, stoppedGen, collectEnded)
