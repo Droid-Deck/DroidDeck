@@ -839,8 +839,7 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
         xhr2_tracef("reqbody[%ls %ls] %s", method ? method : L"", safe_url, req_dump);
     }
 
-    if (wcsstr(safe_url, L"forzamotorsport.net") || wcsstr(safe_url, L"sessiondirectory") ||
-        wcsstr(safe_url, L"xboxlive.com")) {
+    if (wcsstr(safe_url, L"sessiondirectory") || wcsstr(safe_url, L"xboxlive.com")) {
         char dump_setting[8];
         DWORD dump_len = GetEnvironmentVariableA("DROIDDECK_UWP_DUMP", dump_setting, sizeof dump_setting);
         dump_want = (dump_len > 0 && dump_len < sizeof dump_setting);

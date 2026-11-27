@@ -2761,39 +2761,19 @@ done:
 
 static int extract_url_host(const char *url, char *out, size_t cap);
 
-/* A title's own services are issued tokens for the title's relying party, which only
- * the title-specific NSAL names. When that list cannot be fetched (the generic list
- * has no entry) a title service rejects an http://xboxlive.com token with 403, so
- * keep the mappings proved against a real title NSAL here as a floor. */
-static const struct {
-    const char *host_suffix;
-    const char *rp;
-} g_title_rp_floor[] = {
-    { ".forzamotorsport.net", "http://xboxliveauth.forzamotorsport.net/" },
-};
-
-/* RP for a title service host that the loaded NSAL does not name, or NULL. */
-static const char *title_rp_for_url(const char *url)
-{
-    char host[128];
-    size_t i;
-    size_t hlen;
-    if (!url || !url[0] || !extract_url_host(url, host, sizeof host) || !host[0]) return NULL;
-    hlen = strlen(host);
-    for (i = 0; i < sizeof(g_title_rp_floor) / sizeof(g_title_rp_floor[0]); i++) {
-        size_t slen = strlen(g_title_rp_floor[i].host_suffix);
-        if (hlen >= slen && _stricmp(host + hlen - slen, g_title_rp_floor[i].host_suffix) == 0)
-            return g_title_rp_floor[i].rp;
-    }
-    return NULL;
-}
+/* A title's own services are issued tokens for the title's relying party, and the only
+ * source for that is the title's own NSAL -- the map the title itself ships and that
+ * nsal_resolve_relying_party reads. There is deliberately no per-title table here: a
+ * mapping baked into this shim would pick the title's RelyingParty instead of letting
+ * the title supply it, and would hard-code one game's identity into the platform layer.
+ * When the title names nothing, the canonical http://xboxlive.com value below is used. */
 
 /* Normalize a requested target/URL into an XSTS RelyingParty. */
 static void normalize_relying_party(const char *raw_target, const char *raw_url, char *rp, size_t cap)
 {
     /* Prefer the request URL over WAM's generic Target ("user.auth.xboxlive.com") so
-     * title-specific relying parties (e.g. https://gameservices.fh4.forzamotorsport.net/...)
-     * receive an XSTS token issued for their own relying party instead of http://xboxlive.com. */
+     * a title service receives an XSTS token issued for its own relying party instead
+     * of http://xboxlive.com. */
     const char *src = NULL;
     if (raw_url && raw_url[0] && strstr(raw_url, "://") != NULL) {
         src = raw_url;
@@ -5025,11 +5005,10 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
         if (nsal_resolve_relying_party(prop_url, nsal_rp, sizeof nsal_rp) && nsal_rp[0]) {
             snprintf(rp, sizeof rp, "%s", nsal_rp);
         } else if (!rp_is_xboxlive_equiv(rp)) {
-            /* The generic NSAL names no relying party for this title service. Sending
-             * the canonical user RP instead earns a 403 from the service, so use the
-             * title's own RP where it is known; otherwise keep the old fallback. */
-            const char *floor_rp = title_rp_for_url(prop_url);
-            snprintf(rp, sizeof rp, "%s", floor_rp ? floor_rp : "http://xboxlive.com");
+            /* The title's NSAL names no relying party for this service. Use the canonical
+             * value rather than a mapping invented here: which server to trust, and under
+             * whose identity, is the title's decision to make, never this shim's. */
+            snprintf(rp, sizeof rp, "http://xboxlive.com");
             auth_log("NSAL gap rp=%s url=%s", rp, prop_url);
         }
     }
