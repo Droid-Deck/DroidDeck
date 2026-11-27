@@ -469,7 +469,7 @@ static void *pacer_main(void *arg) {
         if (pthread_cond_timedwait(&g_pacer_cond, &g_pacer_lock, &ts) != ETIMEDOUT && now_ns() < at) continue;
         int64_t grid_now = 0, lead_now = 0, period_now = 0;
         if (!present_cadence_timeline(now_ns(), &grid_now, &lead_now, &period_now) ||
-            llabs(lead_now - lead) > PRESENT_CADENCE_APPLY_NS || llabs(period_now - period) > period / 16)
+            !present_cadence_slot_unchanged(slot, lead, period, grid_now, lead_now, period_now))
             continue;
         if (now_ns() > at + PRESENT_CADENCE_APPLY_NS) atomic_fetch_add(&g_pacer_woke_late, 1u);
         if (g_pacer_last_slot_ns && present_cadence_slot_order(g_pacer_last_slot_ns + period, slot, period) < 0 &&
@@ -621,14 +621,19 @@ static void retire_ops(ASurfaceTransaction *tx, ASurfaceControl *sc) {
     api.reparent(tx, sc, NULL);
 }
 
-static void retire_sc(struct layer *l) {
+/* queued keeps the retirement behind held game frames; otherwise they are applied first. */
+static void retire_sc_on(struct layer *l, int queued) {
     if (!l->sc) return;
     ASurfaceTransaction *tx = api.txCreate();
     if (tx) {
         retire_ops(tx, l->sc);
         if (add_complete(tx, l, l->cur_slot, l->cur_token, 1) != 0) api.release(l->sc);
-        apply_now(tx);
-        api.txDelete(tx);
+        if (queued) {
+            pacer_submit(tx, 0);
+        } else {
+            apply_now(tx);
+            api.txDelete(tx);
+        }
     } else {
         if (l->cur_token) ahb_swapchain_layer_released(l->cur_token, -1);
         api.release(l->sc);
@@ -640,6 +645,8 @@ static void retire_sc(struct layer *l) {
     l->recreate_pending = 0;
     l->ds_applied = -1; l->md_applied = 0; l->hr_applied = -1.0f;
 }
+
+static void retire_sc(struct layer *l) { retire_sc_on(l, 0); }
 
 static void drain_and_free_pools(void) {
     pacer_flush();
@@ -1535,7 +1542,7 @@ void sc_layer_hide_overlay(void) {
     struct layer *l = &g_layers[SC_LAYER_OVERLAY];
     if (!l->sc) return;
     if (l->shown) hide_layer(l);
-    retire_sc(l);
+    retire_sc_on(l, 1);
     droiddeck_log("layer", "%s: gone (nothing is above the game any more)", l->name);
     if (g_layers[SC_LAYER_GAME].sc) g_layers[SC_LAYER_GAME].recreate_pending = 1;
 }

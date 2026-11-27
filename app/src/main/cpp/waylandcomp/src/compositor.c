@@ -4280,7 +4280,7 @@ static int on_stats_timer(void *data) {
     {
         struct present_cadence_stats cs;
         sc_layer_cadence_take(&cs);
-        if (cs.paced || cs.fillers)
+        if (cs.paced || cs.fillers || cs.unpaced)
             droiddeck_log("pacing", "last 10 s: %u game frames held to a steady cadence (every %u refreshes at the end), "
                        "%.2f/%.2f ms planned from arrival to screen, %u ready too late for their refresh, %u shown unpaced | "
                        "presenter: %u filler refreshes, %u refreshes left empty, %u frames past their refresh, %u late wake-ups, "

@@ -225,6 +225,17 @@ static void test_slot_order_tolerates_grid_drift(void) {
     }
 }
 
+static void test_presenter_notices_a_moved_refresh(void) {
+    const int64_t p = P120, slot = 1030 * MS, lead = 7 * MS;
+    assert(present_cadence_slot_unchanged(slot, lead, p, slot, lead, p));
+    assert(present_cadence_slot_unchanged(slot, lead, p, slot + 3 * p, lead, p));
+    assert(present_cadence_slot_unchanged(slot, lead, p, slot - 2 * p + 100000, lead + 300000, p));
+    assert(!present_cadence_slot_unchanged(slot, lead, p, slot - 4 * MS, lead, p));
+    assert(!present_cadence_slot_unchanged(slot, lead, p, slot + p + 4 * MS, lead, p));
+    assert(!present_cadence_slot_unchanged(slot, lead, p, slot, lead + 2 * MS, p));
+    assert(!present_cadence_slot_unchanged(slot, lead, p, slot, lead, 2 * p));
+}
+
 static void test_timeline(void) {
     int64_t grid, lead, period;
     present_cadence_set_timeline(0, 0, 0, 0);
@@ -275,6 +286,7 @@ int main(int argc, char **argv) {
     test_latency_comes_back_after_load_drops();
     test_pause_and_missing_timeline_start_over();
     test_slot_order_tolerates_grid_drift();
+    test_presenter_notices_a_moved_refresh();
     test_timeline();
     puts("PASS");
     return 0;

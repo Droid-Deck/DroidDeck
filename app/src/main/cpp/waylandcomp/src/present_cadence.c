@@ -1,6 +1,7 @@
 #include "present_cadence.h"
 
 #include <pthread.h>
+#include <stdlib.h>
 #include <string.h>
 
 static pthread_mutex_t g_timeline_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -37,6 +38,14 @@ int64_t present_cadence_vsync_at_or_after(int64_t t_ns, int64_t grid_ns, int64_t
     const int64_t d = t_ns - grid_ns;
     const int64_t n = d >= 0 ? (d + period_ns - 1) / period_ns : -(-d / period_ns);
     return grid_ns + n * period_ns;
+}
+
+int present_cadence_slot_unchanged(int64_t slot_ns, int64_t lead_ns, int64_t period_ns, int64_t grid_now_ns,
+                                   int64_t lead_now_ns, int64_t period_now_ns) {
+    if (llabs(period_now_ns - period_ns) > period_ns / 16) return 0;
+    if (llabs(lead_now_ns - lead_ns) > PRESENT_CADENCE_APPLY_NS) return 0;
+    const int64_t nearest = present_cadence_vsync_at_or_after(slot_ns - period_now_ns / 2, grid_now_ns, period_now_ns);
+    return llabs(nearest - slot_ns) <= PRESENT_CADENCE_APPLY_NS;
 }
 
 int present_cadence_slot_order(int64_t target_ns, int64_t slot_ns, int64_t period_ns) {
