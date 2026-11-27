@@ -1,0 +1,206 @@
+{
+  "schema": 1,
+  "description": "Checksums for tracked opaque binaries; an explicit exception list, not a source-build or license certification.",
+  "artifacts": [
+    {
+      "path": "app/src/main/assets/desktop-removal/emulators-keep.txt.gzip",
+      "sha256": "8ee6bb678884767ee597e829e1df6dda70c55a23e727c301d14e817ab9b18344",
+      "status": "binary-data",
+      "origin": "DroidDeck generated desktop-removal inventories",
+      "source_revision": "repository asset",
+      "note": "Gzip-compressed text inventory; not executable. Review the generator and inputs when regenerating."
+    },
+    {
+      "path": "app/src/main/assets/desktop-removal/kde-keep.txt.gzip",
+      "sha256": "103fcc4c5238190b71af8064838cf2710d76fa0f35c85bb1d05d082237084e21",
+      "status": "binary-data",
+      "origin": "DroidDeck generated desktop-removal inventories",
+      "source_revision": "repository asset",
+      "note": "Gzip-compressed text inventory; not executable. Review the generator and inputs when regenerating."
+    },
+    {
+      "path": "app/src/main/assets/desktop-removal/kde-remove.tsv.gzip",
+      "sha256": "a6f9bb05ba52402e85ebadabfb632f65b359f7cd9721d65e8560a35a1415eac3",
+      "status": "binary-data",
+      "origin": "DroidDeck generated desktop-removal inventories",
+      "source_revision": "repository asset",
+      "note": "Gzip-compressed text inventory; not executable. Review the generator and inputs when regenerating."
+    },
+    {
+      "path": "app/src/main/assets/desktop-removal/lxqt-r1.tsv.gzip",
+      "sha256": "c2cc0c0bf2e58cb8134ca933a65baa5dd450e01d68eb06a9d5b388cb4a9dd140",
+      "status": "binary-data",
+      "origin": "DroidDeck generated desktop-removal inventories",
+      "source_revision": "repository asset",
+      "note": "Gzip-compressed text inventory; not executable. Review the generator and inputs when regenerating."
+    },
+    {
+      "path": "app/src/main/assets/graphics_driver/adrenotools-turnip-sdk36.tzst",
+      "sha256": "da8a3e83ea61f11b8ccee274524de3c0ad8a45f3be8921e23e1f162d26279b93",
+      "status": "prebuilt-exception",
+      "origin": "https://gitlab.freedesktop.org/mesa/mesa",
+      "source_revision": "unverified",
+      "note": "Checked-in Turnip driver archive; per-archive source revision and build recipe need verification."
+    },
+    {
+      "path": "app/src/main/assets/graphics_driver/adrenotools-turnip25.1.0.tzst",
+      "sha256": "b3824227a3bcac367352bae86a34ed95add9b99fae50c16b7c7f48506d7ce197",
+      "status": "prebuilt-exception",
+      "origin": "https://gitlab.freedesktop.org/mesa/mesa",
+      "source_revision": "unverified",
+      "note": "Checked-in Turnip driver archive; per-archive source revision and build recipe need verification."
+    },
+    {
+      "path": "app/src/main/assets/pulseaudio.tzst",
+      "sha256": "4ec3ce78220007ccb36108fabeb395671fd25bfe1069fb05a719fef7d067c859",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/pulseaudio/pulseaudio",
+      "source_revision": "unverified",
+      "note": "Checked-in PulseAudio runtime archive; the CI audio recipe adds source-built sinks but reuses this base."
+    },
+    {
+      "path": "app/src/main/cpp/waylandcomp/prebuilt/lib/libwayland-server.so",
+      "sha256": "2daff7500b6acee55291567d786653ba75f5aecf5a5e648fce4c10fe6bc7a8ea",
+      "status": "prebuilt-exception",
+      "origin": "https://gitlab.freedesktop.org/wayland/wayland",
+      "source_revision": "unverified",
+      "note": "Wayland server prebuilt imported into Android CMake; exact source revision and build recipe unverified."
+    },
+    {
+      "path": "app/src/main/jniLibs/arm64-v8a/libffi.so",
+      "sha256": "8855ba6dc12e9abf40729481a7a99aa391ac7b2e77bad4fbe0bb51cd66216c0e",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/libffi/libffi",
+      "source_revision": "unverified",
+      "note": "Checked-in native dependency; source-build wiring is missing from Android CI."
+    },
+    {
+      "path": "app/src/main/jniLibs/arm64-v8a/libltdl.so",
+      "sha256": "14d616028b38a4b778576477c675c1ce34618582b84ccc5c3fd2492e6518196f",
+      "status": "prebuilt-exception",
+      "origin": "https://www.gnu.org/software/libtool/",
+      "source_revision": "unverified",
+      "note": "Checked-in libltdl; exact source revision and Android build command unverified."
+    },
+    {
+      "path": "app/src/main/jniLibs/arm64-v8a/libpulse.so",
+      "sha256": "8ce9c5ba9710aee64c70356b051a8df4f88396075b0264048b992ab7c337f2e6",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/pulseaudio/pulseaudio",
+      "source_revision": "unverified",
+      "note": "Checked-in PulseAudio ARM64 library; source-build wiring is missing from Android CI."
+    },
+    {
+      "path": "app/src/main/jniLibs/arm64-v8a/libpulseaudio.so",
+      "sha256": "a9256b038381b192593c019ba779e219419f71b2a66aa1c1e29a756314489ed7",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/pulseaudio/pulseaudio",
+      "source_revision": "unverified",
+      "note": "Checked-in PulseAudio ARM64 library; source-build wiring is missing from Android CI."
+    },
+    {
+      "path": "app/src/main/jniLibs/arm64-v8a/libpulsecommon-13.0.so",
+      "sha256": "3ef683f23660898933a66fb032976e06905cbca8e01027aa1ce9891e1d854c2b",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/pulseaudio/pulseaudio",
+      "source_revision": "unverified",
+      "note": "Checked-in PulseAudio ARM64 library; source-build wiring is missing from Android CI."
+    },
+    {
+      "path": "app/src/main/jniLibs/arm64-v8a/libpulsecore-13.0.so",
+      "sha256": "1305d78969858a7a60e030a75c383901148b980518fc2d337b9c028c968c3f95",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/pulseaudio/pulseaudio",
+      "source_revision": "unverified",
+      "note": "Checked-in PulseAudio ARM64 library; source-build wiring is missing from Android CI."
+    },
+    {
+      "path": "app/src/main/jniLibs/arm64-v8a/libsndfile.so",
+      "sha256": "ab999a10cd3f6979580447169a19c1c9c121e0d8340b2bc810c54dc916bb3ee0",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/libsndfile/libsndfile",
+      "source_revision": "unverified",
+      "note": "Checked-in libsndfile; exact source revision and Android build command unverified."
+    },
+    {
+      "path": "app/src/main/jniLibs/arm64-v8a/libwayland-server.so",
+      "sha256": "2daff7500b6acee55291567d786653ba75f5aecf5a5e648fce4c10fe6bc7a8ea",
+      "status": "prebuilt-exception",
+      "origin": "https://gitlab.freedesktop.org/wayland/wayland",
+      "source_revision": "unverified",
+      "note": "Wayland server prebuilt imported into Android CMake; exact source revision and build recipe unverified."
+    },
+    {
+      "path": "app/src/main/resources/rockstar/legacy-cipher.bin",
+      "sha256": "43a5bf698bd546954b3bc6eee65a6aa63cb4bc0c98677344843602b9ea93a2ae",
+      "status": "binary-data",
+      "origin": "DroidDeck repository",
+      "source_revision": "unverified",
+      "note": "Opaque cipher resource data; not a native library or executable."
+    },
+    {
+      "path": "gradle/wrapper/gradle-wrapper.jar",
+      "sha256": "e996d452d2645e70c01c11143ca2d3742734a28da2bf61f25c82bdc288c9e637",
+      "status": "build-tool",
+      "origin": "https://github.com/gradle/gradle",
+      "source_revision": "unverified",
+      "note": "Gradle bootstrap tool; not packaged as DroidDeck runtime code."
+    },
+    {
+      "path": "tools/linuxfs/innoextract/linuxfs/usr/local/lib/droiddeck-inno/innoextract",
+      "sha256": "67bda7fc5fd54d20488f8d7ad349655b65eb911e068e3fd7e348e13e2aec1a40",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/dscharrer/innoextract",
+      "source_revision": "unverified",
+      "note": "Checked-in ARM64 innoextract executable, directly staged into the APK's runtime assets."
+    },
+    {
+      "path": "tools/linuxfs/innoextract/linuxfs/usr/local/lib/droiddeck-inno/libboost_container.so.1.92.0",
+      "sha256": "ed95491c8f1718354bfdb23b8c6fd52ebcf8f72b85ed26429f856376527e34d9",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/boostorg/boost",
+      "source_revision": "unverified",
+      "note": "Checked-in Boost 1.92 runtime dependency of innoextract; not rebuilt by CI."
+    },
+    {
+      "path": "tools/linuxfs/innoextract/linuxfs/usr/local/lib/droiddeck-inno/libboost_filesystem.so.1.92.0",
+      "sha256": "eafdc0eb4f5470ad19f9bc09a0a2def56615dadc0684c6e173cfe82a0b510a5f",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/boostorg/boost",
+      "source_revision": "unverified",
+      "note": "Checked-in Boost 1.92 runtime dependency of innoextract; not rebuilt by CI."
+    },
+    {
+      "path": "tools/linuxfs/innoextract/linuxfs/usr/local/lib/droiddeck-inno/libboost_iostreams.so.1.92.0",
+      "sha256": "fa222fc97b48fe5360da9cdd3fb11b78a41083161da8b7052a5f88d3bb2a1804",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/boostorg/boost",
+      "source_revision": "unverified",
+      "note": "Checked-in Boost 1.92 runtime dependency of innoextract; not rebuilt by CI."
+    },
+    {
+      "path": "tools/linuxfs/innoextract/linuxfs/usr/local/lib/droiddeck-inno/libboost_program_options.so.1.92.0",
+      "sha256": "ded51b938d6ec5b979633b8d9f771478c2ea6390eee81cb7131b54cb969415a0",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/boostorg/boost",
+      "source_revision": "unverified",
+      "note": "Checked-in Boost 1.92 runtime dependency of innoextract; not rebuilt by CI."
+    },
+    {
+      "path": "tools/linuxfs/innoextract/linuxfs/usr/local/lib/droiddeck-inno/libboost_random.so.1.92.0",
+      "sha256": "c6db8078fa8d6bb287e4f987afef642290e7b69d22c59dea883c444edff80500",
+      "status": "prebuilt-exception",
+      "origin": "https://github.com/boostorg/boost",
+      "source_revision": "unverified",
+      "note": "Checked-in Boost 1.92 runtime dependency of innoextract; not rebuilt by CI."
+    },
+    {
+      "path": "tools/packs/tracking/hand_landmarker_lite.task",
+      "sha256": "173c0f47ecee7e935bd4a1e93aa580756b4180c1307c07d709313e82c28672c8",
+      "status": "binary-data",
+      "origin": "https://ai.google.dev/edge/mediapipe",
+      "source_revision": "unverified",
+      "note": "Model data; see tools/packs/tracking provenance, not an executable."
+    }
+  ]
+}
