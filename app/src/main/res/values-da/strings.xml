@@ -2144,8 +2144,11 @@
     <string name="bottom_companion_weight">Bæreevne</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Hurtig adgang</string>
-    <string name="bottom_qam_align_left">Flyt til venstre</string>
-    <string name="bottom_qam_align_right">Flyt til højre</string>
+    <string name="bottom_qam_layout">Layout: %1$s</string>
+    <string name="bottom_qam_layout_full">Fuld bredde</string>
+    <string name="bottom_qam_layout_left">Venstre</string>
+    <string name="bottom_qam_layout_center">Midte</string>
+    <string name="bottom_qam_layout_right">Højre</string>
     <string name="bottom_qam_unavailable">Steams menu til hurtig adgang er ikke tilgængelig endnu.</string>
     <string name="bottom_page_telemetry">Statistik i spillet</string>
     <string name="bottom_hud_group">HUD på nederste skærm</string>

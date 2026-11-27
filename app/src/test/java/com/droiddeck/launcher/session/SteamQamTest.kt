@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.ui.QamFit
 import com.droiddeck.launcher.ui.QamLayout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -80,6 +81,13 @@ class SteamQamTest {
         assertEquals(0f, QamLayout.fit(1280f, 832f, 400f, 640f, -1).second, 0.001f)
         assertEquals(1280f - 520f, QamLayout.fit(1280f, 832f, 400f, 640f, 1).second, 0.001f)
         assertEquals(0f, QamLayout.fit(1280f, 832f, 1280f, 640f, 1).second, 0.001f)
+    }
+
+    @Test fun theLayoutButtonCyclesFullLeftCenterRight() {
+        assertEquals(listOf(QamFit.LEFT, QamFit.CENTER, QamFit.RIGHT, QamFit.FULL), QamFit.entries.map { it.next })
+        assertEquals(QamFit.FULL, QamFit.from(null))
+        assertEquals(QamFit.RIGHT, QamFit.from("right"))
+        assertEquals(QamFit.FULL, QamFit.from("sideways"))
     }
 
     @Test fun aWideMenuFitsTheWidth() {

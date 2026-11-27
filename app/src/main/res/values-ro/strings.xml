@@ -2169,8 +2169,11 @@
     <string name="bottom_companion_weight">Greutate purtată</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Acces rapid</string>
-    <string name="bottom_qam_align_left">Mută la stânga</string>
-    <string name="bottom_qam_align_right">Mută la dreapta</string>
+    <string name="bottom_qam_layout">Aspect: %1$s</string>
+    <string name="bottom_qam_layout_full">Lățime completă</string>
+    <string name="bottom_qam_layout_left">Stânga</string>
+    <string name="bottom_qam_layout_center">Centru</string>
+    <string name="bottom_qam_layout_right">Dreapta</string>
     <string name="bottom_qam_unavailable">Meniul de acces rapid Steam nu este încă disponibil.</string>
     <string name="bottom_page_telemetry">Statistici în joc</string>
     <string name="bottom_hud_group">HUD pe ecranul de jos</string>

@@ -2197,8 +2197,11 @@
     <string name="bottom_companion_weight">负重</string>
     <string name="bottom_companion_radio">收音机</string>
     <string name="bottom_qam_title">快速访问</string>
-    <string name="bottom_qam_align_left">移到左侧</string>
-    <string name="bottom_qam_align_right">移到右侧</string>
+    <string name="bottom_qam_layout">布局：%1$s</string>
+    <string name="bottom_qam_layout_full">全宽</string>
+    <string name="bottom_qam_layout_left">左侧</string>
+    <string name="bottom_qam_layout_center">居中</string>
+    <string name="bottom_qam_layout_right">右侧</string>
     <string name="bottom_qam_unavailable">Steam 快速访问菜单暂不可用。</string>
     <string name="bottom_page_telemetry">游戏内数据</string>
     <string name="bottom_hud_group">下屏 HUD</string>

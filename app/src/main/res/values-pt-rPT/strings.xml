@@ -2174,8 +2174,11 @@
     <string name="bottom_companion_weight">Peso transportado</string>
     <string name="bottom_companion_radio">Rádio</string>
     <string name="bottom_qam_title">Acesso rápido</string>
-    <string name="bottom_qam_align_left">Mover para a esquerda</string>
-    <string name="bottom_qam_align_right">Mover para a direita</string>
+    <string name="bottom_qam_layout">Esquema: %1$s</string>
+    <string name="bottom_qam_layout_full">Largura total</string>
+    <string name="bottom_qam_layout_left">Esquerda</string>
+    <string name="bottom_qam_layout_center">Centro</string>
+    <string name="bottom_qam_layout_right">Direita</string>
     <string name="bottom_qam_unavailable">O menu de acesso rápido do Steam ainda não está disponível.</string>
     <string name="bottom_page_telemetry">Estatísticas no jogo</string>
     <string name="bottom_hud_group">HUD do ecrã inferior</string>

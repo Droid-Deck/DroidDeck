@@ -367,8 +367,13 @@ class SecondScreenPresentation(
                 context.getString(if (keyboardShown.value) R.string.second_hide_keyboard else R.string.second_show_keyboard),
                 icon = R.drawable.ic_bottom_keyboard, active = keyboardShown.value, tag = "bottom-keyboard") { showKeyboard() }) + extras)
             SecondScreenMode.DECK_CONTROLS -> model(extras, deckPanelTabs(context, deckPanel.value, ::selectDeckPanel))
+            SecondScreenMode.STEAM_QAM -> {
+                val fit = QamFit.current(context)
+                model(listOf(BarExtra(context.getString(R.string.bottom_qam_layout, context.getString(fit.label)), vector = fit.icon,
+                    tag = "bottom-qam-layout") { QamFit.choose(context, fit.next) }) + extras)
+            }
             SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.GUIDES, SecondScreenMode.MIRROR,
-            SecondScreenMode.COMPANION, SecondScreenMode.STEAM_QAM -> model(extras)
+            SecondScreenMode.COMPANION -> model(extras)
             SecondScreenMode.TERMINAL -> model(listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard,
                 tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }) + extras)
             else -> null

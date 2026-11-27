@@ -2136,8 +2136,11 @@
     <string name="bottom_companion_weight">Taşıma ağırlığı</string>
     <string name="bottom_companion_radio">Radyo</string>
     <string name="bottom_qam_title">Hızlı Erişim</string>
-    <string name="bottom_qam_align_left">Sola taşı</string>
-    <string name="bottom_qam_align_right">Sağa taşı</string>
+    <string name="bottom_qam_layout">Düzen: %1$s</string>
+    <string name="bottom_qam_layout_full">Tam genişlik</string>
+    <string name="bottom_qam_layout_left">Sol</string>
+    <string name="bottom_qam_layout_center">Orta</string>
+    <string name="bottom_qam_layout_right">Sağ</string>
     <string name="bottom_qam_unavailable">Steam Hızlı Erişim menüsü henüz kullanılamıyor.</string>
     <string name="bottom_page_telemetry">Oyun içi istatistikler</string>
     <string name="bottom_hud_group">Alt ekrandaki HUD</string>

@@ -1,35 +1,28 @@
 package com.droiddeck.launcher.ui
 
+import android.content.Context
 import android.graphics.BitmapFactory
 import android.util.Base64
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.hoverable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.outlined.AlignHorizontalCenter
+import androidx.compose.material.icons.outlined.AlignHorizontalLeft
+import androidx.compose.material.icons.outlined.AlignHorizontalRight
+import androidx.compose.material.icons.outlined.WidthFull
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -41,14 +34,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.companion.CdpPage
 import com.droiddeck.launcher.session.SessionPhase
@@ -60,8 +48,10 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -73,6 +63,29 @@ internal class QamFrame(val image: ImageBitmap, val cssWidth: Float, val cssHeig
         val x = (contentRight * pxPerCss).roundToInt() - 4
         Color(image.asAndroidBitmap().getPixel(x.coerceIn(0, image.width - 1), image.height / 2))
     }.getOrDefault(Color.Black)
+}
+
+/** How Steam's Quick Access menu sits on the bottom screen. */
+internal enum class QamFit(val id: String, @StringRes val label: Int, val icon: ImageVector, val align: Int) {
+    FULL("full", R.string.bottom_qam_layout_full, Icons.Outlined.WidthFull, 0),
+    LEFT("left", R.string.bottom_qam_layout_left, Icons.Outlined.AlignHorizontalLeft, -1),
+    CENTER("center", R.string.bottom_qam_layout_center, Icons.Outlined.AlignHorizontalCenter, 0),
+    RIGHT("right", R.string.bottom_qam_layout_right, Icons.Outlined.AlignHorizontalRight, 1);
+
+    val next: QamFit get() = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun from(id: String?): QamFit = entries.firstOrNull { it.id == id } ?: FULL
+
+        private val state = mutableStateOf<QamFit?>(null)
+
+        fun current(context: Context): QamFit = state.value ?: from(SessionPrefs.quickAccessLayout(context)).also { state.value = it }
+
+        fun choose(context: Context, fit: QamFit) {
+            state.value = fit
+            SessionPrefs.setQuickAccessLayout(context, fit.id)
+        }
+    }
 }
 
 internal object QamLayout {
@@ -118,7 +131,7 @@ internal fun SteamQamPanel() {
         delay(2_500)
         slow = true
     }
-    var align by remember { mutableIntStateOf(SessionPrefs.quickAccessAlign(context)) }
+    val fit = QamFit.current(context)
     val holder = remember { arrayOfNulls<CdpPage>(1) }
     val relay = remember { intArrayOf(0) }
     val live = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
@@ -177,7 +190,8 @@ internal fun SteamQamPanel() {
                         page?.call("Page.captureScreenshot", JSONObject().put("format", "jpeg").put("quality", 85))
                             ?.optJSONObject("result")?.optString("data")?.let(::decodeFrame)?.let(show)
                     }
-                    (page?.evaluate(QamLayout.contentScript(wide = !held.top)) as? String)?.let { text ->
+                    val wide = !held.top && QamFit.current(context) == QamFit.FULL
+                    (page?.evaluate(QamLayout.contentScript(wide)) as? String)?.let { text ->
                         runCatching {
                             val a = JSONArray(text)
                             val layout = floatArrayOf(a.getDouble(0).toFloat(), a.getDouble(1).toFloat(), a.getDouble(2).toFloat(), a.getDouble(3).toFloat())
@@ -185,7 +199,10 @@ internal fun SteamQamPanel() {
                         }
                     }
                 }
-                delay(if (live.get()) TICK_MS else FAST_TICK_MS)
+                val used = QamFit.current(context)
+                withTimeoutOrNull(if (live.get()) TICK_MS else FAST_TICK_MS) {
+                    snapshotFlow { QamFit.current(context) }.first { it != used }
+                }
             }
         }
     }
@@ -204,9 +221,9 @@ internal fun SteamQamPanel() {
         val density = LocalDensity.current
         val boxW = with(density) { maxWidth.toPx() }
         val boxH = with(density) { maxHeight.toPx() }
-        val (scale, left) = QamLayout.fit(boxW, boxH, f.contentRight, f.cssHeight, align)
+        val (scale, left) = QamLayout.fit(boxW, boxH, f.contentRight, f.cssHeight, fit.align)
         Canvas(
-            Modifier.fillMaxSize().pointerInput(f.cssWidth, f.contentRight, boxW, boxH, align) {
+            Modifier.fillMaxSize().pointerInput(f.cssWidth, f.contentRight, boxW, boxH, fit) {
                 var touching = false
                 awaitPointerEventScope {
                     while (true) {
@@ -238,38 +255,6 @@ internal fun SteamQamPanel() {
                 filterQuality = FilterQuality.Medium,
             )
         }
-        val width = f.contentRight * scale
-        val gap = with(density) { 64.dp.toPx() }
-        val move = { step: Int -> align = (align + step).coerceIn(-1, 1); SessionPrefs.setQuickAccessAlign(context, align) }
-        if (left >= gap) {
-            Box(Modifier.align(Alignment.CenterStart).width(with(density) { left.toDp() }), contentAlignment = Alignment.Center) {
-                MoveHandle(stringResource(R.string.bottom_qam_align_left), Icons.Filled.ChevronLeft, Modifier.testTag("qam-move-left")) { move(-1) }
-            }
-        }
-        if (boxW - left - width >= gap) {
-            Box(Modifier.align(Alignment.CenterEnd).width(with(density) { (boxW - left - width).toDp() }), contentAlignment = Alignment.Center) {
-                MoveHandle(stringResource(R.string.bottom_qam_align_right), Icons.Filled.ChevronRight, Modifier.testTag("qam-move-right")) { move(1) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MoveHandle(description: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val pal = LocalPalette.current
-    val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
-    val shape = RoundedCornerShape(22.dp)
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier.size(width = 44.dp, height = 112.dp).semantics { contentDescription = description }
-            .clip(shape)
-            .background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f))
-            .glideBorder(hot, shape, pal.signal)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick),
-    ) {
-        Icon(icon, contentDescription = null, tint = if (hot) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(28.dp))
     }
 }
 

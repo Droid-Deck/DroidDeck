@@ -2120,8 +2120,11 @@
     <string name="bottom_companion_weight">น้ำหนักที่แบก</string>
     <string name="bottom_companion_radio">วิทยุ</string>
     <string name="bottom_qam_title">เข้าถึงด่วน</string>
-    <string name="bottom_qam_align_left">ย้ายไปทางซ้าย</string>
-    <string name="bottom_qam_align_right">ย้ายไปทางขวา</string>
+    <string name="bottom_qam_layout">เลย์เอาต์: %1$s</string>
+    <string name="bottom_qam_layout_full">เต็มความกว้าง</string>
+    <string name="bottom_qam_layout_left">ซ้าย</string>
+    <string name="bottom_qam_layout_center">กึ่งกลาง</string>
+    <string name="bottom_qam_layout_right">ขวา</string>
     <string name="bottom_qam_unavailable">เมนูเข้าถึงด่วนของ Steam ยังไม่พร้อมใช้งาน</string>
     <string name="bottom_page_telemetry">สถิติในเกม</string>
     <string name="bottom_hud_group">HUD หน้าจอล่าง</string>

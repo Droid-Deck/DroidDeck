@@ -2168,8 +2168,11 @@
     <string name="bottom_companion_weight">Charge</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Accès rapide</string>
-    <string name="bottom_qam_align_left">Déplacer à gauche</string>
-    <string name="bottom_qam_align_right">Déplacer à droite</string>
+    <string name="bottom_qam_layout">Disposition : %1$s</string>
+    <string name="bottom_qam_layout_full">Pleine largeur</string>
+    <string name="bottom_qam_layout_left">Gauche</string>
+    <string name="bottom_qam_layout_center">Centre</string>
+    <string name="bottom_qam_layout_right">Droite</string>
     <string name="bottom_qam_unavailable">Le menu d’accès rapide de Steam n’est pas encore disponible.</string>
     <string name="bottom_page_telemetry">Statistiques en jeu</string>
     <string name="bottom_hud_group">HUD de l\'écran du bas</string>

@@ -172,11 +172,11 @@ object SessionPrefs {
         prefs(context).edit().putString("mirrorHide.app.$game", mode).apply()
     }
 
-    /** Where Steam's Quick Access menu sits on the bottom screen when it is narrower than the panel: -1, 0 or 1. */
-    fun quickAccessAlign(context: Context): Int = prefs(context).getInt("bottomQamAlign", 0).coerceIn(-1, 1)
+    /** How Steam's Quick Access menu sits on the bottom screen: full, left, center or right. */
+    fun quickAccessLayout(context: Context): String? = prefs(context).getString("bottomQamLayout", null)
 
-    fun setQuickAccessAlign(context: Context, align: Int) {
-        prefs(context).edit().putInt("bottomQamAlign", align.coerceIn(-1, 1)).apply()
+    fun setQuickAccessLayout(context: Context, id: String) {
+        prefs(context).edit().putString("bottomQamLayout", id).apply()
     }
 
     fun clearGameBottomScreen(context: Context, game: String) {

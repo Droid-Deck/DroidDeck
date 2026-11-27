@@ -2144,8 +2144,11 @@
     <string name="bottom_companion_weight">Teherbírás</string>
     <string name="bottom_companion_radio">Rádió</string>
     <string name="bottom_qam_title">Gyorselérés</string>
-    <string name="bottom_qam_align_left">Áthelyezés balra</string>
-    <string name="bottom_qam_align_right">Áthelyezés jobbra</string>
+    <string name="bottom_qam_layout">Elrendezés: %1$s</string>
+    <string name="bottom_qam_layout_full">Teljes szélesség</string>
+    <string name="bottom_qam_layout_left">Balra</string>
+    <string name="bottom_qam_layout_center">Középen</string>
+    <string name="bottom_qam_layout_right">Jobbra</string>
     <string name="bottom_qam_unavailable">A Steam gyorselérési menüje még nem érhető el.</string>
     <string name="bottom_page_telemetry">Játékon belüli statisztikák</string>
     <string name="bottom_hud_group">HUD az alsó képernyőn</string>

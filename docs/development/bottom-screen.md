@@ -170,10 +170,10 @@ Details: [bottom-screen-companion-api.md](bottom-screen-companion-api.md).
 Plugin loaders expose Steam's CEF DevTools so the menu can be viewed in a desktop browser, but it renders only while it is open on the main screen. The panel keeps it open without covering the top screen:
 
 - Steam's UI is told to open the menu and keep it open: its composition request is capped at "notification" while the menu is ours, so gamescope keeps focus on the game, and losing focus no longer closes it. Gamepad focus moves from the menu back to the main UI only when the menu took it, so Steam's own popups keep the controller. The blurred backdrop is hidden.
-- The menu's browser view is placed just outside the Big Picture window through its own `SetBounds`, so it keeps rendering but never shows on top, including while Steam slides it wider for Friends and chat. The view is also given the panel's shape (about 712 × 463 instead of Steam's 856 × 463), and a style on the menu page lifts Steam's 300 px cap on each tab, so every tab fills the panel at one scale, with Friends showing its list and chat side by side.
+- The menu's browser view is placed just outside the Big Picture window through its own `SetBounds`, so it keeps rendering but never shows on top, including while Steam slides it wider for Friends and chat. The view is also given the panel's shape (about 712 × 463 instead of Steam's 856 × 463), so every tab shows at one scale. In Full width, a style on the menu page also lifts Steam's 300 px cap on each tab, so every tab fills the panel and Friends shows its list and chat side by side.
 - A timer inside Steam keeps this state every 250 ms, so the menu comes back, on the tab it was showing, as soon as Steam's main menu or a full-screen page such as Decky's store closes. It runs on a 5 s lease that the panel renews each second: if the app stops, Steam returns to normal by itself.
 - The hold starts only once the session is ready: holding the menu before Steam's first frame kept gamescope from presenting anything.
-- `droiddeck-qam-relay` relays the app to the DevTools port, which only answers clients inside the guest. The panel streams the menu with `Page.startScreencast`, scales its content to the panel and fills the rest with the menu's own background, and forwards touches on the menu with `Input.dispatchTouchEvent`. If a Steam update brings back a narrow tab, a chevron in the free space on each side steps it left, centre or right; the choice is kept. Returning to the panel shows the last frame at once while the stream reconnects, and the first frame after a cold start takes about 1.4 s.
+- `droiddeck-qam-relay` relays the app to the DevTools port, which only answers clients inside the guest. The panel streams the menu with `Page.startScreencast`, scales its content to the panel and fills the rest with the menu's own background, and forwards touches on the menu with `Input.dispatchTouchEvent`. A layout button in the panel's bar cycles Full width (every tab stretched to the panel), Left, Center and Right (Steam's own narrow tabs, placed on that side); the choice is kept. Returning to the panel shows the last frame at once while the stream reconnects, and the first frame after a cold start takes about 1.4 s.
 - The Quick Access button still shows the menu on the top screen, in Steam's own layout and with the controller; closing it there (B or the button again) returns it to the bottom screen on the same tab.
 - Leaving the panel closes the menu and turns the patches off; the Steam button and the normal Quick Access button then work as before. Opening Steam's main menu replaces the Quick Access menu for as long as it is open, as on a Deck.
 
@@ -188,6 +188,10 @@ Limits: it relies on Steam's minified UI stores and method names, so a client up
 | Decky | Performance |
 | --- | --- |
 | ![](evidence/bottom-screen-qam-decky-2026-11-27.png) | ![](evidence/bottom-screen-qam-performance-2026-11-27.png) |
+
+| Layout: Center | Layout: Right |
+| --- | --- |
+| ![](evidence/bottom-screen-qam-center-2026-11-27.png) | ![](evidence/bottom-screen-qam-right-2026-11-27.png) |
 
 The top screen during that game, with the menu open on the bottom: ![](evidence/bottom-screen-qam-top-ingame-2026-11-27.png)
 

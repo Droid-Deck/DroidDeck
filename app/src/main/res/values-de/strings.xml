@@ -2136,8 +2136,11 @@
     <string name="bottom_companion_weight">Traglast</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Schnellzugriff</string>
-    <string name="bottom_qam_align_left">Nach links verschieben</string>
-    <string name="bottom_qam_align_right">Nach rechts verschieben</string>
+    <string name="bottom_qam_layout">Layout: %1$s</string>
+    <string name="bottom_qam_layout_full">Volle Breite</string>
+    <string name="bottom_qam_layout_left">Links</string>
+    <string name="bottom_qam_layout_center">Mitte</string>
+    <string name="bottom_qam_layout_right">Rechts</string>
     <string name="bottom_qam_unavailable">Das Schnellzugriffsmenü von Steam ist noch nicht verfügbar.</string>
     <string name="bottom_page_telemetry">Spielstatistiken</string>
     <string name="bottom_hud_group">HUD für den unteren Bildschirm</string>

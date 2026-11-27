@@ -2120,8 +2120,11 @@
     <string name="bottom_companion_weight">Beban</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Akses Pantas</string>
-    <string name="bottom_qam_align_left">Alih ke kiri</string>
-    <string name="bottom_qam_align_right">Alih ke kanan</string>
+    <string name="bottom_qam_layout">Susun atur: %1$s</string>
+    <string name="bottom_qam_layout_full">Lebar penuh</string>
+    <string name="bottom_qam_layout_left">Kiri</string>
+    <string name="bottom_qam_layout_center">Tengah</string>
+    <string name="bottom_qam_layout_right">Kanan</string>
     <string name="bottom_qam_unavailable">Menu Akses Pantas Steam belum tersedia.</string>
     <string name="bottom_page_telemetry">Statistik dalam permainan</string>
     <string name="bottom_hud_group">HUD skrin bawah</string>

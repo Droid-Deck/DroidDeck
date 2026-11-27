@@ -2144,8 +2144,11 @@
     <string name="bottom_companion_weight">Bärvikt</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Snabbåtkomst</string>
-    <string name="bottom_qam_align_left">Flytta till vänster</string>
-    <string name="bottom_qam_align_right">Flytta till höger</string>
+    <string name="bottom_qam_layout">Layout: %1$s</string>
+    <string name="bottom_qam_layout_full">Full bredd</string>
+    <string name="bottom_qam_layout_left">Vänster</string>
+    <string name="bottom_qam_layout_center">Mitten</string>
+    <string name="bottom_qam_layout_right">Höger</string>
     <string name="bottom_qam_unavailable">Steams snabbåtkomstmeny är inte tillgänglig än.</string>
     <string name="bottom_page_telemetry">Statistik i spelet</string>
     <string name="bottom_hud_group">HUD på nedre skärmen</string>

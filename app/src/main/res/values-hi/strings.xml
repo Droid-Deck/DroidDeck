@@ -2144,8 +2144,11 @@
     <string name="bottom_companion_weight">वज़न क्षमता</string>
     <string name="bottom_companion_radio">रेडियो</string>
     <string name="bottom_qam_title">क्विक एक्सेस</string>
-    <string name="bottom_qam_align_left">बाईं ओर ले जाएँ</string>
-    <string name="bottom_qam_align_right">दाईं ओर ले जाएँ</string>
+    <string name="bottom_qam_layout">लेआउट: %1$s</string>
+    <string name="bottom_qam_layout_full">पूरी चौड़ाई</string>
+    <string name="bottom_qam_layout_left">बाएँ</string>
+    <string name="bottom_qam_layout_center">बीच में</string>
+    <string name="bottom_qam_layout_right">दाएँ</string>
     <string name="bottom_qam_unavailable">Steam का क्विक एक्सेस मेनू अभी उपलब्ध नहीं है।</string>
     <string name="bottom_page_telemetry">इन-गेम आंकड़े</string>
     <string name="bottom_hud_group">निचली स्क्रीन HUD</string>

@@ -2194,8 +2194,11 @@
     <string name="bottom_companion_weight">Udźwig</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Szybki dostęp</string>
-    <string name="bottom_qam_align_left">Przesuń w lewo</string>
-    <string name="bottom_qam_align_right">Przesuń w prawo</string>
+    <string name="bottom_qam_layout">Układ: %1$s</string>
+    <string name="bottom_qam_layout_full">Pełna szerokość</string>
+    <string name="bottom_qam_layout_left">Do lewej</string>
+    <string name="bottom_qam_layout_center">Na środku</string>
+    <string name="bottom_qam_layout_right">Do prawej</string>
     <string name="bottom_qam_unavailable">Menu szybkiego dostępu Steam nie jest jeszcze dostępne.</string>
     <string name="bottom_page_telemetry">Statystyki w grze</string>
     <string name="bottom_hud_group">HUD dolnego ekranu</string>

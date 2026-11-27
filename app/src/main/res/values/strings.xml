@@ -2427,8 +2427,11 @@
     <string name="bottom_companion_weight">Carry weight</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Quick Access</string>
-    <string name="bottom_qam_align_left">Move to the left</string>
-    <string name="bottom_qam_align_right">Move to the right</string>
+    <string name="bottom_qam_layout">Layout: %1$s</string>
+    <string name="bottom_qam_layout_full">Full width</string>
+    <string name="bottom_qam_layout_left">Left</string>
+    <string name="bottom_qam_layout_center">Center</string>
+    <string name="bottom_qam_layout_right">Right</string>
     <string name="bottom_qam_unavailable">Steam\'s Quick Access menu is not available yet.</string>
     <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_hud_group">Bottom screen HUD</string>

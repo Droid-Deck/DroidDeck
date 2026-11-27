@@ -2195,8 +2195,11 @@
     <string name="bottom_companion_weight">Переносимый вес</string>
     <string name="bottom_companion_radio">Радио</string>
     <string name="bottom_qam_title">Быстрый доступ</string>
-    <string name="bottom_qam_align_left">Сдвинуть влево</string>
-    <string name="bottom_qam_align_right">Сдвинуть вправо</string>
+    <string name="bottom_qam_layout">Макет: %1$s</string>
+    <string name="bottom_qam_layout_full">Во всю ширину</string>
+    <string name="bottom_qam_layout_left">Слева</string>
+    <string name="bottom_qam_layout_center">По центру</string>
+    <string name="bottom_qam_layout_right">Справа</string>
     <string name="bottom_qam_unavailable">Меню быстрого доступа Steam пока недоступно.</string>
     <string name="bottom_page_telemetry">Игровая статистика</string>
     <string name="bottom_hud_group">HUD нижнего экрана</string>

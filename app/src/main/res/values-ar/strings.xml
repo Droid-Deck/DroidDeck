@@ -2244,8 +2244,11 @@
     <string name="bottom_companion_weight">الحمولة</string>
     <string name="bottom_companion_radio">الراديو</string>
     <string name="bottom_qam_title">الوصول السريع</string>
-    <string name="bottom_qam_align_left">نقل إلى اليسار</string>
-    <string name="bottom_qam_align_right">نقل إلى اليمين</string>
+    <string name="bottom_qam_layout">التخطيط: %1$s</string>
+    <string name="bottom_qam_layout_full">العرض الكامل</string>
+    <string name="bottom_qam_layout_left">يسار</string>
+    <string name="bottom_qam_layout_center">وسط</string>
+    <string name="bottom_qam_layout_right">يمين</string>
     <string name="bottom_qam_unavailable">قائمة الوصول السريع في Steam غير متاحة بعد.</string>
     <string name="bottom_page_telemetry">إحصاءات داخل اللعبة</string>
     <string name="bottom_hud_group">مؤشرات الشاشة السفلية</string>
