@@ -109,10 +109,12 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
                 return@LaunchedEffect
             }
             withFrameNanos { nanos ->
+                val scale = Motion.scale
+                if (scale == 0f) return@withFrameNanos
                 val settled = clock.intro >= END && clock.ball >= IMPACT + REVEAL_MS && !clock.poked
                 if (settled && last >= 0 && !IdleFrames.due(nanos)) return@withFrameNanos
                 val now = nanos / 1_000_000L
-                val dt = if (last < 0) 0f else min(50f, (now - last).toFloat()) / Motion.scale
+                val dt = if (last < 0) 0f else min(50f, (now - last).toFloat()) / scale
                 last = now
                 clock.intro += dt
                 clock.wall += dt
