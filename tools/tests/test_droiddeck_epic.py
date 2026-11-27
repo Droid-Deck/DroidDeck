@@ -659,6 +659,17 @@ class DisplayTest(EpicTestCase):
         self.assertNotIn("WAYLAND_DISPLAY", env)
         self.assertEqual("unix:path=/b", env["DBUS_SESSION_BUS_ADDRESS"])
 
+    def test_the_launcher_draws_on_its_x_display_not_the_session_compositor(self):
+        base = {"XDG_RUNTIME_DIR": "/run/droiddeck", "WAYLAND_DISPLAY": "wayland-0",
+                "GAMESCOPE_WAYLAND_DISPLAY": "gamescope-0", "XDG_SESSION_TYPE": "wayland", "GDK_BACKEND": "wayland"}
+        with mock.patch.dict(G, {"fex_environment": lambda fex, files, base: {}}):
+            visible = G["client_environment"](base, None, None, ":1", "bus", "broker")
+            hidden = G["client_environment"](base, None, None, ":2", "bus", "broker", hidden=True)
+        for env, display in ((visible, ":1"), (hidden, ":2")):
+            self.assertEqual(("x11", display, "/run/droiddeck"), (env.get("GDK_BACKEND"), env.get("DISPLAY"), env.get("XDG_RUNTIME_DIR")))
+            for name in ("WAYLAND_DISPLAY", "GAMESCOPE_WAYLAND_DISPLAY", "XDG_SESSION_TYPE"):
+                self.assertNotIn(name, env)
+
 
 class InstallationsTest(EpicTestCase):
     def add_game(self, guid="G1", app="Fig", store="epic", extra=None):
