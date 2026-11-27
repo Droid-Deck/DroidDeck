@@ -1513,6 +1513,80 @@ def system_graphics_launch(command, env):
     return [str(wrapper), *command], result
 
 
+ROCKET_DXVK_FILES = ("dxgi.dll", "d3d11.dll", "d3d10core.dll")
+
+
+def rocket_dxvk_record(record, hashes):
+    handle, staged = tempfile.mkstemp(prefix=".rocket-dxvk-", dir=record.parent)
+    try:
+        with os.fdopen(handle, "w") as output:
+            json.dump(hashes, output)
+        os.replace(staged, record)
+    finally:
+        if os.path.exists(staged):
+            os.unlink(staged)
+
+
+def rocket_league_dxvk(command, env):
+    if (len(command) < 3 or command[1] != "waitforexitandrun"
+            or game_id(env) != "252950" or Path(command[2]).name.lower() != "rocketleague.exe"):
+        return None
+    folder = Path(command[2]).parent
+    record = folder / ".droiddeck-rocket-dxvk.json"
+    owned = json.loads(record.read_text()) if record.exists() else {}
+    if not isinstance(owned, dict) or any(name not in ROCKET_DXVK_FILES for name in owned):
+        raise ValueError("invalid Rocket League DXVK ownership record")
+    active = (env.get("DROIDDECK_ROCKET_LEAGUE_X64_DXVK", "1") != "0"
+              and env.get("PROTON_USE_ARM64", "1") != "0"
+              and env.get("PROTON_USE_WINED3D", "0") == "0"
+              and not names_module(env.get("WINEDLLOVERRIDES"), {"dxgi", "d3d11", "d3d10core"})
+              and not env.get("DROIDDECK_POWERVR_RUNTIME"))
+    source = Path(command[0]).parent / "files/lib/wine/dxvk/x86_64-windows"
+    native = Path(command[0]).parent / "files/lib/wine/dxvk/aarch64-windows/dxgi.dll"
+    active = active and pe_machine(native) in (0xAA64, 0xA641)
+    if not active:
+        remaining = dict(owned)
+        for name, digest in owned.items():
+            target = folder / name
+            if target.is_symlink():
+                continue
+            if not target.exists():
+                remaining.pop(name)
+            elif hashlib.sha256(target.read_bytes()).hexdigest() == digest:
+                target.unlink()
+                remaining.pop(name)
+        if remaining:
+            rocket_dxvk_record(record, remaining)
+        else:
+            record.unlink(missing_ok=True)
+        return None
+    if any(entry.name.lower() in ROCKET_DXVK_FILES and entry.name != entry.name.lower()
+           for entry in folder.iterdir()):
+        return "Rocket League: preserving user graphics DLLs; x64 DXVK workaround skipped"
+    for name in ROCKET_DXVK_FILES:
+        target = folder / name
+        if target.is_symlink() or (target.exists() and
+                hashlib.sha256(target.read_bytes()).hexdigest() != owned.get(name)):
+            return "Rocket League: preserving user graphics DLLs; x64 DXVK workaround skipped"
+    payload = {name: (source / name).read_bytes() for name in ROCKET_DXVK_FILES}
+    if any(pe_machine(source / name) != 0x8664 for name in ROCKET_DXVK_FILES):
+        return "Rocket League: bundled x64 DXVK unavailable; workaround skipped"
+    hashes = {name: hashlib.sha256(data).hexdigest() for name, data in payload.items()}
+    if hashes == owned and all((folder / name).exists() for name in ROCKET_DXVK_FILES):
+        return "Rocket League: x64 DXVK compatibility profile active"
+    for name, data in payload.items():
+        handle, staged = tempfile.mkstemp(prefix=".rocket-dxvk-", dir=folder)
+        try:
+            with os.fdopen(handle, "wb") as output:
+                output.write(data)
+            os.replace(staged, folder / name)
+        finally:
+            if os.path.exists(staged):
+                os.unlink(staged)
+    rocket_dxvk_record(record, hashes)
+    return "Rocket League: bundled x64 DXVK avoids the native graphics entry-point crash"
+
+
 def game_logs(command, env, app_id, now=None):
     """Detailed graphics logs for one game launch, in the session's log folder: Proton's own log,
     DXVK's and vkd3d-proton's, and the Vulkan driver's startup messages. The app turns this on
@@ -1694,6 +1768,12 @@ def main():
             print("droiddeck-game-env: OpenGL does not wait for the screen refresh (vblank_mode=0)", file=sys.stderr)
     if app_id and len(command) > 1 and command[1] == "waitforexitandrun":
         command = offline_without_anticheat(command, env)
+    try:
+        note = rocket_league_dxvk(command, env)
+        if note:
+            print("droiddeck-game-env: " + note, file=sys.stderr)
+    except (OSError, ValueError) as error:
+        print("droiddeck-game-env: Rocket League profile skipped (%s)" % error, file=sys.stderr)
     env = game_logs(command, env, app_id)
     if mic_enabled == "0":
         env["AUDIO_DIRECT_MIC"] = "0"
