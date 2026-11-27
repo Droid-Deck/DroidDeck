@@ -15,7 +15,7 @@ Nothing here changes a default. The tree keeps:
 
 The opt-in supervisor that ran interventions automatically (`DD_STEAM_LITE` levels 1–3) was
 removed after the measurements. Its last version, with its state machine and tests, is commit
-`7cc65e0c9` in PR #3301.
+`ec802525a` in PR #3301.
 
 ## Conclusions
 
