@@ -166,12 +166,19 @@ object SteamTouchConfig {
 
     fun steamRoot(context: Context) = com.droiddeck.launcher.session.SessionPrefs.activeSteamRoot(context)
 
+    private fun controllerConfigs(context: Context) = File(steamRoot(context), "steamapps/common/Steam Controller Configs")
+
     fun configDir(context: Context): File? {
-        val base = File(steamRoot(context), "steamapps/common/Steam Controller Configs")
+        val base = controllerConfigs(context)
         val account = accountId(context)
         if (account != null) File(base, "$account/config").takeIf { it.isDirectory }?.let { return it }
         return base.listFiles()?.filter { it.name.all(Char::isDigit) && File(it, "config").isDirectory }
             ?.maxByOrNull { it.lastModified() }?.let { File(it, "config") }
+    }
+
+    private fun writableConfigDir(context: Context): File? {
+        val account = accountId(context) ?: return configDir(context)
+        return File(controllerConfigs(context), "$account/config").apply { mkdirs() }.takeIf { it.isDirectory }
     }
 
     private fun accountId(context: Context): Long? = try {
@@ -197,7 +204,7 @@ object SteamTouchConfig {
         }
         return try {
             val text = file.readText()
-            val kv = KeyValues.parse(text.removePrefix("﻿"))
+            val kv = KeyValues.parse(text)
             val mappings = kv.child("controller_mappings") ?: kv
             val layouts = mappings.string("touch_layout")?.let { hex -> decodeLayouts(hexToBytes(hex)) }
             Log.i(TAG, "steam touch: app $appId uses ${file.path} (${layouts?.layouts?.size ?: 0} layouts)")
@@ -389,8 +396,9 @@ object SteamTouchConfig {
         bindings: Map<SteamTouchBindings.Ref, (SteamTouchBindings.Binding) -> SteamTouchBindings.Binding> = emptyMap(),
         options: Options? = null,
     ): File? {
-        val dir = configDir(context) ?: return null
-        val base = config.text ?: if (config.file == null && bindings.isEmpty()) "\"controller_mappings\"\n{\n\t\"controller_type\"\t\t\"controller_mobile_touch\"\n}\n" else return null
+        val dir = writableConfigDir(context) ?: return null.also { Log.w(TAG, "steam touch: no controller config folder to save app $appId in") }
+        val base = config.text ?: if (config.file == null && bindings.isEmpty()) "\"controller_mappings\"\n{\n\t\"controller_type\"\t\t\"controller_mobile_touch\"\n}\n"
+        else return null.also { Log.w(TAG, "steam touch: ${config.file?.path ?: "default layout"} has no readable text to save into") }
         val source = bindings.entries.fold(base) { text, (ref, change) ->
             SteamTouchBindings.rewrite(text, ref, change) ?: text
         }
@@ -408,11 +416,11 @@ object SteamTouchConfig {
         val existing = Regex("""\n\s*"touch_layout"\s+"[0-9a-fA-F]*"""")
         val text = if (existing.containsMatchIn(source)) source.replace(existing, "\n$line")
         else source.replaceFirst(Regex("""("controller_type"\s+"controller_mobile_touch"[^\n]*)"""), "$1\n$line")
-        if (!text.contains("touch_layout")) return null
+        if (!text.contains("touch_layout")) return null.also { Log.w(TAG, "steam touch: ${config.file?.path} is no controller_mobile_touch config") }
         target.parentFile?.mkdirs()
         val tmp = File(target.path + ".tmp")
         tmp.writeText(text)
-        if (!tmp.renameTo(target)) return null
+        if (!tmp.renameTo(target)) return null.also { Log.w(TAG, "steam touch: could not replace ${target.path}") }
         selectAutosave(dir, key)
         dropDeviceEntry(dir, key)
         Log.i(TAG, "steam touch: saved layouts ${sets.keys} for app $appId to ${target.path}")
@@ -430,12 +438,13 @@ object SteamTouchConfig {
 
     private fun selectAutosave(dir: File, key: String) {
         val file = File(dir, CONFIGSET)
-        val text = if (file.isFile) file.readText() else "\"controller_config\"\n{\n}\n"
-        val entry = "\t\"$key\"\n\t{\n\t\t\"autosave\"\t\t\"1\"\n\t}"
-        val block = Regex("""\n\s*"${Regex.escape(key)}"\s*\{[^}]*\}""", RegexOption.IGNORE_CASE)
-        val next = if (block.containsMatchIn(text)) text.replace(block) { "\n$entry" }
-        else text.substring(0, text.lastIndexOf('}')).trimEnd() + "\n$entry\n}\n"
-        File(file.path + ".tmp").apply { writeText(next) }.renameTo(file)
+        val root = file.takeIf { it.isFile }?.readText()?.let(KeyValues::parse)?.takeIf { it.child("controller_config") != null }
+            ?: KeyValues.Node(mutableListOf("controller_config" to KeyValues.Node()))
+        val config = root.child("controller_config") ?: return
+        val entry = key to KeyValues.Node(mutableListOf("autosave" to "1"))
+        val at = config.entries.indexOfFirst { it.first.equals(key, true) && it.second is KeyValues.Node }
+        if (at >= 0) config.entries[at] = entry else config.entries += entry
+        File(file.path + ".tmp").apply { writeText(KeyValues.write(root)) }.renameTo(file)
     }
 
 
@@ -593,34 +602,48 @@ class KeyValues private constructor() {
         fun string(key: String): String? = entries.firstOrNull { it.first.equals(key, true) && it.second is String }?.second as String?
     }
 
+    private class Token(val text: String, val quoted: Boolean) {
+        val opens get() = !quoted && text == "{"
+        val closes get() = !quoted && text == "}"
+    }
+
     companion object {
+        fun write(node: Node): String = write(node, "")
+
+        private fun write(node: Node, indent: String): String = node.entries.joinToString("") { (key, value) ->
+            if (value is Node) "$indent\"${escape(key)}\"\n$indent{\n${write(value, "$indent\t")}$indent}\n"
+            else "$indent\"${escape(key)}\"\t\t\"${escape(value.toString())}\"\n"
+        }
+
+        private fun escape(text: String) = text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\t", "\\t")
+
         fun parse(text: String): Node {
-            val tokens = tokenize(text)
+            val tokens = tokenize(text.removePrefix("\uFEFF"))
             var i = 0
             fun node(): Node {
                 val n = Node()
                 while (i < tokens.size) {
                     val t = tokens[i++]
-                    if (t == "}" ) return n
-                    if (t == "{") continue
+                    if (t.closes) return n
+                    if (t.opens) continue
                     if (i >= tokens.size) break
                     val next = tokens[i]
-                    if (next == "{") { i++; n.entries += t to node() } else { i++; n.entries += t to next }
+                    if (next.opens) { i++; n.entries += t.text to node() } else { i++; n.entries += t.text to next.text }
                 }
                 return n
             }
             return node()
         }
 
-        private fun tokenize(text: String): List<String> {
-            val out = mutableListOf<String>()
+        private fun tokenize(text: String): List<Token> {
+            val out = mutableListOf<Token>()
             var i = 0
             while (i < text.length) {
                 val c = text[i]
                 when {
                     c.isWhitespace() -> i++
                     c == '/' && i + 1 < text.length && text[i + 1] == '/' -> while (i < text.length && text[i] != '\n') i++
-                    c == '{' || c == '}' -> { out += c.toString(); i++ }
+                    c == '{' || c == '}' -> { out += Token(c.toString(), false); i++ }
                     c == '"' -> {
                         val sb = StringBuilder()
                         i++
@@ -632,13 +655,13 @@ class KeyValues private constructor() {
                             i++
                         }
                         i++
-                        out += sb.toString()
+                        out += Token(sb.toString(), true)
                     }
                     c == '[' -> { while (i < text.length && text[i] != ']') i++; i++ }
                     else -> {
                         val start = i
                         while (i < text.length && !text[i].isWhitespace() && text[i] != '{' && text[i] != '}' && text[i] != '"') i++
-                        out += text.substring(start, i)
+                        out += Token(text.substring(start, i), false)
                     }
                 }
             }
