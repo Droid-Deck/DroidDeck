@@ -632,9 +632,9 @@ int vkp_zoom_pan_cursor(double ox, double oy) {
         float margin = (right - left) * 0.2f;
 
         if (cursor_x < left + margin)
-            next_x += (float)(left + margin - cursor_x) * g_map.kx;
+            next_x += (float)(left + margin - cursor_x) * g_map.kx * 0.5f;
         else if (cursor_x > right - margin)
-            next_x -= (float)(cursor_x - (right - margin)) * g_map.kx;
+            next_x -= (float)(cursor_x - (right - margin)) * g_map.kx * 0.5f;
 
         float min_x = (float)g_map.rx + g_map.rw - image_w;
         if (next_x < min_x) next_x = min_x;
@@ -647,9 +647,9 @@ int vkp_zoom_pan_cursor(double ox, double oy) {
         float margin = (bottom - top) * 0.2f;
 
         if (cursor_y < top + margin)
-            next_y += (float)(top + margin - cursor_y) * g_map.ky;
+            next_y += (float)(top + margin - cursor_y) * g_map.ky * 0.5f;
         else if (cursor_y > bottom - margin)
-            next_y -= (float)(cursor_y - (bottom - margin)) * g_map.ky;
+            next_y -= (float)(cursor_y - (bottom - margin)) * g_map.ky * 0.5f;
 
         float min_y = (float)g_map.ry + g_map.rh - image_h;
         if (next_y < min_y) next_y = min_y;
