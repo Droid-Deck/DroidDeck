@@ -133,6 +133,24 @@ static void objects_destroy(void) {
     g_dsl = VK_NULL_HANDLE; g_sampler = VK_NULL_HANDLE;
 }
 
+void blendp_destroy(void) {
+    if (g_dev) {
+        for (int i = 0; i < NSRC; i++) src_release(i);
+        for (int i = 0; i < NDST; i++) dst_release(i);
+        for (int i = 0; i < NFMT; i++) {
+            if (g_out[i].pipe) g_vk.DestroyPipeline(g_dev, g_out[i].pipe, NULL);
+            if (g_out[i].rp) g_vk.DestroyRenderPass(g_dev, g_out[i].rp, NULL);
+        }
+        objects_destroy();
+    }
+    memset(g_src, 0, sizeof(g_src));
+    memset(g_dst, 0, sizeof(g_dst));
+    memset(g_out, 0, sizeof(g_out));
+    g_ready = 0;
+    g_frame = 1;
+    g_dev = VK_NULL_HANDLE;
+}
+
 static int objects_ensure(void) {
     if (g_ready) return g_ready == 1 ? 0 : -1;
     g_ready = -1;

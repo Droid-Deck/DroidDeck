@@ -15,9 +15,9 @@
     X(GetPhysicalDeviceImageFormatProperties2) X(GetPhysicalDeviceProperties2)
 
 #define VK_DEVICE_FUNCS(X) \
-    X(GetDeviceQueue) X(CreateSwapchainKHR) X(DestroySwapchainKHR) X(GetSwapchainImagesKHR) \
-    X(CreateCommandPool) X(AllocateCommandBuffers) X(CreateSemaphore) X(CreateFence) \
-    X(DeviceWaitIdle) X(CreateImage) X(GetImageMemoryRequirements) X(AllocateMemory) \
+    X(DestroyDevice) X(GetDeviceQueue) X(CreateSwapchainKHR) X(DestroySwapchainKHR) X(GetSwapchainImagesKHR) \
+    X(CreateCommandPool) X(DestroyCommandPool) X(AllocateCommandBuffers) X(CreateSemaphore) X(CreateFence) \
+    X(DeviceWaitIdle) X(DestroyFence) X(CreateImage) X(GetImageMemoryRequirements) X(AllocateMemory) \
     X(BindImageMemory) X(DestroyImage) X(FreeMemory) X(AcquireNextImageKHR) \
     X(ResetCommandBuffer) X(BeginCommandBuffer) X(CmdPipelineBarrier) X(CmdBlitImage) \
     X(EndCommandBuffer) X(ResetFences) X(QueueSubmit) X(QueuePresentKHR) X(WaitForFences) \

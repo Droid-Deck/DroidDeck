@@ -311,6 +311,16 @@ static void objects_destroy(void) {
     g_dsl = VK_NULL_HANDLE; g_sampler = VK_NULL_HANDLE; g_rp = VK_NULL_HANDLE;
 }
 
+void vkp_cardboard_destroy(void) {
+    if (g_dev) objects_destroy();
+    g_dev = VK_NULL_HANDLE;
+    g_ready = 0;
+    memset(&g_t, 0, sizeof(g_t));
+    memset(g_src, 0, sizeof(g_src));
+    g_nsrc = 0;
+    memset(&g_mp, 0, sizeof(g_mp));
+}
+
 static int objects_ensure(void) {
     if (g_ready) return g_ready == 1 ? 0 : -1;
     if (!g_dev || !g_vk.CreateGraphicsPipelines) goto fail;

@@ -73,8 +73,19 @@ void vkp_gpu_busy_device(VkPhysicalDevice pd, VkDevice dev, uint32_t family) {
 }
 
 void vkp_gpu_busy_device_lost(void) {
+    pthread_mutex_lock(&g_lock);
     atomic_store(&g_lost, 1);
     atomic_store(&g_timing, 0);
+    if (g_v.device) {
+        gpuload_ring_release(&g_ring, &g_v);
+        g_ring.state = 0;
+    }
+    if (g_vk.QueueSubmit == timed_submit && g_submit) g_vk.QueueSubmit = g_submit;
+    g_submit = NULL;
+    memset(&g_v, 0, sizeof(g_v));
+    g_family = g_bits = 0;
+    g_was_on = 0;
+    pthread_mutex_unlock(&g_lock);
 }
 
 JNIEXPORT jlong JNICALL Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeGpuBusyNs(JNIEnv *env, jclass cls) {

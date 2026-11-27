@@ -26,6 +26,7 @@ void vkp_cardboard_set_pose_file(const char *path);
 void vkp_cardboard_set_render_height(int height);
 
 void vkp_cardboard_bind_device(VkDevice dev, const VkPhysicalDeviceMemoryProperties *memprops);
+void vkp_cardboard_destroy(void);
 int vkp_cardboard_active(void);
 int vkp_cardboard_source(void);
 int vkp_cardboard_pose_changed(void);

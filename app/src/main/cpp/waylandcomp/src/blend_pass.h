@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.h>
 
 void blendp_bind_device(VkDevice dev);
+void blendp_destroy(void);
 void blendp_forget_image(VkImage img);
 void blendp_begin_frame(void);
 

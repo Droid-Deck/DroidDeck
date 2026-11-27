@@ -126,6 +126,23 @@ void fge_device_ready(PFN_vkGetInstanceProcAddr gipa, VkInstance inst, VkPhysica
          (int)g_caps.storageOnSwapchainFormat);
 }
 
+void fge_device_lost(void) {
+    g_lsfg.reset();
+    g_ddfg.reset();
+    g_kind = -1;
+    g_dev = VK_NULL_HANDLE;
+    g_queue = VK_NULL_HANDLE;
+    g_pd = VK_NULL_HANDLE;
+    g_qfam = 0;
+    g_ready = false;
+    g_probed = false;
+    g_table = {};
+    g_caps = {};
+    g_v12 = {};
+    g_f2 = {};
+    g_build[0] = 0;
+}
+
 int fge_caps_ok(int kind) {
     if (!g_ready) return 0;
     if (kind == 1) return g_caps.storageOnSwapchainFormat ? 1 : 0;
