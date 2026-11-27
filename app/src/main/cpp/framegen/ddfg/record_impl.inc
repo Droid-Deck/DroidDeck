@@ -180,7 +180,8 @@ void FrameGen::configure(const Config& c) {
 
     const VkResult idleResult = dd_->DeviceWaitIdle(device_);
     if (idleResult != VK_SUCCESS) {
-        DDFG_LOGE("framegen configure: DeviceWaitIdle failed (%d); aborting live rebuild", (int)idleResult);
+        DDFG_LOGE("framegen configure: DeviceWaitIdle failed (%d); disabling FrameGen live rebuild", (int)idleResult);
+        ready_ = false;
         return;
     }
     destroyScratch(dd_, device_, descPool_);
