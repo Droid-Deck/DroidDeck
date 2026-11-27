@@ -21,7 +21,8 @@ DLLS = ('xgameruntime.dll', 'winhttp.dll', 'windows.web.dll', 'twinapi.appcore.d
 CLASSES = {
     'twinapi.appcore.dll': ('Windows.ApplicationModel.DataTransfer.DataTransferManager',
                             'Windows.Security.ExchangeActiveSyncProvisioning.EasClientDeviceInformation',
-                            'Windows.System.Profile.AnalyticsInfo', 'Windows.System.UserProfile.AdvertisingManager'),
+                            'Windows.System.Profile.AnalyticsInfo', 'Windows.System.UserProfile.AdvertisingManager',
+                            'Windows.UI.ViewManagement.ApplicationView'),
     # Device enumeration is how a title lists the render devices it can open. Wine carries the DLL but its
     # class keys only reached the 32-bit view of the registry, so a 64-bit title looks one up and finds nothing.
     'windows.devices.enumeration.dll': ('Windows.Devices.Enumeration.DeviceInformation',
@@ -41,6 +42,27 @@ VCLIBS_X64 = 'Microsoft.VCLibs.140.00_14.0.30704.0_x64__8wekyb3d8bbwe'
 # small host (tools/xbox/uwp-host) that answers them and drives the title's view. A package naming
 # Windows.FullTrustApplication never sees it.
 UWP_HOST = RUNTIME / 'compat' / 'uwp-host.dll'
+
+
+def uwp_host_package_copy(env):
+    """The app-model host a compatibility package delivered, if any.
+
+    A .wcp installs into a proton tool, and that tool may carry the host at
+    files/share/droiddeck/uwp-host.dll. Nothing keys the installed tools by which
+    one this prefix uses, so newest wins when several carry a host; the launcher's
+    own copy remains the fallback."""
+    client = env.get('STEAM_COMPAT_CLIENT_INSTALL_PATH')
+    if not client:
+        return None
+    tools = Path(client) / 'compatibilitytools.d'
+    try:
+        found = [entry / 'files' / 'share' / 'droiddeck' / 'uwp-host.dll'
+                 for entry in tools.iterdir() if entry.is_dir()]
+        found = [path for path in found if path.is_file()]
+        found.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    except OSError:
+        return None
+    return found[0] if found else None
 # The host answers the app model itself (CoreApplication, CoreWindow) and, because Wine ships nothing behind
 # them, the platform services a packaged title reaches for on the way up: storage, package identity,
 # cryptography, display, media and input. They all resolve to this one DLL.
@@ -492,13 +514,19 @@ def wine(argv, source_env=None, package=None):
                 package_root = stage_package_root(prefix, active_package, staged_full_name)
         classes = package_classes(active_package, install_path=package_root) if active_package is not None else {}
         if env.get('DROIDDECK_XBOX_UWP_HOST') == '1':
+            # A package may carry the host into the proton tool it installs. When it
+            # does, that copy runs: it was built against the same runtime the title
+            # runs on, and it registers its own classes, so a launcher whose class
+            # list is a version behind still resolves them.
+            source = uwp_host_package_copy(env)
             try:
-                data = UWP_HOST.read_bytes()
+                data = source.read_bytes() if source is not None else UWP_HOST.read_bytes()
                 replace_file(system, 'uwp-host.dll', data)
             except OSError as error:
                 print('droiddeck-xbox: app-model host unavailable (%s)' % error, file=sys.stderr)
             else:
-                trace(env, 'app-model host staged (%d bytes)' % len(data))
+                trace(env, 'app-model host staged from %s (%d bytes)'
+                      % (source or UWP_HOST, len(data)))
                 classes['uwp-host.dll'] = UWP_CLASSES
         register_classes(command[0], prefix, env, classes)
         if 'uwp-host.dll' in classes:

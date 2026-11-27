@@ -25,6 +25,8 @@
 #include <time.h>
 #include <wchar.h>
 
+extern int uwp_package_family_name(char *out, size_t cap);
+
 typedef void *hstring_t;
 
 typedef struct {
@@ -1606,6 +1608,8 @@ static int g_xsts_count = 0;
 /* Cached identity strings (populated once any XSTS token is fetched) */
 static char g_cached_xuid[64];
 static char g_cached_gamertag[128];
+static char g_cached_age_group[64];
+static char g_cached_privileges[512];
 static char g_cached_non_roamable_id[128];
 
 /* Lazy-resolved ws2_32.dll and wininet.dll exports (keeps uwp-host.dll static imports minimal). */
@@ -1792,12 +1796,67 @@ static int is_valid_msa_app_id(const char *s)
     if (_stricmp(s, "PleaseChangeMe") == 0) return 0;
     n = strlen(s);
     if (n < 8 || n >= 120) return 0;
+    if (_strnicmp(s, "ms-app://", 9) == 0) {
+        if (n < 18) return 0;
+        for (i = 9; i < n; i++) {
+            char c = s[i];
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
+                  (c >= 'A' && c <= 'Z') || c == '-'))
+                return 0;
+        }
+        return 1;
+    }
     for (i = 0; i < n; i++) {
         char c = s[i];
         if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
               (c >= 'A' && c <= 'Z') || c == '-'))
             return 0;
     }
+    return 1;
+}
+
+/* Derive Windows' AppContainer Package SID URI ("ms-app://S-1-15-2-...") from
+ * the title's PackageFamilyName (matches DeriveAppContainerSidFromAppContainerName
+ * and XblAuthManager's UWP TokenBroker ClientId for titles without an MSAAppId). */
+static int derive_uwp_ms_app_client_id_locked(char *out, size_t cap)
+{
+    char pfn[256];
+    WCHAR wpfn[256];
+    int wlen;
+    BCRYPT_HANDLE_A hhash = NULL;
+    uint8_t digest[32];
+    uint32_t subs[7];
+    int i;
+    NTSTATUS_A st;
+
+    if (!out || cap < 96) return 0;
+    out[0] = '\0';
+    if (!g_bcrypt_ready) return 0;
+    if (!uwp_package_family_name(pfn, sizeof pfn) || !pfn[0]) return 0;
+
+    wlen = MultiByteToWideChar(CP_UTF8, 0, pfn, -1, wpfn, (int)(sizeof(wpfn) / sizeof(wpfn[0])));
+    if (wlen <= 1) return 0;
+    wlen--; /* exclude NUL terminator */
+    CharLowerBuffW(wpfn, (DWORD)wlen);
+
+    if (!g_sha256_alg) {
+        st = fn_BCryptOpenAlgorithmProvider(&g_sha256_alg, L"SHA256", NULL, 0);
+        if (st < 0) return 0;
+    }
+    st = fn_BCryptCreateHash(g_sha256_alg, &hhash, NULL, 0, NULL, 0, 0);
+    if (st < 0 || !hhash) return 0;
+    st = fn_BCryptHashData(hhash, (PUCHAR)wpfn, (ULONG)(wlen * 2), 0);
+    if (st >= 0) st = fn_BCryptFinishHash(hhash, digest, sizeof digest, 0);
+    fn_BCryptDestroyHash(hhash);
+    if (st < 0) return 0;
+
+    for (i = 0; i < 7; i++) {
+        const uint8_t *q = digest + i * 4;
+        subs[i] = (uint32_t)q[0] | ((uint32_t)q[1] << 8) |
+                  ((uint32_t)q[2] << 16) | ((uint32_t)q[3] << 24);
+    }
+    snprintf(out, cap, "ms-app://S-1-15-2-%u-%u-%u-%u-%u-%u-%u",
+             subs[0], subs[1], subs[2], subs[3], subs[4], subs[5], subs[6]);
     return 1;
 }
 
@@ -1897,6 +1956,16 @@ static const char *get_xbox_client_id_locked(void)
                     }
                 }
             }
+        }
+    }
+
+    {
+        char ms_app[128];
+        if (derive_uwp_ms_app_client_id_locked(ms_app, sizeof ms_app) &&
+            is_valid_msa_app_id(ms_app)) {
+            snprintf(g_xbox_client_id, sizeof g_xbox_client_id, "%s", ms_app);
+            auth_log("using derived UWP Package SID ClientId: %s", g_xbox_client_id);
+            return g_xbox_client_id;
         }
     }
     return g_xbox_client_id;
@@ -2595,6 +2664,58 @@ static int fetch_xbl_user_token_locked(int force_refresh)
             }
             free(resp);
             resp = NULL;
+
+            /* If a title-specific ClientId (MSAAppId or ms-app://SID) was rejected by SISU,
+             * try direct title.auth.xboxlive.com/title/authenticate before falling back to
+             * the default Xbox PC App client id. */
+            if (_stricmp(cid, XODUS_XBOX_CLIENT_ID) != 0) {
+                snprintf(body, 24576,
+                         "{\"RelyingParty\":\"http://auth.xboxlive.com\",\"TokenType\":\"JWT\","
+                         "\"Properties\":{\"AuthMethod\":\"RPS\",\"DeviceToken\":\"%s\","
+                         "\"RpsTicket\":\"%s\",\"SiteName\":\"user.auth.xboxlive.com\","
+                         "\"ProofKey\":%s}}",
+                         esc_dev, esc_ticket, g_proof_key_json);
+                if (https_post_json_ex(L"title.auth.xboxlive.com", L"/title/authenticate", body, 1, 1, &status, &resp) &&
+                    status == 200 &&
+                    json_extract_str(resp, "Token", g_xbl_title_token, sizeof g_xbl_title_token) &&
+                    g_xbl_title_token[0]) {
+                    auth_log("acquired Xbox Live TitleToken via /title/authenticate (app=%s len=%u)",
+                             cid, (unsigned)strlen(g_xbl_title_token));
+                } else {
+                    auth_log("title/authenticate failed HTTP %lu (app=%s); falling back to default client",
+                             (unsigned long)status, cid);
+                    g_xbl_title_token[0] = '\0';
+                }
+                free(resp);
+                resp = NULL;
+
+                if (!g_xbl_title_token[0] && fetch_msa_ticket_for_client_locked(XODUS_XBOX_CLIENT_ID)) {
+                    snprintf(g_xbox_client_id, sizeof g_xbox_client_id, "%s", XODUS_XBOX_CLIENT_ID);
+                    json_escape(esc_ticket, 10240, g_msa_ticket);
+                    snprintf(body, 24576,
+                             "{\"AccessToken\":\"%s\",\"AppId\":\"%s\","
+                             "\"DeviceToken\":\"%s\",\"Sandbox\":\"RETAIL\","
+                             "\"SiteName\":\"user.auth.xboxlive.com\",\"UseModernGamertag\":true,"
+                             "\"ProofKey\":%s}",
+                             esc_ticket, XODUS_XBOX_CLIENT_ID, esc_dev, g_proof_key_json);
+                    if (https_post_json_ex(L"sisu.xboxlive.com", L"/authorize", body, 0, 1, &status, &resp) &&
+                        status == 200 &&
+                        json_extract_nested_str(resp, "UserToken", "Token", g_xbl_user_token, sizeof g_xbl_user_token) &&
+                        g_xbl_user_token[0]) {
+                        json_extract_nested_str(resp, "TitleToken", "Token", g_xbl_title_token, sizeof g_xbl_title_token);
+                        g_xbl_user_expiry = now + 36000;
+                        auth_log("SISU authorized (fallback app=%s): user_len=%u title_len=%u device_len=%u",
+                                 XODUS_XBOX_CLIENT_ID,
+                                 (unsigned)strlen(g_xbl_user_token),
+                                 (unsigned)strlen(g_xbl_title_token),
+                                 (unsigned)strlen(g_xbl_device_token));
+                        ok = 1;
+                        goto done;
+                    }
+                    free(resp);
+                    resp = NULL;
+                }
+            }
         }
     }
 
@@ -2906,6 +3027,8 @@ static int acquire_xsts_entry(const char *rp_in, int force_refresh, xsts_entry *
 
     if (entry->xuid[0]) snprintf(g_cached_xuid, sizeof g_cached_xuid, "%s", entry->xuid);
     if (entry->gamertag[0]) snprintf(g_cached_gamertag, sizeof g_cached_gamertag, "%s", entry->gamertag);
+    if (entry->age_group[0]) snprintf(g_cached_age_group, sizeof g_cached_age_group, "%s", entry->age_group);
+    if (entry->privileges[0]) snprintf(g_cached_privileges, sizeof g_cached_privileges, "%s", entry->privileges);
     if (!g_cached_non_roamable_id[0] && entry->xuid[0])
         snprintf(g_cached_non_roamable_id, sizeof g_cached_non_roamable_id, "%s", entry->xuid);
 
@@ -2913,6 +3036,10 @@ static int acquire_xsts_entry(const char *rp_in, int force_refresh, xsts_entry *
         snprintf(entry->xuid, sizeof entry->xuid, "%s", g_cached_xuid);
     if (!entry->gamertag[0] && g_cached_gamertag[0])
         snprintf(entry->gamertag, sizeof entry->gamertag, "%s", g_cached_gamertag);
+    if (!entry->age_group[0] && g_cached_age_group[0])
+        snprintf(entry->age_group, sizeof entry->age_group, "%s", g_cached_age_group);
+    if (!entry->privileges[0] && g_cached_privileges[0])
+        snprintf(entry->privileges, sizeof entry->privileges, "%s", g_cached_privileges);
 
     if (entry->expires > now + 120) {
         for (i = 0; i < g_xsts_count; i++) {
@@ -4556,8 +4683,19 @@ static void parse_nsal_json_locked(const char *json)
                 json_extract_str(slice, "RelyingParty", ep.rp, sizeof ep.rp);
                 json_extract_str(slice, "SubRelyingParty", ep.sub_rp, sizeof ep.sub_rp);
                 if (ep.rp[0] || ep.sub_rp[0]) {
-                    auth_log("NSAL ep[%d]: host=%s rp=%s sub=%s", g_nsal_count, ep.host, ep.rp, ep.sub_rp);
-                    g_nsal_eps[g_nsal_count++] = ep;
+                    int dup = 0, di;
+                    for (di = 0; di < g_nsal_count; di++) {
+                        if (_stricmp(g_nsal_eps[di].host, ep.host) == 0 &&
+                            _stricmp(g_nsal_eps[di].rp, ep.rp) == 0 &&
+                            _stricmp(g_nsal_eps[di].sub_rp, ep.sub_rp) == 0) {
+                            dup = 1;
+                            break;
+                        }
+                    }
+                    if (!dup) {
+                        auth_log("NSAL ep[%d]: host=%s rp=%s sub=%s", g_nsal_count, ep.host, ep.rp, ep.sub_rp);
+                        g_nsal_eps[g_nsal_count++] = ep;
+                    }
                 }
             }
             free(slice);
@@ -4973,8 +5111,7 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
                     }
                     if (str_map_set_utf8(resp->props, "XboxUserId", xsts->xuid) < 0 ||
                         str_map_set_utf8(resp->props, "Gamertag", xsts->gamertag) < 0 ||
-                        (xsts->age_group[0] &&
-                         str_map_set_utf8(resp->props, "AgeGroup", xsts->age_group) < 0) ||
+                        str_map_set_utf8(resp->props, "AgeGroup", xsts->age_group) < 0 ||
                         str_map_set_utf8(resp->props, "Environment", "prod") < 0 ||
                         str_map_set_utf8(resp->props, "Sandbox", "RETAIL") < 0 ||
                         str_map_set_utf8(resp->props, "Privileges", xsts->privileges) < 0 ||
@@ -5457,6 +5594,14 @@ static int acquire_device_xsts_entry(int force_refresh, xsts_entry *out)
         snprintf(entry->xuid, sizeof entry->xuid, "%s", g_cached_xuid);
     else if (entry->xuid[0])
         snprintf(g_cached_xuid, sizeof g_cached_xuid, "%s", entry->xuid);
+    if (!entry->age_group[0] && g_cached_age_group[0])
+        snprintf(entry->age_group, sizeof entry->age_group, "%s", g_cached_age_group);
+    else if (entry->age_group[0])
+        snprintf(g_cached_age_group, sizeof g_cached_age_group, "%s", entry->age_group);
+    if (!entry->privileges[0] && g_cached_privileges[0])
+        snprintf(entry->privileges, sizeof entry->privileges, "%s", g_cached_privileges);
+    else if (entry->privileges[0])
+        snprintf(g_cached_privileges, sizeof g_cached_privileges, "%s", entry->privileges);
 
     now = time(NULL);
     entry->expires = now + 3600;

@@ -402,6 +402,10 @@ static HRESULT __stdcall xhr2_QI(xhr2_obj *self, const GUID *riid, void **out)
         return S_OK;
     }
     *out = NULL;
+    xhr2_tracef("QI miss %08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+                (unsigned long)riid->Data1, riid->Data2, riid->Data3,
+                riid->Data4[0], riid->Data4[1], riid->Data4[2], riid->Data4[3],
+                riid->Data4[4], riid->Data4[5], riid->Data4[6], riid->Data4[7]);
     return E_NOINTERFACE;
 }
 
@@ -439,7 +443,14 @@ static HRESULT __stdcall xhr2_Open(xhr2_obj *self, const WCHAR *method, const WC
     xhr2_cb_if *old_cb;
     IStream *old_stm;
     (void)user; (void)pass; (void)proxy_user; (void)proxy_pass;
-    if (!method || !url || !callback) return E_INVALIDARG;
+    if (!method || !url || !callback) {
+        xhr2_tracef("Open invalid args m=%p u=%p cb=%p", (const void *)method, (const void *)url, callback);
+        return E_INVALIDARG;
+    }
+    {
+        WCHAR su[256];
+        xhr2_tracef("Open %ls %ls cb=%p", method, xhr2_trace_url(url, su, 256), callback);
+    }
     cb_stm = xhr2_marshal_if(callback, &XHR2_IID_IXMLHTTPRequest2Callback);
     EnterCriticalSection(&self->lock);
     InterlockedExchange(&self->aborted, 0);
@@ -557,7 +568,15 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
     int decomp_ok = 0;
     HRESULT err_hr = S_OK;
     int com_inited;
+    char resp_dump[1201];
+    char resp_hdr_dump[601];
+    size_t resp_dump_len = 0;
+    HANDLE dump_h = INVALID_HANDLE_VALUE;
+    int dump_want = 0;
 
+    resp_hdr_dump[0] = 0;
+
+    resp_dump[0] = 0;
     safe_url[0] = 0;
     com_inited = SUCCEEDED(CoInitializeEx(NULL, COINIT_MULTITHREADED));
 
@@ -785,6 +804,16 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
             const WCHAR *first_crlf = wcsstr(raw_hdrs, L"\r\n");
             const WCHAR *body_hdrs = first_crlf ? (first_crlf + 2) : raw_hdrs;
             WCHAR *copy = xhr2_wcsdup(body_hdrs);
+            if (copy) {
+                size_t hn = wcslen(copy), hi;
+                if (hn > sizeof resp_hdr_dump - 1) hn = sizeof resp_hdr_dump - 1;
+                for (hi = 0; hi < hn; hi++) {
+                    WCHAR wc = copy[hi];
+                    resp_hdr_dump[hi] = (wc >= 0x20 && wc < 0x7f) ? (char)wc
+                                     : (wc == L'\r' || wc == L'\n') ? ' ' : '.';
+                }
+                resp_hdr_dump[hn] = 0;
+            }
             EnterCriticalSection(&self->lock);
             free(self->resp_headers);
             self->resp_headers = copy;
@@ -795,6 +824,48 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
     }
 
     xhr2_tracef("%ls %ls -> HTTP %lu (req_body=%zu)", method, safe_url, (unsigned long)status_code, body_len);
+
+    if (body_len && (wcsstr(safe_url, L"o.xtsw") || wcsstr(safe_url, L"sessiondirectory") ||
+                     wcsstr(safe_url, L"sessiontemplates"))) {
+        char req_dump[901];
+        size_t rn = body_len < sizeof req_dump - 1 ? body_len : sizeof req_dump - 1;
+        size_t k;
+        memcpy(req_dump, body_buf, rn);
+        req_dump[rn] = 0;
+        for (k = 0; k < rn; k++) {
+            unsigned char c = (unsigned char)req_dump[k];
+            if (c < 0x20 || c > 0x7e) req_dump[k] = (c == '\n' || c == '\t') ? ' ' : '.';
+        }
+        xhr2_tracef("reqbody[%ls %ls] %s", method ? method : L"", safe_url, req_dump);
+    }
+
+    if (wcsstr(safe_url, L"forzamotorsport.net") || wcsstr(safe_url, L"sessiondirectory") ||
+        wcsstr(safe_url, L"xboxlive.com")) {
+        char dump_setting[8];
+        DWORD dump_len = GetEnvironmentVariableA("DROIDDECK_UWP_DUMP", dump_setting, sizeof dump_setting);
+        dump_want = (dump_len > 0 && dump_len < sizeof dump_setting);
+        if (resp_hdr_dump[0])
+            xhr2_tracef("resphdrs[%ls %ls] %s", method ? method : L"", safe_url, resp_hdr_dump);
+        if (dump_want) {
+            static LONG dump_seq = 0;
+            char dump_name[MAX_PATH];
+            LONG seq = InterlockedIncrement(&dump_seq);
+            CreateDirectoryA("C:\\uwp-dump", NULL);
+            _snprintf(dump_name, sizeof dump_name, "C:\\uwp-dump\\%04ld-%lu.bin", (long)seq,
+                      (unsigned long)status_code);
+            dump_h = CreateFileA(dump_name, GENERIC_WRITE, FILE_SHARE_READ, NULL,
+                                 CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (dump_h != INVALID_HANDLE_VALUE) {
+                WCHAR wide_url[MAX_PATH];
+                DWORD written = 0;
+                MultiByteToWideChar(CP_ACP, 0, dump_name, -1, wide_url, MAX_PATH);
+                xhr2_tracef("dump[%ls] -> %ls len=%zu",
+                            safe_url, wide_url, body_len);
+            } else {
+                dump_h = INVALID_HANDLE_VALUE;
+            }
+        }
+    }
 
     if (InterlockedCompareExchange(&self->aborted, 0, 0)) {
         err_hr = E_ABORT;
@@ -824,6 +895,18 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
             goto fail;
         }
         if (got == 0) break;
+        if (dump_h != INVALID_HANDLE_VALUE) {
+            DWORD wrote = 0;
+            WriteFile(dump_h, chunk, got, &wrote, NULL);
+        }
+        if (resp_dump_len < sizeof resp_dump - 1) {
+            size_t take = got;
+            if (take > sizeof resp_dump - 1 - resp_dump_len)
+                take = sizeof resp_dump - 1 - resp_dump_len;
+            memcpy(resp_dump + resp_dump_len, chunk, take);
+            resp_dump_len += take;
+            resp_dump[resp_dump_len] = 0;
+        }
         if (custom_stream) {
             DWORD off = 0;
             while (off < got) {
@@ -856,6 +939,18 @@ static DWORD WINAPI xhr2_worker(LPVOID param)
         goto fail;
     }
 
+    if (resp_dump_len && (wcsstr(safe_url, L"sessiondirectory") ||
+                          wcsstr(safe_url, L"gameservices") ||
+                          wcsstr(safe_url, L"xboxlive.com"))) {
+        size_t k;
+        for (k = 0; k < resp_dump_len; k++) {
+            unsigned char c = (unsigned char)resp_dump[k];
+            if (c < 0x20 || c > 0x7e) resp_dump[k] = (c == '\n' || c == '\t') ? ' ' : '.';
+        }
+        xhr2_tracef("body[%ls %ls] %s", method ? method : L"",
+                    safe_url, resp_dump);
+    }
+
     cb->lpVtbl->OnResponseReceived(cb, self, custom_stream ? (void *)custom_stream : (void *)mem_stream);
     xhr2_tracef("done %ls %ls -> %lu", method, safe_url, (unsigned long)status_code);
     goto cleanup;
@@ -865,6 +960,7 @@ fail:
     if (cb) cb->lpVtbl->OnError(cb, self, err_hr);
 
 cleanup:
+    if (dump_h != INVALID_HANDLE_VALUE) CloseHandle(dump_h);
     if (h_req) g_in.close_handle(h_req);
     if (h_conn) g_in.close_handle(h_conn);
     if (h_sess) g_in.close_handle(h_sess);

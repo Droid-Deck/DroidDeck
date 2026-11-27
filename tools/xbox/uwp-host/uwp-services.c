@@ -12936,3 +12936,35 @@ int uwp_services_lookup(const WCHAR *class_name, void **factory)
     }
     return 0;
 }
+
+/* Records this host as the DLL for the networking classes it answers.
+ *
+ * The launcher writes an ActivatableClassId entry for each class it knows about,
+ * but its list is a copy of what this host answers and the copy has fallen
+ * behind before. A name missing from the registry has no library at all: Wine
+ * fails the activation with "Failed to find library for <class>" and never asks
+ * this host, so the title's networking setup aborts with nothing in our trace to
+ * show for it. The host knows exactly which names it answers, so it writes the
+ * networking ones itself the first time any class is activated -- startup asks
+ * for CoreApplication long before a title reaches its networking setup. */
+void uwp_services_register_networking_classes(const WCHAR *dll_path)
+{
+    static LONG done = 0;
+    size_t i;
+    if (!dll_path || !dll_path[0]) return;
+    if (InterlockedCompareExchange(&done, 1, 0) != 0) return;
+    for (i = 0; i < sizeof(service_classes) / sizeof(service_classes[0]); i++) {
+        const WCHAR *name = service_classes[i].class_name;
+        WCHAR sub[512];
+        HKEY key;
+        if (wcsncmp(name, L"Windows.Networking.", 19) != 0) continue;
+        _snwprintf(sub, 511, L"Software\\Microsoft\\WindowsRuntime\\ActivatableClassId\\%s", name);
+        sub[511] = 0;
+        if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, sub, 0, NULL, 0, KEY_SET_VALUE, NULL,
+                            &key, NULL) != ERROR_SUCCESS)
+            continue;
+        RegSetValueExW(key, L"DllPath", 0, REG_SZ, (const BYTE *)dll_path,
+                       (DWORD)((wcslen(dll_path) + 1) * sizeof(WCHAR)));
+        RegCloseKey(key);
+    }
+}

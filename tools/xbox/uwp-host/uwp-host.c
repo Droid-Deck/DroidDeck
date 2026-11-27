@@ -2389,6 +2389,7 @@ static void install_objects(void)
    media and input. They register here so the class table stays one list. */
 extern void uwp_services_install(void);
 extern int uwp_services_lookup(const WCHAR *class_name, void **factory);
+extern void uwp_services_register_networking_classes(const WCHAR *dll_path);
 
 /* Xbox Live single sign-on lives in its own unit too. A packaged title that
    starts through WebAuthenticationCoreManager needs these registered next to
@@ -2490,6 +2491,18 @@ __declspec(dllexport) HRESULT __stdcall DllGetActivationFactory(hstring_t class_
     *factory = NULL;
     name = hstring_text(class_id);
     if (!name) return E_INVALIDARG;
+    /* The first class a title asks for is CoreApplication, long before its
+       networking setup. Recording the networking names here keeps the registry
+       in step with what this host answers, so a launcher whose class list is a
+       version behind still resolves the Xbox Live transport classes. */
+    {
+        static LONG registered = 0;
+        if (InterlockedCompareExchange(&registered, 1, 0) == 0) {
+            WCHAR self_path[MAX_PATH];
+            if (GetModuleFileNameW(host_module, self_path, MAX_PATH))
+                uwp_services_register_networking_classes(self_path);
+        }
+    }
     if (wcsncmp(name, L"Windows.Security.Cryptography.", 30) != 0) {
         char line[300];
         char narrow[256];
