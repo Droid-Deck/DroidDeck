@@ -17,9 +17,21 @@ object SteamQam {
     private const val TAG = "SteamQam"
     private const val EVAL_MS = 6_000L
 
+    private val owners = java.util.concurrent.atomic.AtomicLong(0)
+
+    /** A new panel's lease owner: later panels get larger numbers, also across app restarts. */
+    fun newOwner(): Long = owners.updateAndGet { maxOf(it + 1, System.currentTimeMillis()) }
+
+    /**
+     * Takes or renews the lease for [owner], or releases it. A live lease held by a newer panel is never taken back by an
+     * older one, so a late request from a panel being torn down cannot end its replacement's lease.
+     */
+    internal fun leaseScript(on: Boolean, owner: Long): String =
+        if (on) "if (!(g.__ddQamUntil > Date.now()) || !(g.__ddQamOwner > $owner)) { g.__ddQamOwner = $owner; g.__ddQamUntil = Date.now() + $LEASE_MS; }"
+        else "if (g.__ddQamOwner === $owner) g.__ddQamUntil = 0;"
+
     /** [aspect] is the panel's width over height: the menu is laid out at that shape so every tab shows at one scale. */
-    /** [owner] names the panel holding the menu, so a panel being torn down cannot end its replacement's lease. */
-    internal fun script(on: Boolean, aspect: Float = 0f, owner: String = ""): String = """(() => {
+    internal fun script(on: Boolean, aspect: Float = 0f, owner: Long = 0): String = """(() => {
         const g = globalThis, QAM = 2;
         const W = SteamUIStore.WindowStore.SteamUIWindows[0];
         const m = W.MenuStore, c = W.m_CompositionStateStore;
@@ -134,8 +146,7 @@ object SteamQam {
             if (main && nav.m_LastActiveNavTree?.m_ID?.startsWith("QuickAccess")) nav.SetActiveNavTree(main);
             backdrop(true);
         };
-        ${if (on) "g.__ddQamOwner = ${JSONObject.quote(owner)}; g.__ddQamUntil = Date.now() + $LEASE_MS;"
-            else "if (g.__ddQamOwner === ${JSONObject.quote(owner)}) g.__ddQamUntil = 0;"}
+        ${leaseScript(on, owner)}
         ${if (on && aspect > 0f) "g.__ddQamAspect = $aspect;" else ""}
         keep();
         if (held() && !g.__ddQamTimer) {
@@ -150,14 +161,14 @@ object SteamQam {
     /** [open] is Steam's open side menu; [top] is true while the menu is shown on the top screen. */
     data class Hold(val open: Int, val top: Boolean)
 
-    fun hold(context: Context, aspect: Float, owner: String): Hold? = eval(context, script(true, aspect, owner))?.let(::parseHold)
+    fun hold(context: Context, aspect: Float, owner: Long): Hold? = eval(context, script(true, aspect, owner))?.let(::parseHold)
 
     internal fun parseHold(text: String): Hold? = runCatching {
         val a = JSONArray(text)
         Hold(a.getInt(0), a.getInt(1) == 1)
     }.getOrNull()
 
-    fun release(context: Context, relayPort: Int, owner: String) {
+    fun release(context: Context, relayPort: Int, owner: Long) {
         eval(context, script(false, owner = owner))
         stopRelay(context, relayPort)
     }

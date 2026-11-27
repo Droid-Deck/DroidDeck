@@ -136,7 +136,7 @@ internal fun SteamQamPanel() {
     }
     val fit = QamFit.current(context)
     val holder = remember { arrayOfNulls<CdpPage>(1) }
-    val owner = remember { java.util.UUID.randomUUID().toString() }
+    val owner = remember { SteamQam.newOwner() }
     val relay = remember { intArrayOf(0) }
     val live = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     val aspect = remember { floatArrayOf(0f) }

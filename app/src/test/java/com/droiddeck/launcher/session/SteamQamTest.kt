@@ -36,8 +36,32 @@ class SteamQamTest {
     }
 
     @Test fun holdingIsALeaseAndReleasingEndsIt() {
-        assertTrue(SteamQam.script(true, owner = "a").contains("""g.__ddQamOwner = "a"; g.__ddQamUntil = Date.now() + ${SteamQam.LEASE_MS};"""))
-        assertTrue(SteamQam.script(false, owner = "a").contains("""if (g.__ddQamOwner === "a") g.__ddQamUntil = 0;"""))
+        assertTrue(SteamQam.script(true, owner = 7).contains(SteamQam.leaseScript(true, 7)))
+        assertTrue(SteamQam.script(false, owner = 7).contains(SteamQam.leaseScript(false, 7)))
+        assertTrue(SteamQam.newOwner() < SteamQam.newOwner())
+    }
+
+    /** Runs the lease steps in Node, in order, and returns which owner holds a live lease afterwards (0 for none). */
+    private fun leaseAfter(vararg steps: Pair<Boolean, Long>): Long? {
+        val node = runCatching { ProcessBuilder("node", "--version").start().waitFor() == 0 }.getOrDefault(false)
+        org.junit.Assume.assumeTrue("node is not installed", node)
+        val program = "const g = {};\n" + steps.joinToString("\n") { (on, owner) -> SteamQam.leaseScript(on, owner) } +
+            "\nprocess.stdout.write(String(g.__ddQamUntil > Date.now() ? g.__ddQamOwner : 0));"
+        val p = ProcessBuilder("node", "-e", program).redirectErrorStream(true).start()
+        val out = p.inputStream.bufferedReader().readText().trim()
+        assertEquals(out, 0, p.waitFor())
+        return out.toLongOrNull()
+    }
+
+    @Test fun aLateRequestFromAnOldPanelLeavesItsReplacementsLease() {
+        // The replacement takes the lease, then the old panel's in-flight hold lands, then its release.
+        assertEquals(2L, leaseAfter(true to 2L, true to 1L, false to 1L))
+        // The old panel's release alone does not end the replacement's lease either.
+        assertEquals(2L, leaseAfter(true to 1L, true to 2L, false to 1L))
+        // A panel releases its own lease.
+        assertEquals(0L, leaseAfter(true to 2L, false to 2L))
+        // With no live lease, any panel can take it.
+        assertEquals(1L, leaseAfter(true to 2L, false to 2L, true to 1L))
     }
 
     @Test fun readsWhetherTheMenuIsShownOnTheTopScreen() {
