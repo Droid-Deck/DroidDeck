@@ -11,6 +11,8 @@ Steam on the desktop). The app installs it into `files/linuxfs` and runs it unde
   UBWC 5/6 (backported from upstream Mesa) and the KGSL device numbers for WSI (from
   [Droid-Deck/Drivers](https://github.com/Droid-Deck/Drivers)). It also carries Icenowy Zheng's upstream
   Zink fix that keeps the Imagination depth/stencil swizzle off colour views (Mesa d55418dae7).
+  Zink also reclaims the memory a client freed once it has been idle for a second: otherwise only its
+  next allocation does, and Steam's UI behind a game held 250 MiB more of unswappable GPU memory.
 - The runtime's built-in Vulkan driver is DroidDeck's DD-Turnip Linux build (`DD_TURNIP_URL` and
   `DD_TURNIP_SHA256` in `base.env`): Ubuntu's Turnip is diverted to `libvulkan_freedreno.so.distrib`
   because it lacks the Adreno 8xx fixes. Zink, EGL and llvmpipe stay Ubuntu's.
