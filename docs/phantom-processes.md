@@ -261,10 +261,15 @@ A second round moved most of what was still counted:
 
 - **The app's own processes:** `HostProcess.startUncounted` runs a host command in a worker with the
   same contract as `HostProcess.start` (output lines, exit code, working directory). The session
-  root, the app log's logcat and the DirectAudio relay use it. A worker cannot `chdir` before its
-  exec, so Android's `sh` does it from an environment of its own and exports the program's
-  (`env -i` cannot be used: the APK's library path contains `==`). PulseAudio stays a normal child:
-  it was SIGKILLed right after start in a worker, for a reason not yet found.
+  root, the app log's logcat, PulseAudio and the DirectAudio relay use it. A worker cannot `chdir`
+  before its exec, so Android's `sh` does it from an environment of its own and exports the
+  program's (`env -i` cannot be used: the APK's library path contains `==`).
+- **PulseAudio** closes every inherited fd at start, the worker's binder fd included, and Android
+  then killed the worker as dead (the SIGKILL came from system_server's `ActivityManager` thread,
+  seen with the `signal_generate` ftrace event, which shell can enable on the Thor). The daemon
+  spares the fd named in `PULSE_PASSED_FD`; the worker replaces `@DDH_WORKER_BINDER_FD@` in a
+  program's arguments and environment with its `/dev/binder` fd number, so PulseAudio is given it.
+  Started as a normal child the token reads as fd 0, which the daemon ignores.
 - **The script's long-lived subshells:** `dd_job FUNCTION` runs a function in a new `bash` that first
   loads the shell's variables, functions and options from a state file, so it is an exec'd program
   the hook can hand off (`bash+dd-job`). `$!`, `kill` and `wait` keep working. The zRAM scanner,
@@ -303,8 +308,9 @@ Measured on the Thor, Bully under Proton, Android's limit on (default 32), a sca
 | main (no handoff) | 48 | 63 | 33, session failed |
 | first round | 26 | 29 | 0 |
 | **second round** | **9** | **14** | **0** |
+| + PulseAudio in a worker | 8 | | |
 
-Still counted at idle: PulseAudio, `run_gamescope`'s subshell, Steam, its web helper's browser and
+Still counted at idle: `run_gamescope`'s subshell, Steam, its web helper's browser and
 two utility processes, the session bus's activation babysitter and Decky's sound-effects worker
 (forks without an exec). Quitting the game, stopping the session (no worker is left) and starting
 again all work. Started from the front end with the limit on, Setup shows "Child-process limit
@@ -325,7 +331,7 @@ the old behavior and the old requirement.
 4. ~~The session root, its jobs, the log pipeline, the gamescope chain~~ done: 9 idle, 14 in game.
 5. ~~Setup no longer requires the developer option while the session runs in workers~~ done.
 6. Open:
-   - PulseAudio in a worker (SIGKILLed at start there);
+   - ~~PulseAudio in a worker~~ done;
    - `/proc/<pid>/stat` showing the virtual parent, so that Steam and its web helper can be handed
      off too;
    - pre-started workers, so that a handoff costs no zygote fork (about 100 ms now);

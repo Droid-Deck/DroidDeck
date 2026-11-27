@@ -52,7 +52,7 @@ open class GuestWorker : Service() {
     private fun exec(argv: Array<String>, env: Array<String>, fds: List<ParcelFileDescriptor?>, targets: IntArray) {
         try {
             val top = targets.maxOrNull() ?: 2
-            val binderTop = keepBinderOpen(maxOf(BINDER_FDS, top + 1))
+            val (binderTop, binderFd) = keepBinderOpen(maxOf(BINDER_FDS, top + 1))
             // Out of the way first, so that placing one fd cannot overwrite another not yet placed.
             val above = maxOf(MOVED_FDS, top + 1, binderTop + 1)
             val moved = fds.map { pfd -> pfd?.let { Os.fcntlInt(it.fileDescriptor, OsConstants.F_DUPFD, above) } }
@@ -66,8 +66,10 @@ open class GuestWorker : Service() {
             // (kill(0, sig)) would reach every process of the app.
             runCatching { Os.setsid() }
             // The native hook closes the binder fds in every other process (hook/handoff.c).
-            Os.execve(argv[0], argv, env.filterNot { it.startsWith("DDH_WORKER_PID=") }.toTypedArray() +
-                "DDH_WORKER_PID=${Process.myPid()}")
+            val fill = { arg: String -> arg.replace(BINDER_FD_TOKEN, binderFd.toString()) }
+            Os.execve(argv[0], argv.map(fill).toTypedArray(),
+                env.filterNot { it.startsWith("DDH_WORKER_PID=") }.map(fill).toTypedArray() +
+                    "DDH_WORKER_PID=${Process.myPid()}")
         } catch (e: ErrnoException) {
             Log.e(TAG, "could not exec ${argv.firstOrNull()}", e)
         }
@@ -76,24 +78,30 @@ open class GuestWorker : Service() {
 
     /**
      * Binder fds stay open across the exec, at [from] or above, where no fd of the program goes.
-     * Returns the highest fd used.
+     * Returns the highest fd used and the one on /dev/binder, whose closing Android takes for
+     * the death of this process.
      */
-    private fun keepBinderOpen(from: Int): Int {
+    private fun keepBinderOpen(from: Int): Pair<Int, Int> {
         var highest = from - 1
+        var binder = -1
         File("/proc/self/fd").listFiles()?.forEach { link ->
             val target = runCatching { Os.readlink(link.path) }.getOrNull() ?: return@forEach
             if (!target.contains("binder")) return@forEach
             // A copy, not adoptFd(): some of these fds are owned (fdsan) by a ParcelFileDescriptor.
             val copy = runCatching { ParcelFileDescriptor.fromFd(link.name.toIntOrNull() ?: return@forEach) }.getOrNull()
                 ?: return@forEach
-            highest = maxOf(highest, Os.fcntlInt(copy.fileDescriptor, OsConstants.F_DUPFD, from))
+            val kept = Os.fcntlInt(copy.fileDescriptor, OsConstants.F_DUPFD, from)
+            highest = maxOf(highest, kept)
+            if (target.substringAfterLast('/') == "binder") binder = kept
             copy.close()
         }
-        return highest
+        return highest to binder
     }
 
     companion object {
         const val RUN = IBinder.FIRST_CALL_TRANSACTION
+        /** In a program's arguments or environment, replaced by the number of its kept binder fd. */
+        const val BINDER_FD_TOKEN = "@DDH_WORKER_BINDER_FD@"
         private const val EXEC_DELAY_MS = 100L
         private const val BINDER_FDS = 900
         private const val MOVED_FDS = 1200

@@ -186,13 +186,16 @@ public class PulseAudioComponent extends SessionPart {
         env.add("LD_LIBRARY_PATH=/system/lib64:" + modules + ":" + workingDir.getAbsolutePath());
         env.add("HOME=" + workingDir);
         env.add("TMPDIR=" + workingDir);
+        // The daemon closes every fd at start but this one; in a worker process it is the binder
+        // fd whose closing Android takes for the process's death.
+        env.add("PULSE_PASSED_FD=" + com.droiddeck.launcher.runtime.GuestWorker.BINDER_FD_TOKEN);
 
         String command = String.join(" ", HostProcess.dataExecutable(workingDir.getAbsolutePath() + "/libpulseaudio.so"))
                 + " --system=false --disable-shm=true --fail=false"
                 + " -n --file=default.pa --daemonize=false --use-pid-file=false --exit-idle-time=-1"
                 + " --log-level=info";
         final java.io.PrintWriter out = openLog();
-        if (!host.launch(generation, () -> HostProcess.start(command, env.toArray(new String[0]), workingDir, status -> {
+        if (!host.launch(generation, () -> HostProcess.startUncounted(command, env.toArray(new String[0]), workingDir, status -> {
                     if (host.exited(generation)) {
                         Log.w(TAG, "audio host exited with status " + status + "; restarting");
                         start(generation);
