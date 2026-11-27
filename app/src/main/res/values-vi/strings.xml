@@ -2053,6 +2053,7 @@
     <string name="bottom_chat_mic_off">Micro tắt</string>
     <string name="bottom_chat_mic_unavailable">Micro đang tắt cho game này. Để nói chuyện, hãy bật Micro trong thiết lập Steam của DroidDeck (Âm thanh) rồi khởi động lại game.</string>
     <string name="bottom_chat_volume">Âm lượng %1$d%%</string>
+    <string name="bottom_brightness">Độ sáng màn hình dưới</string>
     <string name="bottom_screen_off">Tắt màn hình dưới</string>
     <string name="bottom_page_guides">Hướng dẫn</string>
     <string name="bottom_guides_no_game">Hãy mở một trò chơi để xem hướng dẫn Steam của nó tại đây.</string>

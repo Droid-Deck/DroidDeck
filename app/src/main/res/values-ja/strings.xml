@@ -2053,6 +2053,7 @@
     <string name="bottom_chat_mic_off">マイク オフ</string>
     <string name="bottom_chat_mic_unavailable">このゲームではマイクがオフです。話すには、DroidDeckのSteam設定（オーディオ）でマイクをオンにして、ゲームを再起動してください。</string>
     <string name="bottom_chat_volume">音量 %1$d%%</string>
+    <string name="bottom_brightness">下画面の明るさ</string>
     <string name="bottom_screen_off">下の画面をオフにする</string>
     <string name="bottom_page_guides">ガイド</string>
     <string name="bottom_guides_no_game">ゲームを起動すると、ここに Steam ガイドが表示されます。</string>

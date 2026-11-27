@@ -2177,6 +2177,7 @@
     <string name="bottom_chat_mic_off">الميكروفون متوقف</string>
     <string name="bottom_chat_mic_unavailable">الميكروفون متوقف لهذه اللعبة. للتحدث، فعِّل «الميكروفون» في إعدادات Steam في DroidDeck (الصوت) وابدأ اللعبة من جديد.</string>
     <string name="bottom_chat_volume">مستوى الصوت %1$d%%</string>
+    <string name="bottom_brightness">سطوع الشاشة السفلية</string>
     <string name="bottom_screen_off">أطفئ الشاشة السفلية</string>
     <string name="bottom_page_guides">الأدلة</string>
     <string name="bottom_guides_no_game">ابدأ لعبة لترى أدلة Steam الخاصة بها هنا.</string>

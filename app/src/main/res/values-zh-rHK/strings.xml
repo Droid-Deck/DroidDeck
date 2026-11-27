@@ -2052,6 +2052,7 @@
     <string name="bottom_chat_mic_off">麥克風已關閉</string>
     <string name="bottom_chat_mic_unavailable">此遊戲的麥克風已關閉。若要說話，請在 DroidDeck 的 Steam 設定（音訊）中開啟麥克風，然後重新啟動遊戲。</string>
     <string name="bottom_chat_volume">音量 %1$d%%</string>
+    <string name="bottom_brightness">下方螢幕亮度</string>
     <string name="bottom_screen_off">關閉下螢幕</string>
     <string name="bottom_page_guides">指南</string>
     <string name="bottom_guides_no_game">啟動遊戲後，這裡會顯示它的 Steam 指南。</string>

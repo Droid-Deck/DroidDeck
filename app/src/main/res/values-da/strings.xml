@@ -2077,6 +2077,7 @@
     <string name="bottom_chat_mic_off">Mikrofon fra</string>
     <string name="bottom_chat_mic_unavailable">Mikrofonen er slået fra for dette spil. For at tale skal du slå Mikrofon til i DroidDecks Steam-indstillinger (Lyd) og starte spillet igen.</string>
     <string name="bottom_chat_volume">Lydstyrke %1$d%%</string>
+    <string name="bottom_brightness">Lysstyrke på nederste skærm</string>
     <string name="bottom_screen_off">Sluk den nederste skærm</string>
     <string name="bottom_page_guides">Guides</string>
     <string name="bottom_guides_no_game">Start et spil for at se dets Steam-guides her.</string>

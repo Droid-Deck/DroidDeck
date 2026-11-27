@@ -2127,6 +2127,7 @@
     <string name="bottom_chat_mic_off">Mikrofon vypnut</string>
     <string name="bottom_chat_mic_unavailable">Mikrofon je pro tuto hru vypnutý. Chcete-li mluvit, zapněte Mikrofon v nastavení Steamu v DroidDecku (Zvuk) a spusťte hru znovu.</string>
     <string name="bottom_chat_volume">Hlasitost %1$d%%</string>
+    <string name="bottom_brightness">Jas spodní obrazovky</string>
     <string name="bottom_screen_off">Vypnout spodní obrazovku</string>
     <string name="bottom_page_guides">Návody</string>
     <string name="bottom_guides_no_game">Spusťte hru a uvidíte zde její návody ze Steamu.</string>

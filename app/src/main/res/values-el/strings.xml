@@ -2077,6 +2077,7 @@
     <string name="bottom_chat_mic_off">Μικρόφωνο κλειστό</string>
     <string name="bottom_chat_mic_unavailable">Το μικρόφωνο είναι απενεργοποιημένο για αυτό το παιχνίδι. Για να μιλήσετε, ενεργοποιήστε το Μικρόφωνο στις ρυθμίσεις Steam του DroidDeck (Ήχος) και ξεκινήστε ξανά το παιχνίδι.</string>
     <string name="bottom_chat_volume">Ένταση %1$d%%</string>
+    <string name="bottom_brightness">Φωτεινότητα κάτω οθόνης</string>
     <string name="bottom_screen_off">Απενεργοποίηση κάτω οθόνης</string>
     <string name="bottom_page_guides">Οδηγοί</string>
     <string name="bottom_guides_no_game">Ξεκινήστε ένα παιχνίδι για να δείτε εδώ τους οδηγούς του στο Steam.</string>

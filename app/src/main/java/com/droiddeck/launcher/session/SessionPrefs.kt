@@ -154,6 +154,13 @@ object SessionPrefs {
         prefs(context).edit().putString("bottomPage.app.$game", page).apply()
     }
 
+    /** The bottom screen's brightness in percent, or null to follow the system. */
+    fun bottomBrightness(context: Context): Int? = prefs(context).getInt("bottomBrightness", -1).takeIf { it >= 0 }
+
+    fun setBottomBrightness(context: Context, percent: Int) {
+        prefs(context).edit().putInt("bottomBrightness", percent).apply()
+    }
+
     fun bottomAutoDim(context: Context): Boolean = prefs(context).getBoolean("bottomAutoDim", true)
 
     fun setBottomAutoDim(context: Context, on: Boolean) {

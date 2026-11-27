@@ -2053,6 +2053,7 @@
     <string name="bottom_chat_mic_off">ไมค์ปิด</string>
     <string name="bottom_chat_mic_unavailable">ไมค์ปิดอยู่สำหรับเกมนี้ หากต้องการพูด ให้เปิดไมโครโฟนในการตั้งค่า Steam ของ DroidDeck (เสียง) แล้วเริ่มเกมอีกครั้ง</string>
     <string name="bottom_chat_volume">ระดับเสียง %1$d%%</string>
+    <string name="bottom_brightness">ความสว่างของหน้าจอล่าง</string>
     <string name="bottom_screen_off">ปิดหน้าจอล่าง</string>
     <string name="bottom_page_guides">คู่มือ</string>
     <string name="bottom_guides_no_game">เริ่มเกมเพื่อดูคู่มือ Steam ของเกมที่นี่</string>

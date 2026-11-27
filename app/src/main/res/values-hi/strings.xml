@@ -2077,6 +2077,7 @@
     <string name="bottom_chat_mic_off">माइक बंद</string>
     <string name="bottom_chat_mic_unavailable">इस गेम के लिए माइक बंद है। बात करने के लिए DroidDeck की Steam सेटिंग (ऑडियो) में माइक्रोफ़ोन चालू करें और गेम फिर से शुरू करें।</string>
     <string name="bottom_chat_volume">वॉल्यूम %1$d%%</string>
+    <string name="bottom_brightness">नीचे की स्क्रीन की चमक</string>
     <string name="bottom_screen_off">नीचे की स्क्रीन बंद करें</string>
     <string name="bottom_page_guides">गाइड</string>
     <string name="bottom_guides_no_game">यहाँ Steam गाइड देखने के लिए कोई गेम शुरू करें।</string>

@@ -2102,6 +2102,7 @@
     <string name="bottom_chat_mic_off">Micro desactivado</string>
     <string name="bottom_chat_mic_unavailable">El micro está desactivado en este juego. Para hablar, activa Micrófono en los ajustes de Steam de DroidDeck (Audio) y vuelve a iniciar el juego.</string>
     <string name="bottom_chat_volume">Volumen %1$d%%</string>
+    <string name="bottom_brightness">Brillo de la pantalla inferior</string>
     <string name="bottom_screen_off">Apagar la pantalla inferior</string>
     <string name="bottom_page_guides">Guías</string>
     <string name="bottom_guides_no_game">Inicia un juego para ver aquí sus guías de Steam.</string>

@@ -2053,6 +2053,7 @@
     <string name="bottom_chat_mic_off">Mik mati</string>
     <string name="bottom_chat_mic_unavailable">Mik mati untuk gim ini. Untuk berbicara, aktifkan Mikrofon di setelan Steam DroidDeck (Audio) lalu mulai gim lagi.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
+    <string name="bottom_brightness">Kecerahan layar bawah</string>
     <string name="bottom_screen_off">Matikan layar bawah</string>
     <string name="bottom_page_guides">Panduan</string>
     <string name="bottom_guides_no_game">Mulai game untuk melihat panduan Steam-nya di sini.</string>

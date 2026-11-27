@@ -16,7 +16,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.outlined.LightMode
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
@@ -70,6 +70,18 @@ class SecondScreenPresentation(
     var controlsView: InputSurfaceView? = null
         private set
     private var created = false
+    private val brightnessOpen = androidx.compose.runtime.mutableStateOf(false)
+    private val brightness = androidx.compose.runtime.mutableIntStateOf(BottomBrightness.MIN)
+    private val brightnessView by lazy {
+        androidx.compose.ui.platform.ComposeView(context).apply {
+            setContent {
+                DroidDeckTheme {
+                    if (brightnessOpen.value) BrightnessDrop(brightness.intValue, ::setBrightness,
+                        onScreenOff = { brightnessOpen.value = false; screenOff() }, onDismiss = { brightnessOpen.value = false })
+                }
+            }
+        }
+    }
 
     init {
         setCancelable(false)
@@ -83,7 +95,9 @@ class SecondScreenPresentation(
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         frame.addView(root, FrameLayout.LayoutParams(-1, -1))
+        frame.addView(brightnessView, FrameLayout.LayoutParams(-1, -1))
         frame.addView(sleepView, FrameLayout.LayoutParams(-1, -1))
+        light(BottomScreenLight.ON)
         setContentView(frame)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             root.setOnApplyWindowInsetsListener { view, insets ->
@@ -131,6 +145,7 @@ class SecondScreenPresentation(
     fun showMode(mode: SecondScreenMode) {
         if (currentMode == mode && isShowing) return
         currentMode = mode
+        brightnessOpen.value = false
         if (created) renderMode()
     }
 
@@ -236,8 +251,13 @@ class SecondScreenPresentation(
     }
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        if (screen != BottomScreenLight.ON) {
-            if (event.actionMasked == MotionEvent.ACTION_DOWN) wake()
+        if (event.actionMasked == MotionEvent.ACTION_DOWN && screen == BottomScreenLight.ON) waking = false
+        if (screen != BottomScreenLight.ON || waking) {
+            // The touch that wakes the screen is swallowed whole, so its release does not click what is under it.
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> if (screen != BottomScreenLight.ON) { waking = true; wake() }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> waking = false
+            }
             return true
         }
         scheduleDim()
@@ -250,6 +270,7 @@ class SecondScreenPresentation(
         visibility = View.GONE
     }
     private var screen = BottomScreenLight.ON
+    private var waking = false
     private val dim = Runnable { if (screen == BottomScreenLight.ON) light(BottomScreenLight.DIM) }
 
     fun screenOff() = light(BottomScreenLight.OFF)
@@ -264,7 +285,25 @@ class SecondScreenPresentation(
         sleepView.visibility = if (state == BottomScreenLight.OFF) View.VISIBLE else View.GONE
         sleepView.alpha = 1f
         val w = window ?: return
-        w.attributes = w.attributes.apply { screenBrightness = state.brightness }
+        w.attributes = w.attributes.apply {
+            screenBrightness = when (state) {
+                BottomScreenLight.ON -> BottomBrightness.level(context) ?: state.brightness
+                BottomScreenLight.DIM -> BottomBrightness.dimmed(context, state.brightness)
+                BottomScreenLight.OFF -> state.brightness
+            }
+        }
+    }
+
+    private fun toggleBrightness() {
+        if (!brightnessOpen.value) brightness.intValue = BottomBrightness.initial(context)
+        brightnessOpen.value = !brightnessOpen.value
+    }
+
+    private fun setBrightness(percent: Int) {
+        val value = BottomBrightness.clamp(percent)
+        brightness.intValue = value
+        SessionPrefs.setBottomBrightness(context, value)
+        if (screen == BottomScreenLight.ON) light(BottomScreenLight.ON)
     }
 
     private fun scheduleDim() {
@@ -358,8 +397,8 @@ class SecondScreenPresentation(
 
     internal fun barModel(mode: SecondScreenMode): BottomBarModel? {
         val extras = listOfNotNull(onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, tag = "bottom-swap", onClick = it) }) +
-            BarExtra(context.getString(R.string.bottom_screen_off), vector = Icons.Filled.DarkMode,
-                tag = "bottom-screen-off", onClick = ::screenOff)
+            BarExtra(context.getString(R.string.bottom_brightness), vector = Icons.Outlined.LightMode, active = brightnessOpen.value,
+                tag = "bottom-brightness-toggle", onClick = ::toggleBrightness)
         fun model(extras: List<BarExtra>, tabs: BarTabs? = null) =
             sessionBarModel(context.getString(mode.label), onClose, onMenu, onSteamMenu, onQam, extras, tabs, picker?.invoke(mode))
         return when (mode) {

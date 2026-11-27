@@ -2128,6 +2128,7 @@
     <string name="bottom_chat_mic_off">Микрофон выкл.</string>
     <string name="bottom_chat_mic_unavailable">Микрофон для этой игры выключен. Чтобы говорить, включите «Микрофон» в настройках Steam в DroidDeck (Аудио) и запустите игру снова.</string>
     <string name="bottom_chat_volume">Громкость %1$d%%</string>
+    <string name="bottom_brightness">Яркость нижнего экрана</string>
     <string name="bottom_screen_off">Выключить нижний экран</string>
     <string name="bottom_page_guides">Руководства</string>
     <string name="bottom_guides_no_game">Запустите игру, чтобы увидеть здесь её руководства Steam.</string>

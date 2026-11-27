@@ -2348,6 +2348,7 @@
     <string name="bottom_chat_mic_off">Mic off</string>
     <string name="bottom_chat_mic_unavailable">Mic is off for this game. To talk, turn on Microphone in DroidDeck\'s Steam settings (Audio) and start the game again.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
+    <string name="bottom_brightness">Bottom screen brightness</string>
     <string name="bottom_screen_off">Turn off the bottom screen</string>
     <string name="bottom_page_guides">Guides</string>
     <string name="bottom_guides_no_game">Start a game to see its Steam guides here.</string>

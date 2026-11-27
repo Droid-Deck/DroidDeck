@@ -2102,6 +2102,7 @@
     <string name="bottom_chat_mic_off">Microfon oprit</string>
     <string name="bottom_chat_mic_unavailable">Microfonul este oprit pentru acest joc. Pentru a vorbi, activează Microfon în setările Steam din DroidDeck (Sunet) și pornește din nou jocul.</string>
     <string name="bottom_chat_volume">Volum %1$d%%</string>
+    <string name="bottom_brightness">Luminozitatea ecranului de jos</string>
     <string name="bottom_screen_off">Oprește ecranul de jos</string>
     <string name="bottom_page_guides">Ghiduri</string>
     <string name="bottom_guides_no_game">Pornește un joc ca să-i vezi aici ghidurile Steam.</string>

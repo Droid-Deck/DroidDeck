@@ -2,6 +2,7 @@ package com.droiddeck.launcher.ui
 
 import android.hardware.display.DisplayManager
 import android.view.Display
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.runtime.MutableState
@@ -76,6 +77,27 @@ class SecondScreenBarTest {
         return (0 until root.childCount).map { root.getChildAt(it) }
     }
 
+    @Test fun theTouchThatWakesTheScreenDoesNotReachThePanel() {
+        SessionState.mode = SessionService.MODE_STEAM
+        val panel = presentation()
+        try {
+            panel.show()
+            panel.showMode(SecondScreenMode.KEYBOARD_TRACKPAD)
+            val root: ViewGroup = ReflectionHelpers.getField(panel, "root")
+            val seen = mutableListOf<Int>()
+            root.setOnTouchListener { _, e -> seen += e.actionMasked; true }
+            fun touch(action: Int) = MotionEvent.obtain(0, 0, action, 10f, 10f, 0).also { panel.dispatchTouchEvent(it); it.recycle() }
+            panel.screenOff()
+            touch(MotionEvent.ACTION_DOWN)
+            touch(MotionEvent.ACTION_UP)
+            assertTrue(seen.isEmpty())
+            assertEquals(BottomScreenLight.ON, ReflectionHelpers.getField<BottomScreenLight>(panel, "screen"))
+            assertEquals(false, ReflectionHelpers.getField<Boolean>(panel, "waking"))
+        } finally {
+            panel.dismiss()
+        }
+    }
+
     @Test fun trackpadPanelHasTheBarWithTheKeyboardToggleStateAndSwap() {
         SessionState.mode = SessionService.MODE_STEAM
         var swaps = 0
@@ -90,13 +112,13 @@ class SecondScreenBarTest {
             assertEquals(context.getString(R.string.second_mode_keyboard_trackpad), bar.title)
             assertNotNull(bar.onClose); assertNotNull(bar.onMenu); assertNotNull(bar.onSteam); assertNotNull(bar.onQam)
             assertNull(bar.tabs)
-            assertEquals(listOf("bottom-keyboard", "bottom-swap", "bottom-screen-off"), bar.extras.map { it.tag })
+            assertEquals(listOf("bottom-keyboard", "bottom-swap", "bottom-brightness-toggle"), bar.extras.map { it.tag })
             val keyboard = bar.extras.first()
             assertEquals(context.getString(R.string.second_show_keyboard), keyboard.description)
             assertFalse(keyboard.active)
             bar.extras.first { it.tag == "bottom-swap" }.onClick()
             assertEquals(1, swaps)
-            assertEquals(listOf("bottom-keyboard", "bottom-swap", "bottom-screen-off"), panel.barModel(SecondScreenMode.TERMINAL)!!.extras.map { it.tag })
+            assertEquals(listOf("bottom-keyboard", "bottom-swap", "bottom-brightness-toggle"), panel.barModel(SecondScreenMode.TERMINAL)!!.extras.map { it.tag })
             ReflectionHelpers.getField<MutableState<Boolean>>(panel, "keyboardShown").value = true
             val shown = panel.barModel(SecondScreenMode.KEYBOARD_TRACKPAD)!!.extras.first()
             assertEquals(context.getString(R.string.second_hide_keyboard), shown.description)
@@ -115,7 +137,7 @@ class SecondScreenBarTest {
             assertTrue(rootChildren(panel)[0] is ComposeView)
             val bar = panel.barModel(SecondScreenMode.DECK_CONTROLS)!!
             assertEquals(context.getString(R.string.second_mode_deck_controls), bar.title)
-            assertEquals(listOf(context.getString(R.string.swap_screens), context.getString(R.string.bottom_screen_off)), bar.extras.map { it.description })
+            assertEquals(listOf(context.getString(R.string.swap_screens), context.getString(R.string.bottom_brightness)), bar.extras.map { it.description })
             bar.extras.first { it.tag == "bottom-swap" }.onClick()
             assertEquals(1, swaps)
             assertEquals(DeckPanel.entries.map { context.getString(it.label) }, bar.tabs!!.labels)
@@ -123,7 +145,7 @@ class SecondScreenBarTest {
             panel.showMode(SecondScreenMode.CUSTOM_CONTROLS)
             val profile = panel.barModel(SecondScreenMode.CUSTOM_CONTROLS)!!
             assertEquals(context.getString(R.string.input_profile_controls_mode), profile.title)
-            assertEquals(listOf(context.getString(R.string.swap_screens), context.getString(R.string.bottom_screen_off)), profile.extras.map { it.description })
+            assertEquals(listOf(context.getString(R.string.swap_screens), context.getString(R.string.bottom_brightness)), profile.extras.map { it.description })
             assertNotNull(profile.onClose); assertNotNull(profile.onMenu)
             profile.extras.first { it.tag == "bottom-swap" }.onClick()
             assertEquals(2, swaps)
@@ -134,9 +156,9 @@ class SecondScreenBarTest {
         try {
             noSwap.show()
             noSwap.showMode(SecondScreenMode.DECK_CONTROLS)
-            assertEquals(listOf("bottom-screen-off"), noSwap.barModel(SecondScreenMode.DECK_CONTROLS)!!.extras.map { it.tag })
-            assertEquals(listOf("bottom-keyboard", "bottom-screen-off"), noSwap.barModel(SecondScreenMode.TERMINAL)!!.extras.map { it.tag })
-            assertEquals(listOf("bottom-keyboard", "bottom-screen-off"), noSwap.barModel(SecondScreenMode.KEYBOARD_TRACKPAD)!!.extras.map { it.tag })
+            assertEquals(listOf("bottom-brightness-toggle"), noSwap.barModel(SecondScreenMode.DECK_CONTROLS)!!.extras.map { it.tag })
+            assertEquals(listOf("bottom-keyboard", "bottom-brightness-toggle"), noSwap.barModel(SecondScreenMode.TERMINAL)!!.extras.map { it.tag })
+            assertEquals(listOf("bottom-keyboard", "bottom-brightness-toggle"), noSwap.barModel(SecondScreenMode.KEYBOARD_TRACKPAD)!!.extras.map { it.tag })
         } finally { noSwap.closeControls() }
     }
 

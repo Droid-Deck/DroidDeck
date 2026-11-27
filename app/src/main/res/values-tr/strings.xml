@@ -2069,6 +2069,7 @@
     <string name="bottom_chat_mic_off">Mikrofon kapalı</string>
     <string name="bottom_chat_mic_unavailable">Bu oyun için mikrofon kapalı. Konuşmak için DroidDeck\'in Steam ayarlarında (Ses) Mikrofon\'u açın ve oyunu yeniden başlatın.</string>
     <string name="bottom_chat_volume">Ses düzeyi %1$d%%</string>
+    <string name="bottom_brightness">Alt ekran parlaklığı</string>
     <string name="bottom_screen_off">Alt ekranı kapat</string>
     <string name="bottom_page_guides">Rehberler</string>
     <string name="bottom_guides_no_game">Steam rehberlerini burada görmek için bir oyun başlatın.</string>
