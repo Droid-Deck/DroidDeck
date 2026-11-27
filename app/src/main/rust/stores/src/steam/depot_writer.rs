@@ -9,6 +9,7 @@
 //! read back and checked before anything is fetched.
 
 use crate::fetch_core::{run_fetch, FetchItem, FetchOptions, FetchSink, SinkError};
+use crate::grow_write::{holes_supported, GrowFront};
 use crate::steam::cdn;
 use crate::steam::content_manifest::{ChunkData, ContentManifest};
 use crate::steam::depot_chunk::{process_depot_chunk, steam_adler_hash};
@@ -110,6 +111,7 @@ struct FileSlot {
     size: u64,
     path: PathBuf,
     mode: u32,
+    front: GrowFront,
 }
 
 struct DepotFiles {
@@ -155,17 +157,23 @@ impl DepotFiles {
         }
     }
 
-    fn write(&self, file_idx: usize, offset: u64, data: &[u8]) -> Result<(), String> {
+    fn write(
+        &self,
+        file_idx: usize,
+        offset: u64,
+        data: &[u8],
+        cancel: &AtomicBool,
+    ) -> Result<(), String> {
         let file = self.acquire(file_idx)?;
-        pwrite_all_at(&file, offset, data).map_err(|err| {
+        let slot = &self.slots[file_idx];
+        slot.front.write_all_at(&file, offset, data, cancel).map_err(|err| {
             format!(
                 "write '{}' at {offset}: {err}",
                 self.slots[file_idx].path.display()
             )
         })?;
-        let slot = &self.slots[file_idx];
         if slot.remaining.fetch_sub(1, Ordering::AcqRel) == 1 {
-            finalize(&file, slot)?;
+            finalize(&file, slot, cancel)?;
             drop(file);
             self.release(file_idx);
         } else if self.open_count.load(Ordering::Relaxed) > MAX_OPEN_FILES {
@@ -176,7 +184,7 @@ impl DepotFiles {
     }
 
     /// Files with nothing left to fetch (zero chunks, or every chunk already correct on disk).
-    fn finalize_untouched(&self, idx: usize) -> Result<(), String> {
+    fn finalize_untouched(&self, idx: usize, cancel: &AtomicBool) -> Result<(), String> {
         let slot = &self.slots[idx];
         make_parent_dirs(&self.root, &slot.path)?;
         check_file_target(&self.root, &slot.path)?;
@@ -188,6 +196,11 @@ impl DepotFiles {
             .map_err(|err| format!("open '{}': {err}", slot.path.display()))?;
         set_file_mode(&file, &slot.path, slot.mode)?;
         let current = file.metadata().map(|m| m.len()).unwrap_or(u64::MAX);
+        if current < slot.size {
+            slot.front
+                .extend_to(&file, slot.size, cancel)
+                .map_err(|err| format!("extend '{}': {err}", slot.path.display()))?;
+        }
         if current != slot.size {
             file.set_len(slot.size)
                 .map_err(|err| format!("set_len '{}': {err}", slot.path.display()))?;
@@ -196,7 +209,10 @@ impl DepotFiles {
     }
 }
 
-fn finalize(file: &File, slot: &FileSlot) -> Result<(), String> {
+fn finalize(file: &File, slot: &FileSlot, cancel: &AtomicBool) -> Result<(), String> {
+    slot.front
+        .extend_to(file, slot.size, cancel)
+        .map_err(|err| format!("extend '{}': {err}", slot.path.display()))?;
     file.set_len(slot.size)
         .map_err(|err| format!("set_len '{}': {err}", slot.path.display()))?;
     file.sync_all()
@@ -207,6 +223,7 @@ struct ChunkSink<'a> {
     chunks: &'a [UniqueChunk],
     files: &'a DepotFiles,
     depot_key: &'a [u8],
+    cancel: &'a AtomicBool,
 }
 
 impl FetchSink for ChunkSink<'_> {
@@ -225,7 +242,12 @@ impl FetchSink for ChunkSink<'_> {
         let mut credited = 0u64;
         for target in &chunk.targets {
             self.files
-                .write(target.file_idx as usize, target.offset, &processed.data)
+                .write(
+                    target.file_idx as usize,
+                    target.offset,
+                    &processed.data,
+                    self.cancel,
+                )
                 .map_err(SinkError::Fatal)?;
             credited += processed.data.len() as u64;
         }
@@ -276,6 +298,7 @@ fn prepare(
         }
     };
 
+    let holes = holes_supported(&root);
     let mut slots = Vec::with_capacity(manifest.files.len());
     let mut existing = Vec::with_capacity(manifest.files.len());
     for file in &manifest.files {
@@ -297,6 +320,7 @@ fn prepare(
             } else {
                 0o644
             },
+            front: GrowFront::new(holes),
         });
     }
 
@@ -354,7 +378,10 @@ fn prepare(
             continue;
         }
         let mut remaining = 0usize;
-        for (chunk_idx, chunk) in file.chunks.iter().enumerate() {
+        let mut by_offset: Vec<usize> = (0..file.chunks.len()).collect();
+        by_offset.sort_by_key(|&idx| file.chunks[idx].offset);
+        for chunk_idx in by_offset {
+            let chunk = &file.chunks[chunk_idx];
             if verified[file_idx].get(chunk_idx).copied().unwrap_or(false) {
                 bytes_verified += chunk.cb_original as u64;
                 continue;
@@ -393,7 +420,7 @@ fn prepare(
         if is_regular(file.flags, &file.linktarget)
             && files.slots[idx].remaining.load(Ordering::Relaxed) == 0
         {
-            if let Err(err) = files.finalize_untouched(idx) {
+            if let Err(err) = files.finalize_untouched(idx, cancel) {
                 return Err(DepotWriteOutcome::fail(err));
             }
         }
@@ -449,6 +476,7 @@ pub fn write_depot(
         chunks: &chunks,
         files: &files,
         depot_key: request.depot_key,
+        cancel,
     };
     let depot_id = manifest.metadata.depot_id;
     let done_before = AtomicU64::new(bytes_verified);
@@ -677,12 +705,6 @@ fn set_file_mode(_file: &File, _path: &Path, _mode: u32) -> Result<(), String> {
 }
 
 #[cfg(unix)]
-fn pwrite_all_at(file: &File, offset: u64, data: &[u8]) -> std::io::Result<()> {
-    use std::os::unix::fs::FileExt;
-    file.write_all_at(data, offset)
-}
-
-#[cfg(unix)]
 fn pread_exact_at(file: &File, offset: u64, buf: &mut [u8]) -> std::io::Result<()> {
     use std::os::unix::fs::FileExt;
     file.read_exact_at(buf, offset)
@@ -766,6 +788,7 @@ mod tests {
             size: 10,
             path: path.clone(),
             mode: 0o644,
+            front: GrowFront::new(true),
         }];
         let root = fs::canonicalize(&dir).unwrap();
         let flags = verify_existing(&manifest, &slots, &[10], &root, 2, &AtomicBool::new(false));
@@ -806,6 +829,44 @@ mod tests {
             cb_original: data.len() as u32,
             cb_compressed: data.len() as u32 + 64,
         }
+    }
+
+    #[test]
+    fn queues_each_files_chunks_in_offset_order() {
+        let dir = std::env::temp_dir().join(format!(
+            "droiddeck_steam_order_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let key = [5u8; 32];
+        let manifest = ContentManifest {
+            files: vec![FileMapping {
+                filename: "big.pak".into(),
+                size: 15,
+                chunks: vec![chunk(b"three", 10), chunk(b"first", 0), chunk(b"other", 5)],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let request = DepotWriteRequest {
+            manifest: &manifest,
+            depot_key: &key,
+            servers: &[],
+            target_dir: &dir,
+            ca_bundle_path: "",
+            max_workers: 1,
+            process_workers: 1,
+        };
+        let prepared = prepare(&request, &AtomicBool::new(false)).unwrap();
+        let offsets: Vec<u64> = prepared
+            .chunks
+            .iter()
+            .map(|c| c.targets[0].offset)
+            .collect();
+        assert_eq!(offsets, vec![0, 5, 10]);
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -867,6 +928,7 @@ mod tests {
             chunks: &prepared.chunks,
             files: &prepared.files,
             depot_key: &key,
+            cancel: &cancel,
         };
         let item = |id: u64| FetchItem {
             id,
@@ -886,6 +948,7 @@ mod tests {
             chunks: &wrong,
             files: &prepared.files,
             depot_key: &key,
+            cancel: &cancel,
         };
         assert!(matches!(
             wrong_sink.process(&item(0), encrypted_chunk(&key, b"HELLO")),

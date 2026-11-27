@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use sha1::{Digest, Sha1};
 
 use super::cache;
+use crate::grow_write::{holes_supported, GrowFront};
 use super::schedule::{PlanPart, Schedule, NONE};
 use super::{staging, Events, Stop};
 use crate::epic::chunk;
@@ -80,6 +81,7 @@ struct Coord {
 struct Engine<'a> {
     input: &'a EngineInput<'a>,
     slots: Vec<Mutex<Slot>>,
+    fronts: Vec<GrowFront>,
     coord: Mutex<Coord>,
     wake: Condvar,
     admitted: AtomicUsize,
@@ -182,8 +184,8 @@ impl<'a> Engine<'a> {
         let Some(handle) = handle else {
             return Err(format!("internal: {} is not open", file.path));
         };
-        handle
-            .write_all_at(piece, part.file_offset)
+        self.fronts[f]
+            .write_all_at(&handle, part.file_offset, piece, self.stop)
             .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))?;
         self.written.fetch_add(piece.len() as u64, Ordering::Relaxed);
 
@@ -446,8 +448,10 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
             cached[i] = true;
         }
     }
+    let holes = holes_supported(&input.stage_dir);
     let engine = Engine {
         input,
+        fronts: input.files.iter().map(|_| GrowFront::new(holes)).collect(),
         slots: input
             .files
             .iter()

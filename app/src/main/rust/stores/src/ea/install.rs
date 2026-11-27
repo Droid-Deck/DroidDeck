@@ -5,7 +5,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
-use std::os::unix::fs::FileExt;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -18,6 +17,7 @@ use super::net;
 use super::zip::{self, Entry};
 use crate::amazon::install::check::{free_bytes, space_problem};
 use crate::amazon::install::{Events, ReplaceGate, Stop};
+use crate::grow_write::{holes_supported, GrowFront};
 use crate::fetch_core::{distinct_host_count, run_fetch, FetchItem, FetchOptions, FetchSink, SinkError};
 
 pub const LEDGER: &str = ".droiddeck-ea-files";
@@ -37,6 +37,7 @@ struct Split {
     file: Mutex<Option<File>>,
     received: Vec<AtomicU64>,
     left: AtomicUsize,
+    front: GrowFront,
 }
 
 #[derive(Clone, Copy)]
@@ -483,8 +484,9 @@ impl Placer<'_> {
             let old = split.received[part].swap(0, Ordering::Relaxed);
             self.in_flight.fetch_sub(old, Ordering::Relaxed);
         }
-        handle
-            .write_all_at(data, start + offset)
+        split
+            .front
+            .write_all_at(handle, start + offset, data, self.stop)
             .map_err(|e| SinkError::Fatal(self.fail(format!("Could not write {}: {e}", job.path))))?;
         drop(file);
         split.received[part].fetch_add(data.len() as u64, Ordering::Relaxed);
@@ -698,6 +700,7 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
 
     let host = origin(&req.url);
     let works = works(&remote, req.part_bytes);
+    let holes = holes_supported(&req.game_dir);
     let splits: Vec<Option<Split>> = remote
         .iter()
         .enumerate()
@@ -711,6 +714,7 @@ pub fn run(req: &Request, cancel: &AtomicBool, ev: &dyn Events) -> Result<Finish
                     file: Mutex::new(None),
                     received: (0..parts).map(|_| AtomicU64::new(0)).collect(),
                     left: AtomicUsize::new(parts),
+                    front: GrowFront::new(holes),
                 }
             })
         })
