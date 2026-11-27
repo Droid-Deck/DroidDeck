@@ -227,7 +227,9 @@ void FrameGen::initializeImage(VkCommandBuffer cmd, VkImage img, VkImageLayout t
 
 void FrameGen::destroy() {
     if (!device_) return;
-    dd_->DeviceWaitIdle(device_);
+    const VkResult idleResult = dd_->DeviceWaitIdle(device_);
+    if (idleResult != VK_SUCCESS)
+        DDFG_LOGE("framegen destroy: DeviceWaitIdle failed (%d); continuing teardown", (int)idleResult);
     destroyScratchResources();
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
