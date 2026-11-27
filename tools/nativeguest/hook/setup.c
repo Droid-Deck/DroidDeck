@@ -858,63 +858,47 @@ static const char *usrmerge_retry_path(const char *target, char *alt, size_t alt
     return alt;
 }
 
-static const char *rewrite_unix_socket_path(const char *sun_path, char *out_buf, size_t out_size) {
-    if (!sun_path || out_size == 0) return sun_path;
-    // Abstract sockets start with null byte (\0); leave untouched
-    if (sun_path[0] == '\0') {
-        return sun_path;
-    }
-
+static int unix_socket_address(const char *sun_path, struct sockaddr_un *out, int *dir_fd) {
     char full[PATH_MAX];
+    *dir_fd = -1;
+    memset(out, 0, sizeof(*out));
+    out->sun_family = AF_UNIX;
     const char *rw = (sun_path[0] == '/') ? rewrite_path(sun_path, full, sizeof(full)) : sun_path;
     size_t rw_len = strlen(rw);
-
-    // If rewritten path fits safely in sockaddr_un.sun_path (usually 108 bytes)
-    if (rw_len < out_size) {
-        strncpy(out_buf, rw, out_size - 1);
-        out_buf[out_size - 1] = '\0';
-        return out_buf;
+    if (rw_len < sizeof(out->sun_path)) {
+        memcpy(out->sun_path, rw, rw_len + 1);
+        return 0;
     }
-
-    // Path exceeds sockaddr_un 108-byte limit!
-    // Deterministically hash the path into /tmp to guarantee it fits safely (< 80 bytes)
-    // while remaining 100% deterministic between server and client.
-    unsigned long long hash = 14695981039346656037ULL;
-    for (const char *p = rw; *p; p++) {
-        hash ^= (unsigned char)(*p);
-        hash *= 1099511628211ULL;
+    const char *slash = strrchr(rw, '/');
+    if (!slash || slash == rw || !slash[1]) {
+        errno = ENAMETOOLONG;
+        return -1;
     }
-
-    init_ddnatv_hook();
-    if (g_ddnatv_root[0] != '\0') {
-        snprintf(out_buf, out_size, "%s/tmp/.ctx_sock_%016llx", g_ddnatv_root, hash);
-    } else {
-        snprintf(out_buf, out_size, "/tmp/.ctx_sock_%016llx", hash);
+    char dir[PATH_MAX];
+    size_t dir_len = (size_t)(slash - rw);
+    if (dir_len >= sizeof(dir)) {
+        errno = ENAMETOOLONG;
+        return -1;
     }
-    out_buf[out_size - 1] = '\0';
-    return out_buf;
+    memcpy(dir, rw, dir_len);
+    dir[dir_len] = '\0';
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, dir, O_PATH | O_DIRECTORY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    int written = snprintf(out->sun_path, sizeof(out->sun_path), "/proc/self/fd/%d/%s", fd, slash + 1);
+    if (written < 0 || (size_t)written >= sizeof(out->sun_path)) {
+        syscall(SYS_close, fd);
+        errno = ENAMETOOLONG;
+        return -1;
+    }
+    *dir_fd = fd;
+    return 0;
 }
 
-static void unlink_mapped_unix_socket(const char *target) {
-    if (!target) return;
-    size_t t_len = strlen(target);
-    if (t_len >= 107) {
-        unsigned long long hash = 14695981039346656037ULL;
-        for (const char *p = target; *p; p++) {
-            hash ^= (unsigned char)(*p);
-            hash *= 1099511628211ULL;
-        }
-        char short_path[PATH_MAX];
-        init_ddnatv_hook();
-        if (g_ddnatv_root[0] != '\0') {
-            snprintf(short_path, sizeof(short_path), "%s/tmp/.ctx_sock_%016llx", g_ddnatv_root, hash);
-        } else {
-            snprintf(short_path, sizeof(short_path), "/tmp/.ctx_sock_%016llx", hash);
-        }
-        static int (*orig_unlink)(const char *) = NULL;
-        if (!orig_unlink) orig_unlink = (int (*)(const char *))dlsym(RTLD_NEXT, "unlink");
-        if (orig_unlink) orig_unlink(short_path);
-    }
+static void release_socket_dir(int dir_fd) {
+    if (dir_fd < 0) return;
+    int saved_errno = errno;
+    syscall(SYS_close, dir_fd);
+    errno = saved_errno;
 }
 
 #endif /* !DDNATV_HOST_TEST */

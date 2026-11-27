@@ -113,7 +113,6 @@ int unlink(const char *pathname) {
     if (!orig_unlink) orig_unlink = (int (*)(const char *))dlsym(RTLD_NEXT, "unlink");
     char buf[PATH_MAX];
     const char *target = rewrite_path(pathname, buf, sizeof(buf));
-    unlink_mapped_unix_socket(target);
     dev_t hl_dev = 0;
     ino_t hl_ino = 0;
     int hardlinked = lookup_emulated_hardlink_at(AT_FDCWD, target, &hl_dev, &hl_ino);
@@ -137,10 +136,7 @@ int unlinkat(int dirfd, const char *pathname, int flags) {
     dev_t hl_dev = 0;
     ino_t hl_ino = 0;
     int hardlinked = 0;
-    if (target) {
-        unlink_mapped_unix_socket(target);
-        hardlinked = lookup_emulated_hardlink_at(dirfd, target, &hl_dev, &hl_ino);
-    }
+    if (target) hardlinked = lookup_emulated_hardlink_at(dirfd, target, &hl_dev, &hl_ino);
     int ret = orig_unlinkat ? orig_unlinkat(dirfd, target, flags) : -1;
     if (ret != 0 && orig_unlinkat && refused_in_repaired_dir(dirfd, target)) {
         hardlinked = target ? lookup_emulated_hardlink_at(dirfd, target, &hl_dev, &hl_ino) : 0;

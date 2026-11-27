@@ -22,6 +22,7 @@ add_library(droiddeckwayland SHARED
         src/hdr_compose.c
         src/blend_pass.c
         src/gpu_busy.c
+        src/unix_listen.c
         generated/color-management-v1-protocol.c
         generated/xdg-shell-protocol.c
         generated/linux-dmabuf-v1-protocol.c
