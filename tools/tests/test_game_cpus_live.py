@@ -54,7 +54,7 @@ class LiveGameCpusTest(unittest.TestCase):
             self.assertEqual(self.run_setup(partial, DD_GAME_CPUS="4,5"), ["taskset=taskset -c 4,5", "cpus=4,5"], partial)
 
     def test_an_unreadable_value_keeps_the_session_value(self):
-        for bad in ("3;rm\n", "6-\n", "-3\n", "3,,4\n", "3,\n"):
+        for bad in ("3;rm\n", "6-\n", "-3\n", "3,,4\n", "3,\n", "3\n4\n", "3\n4", "\n3\n"):
             self.assertEqual(self.run_setup(bad, DD_GAME_CPUS="4,5"), ["taskset=taskset -c 4,5", "cpus=4,5"], bad)
 
     def test_the_file_is_found_whatever_home_the_client_runs_with(self):
