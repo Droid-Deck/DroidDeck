@@ -78,6 +78,7 @@ private:
 
     Config    cfg_;
     VkExtent2D extent_{};
+    uint64_t imageGeneration_ = 0;
     bool ready_ = false;
     int  flowFinest_ = kFlowFinestDefault;
 
