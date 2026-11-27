@@ -372,6 +372,7 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
     if (!reuseFlow) {
         // Batch fresh-image transitions that share the same stage and access masks.
         std::vector<VkImageMemoryBarrier> initBarriers;
+        initBarriers.reserve(static_cast<size_t>(4 * kLevels + 1));
         auto addInitBarrier = [&](VkImage image) {
             VkImageMemoryBarrier b{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
             b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
