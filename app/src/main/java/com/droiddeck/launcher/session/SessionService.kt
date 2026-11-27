@@ -701,8 +701,11 @@ class SessionService : Service() {
             if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
         guest.add("DD_LAUNCH_DIR=" + sessionRoot.path)
+        // this session's worker number: the shared field may be a newer session's by the time it is used
+        var ownWorkers = 0
         if (com.droiddeck.launcher.runtime.GuestWorkers.enabled(this)) {
-            guestWorkerSession = com.droiddeck.launcher.runtime.GuestWorkers.serve(this)
+            ownWorkers = com.droiddeck.launcher.runtime.GuestWorkers.serve(this)
+            guestWorkerSession = ownWorkers
             guest.add("DD_SPAWN=" + com.droiddeck.launcher.runtime.GuestWorkers.socketName(this))
         }
         // Proton builds up to 11.12 report X11 text fields under this name.
@@ -881,8 +884,9 @@ class SessionService : Service() {
                 syncWatcher = null
             }
             abandonStart(gen, sessionDir, started)
-            val workers = guestWorkerSession
+            val workers = ownWorkers
             if (pid > 1) Thread({ teardown(pid, workerSession = workers) }, "session-teardown").start()
+            else com.droiddeck.launcher.runtime.GuestWorkers.stopGuests(workers)
             return
         }
         sessionPid = pid
@@ -2406,6 +2410,7 @@ class SessionService : Service() {
             } else {
                 Thread({ pruneSystemVulkanRuntime() }, "system-vulkan-prune").start()
                 Thread({
+                    com.droiddeck.launcher.runtime.GuestWorkers.stopGuests(workers)
                     com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
                     finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()

@@ -59,7 +59,8 @@ static void ddh_log(const char *setting, const char *line, size_t len) {
         syscall(SYS_write, 2, line, len);
         return;
     }
-    int fd = (int)syscall(SYS_openat, AT_FDCWD, setting, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0644);
+    // non-blocking: a FIFO with no reader must not hold up the call being traced (a kill())
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, setting, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC | O_NONBLOCK, 0644);
     if (fd < 0) return;
     syscall(SYS_write, fd, line, len);
     syscall(SYS_close, fd);
@@ -339,6 +340,7 @@ static void ddh_linger(int flush) {
 static void ddh_register_group(void);
 static void ddh_unregister_group(void);
 static pid_t ddh_logical_pgrp(void);
+static long ddh_start_time(pid_t pid);
 
 // From exit() (on_exit, arg 1) or _exit() (arg NULL) in a worker's own process.
 // Only a handed-off child lingers: the app waits for the death of the programs it starts itself
@@ -487,7 +489,7 @@ static void ddh_putint(struct ddh_buf *b, long v) {
     char tmp[24];
     int i = sizeof(tmp);
     int neg = v < 0;
-    unsigned long u = neg ? (unsigned long)-v : (unsigned long)v;
+    unsigned long u = neg ? 0UL - (unsigned long)v : (unsigned long)v;  // no overflow for LONG_MIN
     do {
         tmp[--i] = (char)('0' + u % 10);
         u /= 10;
@@ -715,6 +717,8 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     mode_t mask = umask(0);
     umask(mask);
     sigset_t blocked;
+    pid_t anchor = getenv("DDH_WORKER_PID") ? (pid_t)atoi(getenv("DDH_WORKER_PID")) : parent;
+    long parent_start = ddh_start_time(parent), anchor_start = ddh_start_time(anchor);
     unsigned long blocked_bits = 0;
     if (sigprocmask(SIG_BLOCK, NULL, &blocked) == 0) {
         for (int sig = 1; sig <= 64 && sig < NSIG; sig++) {
@@ -759,7 +763,12 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
         ddh_puts(&b, ",\"sigmask\":");
         ddh_putint(&b, (long)blocked_bits);
         ddh_puts(&b, ",\"anchor\":");
-        ddh_putint(&b, getenv("DDH_WORKER_PID") ? (long)atoi(getenv("DDH_WORKER_PID")) : (long)parent);
+        ddh_putint(&b, (long)anchor);
+        // their start times now, while both are surely the ones meant (see ddh_logical_parent)
+        ddh_puts(&b, ",\"pstart\":");
+        ddh_putint(&b, parent_start);
+        ddh_puts(&b, ",\"astart\":");
+        ddh_putint(&b, anchor_start);
         ddh_puts(&b, "}");
         if (pass == 0) {
             b.cap = b.len + 4;
@@ -911,6 +920,13 @@ static ddh_wait4_f ddh_real_wait4(void) {
 
 // A wait interrupted by a signal: as the real call, which a handler installed with SA_RESTART restarts.
 // The app's and the program's SIGCHLD are the usual ones.
+// The forked child of an entry whose program has exited: 1 once reaped (or already gone), 0 when it is
+// still exiting and WNOHANG was asked for, or the wait was interrupted.
+static int ddh_reap_shim(ddh_wait4_f real, pid_t child, int options) {
+    pid_t r = real(child, NULL, options & WNOHANG, NULL);
+    return r == child || (r < 0 && errno == ECHILD);
+}
+
 static int ddh_nap(void) {
     struct timespec ts = {0, 20 * 1000 * 1000};
     if (nanosleep(&ts, NULL) == 0) return 0;
@@ -934,9 +950,9 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
         if (pid > 0 && e) {
             if (!e->reaped && real(pid, NULL, WNOHANG, NULL) == pid) e->reaped = 1;
             if (__atomic_load_n(&e->state, __ATOMIC_ACQUIRE) == DDH_EXITED) {
-                // the forked child is between its last write and its exit: reap it now, or a later
-                // wait() would report its pid a second time
-                if (!e->reaped) real(pid, NULL, 0, NULL);
+                // the forked child is between its last write and its exit: reap it first, or a later
+                // wait() would report its pid a second time (not blocking for WNOHANG: then later)
+                if (!e->reaped && !ddh_reap_shim(real, pid, options)) return (options & WNOHANG) ? 0 : -1;
                 if (ru) memset(ru, 0, sizeof(*ru));
                 ddh_release(e, status);
                 return pid;
@@ -947,7 +963,7 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
         }
         if (pid <= 0 && (e = ddh_exited())) {
             pid_t child = e->child;
-            if (!e->reaped) real(child, NULL, 0, NULL);
+            if (!e->reaped && !ddh_reap_shim(real, child, options)) return (options & WNOHANG) ? 0 : -1;
             if (ru) memset(ru, 0, sizeof(*ru));
             ddh_release(e, status);
             return child;
@@ -1077,10 +1093,13 @@ static void ddh_register_group(void) {
     if (g_ddh_report_parent > 0) {
         snprintf(name, sizeof(name), "P%d", (int)getpid());
         // with their start times: a pid followed later may have been reused by then
-        const char *anchor_env = getenv("DDH_ANCHOR");
+        // the start times the request recorded (DDH_PSTART, DDH_ASTART): one read now could be a
+        // reused pid's, the forking process having exited meanwhile
+        const char *anchor_env = getenv("DDH_ANCHOR"), *pstart = getenv("DDH_PSTART"), *astart = getenv("DDH_ASTART");
         pid_t anchor = anchor_env ? (pid_t)atoi(anchor_env) : g_ddh_report_parent;
         int len = snprintf(text, sizeof(text), "%ld %d %d %ld %ld\n", start, (int)g_ddh_report_parent, (int)anchor,
-                           ddh_start_time(g_ddh_report_parent), ddh_start_time(anchor));
+                           pstart ? atol(pstart) : ddh_start_time(g_ddh_report_parent),
+                           astart ? atol(astart) : ddh_start_time(anchor));
         int fd = (int)call_orig_syscall(SYS_openat, (unsigned long)dir, (unsigned long)name,
                                         O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644, 0, 0);
         if (fd >= 0) {

@@ -400,7 +400,8 @@ handed-off daemons. With only the hook's handoffs off (`DD_SPAWN_DAEMONS=0`), RE
 **In the app:** `PhantomProcessStatus.UNCOUNTED` is reported when the limit is on but the session
 runs in workers (`GuestWorkers.enabled`: the native userland, Android 11+, and the
 `childProcessHandoff` session preference, on by default). It does not block Steam. Turning the
-preference off (`droiddeckctl prefs set session childProcessHandoff false --type bool`) brings back
+preference off (`droiddeckctl prefs set session childProcessHandoff false --type bool`, with
+Setup > Developer > Debugging tools on; see `docs/agent-control.md`) brings back
 the old behavior and the old requirement.
 
 ### C. Plan
@@ -466,4 +467,5 @@ Targets: `main`, `proc` (`:proc`), `isoplain`, `iso:<name>` (one app-zygote inst
 reading the phantom list. Restore the noted values afterwards: `adb shell device_config put
 activity_manager max_phantom_processes <value>` (or `adb shell device_config delete activity_manager
 max_phantom_processes` if it was null), `adb shell device_config set_sync_disabled_for_tests <mode>`
-and `adb shell settings put global settings_enable_monitor_phantom_procs <value>`.
+and `adb shell settings put global settings_enable_monitor_phantom_procs <value>`, and end the lab's
+sleepers with `adb shell am force-stop com.droiddeck.phantomlab`.

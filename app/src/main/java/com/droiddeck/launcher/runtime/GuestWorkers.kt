@@ -45,14 +45,15 @@ open class GuestWorker : Service() {
             val go = data.readFileDescriptor()
             reply?.writeInt(Process.myPid())
             Handler(Looper.getMainLooper()).post {
-                // The app closes its end once it has the reply: an exec before then would end
-                // this process with the reply undelivered.
-                runCatching {
+                // The app writes a byte once it has the reply and has taken the launch on: an exec
+                // before then would end this process with the reply undelivered, and with none (the
+                // app gave up and starts the program another way) the program must not run here.
+                val committed = runCatching {
                     val poll = StructPollfd().apply { fd = go.fileDescriptor; events = OsConstants.POLLIN.toShort() }
-                    Os.poll(arrayOf(poll), GO_TIMEOUT_MS)
-                }
+                    Os.poll(arrayOf(poll), GO_TIMEOUT_MS) > 0 && Os.read(go.fileDescriptor, ByteArray(1), 0, 1) == 1
+                }.getOrDefault(false)
                 go.close()
-                exec(argv, env, fds, targets)
+                if (committed) exec(argv, env, fds, targets) else Process.killProcess(Process.myPid())
             }
             return true
         }
@@ -274,6 +275,8 @@ object GuestWorkers {
     private fun start(context: Context, argv: List<String>, env: List<String>, fds: List<ParcelFileDescriptor>, targets: IntArray,
                       guest: Boolean, onExit: (Int) -> Unit): Int {
         val app = context.applicationContext
+        // The session asking: a cold bind can take long enough for it to stop and another to start
+        val owner = session
         val slot = takeWarm() ?: bind(app)?.takeIf { fresh ->
             fresh.connected.await(10, TimeUnit.SECONDS).also { if (!it) release(app, fresh) }
         } ?: run {
@@ -281,11 +284,12 @@ object GuestWorkers {
             return -1
         }
         slot.guest = guest
-        slot.session = session
+        slot.session = owner
         slot.onExit = onExit
         refill(app)
-        // The worker execs once this pipe closes: after the reply has reached us, so that its exec
-        // does not cut the reply off, and after the slot is marked started.
+        // The worker execs once a byte comes through this pipe: after the reply has reached us, so
+        // that its exec does not cut the reply off, and after the slot is marked started. Closed
+        // without one, the worker ends without running the program (the caller starts it another way).
         var go: Array<ParcelFileDescriptor>? = null
         val data = Parcel.obtain()
         val reply = Parcel.obtain()
@@ -306,6 +310,7 @@ object GuestWorkers {
                 Log.w(TAG, "worker ${slot.index} ended before running ${argv.firstOrNull()}")
                 return -1
             }
+            Os.write(go[1].fileDescriptor, byteArrayOf(1), 0, 1)
         } catch (e: Exception) {
             Log.w(TAG, "worker ${slot.index} refused ${argv.firstOrNull()}", e)
             release(app, slot)
@@ -341,8 +346,11 @@ object GuestWorkers {
         }
         // Callbacks off the main thread: start() waits for onServiceConnected, and a caller holding a
         // lock the main thread is waiting for (PulseAudio's launch) would otherwise wait out the timeout.
-        if (!app.bindService(Intent(app, classes[slot.index]), Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT,
-                connections, slot.connection)) {
+        val bound = runCatching {
+            app.bindService(Intent(app, classes[slot.index]), Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT,
+                connections, slot.connection)
+        }.onFailure { Log.w(TAG, "worker ${slot.index} could not be bound", it) }.getOrDefault(false)
+        if (!bound) {
             release(app, slot)
             return null
         }
@@ -373,8 +381,11 @@ object GuestWorkers {
                             release(app, slot)
                             continue
                         }
-                        synchronized(slots) { if (slots[slot.index] === slot && warmTarget > 0) warm.addLast(slot) }
-                        if (warmTarget == 0) release(app, slot)
+                        // decided once, under the lock: kept warm, or released
+                        val kept = synchronized(slots) {
+                            (slots[slot.index] === slot && warmTarget > 0).also { if (it) warm.addLast(slot) }
+                        }
+                        if (!kept) release(app, slot)
                     }
                 }
             } finally {
@@ -403,7 +414,7 @@ object GuestWorkers {
                 // an exit code only when the process exited itself; a signal number otherwise (a native crash)
                 return if (it.reason == android.app.ApplicationExitInfo.REASON_EXIT_SELF) (it.status and 0xff) shl 8
                 else if (it.status in 1..64) it.status and 0x7f
-                else (it.status and 0xff) shl 8
+                else OsConstants.SIGKILL  // killed by Android with no signal recorded, not a clean exit
             }
             Thread.sleep(50)
         }
@@ -416,10 +427,11 @@ object GuestWorkers {
 
     /** Ends session [of]'s guest programs that are still running, and, for the latest session, the warm workers. */
     fun stopGuests(of: Int = session) {
-        if (of == session) {
-            warmTarget = 0
-            context?.let { app -> synchronized(slots) { warm.toList().also { warm.clear() } }.forEach { release(app, it) } }
+        // the check and the reset together: a new session's serve() may be under way
+        val drained = synchronized(slots) {
+            if (of != session) emptyList() else { warmTarget = 0; warm.toList().also { warm.clear() } }
         }
+        context?.let { app -> drained.forEach { release(app, it) } }
         val pids = guestPids(of)
         if (pids.isEmpty()) return
         pids.forEach { Process.sendSignal(it, OsConstants.SIGTERM) }
@@ -436,8 +448,7 @@ object GuestWorkers {
     fun serve(context: Context): Int {
         val app = context.applicationContext
         this.context = app
-        val number = ++session
-        warmTarget = WARM_WORKERS
+        val number = synchronized(slots) { warmTarget = WARM_WORKERS; ++session }
         refill(app)
         synchronized(this) {
             if (server != null) return number
@@ -477,9 +488,15 @@ object GuestWorkers {
             val fds = ArrayList<ParcelFileDescriptor>()
             fun take() {
                 val received = client.ancillaryFileDescriptors.orEmpty()
-                received.forEach { fds.add(ParcelFileDescriptor.dup(it)) }
-                received.forEach { runCatching { Os.close(it) } }
+                try {
+                    received.forEach { fds.add(ParcelFileDescriptor.dup(it)) }
+                } finally {
+                    received.forEach { runCatching { Os.close(it) } }
+                }
             }
+            // Until start() has them: closed on every way out before that, from the first chunk on
+            var handedOver = false
+            try {
             if (request.has("fdchunks")) {
                 // The hook sends its fds after the request, a chunk with each byte (hook/handoff.c)
                 val total = (request.optJSONArray("fds")?.length() ?: 0) + (if (request.has("table")) 1 else 0)
@@ -490,9 +507,6 @@ object GuestWorkers {
             } else {
                 take()
             }
-            // Until start() has them: closed on every way out before that
-            var handedOver = false
-            try {
             val argv = request.getJSONArray("argv").let { a -> List(a.length()) { a.getString(it) } }
             val env = LinkedHashMap<String, String>()
             request.optJSONObject("env")?.let { o -> o.keys().forEach { env[it] = o.getString(it) } }
@@ -543,6 +557,8 @@ object GuestWorkers {
             if (request.has("umask")) env["DDH_UMASK"] = request.getLong("umask").toString()
             if (request.has("pgid")) env["DDH_PGID"] = request.getLong("pgid").toString()
             if (request.has("anchor")) env["DDH_ANCHOR"] = request.getLong("anchor").toString()
+            if (request.has("pstart")) env["DDH_PSTART"] = request.getLong("pstart").toString()
+            if (request.has("astart")) env["DDH_ASTART"] = request.getLong("astart").toString()
             env["DDH_SIGMASK"] = request.optLong("sigmask", 0L).toString()
             val child = request.optInt("child", -1)
             val exited = CountDownLatch(1)
