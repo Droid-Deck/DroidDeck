@@ -72,7 +72,7 @@ class GameFileSyncTest {
         GameFileSync.disable(context)
     }
 
-    @Test fun unreadableAddedGamesFolderKeepsShortcutFilesWithoutStoppingTheSync() {
+    @Test fun unmountedAddedGamesKeepTheirFilesWithoutStoppingTheSync() {
         val context = RuntimeEnvironment.getApplication()
         val root = LinuxRuntime.rootDir(context)
         listOf("usr/bin/gamescope", LinuxRuntime.SESSION_SCRIPT.removePrefix("/")).forEach { path ->
@@ -86,25 +86,44 @@ class GameFileSyncTest {
             writeText("\"AppState\"\n{\n\"name\" \"Geometry Wars\"\n\"StateFlags\" \"4\"\n}")
         }
         val card = File(context.filesDir, "old-card/Games")
-        SessionPrefs.setGameFolderBinds(context, listOf(card.path to "${AddedGames.GUEST_DIR}/Games"))
+        val solo = File(context.filesDir, "old-card/Solo")
+        SessionPrefs.setGameFolderBinds(context, listOf(card.path to "${AddedGames.GUEST_DIR}/Games", solo.path to "${AddedGames.GUEST_DIR}/Solo"))
+        val shortcuts = listOf("Card Game" to 0xC0FFEE01L, "Card Removed" to 0xC0FFEE02L, "Card Copy" to 0xC0FFEE03L, "Solo" to 0xC0FFEE04L).map { (name, appId) ->
+            val dir = if (name == "Solo") solo else File(card, name)
+            AddedExes.put(context, AddedExes.Entry(dir.path, File(dir, "game.exe").path))
+            SessionPrefs.addedGameAppId(context, dir.path, appId)
+            Library.SteamGame(0, name, null, Library.ADDED, (appId shl 32) or 0x02000000L, gameFiles = dir)
+        }
+        val (kept, removed, copied, single) = shortcuts
         val folder = File(context.filesDir, "exports-added").apply { mkdirs() }
         GameFileSync.enable(context, folder)
         assertEquals(folder.path, GameFileSync.folder(context))
         assertEquals("8400", File(folder, "Geometry Wars.steam").readText())
-        val shortcut = Library.SteamGame(0, "Card Game", null, Library.ADDED, (0xC0FFEE01L shl 32) or 0x02000000L)
-        GameFiles.sync(context, folder, Library.launchableGames(context, strictRead = true) + shortcut)
-        assertEquals(shortcut.gameIdString, File(folder, "Card Game.steam").readText())
+        GameFiles.sync(context, folder, Library.launchableGames(context, strictRead = true) + shortcuts)
+        shortcuts.forEach { assertEquals(it.gameIdString, File(folder, "${it.name}.steam").readText()) }
+        SessionPrefs.setAddedGameRemoved(context, removed.gameFiles!!.path, true)
         assertTrue(manifest.delete())
         File(steamapps, "appmanifest_620.acf").writeText("\"AppState\"\n{\n\"name\" \"Portal 2\"\n\"StateFlags\" \"4\"\n}")
         GameFileSync.syncConfigured(context)
         assertEquals("620", File(folder, "Portal 2.steam").readText())
         assertFalse(File(folder, "Geometry Wars.steam").exists())
-        assertEquals(shortcut.gameIdString, File(folder, "Card Game.steam").readText())
+        assertEquals(kept.gameIdString, File(folder, "Card Game.steam").readText())
+        assertEquals(copied.gameIdString, File(folder, "Card Copy.steam").readText())
+        assertEquals(single.gameIdString, File(folder, "Solo.steam").readText())
+        assertFalse(File(folder, "Card Removed.steam").exists())
+        val copy = Library.SteamGame(0, "Card Copy", null, Library.ADDED, (0xBEEF0003L shl 32) or 0x02000000L,
+            gameFiles = File(context.filesDir, "new-card/Games/Card Copy"))
+        val steamCopy = Library.SteamGame(8400, "Card Game", null, "internal", gameFiles = File(context.filesDir, "steam/Card Game"))
+        assertEquals(setOf(kept.gameIdString, single.gameIdString), AddedGames.unmountedShortcuts(context, listOf(copy, steamCopy)))
         assertTrue(card.mkdirs())
+        assertEquals(setOf(single.gameIdString), AddedGames.unmountedShortcuts(context, emptyList()))
+        assertTrue(solo.mkdirs())
+        assertEquals(emptySet<String>(), AddedGames.unmountedShortcuts(context, emptyList()))
         GameFileSync.syncConfigured(context)
-        assertFalse(File(folder, "Card Game.steam").exists())
+        shortcuts.forEach { assertFalse(File(folder, "${it.name}.steam").exists()) }
         assertTrue(File(folder, "Portal 2.steam").isFile)
         GameFileSync.disable(context)
+        shortcuts.forEach { AddedExes.drop(context, it.gameFiles!!.path) }
         SessionPrefs.setGameFolderBinds(context, emptyList())
     }
 

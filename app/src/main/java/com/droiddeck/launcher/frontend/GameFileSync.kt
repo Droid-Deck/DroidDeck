@@ -46,8 +46,8 @@ object GameFileSync {
             check(libraryReadable(File(previousStorage))) { context.getString(R.string.game_sync_err_previous_sd) }
         }
         storage?.let { check(libraryReadable(File(it.path))) { context.getString(R.string.game_sync_err_game_storage) } }
-        val addedReadable = AddedGames.roots(context).all { it.host.listFiles() != null }
-        GameFiles.sync(context, folder, Library.launchableGames(context, strictRead = true), pruneShortcuts = addedReadable)
+        val games = Library.launchableGames(context, strictRead = true)
+        GameFiles.sync(context, folder, games, keep = AddedGames.unmountedShortcuts(context, games))
         prefs(context).edit().putString("storageSetting", storageSetting).putString("storagePath", storage?.path).apply()
     }
 
