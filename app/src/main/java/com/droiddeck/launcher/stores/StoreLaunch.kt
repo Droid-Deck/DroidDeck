@@ -24,6 +24,7 @@ object StoreLaunch {
         "9d2d0eb64d5c44529cece33fe2a46482", "8769e24080ea413b8ebca3f1b8c50951", "Heather",
         "c180bd9859624278aa20f1333918498a", "0828ecd4297c4f89bfcc45420e695b67",
         "e5f031908d2e460b8757387d1a136e48", "afd9f29c1af44610b9e0f9b69742e257",
+        "7133a8c315324112a3eee2458f0a8242",
     )
     const val EA_ENV = ".droiddeck-ea-env"
     /** A sleeping stand-in that the launch hook installs; older EA SDKs require a running Origin process. */
