@@ -29,7 +29,7 @@ class DirectTouchHoldTest {
         override fun move(pointerId: Int, x: Float, y: Float) { touches += "move $pointerId at $x,$y" }
         override fun up(pointerId: Int, x: Float, y: Float) { touches += "up $pointerId at $x,$y" }
         override fun cancel() { touches += "cancel" }
-    }).also { it.configure(TouchGestureConfig(longPressDelay = 500, directHoldBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_CLICK)) }
+    }).also { it.configure(TouchGestureConfig(longPressEnabled = true, longPressDelay = 500)) }
 
     @Test fun holdClicksRightWithoutTouchingTheGame() {
         touch(MotionEvent.ACTION_DOWN)
@@ -87,49 +87,18 @@ class DirectTouchHoldTest {
         assertEquals(listOf("down 0 at 40.0,30.0", "up 0 at 44.0,30.0"), touches)
     }
 
-    @Test fun stillHoldStaysHeldWithTheDefaultConfig() {
+    @Test fun stillHoldClicksRightWithTheDefaultConfig() {
         hold.configure(TouchGestureConfig())
         touch(MotionEvent.ACTION_DOWN)
-        assertEquals(listOf("down 0 at 40.0,30.0"), touches)
         advance(2000)
-        touch(MotionEvent.ACTION_UP)
-        assertEquals(listOf("down 0 at 40.0,30.0", "up 0 at 40.0,30.0"), touches)
-        assertTrue(buttons.isEmpty())
-    }
-
-    @Test fun aSavedRightClickChoiceIsKept() {
-        val saved = TouchGestureConfig.fromJson(
-            TouchGestureConfig(directHoldBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_CLICK).toJson())
-        assertEquals(TouchGestureConfig.MOUSE_BEHAVIOR_CLICK, saved.directHoldBehavior)
-        hold.configure(saved)
-        touch(MotionEvent.ACTION_DOWN)
-        advance(2000)
-        touch(MotionEvent.ACTION_UP)
+        touch(MotionEvent.ACTION_MOVE)
         assertEquals(listOf("true at 40.0,30.0", "false at 40.0,30.0"), buttons)
+        touch(MotionEvent.ACTION_UP)
         assertTrue(touches.isEmpty())
     }
 
-    @Test fun aHeldTouchLiftsAtOnce() {
-        hold.configure(TouchGestureConfig())
-        touch(MotionEvent.ACTION_DOWN)
-        advance(80)
-        touch(MotionEvent.ACTION_UP)
-        assertEquals(listOf("down 0 at 40.0,30.0", "up 0 at 40.0,30.0"), touches)
-    }
-
-    @Test fun aShortTapStaysPressedLongEnoughToBeSeen() {
-        hold.configure(TouchGestureConfig())
-        touch(MotionEvent.ACTION_DOWN)
-        advance(10)
-        touch(MotionEvent.ACTION_UP)
-        advance(39)
-        assertEquals(listOf("down 0 at 40.0,30.0"), touches)
-        advance(1)
-        assertEquals(listOf("down 0 at 40.0,30.0", "up 0 at 40.0,30.0"), touches)
-    }
-
     @Test fun longPressFollowsTheConfiguredDelay() {
-        hold.configure(TouchGestureConfig(longPressDelay = 800, directHoldBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_CLICK))
+        hold.configure(TouchGestureConfig(longPressEnabled = true, longPressDelay = 800))
         touch(MotionEvent.ACTION_DOWN)
         advance(700)
         assertTrue(buttons.isEmpty())
@@ -230,6 +199,25 @@ class DirectTouchHoldTest {
             listOf("down 0 at 40.0,30.0", "down 1 at 60.0,30.0", "up 0 at 40.0,30.0", "up 1 at 60.0,30.0"),
             touches,
         )
+    }
+
+    @Test fun aDragLiftsAtOnce() {
+        touch(MotionEvent.ACTION_DOWN)
+        touch(MotionEvent.ACTION_MOVE, 80f)
+        advance(80)
+        touches.clear()
+        touch(MotionEvent.ACTION_UP, 80f)
+        assertEquals(listOf("up 0 at 80.0,30.0"), touches)
+    }
+
+    @Test fun aTapStaysPressedLongEnoughToBeSeen() {
+        touch(MotionEvent.ACTION_DOWN)
+        advance(10)
+        touch(MotionEvent.ACTION_UP)
+        advance(49)
+        assertEquals(listOf("down 0 at 40.0,30.0"), touches)
+        advance(1)
+        assertEquals(listOf("down 0 at 40.0,30.0", "up 0 at 40.0,30.0"), touches)
     }
 
     private fun advance(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))

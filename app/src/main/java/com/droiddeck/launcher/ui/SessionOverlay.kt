@@ -333,7 +333,7 @@ class DrawerActions(
     val onInputSelection: (com.droiddeck.launcher.input.InputRole?) -> Unit = {},
     val onGestureSettings: () -> Unit = {},
     val touchActive: String = "",
-    val directHoldBehavior: String = MOUSE_BEHAVIOR_NONE,
+    val directHoldBehavior: String = MOUSE_BEHAVIOR_CLICK,
     val onDirectHoldBehavior: (String) -> Unit = {},
     val onFexPreset: (String) -> Unit,
     val onUpscaler: (Int) -> Unit = {},
