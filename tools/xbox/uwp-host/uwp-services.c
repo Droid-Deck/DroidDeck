@@ -8381,6 +8381,7 @@ typedef struct {
 
 static svc_object xbl_devaddr_static;
 static xbl_devaddr_object xbl_devaddr_local;
+static void xbl_name_device_once(void);
 
 static HRESULT __stdcall xbl_devaddr_QI(xbl_devaddr_object *self, const GUID *id, void **out)
 {
@@ -8419,6 +8420,7 @@ static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBase64(xbl_devaddr_object *sel
     WCHAR wide[1400];
     unsigned len, i;
     if (!out) return E_POINTER;
+    if (self == &xbl_devaddr_local) xbl_name_device_once();
     svc_tracef("xbl_devaddr GetSnapshotAsBase64 len=%u valid=%d", self->snapshot_len, (int)self->is_valid);
     if (!self->snapshot_len) {
         *out = svc_string(L"");
@@ -8435,6 +8437,7 @@ static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBuffer(xbl_devaddr_object *sel
 {
     winrt_buffer *buf;
     if (!out) return E_POINTER;
+    if (self == &xbl_devaddr_local) xbl_name_device_once();
     svc_tracef("xbl_devaddr GetSnapshotAsBuffer len=%u valid=%d", self->snapshot_len, (int)self->is_valid);
     buf = buffer_from_bytes(self->snapshot, self->snapshot_len);
     if (!buf) return E_OUTOFMEMORY;
@@ -8445,6 +8448,7 @@ static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBuffer(xbl_devaddr_object *sel
 static HRESULT __stdcall xbl_devaddr_GetSnapshotAsBytes(xbl_devaddr_object *self, UINT32 cap,
                                                         unsigned char *buf, UINT32 *written)
 {
+    if (self == &xbl_devaddr_local) xbl_name_device_once();
     svc_tracef("xbl_devaddr GetSnapshotAsBytes cap=%u len=%u valid=%d", cap, self->snapshot_len, (int)self->is_valid);
     if (written) *written = self->snapshot_len;
     if (buf && cap > 0 && self->snapshot_len > 0) {
