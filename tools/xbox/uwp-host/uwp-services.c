@@ -8922,6 +8922,10 @@ static void xbl_parse_port_range(const char *s, UINT16 *lo, UINT16 *hi)
     if (a > 65535) a = 65535;
     if (b > 65535) b = 65535;
     if (b < a) b = a;
+    /* A manifest socket description of BoundPort="0" means "any port": Windows
+       reports the ephemeral range, not an empty range. A 0-0 template makes a
+       title reject the template before it ever creates an endpoint pair. */
+    if (a == 0 && b == 0) { a = 1; b = 65535; }
     *lo = (UINT16)a;
     *hi = (UINT16)b;
 }
