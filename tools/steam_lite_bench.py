@@ -419,7 +419,7 @@ def cycle(dev: Device, app: str, profile: str, run_dir: Path, args) -> dict:
         [sys.executable, str(CTL)] + (["--serial", dev.serial] if dev.serial else []) +
         ["guest", "--timeout", str(total + 30), "--", LITE, "record", str(total),
          str(args.interval), REMOTE + "/samples.jsonl", "--mark", REMOTE + "/mark"] + cdp,
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        stdout=open(run_dir / "recorder.json", "w"), stderr=subprocess.STDOUT)
     events = {"profile": profile, "app": app, "started": time.time()}
     try:
         time.sleep(args.idle)
@@ -457,6 +457,14 @@ def cycle(dev: Device, app: str, profile: str, run_dir: Path, args) -> dict:
         recorder.wait(timeout=total + 120)
     text = dev.fetch(REMOTE + "/samples.jsonl")
     (run_dir / "samples.jsonl").write_text(text)
+    try:
+        reply = json.loads((run_dir / "recorder.json").read_text() or "{}")
+    except ValueError:
+        reply = {}
+    samples = [line for line in text.splitlines() if line.strip()]
+    if recorder.returncode != 0 or reply.get("exitCode") not in (0, None) or len(samples) < 2:
+        raise RuntimeError("the guest recorder failed (exit %s, %d samples); see %s"
+                           % (reply.get("exitCode", recorder.returncode), len(samples), run_dir / "recorder.json"))
     events["finished"] = time.time()
     events["status_after"] = dev.status()
     (run_dir / "events.json").write_text(json.dumps(events, indent=1))
