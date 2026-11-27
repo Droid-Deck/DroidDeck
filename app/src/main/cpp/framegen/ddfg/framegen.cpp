@@ -3,6 +3,7 @@
 #include "log.hpp"
 #include <cmath>
 #include <cstdio>
+#include <array>
 
 namespace ddfg {
 
@@ -168,6 +169,14 @@ bool FrameGen::onResize(VkExtent2D extent, VkFormat  , bool force) {
 
 
     if (!force && ready_ && extent.width == extent_.width && extent.height == extent_.height) return true;
+    if (ready_) {
+        const VkResult idleResult = dd_->DeviceWaitIdle(device_);
+        if (idleResult != VK_SUCCESS) {
+            DDFG_LOGE("framegen resize: DeviceWaitIdle failed (%d); keeping existing images", (int)idleResult);
+            return false;
+        }
+    }
+    ++imageGeneration_;
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
     for (auto& i : pyrAs_) destroyImage(i); pyrAs_.clear();
@@ -211,10 +220,35 @@ void FrameGen::barrier(VkCommandBuffer cmd, VkImage img, VkImageLayout from, VkI
         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
 }
 
+void FrameGen::initializeImage(VkCommandBuffer cmd, VkImage img, VkImageLayout to) {
+    VkImageMemoryBarrier b{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    b.newLayout = to;
+    b.srcAccessMask = 0;
+    b.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    b.image = img;
+    b.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
+}
+
 
 void FrameGen::destroy() {
     if (!device_) return;
-    dd_->DeviceWaitIdle(device_);
+    const VkResult idleResult = dd_->DeviceWaitIdle(device_);
+    if (idleResult != VK_SUCCESS && idleResult != VK_ERROR_DEVICE_LOST) {
+        DDFG_LOGE("framegen destroy: DeviceWaitIdle failed (%d); preserving resources for safe retry", (int)idleResult);
+        return;
+    }
+    if (idleResult == VK_ERROR_DEVICE_LOST) {
+        // A lost device cannot become idle again. Still explicitly destroy its
+        // child objects; skip descriptor-pool reset and release scratch ownership.
+        DDFG_LOGE("framegen destroy: device lost; releasing owned resources without waiting");
+        destroyScratchResources(false);
+    } else {
+        destroyScratchResources();
+    }
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
     for (auto& i : pyrAs_) destroyImage(i); pyrAs_.clear();

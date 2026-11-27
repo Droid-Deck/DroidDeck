@@ -63,6 +63,8 @@ private:
                   const std::vector<VkDescriptorType>& bindings);
     void destroyPipe(Pipe& p);
     void barrier(VkCommandBuffer cmd, VkImage img, VkImageLayout from, VkImageLayout to);
+    void initializeImage(VkCommandBuffer cmd, VkImage img, VkImageLayout to);
+    void destroyScratchResources(bool resetPool = true);
 
     const DeviceDispatch*   dd_ = nullptr;
     const InstanceDispatch*  id_ = nullptr;
@@ -76,6 +78,7 @@ private:
 
     Config    cfg_;
     VkExtent2D extent_{};
+    uint64_t imageGeneration_ = 0;
     bool ready_ = false;
     int  flowFinest_ = kFlowFinestDefault;
 

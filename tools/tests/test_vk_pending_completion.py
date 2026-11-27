@@ -134,6 +134,8 @@ static struct {
     void (*DestroySurfaceKHR)(uintptr_t, uintptr_t, void *);
 } g_vk={idle_fn, destroy_fn, destroy_fn};
 static void reset_sync(void) { ++resets; }
+/* The swapchain test isolates idle-failure behavior; semaphore cleanup is tested separately. */
+static void destroy_present_semaphores(void) {}
 static void blendp_forget_image(uintptr_t img) { (void)img; ++forgotten; }
 static void device_lost(const char *where) { (void)where; ++lost; g_dev_state=-2; }
 /* PRODUCTION_FUNCTIONS */

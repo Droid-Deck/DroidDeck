@@ -1,0 +1,138 @@
+#version 450
+// ─────────────────────────────────────────────────────────────────────────────
+// win-fg C2 — FLOW REGULARIZATION (TV-L1 smoothness prior), one iteration.
+//
+// CLEAN-ROOM STATEMENT
+// Written from first principles for win-fg. NO code from LSFG, Max's wnfg_XX
+// blobs, GameScope, or any NC-licensed source — equations only, from published
+// papers. win-fg is MIT.
+//
+// WHAT THIS DOES
+// C1 (of3_gm_prewarp) removes the CAMERA motion before the dense SAD search, so
+// the flow field this shader receives (flowLvl_[kFlowFinest], 1/4-res) is the
+// OBJECT-only residual. That residual still carries incoherent / spurious
+// per-block vectors on low-texture or ambiguous blocks. C2 applies a variational
+// smoothness prior that suppresses those spurious vectors while PRESERVING true
+// motion discontinuities at object edges (that is the whole point of using an L1
+// / Total-Variation prior instead of an L2 / Horn-Schunck one — L2 rounds the
+// silhouettes off, which is exactly the smear we are trying to remove).
+//
+// ENERGY (TV-L1 optical-flow denoising of a fixed observation f0):
+//     min_u   Σ  g(x)·|∇u(x)|   +   λ·|u(x) − f0(x)|
+// where u is the regularized flow, f0 is the raw SAD flow (the fixed data term),
+// |∇u| is the Total-Variation (L1-of-gradient) regularizer, and g(x)∈(0,1] is an
+// edge-aware weight from the luma gradient (small across an object silhouette so
+// the prior does NOT smooth flow across it). References:
+//   * Zach, Pock & Bischof 2007, "A Duality Based Approach for Realtime TV-L1
+//     Optical Flow" (DAGM) — the TV-L1 energy + the L1 data soft-threshold step.
+//   * Chambolle & Pock 2011, "A First-Order Primal-Dual Algorithm ..." (JMIV) —
+//     primal-dual TV framework.
+//   * Rudin, Osher & Fatemi 1992 — Total Variation regularization (ROF).
+//   * Vogel & Oman 1996; Chan, Golub & Mulet 1999 — the lagged-diffusivity /
+//     semi-implicit solver actually used here (see SCHEME note).
+//   * Perona & Malik 1990; Weickert 1998; Nagel & Enkelmann 1986 — the
+//     edge-aware (image-gradient) weighting of the smoothness term.
+//   * Horn & Schunck 1981 — the L2 baseline this L1 variant deliberately replaces.
+//
+// SCHEME (why not textbook Chambolle-Pock primal-dual):
+// The canonical TV-L1 solver keeps a persistent dual field p (2 components per
+// flow channel = 8 floats/px) and alternates a dual-ascent + primal-descent with
+// step sizes (σ,τ) that must satisfy στL²≤1 or it DIVERGES. That is exactly the
+// kind of tuning-sensitive instability we do not want on Turnip, and it breaks
+// the one-shader / ping-pong-two-flow-images contract (it needs extra dual
+// images). Instead we solve the SAME energy with a lagged-diffusivity
+// semi-implicit (Jacobi) step: the TV term is linearized as a divergence of the
+// edge-weighted, TV-normalized gradient (dual re-derived in closed form each
+// iteration as p = g·∇u/|∇u|_ε, which is exactly the optimal TV dual and has
+// |p|≤1 by construction), then a Jacobi update that is UNCONDITIONALLY STABLE for
+// any dt>0 (the primal is a convex combination of the centre and its neighbours,
+// so it can never blow up or NaN), followed by the exact L1 data-term
+// soft-threshold. State carried between iterations is only u itself → ping-pong
+// two rgba16f flow images, N iterations. Identity behaviour: with 0 iterations
+// the field is untouched (byte-identical to pre-C2).
+//
+// COMPOSES WITH:
+//   * quality-tier2's 5-tap median: that median stays in of3_expand(_m4) and runs
+//     AFTER C2, as a final speckle scrub on the already-coherent field (harmless —
+//     L1 is already outlier-robust). C2 does not touch expand.
+//   * C1 global-motion add-back: C2 cleans the residual IN PLACE at
+//     flowLvl_[kFlowFinest]; of3_expand then medians + confidence-gates + adds the
+//     global affine back exactly as before, now on the cleaned residual. The
+//     end-to-end composed flow stays correct; identity affine ⇒ pre-C1 path.
+// ─────────────────────────────────────────────────────────────────────────────
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(binding = 0) uniform U {
+    // x = dt        : semi-implicit smoothing step (larger ⇒ more smoothing)
+    // y = lambda    : L1 data-fidelity weight (larger ⇒ trust the SAD flow more)
+    // z = edgeAlpha : luma-gradient edge sensitivity for g (larger ⇒ sharper stop)
+    // w = epsTV     : Charbonnier epsilon for the TV diffusivity (px; larger ⇒ softer)
+    vec4 params;
+};
+
+layout(binding = 32) uniform sampler2D uFlowIn;   // current iterate u   (.xy fwd, .zw bwd), full-res px
+layout(binding = 33) uniform sampler2D uFlowObs;  // fixed observation f0 (the raw SAD flow)
+layout(binding = 34) uniform sampler2D uLuma;     // prev luma at this flow level (R32F, Rec.709 [0,1])
+layout(binding = 48, rgba16f) uniform writeonly image2D uFlowOut;
+
+vec4 fetchU(ivec2 p, ivec2 dim) {
+    return texelFetch(uFlowIn, clamp(p, ivec2(0), dim - 1), 0);
+}
+float fetchL(ivec2 p, ivec2 dim) {
+    return texelFetch(uLuma, clamp(p, ivec2(0), dim - 1), 0).r;
+}
+
+void main() {
+    ivec2 gid = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 dim = textureSize(uFlowIn, 0);
+    if (gid.x >= dim.x || gid.y >= dim.y) return;
+
+    float dt        = params.x;
+    float lambda    = params.y;
+    float edgeAlpha = params.z;
+    float epsTV     = params.w;
+
+    // 4-connected neighbourhood of the current iterate (all 4 flow channels).
+    vec4 uC = texelFetch(uFlowIn, gid, 0);
+    vec4 uL = fetchU(gid + ivec2(-1,  0),    dim);
+    vec4 uR = fetchU(gid + ivec2( 1,  0),    dim);
+    vec4 uU = fetchU(gid + ivec2( 0, -1),    dim);
+    vec4 uD = fetchU(gid + ivec2( 0,  1),    dim);
+
+    // ── Edge-aware weight g from the luma gradient (Perona-Malik / Weickert) ────
+    // Luma level res == flow level res (both at kFlowFinest), so index 1:1.
+    float lL = fetchL(gid + ivec2(-1, 0), dim);
+    float lR = fetchL(gid + ivec2( 1, 0), dim);
+    float lU = fetchL(gid + ivec2( 0,-1), dim);
+    float lD = fetchL(gid + ivec2( 0, 1), dim);
+    float gmag = 0.5 * length(vec2(lR - lL, lD - lU));   // |∇I|, central diff
+    float g = clamp(exp(-edgeAlpha * gmag), 0.05, 1.0);  // small across silhouettes
+
+    // ── TV diffusivity per face: w = g / sqrt(|Δu|² + ε²) ───────────────────────
+    // |Δu| is the full 4-vector flow difference (vectorial-TV coupling: fwd & bwd
+    // share the same motion discontinuities). Large across a flow edge ⇒ small w ⇒
+    // the edge is preserved; ~0 in flat regions ⇒ large w ⇒ strong smoothing.
+    vec4 dL = uL - uC, dR = uR - uC, dU = uU - uC, dD = uD - uC;
+    float e2 = epsTV * epsTV;
+    float qL = inversesqrt(dot(dL, dL) + e2);
+    float qR = inversesqrt(dot(dR, dR) + e2);
+    float qU = inversesqrt(dot(dU, dU) + e2);
+    float qD = inversesqrt(dot(dD, dD) + e2);
+
+    float sumW  = g * (qL + qR + qU + qD);
+    vec4  sumWU = g * (qL * uL + qR * uR + qU * uU + qD * uD);
+
+    // Semi-implicit (Jacobi) TV step: a convex combination of uC and the
+    // edge/TV-weighted neighbour mean ⇒ unconditionally stable, always finite.
+    vec4 uDiff = (uC + dt * sumWU) / (1.0 + dt * sumW);
+
+    // ── L1 data term (exact TV-L1 soft-threshold toward the fixed observation) ──
+    //   r>θ ⇒ u=uDiff−θ ,  r<−θ ⇒ u=uDiff+θ ,  |r|≤θ ⇒ u=f0 , with θ = dt·λ.
+    // The branchless form u = uDiff − clamp(r,−θ,θ) is identical per component.
+    vec4 f0 = texelFetch(uFlowObs, gid, 0);
+    float theta = dt * lambda;
+    vec4 r = uDiff - f0;
+    vec4 uNew = uDiff - clamp(r, vec4(-theta), vec4(theta));
+
+    imageStore(uFlowOut, gid, uNew);
+}
