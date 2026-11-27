@@ -136,6 +136,53 @@ class LaunchLog(unittest.TestCase):
         self.assertIn('DXVK_LOG_PATH=${DXVK_LOG_PATH:-$COMPAT}', text)
 
 
+class PrefixFromProton(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.compat = Path(self.tmp.name) / 'compatdata/236850'
+        self.drives = self.compat / 'pfx/dosdevices'
+        self.drives.mkdir(parents=True)
+
+    def test_guest_drive_links_get_android_paths(self):
+        for name, target in (('c:', '../drive_c'), ('s:', '/root/.local/share/Steam'), ('d:', '/mnt/sd/Steam'),
+                             ('e:', '/storage/emulated/0/Games'), ('z:', '/')):
+            os.symlink(target, self.drives / name)
+        out = proton_function('android_drives "$1"', str(self.compat))
+        links = {p.name: os.readlink(p) for p in self.drives.iterdir()}
+        self.assertEqual({'c:': '../drive_c', 's:': ANDROID + '/root/.local/share/Steam', 'd:': '/storage/1234-5678/Steam/Steam',
+                          'e:': '/storage/emulated/0/Games', 'z:': '/'}, links)
+        self.assertEqual(2, len(out.splitlines()))
+        self.assertEqual('', proton_function('android_drives "$1"', str(self.compat)))
+
+    def test_a_prefix_without_drives_is_left_alone(self):
+        self.assertEqual('', proton_function('android_drives "$1"', str(Path(self.tmp.name) / 'compatdata/1')))
+
+    def steam_pid(self, reg):
+        text = LAUNCH.read_text()
+        function = text[text.index('steam_pid() {'):text.index('prefix_busy || steam_pid')]
+        (self.compat / 'pfx/user.reg').write_text(reg)
+        out = subprocess.run(['sh', '-c', function + 'steam_pid'], env=dict(os.environ, COMPAT=str(self.compat)),
+                             capture_output=True, text=True, check=True).stdout
+        return out, (self.compat / 'pfx/user.reg').read_text()
+
+    def test_steams_process_id_is_this_tools(self):
+        reg = ('[Software\\\\Valve\\\\Steam\\\\ActiveProcess] 1795314478\n#time=1dd7a2916a0be94\n"PID"=dword:00000020\n'
+               '"SteamPath"="C:\\\\Program Files (x86)\\\\Steam"\n\n[Software\\\\Other] 1\n"PID"=dword:00000020\n')
+        out, after = self.steam_pid(reg)
+        self.assertIn('process ID', out)
+        self.assertEqual(reg.replace('"PID"=dword:00000020', '"PID"=dword:0000fffe', 1), after)
+        out, again = self.steam_pid(after)
+        self.assertEqual(('', after), (out, again))
+
+    def test_a_prefix_without_steams_key_is_unchanged(self):
+        reg = '[Software\\\\Wine] 1\n"PID"=dword:00000020\n'
+        self.assertEqual(('', reg), self.steam_pid(reg))
+
+    def test_the_network_list_uses_getifaddrs(self):
+        self.assertIn('export WINE_NEW_NDIS=${WINE_NEW_NDIS:-1}', LAUNCH.read_text())
+
+
 class StorePaths(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

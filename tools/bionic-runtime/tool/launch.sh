@@ -104,6 +104,9 @@ export NTSYNC_SHM=$COMPAT/ntsync-shm
 # DroidDeck's Force SSBS (its glibc libssbs.so preload) is bionic Wine's own WINE_FORCE_SSBS
 on "${DROIDDECK_FORCE_SSBS:-}" && export WINE_FORCE_SSBS=1
 export HODLL=libwow64fex.dll WINEDEBUG=err+all,fixme-all
+# The network adapter list (GetAdaptersAddresses) from the layer's getifaddrs code: its default if_nameindex code never
+# answered here, and the Paradox Launcher (Europa Universalis IV) waited on it forever.
+export WINE_NEW_NDIS=${WINE_NEW_NDIS:-1}
 export XENVIRONMENT=$TOOL/bionic/Xdefaults
 # The adapter's Wayland swapchain gets its buffers back from gamescope later than DroidDeck-Proton's Turnip does;
 # with gamescope's default three images the game waits for one about a fifth of the time at high frame rates.
@@ -300,6 +303,21 @@ if [ "$verb" != runinprefix ] && prefix_busy; then
   stop_wine
 fi
 prefix_busy || rm -f "$NTSYNC_SHM".v*
+
+# Steam's running client, as a game's steam_api checks it: Proton names its steam.exe (the prefix's first program,
+# alive while the game runs), which this tool does not start. Here the first program is the one Steam started, so a
+# launcher that starts the game and quits (EU4's dowser.exe) left a game that reported "Steam not detected". The
+# PID is the one this tool's own prefixes carry.
+steam_pid() {
+  R=$COMPAT/pfx/user.reg
+  [ -f "$R" ] || return 0
+  awk '/^\[/ { on = index($0, "[Software\\\\Valve\\\\Steam\\\\ActiveProcess]") == 1 }
+    on && /^"PID"=dword:/ && $0 != "\"PID\"=dword:0000fffe" { found = 1 } END { exit !found }' "$R" || return 0
+  awk '/^\[/ { on = index($0, "[Software\\\\Valve\\\\Steam\\\\ActiveProcess]") == 1 }
+    on && /^"PID"=dword:/ { print "\"PID\"=dword:0000fffe"; next } { print }' "$R" > "$R.dd-new" && mv -f "$R.dd-new" "$R" &&
+    echo "$(date +%H:%M:%S) Steam's process ID in the registry set to this tool's"
+}
+prefix_busy || steam_pid
 
 # Links into a tool that is gone (an older DroidDeck-Bionic, a deleted DroidDeck-Proton) or to a file it no longer has.
 # Wine's update cannot write over them, so drivers (network, controller) and other files stay missing. Drop them and

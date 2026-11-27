@@ -36,6 +36,21 @@ zpath() {
   esac
 }
 
+# Drive links of the prefix in compatdata folder $1 that name guest paths (DroidDeck-Proton's s: for the Steam library)
+# -> their Android paths, which this Wine follows. A game's mods on S: were missing otherwise. A session's start
+# gives them their guest paths back (NativeGuest.relinkPrefixDrives); z: is launch.sh's.
+android_drives() {
+  local d t a
+  for d in "$1"/pfx/dosdevices/[a-y]:; do
+    [ -L "$d" ] || continue
+    t=$(readlink "$d")
+    case "$t" in /*) ;; *) continue ;; esac
+    a=$(real "$t")
+    [ "$a" = "$t" ] && continue
+    ln -sfn "$a" "$d.dd-new" && mv -fT "$d.dd-new" "$d" && echo "drive ${d##*/} -> $a"
+  done
+}
+
 # Where a game launch's log goes in DroidDeck's session folder (Share logs takes that folder): the game's log folder
 # when Detailed graphics logs made one (droiddeck-game-env), else a folder of its own; nothing for other verbs
 session_logs() {
@@ -109,6 +124,7 @@ print(" ".join(sorted(n for n in names if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*"
 PY
 )
     export DROIDDECK_BIONIC_KEEP
+    [ -n "${STEAM_COMPAT_DATA_PATH:-}" ] && android_drives "$STEAM_COMPAT_DATA_PATH" >&2
     exec /system/bin/sh "$tool/bionic/launch.sh" "$verb" "$compat" "$exe" ${args[@]+"${args[@]}"} ;;
   getcompatpath)
     p=$(real "${1:-}")
