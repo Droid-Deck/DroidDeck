@@ -168,6 +168,7 @@ bool FrameGen::onResize(VkExtent2D extent, VkFormat  , bool force) {
 
 
     if (!force && ready_ && extent.width == extent_.width && extent.height == extent_.height) return true;
+    ++imageGeneration_;
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
     for (auto& i : pyrAs_) destroyImage(i); pyrAs_.clear();
