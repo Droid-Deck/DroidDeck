@@ -389,8 +389,8 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
 
     if (!reuseFlow) {
         // Batch fresh-image transitions that share the same stage and access masks.
-        std::vector<VkImageMemoryBarrier> initBarriers;
-        initBarriers.reserve(static_cast<size_t>(4 * kLevels + 1));
+        std::array<VkImageMemoryBarrier, 4 * kLevels + 1> initBarriers{};
+        size_t initBarrierCount = 0;
         auto addInitBarrier = [&](VkImage image) {
             VkImageMemoryBarrier b{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
             b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -400,7 +400,7 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
             b.image = image;
             b.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
             b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            initBarriers.push_back(b);
+            initBarriers[initBarrierCount++] = b;
         };
         for (auto& i : pyrA_) addInitBarrier(i.image);
         for (auto& i : pyrB_) addInitBarrier(i.image);
@@ -414,10 +414,10 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
         // The final flow level is cleared through TRANSFER_DST_OPTIMAL below;
         // the other levels can use the common initialization barrier.
         for (int l = flowFinest_; l < kLevels - 1; ++l) addInitBarrier(flowLvl_[l].image);
-        if (!initBarriers.empty()) {
+        if (initBarrierCount != 0) {
             dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
-                0, nullptr, static_cast<uint32_t>(initBarriers.size()), initBarriers.data());
+                0, nullptr, static_cast<uint32_t>(initBarrierCount), initBarriers.data());
         }
         {
             VkClearColorValue zero{};
