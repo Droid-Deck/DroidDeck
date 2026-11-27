@@ -150,6 +150,19 @@ The SPIR-V version the driver gets:
 - This is what Dawn ("Disable SPIR-V 1.4 on Android ARM"), ANGLE (`supportsSPIRV14`) and naga
   (`AVOID_SPIRV_COPY_LOGICAL`) do for a proprietary compiler they cannot trust.
 
+Geometry shaders:
+- The Mali-G610's driver (r38p1) crashes compiling Zink's geometry shaders, always at the same
+  place (SIGSEGV at 0x40 in `cmpbe_v2_compile_multiple_shaders`): its shader for `GL_QUADS`, and
+  a GLSL geometry shader that only passes triangles on.
+- A geometry shader that only passes triangles on, from a plain Vulkan program, does not crash it
+  but draws nothing, in SPIR-V 1.0, 1.3 and 1.6, with and without the layer.
+- Zink writes them in SPIR-V 1.6 with the Vulkan memory model, which the version cap leaves alone.
+  Lowering them would not help, since the plain shader draws nothing at 1.0 and 1.3 either.
+- On ARM GPUs the layer reports no `geometryShader` to Zink (engine name `mesa zink`). Mesa then
+  splits quads into triangles itself, and Zink still offers OpenGL 3.2. DXVK keeps the feature: it
+  needs it for D3D10 and 11.
+- `DROIDDECK_MALI_COMPAT_NO_GS=0` keeps the feature for Zink, `=1` hides it from every application.
+
 Files:
 - `layer.c`: loader plumbing, feature and limit reporting, device creation, the hook table.
 - `pipeline.c`: pipelines, shader modules, viewports.
