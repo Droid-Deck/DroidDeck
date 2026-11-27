@@ -27,6 +27,17 @@ class LibraryEntriesTest {
         assertNull(entries[2].game)
     }
 
+    @Test fun ownedSteamGamesJoinTheSteamTabAndAnInstalledOneShowsOnce() {
+        val games = listOf(Library.SteamGame(440, "Team Fortress 2", null, "Steam library"))
+        val library = mapOf(Store.STEAM to listOf(owned(Store.STEAM, "440", "Team Fortress 2"), owned(Store.STEAM, "620", "Portal 2")))
+        val entries = libraryEntries(games, library, emptySet())
+        assertEquals(listOf("app:440", "app:steamstore:620"), entries.map { it.key })
+        assertEquals(listOf(Library.SOURCE_STEAM, Library.SOURCE_STEAM), entries.map { it.source })
+        assertFalse(entries[1].installed)
+        assertEquals("app:620", entries[1].favoriteKey)
+        assertEquals(listOf("steam"), librarySources(entries, listOf(Store.STEAM.id, "epic")))
+    }
+
     @Test fun theEpicLauncherIsNotAGame() {
         val launcher = Library.SteamGame(0, Library.EPIC_LAUNCHER_NAME, null, Library.EPIC_LAUNCHER)
         assertEquals(emptyList<String>(), libraryEntries(listOf(launcher), emptyMap(), emptySet()).map { it.key })
@@ -96,9 +107,9 @@ class LibraryEntriesTest {
     }
 
     @Test fun placesRoundTripThroughTheirOrder() {
-        val order = listOf("epic", "steam", "favorites", "gog", "xbox", "added")
+        val order = listOf("epic", "steam", "favorites", LIBRARY_HIDDEN, "gog", "xbox", "added")
         assertEquals(order, placeLibraryTabs(listOf("epic", "gog", "xbox"), libraryPlacesOf(order)))
-        assertEquals(listOf("favorites", "steam", "epic", "gog", "added"), placeLibraryTabs(listOf("epic", "gog"), emptyList()))
+        assertEquals(listOf("favorites", "steam", "epic", "gog", "added", LIBRARY_HIDDEN), placeLibraryTabs(listOf("epic", "gog"), emptyList()))
     }
 
     @Test fun librarySourcesIgnoreUnknownAndDuplicateOrderEntriesAndAppendNewStores() {

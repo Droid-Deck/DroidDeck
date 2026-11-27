@@ -72,11 +72,10 @@ static char *map_preload_paths(const char *value) {
     return out;
 }
 
-static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
+static char **prepare_ddnatv_env(char *const envp[], const char *real_exe, const char *lib_path) {
     init_ddnatv_hook();
     int count = 0;
     int has_preload = 0;
-    int has_ld_library_path = 0;
     int has_root = 0;
     int has_tunables = 0;
     int has_path = 0;
@@ -94,6 +93,7 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
     // are compared (this was 13 strncmp() calls for each of the 30 or so variables)
     int has_nt = 0;
     int has_binds = 0;
+    int has_binds_kernel = 0;
     int has_hostname = 0;
     int has_link_root = 0;
     int has_exec_loader = 0;
@@ -104,7 +104,6 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         switch (e[0]) {
         case 'L':
             if (strncmp(e, "LD_PRELOAD=", 11) == 0) { has_preload = 1; preload_value = e + 11; }
-            else if (strncmp(e, "LD_LIBRARY_PATH=", 16) == 0) has_ld_library_path = 1;
             break;
         case 'G':
             if (strncmp(e, "GLIBC_TUNABLES=", 15) == 0) has_tunables = 1;
@@ -123,6 +122,7 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
             if (strncmp(e, "DDNATV_ROOT=", 12) == 0) has_root = 1;
             else if (strncmp(e, "DDNATV_NT=", 10) == 0) has_nt = 1;
             else if (strncmp(e, "DDNATV_BINDS=", 13) == 0) has_binds = 1;
+            else if (strncmp(e, "DDNATV_BINDS_KERNEL=", 20) == 0) has_binds_kernel = 1;
             else if (strncmp(e, "DDNATV_PRELOAD=", 15) == 0) has_preload_list = 1;
             else if (strncmp(e, "DDNATV_HOSTNAME=", 16) == 0) has_hostname = 1;
             else if (strncmp(e, "DDNATV_LINK_ROOT=", 17) == 0) has_link_root = 1;
@@ -164,6 +164,9 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         if (chosen_real_exe && envp[i][0] == 'D' && strncmp(envp[i], "DDNATV_REAL_EXE=", 16) == 0) {
             continue;
         }
+        if (chosen_real_exe && envp[i][0] == 'D' && strncmp(envp[i], "DDNATV_LIBRARY_PATH=", 20) == 0) {
+            continue;
+        }
         new_env[dst++] = envp[i];
     }
 
@@ -175,6 +178,15 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         if (str) {
             memcpy(str, "DDNATV_REAL_EXE=", 16);
             memcpy(str + 16, chosen_real_exe, len + 1);
+            new_env[dst++] = str;
+        }
+    }
+    if (chosen_real_exe && lib_path && lib_path[0] != '\0') {
+        size_t len = strlen(lib_path);
+        char *str = malloc(20 + len + 1);
+        if (str) {
+            memcpy(str, "DDNATV_LIBRARY_PATH=", 20);
+            memcpy(str + 20, lib_path, len + 1);
             new_env[dst++] = str;
         }
     }
@@ -202,19 +214,6 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
         if (str) {
             memcpy(str, "DDNATV_PRELOAD=", 15);
             memcpy(str + 15, g_preload_guest, len + 1);
-            new_env[dst++] = str;
-        }
-    }
-    if (!has_ld_library_path && g_ddnatv_root[0] != '\0') {
-        size_t size = 16 + 1;
-        for (size_t i = 0; i < sizeof(k_rootfs_lib_dirs) / sizeof(k_rootfs_lib_dirs[0]); i++) {
-            char dir[PATH_MAX];
-            size += 1 + strlen(rewrite_path_in_root(k_rootfs_lib_dirs[i], dir, sizeof(dir)));
-        }
-        char *str = malloc(size);
-        if (str) {
-            size_t n = ddnatv_append(str, size, 0, "LD_LIBRARY_PATH=", 16);
-            append_rootfs_lib_dirs(str, size, n, 0);
             new_env[dst++] = str;
         }
     }
@@ -256,6 +255,15 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe) {
             memcpy(str, "DDNATV_BINDS=", 13);
             memcpy(str + 13, g_binds_raw, len + 1);
             new_env[dst++] = str;
+        }
+    }
+    if (!has_binds_kernel && g_binds_kernel) {
+        size_t kernel_len = strlen(g_binds_kernel);
+        char *kernel = malloc(20 + kernel_len + 1);
+        if (kernel) {
+            memcpy(kernel, "DDNATV_BINDS_KERNEL=", 20);
+            memcpy(kernel + 20, g_binds_kernel, kernel_len + 1);
+            new_env[dst++] = kernel;
         }
     }
     // This process looked for the ARM translator's files and found none: the programs it starts

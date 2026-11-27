@@ -87,6 +87,34 @@ class XboxManifestTest {
         assertEquals(listOf("Retail.exe"), info.executables)
         assertEquals("Retail.exe", XboxManifest.executable(root))
     }
+    @Test fun aGameCorePackageIsReadFromItsConfigBesideTheGeneratedAppxManifest() {
+        val root = temporary.newFolder()
+        java.io.File(root, "Game.exe").writeText("encrypted")
+        java.io.File(root, "Other.exe").writeText("encrypted")
+        java.io.File(root, "MicrosoftGame.config").writeText("""<Game configVersion="1"><Identity Name="Test.Game" Publisher="CN=Test" Version="1.2.3.0"/>
+            <ExecutableList><Executable Name="Game.exe" TargetDeviceFamily="PC"/></ExecutableList><StoreId>9AAAAAAAAAAA</StoreId></Game>""")
+        java.io.File(root, "appxmanifest.xml").writeText("""<?xml version="1.0" encoding="utf-8"?>
+            <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10">
+            <Identity Name="Generated.Game" Publisher="CN=Generated" Version="9.9.9.0"/>
+            <Applications><Application Id="Game" Executable="Other.exe" EntryPoint="Game.App"/></Applications></Package>""")
+        val info = XboxManifest.read(root)
+        assertEquals("Test.Game", info.name)
+        assertEquals("1.2.3.0", info.version)
+        assertEquals("9AAAAAAAAAAA", info.storeId)
+        assertEquals("Game.exe", XboxInstaller.executable(root))
+        assertFalse(XboxManifest.needsAppModel(root))
+    }
+    @Test fun aFolderWithoutOneManifestIsStillRefused() {
+        val empty = temporary.newFolder()
+        java.io.File(empty, "Game.exe").writeText("encrypted")
+        assertThrows(IllegalArgumentException::class.java) { XboxManifest.read(empty) }
+        val twice = temporary.newFolder()
+        java.io.File(twice, "Game.exe").writeText("encrypted")
+        java.io.File(twice, "MicrosoftGame.config").writeText("<Game><Executable Name=\"Game.exe\"/></Game>")
+        java.io.File(twice, "microsoftgame.CONFIG").writeText("<Game><Executable Name=\"Game.exe\"/></Game>")
+        org.junit.Assume.assumeTrue(twice.list().orEmpty().size == 3)
+        assertThrows(IllegalArgumentException::class.java) { XboxManifest.read(twice) }
+    }
     @Test fun legacyPackageManifestNamesItsExecutableTheSameWay() {
         // A legacy EAppx package carries AppxManifest.xml and has no config; the
         // launcher must still find the identity and the launch path, or an install

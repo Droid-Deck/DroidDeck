@@ -103,7 +103,6 @@
     <string name="input_shortcut_back_modes">Retour · deux fois dans Steam, une fois sur le bureau</string>
     <string name="input_shortcut_hold_hint">En mode Steam. Maintenir Retour ouvre aussi l\'accès rapide.</string>
     <string name="input_restore_shortcut">Rétablir par défaut</string>
-    <string name="input_second_mode_hint">Votre choix de panneau est mémorisé. Le bureau ouvre un second espace de travail ; il ne change ni la session ni son profil d\'entrée.</string>
     <string name="input_virtual_controller">Manette virtuelle</string>
     <string name="input_virtual_controller_hint">Le type de manette vu par Steam ou le jeu.</string>
     <string name="input_touchscreen">Écran tactile</string>

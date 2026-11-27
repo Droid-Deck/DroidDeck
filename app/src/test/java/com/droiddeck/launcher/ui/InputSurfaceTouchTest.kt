@@ -77,6 +77,25 @@ class InputSurfaceTouchTest {
         assertFalse(state().isDown(PadState.A))
     }
 
+    @Test fun steamDeckStylingKeepsTheHeldButtonAndItsHitArea() {
+        val button = a.copy(buttonShape = InputButtonShape.CIRCLE)
+        show(button)
+        val surface = view.inputSurface
+        val shown = surface.shownElements
+
+        touch(MotionEvent.ACTION_DOWN, 1 to (800f to 240f))
+        assertTrue(state().isDown(PadState.A))
+        for (artwork in PadKit.entries) {
+            surface.updateStyle(InputSurfaceStyle(), artwork)
+            assertEquals(shown, surface.shownElements)
+            assertTrue(surface.takesTouchAt(800f, 240f))
+            assertTrue(state().isDown(PadState.A))
+        }
+
+        touch(MotionEvent.ACTION_UP, 1 to (800f to 240f))
+        assertFalse(state().isDown(PadState.A))
+    }
+
     @Test fun aStickKeepsItsFingerWhenItCrossesAButton() {
         touch(MotionEvent.ACTION_DOWN, 1 to (200f to 300f))
         touch(MotionEvent.ACTION_MOVE, 1 to (800f to 240f))

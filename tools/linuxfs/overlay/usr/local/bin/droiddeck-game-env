@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import fcntl
 import hashlib
 import json
 import os
@@ -6,6 +7,8 @@ import platform
 import re
 import runpy
 import signal
+import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -153,9 +156,21 @@ def deep_rock_gdk_raytracing(game):
 
 
 @fix
+def dragons_dogma_2_wine_detection(game):
+    if game.app_id == "2054970" and not any(a.lower().startswith("/winedetectionenabled:") for a in game.args):
+        return {}, ["/WineDetectionEnabled:False"], "Dragon's Dogma 2: the game's Wine detection off (its Wine path does not start)"
+
+
+@fix
 def ff7_rebirth_feature_level(game):
     if game.stem in ("ff7rebirth", "ff7rebirth_"):
         return {"VKD3D_FEATURE_LEVEL": "12_2"}, [], "Final Fantasy VII Rebirth: D3D12 feature level 12_2 (the device-reported level fails its DX12 check)"
+
+
+@fix
+def hades2_feature_level(game):
+    if game.stem == "hades2":
+        return {"VKD3D_FEATURE_LEVEL": "12_2"}, [], "Hades II: D3D12 feature level 12_2 (on Adreno 6xx/7xx it finds no D3D12 adapter at the detected level)"
 
 
 @fix
@@ -169,6 +184,11 @@ def arkham_city_x87(game):
     if "batmanac.exe" in game.files:
         return {"FEX_X87REDUCEDPRECISION": "0"}, [], "Batman: Arkham City: FEX with full x87 precision"
 
+
+@fix
+def split_second_x87_fip(game):
+    if game.app_id == "297860" or game.stem == "splitsecond":
+        return {"FEX_JITFEATURES": "enablex87fip"}, [], "Split/Second: FEX x87 FIP emulation on (its SecuROM stops with error 8016 without it)"
 
 
 @fix
@@ -228,6 +248,57 @@ def skip_red_launcher(command):
             print("droiddeck-game-env: REDlauncher skipped", file=sys.stderr)
             return command[:2] + [game] + command[3:]
     return command
+
+
+DQM4_MESH_DETAIL = {"r.SkeletalMeshLODBias": "-4", "r.SkeletalMeshLODRadiusScale": "0.25"}
+
+
+def with_system_settings(text, settings):
+    lines = text.splitlines()
+    try:
+        section = lines.index("[SystemSettings]")
+    except ValueError:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append("[SystemSettings]")
+        section = len(lines) - 1
+    end = next((i for i in range(section + 1, len(lines)) if lines[i].startswith("[")), len(lines))
+    block = [line for line in lines[section + 1:end] if line.split("=", 1)[0].strip() not in settings]
+    while block and not block[-1].strip():
+        block.pop()
+    block += ["%s=%s" % item for item in settings.items()]
+    tail = lines[end:]
+    return "\n".join(lines[:section + 1] + block + ([""] if tail else []) + tail) + "\n"
+
+
+# The game ignores -ini: overrides and deletes a writable Engine.ini after reading it, so this runs at every launch.
+def dragon_quest_monsters_4_mesh_detail(exe, env):
+    project = Path(exe).stem.split("-", 1)[0]
+    if not project.lower().startswith("dragonquestmonsters4"):
+        return
+    prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
+    config = prefix / "drive_c/users/steamuser/AppData/Local" / project / "Saved/Config/Windows/Engine.ini"
+    try:
+        if not prefix.is_dir():
+            return
+        text = config.read_text(encoding="utf-8") if config.exists() else ""
+        updated = with_system_settings(text, DQM4_MESH_DETAIL)
+        if updated == text:
+            return
+        config.parent.mkdir(parents=True, exist_ok=True)
+        handle, staged = tempfile.mkstemp(prefix=".engine-", dir=config.parent)
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8") as target:
+                target.write(updated)
+            if config.exists():
+                os.chmod(staged, config.stat().st_mode & 0o7777)
+            os.replace(staged, config)
+        except BaseException:
+            os.unlink(staged)
+            raise
+        print("droiddeck-game-env: Dragon Quest Monsters 4: full-detail monster meshes", file=sys.stderr)
+    except (OSError, UnicodeDecodeError) as error:
+        print("droiddeck-game-env: Dragon Quest Monsters 4 mesh detail left as is (%s)" % error, file=sys.stderr)
 
 
 UBISOFT_LAUNCHER = "drive_c/Program Files (x86)/Ubisoft/Ubisoft Game Launcher"
@@ -813,6 +884,8 @@ def read_vdf(text):
 
 
 def run_keys(items, appid=""):
+    # (hasrunkey, value name, MinimumHasRunValue) of each "run process" entry; Steam runs the process unless the
+    # value is a DWORD of at least that minimum (1 when the script does not say)
     appid = next((value for name, value in items if name.lower() == "appid" and isinstance(value, str)), appid)
     found = set()
     for name, value in items:
@@ -821,30 +894,44 @@ def run_keys(items, appid=""):
         if any(isinstance(v, str) and re.fullmatch(r"process [0-9]+", n.lower()) for n, v in value):
             key = next((v for n, v in value if n.lower() == "hasrunkey" and isinstance(v, str)),
                        "HKEY_LOCAL_MACHINE\\Software\\Valve\\Steam\\Apps\\" + appid)
-            found.add((key.lower(), name.lower()))
+            minimum = next((v for n, v in value if n.lower() == "minimumhasrunvalue" and isinstance(v, str)), "1")
+            try:
+                minimum = int(minimum.strip(), 0)
+            except ValueError:
+                minimum = int(minimum.strip()) if minimum.strip().isdigit() else 1
+            found.add((key.lower(), name.lower(), minimum))
         found |= run_keys(value, appid)
     return found
 
 
 def registry_values(path):
-    found, section = set(), None
+    # {(key, value name): DWORD, or None for a value of another type}
+    found, section = {}, None
     with open(path, encoding="utf-8", errors="replace") as reg:
         for line in reg:
             if line.startswith("["):
                 section = line[1:line.find("]")].replace("\\\\", "\\").lower() if "]" in line else None
             elif section and line.startswith('"') and '"=' in line:
-                found.add((section, line[1:line.index('"=')].replace("\\\\", "\\").lower()))
+                name = line[1:line.index('"=')].replace("\\\\", "\\").lower()
+                data = line[line.index('"=') + 2:].strip()
+                dword = None
+                if data.lower().startswith("dword:"):
+                    try:
+                        dword = int(data[6:], 16)
+                    except ValueError:
+                        pass
+                found[(section, name)] = dword
     return found
 
 
-def has_run(key, value, values):
+def has_run(key, value, values, minimum=1):
     path = key[len("hkey_local_machine\\"):] if key.startswith("hkey_local_machine\\") else None
     if path is None:
         return False
     views = [path]
     if path.startswith("software\\"):
         views.append("software\\wow6432node\\" + path[len("software\\"):])
-    return any((view, value) in values for view in views)
+    return any(isinstance(values.get((view, value)), int) and values[(view, value)] >= minimum for view in views)
 
 
 def scripts_digest(scripts):
@@ -855,18 +942,49 @@ def scripts_digest(scripts):
     return digest.hexdigest()
 
 
+def only_guarded_runs(items):
+    # True when every action in the scripts is a "run process" entry. With all their hasrunkeys set, Steam's
+    # evaluator would run nothing, so the scripts need no run even when Steam has rewritten the file (its
+    # SteamID, language, install path or order change between launches).
+    found = False
+    for _, entries in items:
+        if not isinstance(entries, list):
+            return False
+        for _, entry in entries:
+            if not isinstance(entry, list):
+                return False
+            for _, block in entry:
+                if not isinstance(block, list):
+                    continue
+                for section, actions in block:
+                    if section.lower() != "run process" or not isinstance(actions, list):
+                        return False
+                    for _, action in actions:
+                        if not isinstance(action, list) or not any(
+                                isinstance(v, str) and re.fullmatch(r"process [0-9]+", n.lower()) for n, v in action):
+                            return False
+                        found = True
+    return found
+
+
 def install_scripts_done(scripts, env):
     prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
     try:
-        if (prefix / INSTALL_STAMP).read_text().strip() != scripts_digest(scripts):
-            return False
-        keys = set()
+        keys, parsed = set(), []
         for path in scripts:
-            keys |= run_keys(read_vdf(Path(path).read_text(encoding="utf-8", errors="replace")))
+            parsed.append(read_vdf(Path(path).read_text(encoding="utf-8", errors="replace")))
+            keys |= run_keys(parsed[-1])
         values = registry_values(prefix / "system.reg")
     except (OSError, ValueError):
         return False
-    return bool(keys) and all(has_run(key, value, values) for key, value in keys)
+    if not keys or not all(has_run(key, value, values, minimum) for key, value, minimum in keys):
+        return False
+    try:
+        if (prefix / INSTALL_STAMP).read_text().strip() == scripts_digest(scripts):
+            return True
+    except OSError:
+        pass
+    return all(only_guarded_runs(items) for items in parsed)
 
 
 def record_install_scripts(digest, env):
@@ -931,6 +1049,9 @@ WINE_DLL_DIRS = ("/lib/wine/i386-windows", "/lib/wine/x86_64-windows", "/lib/win
 
 
 FOREIGN_SUFFIX = ".foreign-arch"
+WINE_SD = "user.wine.sd"
+SHARED_DATA = "pfx/drive_c/ProgramData"
+MACHINE_ID = "/etc/machine-id"
 PE = runpy.run_path(str(Path(__file__).resolve().parent / "droiddeck-wine-pe"))
 pe_machine = PE["pe_machine"]
 
@@ -1027,6 +1148,124 @@ def repair_foreign_system_dlls(prefix, proton, env=None):
             continue
         repaired.append("%s/%s (machine 0x%x)" % (folder, name, machine))
     return repaired
+
+
+def wine_user_sid():
+    try:
+        with open(MACHINE_ID, "rb") as handle:
+            text = handle.read(16)
+    except OSError:
+        return (21, 0, 0, 0, 1000)
+    if len(text) != 16:
+        return (21, 0, 0, 0, 1000)
+    sign, digits = re.match(rb"\s*([+-]?)(?:0[xX])?([0-9a-fA-F]*)", text).groups()
+    machine = int(digits, 16) if digits else 0
+    if sign == b"-":
+        machine = -machine % (1 << 64)
+    return (21, machine >> 32, machine & 0xffffffff, os.getuid(), 1000)
+
+
+def wine_sd_owner(path):
+    try:
+        data = os.getxattr(path, WINE_SD, follow_symlinks=False)
+    except OSError:
+        return None
+    if len(data) < 22:
+        return None
+    sid = data[22:22 + struct.unpack_from("<I", data, 6)[0]]
+    if len(sid) < 8 or len(sid) < 8 + 4 * sid[1]:
+        return None
+    return sid[0], int.from_bytes(sid[2:8], "big"), struct.unpack_from("<%dI" % sid[1], sid, 8)
+
+
+def is_stale_owner(owner, user):
+    if owner is None:
+        return False
+    revision, authority, subs = owner
+    return revision == 1 and authority == 5 and len(subs) == 5 and subs[0] == 21 and subs[4] == 1000 \
+        and subs != user
+
+
+def heal_wine_entry(path, is_dir, user):
+    try:
+        mode = stat.S_IMODE(os.lstat(path).st_mode)
+    except OSError:
+        return None, False
+    readable = mode
+    if not mode & stat.S_IRUSR:
+        readable = mode | stat.S_IRUSR
+        try:
+            os.chmod(path, readable)
+        except OSError:
+            return None, False
+    final = mode
+    stale = is_stale_owner(wine_sd_owner(path), user)
+    cleared = False
+    if stale and (not mode & stat.S_IRUSR or is_dir and not mode & stat.S_IXUSR):
+        final = mode | (stat.S_IRWXU if is_dir else stat.S_IRUSR | stat.S_IWUSR)
+    try:
+        if stale:
+            os.chmod(path, final | stat.S_IWUSR)
+            try:
+                os.removexattr(path, WINE_SD, follow_symlinks=False)
+                cleared = True
+            except OSError:
+                pass
+            if not final & stat.S_IWUSR:
+                os.chmod(path, final)
+        elif final != readable:
+            os.chmod(path, final)
+    except OSError:
+        return None, cleared
+    return (mode, final), cleared
+
+
+def heal_shared_data(prefix):
+    root = Path(prefix) / SHARED_DATA
+    if root.is_symlink() or not root.is_dir():
+        return [], []
+    try:
+        lock = os.open(root.parent.parent, os.O_RDONLY | os.O_DIRECTORY)
+    except OSError:
+        return [], []
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        return heal_shared_data_locked(root)
+    finally:
+        os.close(lock)
+
+
+def heal_shared_data_locked(root):
+    user = wine_user_sid()
+    unlocked = []
+    cleared = []
+    pending = [(str(root), True)]
+    while pending:
+        path, is_dir = pending.pop()
+        modes, was_cleared = heal_wine_entry(path, is_dir, user)
+        name = os.path.relpath(path, root)
+        if was_cleared:
+            cleared.append(name)
+        if modes is None:
+            continue
+        mode, final = modes
+        if final != mode:
+            unlocked.append(name)
+        if not is_dir or final & (stat.S_IRUSR | stat.S_IXUSR) != stat.S_IRUSR | stat.S_IXUSR:
+            continue
+        try:
+            with os.scandir(path) as entries:
+                for entry in entries:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            pending.append((entry.path, True))
+                        elif entry.is_file(follow_symlinks=False):
+                            pending.append((entry.path, False))
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return sorted(unlocked), sorted(cleared)
 
 
 def is_wine_dll_link(path):
@@ -1291,9 +1530,13 @@ def game_logs(command, env, app_id, now=None):
     except OSError as error:
         print("droiddeck-game-env: no game log folder (%s)" % error, file=sys.stderr)
         return env
+    proton_log = env.get("PROTON_LOG", "")
+    asked = proton_log not in ("", "0")
     result = dict(env)
+    if not asked:
+        result.setdefault("WINEDEBUG", "-all,err+all")
     result.update({
-        "PROTON_LOG": "1",
+        "PROTON_LOG": proton_log if asked else "1",
         "PROTON_LOG_DIR": str(folder),
         "DXVK_LOG_PATH": str(folder),
         "DXVK_LOG_LEVEL": env.get("DXVK_LOG_LEVEL", "info"),
@@ -1371,6 +1614,14 @@ def main():
         except OSError as error:
             restored = fixed = []
             print("droiddeck-game-env: prefix system DLL check skipped (%s)" % error, file=sys.stderr)
+        try:
+            unlocked, cleared = heal_shared_data(prefix_path)
+        except OSError as error:
+            unlocked = cleared = []
+            print("droiddeck-game-env: ProgramData owner check skipped (%s)" % error, file=sys.stderr)
+        if cleared:
+            print("droiddeck-game-env: cleared %d stale Windows owners in ProgramData; unlocked: %s"
+                  % (len(cleared), ", ".join(unlocked) or "none"), file=sys.stderr)
         if restored:
             print("droiddeck-game-env: restored system DLLs this Proton's own programs do not load: %s" % ", ".join(restored),
                   file=sys.stderr)
@@ -1400,6 +1651,7 @@ def main():
             command = skip_red_launcher(command)
             if len(command) > 2:
                 death_stranding_allocator(app_id, command[2])
+                dragon_quest_monsters_4_mesh_detail(command[2], effective_env)
             ubisoft_overlay_off(env)
             project_zomboid_jvm(command)
             fixes, extra, notes = engine_fixes(command[2], command[3:], app_id) if len(command) > 2 else ({}, [], [])

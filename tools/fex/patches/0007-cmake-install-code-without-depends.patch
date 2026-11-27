@@ -1,0 +1,20 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 8976588..3ae54f4 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -776,7 +776,6 @@ if (BUILD_THUNKS)
+     CODE "
+       execute_process(COMMAND ${CMAKE_COMMAND} --build . --target install
+         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/Guest)"
+-    DEPENDS guest-libs
+     COMPONENT Runtime)
+ 
+   install(
+@@ -784,7 +783,6 @@ if (BUILD_THUNKS)
+     CODE "
+       execute_process(COMMAND ${CMAKE_COMMAND} --build . --target install
+         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/Guest_32)"
+-    DEPENDS guest-libs-32
+     COMPONENT Runtime)
+ 
+   add_custom_target(uninstall_guest-libs

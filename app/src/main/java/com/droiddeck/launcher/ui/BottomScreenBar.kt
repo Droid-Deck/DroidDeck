@@ -24,12 +24,29 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.ViewSidebar
+import androidx.compose.material.icons.outlined.Wallpaper
+import androidx.compose.material.icons.outlined.CropFree
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.DesktopAccessDisabled
+import androidx.compose.material.icons.outlined.DesktopWindows
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.DeckPanel
+import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
 
@@ -59,6 +77,15 @@ internal class BarExtra(
     val active: Boolean = false,
     val tag: String? = null,
     val onClick: () -> Unit,
+)
+
+/** What the bottom screen shows: the DroidDeck menu or one of the panels, picked from the bar's dropdown. */
+class ScreenPicker(
+    val modes: List<SecondScreenMode>,
+    val current: SecondScreenMode,
+    val onPick: (SecondScreenMode) -> Unit,
+    val onMenu: (() -> Unit)? = null,
+    val menuShown: Boolean = false,
 )
 
 internal class BarTabs(val labels: List<String>, val selected: Int, val onSelect: (Int) -> Unit)
@@ -72,6 +99,7 @@ internal class BottomBarModel(
     val extras: List<BarExtra> = emptyList(),
     val menuActive: Boolean = false,
     val tabs: BarTabs? = null,
+    val picker: ScreenPicker? = null,
 )
 
 @Composable
@@ -89,9 +117,15 @@ internal fun BottomScreenBar(model: BottomBarModel, modifier: Modifier = Modifie
 private fun BarRow(model: BottomBarModel, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     BoxWithConstraints(modifier.fillMaxWidth().height(BAR_HEIGHT).blockTouches()) {
-        val buttons = listOfNotNull(model.onClose, model.onMenu, model.onQam).size + model.extras.size
+        val picker = model.picker
+        val onMenu = model.onMenu.takeIf { picker == null }
+        val buttons = listOfNotNull(model.onClose, onMenu, model.onQam).size + model.extras.size
         val steamWidth = if (model.onSteam != null) STEAM_WIDTH + BAR_GAP else 0.dp
-        val titleWidth = if (model.title != null) MIN_TITLE + BAR_GAP else 0.dp
+        val titleWidth = when {
+            picker != null -> PICKER_WIDTH + BAR_GAP
+            model.title != null -> MIN_TITLE + BAR_GAP
+            else -> 0.dp
+        }
         val needed = BAR_PAD * 2 + BUTTON * buttons + BAR_GAP * (buttons - 1).coerceAtLeast(0) + steamWidth + titleWidth
         val fits = maxWidth >= needed
         Row(
@@ -103,7 +137,9 @@ private fun BarRow(model: BottomBarModel, modifier: Modifier = Modifier) {
             model.onClose?.let {
                 BarButton(stringResource(R.string.common_close), Modifier.testTag("bottom-bar-close"), vector = Icons.Outlined.Close, onClick = it)
             }
-            if (model.title != null) Text(
+            if (picker != null) Box(if (fits) Modifier.weight(1f) else Modifier) {
+                ScreenPickerChip(picker, Modifier.testTag("bottom-bar-screen"))
+            } else if (model.title != null) Text(
                 model.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = (if (fits) Modifier.weight(1f) else Modifier).padding(start = 4.dp),
@@ -112,7 +148,7 @@ private fun BarRow(model: BottomBarModel, modifier: Modifier = Modifier) {
                 BarButton(extra.description, extra.tag?.let { Modifier.testTag(it) } ?: Modifier, icon = extra.icon, vector = extra.vector,
                     active = extra.active, onClick = extra.onClick)
             }
-            BarActions(model.onMenu, model.menuActive, model.onSteam, model.onQam)
+            BarActions(onMenu, model.menuActive, model.onSteam, model.onQam)
         }
     }
 }
@@ -197,12 +233,93 @@ internal fun BarButton(
     }
 }
 
+internal val SecondScreenMode.icon: ImageVector get() = when (this) {
+    SecondScreenMode.NONE -> Icons.Outlined.DesktopAccessDisabled
+    SecondScreenMode.MENU -> Icons.Outlined.MoreHoriz
+    SecondScreenMode.KEYBOARD_TRACKPAD -> Icons.Outlined.Keyboard
+    SecondScreenMode.TERMINAL -> Icons.Outlined.Terminal
+    SecondScreenMode.DECK_CONTROLS -> Icons.Outlined.SportsEsports
+    SecondScreenMode.CUSTOM_CONTROLS -> Icons.Outlined.Tune
+    SecondScreenMode.DASHBOARD -> Icons.Outlined.Dashboard
+    SecondScreenMode.GUIDES -> Icons.Outlined.MenuBook
+    SecondScreenMode.MIRROR -> Icons.Outlined.CropFree
+    SecondScreenMode.STEAM_QAM -> Icons.Outlined.ViewSidebar
+    SecondScreenMode.ART -> Icons.Outlined.Wallpaper
+    SecondScreenMode.DESKTOP -> Icons.Outlined.DesktopWindows
+}
+
+@Composable
+internal fun ScreenPickerChip(picker: ScreenPicker, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    var open by remember { mutableStateOf(false) }
+    val source = remember { MutableInteractionSource() }
+    val hot = source.collectIsFocusedAsState().value || source.collectIsHoveredAsState().value
+    val shape = RoundedCornerShape(22.dp)
+    val label = if (picker.menuShown) stringResource(R.string.touch_droiddeck_menu) else stringResource(picker.current.label)
+    val description = stringResource(R.string.screen_picker_description, label)
+    val toggle = { open = !open }
+    Box(modifier) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.height(44.dp).widthIn(max = PICKER_MAX_WIDTH)
+                .semantics { contentDescription = description }
+                .clip(shape).background(if (hot || open) pal.signal.copy(alpha = 0.14f) else colors.surfaceVariant)
+                .glideBorder(hot || open, shape, pal.signal, pal.line2)
+                .hoverable(source)
+                .clickable(role = Role.Button, interactionSource = source, indication = LocalIndication.current, onClick = toggle)
+                .controllerConfirm(onClick = toggle)
+                .padding(start = 14.dp, end = 10.dp),
+        ) {
+            if (picker.menuShown) Icon(painterResource(R.drawable.ic_stat_session), contentDescription = null, tint = colors.onBackground,
+                modifier = Modifier.size(18.dp))
+            else Icon(picker.current.icon, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(18.dp))
+            Text(label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1,
+                overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, contentDescription = null,
+                tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        }
+        ScreenPickerMenu(picker, open) { open = false }
+    }
+}
+
+/** On a panel, focus starts on the menu entry; from the menu (or with no menu entry), on the panel in use. */
+internal fun ScreenPicker.focusTarget(): SecondScreenMode? =
+    if (onMenu != null && !menuShown) null else current.takeIf { it in modes } ?: modes.firstOrNull()
+
+@Composable
+private fun ScreenPickerMenu(picker: ScreenPicker, open: Boolean, dismiss: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val target = picker.focusTarget()
+    AnchoredMenu(open, dismiss, compact = true, minWidth = 240.dp) { first ->
+        picker.onMenu?.let { menu ->
+            MenuItem(
+                stringResource(R.string.touch_droiddeck_menu), checked = picker.menuShown,
+                leading = { Icon(painterResource(R.drawable.ic_stat_session), contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(18.dp)) },
+                focusRequester = first.takeIf { target == null }, modifier = Modifier.testTag("screen-picker-menu"),
+            ) { dismiss(); menu() }
+        }
+        picker.modes.forEach { mode ->
+            val current = mode == picker.current
+            MenuItem(
+                stringResource(mode.label), checked = current && !picker.menuShown,
+                leading = { Icon(mode.icon, contentDescription = null, tint = colors.onBackground, modifier = Modifier.size(18.dp)) },
+                focusRequester = first.takeIf { mode == target }, modifier = Modifier.testTag("screen-picker:${mode.id}"),
+            ) { dismiss(); picker.onPick(mode) }
+        }
+    }
+}
+
 internal val BAR_HEIGHT = 64.dp
 private val BAR_PAD = 12.dp
 private val BAR_GAP = 8.dp
 private val BUTTON = 44.dp
 private val STEAM_WIDTH = 80.dp
 private val MIN_TITLE = 72.dp
+private val PICKER_WIDTH = 180.dp
+private val PICKER_MAX_WIDTH = 240.dp
 
 internal fun sessionBarModel(
     title: String?,
@@ -212,9 +329,10 @@ internal fun sessionBarModel(
     onQam: () -> Unit,
     extras: List<BarExtra> = emptyList(),
     tabs: BarTabs? = null,
+    picker: ScreenPicker? = null,
 ): BottomBarModel {
     val steam = SessionState.mode == SessionService.MODE_STEAM
-    return BottomBarModel(title, onClose, onMenu, onSteam.takeIf { steam }, onQam.takeIf { steam }, extras, tabs = tabs)
+    return BottomBarModel(title, onClose, onMenu, onSteam.takeIf { steam }, onQam.takeIf { steam }, extras, tabs = tabs, picker = picker)
 }
 
 internal fun deckPanelTabs(context: Context, selected: DeckPanel, onSelect: (DeckPanel) -> Unit) =

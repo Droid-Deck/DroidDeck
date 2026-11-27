@@ -63,6 +63,70 @@ class SessionSteamLogsTest {
         assertFalse(File(out, "web.txt").readText().contains("abcdef123456"))
     }
 
+    private fun rpcs3Root(): Pair<File, File> {
+        val root = tmp.newFolder("rootfs")
+        return root to File(root, "root/.cache/rpcs3").apply { mkdirs() }
+    }
+
+    @Test fun rpcs3LogRewrittenThisSessionIsCollectedAloneAndRedacted() {
+        val (root, logs) = rpcs3Root()
+        val session = tmp.newFolder("session")
+        val out = File(session, "rpcs3")
+        File(logs, "RPCS3.log").writeText("earlier run\n")
+        File(logs, "RPCS3.log.gz").writeBytes(byteArrayOf(0x1f, 0x8b.toByte(), 8, 0))
+        File(logs, "RPCS3.buf").writeText("lock\n")
+        SessionArtifacts.markRpcs3Log(session, root)
+
+        File(logs, "RPCS3.log").writeText("PPU: compiling\nGET /x?sessionid=abcdef123456 200\n")
+        File(logs, "RPCS3.log.gz").appendBytes(byteArrayOf(1, 2, 3))
+        File(logs, "RPCS3.buf").appendText("more\n")
+
+        val copied = SessionArtifacts.copyRpcs3Log(logs, session, out)
+        assertEquals(listOf("RPCS3.log"), names(copied))
+        val text = File(out, "RPCS3.log").readText()
+        assertTrue(text.startsWith("PPU: compiling\n"))
+        assertFalse(text.contains("abcdef123456"))
+        assertEquals(listOf("RPCS3.log"), out.list()!!.sorted())
+    }
+
+    @Test fun rpcs3LogFirstWrittenThisSessionIsCollected() {
+        val (root, logs) = rpcs3Root()
+        val session = tmp.newFolder("session")
+        val out = File(session, "rpcs3")
+        SessionArtifacts.markRpcs3Log(session, root)
+
+        File(logs, "RPCS3.log").writeText("first boot\n")
+
+        assertEquals(listOf("RPCS3.log"), names(SessionArtifacts.copyRpcs3Log(logs, session, out)))
+        assertEquals("first boot\n", File(out, "RPCS3.log").readText())
+    }
+
+    @Test fun anRpcs3LogFromAnEarlierSessionIsNotCollected() {
+        val (root, logs) = rpcs3Root()
+        val session = tmp.newFolder("session")
+        val out = File(session, "rpcs3")
+        File(logs, "RPCS3.log").writeText("earlier run\n")
+        SessionArtifacts.markRpcs3Log(session, root)
+
+        assertTrue(SessionArtifacts.copyRpcs3Log(logs, session, out).isEmpty())
+        assertFalse(out.exists())
+    }
+
+    @Test fun anUnmarkedSessionCollectsNoRpcs3LogEvenWithSteamMarks() {
+        val (_, logs) = rpcs3Root()
+        val steam = tmp.newFolder("steam-logs")
+        val session = tmp.newFolder("session")
+        val out = File(session, "rpcs3")
+        File(steam, "console_log.txt").writeText("steam\n")
+        SessionArtifacts.markSteamLogs(session, steam)
+        File(logs, "RPCS3.log").writeText("another session's run\n")
+
+        assertTrue(SessionArtifacts.copyRpcs3Log(logs, session, out).isEmpty())
+        assertFalse(out.exists())
+        File(steam, "console_log.txt").appendText("new\n")
+        assertEquals(listOf("console_log.txt"), names(SessionArtifacts.copySessionLogs(steam, session, tmp.newFolder("out"))))
+    }
+
     @Test fun aCopyFailurePreservesThePreviousSnapshotAndRemovesPartialStaging() {
         val logs = tmp.newFolder("logs")
         val session = tmp.newFolder("session")

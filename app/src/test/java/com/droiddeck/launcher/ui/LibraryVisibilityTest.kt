@@ -11,6 +11,7 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -195,13 +196,32 @@ class LibraryVisibilityTest {
         compose.onNodeWithText("Uninstalled GOG").assertExists()
     }
 
-    private fun show() {
+    @Test fun battleNetHasAnOpenClientActionEvenWithoutInstalledGames() {
+        var opened = 0
+        show(actions(onBattleNet = { opened++ }))
+        compose.onNodeWithTag("library-battlenet-open").assertDoesNotExist()
+        compose.onNodeWithTag("library-source-battlenet").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithTag("library-battlenet-open").assertIsDisplayed().performClick()
+        assertEquals(1, opened)
+        compose.onNodeWithTag("library-source-steam").performClick()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithTag("library-battlenet-open").assertDoesNotExist()
+    }
+
+    @Test fun battleNetOpenIsDisabledWhileBusy() {
+        LibraryView.source = Store.BATTLENET.id
+        show(frontState = state(busy = true))
+        compose.onNodeWithTag("library-battlenet-open").assertIsNotEnabled()
+    }
+
+    private fun show(frontActions: FrontEndActions = actions(), frontState: FrontEndState = state()) {
         compose.mainClock.autoAdvance = false
         compose.setContent { key(generation) {
             DroidDeckTheme {
                 CompositionLocalProvider(LocalFrontFocus provides FrontFocus()) {
                     FocusGlideHost { Box(Modifier.fillMaxSize()) {
-                        LibraryPage(state(), actions(), "games", {}, Modifier.fillMaxSize())
+                        LibraryPage(frontState, frontActions, "games", {}, Modifier.fillMaxSize())
                         StepsLayer(Offset.Zero)
                     } }
                 }
@@ -216,21 +236,22 @@ class LibraryVisibilityTest {
         assertEquals(show, SessionPrefs.libraryShowUninstalled(ctx))
     }
 
-    private fun state(games: List<Library.SteamGame> = listOf(Library.SteamGame(440, "Installed Steam game", null, "internal"))) = FrontEndState(
-        installed = "r9", ready = true, available = null, busy = false, stage = "", percent = -1,
+    private fun state(games: List<Library.SteamGame> = listOf(Library.SteamGame(440, "Installed Steam game", null, "internal")), busy: Boolean = false) = FrontEndState(
+        installed = "r9", ready = true, available = null, busy = busy, stage = "", percent = -1,
         desktopInstalled = true, offlineAccount = null, offline = false, frameGenLabel = "",
         romsDir = null, logsEnabled = false,
         steamGames = games,
         emulators = emptyList(), running = null,
     )
 
-    private fun actions() = FrontEndActions(
+    private fun actions(onBattleNet: () -> Unit = {}) = FrontEndActions(
+        onBattleNet = onBattleNet,
         onPlay = {}, onPlayDesktopUi = {}, onSteamGame = {}, onDesktop = {}, onEmulator = {},
         onRom = {}, onResume = {}, onSteamSettings = {}, onDesktopSettings = {},
         onInstallPackage = {}, onRemovePackage = {}, onRuntime = {}, onFrameGenPick = {},
         onImportLossless = {}, onProtons = {}, onComponents = {}, onPerformance = {},
         onRoms = {}, onFiles = {}, onLogs = {}, onOffline = {},
-        onWirelessAdbPair = { _, _, _, _ -> }, onWirelessAdbApply = { _, _, _, _ -> },
+        
         onSetPhantomProcessLimit = { _, _ -> },
     )
 }

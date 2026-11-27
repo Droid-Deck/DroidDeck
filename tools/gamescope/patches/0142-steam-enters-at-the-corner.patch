@@ -1,0 +1,31 @@
+diff --git a/src/steamcompmgr.cpp b/src/steamcompmgr.cpp
+--- a/src/steamcompmgr.cpp
++++ b/src/steamcompmgr.cpp
+@@ -5790,7 +5790,16 @@
+ 
+ 				if ( win_surface(pFocus->inputFocusWindow) != nullptr && pFocus->cursor )
+ 				{
+-					wlserver_mousefocus( pFocus->inputFocusWindow->main_surface(), pFocus->cursor->x(), pFocus->cursor->y() );
++					int nEnterX = pFocus->cursor->x();
++					int nEnterY = pFocus->cursor->y();
++					// A window reset to the corner below must not first be entered under the cursor:
++					// a page that loads during the reset keeps that position as its hover.
++					if ( pFocus->inputFocusWindow->GetFocus()->bResetToCorner )
++					{
++						nEnterX = pFocus->inputFocusWindow->GetGeometry().nWidth - 1;
++						nEnterY = pFocus->inputFocusWindow->GetGeometry().nHeight - 1;
++					}
++					wlserver_mousefocus( pFocus->inputFocusWindow->main_surface(), nEnterX, nEnterY );
+ 					focus_log.debugf( "Setting mouse focus to: %s (%x)", pFocus->inputFocusWindow->debug_name(), pFocus->inputFocusWindow->id() );
+ 				}
+ 
+@@ -5813,7 +5822,8 @@
+ 			if ( pFocus->inputFocusWindow->GetFocus()->bResetToCorner )
+ 			{
+ 				wlserver_lock();
+-				wlserver_mousewarp( pFocus->inputFocusWindow->GetGeometry().nWidth / 2, pFocus->inputFocusWindow->GetGeometry().nHeight / 2, 0, true );
++				wlserver.mouse_surface_cursorx = pFocus->inputFocusWindow->GetGeometry().nWidth / 2;
++				wlserver.mouse_surface_cursory = pFocus->inputFocusWindow->GetGeometry().nHeight / 2;
+ 				wlserver_fake_mouse_pos( pFocus->inputFocusWindow->GetGeometry().nWidth - 1, pFocus->inputFocusWindow->GetGeometry().nHeight - 1 );
+ 				wlserver_unlock();
+ 			}

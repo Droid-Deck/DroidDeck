@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.session
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -87,5 +89,32 @@ class SteamGameProcessTest {
         assertFalse(SteamGameProcess.running("351710", proc))
         process("301", "reaper", "SteamLaunch", "AppId=351710", "--", "proton", "waitforexitandrun", "game.exe")
         assertTrue(SteamGameProcess.running("351710", proc))
+    }
+
+    @Test fun aKnownGameProcessIsCheckedBeforeEveryOtherProcess() {
+        val proc = tmp.newFolder("proc")
+        fun process(pid: String, vararg args: String) = File(proc, pid).apply { mkdirs() }.resolve("cmdline").writeBytes(cmdline(*args))
+        process("100", "reaper", "SteamLaunch", "AppId=1")
+        process("200", "reaper", "SteamLaunch", "AppId=1")
+        assertEquals("200", SteamGameProcess.runningPid("1", "200", proc))
+        File(proc, "200/cmdline").writeBytes(cmdline("bash"))
+        assertEquals("100", SteamGameProcess.runningPid("1", "200", proc))
+        assertEquals("100", SteamGameProcess.runningPid("1", "999", proc))
+        File(proc, "100").deleteRecursively()
+        assertNull(SteamGameProcess.runningPid("1", "100", proc))
+        assertNull(SteamGameProcess.runningPid("2", null, proc))
+    }
+
+    @Test fun onlyTheRunningCurrentGameCountsAsAlreadyRunning() {
+        val proc = tmp.newFolder("proc-relaunch")
+        File(proc, "200").apply { mkdirs() }.resolve("cmdline")
+            .writeBytes(cmdline("reaper", "SteamLaunch", "AppId=584400", "--", "proton", "waitforexitandrun", "SonicMania.exe"))
+        assertTrue(SteamGameProcess.alreadyRunning("584400", "584400", proc))
+        assertFalse(SteamGameProcess.alreadyRunning("584400", "311340", proc))
+        assertFalse(SteamGameProcess.alreadyRunning("311340", "311340", proc))
+        assertFalse(SteamGameProcess.alreadyRunning("584400", null, proc))
+        val shortcutId = ((584400uL shl 32) or 0x02000000uL).toString()
+        assertTrue(SteamGameProcess.alreadyRunning(shortcutId, "584400", proc))
+        assertTrue(SteamGameProcess.alreadyRunning("584400", shortcutId, proc))
     }
 }

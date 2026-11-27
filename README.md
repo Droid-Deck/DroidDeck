@@ -7,10 +7,10 @@
 
 DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linux desktop, integration with GOG, Epic Games, Xbox, and other storefronts, Steam VR, and more!
 
-<p align="center"><b>100% open source. No ads. No telemetry. No proprietary components. No source withheld.</b></p>
+<p align="center"><b>100% open source. No ads. No Subscriptions. No telemetry. No proprietary components. No source withheld.</b></p>
 
 <p align="center">
-  <a href="https://github.com/Droid-Deck/DroidDeck/releases/download/0.7.1/DroidDeck-0.7.1.apk"><img src="https://img.shields.io/badge/Download-DroidDeck%200.7.1%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Download DroidDeck 0.7.1"></a>
+  <a href="https://github.com/Droid-Deck/DroidDeck/releases/download/0.7.11/DroidDeck-0.7.11.apk"><img src="https://img.shields.io/badge/Download-DroidDeck%200.7.11%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Download DroidDeck 0.7.11"></a>
   <a href="https://discord.gg/JRGAvawjsm"><img src="https://img.shields.io/badge/Discord-Join%20us-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join the DroidDeck Discord"></a>
 </p>
 
@@ -23,7 +23,7 @@ DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linu
   <a href="https://trendshift.io/repositories/267852"><img src="https://trendshift.io/api/badge/trendshift/repositories/267852/daily?language=Kotlin" alt="Droid-Deck%2FDroidDeck | Trendshift" width="250" height="55"></a>
 </p>
 
-<p align="center"><img src="docs/media/steam-to-desktop.gif" width="100%" alt="On a Retroid Pocket Duo: Play Steam from the DroidDeck launcher, open Pac-Man in Steam Big Picture and play it, exit the game, then Switch to Desktop from the Power menu"></p>
+<p align="center"><a href="https://www.youtube.com/watch?v=ruaTSm_7a2c"><img src="docs/media/droiddeck-showcase.gif" width="60%" alt="A table of handhelds and phones all running DroidDeck, one waking to the Steam menu, the AYN Thor's bottom screen used as a touchpad, and scrolling around Steam on a phone before swiping to the home screen. Footage from Cyber Dopamine's video, linked."></a></p>
 
 > The official website is [droid-deck.dev](https://droid-deck.dev). Only download DroidDeck from this repository's [Releases](https://github.com/Droid-Deck/DroidDeck/releases).
 
@@ -38,7 +38,7 @@ DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linu
 
 1. Android 9 or newer on Adreno 730 or newer, or any 8xx. Adreno 6xx, Mali, Xclipse and PowerVR are experimental. Adreno 710 is currently unsupported. No root needed.
 2. About 3 GB free for the runtime, plus 1.1 GB for the desktop and emulators.
-3. Install the [APK](https://github.com/Droid-Deck/DroidDeck/releases/download/0.7.1/DroidDeck-0.7.1.apk), install the Linux runtime, press **Play** and sign in to Steam.
+3. Install the [APK](https://github.com/Droid-Deck/DroidDeck/releases/download/0.7.11/DroidDeck-0.7.11.apk), install the Linux runtime, press **Play** and sign in to Steam.
 4. On Android 14 and newer, turn on **Disable child process restrictions** in Developer options. On Android 12 and 13, Steam's first launch shows a **Fix it for me** button that walks you through it.
 
 Smart glasses setup is in the [support matrix](docs/smart-glasses-support.md). Release notes are in [docs/releases](docs/releases).
@@ -57,9 +57,6 @@ The APK lands in `app/build/outputs/apk/release/`. Install it with `tools/deploy
 
 On Windows, see `tools/run_windows.ps1` and `tools/prepare_windows_runtime.py`.
 
-## Limits
-
-Compatibility and performance vary by device. Desktop compositing is software rendered, and Firefox sandboxing is reduced under proot.
 
 ## Credits and licence
 
@@ -70,8 +67,10 @@ DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. V
 
 - Runtime, shim, input and controller work build on WinNative and Bannerlator by maxjivi05.
 - mmap ring buffer controller input by ribbit384 ([WinNative #345](https://github.com/WinNative-Emu/WinNative/pull/345)).
-- [FEX](https://github.com/FEX-Emu/FEX) (MIT) runs x86 code. DroidDeck's build puts the platform name under `AT_PLATFORM` so [sharun](https://github.com/VHSgunzo/sharun) AppImages by VHSgunzo (MIT) start through its [userland-execve](https://crates.io/crates/userland-execve) loader (MIT), and its GL thunk hands X errors to the program's own error handler. FEX's code disk cache was checked in its source.
+- [FEX](https://github.com/FEX-Emu/FEX) (MIT) runs x86 code. DroidDeck's build puts the platform name under `AT_PLATFORM` so [sharun](https://github.com/VHSgunzo/sharun) AppImages by VHSgunzo (MIT) start through its [userland-execve](https://crates.io/crates/userland-execve) loader (MIT), and its GL thunk hands X errors to the program's own error handler. FEX's code disk cache was checked in its source. The fix for host stack left behind when a program leaves a signal handler without returning follows the approach suggested in [FEX-Emu/FEX#2487](https://github.com/FEX-Emu/FEX/issues/2487). The host stack fix for system calls that end a block is a backport of Ryan Houdek's [FEX-Emu/FEX#6122](https://github.com/FEX-Emu/FEX/pull/6122).
+- x86-64 programs on Wayland reach the GPU through FEX's Wayland client, wayland-egl and EGL thunks. The guest `wl_list` and `wl_array` helpers follow [libwayland](https://gitlab.freedesktop.org/wayland/wayland)'s `src/wayland-util.c` (MIT). The EGL extension table comes from the [Khronos EGL registry](https://github.com/KhronosGroup/EGL-Registry) (Apache-2.0) and Mesa's `egl_other.xml` (MIT).
 - x86 AppImages, and arm64 ones whose runtime can't unpack on Android, are unpacked with [uruntime](https://github.com/VHSgunzo/uruntime) by VHSgunzo (MIT), shipped unmodified with its licence.
+- DwarFS AppImages are unpacked without proot by `dwarfsextract` from [DwarFS](https://github.com/mhx/dwarfs) by Marcus Holland-Moritz (MIT), the release binary uruntime embeds, taken out of its self-extracting wrapper and shipped with its licence.
 - x86 programs linking OpenSSL 3 use the copy in the [Steam Linux Runtime 4.0](https://gitlab.steamos.cloud/steamrt/steamrt). x86 Linux games get the `/etc/asound.conf` that [pressure-vessel](https://gitlab.steamos.cloud/steamrt/steam-runtime-tools) writes.
 - `WriteProcessMemory` hooks fall back to `/proc/<pid>/mem` the way [Wine](https://gitlab.winehq.org/wine/wine)'s `server/ptrace.c` did before Wine 11.
 - Windows programs on noexec storage get executable copies of their image pages, following [@yujikaido](https://github.com/yujikaido)'s finding in [droiddeck-rp4pro](https://github.com/yujikaido/droiddeck-rp4pro) that Wine's own processes need the noexec shim.
@@ -91,7 +90,7 @@ DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. V
 <details>
 <summary><b>Stores</b></summary>
 
-- Epic Games and GOG build on [Phobos](https://github.com/phobos665)'s adaptation of [Legendary](https://github.com/legendary-gl/legendary) and [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl). GOG install script registry entries are read the way [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher) (GPL-3.0) reads them. GOG cloud storage requests send the Galaxy communication-service User-Agent that gogdl and [Lutris](https://github.com/lutris/lutris) (GPL-3.0) send.
+- Epic Games and GOG build on [Phobos](https://github.com/phobos665)'s adaptation of [Legendary](https://github.com/legendary-gl/legendary) and [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl). GOG install script registry entries are read the way [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher) (GPL-3.0) reads them. GOG cloud storage requests send the Galaxy communication-service User-Agent that gogdl and [Lutris](https://github.com/lutris/lutris) (GPL-3.0) send. Deleted GOG cloud saves are recognised by the empty-gzip deletion hash gogdl and Lutris skip.
 - Epic's official Linux launcher preview runs through FEX. That setup is outside Epic's listed Linux support.
 - The launcher's .deb gets the WebKitGTK and GTK 3 libraries it needs from unmodified [Debian](https://www.debian.org) 13 packages, following [@zooluis](https://github.com/zooluis)'s research in [#2268](https://github.com/Droid-Deck/DroidDeck/pull/2268).
 - Battle.net is by [@kayakyakr](https://github.com/kayakyakr). It runs Blizzard's own client in Proton (downloaded from Blizzard, not included) and shows key art from the [Battle.net Shop](https://shop.battle.net). Without Steam, its games see the pad as an Xbox 360 controller via `PROTON_SPOOF_STEAMINPUT_VIDPID` in [Proton](https://github.com/ValveSoftware/wine)'s `dlls/winebus.sys`.
@@ -99,7 +98,7 @@ DroidDeck is [GPL-3.0](LICENSE). Steam and Proton belong to Valve Corporation. V
 - Battle.net installs drive Blizzard's Agent the way [@barncastle](https://github.com/barncastle)'s [Battle.Net-Installer](https://github.com/barncastle/Battle.Net-Installer) does, with requests from [wowdev.wiki](https://wowdev.wiki/Agent). Read without taking code: [@mubaraknumann](https://github.com/mubaraknumann)'s [unifideck](https://github.com/mubaraknumann/unifideck), [@djmittens](https://github.com/djmittens)'s [neo-mittens](https://github.com/djmittens/neo-mittens) `bnetswitch`, [@BCD1210](https://github.com/BCD1210)'s [soju](https://github.com/BCD1210/soju) and [Lutris](https://github.com/lutris/lutris)'s `product.db` reader.
 - The Rockstar launcher service looks for launcher pipe names in the executables beside the game, since [CitizenFX](https://github.com/citizenfx/fivem)'s `ros-patches-five` shows GTA V opening `GTAVLauncher_Pipe` and [@pingod](https://github.com/pingod)'s [rdr2-linux-launcher](https://github.com/pingod/rdr2-linux-launcher) notes that Rockstar's protected executables resolve such strings only at run time. Read without taking code.
 - World of Warcraft addon imports replace an addon's folder from a temporary copy, as [WowUp](https://github.com/WowUp/WowUp) does, and read flavour folders the way [WoWDeck](https://github.com/sigboe/wowdeck) does. No code from either is used.
-- The World of Warcraft addon Download window searches [WoWInterface](https://www.wowinterface.com) through its MMOUI API. [CurseForge](https://www.curseforge.com/wow) opens in the user's browser, with no API and no key.
+- The World of Warcraft addon Download window searches [WoWInterface](https://www.wowinterface.com) through its MMOUI API. Installed addons show their `.toc` version and `X-WoWI-ID`, and are checked against that list for updates, as [WowUp](https://github.com/WowUp/WowUp) does. The Addons tab installs the official [CurseForge](https://www.curseforge.com/download/app) Linux app from CurseForge's own update feed (downloaded at install time and checked against its SHA-512, not included), which keeps its own sign-in.
 - The Xbox store runs [@domsvoboda](https://github.com/domsvoboda)'s [nexus-backend](https://github.com/domsvoboda/nexus-backend) 0.2.15 (GPL-3.0, a fork of [Xodus](https://github.com/xodus-gaming/xodus)), and Xbox games load the Windows modules of his [nexus-runtime](https://github.com/domsvoboda/nexus-runtime) (LGPL-2.1-or-later), including the C++ [nexus-xgameruntime](https://github.com/domsvoboda/nexus-xgameruntime) and `wintypes.dll`. Content licensing sends delegation-compact device tickets in the licensing wire form, as nexus-backend's Store license path (commit `27c335e`) does. Minecraft's GameInput setup was checked against [@Wyze3306](https://github.com/Wyze3306)'s [BedrockOnLinux](https://github.com/Wyze3306/BedrockOnLinux) (MIT).
 - The Xbox Cloud Gaming player uses the WebRTC client of [@unknownskl](https://github.com/unknownskl)'s [Greenlight](https://github.com/unknownskl/greenlight) (MIT), and its offer tweaks and sharpening follow [@redphx](https://github.com/redphx)'s [Better xCloud](https://github.com/redphx/better-xcloud) (MIT). See `tools/xcloud-player/NOTICE.md`.
 - The itch.io butler pack ships butler's `7z.so`, itch.io's build of [7-Zip](https://www.7-zip.org) by Igor Pavlov (LGPL-2.1, unRAR restriction on RAR code), unmodified. Other archives use Apache Commons Compress and the runtime's bsdtar (libarchive).

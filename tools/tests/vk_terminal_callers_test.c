@@ -75,7 +75,7 @@ int vkp_effects_upscaling(void) { return 0; }
 int vkp_effects_sharpening(void) { return 0; }
 int vkp_effects_postprocessing(void) { return 0; }
 VkFilter vkp_effects_blit_filter(void) { return VK_FILTER_NEAREST; }
-void vkp_effects_set_formats(VkFormat a, VkFormat b) {}
+void vkp_effects_set_formats(VkFormat a, VkFormat b, int scene_is_pq) {}
 VkImage vkp_effects_run(VkCommandBuffer c, VkImage i, int w, int h, int ow, int oh, int *rw, int *rh) {
     *rw = w; *rh = h; return i;
 }
@@ -110,7 +110,7 @@ struct damage_list { int n; };
 struct surface {
     struct vkp_image *shm_img;
     struct wl_resource *resource;
-    int buf_w, buf_h, buf_alpha, has_content;
+    int buf_w, buf_h, buf_alpha, has_content, black_fill;
     /* Read by take_shm's game-frame detection; with no damage it stays off here. */
     int src_set; float src[4];
     struct damage_list damage_buf, damage_local;
@@ -123,7 +123,8 @@ static int64_t now_ns(void) { return 0; }
 static struct surface *g_hud_surface, *g_hud_shm;
 static int64_t g_hud_shm_ns, g_hud_last_ns;
 static int g_hud_new;
-static void droiddeck_on_game_frame(void) {}
+static void __attribute__((unused)) droiddeck_on_game_frame(void) {}
+static void __attribute__((unused)) droiddeck_on_compositor_frame(void) {}
 struct client_info { int asked_feedback, shm_frames; };
 struct wl_shm_buffer { int w, h, stride; const void *data; };
 #define WL_SHM_FORMAT_ARGB8888 0

@@ -328,7 +328,7 @@ object BottomDesktop {
                 LinuxRuntime.commandWithBinds(context, current.root, binds, guest)
             }
             val environment = if (current.nativeUserland) {
-                com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(current.root, binds, SessionPrefs.guestHostname(context))
+                com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(current.root, binds, guest.first(), SessionPrefs.guestHostname(context))
                     .map { (k, v) -> "$k=$v" }.toTypedArray()
             } else current.hostEnvironment
             val line = command.joinToString(" ") { it.replace("\\", "\\\\").replace(" ", "\\ ") }

@@ -1,0 +1,35 @@
+name: Build bionic runtime pack and DroidDeck-Bionic tool
+
+on:
+  push:
+    paths:
+      - 'tools/bionic-runtime/**'
+      - 'tools/gamescope/patches/0117-wsi-cache-present-bypass-check.patch'
+      - 'tools/gamescope/patches/0119-wsi-default-images-under-limiter.patch'
+      - 'app/src/main/cpp/fakeinput_steam.cpp'
+      - 'tools/gpuload/**'
+      - '.github/workflows/build-bionic-runtime.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends libwayland-bin libwayland-dev libx11-dev libx11-xcb-dev \
+            libxcb1-dev libxcb-composite0-dev libglm-dev zstd
+      - name: Build
+        run: |
+          set -euo pipefail
+          export NDK="${ANDROID_NDK_LATEST_HOME:-${ANDROID_NDK_HOME:-$ANDROID_NDK_ROOT}}"
+          export BUILD_NUMBER=${{ github.run_number }}
+          tools/bionic-runtime/build.sh "$RUNNER_TEMP/bionic-runtime" "$PWD/out"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droiddeck-bionic-runtime-${{ github.sha }}
+          path: out/*

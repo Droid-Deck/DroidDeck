@@ -163,12 +163,14 @@ internal fun Modifier.bumpers(onPrevious: () -> Unit, onNext: () -> Unit): Modif
     }
 }
 
+internal val LocalRevealChecked = androidx.compose.runtime.compositionLocalOf { true }
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun TabStrip(
     tabs: List<String>, selected: Int, onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier, focusRequesters: List<FocusRequester>? = null,
-    bumpers: Boolean = true, compact: Boolean = false,
+    bumpers: Boolean = true, compact: Boolean = false, centered: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
@@ -179,8 +181,9 @@ internal fun TabStrip(
     val tabPadding = if (compact) 10.dp else if (tight) 10.dp else 16.dp
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = modifier) {
         if (bumpers) BumperKey("LB", stringResource(R.string.widgets_prev_tab)) { onSelect((selected + tabs.size - 1) % tabs.size) }
-        Row(
-            modifier = Modifier.weight(1f, fill = false).clip(shape).background(colors.surfaceVariant).border(1.dp, pal.line2, shape)
+        // Centred, the bumpers sit at the edges and the tabs in the middle, as in the bottom bar.
+        Box(if (centered) Modifier.weight(1f) else Modifier.weight(1f, fill = false), contentAlignment = Alignment.Center) { Row(
+            modifier = Modifier.clip(shape).background(colors.surfaceVariant).border(1.dp, pal.line2, shape)
                 .horizontalScroll(scroll).selectableGroup().padding(3.dp),
         ) {
             tabs.forEachIndexed { i, label ->
@@ -206,7 +209,7 @@ internal fun TabStrip(
                         .padding(horizontal = tabPadding, vertical = if (compact) 6.dp else 12.dp),
                 )
             }
-        }
+        } }
         if (bumpers) BumperKey("RB", stringResource(R.string.widgets_next_tab)) { onSelect((selected + 1) % tabs.size) }
     }
 }
@@ -347,7 +350,7 @@ fun AnchoredMenu(
                                 }
                             }
                             .verticalScroll(scroll),
-                    ) { content(firstItemFocus) }
+                    ) { androidx.compose.runtime.CompositionLocalProvider(LocalRevealChecked provides true) { content(firstItemFocus) } }
                     if (scroll.canScrollForward) Icon(
                         Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = colors.onSurfaceVariant,
                         modifier = Modifier.align(Alignment.BottomCenter).size(20.dp),
@@ -377,7 +380,7 @@ fun MenuItem(
     val hot = src.collectIsFocusedAsState().value || src.collectIsHoveredAsState().value
     val shift by animateFloatAsState(if (hot) 2f else 0f, Motion.sp(0.5f), label = "miShift")
     val reveal = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
-    if (checked) LaunchedEffect(Unit) { reveal.bringIntoView() }
+    if (checked && LocalRevealChecked.current) LaunchedEffect(Unit) { reveal.bringIntoView() }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier.fillMaxWidth()

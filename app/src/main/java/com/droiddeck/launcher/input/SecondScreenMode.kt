@@ -9,31 +9,32 @@ import com.droiddeck.launcher.session.SessionPrefs
 
 enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindings: String? = null) {
     NONE("none", R.string.second_mode_none),
+    MENU("menu", R.string.touch_droiddeck_menu),
     KEYBOARD_TRACKPAD("keyboard-trackpad", R.string.second_mode_keyboard_trackpad, InputStockLayouts.TRACKPAD),
     TERMINAL("terminal", R.string.second_mode_terminal),
     DECK_CONTROLS("deck-controls", R.string.second_mode_deck_controls, InputStockLayouts.DECK),
     CUSTOM_CONTROLS("custom-controls", R.string.input_profile_controls_mode),
     DASHBOARD("dashboard", R.string.second_mode_dashboard),
+    GUIDES("guides", R.string.bottom_page_guides),
+    MIRROR("mirror", R.string.bottom_page_mirror),
+    STEAM_QAM("steam-qam", R.string.bottom_qam_title),
+    ART("art", R.string.bottom_art_title),
     DESKTOP("desktop", R.string.second_mode_desktop);
+
+    val sessionPanel: Boolean get() = this == GUIDES || this == MIRROR || this == STEAM_QAM || this == ART
 
     val controls: Boolean get() = this == CUSTOM_CONTROLS || bindings != null
 
     fun panel(context: Context): String? = if (this == DECK_CONTROLS) SessionPrefs.deckPanel(context).bindings else bindings
 
     companion object {
-        fun opening(remembered: String?, deckPad: Boolean, dashboard: Boolean = false, bottomDesktop: Boolean = false, desktopSession: Boolean = false): SecondScreenMode {
+        /** The mode the bottom screen opens in: the one picked last if it is still available, else the DroidDeck menu. */
+        fun opening(remembered: String?, deckPad: Boolean, dashboard: Boolean = false, bottomDesktop: Boolean = false,
+            steam: Boolean = false): SecondScreenMode =
             entries.firstOrNull {
-                it != NONE && it.id == remembered && (it != DECK_CONTROLS || deckPad) && (it != DASHBOARD || dashboard) &&
+                it != NONE && it.id == remembered && (it != DECK_CONTROLS || deckPad) && (it != DASHBOARD && !it.sessionPanel || dashboard) && (it != STEAM_QAM && it != ART || steam) &&
                     (it != DESKTOP || bottomDesktop)
-            }?.let { return it }
-            val picked = entries.any { it != NONE && it.id == remembered }
-            return when {
-                desktopSession -> KEYBOARD_TRACKPAD
-                deckPad -> DECK_CONTROLS
-                dashboard && !picked -> DASHBOARD
-                else -> KEYBOARD_TRACKPAD
-            }
-        }
+            } ?: MENU
     }
 }
 

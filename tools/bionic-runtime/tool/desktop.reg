@@ -1,0 +1,13 @@
+Windows Registry Editor Version 5.00
+
+; Black instead of Wine's default colour, and no shell/taskbar or tray, if a game is run on a Wine desktop
+; (launch.sh itself runs games straight on gamescope).
+[HKEY_CURRENT_USER\Control Panel\Colors]
+"Background"="0 0 0"
+
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\ThemeManager\Control Panel\Colors]
+"Background"="0 0 0"
+
+[HKEY_CURRENT_USER\Software\Wine\Explorer\Desktops\Default]
+"EnableShell"=dword:00000000
+"ShowSystray"=dword:00000000

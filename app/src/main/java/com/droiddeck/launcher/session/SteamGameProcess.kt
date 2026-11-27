@@ -55,10 +55,20 @@ object SteamGameProcess {
         return false
     }
 
-    fun running(gameId: String, proc: File = File("/proc")): Boolean =
-        proc.listFiles()?.any { p ->
-            p.name.all(Char::isDigit) &&
-                runCatching { File(p, "cmdline").readBytes() }
-                    .getOrNull()?.let { matches(it, gameId) } == true
-        } == true
+    fun running(gameId: String, proc: File = File("/proc")): Boolean = runningPid(gameId, null, proc) != null
+
+    fun runningPid(gameId: String, known: String?, proc: File = File("/proc")): String? {
+        if (known != null && runs(File(proc, known), gameId)) return known
+        return proc.listFiles()?.firstOrNull { p -> p.name.all(Char::isDigit) && runs(p, gameId) }?.name
+    }
+
+    private fun runs(process: File, gameId: String): Boolean =
+        runCatching { File(process, "cmdline").readBytes() }.getOrNull()?.let { matches(it, gameId) } == true
+
+    // A front end that resumes a player by launching the same game again would otherwise have Steam
+    // start it a second time, which Steam answers with "Game already running".
+    fun alreadyRunning(requested: String, current: String?, proc: File = File("/proc")): Boolean {
+        val appId = steamAppIdForGameId(requested) ?: return false
+        return appId == steamAppIdForGameId(current.orEmpty()) && running(requested, proc)
+    }
 }

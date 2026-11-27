@@ -66,16 +66,29 @@ BRIGHTNESS_JS = r"""
 """.replace("__BINDING__", BRIGHTNESS_BINDING)
 
 
+def control_request(name, text, directory):
+    path = os.path.join(directory, name)
+    with open(path + ".tmp", "w") as target:
+        target.write(text + "\n")
+    os.replace(path + ".tmp", path)
+
+
 def brightness_request(payload, directory=CONTROLS_DIR):
     try:
         value = float(payload)
         if not math.isfinite(value) or not 0 <= value <= 1:
             return
-        path = os.path.join(directory, "brightness.request")
-        with open(path + ".tmp", "w") as target:
-            target.write(str(value) + "\n")
-        os.replace(path + ".tmp", path)
+        control_request("brightness.request", str(value), directory)
     except (ValueError, TypeError, OSError):
+        return
+
+
+def hdr_request(payload, directory=CONTROLS_DIR):
+    if payload not in ("0", "1"):
+        return
+    try:
+        control_request("hdr.request", payload, directory)
+    except OSError:
         return
 
 
@@ -256,6 +269,49 @@ TOUR_JS = r"""
   return "off";
 })()
 """
+SET_SETTING_JS = r"""(field, value) => {
+    const bytes = [];
+    for (let n of [field * 8, value]) {
+      while (n > 127) { bytes.push((n & 127) | 128); n = Math.floor(n / 128); }
+      bytes.push(n);
+    }
+    return SteamClient.Settings.SetSetting(btoa(String.fromCharCode(...bytes)));
+  }"""
+HDR_BINDING = "droiddeckHdrChanged"
+HDR_JS = r"""
+(() => {
+  if (window.__droiddeckHdr) return "present";
+  const settings = window.settingsStore;
+  if (typeof settings?.clientSettings?.gamescope_hdr_enabled !== "boolean" ||
+      typeof SteamClient.Settings?.SetSetting !== "function") return "unavailable";
+  const write = __SET_SETTING__;
+  const HOLD_MS = 3000;
+  const self = { known: settings.clientSettings.gamescope_hdr_enabled, pending: null, until: 0 };
+  self.set = value => {
+    if (typeof value !== "boolean") return true;
+    self.known = value;
+    if (settings.clientSettings.gamescope_hdr_enabled === value && self.pending === null) return true;
+    self.pending = value;
+    self.until = performance.now() + HOLD_MS;
+    write(21015, value ? 1 : 0);
+    return true;
+  };
+  self.check = () => {
+    const value = settings.clientSettings.gamescope_hdr_enabled;
+    if (typeof value !== "boolean") return;
+    if (self.pending !== null) {
+      if (value !== self.pending && performance.now() < self.until) return;
+      self.pending = null;
+    }
+    if (value === self.known) return;
+    self.known = value;
+    if (typeof window.__BINDING__ === "function") window.__BINDING__(value ? "1" : "0");
+  };
+  self.interval = setInterval(self.check, 500);
+  window.__droiddeckHdr = self;
+  return "installed";
+})()
+""".replace("__BINDING__", HDR_BINDING).replace("__SET_SETTING__", SET_SETTING_JS)
 FRAME_LIMIT_JS = r"""
 (() => {
   if (window.__droiddeckFrameLimit) return "present";
@@ -281,14 +337,7 @@ FRAME_LIMIT_JS = r"""
   }
   if (!service || !settings?.clientSettings || typeof SteamClient.Settings?.SetSetting !== "function") return "unavailable";
   const self = { timer: null };
-  const write = value => {
-    const bytes = [];
-    for (let n of [21002 * 8, value]) {
-      while (n > 127) { bytes.push((n & 127) | 128); n = Math.floor(n / 128); }
-      bytes.push(n);
-    }
-    return SteamClient.Settings.SetSetting(btoa(String.fromCharCode(...bytes)));
-  };
+  const write = value => (__SET_SETTING__)(21002, value);
   self.check = async () => {
     let rates;
     try {
@@ -316,7 +365,7 @@ FRAME_LIMIT_JS = r"""
   window.__droiddeckFrameLimit = self;
   return "installed";
 })()
-"""
+""".replace("__SET_SETTING__", SET_SETTING_JS)
 WINDOW_BINDING = "droiddeckWindowAction"
 WINDOW_TARGET = "createflags=18"
 WINDOW_MOVES = {"nw": 0, "n": 1, "ne": 2, "e": 3, "se": 4, "s": 5, "sw": 6, "w": 7, "move": 8}
@@ -917,12 +966,16 @@ class Helper:
         self.fex_asked = set()
         self.tools_asked = {}
         self.tools_checked = None
+        self.valve_names = None
         self.vr_launch = None
         self.chooser = None
         self.controls_state = None
         self.controls_installed = False
         self.frame_limit_state = None
         self.frame_limit_retry = 0
+        self.hdr_state = None
+        self.hdr_installed = False
+        self.hdr_retry = 0
         self.windows = {}
         self.windows_retry = 0
 
@@ -982,6 +1035,29 @@ class Helper:
                         window_action(event.get("params", {}).get("payload"))
             except (Closed, OSError, ValueError):
                 del self.windows[ident]
+
+    def sync_hdr(self):
+        try:
+            with open(os.path.join(CONTROLS_DIR, "state.json")) as source:
+                value = json.load(source).get("hdr")
+            if not isinstance(value, bool):
+                return
+            if not self.hdr_installed:
+                if time.monotonic() < self.hdr_retry:
+                    return
+                self.page.call("Runtime.addBinding", {"name": HDR_BINDING})
+                self.hdr_installed = self.page.evaluate(HDR_JS) in ("installed", "present")
+                if not self.hdr_installed:
+                    self.hdr_retry = time.monotonic() + 10
+                    return
+            if value != self.hdr_state:
+                if self.page.evaluate("window.__droiddeckHdr ? window.__droiddeckHdr.set(%s) : false" % json.dumps(value)) is True:
+                    self.hdr_state = value
+                else:
+                    self.hdr_state = None
+                    self.hdr_installed = False
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
 
     def sync_frame_limit(self):
         if self.frame_limit_state in ("installed", "present") or time.monotonic() < self.frame_limit_retry:
@@ -1095,6 +1171,9 @@ class Helper:
         self.controls_installed = False
         self.frame_limit_state = None
         self.frame_limit_retry = 0
+        self.hdr_state = None
+        self.hdr_installed = False
+        self.hdr_retry = 0
         self.sync_controls()
         return True
 
@@ -1178,6 +1257,10 @@ class Helper:
                 page.compat("set(%d, %s)" % (int(app), json.dumps(tool if tool is not None else "")))
                 say("%s -> %s" % ("default" if app == "0" else "app %s" % app,
                                    tool if tool is not None else "Steam native default"))
+            names = set(dict(current, **changes).values()) | {default}
+            if COMPAT["uses_valve_proton"](names) and not COMPAT["uses_valve_proton"](self.valve_names or ()):
+                self.tools_checked = None
+            self.valve_names = names
             state.update(
                 auto={app: tool for app, tool in auto.items() if tool is not COMPAT["NATIVE_CHOICE"]},
                 native_choices=sorted(refused_native | {app for app, tool in auto.items() if tool is COMPAT["NATIVE_CHOICE"]}),
@@ -1198,7 +1281,8 @@ class Helper:
         self.tools_checked = now
         if COMPAT["game_running"]():
             return
-        for app, action in COMPAT["tool_downloads"](self.steam_root):
+        needed = COMPAT["valve_proton_needed"](self.steam_root, self.valve_names)
+        for app, action in COMPAT["tool_downloads"](self.steam_root, needed):
             if now - self.tools_asked.get(app, -TOOL_RETRY_SECONDS) < TOOL_RETRY_SECONDS:
                 continue
             self.tools_asked[app] = now
@@ -1231,6 +1315,8 @@ class Helper:
         for e in events:
             if called(e, BRIGHTNESS_BINDING):
                 brightness_request(e.get("params", {}).get("payload"))
+            if called(e, HDR_BINDING):
+                hdr_request(e.get("params", {}).get("payload"))
             if called(e, FILE_BINDING) and isinstance(e.get("params", {}).get("payload"), str):
                 self.open_chooser(e["params"]["payload"])
         return events
@@ -1260,6 +1346,7 @@ class Helper:
         while True:
             self.sync_controls()
             self.sync_frame_limit()
+            self.sync_hdr()
             self.sync_windows()
             sources = [self.page.ws] + ([watcher] if watcher.fileno() >= 0 else [])
             sources += [page.ws for page in self.windows.values()]

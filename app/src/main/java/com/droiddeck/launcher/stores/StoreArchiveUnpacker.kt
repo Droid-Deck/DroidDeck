@@ -28,20 +28,26 @@ internal class StoreArchiveUnpacker(
     private val logName: String,
 ) {
     var work: File = File("")
+    var limit = Long.MAX_VALUE
 
-    fun unpack(archive: File, filename: String, handle: DownloadQueue.JobHandle) {
+    class TooLarge : java.io.IOException()
+
+    fun unpack(archive: File, filename: String, handle: DownloadQueue.JobHandle) =
+        unpack(archive, filename, { done, total -> handle.stageProgress(done, total) }, handle::log)
+
+    fun unpack(archive: File, filename: String, progress: (Long, Long) -> Unit, log: (String) -> Unit) {
         when (val kind = ItchArchives.kind(archive, filename)) {
-            "zip" -> unzip(archive, handle)
+            "zip" -> unzip(archive, progress, log)
             "7z" -> try {
-                sevenZip(archive, handle)
+                sevenZip(archive, progress, log)
             } catch (e: MemoryLimitException) {
-                handle.log("$label: ${archive.name} needs more memory than the app has, unpacking it in the runtime")
-                unrar(archive, handle, kind)
+                log("$label: ${archive.name} needs more memory than the app has, unpacking it in the runtime")
+                unrar(archive, progress, log, kind)
             }
-            "rar" -> unrar(archive, handle, kind)
+            "rar" -> unrar(archive, progress, log, kind)
             "exe" -> copy(archive, File(work, filename.ifBlank { "game.exe" }))
-            "tar" -> untar(archive, null, handle)
-            "gz", "bz2", "xz" -> untar(archive, kind, handle) ?: single(archive, kind, handle)
+            "tar" -> untar(archive, null, progress, log)
+            "gz", "bz2", "xz" -> untar(archive, kind, progress, log) ?: single(archive, kind, progress, log)
             else -> copy(archive, File(work, filename.ifBlank { "game" }))
         }
     }
@@ -53,7 +59,7 @@ internal class StoreArchiveUnpacker(
         return if (path == root || path.startsWith(root + File.separator)) file else null
     }
 
-    private fun unrar(archive: File, handle: DownloadQueue.JobHandle, kind: String) {
+    private fun unrar(archive: File, progress: (Long, Long) -> Unit, log: (String) -> Unit, kind: String) {
         if (!LinuxRuntime.isInstalled(app)) throw IllegalStateException(app.getString(unsupported, kind))
         val binds = if (listOf(app.filesDir, app.cacheDir).any { work.absolutePath.startsWith(it.absolutePath + "/") }) null
             else listOf(work.absolutePath)
@@ -62,23 +68,28 @@ internal class StoreArchiveUnpacker(
                 if (!line.startsWith("proot ")) onLine(line)
             }
         var entries = 0L
-        bsdtar(listOf("-tf", archive.absolutePath)) { entries++ }
+        var size = 0L
+        bsdtar(listOf("-tvf", archive.absolutePath)) { line ->
+            entries++
+            size += LISTED_SIZE.find(line)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+        }
+        if (size > limit) throw TooLarge()
         var done = 0L
         val tail = ArrayDeque<String>()
         val code = bsdtar(listOf("-xvf", archive.absolutePath, "-C", work.absolutePath)) { line ->
-            if (line.startsWith("x ")) handle.stageProgress(++done, entries) else {
+            if (line.startsWith("x ")) progress(++done, entries) else {
                 if (tail.size == 5) tail.removeFirst()
                 tail.addLast(line)
             }
         }
         if (cancelled.get()) return
         if (code != 0) {
-            handle.log("$label: bsdtar exited $code: ${tail.joinToString(" | ")}")
+            log("$label: bsdtar exited $code: ${tail.joinToString(" | ")}")
             throw IllegalStateException(app.getString(extractFailed, code))
         }
     }
 
-    private fun sevenZip(archive: File, handle: DownloadQueue.JobHandle) {
+    private fun sevenZip(archive: File, progress: (Long, Long) -> Unit, log: (String) -> Unit) {
         val total = archive.length()
         var written = 0L
         val buffer = ByteArray(64 * 1024)
@@ -90,7 +101,7 @@ internal class StoreArchiveUnpacker(
                     val entry = seven.nextEntry ?: break
                     val file = target(entry.name)
                     if (file == null) {
-                        handle.log("$label: skipped an entry outside the game folder")
+                        log("$label: skipped an entry outside the game folder")
                         continue
                     }
                     if (entry.isDirectory) {
@@ -105,7 +116,8 @@ internal class StoreArchiveUnpacker(
                             if (read < 0) break
                             out.write(buffer, 0, read)
                             written += read
-                            handle.stageProgress(written, total)
+                            if (written > limit) throw TooLarge()
+                            progress(written, total)
                         }
                     }
                 }
@@ -113,7 +125,7 @@ internal class StoreArchiveUnpacker(
         }
     }
 
-    private fun untar(archive: File, codec: String?, handle: DownloadQueue.JobHandle): Unit? {
+    private fun untar(archive: File, codec: String?, progress: (Long, Long) -> Unit, log: (String) -> Unit): Unit? {
         val total = archive.length()
         var written = 0L
         var entries = 0
@@ -134,7 +146,7 @@ internal class StoreArchiveUnpacker(
                             entries++
                             val file = target(entry.name)
                             if (file == null) {
-                                handle.log("$label: skipped an entry outside the game folder")
+                                log("$label: skipped an entry outside the game folder")
                                 continue
                             }
                             if (entry.isDirectory) {
@@ -149,7 +161,8 @@ internal class StoreArchiveUnpacker(
                                     if (read < 0) break
                                     out.write(buffer, 0, read)
                                     written += read
-                                    handle.stageProgress(written, total)
+                                    if (written > limit) throw TooLarge()
+                                    progress(written, total)
                                 }
                             }
                         }
@@ -163,7 +176,7 @@ internal class StoreArchiveUnpacker(
         return null
     }
 
-    private fun single(archive: File, codec: String, handle: DownloadQueue.JobHandle) {
+    private fun single(archive: File, codec: String, progress: (Long, Long) -> Unit, log: (String) -> Unit) {
         val name = archive.name.substringBeforeLast('.')
         val file = target(name.ifBlank { "game" }) ?: throw IllegalStateException("archive")
         file.parentFile?.mkdirs()
@@ -184,7 +197,8 @@ internal class StoreArchiveUnpacker(
                         if (read < 0) break
                         out.write(buffer, 0, read)
                         written += read
-                        handle.stageProgress(written, total)
+                        if (written > limit) throw TooLarge()
+                        progress(written, total)
                     }
                 }
             }
@@ -196,7 +210,7 @@ internal class StoreArchiveUnpacker(
         FileInputStream(source).use { input -> FileOutputStream(target).use { out -> input.copyTo(out, 128 * 1024) } }
     }
 
-    private fun unzip(archive: File, handle: DownloadQueue.JobHandle) {
+    private fun unzip(archive: File, progress: (Long, Long) -> Unit, log: (String) -> Unit) {
         val total = archive.length()
         var written = 0L
         val buffer = ByteArray(64 * 1024)
@@ -205,7 +219,7 @@ internal class StoreArchiveUnpacker(
                 if (cancelled.get()) return
                 val target = target(entry.name)
                 if (target == null) {
-                    handle.log("$label: skipped an entry outside the game folder")
+                    log("$label: skipped an entry outside the game folder")
                     continue
                 }
                 if (entry.isDirectory) {
@@ -221,11 +235,16 @@ internal class StoreArchiveUnpacker(
                             if (read < 0) break
                             out.write(buffer, 0, read)
                             written += read
-                            handle.stageProgress(written, total)
+                            if (written > limit) throw TooLarge()
+                            progress(written, total)
                         }
                     }
                 }
             }
         }
+    }
+
+    private companion object {
+        val LISTED_SIZE = Regex("""^\S+\s+\d+\s+\S+\s+\S+\s+(\d+)\s""")
     }
 }

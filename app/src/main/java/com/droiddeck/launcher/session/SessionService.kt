@@ -589,7 +589,10 @@ class SessionService : Service() {
 
         val sessionDir = openSessionFolder()
         try {
-            SessionEvents.step("game-environment") { GameEnvironmentStore.publish(this) }
+            SessionEvents.step("game-environment") {
+                com.droiddeck.launcher.runtime.BattleNet.ensureDefaults(this, SessionState.program)
+                GameEnvironmentStore.publish(this)
+            }
         } catch (e: Exception) {
             Log.e(TAG, "could not publish the game environment", e)
             failSession(gen, "GAME_ENVIRONMENT_FAILED", getString(R.string.session_game_environment_failed), -1)
@@ -666,6 +669,8 @@ class SessionService : Service() {
         guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=100")
         guest.add("WINE_OFFSCREEN_CHECK_MS=100")
         guest.add("DD_REFRESH=" + Math.round(SessionState.refreshHz))
+        guest.add("DD_DEVICE_NAME=" + android.os.Build.MODEL)
+        com.droiddeck.launcher.gpu.SocNames.plainName().takeIf { it.isNotEmpty() }?.let { guest.add("DD_SOC_NAME=$it") }
         guest.add("DD_LOG=" + sessionLog.path)
         guest.add("DD_DEBUG_DIR=" + sessionDir.path)
         if (EnhancedDiagnostics.isActive(this, sessionDir)) guest.add("DROIDDECK_ENHANCED_DIAGNOSTICS=1")
@@ -694,7 +699,7 @@ class SessionService : Service() {
                 SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added) }
             }
             guest.add("DD_ADDED_GAMES=" + listing.path)
-            if (OfflineMode.enabled(this)) guest.add("DD_STEAM_OFFLINE=1")
+            if (OfflineMode.active(this)) guest.add("DD_STEAM_OFFLINE=1")
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("DD_LOSSLESS_OWNED=1")
         }
         guest.add("DD_LAUNCH_DIR=" + sessionRoot.path)
@@ -783,7 +788,7 @@ class SessionService : Service() {
         if (drives > 0) Log.i(TAG, "$drives Wine drive links given their guest paths back")
         val hostEnv = if (nativeUserland) HostEnvironment().also { env ->
             Log.i(TAG, "native userland: no proot (${sessionBindSpecs.size} mounts)")
-            com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(root, sessionBindSpecs, SessionPrefs.guestHostname(this))
+            com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(root, sessionBindSpecs, guest.first(), SessionPrefs.guestHostname(this))
                 .forEach { (k, v) -> env[k] = v }
         } else prootEnv
 
@@ -812,6 +817,11 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "desktop language pack: $it") }
         }
 
+        if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) {
+            val steamOffline = SteamOfflineFollow()
+            steamOffline.attach(this)
+            components.add(steamOffline)
+        }
         val networkLink = LinuxNetworkLinkComponent(this, root)
         networkLink.attach(this)
         networkLink.publish()
@@ -1001,6 +1011,7 @@ class SessionService : Service() {
         ))
         guest.add("TZ=" + java.util.TimeZone.getDefault().id)
         if (SessionState.mode == MODE_STEAM) SessionPrefs.pendingShaderPrecache(this)?.let { guest.add("DD_SHADER_PRECACHE=" + if (it) "1" else "0") }
+        guest.add("DD_VALVE_PROTON=" + if (SessionPrefs.ownProtonFirst(this)) "0" else "1")
         guest.add("XDG_RUNTIME_DIR=" + LinuxRuntime.GUEST_RUNTIME_DIR)
         guest.add("XDG_SESSION_TYPE=wayland")
         guest.add("WAYLAND_DISPLAY=wayland-0")
@@ -1027,8 +1038,14 @@ class SessionService : Service() {
         if (!bridge && !venus && SystemVulkanDriver.usesDefault(linuxDriverId)) {
             SystemVulkanDriver.addEnvironment(this, guest)
         }
+        com.droiddeck.launcher.wayland.WaylandCompositor.nativeSetDisplayBufferDriver(
+            !bridge && !venus && LinuxVulkanDriverManager(this).rendersToDisplayBuffers(linuxDriverId),
+        )
         (if (bridge || venus) null else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
+        // DroidDeck-Bionic games load an Android driver build; this is the one the display uses, for a runtime driver
+        // that has none.
+        guest.add("DROIDDECK_DISPLAY_DRIVER=" + com.droiddeck.launcher.gpu.TurnipDriver(this).effectiveId())
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno() && lastXwaylandCrashed()) {
             guest.add("XWAYLAND_NO_GLAMOR=1")
             Log.w(TAG, "xwayland: the last session's Xwayland crashed; glamor off for this one (XWAYLAND_NO_GLAMOR=1)")
@@ -1066,6 +1083,7 @@ class SessionService : Service() {
         guest.addAll(GpuStatsComponent.guestEnv(LinuxRuntime.rootDir(this)))
         guest.add("GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216")
         if (SessionState.mode == MODE_STEAM) guest.add("DD_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
+        SessionPaths.current()?.let { SessionArtifacts.markRpcs3Log(it, LinuxRuntime.rootDir(this)) }
         SessionState.steamClientArch = if (steamHere) SessionPrefs.steamClientArch(this) else null
         SessionState.steamClientArch?.let { arch ->
             guest.add("DD_STEAM_CLIENT_ARCH=$arch")
@@ -1259,6 +1277,7 @@ class SessionService : Service() {
             components.add(hwmon)
             binds.add(hwmon.dir.path + ":/sys/class/hwmon")
         }
+        binds.addAll(CpuCacheSysfs.binds(File(filesDir, "session/sys/cpu-cache")))
         val cpuStat = CpuStatComponent(File(filesDir, "session/proc-stat"))
         if (cpuStat.prepare()) {
             cpuStat.attach(this)
@@ -1615,6 +1634,11 @@ class SessionService : Service() {
             return
         }
         val accepted = gameId!!
+        if (pendingSteamGameId == null && SteamGameProcess.alreadyRunning(accepted, SessionState.gameId)) {
+            Log.i(TAG, "game $accepted is already running; resuming it instead of launching it again")
+            if (SessionState.suspended || SessionState.suspending) resumeSession()
+            return
+        }
         if (!pendingSteamPreviousGamePending) {
             pendingSteamPreviousGameId = SessionState.gameId
             pendingSteamPreviousGamePending = true
@@ -1705,6 +1729,7 @@ class SessionService : Service() {
             var startupWasSuspended = false
             var seen = false
             var goneSince = 0L
+            var gamePid: String? = null
             while (token == gameExitWatchToken && gen == sessionGen && SessionState.running && !SessionState.stopRequested) {
                 val now = android.os.SystemClock.elapsedRealtime()
                 val startupSuspended = SessionState.suspended || SessionState.suspending || SessionState.phase != SessionPhase.READY
@@ -1720,7 +1745,8 @@ class SessionService : Service() {
                         lastStartupCheck = now
                     }
                 }
-                if (steamGameRunning(gameId)) {
+                gamePid = SteamGameProcess.runningPid(gameId, gamePid)
+                if (gamePid != null) {
                     if (!seen) {
                         Log.i(TAG, "game $gameId started; tracking its exit")
                         mainHandler.post {
@@ -1943,11 +1969,6 @@ class SessionService : Service() {
                         Log.i(TAG, "Steam requested session sleep")
                         updateSuspendPolicy()
                     }
-                    return
-                }
-                if (path == com.droiddeck.launcher.runtime.BattleNet.FEX_REQUEST) {
-                    File(dir, path).delete()
-                    com.droiddeck.launcher.runtime.BattleNet.answerFexRequest(this@SessionService, dir)
                     return
                 }
                 if (path != null && path.startsWith("desktop-import-") && path.endsWith(".request")) {
@@ -2396,8 +2417,7 @@ class SessionService : Service() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         if (rootIntent?.component?.className in setOf(
                 com.droiddeck.launcher.ui.DualScreenActivity::class.java.name,
-                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name,
-                KeepTopActivity::class.java.name)) return
+                com.droiddeck.launcher.ui.SessionTypingActivity::class.java.name)) return
         if (pipTask || xrActivityVisible) {
             Log.i(TAG, "panel task dismissed - retaining the session under its active surface policy")
             activityVisible = false
@@ -2702,6 +2722,7 @@ class SessionService : Service() {
             gameId: String? = null,
             displayId: Int = Display.DEFAULT_DISPLAY,
         ) {
+            SteamClientPrefetch.cancel()
             SessionState.activityDisplayId = displayId
             val intent = Intent(context, SessionService::class.java).putExtra(EXTRA_MODE, mode)
                 .putExtra(EXTRA_DISPLAY_ID, displayId)

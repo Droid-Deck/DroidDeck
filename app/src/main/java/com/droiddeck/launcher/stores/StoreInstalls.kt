@@ -122,10 +122,16 @@ object StoreInstalls {
 
     fun discard(context: Context, folder: File, caches: List<File>) {
         val app = context.applicationContext
+        inBackground(folder) { discardNow(app, folder, caches) }
+    }
+
+    fun deleteLater(dir: File) = inBackground(dir) { deleteTree(dir) }
+
+    private fun inBackground(folder: File, work: () -> Unit) {
         beginDiscard(folder)
         val worker = Thread({
             try {
-                discardNow(app, folder, caches)
+                work()
             } finally {
                 endDiscard(folder)
             }

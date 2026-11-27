@@ -138,6 +138,27 @@ class BinfmtPreloadTest(unittest.TestCase):
         program = self.file("arm64", bytes(arm64))
         self.assertEqual(self.run_program("execve", program), (3, "errno %d" % errno.ENOEXEC, None))
 
+    def arm64_appimage(self, name, filesystem):
+        image = bytearray(128)
+        image[0:4], image[4], image[5], image[8:11], image[18] = b"\x7fELF", 2, 1, b"AI\x02", 183
+        image[0x28:0x30] = (64).to_bytes(8, "little")
+        image[0x3A:0x3C], image[0x3C:0x3E] = (32).to_bytes(2, "little"), (1).to_bytes(2, "little")
+        image[96:102] = filesystem
+        return self.file(name, bytes(image))
+
+    def test_an_arm64_appimage_goes_to_the_handler(self):
+        program = self.arm64_appimage("App.AppImage", b"hsqs\0\0")
+        for how in ("execve", "execvp"):
+            self.log.unlink(missing_ok=True)
+            target = program if how == "execve" else program.name
+            self.assertEqual(self.run_program(how, target, "--x"), (7, "", ["--exec", str(program), "--x"]))
+        self.log.unlink()
+        self.assertEqual(self.run_program("spawn", program, "y"), (0, "exit 7", ["--exec", str(program), "y"]))
+
+    def test_an_appimage_runtime_without_a_filesystem_keeps_its_error(self):
+        runtime = self.arm64_appimage("uruntime", bytes(6))
+        self.assertEqual(self.run_program("execve", runtime), (3, "errno %d" % errno.ENOEXEC, None))
+
     def test_a_script_runs_as_itself(self):
         script = self.file("script.sh", b"#!/bin/sh\nexit 5\n")
         self.assertEqual(self.run_program("execve", script), (5, "", None))
@@ -187,6 +208,24 @@ class BinfmtPreloadTest(unittest.TestCase):
     def test_chromium_gui_launch_without_node_mode_still_receives_no_sandbox(self):
         code = self.chromium_script()
         self.assertEqual(self.run_program("execve", code, "--version"), (0, "--no-sandbox\n--version", None))
+
+    def test_a_chromium_app_named_on_path_receives_no_sandbox(self):
+        (self.dir / "code").symlink_to(self.chromium_script())
+        for how in ("execvp", "execvpe", "spawnp"):
+            out = self.run_program(how, "code", "--version")
+            self.assertEqual(out[1].splitlines()[:2], ["--no-sandbox", "--version"], how)
+
+    def test_a_path_match_that_cannot_run_does_not_decide_the_flags(self):
+        stale = self.dir / "stale"
+        stale.mkdir()
+        (stale / "util").write_text("#!/bin/sh\n")
+        (stale / "chrome-sandbox").touch()
+        util = self.dir / "util"
+        util.write_text("#!/bin/sh\nprintf '%s\\n' \"$@\"\n")
+        util.chmod(0o755)
+        for how in ("execvp", "execvpe", "spawnp"):
+            out = self.run_program(how, "util", "--version", PATH=f"{stale}:{self.dir}:/usr/bin:/bin")
+            self.assertEqual(out[1].splitlines()[:1], ["--version"], how)
 
     def test_the_hand_off_switch_works_without_the_desktop(self):
         tool = self.x86()

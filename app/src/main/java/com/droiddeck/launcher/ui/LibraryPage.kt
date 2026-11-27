@@ -90,6 +90,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -138,7 +139,8 @@ internal class LibraryEntry(
     val game: Library.SteamGame?, val item: CatalogItem?, val installed: Boolean,
 ) {
     val storeKey: String? get() = item?.key ?: game?.storeId?.let { "${game.source}:$it" }
-    val favoriteKey: String get() = storeKey ?: key
+    /** A Steam game keeps the key it has once the Steam client lists it, so favoriting it before the install carries over. */
+    val favoriteKey: String get() = if (item?.store == Store.STEAM) "app:${item.id}" else storeKey ?: key
 }
 
 internal fun libraryEntries(
@@ -148,6 +150,7 @@ internal fun libraryEntries(
     val out = ArrayList<LibraryEntry>()
     for (g in games.sortedBy { it.library == Library.XBOX_CLOUD }) {
         if (g.library == Library.EPIC_LAUNCHER) continue
+        if (Library.fromSteamClient(g)) claimed.add("${Store.STEAM.id}:${g.appId}")
         val storeKey = g.storeId?.let { "${g.source}:$it" }
         val item = storeKey?.let { k -> Store.byId(g.source)?.let { st -> owned[st]?.firstOrNull { it.key == k } } }
         if (storeKey != null) {
@@ -159,7 +162,7 @@ internal fun libraryEntries(
     }
     for (store in Store.entries) for (item in owned[store].orEmpty()) {
         if (!claimed.add(item.key)) continue
-        out += LibraryEntry(GameRef.key(item), store.id, item.title, null, item, installed = item.key in installedStore)
+        out += LibraryEntry(GameRef.key(item), store.librarySource, item.title, null, item, installed = item.key in installedStore)
     }
     return out.distinctBy { it.key }
 }
@@ -177,15 +180,15 @@ internal fun installedFirst(entries: List<LibraryEntry>): List<LibraryEntry> = e
 internal const val LIBRARY_ALL = "all"
 internal fun librarySources(
     entries: List<LibraryEntry>, order: List<String>, always: Set<String> = emptySet(), favorites: Set<String> = emptySet(),
-    hidden: (LibraryEntry) -> Boolean = { false }, showHidden: Boolean = false, offStores: Set<String> = emptySet(),
-    places: List<Pair<String, String?>> = DEFAULT_LIBRARY_PLACES, offTabs: Set<String> = emptySet(),
+    hidden: (LibraryEntry) -> Boolean = { false }, offStores: Set<String> = emptySet(),
+    places: List<Pair<String, String?>> = DEFAULT_LIBRARY_PLACES, offTabs: Set<String> = setOf(LIBRARY_HIDDEN),
 ): List<String> {
     val tabs = arrangeStoreTabs(order, offStores)
     val shown = tabs.filter { it.shown }.map { it.store.id }.toSet() + LIBRARY_OWN_TABS - offTabs
-    return (placeLibraryTabs(tabs.map { it.store.id }, places).filter { it in shown } + Library.SOURCE_COLLECTION + LIBRARY_HIDDEN)
+    return (placeLibraryTabs(tabs.map { it.store.id }, places).filter { it in shown } + Library.SOURCE_COLLECTION)
         .filter { source ->
             when (source) {
-                LIBRARY_HIDDEN -> showHidden
+                LIBRARY_HIDDEN -> true
                 LIBRARY_FAVORITES -> entries.any { it.favoriteKey in favorites && !hidden(it) }
                 else -> source in always || entries.any { it.source == source && !hidden(it) }
             }
@@ -201,14 +204,11 @@ internal object LibraryDisplay {
         private set
     var size by mutableStateOf(true)
         private set
-    var hidden by mutableStateOf(false)
-        private set
 
     fun load(context: android.content.Context) {
         level = SessionPrefs.libraryCardLevel(context).coerceIn(0, scales.lastIndex)
         title = SessionPrefs.libraryShowTitle(context)
         size = SessionPrefs.libraryShowSize(context)
-        hidden = SessionPrefs.libraryShowHidden(context)
     }
 
     fun step(context: android.content.Context, by: Int) {
@@ -224,11 +224,6 @@ internal object LibraryDisplay {
     fun toggleSize(context: android.content.Context) {
         size = !size
         SessionPrefs.setLibraryShowSize(context, size)
-    }
-
-    fun toggleHidden(context: android.content.Context) {
-        hidden = !hidden
-        SessionPrefs.setLibraryShowHidden(context, hidden)
     }
 }
 
@@ -304,7 +299,7 @@ internal object LibraryView {
     fun showOwned(context: android.content.Context, store: Store) {
         SessionPrefs.setLibraryShowUninstalled(context, true)
         ownedRequest++
-        source = store.id
+        source = store.librarySource
         query = ""
         focusFirst = true
     }
@@ -379,11 +374,11 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         .map { it.store.id }.toSet()
     val sources = librarySources(
         all, storeTabs.map { it.store.id },
-        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.ADDED.takeIf { stores }).toSet() + signInChips,
-        favorites, concealed, LibraryDisplay.hidden && !soundMode,
+        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.ADDED.takeIf { stores }, Store.BATTLENET.id.takeIf { stores }).toSet() + signInChips,
+        favorites, concealed,
         offStores = if (soundMode) emptySet() else storeTabs.filterNot { it.shown }.map { it.store.id }.toSet(),
         places = if (soundMode) DEFAULT_LIBRARY_PLACES else StoreTabsState.libraryPlaces,
-        offTabs = if (soundMode) emptySet() else StoreTabsState.libraryHidden,
+        offTabs = if (soundMode) setOf(LIBRARY_HIDDEN) else StoreTabsState.libraryHidden,
     )
     val source = LibraryView.source.takeIf { it == LIBRARY_ALL || it in sources } ?: LIBRARY_ALL
     val q = LibraryView.query.trim().lowercase()
@@ -637,7 +632,8 @@ private fun LibraryGrid(
     // A search that matches nothing keeps the toolbar, so the search can still be cleared.
     val customEmpty = !soundMode && source == Library.ADDED && visible.isEmpty() && hiddenUninstalled == 0 && LibraryView.query.isBlank()
     val splash = !soundMode && (signInStore != null || customEmpty)
-    val headerItems = (if (splash) 1 else 2) + (if (sizesPending) 1 else 0) + syncing.size
+    val showHeader = !splash || source == Store.BATTLENET.id
+    val headerItems = (if (showHeader) 2 else 1) + (if (sizesPending) 1 else 0) + syncing.size
     val expanded = showUninstalled == true
     val notInstalled = if (expanded) visible.count { !it.installed } else hiddenUninstalled
     val toggleAt = when {
@@ -771,7 +767,7 @@ private fun LibraryGrid(
             Box(Modifier.onSizeChanged { chipsH = it.height }) { Rise(0) { if (soundMode) header() else filters() } }
         }
         val splashHeight = with(density) { (gridH - chipsH).toDp() - 28.dp }.coerceAtLeast(300.dp)
-        if (!splash) item(key = if (soundMode) "filters" else "header", span = { GridItemSpan(maxLineSpan) }) { Rise(1) { if (soundMode) filters() else header() } }
+        if (showHeader) item(key = if (soundMode) "filters" else "header", span = { GridItemSpan(maxLineSpan) }) { Rise(1) { if (soundMode) filters() else header() } }
         for ((store, line) in syncing) item(key = "sync-${store.id}", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 Text(store.shortLabel + " · " + line, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -887,6 +883,12 @@ private fun LibraryHeader(
         clearSearchFocus = searchCleared, inlineWhenStacked = true,
         lead = soundLead,
     ) {
+        if (!soundMode && !s.shortcutPicker && source == Store.BATTLENET.id) {
+            SecondaryButton(
+                stringResource(R.string.bnet_open), enabled = !s.busy && DevPreview.library == LibraryPreview.OFF,
+                compact = true, modifier = Modifier.testTag("library-battlenet-open"), onClick = a.onBattleNet,
+            )
+        }
         if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onClick = onCollections)
         if (!soundMode && DeveloperTools.on && DevPreview.shortcuts) LibraryPreviewButton()
         DisplayButton()
@@ -921,7 +923,6 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
         ) {
-            if (manage) ManageStoresChip()
             Box(Modifier.weight(1f).edgeFade(scroll).horizontalScroll(scroll)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.focusGroup()) {
                     for (id in keys) {
@@ -953,6 +954,7 @@ private fun LibraryFilters(sources: List<String>, source: String, onSource: (Str
                 }
                 if (highlighted in keys) ChipGlide(keys.indexOf(highlighted), bounds[highlighted], tint, visible = fillShown)
             }
+            if (manage) ManageStoresChip()
         }
     }
 }
@@ -1011,7 +1013,7 @@ private fun sourceDot(src: String): Color? {
             alpha = if (DevPreview.library == LibraryPreview.SAMPLE || (DevPreview.library != LibraryPreview.SIGNED_OUT && StoresState.isSignedIn(store) && StoresState.expired[store] != true)) 1f else 0.35f,
         )
         src == LIBRARY_FAVORITES -> FavoritesColours.dot
-        src == LIBRARY_HIDDEN -> Color(0xFF9AA0A6)
+        src == LIBRARY_HIDDEN -> HIDDEN_DOT
         src == Library.SOURCE_STEAM || src == Library.ADDED || src == Library.SOURCE_COLLECTION -> sourceColours(src).dot
         else -> null
     }
@@ -1129,14 +1131,22 @@ internal fun ArtCard(
         }
         val showName = LibraryDisplay.title || hot
         val showDetail = LibraryDisplay.size || hot
-        if (showName || showDetail) Column(
-            verticalArrangement = Arrangement.spacedBy(1.dp),
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .background(Brush.verticalGradient(0f to Color.Transparent, 0.6f to Color.Black.copy(alpha = 0.78f), 1f to Color.Black.copy(alpha = 0.92f)))
-                .padding(start = 8.dp, end = 8.dp, top = 20.dp, bottom = if (download != null) 14.dp else 6.dp),
-        ) {
-            if (showName) Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = if (hot) 2 else 1, overflow = TextOverflow.Ellipsis, lineHeight = 13.sp)
-            if (showDetail) detail()
+        if (showName || showDetail) {
+            val top = with(androidx.compose.ui.platform.LocalDensity.current) { 20.dp.roundToPx() }
+            val bottom = with(androidx.compose.ui.platform.LocalDensity.current) { (if (download != null) 14.dp else 6.dp).roundToPx() }
+            Column(
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .background(Brush.verticalGradient(0f to Color.Transparent, 0.6f to Color.Black.copy(alpha = 0.78f), 1f to Color.Black.copy(alpha = 0.92f)))
+                    .layout { measurable, constraints ->
+                        val inner = measurable.measure(constraints)
+                        if (inner.height == 0) layout(inner.width, 0) {} else layout(inner.width, inner.height + top + bottom) { inner.place(0, top) }
+                    }
+                    .padding(horizontal = 8.dp),
+            ) {
+                if (showName) Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = if (hot) 2 else 1, overflow = TextOverflow.Ellipsis, lineHeight = 13.sp)
+                if (showDetail) detail()
+            }
         }
         if (download != null) Box(Modifier.align(Alignment.BottomCenter).padding(start = 6.dp, end = 6.dp, bottom = 5.dp)) {
             ProgressBarThin(download.fraction, paused = download.state == DownloadState.PAUSED, verify = download.stage == DownloadStage.VERIFY)
@@ -1369,7 +1379,7 @@ internal fun DisplayButton() {
         HeaderIconButton(title, Icons.Filled.Visibility, "display") {
             val from = at ?: return@HeaderIconButton
             Steps.ask(StepAsk(
-                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = 5,
+                anchor = from, side = StepSide.Left, accent = pal.signal, pillCorner = 8.dp, items = 4,
                 handle = { Icon(Icons.Filled.Visibility, null, tint = pal.signal, modifier = Modifier.size(18.dp)) },
             ) {
                 StepTitle(title)
@@ -1392,10 +1402,6 @@ internal fun DisplayButton() {
                         stringResource(R.string.library_display_size), selected = LibraryDisplay.size, enabled = open,
                         modifier = Modifier.fillMaxWidth().stepItem(3),
                     ) { LibraryDisplay.toggleSize(ctx) }
-                    StepChoice(
-                        stringResource(R.string.apps_filter_hidden), selected = LibraryDisplay.hidden, enabled = open,
-                        modifier = Modifier.fillMaxWidth().stepItem(4),
-                    ) { LibraryDisplay.toggleHidden(ctx) }
                 }
             })
         }

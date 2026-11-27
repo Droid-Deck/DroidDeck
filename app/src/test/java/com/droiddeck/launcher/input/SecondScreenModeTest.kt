@@ -53,14 +53,10 @@ class SecondScreenModeTest {
         assertEquals(-1, SecondScreenDisplays.selection(-1, emptyList(), false))
     }
 
-    @Test fun withNothingRememberedDeckPadsGetControlsAndOthersTheDashboard() {
-        assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening(null, deckPad = true, dashboard = true))
-        assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening(null, deckPad = false, dashboard = true))
-    }
-
-    @Test fun withNothingRememberedAndNoDashboardTheControllerPicksThePanel() {
-        assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening(null, deckPad = true))
-        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening(null, deckPad = false))
+    @Test fun withNothingRememberedTheDroidDeckMenuOpens() {
+        for (deckPad in listOf(false, true)) for (dashboard in listOf(false, true)) for (desktop in listOf(false, true)) {
+            assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening(null, deckPad, dashboard, desktop))
+        }
     }
 
     @Test fun thePanelTheUserPickedLastOpensAgain() {
@@ -70,9 +66,18 @@ class SecondScreenModeTest {
         assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("keyboard-trackpad", deckPad = true))
     }
 
+    @Test fun theMenuIsAModeAndOpensAgainWhenItWasPickedLast() {
+        for (deckPad in listOf(false, true)) {
+            assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("menu", deckPad, dashboard = true, bottomDesktop = true))
+        }
+        assertEquals("menu", SecondScreenMode.MENU.id)
+        assertEquals(false, SecondScreenMode.MENU.controls)
+        assertEquals(null, SecondScreenMode.MENU.bindings)
+    }
+
     @Test fun deckControlsNeedTheDeckPad() {
-        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("deck-controls", deckPad = false))
-        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("deck-controls", deckPad = false, dashboard = true))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("deck-controls", deckPad = false))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("deck-controls", deckPad = false, dashboard = true))
     }
 
     @Test fun customControlsReopenWithEitherControllerType() {
@@ -81,37 +86,35 @@ class SecondScreenModeTest {
         }
     }
 
-    @Test fun anUnknownOrClosedChoiceFallsBackToTheDefault() {
-        assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("none", deckPad = true, dashboard = true))
-        assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening("gone", deckPad = false, dashboard = true))
-        assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("none", deckPad = true))
-        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("gone", deckPad = false))
+    @Test fun anUnknownOrClosedChoiceFallsBackToTheMenu() {
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("none", deckPad = true, dashboard = true))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("gone", deckPad = false, dashboard = true))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("none", deckPad = true))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("gone", deckPad = false))
     }
 
     @Test fun theDashboardOpensAgainOnlyWhileItHasPages() {
         assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening("dashboard", deckPad = true, dashboard = true))
-        assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("dashboard", deckPad = true, dashboard = false))
-        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("dashboard", deckPad = false))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("dashboard", deckPad = true, dashboard = false))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("dashboard", deckPad = false))
+    }
+
+    @Test fun steamQuickAccessOpensAgainOnlyInASteamSession() {
+        assertEquals(SecondScreenMode.STEAM_QAM, SecondScreenMode.opening("steam-qam", deckPad = true, dashboard = true, steam = true))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("steam-qam", deckPad = true, dashboard = true))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("steam-qam", deckPad = true, steam = true))
+    }
+
+    @Test fun gameArtOpensAgainOnlyInASteamSession() {
+        assertEquals(SecondScreenMode.ART, SecondScreenMode.opening("art", deckPad = true, dashboard = true, steam = true))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("art", deckPad = true, dashboard = true))
+        assertTrue(SecondScreenMode.ART.sessionPanel)
     }
 
     @Test fun theDesktopOpensAgainOnlyWhileItCanRun() {
         assertEquals(SecondScreenMode.DESKTOP, SecondScreenMode.opening("desktop", deckPad = true, dashboard = true, bottomDesktop = true))
-        assertEquals(SecondScreenMode.DECK_CONTROLS, SecondScreenMode.opening("desktop", deckPad = true, dashboard = true))
-        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("desktop", deckPad = false))
-    }
-
-    @Test fun withNothingRememberedTheDesktopIsNeverPicked() {
-        assertEquals(SecondScreenMode.DASHBOARD, SecondScreenMode.opening(null, deckPad = false, dashboard = true, bottomDesktop = true))
-        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening(null, deckPad = false, bottomDesktop = true))
-    }
-
-    @Test fun desktopSessionsOpenTheTrackpadUntilTheUserPicksAnotherPanel() {
-        for (deckPad in listOf(false, true)) for (dashboard in listOf(false, true)) {
-            assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening(null, deckPad, dashboard, desktopSession = true))
-            assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.opening("gone", deckPad, dashboard, desktopSession = true))
-            assertEquals(SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.opening("custom-controls", deckPad, dashboard, desktopSession = true))
-            assertEquals(SecondScreenMode.TERMINAL, SecondScreenMode.opening("terminal", deckPad, dashboard, desktopSession = true))
-        }
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("desktop", deckPad = true, dashboard = true))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("desktop", deckPad = false))
     }
 
     @Test fun theEditorOpensOnTheChosenBottomScreenUnlessAnotherAppHoldsIt() {

@@ -35,7 +35,7 @@ internal object XboxCloudSession {
             json.optString("userToken").takeIf { !json.isNull("userToken") && it.isNotEmpty() }, System.currentTimeMillis() + seconds * 1000).also { cached = it }
     }
 
-    fun clear() { cached = null; titleIds = null }
+    fun clear() { cached = null; titleList = null; looked = null }
 
     fun fromMainProcess(app: Context, account: String, timeoutSeconds: Long = 90): Session? {
         cached?.takeIf { it.account == account && it.fresh }?.let { return it }
@@ -61,21 +61,64 @@ internal object XboxCloudSession {
             b.getString("baseUri").orEmpty(), regions, b.getString("userToken"), b.getLong("expiresAt"))
     }
 
-    @Volatile private var titleIds: Pair<String, Map<String, String>>? = null
+    class Titles(val ids: Map<String, String>, val entitled: Set<String>)
 
-    fun titles(session: Session): Map<String, String> {
-        titleIds?.takeIf { it.first == session.account }?.let { return it.second }
+    @Volatile private var titleList: Pair<String, Titles>? = null
+
+    fun titles(session: Session): Map<String, String> = titleList(session).ids
+
+    // Entitled = details.hasEntitlement or isFreeInStore, as Greenlight's xcloud.ts by unknownskl (MIT).
+    fun titleList(session: Session, fresh: Boolean = false): Titles {
+        if (!fresh) titleList?.takeIf { it.first == session.account }?.let { return it.second }
         val reply = request(session, "GET", "/v2/titles")
         check(reply.status == 200) { "Xbox Cloud Gaming answered ${reply.status}" }
         val results = JSONObject(reply.body).optJSONArray("results") ?: JSONArray()
-        val map = (0 until results.length()).mapNotNull { index ->
-            val row = results.optJSONObject(index) ?: return@mapNotNull null
-            val product = row.optJSONObject("details")?.optString("productId")?.uppercase().orEmpty()
+        val ids = LinkedHashMap<String, String>()
+        val entitled = LinkedHashSet<String>()
+        for (index in 0 until results.length()) {
+            val row = results.optJSONObject(index) ?: continue
+            val details = row.optJSONObject("details")
+            val product = details?.optString("productId")?.uppercase().orEmpty()
             val title = row.optString("titleId")
-            if (product.matches(Regex("[A-Z0-9]{12}")) && title.isNotBlank() && title.length <= 64) product to title else null
-        }.toMap()
-        titleIds = session.account to map
-        return map
+            if (!product.matches(Regex("[A-Z0-9]{12}")) || title.isBlank() || title.length > 64) continue
+            ids.putIfAbsent(product, title)
+            if (details?.optBoolean("hasEntitlement") == true || details?.optBoolean("isFreeInStore") == true) entitled += product
+        }
+        return Titles(ids, entitled).also { titleList = session.account to it }
+    }
+
+    @Volatile private var looked: Pair<String, MutableMap<String, String>>? = null
+
+    // Lookup by product id (POST /v2/titles with alternateIds) as Better xCloud's getTitleInfo (MIT).
+    fun titleFor(session: Session, productId: String, name: String = "", log: (String) -> Unit = {}): String? {
+        val product = productId.uppercase()
+        val list = titles(session)
+        list[product]?.let { return it }
+        val cache = looked?.takeIf { it.first == session.account }?.second ?: HashMap<String, String>().also { looked = session.account to it }
+        cache[product]?.let { return it }
+        val body = JSONObject().put("alternateIds", JSONArray().put(product)).put("alternateIdType", "productId").toString()
+        val reply = runCatching { request(session, "POST", "/v2/titles", body) }.getOrNull()
+        val rows = reply?.takeIf { it.status == 200 }?.let { runCatching { JSONObject(it.body).optJSONArray("results") }.getOrNull() }
+        val row = rows?.optJSONObject(0)
+        val title = row?.optString("titleId").orEmpty()
+        val rowProduct = row?.optJSONObject("details")?.optString("productId")?.uppercase().orEmpty()
+        log("title lookup $product: http ${reply?.status ?: -1}, results ${rows?.length() ?: -1}, title ${title.ifEmpty { "-" }}, product ${rowProduct.ifEmpty { "-" }}")
+        if (title.isNotBlank() && title.length <= 64) { cache[product] = title; return title }
+        val key = nameKey(name)
+        if (key.length >= 4) {
+            val byName = list.values.filter { it.uppercase() == key }.distinct()
+            log("title by name $key: ${byName.joinToString().ifEmpty { "none" }}")
+            if (byName.size == 1) { cache[product] = byName[0]; return byName[0] }
+        }
+        return null
+    }
+
+    private val EDITION_WORDS = Regex("(STANDARD|DELUXE|PREMIUM|ULTIMATE|GOLD|COMPLETE|DEFINITIVE|ENHANCED|ANNIVERSARY|GAMEOFTHEYEAR|GOTY)?EDITION$|GAMEPREVIEW$|FORWINDOWS(10)?$|XBOXSERIESXS$|XBOXONE$|PC$")
+
+    internal fun nameKey(name: String): String {
+        var key = name.uppercase().replace(Regex("[^A-Z0-9]"), "")
+        repeat(3) { key = key.replace(EDITION_WORDS, "") }
+        return key
     }
 
     class Reply(val status: Int, val body: String)

@@ -1,29 +1,33 @@
 package com.droiddeck.launcher.ui
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -33,26 +37,53 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.frontend.AddedGames
+import com.droiddeck.launcher.runtime.CurseForgeApp
+import com.droiddeck.launcher.runtime.UserApps
 import com.droiddeck.launcher.runtime.WowAddonCatalog
 import com.droiddeck.launcher.runtime.WowAddons
 import com.droiddeck.launcher.session.SessionState
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 private class AddonResults {
     val items = mutableStateListOf<WowAddonCatalog.Addon>()
@@ -62,8 +93,178 @@ private class AddonResults {
     var more by mutableStateOf(false)
 }
 
+internal enum class AddonStatus { INSTALL, UPDATE, INSTALLED }
+
+private enum class AddonSource { WOWI, CURSE }
+
+internal class CurseState(val notice: Int? = null) : Exception()
+
+internal class CurseLink(val app: UserApps.App) {
+    class Linked(val inspector: String, val guid: String)
+
+    private val lock = Object()
+    private val work = SupervisorJob()
+    @Volatile private var closed = false
+    @Volatile private var hold: AtomicBoolean? = null
+    @Volatile private var inspector: String? = null
+    private val guids = HashMap<String, String>()
+    private val scanLock = Object()
+    private val scans = HashMap<String, Pair<Any, List<CurseForgeApp.Project>>>()
+    private val settleLock = Object()
+    private val settled = HashMap<String, Pair<Int, List<CurseForgeApp.Project>>>()
+    private val turns = HashMap<String, Int>()
+    var generation by mutableIntStateOf(0)
+        private set
+
+    fun refresh() {
+        generation++
+    }
+
+    fun installed(context: Context, target: WowAddons.Target, key: Any): List<CurseForgeApp.Project> = CurseForgeApp.onDisk(
+        synchronized(scanLock) {
+            scans[target.addOns.path]?.takeIf { it.first == key }?.second
+                ?: (settledFor(target) ?: call(context, target) { CurseForgeApp.projects(context, it.inspector, it.guid, rescan = true) }).also {
+                    scans[target.addOns.path] = key to it
+                    report(target, it)
+                }
+        },
+        target.addOns,
+    )
+
+    fun marks(context: Context, target: WowAddons.Target, key: Any): Map<String, String?> =
+        runCatching { installed(context, target, key).associate { it.id to curseMark(it) } }.getOrElse { lastReported(target) }
+
+    private fun settledFor(target: WowAddons.Target): List<CurseForgeApp.Project>? = synchronized(settleLock) {
+        settled.remove(target.addOns.path)?.takeIf { it.first == generation }?.second
+    }
+
+    fun change(context: Context, target: WowAddons.Target, launch: Boolean = true, block: (Linked) -> List<CurseForgeApp.Project>?): Boolean {
+        val path = target.addOns.path
+        val turn = synchronized(settleLock) {
+            settled.remove(path)
+            ((turns[path] ?: 0) + 1).also { turns[path] = it }
+        }
+        val projects = call(context, target, launch, block) ?: return false
+        synchronized(settleLock) {
+            if (turns[path] == turn) {
+                settled[path] = generation to projects
+                report(target, projects)
+            }
+        }
+        return true
+    }
+
+    fun <T> call(context: Context, target: WowAddons.Target, launch: Boolean = true, block: (Linked) -> T): T {
+        val linked = synchronized(lock) { link(context, target, launch) }
+        try {
+            return block(linked)
+        } catch (e: CurseForgeApp.Failure) {
+            if (e.gone) synchronized(lock) {
+                if (inspector == linked.inspector) {
+                    inspector = null
+                    guids.clear()
+                    current.compareAndSet(this, null)
+                }
+            }
+            throw e
+        }
+    }
+
+    private fun link(context: Context, target: WowAddons.Target, launch: Boolean): Linked {
+        if (closed) throw CurseState()
+        val url = inspector ?: run {
+            if (!launch) throw CurseState()
+            val hold = AtomicBoolean(false)
+            this.hold = hold
+            if (closed) throw CurseState()
+            val done = CurseForgeApp.start(context, app, hold)
+            when (done.state) {
+                CurseForgeApp.Start.READY -> {
+                    inspector = done.inspector
+                    if (!closed) current.set(this)
+                    done.inspector ?: throw CurseState()
+                }
+                CurseForgeApp.Start.BUSY -> throw CurseState(R.string.addons_curse_busy)
+                else -> throw CurseState()
+            }
+        }
+        if (closed) throw CurseState()
+        guids[target.addOns.path]?.let { return Linked(url, it) }
+        val root = WowAddons.root(target)?.let { AddedGames.guestPath(context, it) } ?: throw CurseState()
+        val flavor = WowAddons.flavorDir(target)?.let { AddedGames.guestPath(context, it) } ?: throw CurseState()
+        val guid = CurseForgeApp.instance(context, url, root, flavor)
+        guids[target.addOns.path] = guid
+        return Linked(url, guid)
+    }
+
+    fun uninstall(context: Context, target: WowAddons.Target, folder: String): Boolean = change(context, target, launch = false) { linked ->
+        val projects = CurseForgeApp.onDisk(CurseForgeApp.projects(context, linked.inspector, linked.guid), target.addOns)
+        CurseForgeApp.owner(projects, folder)?.let { CurseForgeApp.uninstall(context, linked.inspector, linked.guid, it) ?: throw CurseState() }
+    }
+
+    internal val stopped: Job get() = work
+
+    fun close(context: Context): Job {
+        closed = true
+        current.compareAndSet(this, null)
+        val launch = hold
+        return CoroutineScope(work + Dispatchers.IO).launch {
+            if (launch != null) CurseForgeApp.stop(context, app, inspector, launch)
+            synchronized(lock) {
+                hold = null
+                inspector = null
+            }
+        }.also { work.complete() }
+    }
+
+    companion object {
+        private val current = AtomicReference<CurseLink?>()
+        private val reported = ConcurrentHashMap<String, List<CurseForgeApp.Project>>()
+
+        fun lastReported(target: WowAddons.Target, disk: () -> List<WowAddons.Installed> = { WowAddons.details(target) }): Map<String, String?> {
+            val last = reported[target.addOns.path] ?: return disk().mapNotNull { it.curseId }.associateWith { null }
+            return CurseForgeApp.onDisk(last, target.addOns).associate { it.id to null }
+        }
+
+        internal fun report(target: WowAddons.Target, projects: List<CurseForgeApp.Project>) {
+            reported[target.addOns.path] = projects
+        }
+
+        fun live(): CurseLink? = current.get()
+    }
+}
+
+private const val PAGES_AHEAD = 8
+private const val CURSE_UPDATE = "update"
+private const val UNINSTALLING = -1
+
+private fun curseMark(project: CurseForgeApp.Project): String? = CURSE_UPDATE.takeIf { project.update }
+
+private class Present(val curse: Map<String, String?> = emptyMap(), val disk: Map<String, WowAddons.Installed> = emptyMap())
+
 @Composable
-internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAddons.Target, onDismiss: () -> Unit) {
+internal fun rememberCurseLink(app: UserApps.App?, sessionRunning: Boolean): CurseLink? {
+    val context = LocalContext.current.applicationContext
+    val owner = LocalLifecycleOwner.current
+    var visible by remember(owner) { mutableStateOf(owner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) }
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) visible = true
+            if (event == Lifecycle.Event.ON_STOP) visible = false
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+    val active = visible && !sessionRunning
+    val link = remember(app?.key, active) { app?.takeIf { active }?.let(::CurseLink) }
+    DisposableEffect(link) {
+        onDispose { link?.close(context) }
+    }
+    return link
+}
+
+@Composable
+internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAddons.Target, curseForge: UserApps.App?, link: CurseLink?, onDismiss: () -> Unit) {
     val context = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     val shown = rememberShown(onDismiss)
@@ -72,11 +273,33 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     var text by remember { mutableStateOf("") }
     var category by remember { mutableStateOf<WowAddonCatalog.Category?>(null) }
     var sort by remember { mutableStateOf(WowAddonCatalog.Sort.POPULAR) }
-    val results = remember(text, category, sort, target) { AddonResults() }
+    var source by remember(curseForge != null) { mutableStateOf(if (curseForge != null) AddonSource.CURSE else AddonSource.WOWI) }
+    val curse = if (source == AddonSource.CURSE && link != null) curseForge else null
+    LaunchedEffect(link) { link?.refresh() }
+    var notice by remember { mutableStateOf<Int?>(null) }
+    var curseInstalls by remember { mutableIntStateOf(0) }
+    val results = remember(text, category, sort, target, curse) { AddonResults() }
     val installing = remember { mutableStateMapOf<String, Int>() }
-    val installed = remember { mutableStateMapOf<String, Boolean>() }
+    val installed = remember { mutableStateMapOf<String, Pair<String, String>>() }
     val categories by produceState(emptyList<WowAddonCatalog.Category>()) {
         value = withContext(Dispatchers.IO) { runCatching { WowAddonCatalog.categories(context) }.getOrDefault(emptyList()) }
+    }
+    val presentKey = curse to target.addOns
+    val scanKey = link?.generation to WowAddons.imports
+    val snapshot by produceState(presentKey to Present(), target.addOns, scanKey, curse, curseInstalls, curse == null && results.items.isEmpty()) {
+        val into = target
+        val key = curse to into.addOns
+        if (curse != null && link != null && value.first != key) value = key to withContext(Dispatchers.IO) { Present(curse = CurseLink.lastReported(into)) }
+        value = key to withContext(Dispatchers.IO) {
+            if (curse != null && link != null) Present(curse = link.marks(context, into, scanKey))
+            else Present(disk = WowAddons.details(into).associateBy { it.name.lowercase() })
+        }
+    }
+    val present = snapshot.second.takeIf { snapshot.first == presentKey } ?: Present()
+    fun status(addon: WowAddonCatalog.Addon): AddonStatus {
+        if (curse != null) return if (addon.id !in present.curse) AddonStatus.INSTALL else if (present.curse[addon.id] == CURSE_UPDATE) AddonStatus.UPDATE else AddonStatus.INSTALLED
+        val latest = installed[installKey(addon, target)]?.takeIf { it.first == addon.summary }?.second ?: addon.summary
+        return diskStatus(addon.folders, present.disk, latest, addon.id)
     }
     fun load(page: Int) {
         if (results.loading) return
@@ -86,10 +309,16 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         val words = text
         val cat = category?.id
         val order = sort
+        val via = link?.takeIf { curse != null }
+        notice = null
         scope.launch {
             val got = withContext(Dispatchers.IO) {
-                runCatching { WowAddonCatalog.search(context, WowAddonCatalog.Query(words, cat, WowAddonCatalog.client(into), order), page) }
+                runCatching {
+                    if (via != null) via.call(context, into) { CurseForgeApp.search(context, it.inspector, it.guid, words, order, page) }
+                    else WowAddonCatalog.search(context, WowAddonCatalog.Query(words, cat, WowAddonCatalog.client(into), order), page)
+                }
             }
+            if (results.items.isEmpty()) notice = (got.exceptionOrNull() as? CurseState)?.notice
             got.onSuccess {
                 if (page == 0) results.items.clear()
                 results.items.addAll(it.items.filter { addon -> results.items.none { seen -> seen.id == addon.id } })
@@ -106,6 +335,34 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
     fun install(addon: WowAddonCatalog.Addon) {
         val key = installKey(addon, target)
         if (key in installing) return
+        val via = link?.takeIf { curse != null }
+        if (via != null) {
+            val into = target
+            val updating = status(addon) == AddonStatus.UPDATE
+            installing[key] = 0
+            scope.launch {
+                val done = withContext(Dispatchers.IO) {
+                    runCatching {
+                        via.change(context, into) {
+                            if (updating) CurseForgeApp.update(context, it.inspector, it.guid, addon.id)
+                            else CurseForgeApp.install(context, it.inspector, it.guid, addon.id)
+                        }
+                    }
+                }
+                installing.remove(key)
+                val ok = done.getOrNull() == true
+                WowAddons.changed()
+                curseInstalls++
+                val message = when {
+                    ok && updating -> context.getString(R.string.user_apps_updated, addon.name)
+                    ok -> context.resources.getQuantityString(R.plurals.main_addons_imported, 1, 1, into.flavor)
+                    else -> (done.exceptionOrNull() as? CurseState)?.notice?.let(context::getString)
+                        ?: context.getString(R.string.stores_dl_failed_reason, done.exceptionOrNull()?.message ?: addon.name)
+                }
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            }
+            return
+        }
         if (SessionState.running) {
             Toast.makeText(context, R.string.main_addons_close_session, Toast.LENGTH_LONG).show()
             return
@@ -115,48 +372,131 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
         scope.launch {
             val message = withContext(Dispatchers.IO) { installAddon(context, addon, into) { pct -> scope.launch { if (key in installing) installing[key] = pct } } }
             installing.remove(key)
-            if (message.second) installed[key] = true
+            message.second?.let { installed[key] = addon.summary to it }
             Toast.makeText(context, message.first, Toast.LENGTH_LONG).show()
         }
     }
-    val sourceName = stringResource(R.string.addons_source_wowi)
-    AppDialog(shown, close, "addonBrowser", wide = true, scrollable = false) {
-        DialogTitleRow(stringResource(R.string.addons_download), close)
-        ModeHeader(sourceName, text, { text = it }, stringResource(R.string.stores_search_catalog, sourceName)) {
-            BrowseChip(stringResource(R.string.addons_source_curse), false) {
-                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(WowAddonCatalog.curseForgeUrl(text))).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            }
+    fun uninstall(addon: WowAddonCatalog.Addon) {
+        val key = installKey(addon, target)
+        if (key in installing) return
+        if (SessionState.running) {
+            Toast.makeText(context, R.string.main_addons_close_session, Toast.LENGTH_LONG).show()
+            return
         }
-        ChipRow {
+        val into = target
+        val via = link?.takeIf { curse != null }
+        installing[key] = UNINSTALLING
+        scope.launch {
+            val done = withContext(Dispatchers.IO) {
+                runCatching {
+                    val folders = if (via != null) curseFolders(into, addon.id, via.call(context, into) { linked ->
+                        CurseForgeApp.projects(context, linked.inspector, linked.guid).firstOrNull { it.id == addon.id }?.folders.orEmpty()
+                    }) else addon.folders
+                    deleteAddons(context, into, folders, link)
+                }
+            }
+            installing.remove(key)
+            installed.remove(key)
+            WowAddons.changed()
+            curseInstalls++
+            if (done.isFailure) Toast.makeText(context, R.string.fm_delete_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+    val sourceName = stringResource(if (curse != null) R.string.addons_source_curse else R.string.addons_source_wowi)
+    val grid = rememberLazyGridState()
+    LaunchedEffect(results, grid) {
+        snapshotFlow { grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index to grid.layoutInfo.totalItemsCount }.collect { (last, total) ->
+            if (last != null && results.more && results.failed == null && last >= total - PAGES_AHEAD) load(results.page + 1)
+        }
+    }
+    val firstAction = remember(results) { FocusRequester() }
+    val inputMode = LocalInputModeManager.current
+    var searching by remember { mutableStateOf(false) }
+    LaunchedEffect(results, results.items.isNotEmpty()) {
+        if (results.items.isNotEmpty() && !searching && inputMode.inputMode == InputMode.Keyboard) focusSoon { firstAction }
+    }
+    AppDialog(shown, close, "addonBrowser", wide = true, maxWidth = 980.dp, scrollable = false, fillHeight = true, modifier = Modifier.releaseTextFieldOnTap()) {
+        val sortChip: @Composable () -> Unit = {
             BrowseDropdown(sortLabel(sort)) { first, done ->
                 WowAddonCatalog.Sort.entries.forEachIndexed { index, option ->
                     MenuItem(sortLabel(option), sort == option, focusRequester = if (index == 0) first else null) { sort = option; done() }
                 }
             }
-            if (categories.isNotEmpty()) BrowseDropdown(category?.name ?: stringResource(R.string.addons_category_all)) { first, done ->
+        }
+        val sourceChip: @Composable () -> Unit = {
+            if (curseForge != null) BrowseDropdown(sourceName) { first, done ->
+                MenuItem(stringResource(R.string.addons_source_wowi), curse == null, focusRequester = first) { source = AddonSource.WOWI; done() }
+                MenuItem(stringResource(R.string.addons_source_curse), curse != null) { source = AddonSource.CURSE; done() }
+            }
+        }
+        val categoryChip: @Composable () -> Unit = {
+            if (curse == null && categories.isNotEmpty()) BrowseDropdown(category?.name ?: stringResource(R.string.addons_category_all)) { first, done ->
                 MenuItem(stringResource(R.string.addons_category_all), category == null, focusRequester = first) { category = null; done() }
                 categories.forEach { option -> MenuItem(option.name, category?.id == option.id) { category = option; done() } }
             }
+        }
+        val flavorChip: @Composable () -> Unit = {
             if (targets.size > 1) BrowseDropdown(target.flavor) { first, done ->
                 targets.forEachIndexed { index, option ->
                     MenuItem(option.flavor, option.addOns == target.addOns, focusRequester = if (index == 0) first else null) { target = option; done() }
                 }
             }
         }
-        val height = (LocalConfiguration.current.screenHeightDp * 0.62f).dp
+        val search: @Composable (Modifier) -> Unit = { modifier ->
+            AdbTextField(
+                value = text, onValueChange = { text = it }, label = "", keyboardType = KeyboardType.Text, imeAction = ImeAction.Search,
+                placeholder = stringResource(R.string.stores_search_catalog, sourceName), compact = true, showLabel = false, modifier = modifier, onFocusChange = { searching = it },
+            )
+        }
+        val closeButton: @Composable () -> Unit = {
+            SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = MaterialTheme.colorScheme.error, onClick = close)
+        }
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (maxWidth >= 640.dp) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                search(Modifier.weight(1f))
+                sourceChip()
+                sortChip()
+                categoryChip()
+                flavorChip()
+                closeButton()
+            } else Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    search(Modifier.weight(1f))
+                    closeButton()
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                ) {
+                    sourceChip()
+                    sortChip()
+                    categoryChip()
+                    flavorChip()
+                }
+            }
+        }
+        val thumb = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         LazyVerticalGrid(
-            GridCells.Adaptive(libraryTileWidth() + 40.dp), Modifier.fillMaxWidth().height(height),
-            horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
+            GridCells.Adaptive(400.dp), Modifier.fillMaxWidth().weight(1f).scrollThumb(grid, thumb), state = grid,
+            contentPadding = PaddingValues(end = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             items(results.items, key = { it.id }) { addon ->
-                AddonCard(addon, installing[installKey(addon, target)], installed[installKey(addon, target)] == true) { install(addon) }
+                val key = installKey(addon, target)
+                AddonRow(addon, status(addon), installing[key], if (addon.id == results.items.firstOrNull()?.id) Modifier.focusRequester(firstAction) else Modifier, { uninstall(addon) }) { install(addon) }
             }
-            item(key = "tail", span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     when {
                         results.loading -> LinearProgressIndicator(Modifier.fillMaxWidth())
-                        results.failed != null -> BrowseChip(stringResource(R.string.stores_dl_retry), false) { load(if (results.items.isEmpty()) 0 else results.page + 1) }
-                        results.more -> BrowseChip(stringResource(R.string.stores_itch_load_more), false) { load(results.page + 1) }
+                        results.failed != null && notice != null -> {
+                            Text(stringResource(notice!!), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            BrowseChip(stringResource(R.string.stores_dl_retry), false) { load(0) }
+                        }
+                        results.failed != null -> {
+                            Text(stringResource(R.string.addons_unreachable, sourceName), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            BrowseChip(stringResource(R.string.stores_dl_retry), false) { load(if (results.items.isEmpty()) 0 else results.page + 1) }
+                        }
                         results.items.isEmpty() -> Text(stringResource(R.string.addons_none_found), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -166,27 +506,69 @@ internal fun AddonBrowserDialog(targets: List<WowAddons.Target>, initial: WowAdd
 }
 
 @Composable
-private fun AddonCard(addon: WowAddonCatalog.Addon, progress: Int?, done: Boolean, onInstall: () -> Unit) {
-    val pal = LocalPalette.current
-    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val hot = rememberHot(src)
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
-    Column(
-        Modifier.fillMaxWidth().clip(shape).glideBorder(hot, shape, pal.signal, pal.line)
-            .hoverable(src)
-            .clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onInstall)
-            .controllerConfirm(onClick = onInstall),
-    ) {
-        ArtCard(addon.name, addon.thumb, null, null, hot, capsule = false, chip = progress?.let { "$it%" }) {
-            if (done) Icon(Icons.Filled.Check, stringResource(R.string.stores_installed_chip), tint = pal.good, modifier = Modifier.height(11.dp))
-            else Text(stringResource(if (progress != null) R.string.store_installing else R.string.store_install), fontSize = 10.sp, color = pal.signal, maxLines = 1)
-        }
-        Text(
-            listOf(addon.author, formatCount(addon.downloads)).filter { it.isNotEmpty() }.joinToString(" · "),
-            fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-        )
+internal fun AddonRow(addon: WowAddonCatalog.Addon, status: AddonStatus, progress: Int?, action: Modifier, onUninstall: () -> Unit, onInstall: () -> Unit) {
+    var asking by remember(addon.id) { mutableStateOf(false) }
+    val first = remember(addon.id) { FocusRequester() }
+    var refocus by remember(addon.id) { mutableStateOf(false) }
+    val inputMode = LocalInputModeManager.current
+    LaunchedEffect(status, progress) {
+        if (!refocus) return@LaunchedEffect
+        withFrameNanos { }
+        runCatching { first.requestFocus() }
+        if (progress == null) refocus = false
     }
+    fun act(block: () -> Unit) {
+        refocus = inputMode.inputMode == InputMode.Keyboard
+        block()
+    }
+    val lead = action.focusRequester(first)
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().clip(Shape12).background(colors.surface.copy(alpha = 0.6f)).border(1.dp, pal.line, Shape12)
+            .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+    ) {
+        Box(Modifier.size(44.dp).clip(Shape12).background(artBrush(hueOf(addon.name)))) {
+            if (addon.thumb != null) AsyncImage(model = addon.thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.matchParentSize())
+        }
+        Column(Modifier.weight(1f)) {
+            Text(addon.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                listOf(addon.author, addon.summary, formatCount(addon.downloads)).filter { it.isNotEmpty() }.joinToString(" · "),
+                fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+        }
+        val uninstall = stringResource(R.string.common_uninstall)
+        when {
+            progress == UNINSTALLING -> SecondaryButton(stringResource(R.string.stores_uninstalling), compact = true, modifier = lead) {}
+            progress != null -> SecondaryButton(stringResource(R.string.store_installing), compact = true, modifier = lead, progress = progress / 100f, onClick = onInstall)
+            status == AddonStatus.INSTALL -> PrimaryButton(stringResource(R.string.store_install), compact = true, modifier = lead) { act(onInstall) }
+            else -> {
+                if (status == AddonStatus.UPDATE) PrimaryButton(stringResource(R.string.common_update), compact = true, modifier = lead) { act(onInstall) }
+                SecondaryButton(uninstall, compact = true, modifier = if (status == AddonStatus.UPDATE) Modifier else lead) { asking = true }
+            }
+        }
+    }
+    if (asking) ConfirmDialog(
+        title = stringResource(R.string.stores_uninstall_title, addon.name),
+        text = stringResource(R.string.games_delete_addon_body),
+        confirm = stringResource(R.string.common_uninstall),
+        onConfirm = { asking = false; act(onUninstall) },
+        onDismiss = { asking = false },
+    )
+}
+
+private fun Modifier.scrollThumb(state: LazyGridState, color: Color): Modifier = drawWithContent {
+    drawContent()
+    val info = state.layoutInfo
+    val visible = info.visibleItemsInfo
+    if (visible.isEmpty() || visible.size >= info.totalItemsCount) return@drawWithContent
+    val total = info.totalItemsCount.toFloat()
+    val length = (size.height * visible.size / total).coerceAtLeast(24.dp.toPx())
+    val top = (size.height - length) * (visible.first().index / (total - visible.size).coerceAtLeast(1f)).coerceIn(0f, 1f)
+    val width = 3.dp.toPx()
+    drawRoundRect(color, Offset(size.width - width, top), Size(width, length), CornerRadius(width / 2))
 }
 
 @Composable
@@ -206,21 +588,42 @@ private fun formatCount(count: Long): String = when {
     else -> count.toString()
 }
 
-private fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target: WowAddons.Target, progress: (Int) -> Unit): Pair<String, Boolean> {
+internal fun installAddon(context: Context, addon: WowAddonCatalog.Addon, target: WowAddons.Target, progress: (Int) -> Unit): Pair<String, String?> {
     val zip = File(File(context.cacheDir, "wowaddons"), "download-wowi-${addon.id.filter(Char::isLetterOrDigit)}-${java.util.UUID.randomUUID()}.zip")
     return try {
-        WowAddonCatalog.download(context, addon, zip, progress)
-        if (SessionState.running) return context.getString(R.string.main_addons_close_session) to false
-        val names = WowAddons.import(zip, target)
-        if (names.isEmpty()) context.getString(R.string.main_addons_none, addon.name) to false
-        else context.resources.getQuantityString(R.plurals.main_addons_imported, names.size, names.size, target.flavor) to true
+        val version = WowAddonCatalog.download(context, addon, zip, progress) ?: addon.summary
+        if (SessionState.running) return context.getString(R.string.main_addons_close_session) to null
+        val names = WowAddons.import(zip, target, WowAddons.Origin(addon.id, version).takeIf { version.isNotBlank() }, context)
+        if (names.isEmpty()) context.getString(R.string.main_addons_none, addon.name) to null
+        else context.resources.getQuantityString(R.plurals.main_addons_imported, names.size, names.size, target.flavor) to version
     } catch (_: WowAddons.TooLarge) {
-        context.getString(R.string.main_addons_too_large, addon.name) to false
+        context.getString(R.string.main_addons_too_large, addon.name) to null
     } catch (e: Exception) {
-        context.getString(R.string.stores_dl_failed_reason, e.message ?: e.javaClass.simpleName) to false
+        context.getString(R.string.stores_dl_failed_reason, e.message ?: e.javaClass.simpleName) to null
     } finally {
         zip.delete()
     }
+}
+
+internal fun diskStatus(folders: List<String>, onDisk: Map<String, WowAddons.Installed>, latest: String, id: String): AddonStatus {
+    if (!WowAddons.present(folders) { it.lowercase() in onDisk }) return AddonStatus.INSTALL
+    val have = onDisk.getValue(folders.first().lowercase())
+    return if (WowAddonCatalog.offersUpdate(have.version, latest, sameSource = have.wowiId == id)) AddonStatus.UPDATE else AddonStatus.INSTALLED
+}
+
+internal fun curseFolders(target: WowAddons.Target, id: String, listed: List<String>): List<String> =
+    listed.ifEmpty { WowAddons.details(target).filter { it.curseId == id }.map { it.name } }
+
+internal fun deleteAddons(context: Context, target: WowAddons.Target, folders: List<String>, link: CurseLink?) {
+    val found = folders.mapNotNull { WowAddons.folder(target.addOns, it) }
+    if (found.isEmpty()) throw IOException("No addon folder to delete")
+    found.forEach { deleteAddon(context, target, it.name, link) }
+}
+
+internal fun deleteAddon(context: Context, target: WowAddons.Target, folder: String, link: CurseLink? = CurseLink.live()) {
+    val managed = link?.let { runCatching { it.uninstall(context, target, folder) }.getOrDefault(false) } == true
+    val left = WowAddons.folder(target.addOns, folder)
+    if (managed || left == null) WowAddons.changed() else WowAddons.delete(target, left.name)
 }
 
 private fun installKey(addon: WowAddonCatalog.Addon, target: WowAddons.Target) = addon.id + "|" + target.addOns.path

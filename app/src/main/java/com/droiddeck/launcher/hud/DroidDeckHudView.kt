@@ -349,7 +349,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         showProton = switchOn("showProton")
         showSession = switchOn("showSession")
         tempDisplay = HudMetrics.TempDisplay.from(cfg)
-        lockController.setLocked(cfg.get("hudLocked", "1") == "1")
+        lockController.setLocked(cfg.get("hudLocked", "0") == "1")
         lockController.setHoldLocks(cfg.get("hudHold", "collapse") == DroidDeckHudConfig.HOLD_LOCKS)
         dock = DroidDeckHudDock.from(cfg.get("hudDock", "none"))
 

@@ -243,6 +243,7 @@ def run_patch(folder, appid, installer, game):
             previous = dict(os.environ)
             try:
                 os.environ.update(env)
+                os.environ["DD_STORE_PROTON"] = command
                 pfx = Path(prefix) / "pfx"
                 if not (pfx / "system.reg").is_file() or not (pfx / "drive_c/windows/system32/reg.exe").is_file():
                     subprocess.run([command, "run", "wineboot.exe", "-u"], env=env, timeout=90, check=True)
