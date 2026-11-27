@@ -1,0 +1,52 @@
+{
+ "arm": "poke",
+ "app": "584400",
+ "samples": [
+  {
+   "label": "home",
+   "t": 1795752574.9,
+   "kgsl_mib": 271.1,
+   "avail_mib": 3416
+  },
+  {
+   "label": "after browsing",
+   "t": 1795752595.8,
+   "kgsl_mib": 767.9,
+   "avail_mib": 3064
+  },
+  {
+   "label": "game +5s",
+   "t": 1795752620.0,
+   "kgsl_mib": 744.9,
+   "avail_mib": 2675
+  },
+  {
+   "label": "game +15s",
+   "t": 1795752631.7,
+   "kgsl_mib": 751.0,
+   "avail_mib": 2591
+  },
+  {
+   "label": "game +45s",
+   "t": 1795752662.7,
+   "kgsl_mib": 751.0,
+   "avail_mib": 2626
+  }
+ ],
+ "pid": "23255",
+ "poke": "{\"ok\": true, \"ms\": 59}",
+ "pacing": {
+  "fps": 59.5,
+  "off_cadence_pct": 0.9,
+  "hist": {
+   "16": 888,
+   "25": 5,
+   "42": 1,
+   "8": 2
+  },
+  "error": null,
+  "p50": 16,
+  "p95": 16,
+  "p99": 16
+ }
+}

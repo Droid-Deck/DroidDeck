@@ -1,0 +1,61 @@
+{
+ "variant": "gpu-mem-256",
+ "flags_seen": [
+  "--force-gpu-mem-available-mb=256"
+ ],
+ "home": {
+  "mib": 251.5,
+  "n": 236,
+  "two_mib": 73
+ },
+ "grid": {
+  "mib": 276.0,
+  "n": 250,
+  "two_mib": 85
+ },
+ "scroll": {
+  "frames": 538,
+  "fps": 44.7,
+  "p50": 16.7,
+  "p95": 58.5,
+  "p99": 74.7,
+  "max": 150.3,
+  "over_25ms": 157,
+  "over_50ms": 71,
+  "time_over_25ms": 7.01,
+  "loaf": 80,
+  "loaf_ms": 4799,
+  "loaf_blocking_ms": 4,
+  "images": 113
+ },
+ "after_scroll": {
+  "mib": 704.0,
+  "n": 459,
+  "two_mib": 311
+ },
+ "pad": {
+  "frames": 607,
+  "fps": 43.3,
+  "p50": 16.6,
+  "p95": 66.4,
+  "p99": 146.7,
+  "max": 492.3,
+  "over_25ms": 135,
+  "over_50ms": 46,
+  "time_over_25ms": 7.95,
+  "loaf": 48,
+  "loaf_ms": 5433,
+  "loaf_blocking_ms": 16,
+  "images": 80
+ },
+ "after_pad": {
+  "mib": 945.2,
+  "n": 582,
+  "two_mib": 425
+ },
+ "idle_20s": {
+  "mib": 881.8,
+  "n": 551,
+  "two_mib": 399
+ }
+}

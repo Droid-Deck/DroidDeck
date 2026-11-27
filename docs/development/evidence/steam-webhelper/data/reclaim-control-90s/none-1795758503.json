@@ -1,0 +1,57 @@
+{
+ "arm": "none",
+ "app": "584400",
+ "samples": [
+  {
+   "label": "home",
+   "t": 1795758372.9,
+   "kgsl_mib": 266.1,
+   "avail_mib": 3808
+  },
+  {
+   "label": "after browsing",
+   "t": 1795758393.8,
+   "kgsl_mib": 705.2,
+   "avail_mib": 3332
+  },
+  {
+   "label": "game +5s",
+   "t": 1795758416.0,
+   "kgsl_mib": 728.3,
+   "avail_mib": 2898
+  },
+  {
+   "label": "game +15s",
+   "t": 1795758426.9,
+   "kgsl_mib": 726.3,
+   "avail_mib": 2966
+  },
+  {
+   "label": "game +45s",
+   "t": 1795758457.8,
+   "kgsl_mib": 726.3,
+   "avail_mib": 2948
+  },
+  {
+   "label": "game +90s",
+   "t": 1795758503.9,
+   "kgsl_mib": 726.3,
+   "avail_mib": 2999
+  }
+ ],
+ "pid": "28944",
+ "pacing": {
+  "fps": 59.4,
+  "off_cadence_pct": 0.6,
+  "hist": {
+   "16": 892,
+   "25": 2,
+   "42": 1,
+   "8": 2
+  },
+  "error": null,
+  "p50": 16,
+  "p95": 16,
+  "p99": 16
+ }
+}

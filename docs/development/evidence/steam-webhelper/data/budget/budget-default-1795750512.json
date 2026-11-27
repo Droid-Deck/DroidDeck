@@ -1,0 +1,59 @@
+{
+ "variant": "default",
+ "flags_seen": [],
+ "home": {
+  "mib": 250.0,
+  "n": 220,
+  "two_mib": 75
+ },
+ "grid": {
+  "mib": 277.0,
+  "n": 236,
+  "two_mib": 90
+ },
+ "scroll": {
+  "frames": 544,
+  "fps": 45.1,
+  "p50": 16.7,
+  "p95": 58.7,
+  "p99": 76.6,
+  "max": 191.7,
+  "over_25ms": 150,
+  "over_50ms": 66,
+  "time_over_25ms": 6.89,
+  "loaf": 76,
+  "loaf_ms": 4733,
+  "loaf_blocking_ms": 26,
+  "images": 113
+ },
+ "after_scroll": {
+  "mib": 706.9,
+  "n": 442,
+  "two_mib": 304
+ },
+ "pad": {
+  "frames": 802,
+  "fps": 57.2,
+  "p50": 15.0,
+  "p95": 41.3,
+  "p99": 84.5,
+  "max": 500.5,
+  "over_25ms": 107,
+  "over_50ms": 38,
+  "time_over_25ms": 5.57,
+  "loaf": 39,
+  "loaf_ms": 3687,
+  "loaf_blocking_ms": 28,
+  "images": 80
+ },
+ "after_pad": {
+  "mib": 735.4,
+  "n": 476,
+  "two_mib": 313
+ },
+ "idle_20s": {
+  "mib": 712.2,
+  "n": 466,
+  "two_mib": 307
+ }
+}

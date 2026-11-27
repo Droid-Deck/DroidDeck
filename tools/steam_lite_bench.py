@@ -26,6 +26,7 @@ import random
 import statistics
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -573,6 +574,137 @@ def library(dev: Device, soft: str, out: Path) -> dict:
     return run
 
 
+UI_WINDOW = "Steam Big Picture Mode"
+# Big Picture's frosted bars and panels are backdrop-filter blurs, some on ::before pseudo-elements.
+NO_BACKDROP = "*,*::before,*::after{backdrop-filter:none!important}"
+NO_SCREENSAVER = "yNwLAA=="  # CMsgClientSettings field 24009 (system_idle_screensaver_ac_sec) = 0
+
+RECORD_JS = r"""new Promise(done => {
+  const seconds = %(seconds)s, speed = %(speed)s / 1000;
+  const el = document.querySelector("._TabContentsScroll");
+  if (speed && !el) return done(JSON.stringify({error: "no scroll container"}));
+  if (speed) el.scrollTop = 0;
+  const frames = [], loaf = [];
+  const obs = new PerformanceObserver(list => { for (const e of list.getEntries())
+    loaf.push([Math.round(e.startTime), Math.round(e.duration), Math.round(e.blockingDuration || 0)]); });
+  obs.observe({type: "long-animation-frame"});
+  setTimeout(() => {
+    let t0 = null;
+    function step(ts) {
+      if (t0 === null) t0 = ts;
+      frames.push(Math.round((ts - t0) * 10) / 10);
+      if (speed) el.scrollTop = speed * (ts - t0);
+      if (ts - t0 < seconds * 1000) return requestAnimationFrame(step);
+      setTimeout(() => { obs.disconnect();
+        done(JSON.stringify({frames, loaf: loaf.filter(x => x[0] >= t0).map(x => [x[0] - Math.round(t0), x[1], x[2]]),
+                             images: document.images.length})); }, 300);
+    }
+    requestAnimationFrame(step);
+  }, %(delay)s);
+})"""
+
+
+def frame_stats(frames: list[float]) -> dict:
+    """Steam's own frame cadence from requestAnimationFrame timestamps (ms)."""
+    gaps = [b - a for a, b in zip(frames, frames[1:])]
+    if not gaps:
+        return {"frames": len(frames)}
+    ordered = sorted(gaps)
+
+    def pct(p):
+        return round(ordered[min(len(ordered) - 1, int(len(ordered) * p / 100))], 1)
+    return {"frames": len(frames), "fps": round(1000 * len(gaps) / (frames[-1] - frames[0]), 1),
+            "p50": pct(50), "p95": pct(95), "p99": pct(99), "max": round(ordered[-1], 1),
+            "over_25ms": sum(1 for g in gaps if g > 25), "over_50ms": sum(1 for g in gaps if g > 50),
+            "time_over_25ms": round(sum(g for g in gaps if g > 25) / 1000, 2)}
+
+
+def ui_record(dev: Device, seconds: float, speed: float = 0, delay: float = 1000, during=None) -> dict:
+    """Record Steam's frames for `seconds`, scrolling the library at `speed` px/s or running `during()`."""
+    reply: dict = {}
+    js = RECORD_JS % {"seconds": seconds, "speed": speed, "delay": delay}
+    worker = threading.Thread(target=lambda: reply.update(
+        dev.ctl("cdp", "eval", "--target", UI_WINDOW, "--timeout", str(seconds + 30), js, timeout=seconds + 60)))
+    worker.start()
+    if during:
+        time.sleep(delay / 1000 + 0.3)
+        during()
+    worker.join()
+    try:
+        data = json.loads(reply.get("value") or "")
+    except ValueError:
+        raise RuntimeError("the frame recorder failed: %s" % json.dumps(reply)[:300])
+    if "error" in data:
+        raise RuntimeError(data["error"])
+    loaf = data.get("loaf") or []
+    return {**frame_stats(data["frames"]), "loaf": len(loaf), "loaf_ms": sum(x[1] for x in loaf),
+            "loaf_blocking_ms": sum(x[2] for x in loaf), "images": data.get("images"), "raw": data["frames"]}
+
+
+def ui_style(dev: Device, css: str) -> None:
+    js = ('(()=>{let s=document.getElementById("dd-bench-style"); if(!s){s=document.createElement("style");'
+          's.id="dd-bench-style"; document.head.appendChild(s);} s.textContent=%s; return "ok"})()' % json.dumps(css))
+    if dev.ctl("cdp", "eval", "--target", UI_WINDOW, js, timeout=60).get("value") != "ok":
+        raise RuntimeError("could not set the UI style")
+
+
+def library_tab(dev: Device) -> None:
+    js = ('(()=>{const w=SteamUIStore.WindowStore.SteamUIWindows[0]; w.m_Navigator.LibraryTab("AllGames");'
+          'return w.m_locationPathname})()')
+    if "AllGames" not in str(dev.ctl("cdp", "eval", js, timeout=60).get("value")):
+        raise RuntimeError("could not open the library grid")
+
+
+def smooth(dev: Device, arm: str, out: Path, rounds: int) -> dict:
+    """One fresh session: UI frame cadence while scrolling the library grid and opening the main menu,
+    with Steam's styles as shipped and with every backdrop blur removed."""
+    out.mkdir(parents=True, exist_ok=True)
+    run = {"arm": arm, "env": ARMS[arm], "started": fresh_session(dev, ARMS[arm]), "rounds": []}
+    if not run["started"]:
+        raise RuntimeError("Steam did not start for arm %s" % arm)
+    dev.ctl("cdp", "eval", "SteamClient.Settings.SetSetting(%s)" % json.dumps(NO_SCREENSAVER), timeout=60)
+    time.sleep(45)
+    library_tab(dev)
+    time.sleep(10)
+    run["idle"] = snapshot(dev, "library grid")
+    for i in range(rounds):
+        for style in ("shipped", "no-backdrop"):
+            ui_style(dev, NO_BACKDROP if style != "shipped" else "")
+            time.sleep(2)
+            entry = {"round": i + 1, "style": style}
+            a = snapshot(dev, "%s before scroll" % style)
+            entry["scroll"] = ui_record(dev, 12, speed=1500)
+            b = snapshot(dev, "%s after scroll" % style)
+            entry["scroll"]["web_cpu_pct"] = web_cpu(a, b)
+            entry["scroll"]["gpu_mib"] = b and b["gpu"]
+            presses = ["down"] * 20 + ["up"] * 20
+            entry["pad"] = ui_record(dev, 14, during=lambda: dev.ctl(
+                "input", "gamepad", *presses, "--hold", "60", "--gap", "250", timeout=60))
+            c = snapshot(dev, "%s after pad" % style)
+            entry["pad"]["web_cpu_pct"] = web_cpu(b, c)
+            entry["pad"]["gpu_mib"] = c and c["gpu"]
+
+            def menu():
+                for _ in range(3):
+                    dev.ctl("input", "gamepad", "guide", "--hold", "120", timeout=30)
+                    time.sleep(1.5)
+                    dev.ctl("input", "gamepad", "b", "--hold", "120", timeout=30)
+                    time.sleep(1.5)
+            entry["menu"] = ui_record(dev, 13, during=menu)
+            d = snapshot(dev, "%s after menu" % style)
+            entry["menu"]["web_cpu_pct"] = web_cpu(c, d)
+            entry["menu"]["gpu_mib"] = d and d["gpu"]
+            entry["menu"]["pss_mib"] = d and d["pss"]
+            print(time.strftime("%H:%M:%S"), arm, style, *("%s %s fps p95 %s" % (k, entry[k].get("fps"), entry[k].get("p95"))
+                                                          for k in ("scroll", "pad", "menu")), flush=True)
+            run["rounds"].append(entry)
+            if i == 0:
+                dev.ctl("screenshot", str(out / ("grid-%s.png" % style)), timeout=60)
+    ui_style(dev, "")
+    (out / "run.json").write_text(json.dumps(run, indent=1))
+    return run
+
+
 # ---- analysis -----------------------------------------------------------------------------------
 
 def load(run_dir: Path) -> tuple[list[dict], dict]:
@@ -737,6 +869,11 @@ def main(argv=None) -> int:
     p_library = sub.add_parser("library")
     p_library.add_argument("--order", default="1,0,1,0", help="DD_STEAM_SOFT_COMPOSITING per fresh session")
     p_library.add_argument("--out", type=Path, required=True)
+    p_smooth = sub.add_parser("smooth")
+    p_smooth.add_argument("--arms", default="stock,softcomp,stock,softcomp,stock,softcomp",
+                          help="one fresh session per entry, in this order (names from ARMS)")
+    p_smooth.add_argument("--rounds", type=int, default=2, help="shipped/no-backdrop pairs per session")
+    p_smooth.add_argument("--out", type=Path, required=True)
     p_report = sub.add_parser("report")
     p_report.add_argument("root", type=Path)
     args = parser.parse_args(argv)
@@ -756,6 +893,18 @@ def main(argv=None) -> int:
             print("== steady", name, flush=True)
             try:
                 steady(dev, arm, args.app, args.out / name)
+            except Exception as error:
+                failed += 1
+                print("run failed: %r" % error, flush=True)
+        return 1 if failed else 0
+    if args.command == "smooth":
+        counts = {}
+        for arm in args.arms.split(","):
+            counts[arm] = counts.get(arm, 0) + 1
+            name = "%s-%d" % (arm, counts[arm])
+            print("== smooth", name, flush=True)
+            try:
+                smooth(dev, arm, args.out / name, args.rounds)
             except Exception as error:
                 failed += 1
                 print("run failed: %r" % error, flush=True)

@@ -50,6 +50,20 @@ class AccountingTest(unittest.TestCase):
         self.assertEqual(out['idle_web_cpu_pct'], 10.0)
 
 
+class FrameStatsTest(unittest.TestCase):
+    def test_cadence_percentiles_and_long_frames(self):
+        frames = [0, 8.3, 16.7, 25.0, 50.0, 58.3, 116.7]
+        out = bench.frame_stats(frames)
+        self.assertEqual(out['frames'], 7)
+        self.assertEqual(out['p50'], 8.4)
+        self.assertEqual((out['over_25ms'], out['over_50ms']), (1, 1))
+        self.assertEqual(out['max'], 58.4)
+        self.assertAlmostEqual(out['fps'], 51.4)
+
+    def test_a_single_frame_has_no_cadence(self):
+        self.assertEqual(bench.frame_stats([0]), {'frames': 1})
+
+
 class FakeDevice:
     def __init__(self, replies):
         self.replies = list(replies)

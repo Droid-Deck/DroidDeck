@@ -1,0 +1,60 @@
+{
+ "variant": "default",
+ "renderer": "ANGLE (Mesa, zink Vulkan 1.4(Adreno (TM) 722 (MESA_TURNIP)), OpenGL 4.6 (Core Profile) Mesa 26.0.8-1ubuntu0.3+droiddeck1)",
+ "flags_seen": [],
+ "home": {
+  "mib": 251.1,
+  "n": 219,
+  "two_mib": 75
+ },
+ "grid": {
+  "mib": 276.2,
+  "n": 234,
+  "two_mib": 86
+ },
+ "scroll": {
+  "frames": 510,
+  "fps": 42.4,
+  "p50": 16.7,
+  "p95": 56.5,
+  "p99": 145.6,
+  "max": 406.4,
+  "over_25ms": 134,
+  "over_50ms": 57,
+  "time_over_25ms": 7.22,
+  "loaf": 76,
+  "loaf_ms": 5775,
+  "loaf_blocking_ms": 102,
+  "images": 125
+ },
+ "after_scroll": {
+  "mib": 683.9,
+  "n": 435,
+  "two_mib": 299
+ },
+ "pad": {
+  "frames": 647,
+  "fps": 45.6,
+  "p50": 16.6,
+  "p95": 71.1,
+  "p99": 150.8,
+  "max": 475.4,
+  "over_25ms": 135,
+  "over_50ms": 47,
+  "time_over_25ms": 7.71,
+  "loaf": 47,
+  "loaf_ms": 5098,
+  "loaf_blocking_ms": 16,
+  "images": 68
+ },
+ "after_pad": {
+  "mib": 772.9,
+  "n": 496,
+  "two_mib": 335
+ },
+ "idle_20s": {
+  "mib": 744.4,
+  "n": 484,
+  "two_mib": 326
+ }
+}

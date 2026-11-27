@@ -1,0 +1,63 @@
+{
+ "variant": "angle-vulkan-features",
+ "renderer": "ANGLE (Qualcomm, Vulkan 1.4.368 (Adreno (TM) 722 (0x43020100)), turnip Mesa driver-26.99.99)",
+ "flags_seen": [
+  "--use-gl=angle",
+  "--use-angle=vulkan"
+ ],
+ "home": {
+  "mib": 33.3,
+  "n": 55,
+  "two_mib": 2
+ },
+ "grid": {
+  "mib": 33.3,
+  "n": 55,
+  "two_mib": 2
+ },
+ "scroll": {
+  "frames": 75,
+  "fps": 6.1,
+  "p50": 166.8,
+  "p95": 191.9,
+  "p99": 342.1,
+  "max": 342.1,
+  "over_25ms": 72,
+  "over_50ms": 71,
+  "time_over_25ms": 12.02,
+  "loaf": 72,
+  "loaf_ms": 12075,
+  "loaf_blocking_ms": 1,
+  "images": 125
+ },
+ "after_scroll": {
+  "mib": 33.3,
+  "n": 55,
+  "two_mib": 2
+ },
+ "pad": {
+  "frames": 139,
+  "fps": 9.9,
+  "p50": 150.1,
+  "p95": 325.3,
+  "p99": 342.1,
+  "max": 509.0,
+  "over_25ms": 72,
+  "over_50ms": 72,
+  "time_over_25ms": 13.46,
+  "loaf": 73,
+  "loaf_ms": 13418,
+  "loaf_blocking_ms": 0,
+  "images": 68
+ },
+ "after_pad": {
+  "mib": 37.0,
+  "n": 56,
+  "two_mib": 2
+ },
+ "idle_20s": {
+  "mib": 37.0,
+  "n": 56,
+  "two_mib": 2
+ }
+}
