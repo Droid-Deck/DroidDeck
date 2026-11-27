@@ -98,7 +98,7 @@ Ordered by value for effort. Each is independent unless noted.
 
 ### 1. Idle home page
 
-**Status:** first version built. With no game running, the In-game stats page shows the game selected in Big Picture (read through the agent's `steam-selection` request), or the most recently played installed game, with its hero art, play time and last played from `localconfig.vdf`, and a Play button (`SteamClient.Apps.RunGame`). Downloads and friends are not on it yet. Code: [`ui/BottomIdleHome.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomIdleHome.kt), [`session/SteamLocalConfig.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamLocalConfig.kt).
+**Status:** first version built and checked on a Retroid Pocket Duo Lite Plus. With no game running, the In-game stats page shows the game selected in Big Picture (read through the agent's `steam-selection` request) with its name, play time and last played from Steam's own `appStore` overview, so it also works for games installed on another PC; otherwise the most recently played installed game, from `localconfig.vdf`. Art comes from Steam's library cache, and Play calls `SteamClient.Apps.RunGame`. Downloads and friends are not on it yet. Code: [`ui/BottomIdleHome.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomIdleHome.kt), [`session/SteamLocalConfig.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamLocalConfig.kt).
 
 When no game is focused, replace the Steam-client FPS card with a page about the game highlighted in Steam: art, play time, last played, achievement progress, and Play / Stream buttons. Add downloads in progress and friends online.
 
@@ -107,7 +107,7 @@ When no game is focused, replace the Steam-client FPS card with a page about the
 
 ### 2. Per-game panel memory
 
-**Status:** built. Picking a bottom mode or a dashboard tab while a game is focused saves it for that game (`secondScreenPanel.app.<id>`, `bottomPage.app.<id>`); focusing the game restores it, and returning to Steam restores the global choice. Resetting the game profile clears both. Control layouts already follow the game through input profiles.
+**Status:** built. Picking a bottom mode or a dashboard tab while a game is focused saves it for that game (`secondScreenPanel.app.<id>`, `bottomPage.app.<id>`); focusing the game restores it, and returning to Steam restores the global choice. Resetting the game profile clears both. Control layouts already follow the game through input profiles. Not yet checked on hardware: launching a game on the test device would have signed out another session on the same Steam account.
 
 Remember the bottom mode, dashboard tab and control layout per Steam app id, and restore them when that game gains focus. Fall back to today's global choice.
 
@@ -116,7 +116,7 @@ Remember the bottom mode, dashboard tab and control layout per Steam app id, and
 
 ### 3. Steam achievements and notifications
 
-**Status:** achievements built; notifications not started. An Achievements tab reads `SteamClient.Apps.GetMyAchievementsForApp` through `steamEval` into the shared `StoreAchievements` model, so it uses the same list, groups and hidden-achievement handling as Epic and GOG, and is cached for offline use. Code: [`stores/SteamAchievements.kt`](../../app/src/main/java/com/droiddeck/launcher/stores/SteamAchievements.kt), [`ui/BottomAchievementsPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomAchievementsPage.kt).
+**Status:** achievements built; notifications not started. An Achievements tab reads `SteamClient.Apps.GetMyAchievementsForApp` through `steamEval` into the shared `StoreAchievements` model, so it uses the same list, groups and hidden-achievement handling as Epic and GOG, and is cached for offline use. With no game running it shows the game selected in Steam. Checked on hardware (Arcade Paradise: 20 of 54, with icons and unlock dates). Code: [`stores/SteamAchievements.kt`](../../app/src/main/java/com/droiddeck/launcher/stores/SteamAchievements.kt), [`ui/BottomAchievementsPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomAchievementsPage.kt).
 
 An achievements page for the running game (progress, recent unlocks, locked list with hidden descriptions behind a tap) and a notifications page (friends, invites, downloads finished).
 
@@ -133,7 +133,7 @@ Rearrangeable tiles on the dashboard: FPS limit, 60/120 Hz, per-screen brightnes
 
 ### 5. Bottom screen off and auto-dim
 
-**Status:** built, pending a check on hardware of how far the window brightness override reaches. Every panel's bar has a screen-off button: the panel goes black and asks for the lowest window brightness (`BRIGHTNESS_OVERRIDE_OFF`); a touch wakes it. The dashboard dims after 60 s without touch (pref `bottomAutoDim`, on by default); trackpad and keyboard panels never dim. Hardware buttons are not claimed.
+**Status:** built and checked on a Retroid Pocket Duo Lite Plus, where the window brightness override is per display: screen off sets the bottom display to 0.0 and auto-dim to 0.05 (`mBrightnessReason=override(com.droiddeck.launcher)`), while the top display stays at the user's manual level. Every panel's bar has a screen-off button: the panel goes black and asks for the lowest window brightness (`BRIGHTNESS_OVERRIDE_OFF`); a touch wakes it. The dashboard dims after 60 s without touch (pref `bottomAutoDim`, on by default); trackpad and keyboard panels never dim. Hardware buttons are not claimed.
 
 - A real off state for the bottom panel during a game (the backlight off, not a black Presentation), toggled from the bar or a button hold.
 - Dim after a period without touch, wake on touch. Off by default for the trackpad and keyboard modes.
@@ -147,7 +147,7 @@ Details: [bottom-screen-region-mirror.md](bottom-screen-region-mirror.md).
 
 ### 7. Guides tab
 
-**Status:** milestone 1 built. A Guides tab lists the running game's top-rated Steam guides (with the user's Steam web cookies, so their language filter applies), opens one in a non-focusable WebView restricted to Steam hosts, and remembers the guide and scroll position per game ("Continue reading"). Code: [`session/SteamGuides.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamGuides.kt), [`ui/BottomGuidesPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomGuidesPage.kt).
+**Status:** milestone 1 built. A Guides tab lists the running game's top-rated Steam guides (with the user's Steam web cookies, so their language filter applies), opens one in a non-focusable WebView restricted to Steam hosts, and remembers the guide and scroll position per game ("Continue reading"). With no game running it shows the game selected in Steam. Checked on hardware. Code: [`session/SteamGuides.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamGuides.kt), [`ui/BottomGuidesPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomGuidesPage.kt).
 
 A per-game tab with Steam Community guides for the exact app id, Steam achievements as a spoiler-safe checklist, the game's wiki and fixes (found through Wikidata), saved pages for offline use, and a workspace that reopens at the last section. It must never take focus from the game, and pauses pages it is not showing.
 
