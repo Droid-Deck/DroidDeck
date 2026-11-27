@@ -19,7 +19,7 @@ struct wire_handle {
     struct android_native_handle *handle;
     int received;
 };
-enum { MAX_HANDLE_FDS = 64, MAX_HANDLE_INTS = 256, MAX_BUFFER_SIDE = 8192 };
+enum { MAX_HANDLE_FDS = 64, MAX_HANDLE_INTS = 4096, MAX_BUFFER_SIDE = 8192 };
 /* VNDK ABI (not exposed by the NDK): frameworks/native/libs/nativewindow/include/
  * vndk/hardware_buffer.h, AHARDWAREBUFFER_CREATE_FROM_HANDLE_METHOD_CLONE = 3.
  * Method 1 is not accepted by AHardwareBuffer_createFromHandle. */
@@ -63,6 +63,7 @@ static const struct android_wlegl_handle_interface handle_impl = {
 
 static void create_handle(struct wl_client *client, struct wl_resource *resource,
                            uint32_t id, int32_t fds, struct wl_array *ints) {
+    droiddeck_log("display", "android_wlegl create_handle: fds=%d bytes=%zu", fds, ints->size);
     if (fds < 0 || fds > MAX_HANDLE_FDS || ints->size % sizeof(int32_t) ||
         ints->size > MAX_HANDLE_INTS * sizeof(int32_t)) {
         wl_resource_post_error(resource, ANDROID_WLEGL_ERROR_BAD_VALUE, "invalid native handle size");
