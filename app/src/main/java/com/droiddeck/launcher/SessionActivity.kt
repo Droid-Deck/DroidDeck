@@ -768,6 +768,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val changed = sessionActivityDisplayId != current
         sessionActivityDisplayId = current
         SessionState.activityDisplayId = current
+        CompositorHost.setGameOnOtherDisplay(gameOnOtherDisplay())
         return changed
     }
 

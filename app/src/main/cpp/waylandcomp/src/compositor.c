@@ -2481,7 +2481,10 @@ static int64_t scene_next_due(int64_t now, int64_t due, int limit) {
     return due > 0 && now - due < interval ? due + interval : now + interval;
 }
 
+static void cadence_update(void);
+
 static void render_scene(void) {
+    cadence_update();
     g_scene_due_ns = scene_next_due(now_ns(), g_scene_due_ns, g_fps_limit);
     if (atomic_load(&g_stream_on)) { g_dirty_since_ns = 0; render_stream(); return; }
     struct draw_list dl = {0};
@@ -4279,7 +4282,7 @@ static int on_stats_timer(void *data) {
         sc_layer_cadence_take(&cs);
         if (cs.paced || cs.fillers)
             droiddeck_log("pacing", "last 10 s: %u game frames held to a steady cadence (every %u refreshes at the end), "
-                       "%.2f/%.2f ms from arrival to screen, %u ready too late for their refresh, %u shown unpaced | "
+                       "%.2f/%.2f ms planned from arrival to screen, %u ready too late for their refresh, %u shown unpaced | "
                        "presenter: %u filler refreshes, %u refreshes left empty, %u frames past their refresh, %u late wake-ups, "
                        "frames applied %.2f ms before SurfaceFlinger's deadline, %.2f ms before their refresh",
                        cs.paced, cs.interval, cs.paced ? (double)cs.latency_ns / 1e6 / cs.paced : 0.0,

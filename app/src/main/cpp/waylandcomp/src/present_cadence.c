@@ -1,26 +1,26 @@
 #include "present_cadence.h"
 
-#include <stdatomic.h>
+#include <pthread.h>
 #include <string.h>
 
-static _Atomic int64_t g_timeline_grid_ns;
-static _Atomic int64_t g_timeline_lead_ns;
-static _Atomic int64_t g_timeline_period_ns;
-static _Atomic int64_t g_timeline_at_ns;
+static pthread_mutex_t g_timeline_lock = PTHREAD_MUTEX_INITIALIZER;
+static int64_t g_timeline_grid_ns, g_timeline_lead_ns, g_timeline_period_ns, g_timeline_at_ns;
 
 void present_cadence_set_timeline(int64_t expected_present_ns, int64_t deadline_ns, int64_t period_ns,
                                   int64_t now_ns) {
-    atomic_store(&g_timeline_grid_ns, expected_present_ns);
-    atomic_store(&g_timeline_lead_ns, expected_present_ns - deadline_ns);
-    atomic_store(&g_timeline_period_ns, period_ns);
-    atomic_store(&g_timeline_at_ns, now_ns);
+    pthread_mutex_lock(&g_timeline_lock);
+    g_timeline_grid_ns = expected_present_ns;
+    g_timeline_lead_ns = expected_present_ns - deadline_ns;
+    g_timeline_period_ns = period_ns;
+    g_timeline_at_ns = now_ns;
+    pthread_mutex_unlock(&g_timeline_lock);
 }
 
 int present_cadence_timeline(int64_t now_ns, int64_t *grid_ns, int64_t *lead_ns, int64_t *period_ns) {
-    const int64_t at = atomic_load(&g_timeline_at_ns);
-    const int64_t grid = atomic_load(&g_timeline_grid_ns);
-    const int64_t lead = atomic_load(&g_timeline_lead_ns);
-    const int64_t period = atomic_load(&g_timeline_period_ns);
+    pthread_mutex_lock(&g_timeline_lock);
+    const int64_t at = g_timeline_at_ns, grid = g_timeline_grid_ns, lead = g_timeline_lead_ns,
+                  period = g_timeline_period_ns;
+    pthread_mutex_unlock(&g_timeline_lock);
     if (at <= 0 || now_ns - at > PRESENT_CADENCE_TIMELINE_STALE_NS) return 0;
     if (period < 2000000LL || period > 50000000LL || grid <= 0 || lead < 0 || lead > 4 * period) return 0;
     *grid_ns = grid;
@@ -67,20 +67,6 @@ static unsigned note_gap(struct present_cadence *c, int64_t k) {
     return sum;
 }
 
-/* A frame that follows a held one is held to the refresh after it, so each frame gets a refresh of
- * its own. */
-static int64_t behind_held(struct present_cadence *c, int64_t arrival_ns, int64_t first, int64_t period_ns,
-                           int64_t lead_ns) {
-    if (!c->last_target_ns || c->last_target_ns < arrival_ns + PRESENT_CADENCE_APPLY_NS + lead_ns) {
-        c->last_target_ns = 0;
-        return 0;
-    }
-    int64_t target = c->last_target_ns + period_ns;
-    if (first > target) target = first;
-    c->last_target_ns = target;
-    return target;
-}
-
 int64_t present_cadence_plan(struct present_cadence *c, int64_t arrival_ns, int64_t grid_ns,
                              int64_t period_ns, int64_t lead_ns) {
     c->target_ns = 0;
@@ -116,7 +102,8 @@ int64_t present_cadence_plan(struct present_cadence *c, int64_t arrival_ns, int6
         ref + max_wait(c) + PRESENT_CADENCE_MARGIN_NS + PRESENT_CADENCE_APPLY_NS + lead_ns, grid_ns, period_ns);
     int64_t target;
     if (!c->pacing) {
-        target = behind_held(c, arrival_ns, first, period_ns, lead_ns);
+        target = 0;
+        c->last_target_ns = 0;
     } else {
         const int64_t step = k > 1 ? k : 1;
         int64_t locked = 0;

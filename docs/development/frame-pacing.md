@@ -17,7 +17,7 @@ Without even frame pacing, each layer transaction carries a desired present time
   - A frame's target refresh keeps the stream's cadence. It is never earlier than the reference + the longest wait of the last 128 frames + SurfaceFlinger's deadline.
   - A copied frame's wait ends when its copy is done. A zero-copy frame's wait ends when its fence signalled, read from the fence when the next frame arrives (`zero_copy_ready`).
   - The grid and the deadline come from Choreographer's frame timeline (`VsyncCallback`, Android 13+, `sc_layer_frame_timeline`).
-  - Pacing turns on once the last 8 gaps average 1.5 refreshes or more, and off below 1.25.
+  - Pacing turns on once the last 8 gaps average 1.5 refreshes or more, and off below 1.25. When it turns off, frames still held are applied at once, in order, and the frames after them are not held.
 - The presenter thread `dd-present` (`sc_layer.c`) applies each held frame 1 ms before SurfaceFlinger's deadline for its refresh.
   - On every refresh in between, it swaps the buffer of a transparent 16×16 layer (`droiddeck_wayland_pacer`) under the game, so every refresh is presented and a frame can't land early.
   - Every other layer transaction goes through the same queue, so none overtakes a held frame.
@@ -32,7 +32,7 @@ Cost: frames reach the screen later (about 34 ms from arrival at 40 fps on 120 H
 Every 10 seconds the compositor log has a `[pacing]` line such as:
 
 ```
-400 game frames held to a steady cadence (every 3 refreshes at the end), 34.08/36.34 ms from arrival to screen,
+400 game frames held to a steady cadence (every 3 refreshes at the end), 34.08/36.34 ms planned from arrival to screen,
 0 ready too late for their refresh, 0 shown unpaced | presenter: 796 filler refreshes, 0 refreshes left empty,
 0 frames past their refresh, 0 late wake-ups, ...
 ```

@@ -39,7 +39,7 @@ struct present_cadence_stats {
 };
 
 /* Picks the vsync a frame that reached the compositor at arrival_ns is shown at, or 0 to show it
- * as soon as it is ready. grid_ns is any vsync's present time, lead_ns how long before a vsync a
+ * as soon as it is ready, after any frames still held. grid_ns is any vsync's present time, lead_ns how long before a vsync a
  * transaction must be applied to be shown at it; the presenter applies it PRESENT_CADENCE_APPLY_NS
  * before that. */
 int64_t present_cadence_plan(struct present_cadence *c, int64_t arrival_ns, int64_t grid_ns,
