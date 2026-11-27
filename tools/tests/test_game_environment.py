@@ -709,6 +709,74 @@ class GameDebugLoggingTest(unittest.TestCase):
             self.assertIs(MODULE["apply_game_debug_logs"](normal, {**config, "gameDebugLogs": False}, debug_dir), normal)
             self.assertEqual(MODULE["apply_game_debug_logs"](debug, config, debug_dir), debug)
 
+    @staticmethod
+    def proton_log_like_proton(env):
+        path = os.path.join(env["PROTON_LOG_DIR"], "steam-" + env["SteamGameId"] + ".log")
+        if os.path.lexists(path):
+            os.remove(path)
+        os.makedirs(env["PROTON_LOG_DIR"], exist_ok=True)
+        return open(path, "a")
+
+    def test_second_proton_run_of_a_game_keeps_the_first_runs_log(self):
+        config = {"version": 1, "gameDebugLogs": True}
+        with tempfile.TemporaryDirectory() as debug_dir:
+            base = {"DD_DEBUG_DIR": debug_dir, "SteamGameId": "11150221161898442752"}
+            first = MODULE["apply_game_debug_logs"](base, config, debug_dir)
+            self.assertEqual(first["PROTON_LOG_DIR"], debug_dir)
+            self.assertEqual(MODULE["apply_game_debug_logs"](first, config, debug_dir), first)
+            with self.proton_log_like_proton(first) as launcher:
+                launcher.write("launcher\n")
+                launcher.flush()
+                second = MODULE["apply_game_debug_logs"](base, config, debug_dir)
+                runs = os.path.join(debug_dir, "proton-runs")
+                self.assertEqual(os.path.dirname(second["PROTON_LOG_DIR"]), runs)
+                for key in ("PROTON_CRASH_REPORT_DIR", "DXVK_LOG_PATH"):
+                    self.assertEqual(second[key], second["PROTON_LOG_DIR"])
+                self.assertEqual(MODULE["apply_game_debug_logs"](second, config, debug_dir), second)
+                with self.proton_log_like_proton(second) as handoff:
+                    handoff.write("handoff\n")
+                launcher.write("game child\n")
+            log = Path(debug_dir, "steam-11150221161898442752.log")
+            self.assertEqual(log.read_text(), "launcher\ngame child\n")
+            self.assertEqual(Path(second["PROTON_LOG_DIR"], log.name).read_text(), "handoff\n")
+            third = MODULE["apply_game_debug_logs"](base, config, debug_dir)
+            self.assertNotIn(third["PROTON_LOG_DIR"], (debug_dir, second["PROTON_LOG_DIR"]))
+            self.assertEqual(len(os.listdir(runs)), 2)
+
+    def test_proton_log_folder_stays_the_session_folder_for_other_games(self):
+        config = {"version": 1, "gameDebugLogs": True}
+        with tempfile.TemporaryDirectory() as debug_dir:
+            Path(debug_dir, "steam-42.log").write_text("other game\n")
+            Path(debug_dir, "Wow-arm64_d3d11.log").write_text("dxvk\n")
+            env = MODULE["apply_game_debug_logs"]({"SteamGameId": "7"}, config, debug_dir)
+            self.assertEqual(env["PROTON_LOG_DIR"], debug_dir)
+            self.assertFalse(os.path.exists(os.path.join(debug_dir, "proton-runs")))
+            unknown = MODULE["apply_game_debug_logs"]({}, config, debug_dir)
+            self.assertEqual(os.path.dirname(unknown["PROTON_LOG_DIR"]), os.path.join(debug_dir, "proton-runs"))
+            outside = MODULE["apply_game_debug_logs"]({"SteamGameId": "42", "PROTON_LOG_DIR": "/elsewhere"},
+                                                     config, debug_dir)
+            self.assertEqual(os.path.dirname(outside["PROTON_LOG_DIR"]), os.path.join(debug_dir, "proton-runs"))
+            self.assertEqual(Path(debug_dir, "steam-42.log").read_text(), "other game\n")
+
+    def test_proton_log_is_skipped_when_no_free_log_folder_can_be_made(self):
+        config = {"version": 1, "gameDebugLogs": True}
+        with tempfile.TemporaryDirectory() as debug_dir:
+            Path(debug_dir, "steam-42.log").write_text("first run\n")
+            Path(debug_dir, "proton-runs").write_text("not a folder\n")
+            inherited = {"SteamGameId": "42", "PROTON_LOG": "1", "PROTON_LOG_DIR": debug_dir, "WINEDEBUG": "+relay"}
+            with patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                env = MODULE["apply_game_debug_logs"](inherited, config, debug_dir)
+            self.assertNotIn("PROTON_LOG", env)
+            self.assertNotIn("PROTON_LOG_DIR", env)
+            self.assertEqual(env["DXVK_LOG_PATH"], debug_dir)
+            self.assertEqual(env["PROTON_CRASH_REPORT_DIR"], debug_dir)
+            self.assertIn("+relay", env["WINEDEBUG"])
+            self.assertIn("+seh", env["WINEDEBUG"])
+            self.assertIn("Proton log skipped", stderr.getvalue())
+            self.assertEqual(Path(debug_dir, "steam-42.log").read_text(), "first run\n")
+            other = MODULE["apply_game_debug_logs"]({"SteamGameId": "7"}, config, debug_dir)
+            self.assertEqual(other["PROTON_LOG_DIR"], debug_dir)
+
     def test_wine_debug_channels_are_formatted_deduplicated_and_diagnostics_win(self):
         formatted = MODULE["game_debug_channels"](
             " +relay, trace-vulkan, -all, -seh, +relay, trace+vulkan, garbage, $(touch never) ",
