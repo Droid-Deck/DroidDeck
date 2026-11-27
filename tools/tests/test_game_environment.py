@@ -3332,6 +3332,20 @@ class ProjectZomboidJvmTest(unittest.TestCase):
             MODULE["project_zomboid_jvm"](command[:2] + [str(Path(tmp) / "ProjectZomboid64.exe")])
             self.assertEqual((Path(tmp) / "ProjectZomboid64.json").read_text(), "{")
 
+    def test_the_linux_script_rewrites_the_settings_of_the_launcher_it_starts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings, _ = self.launch(tmp)
+            script = Path(tmp) / "projectzomboid.sh"
+            MODULE["zomboid_launcher_jvm"](str(script))
+            self.assertEqual(json.loads(settings.read_text())["vmArgs"],
+                             ["-Djava.awt.headless=true", "-Xmx3072m", "-XX:-CreateCoredumpOnCrash",
+                              "-XX:+UseG1GC", "-XX:TieredStopAtLevel=1"])
+            other = Path(tmp) / "Other" / "start.sh"
+            other.parent.mkdir()
+            (other.parent / "ProjectZomboid64.json").write_text(json.dumps({"vmArgs": self.ARGS}))
+            MODULE["zomboid_launcher_jvm"](str(other))
+            self.assertEqual(json.loads((other.parent / "ProjectZomboid64.json").read_text())["vmArgs"], self.ARGS)
+
 
 class UbisoftOverlayTest(unittest.TestCase):
     SETTINGS = (

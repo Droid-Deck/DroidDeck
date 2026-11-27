@@ -790,6 +790,7 @@ def game_environment(env, command):
             return env
         fixes = {}
         game = game_env["Game"](resolve(command[0], env), command[1:])
+        game_env["zomboid_launcher_jvm"](game.exe)
         for check in game_env["FIXES"]:
             found = check(game)
             if found and found[0]:

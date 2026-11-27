@@ -1351,6 +1351,27 @@ class LaunchTest(FexTestCase):
         self.assertEqual(started(unity, "10")[:2], ("1", None))
         self.assertEqual(started(other, "10")[:2], (None, None))
 
+    def test_native_project_zomboid_drops_zgc_and_other_games_keep_their_files(self):
+        args = ["-Xmx3072m", "-XX:+UseZGC"]
+        game = self.tmp / "ProjectZomboid"
+        script = self.write(game / "projectzomboid.sh", "#!/bin/sh\n", 0o755)
+        settings = self.write(game / "ProjectZomboid64.json", json.dumps({"vmArgs": args}))
+        other = self.write(self.tmp / "Other/run.sh", "#!/bin/sh\n", 0o755)
+        untouched = self.write(self.tmp / "Other/ProjectZomboid64.json", json.dumps({"vmArgs": args}))
+
+        def start(program):
+            with mock.patch.dict(G, {"launch": mock.Mock(return_value=0),
+                                     "GAME_ENVIRONMENT": str(self.tmp / "missing.json")}), \
+                    mock.patch.dict(os.environ, {"SteamAppId": "108600"}, clear=True):
+                self.quiet(FEX["main"], ["steam", "waitforexitandrun", str(program)])
+                self.assertEqual(G["launch"].call_args[0][0], [str(program)])
+
+        start(script)
+        self.assertEqual(json.loads(settings.read_text())["vmArgs"],
+                         ["-Xmx3072m", "-XX:+UseG1GC", "-XX:TieredStopAtLevel=1"])
+        start(other)
+        self.assertEqual(json.loads(untouched.read_text())["vmArgs"], args)
+
 
 class AppInfoTest(unittest.TestCase):
     COMPAT = runpy.run_path(str(BIN / "steam-compatibility"))
