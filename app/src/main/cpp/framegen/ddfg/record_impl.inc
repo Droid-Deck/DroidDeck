@@ -398,7 +398,7 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
         if (!initBarriers.empty()) {
             dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
-                static_cast<uint32_t>(initBarriers.size()), initBarriers.data(), 0, nullptr);
+                0, nullptr, static_cast<uint32_t>(initBarriers.size()), initBarriers.data());
         }
         {
             VkClearColorValue zero{};
