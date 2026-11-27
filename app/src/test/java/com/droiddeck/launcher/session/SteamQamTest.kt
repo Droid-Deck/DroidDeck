@@ -45,7 +45,7 @@ class SteamQamTest {
     private fun leaseAfter(vararg steps: Pair<Boolean, Long>): Long? {
         val node = runCatching { ProcessBuilder("node", "--version").start().waitFor() == 0 }.getOrDefault(false)
         org.junit.Assume.assumeTrue("node is not installed", node)
-        val program = "const g = {};\n" + steps.joinToString("\n") { (on, owner) -> SteamQam.leaseScript(on, owner) } +
+        val program = "const g = {};\n" + steps.joinToString("\n") { (on, owner) -> if (owner == EXPIRE) "g.__ddQamUntil = Date.now() - 1;" else SteamQam.leaseScript(on, owner) } +
             "\nprocess.stdout.write(String(g.__ddQamUntil > Date.now() ? g.__ddQamOwner : 0));"
         val p = ProcessBuilder("node", "-e", program).redirectErrorStream(true).start()
         val out = p.inputStream.bufferedReader().readText().trim()
@@ -60,8 +60,9 @@ class SteamQamTest {
         assertEquals(2L, leaseAfter(true to 1L, true to 2L, false to 1L))
         // A panel releases its own lease.
         assertEquals(0L, leaseAfter(true to 2L, false to 2L))
-        // With no live lease, any panel can take it.
+        // With no live lease, any panel can take it: after a release, or once a newer panel's lease has run out.
         assertEquals(1L, leaseAfter(true to 2L, false to 2L, true to 1L))
+        assertEquals(1L, leaseAfter(true to 2L, false to EXPIRE, true to 1L))
     }
 
     @Test fun readsWhetherTheMenuIsShownOnTheTopScreen() {
@@ -132,5 +133,10 @@ class SteamQamTest {
         val (scale, left) = QamLayout.fit(1280f, 832f, 1280f, 640f)
         assertEquals(1f, scale, 0.001f)
         assertEquals(0f, left, 0.001f)
+    }
+
+    private companion object {
+        /** A lease step that lets the current lease run out. */
+        const val EXPIRE = -1L
     }
 }
