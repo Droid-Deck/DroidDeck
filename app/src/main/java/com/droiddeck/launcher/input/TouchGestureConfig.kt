@@ -15,7 +15,7 @@ data class TouchGestureConfig(
     val longPressAction: String = ACTION_RIGHT_CLICK,
     val longPressMouseBehavior: String = MOUSE_BEHAVIOR_HOLD,
     val longPressDelay: Int = DEFAULT_DELAY_MS,
-    val directHoldBehavior: String = MOUSE_BEHAVIOR_CLICK,
+    val directHoldBehavior: String = MOUSE_BEHAVIOR_NONE,
     val doubleTapEnabled: Boolean = true,
     val doubleTapDelay: Int = DEFAULT_DELAY_MS,
     val twoFingerDragEnabled: Boolean = true,
@@ -167,7 +167,7 @@ data class TouchGestureConfig(
                     ),
                     longPressDelay = obj.optInt(KEY_LONG_PRESS_DELAY, DEFAULT_DELAY_MS),
                     directHoldBehavior = normalizeDirectHoldBehavior(
-                        obj.optString(KEY_DIRECT_HOLD_BEHAVIOR, MOUSE_BEHAVIOR_CLICK)
+                        obj.optString(KEY_DIRECT_HOLD_BEHAVIOR, MOUSE_BEHAVIOR_NONE)
                     ),
                     doubleTapEnabled = obj.optBoolean(KEY_DOUBLE_TAP_ENABLED, true),
                     doubleTapDelay = obj.optInt(KEY_DOUBLE_TAP_DELAY, DEFAULT_DELAY_MS),
