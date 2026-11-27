@@ -336,6 +336,16 @@ class OnScreenLayoutTest {
         }
     }
 
+    @Test fun dockedControlsStayInsideTheSafeAreaAtTheDefaultSizeWithoutAControllerKit() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
+        ControllerPrefs.setSize(context, 100)
+        val safe = Rect(40, 0, 60, 24)
+        for ((w, h) in listOf(1080 to 200, 1200 to 540, 2208 to 800)) {
+            val placed = OnScreenLayout.elements(context, gamepad(), w, h, safe, dock = OnScreenLayout.Dock(false, false))
+            assertInside(placed.filter { it.id.startsWith("legacy:") }, w, h, safe)
+        }
+    }
+
     @Test fun anEditedLayoutKeepsItsAspectAndCornersWhenTheScreenRotates() {
         val corner = InputSurfaceElement(InputControl.A, .85f, .7f, .1f, .2f)
         val left = InputSurfaceElement(InputControl.LS, .05f, .5f, .2f, .4f)
