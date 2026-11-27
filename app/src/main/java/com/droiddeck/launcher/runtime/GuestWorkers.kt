@@ -48,12 +48,22 @@ open class GuestWorker : Service() {
                 // The app writes a byte once it has the reply and has taken the launch on: an exec
                 // before then would end this process with the reply undelivered, and with none (the
                 // app gave up and starts the program another way) the program must not run here.
+                var why = ""
+                // poll() with a timeout counts as network I/O to StrictMode on the main thread
+                android.os.StrictMode.setThreadPolicy(android.os.StrictMode.ThreadPolicy.LAX)
                 val committed = runCatching {
                     val poll = StructPollfd().apply { fd = go.fileDescriptor; events = OsConstants.POLLIN.toShort() }
-                    Os.poll(arrayOf(poll), GO_TIMEOUT_MS) > 0 && Os.read(go.fileDescriptor, ByteArray(1), 0, 1) == 1
-                }.getOrDefault(false)
+                    val ready = Os.poll(arrayOf(poll), GO_TIMEOUT_MS)
+                    val got = if (ready > 0) Os.read(go.fileDescriptor, ByteArray(1), 0, 1) else -1
+                    why = "poll $ready revents ${poll.revents} read $got"
+                    got == 1
+                }.getOrElse { why = it.toString(); false }
                 go.close()
-                if (committed) exec(argv, env, fds, targets) else Process.killProcess(Process.myPid())
+                if (committed) exec(argv, env, fds, targets)
+                else {
+                    Log.w(TAG, "launch not committed ($why): not running ${argv.firstOrNull()}")
+                    Process.killProcess(Process.myPid())
+                }
             }
             return true
         }
