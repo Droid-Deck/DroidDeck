@@ -349,7 +349,28 @@ lingers in its worker; see below).
   login, and the trace from a game's processes went to a pipe nobody read.
 - **Finding the sender of a SIGKILL:** shell can enable the `signal/signal_generate` ftrace event
   on the Thor (`/sys/kernel/tracing`), which names the sending thread; Perfetto recorded nothing
-  there. Quitting the game, stopping the session (no worker is left) and starting
+  there.
+- **Ending a game from Steam** (`SteamClient.Apps.TerminateApp`, the overlay's Exit game) left Wine
+  running since the first round: Steam sends SIGINT to the launch's `reaper` and its parent, and the
+  reaper ends what is under it, which handed-off programs are not. Each handed-off program now
+  lists itself as `P<pid>` with the process that forked its child and, for when that process is
+  gone (Wine starts a process through a fork that exits at once), the worker's program it descended
+  from. A signal to `reaper SteamLaunch` from a hooked process also goes, as SIGTERM for SIGINT
+  (Wine takes SIGINT for a console's Ctrl+C), to the groups of every listed program under that
+  reaper, all found before any is signalled.
+- **Process groups:** a handed-off program runs in a session of its own, outside the group its
+  forked parent's child was in. It lists itself as `GROUP.PID.START` for that group (`DDH_PGID`,
+  also for the processes it forks), and the hook's `kill(-GROUP)`, `kill(0)` and `killpg()` also
+  signal the groups those programs lead.
+- **Tried and dropped:** handing off Steam's launch chain (`sh`, `steam-launch-wrapper`, `reaper`):
+  the client tracks the process it forked, which then exits at once, and called the game closed.
+  Showing a handed-off program's forking process as its parent in `/proc/<pid>/stat`, `status` and
+  `getppid()` left Steam's UI at "Loading library data": the client checks the parents of the
+  processes on its IPC connections with `lsof -F R`. And `posix_spawn()` emulation must make only
+  system calls in its child (no hook wrapper takes a lock there): one Steam fork hung on a lock
+  another thread held.
+
+Quitting the game (also from Steam), stopping the session (no worker is left) and starting
 again all work. Started from the front end with the limit on, Setup shows "Child-process limit
 handled by DroidDeck" and Steam starts.
 

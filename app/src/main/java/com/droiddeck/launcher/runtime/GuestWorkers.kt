@@ -425,6 +425,8 @@ object GuestWorkers {
             if (request.has("sigign")) env["DDH_SIGIGN"] = request.getLong("sigign").toString()
             if (request.has("nofile")) env["DDH_NOFILE"] = request.getLong("nofile").toString()
             if (request.has("umask")) env["DDH_UMASK"] = request.getLong("umask").toString()
+            if (request.has("pgid")) env["DDH_PGID"] = request.getLong("pgid").toString()
+            if (request.has("anchor")) env["DDH_ANCHOR"] = request.getLong("anchor").toString()
             val exited = CountDownLatch(1)
             var status = -1
             val pid = start(app, command, env.map { (k, v) -> "$k=$v" }, programFds, targets, true) { code ->

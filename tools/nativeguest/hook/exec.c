@@ -1086,7 +1086,18 @@ struct ddh_spawn_action {
 #define POSIX_SPAWN_SETSID 0x80
 #endif
 
-// What glibc's spawn child does before its exec (posix/spawni.c), as an errno.
+static int ddh_spawn_errno(long ret) {
+    return ret < 0 ? errno : 0;
+}
+
+static int ddh_spawn_close_part(unsigned int first, unsigned int last, void *unused) {
+    (void)unused;
+    return (int)call_orig_syscall(SYS_close_range, first, last, 0, 0, 0, 0);
+}
+
+// What glibc's spawn child does before its exec (posix/spawni.c), as an errno. Its fd and
+// directory work is done with system calls, not the hook's wrappers: those take locks that another
+// thread of the parent may have held at fork() (Steam has many threads).
 static int ddh_spawn_child_setup(const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *attr) {
     short flags = 0;
     if (attr) posix_spawnattr_getflags(attr, &flags);
@@ -1112,36 +1123,51 @@ static int ddh_spawn_child_setup(const posix_spawn_file_actions_t *fa, const pos
         if (r == -1) return errno;
     }
     const struct ddh_spawn_action *a = fa ? (const struct ddh_spawn_action *)fa->__actions : NULL;
+    char path[PATH_MAX];
+    int err;
     for (int i = 0; a && i < fa->__used; i++) {
         switch (a[i].tag) {
         case DDH_DO_CLOSE:
-            close(a[i].action.close_action.fd);
+            // the handoff table and the worker's binder stay open (kept fds)
+            if (!is_kept_fd(a[i].action.close_action.fd))
+                call_orig_syscall(SYS_close, (unsigned long)a[i].action.close_action.fd, 0, 0, 0, 0, 0);
             break;
         case DDH_DO_OPEN: {
-            int fd = open(a[i].action.open_action.path, a[i].action.open_action.oflag, a[i].action.open_action.mode);
+            const char *real = rewrite_path(a[i].action.open_action.path, path, sizeof(path));
+            long fd = call_orig_syscall(SYS_openat, (unsigned long)AT_FDCWD, (unsigned long)real,
+                                        (unsigned long)a[i].action.open_action.oflag, a[i].action.open_action.mode, 0, 0);
             if (fd < 0) return errno;
             if (fd != a[i].action.open_action.fd) {
-                if (dup2(fd, a[i].action.open_action.fd) < 0) return errno;
-                close(fd);
+                if ((err = ddh_spawn_errno(call_orig_syscall(SYS_dup3, (unsigned long)fd, (unsigned long)a[i].action.open_action.fd, 0, 0, 0, 0))))
+                    return err;
+                call_orig_syscall(SYS_close, (unsigned long)fd, 0, 0, 0, 0, 0);
             }
             break;
         }
-        case DDH_DO_DUP2:
-            if (a[i].action.dup2_action.fd == a[i].action.dup2_action.newfd) {
-                int fdflags = fcntl(a[i].action.dup2_action.fd, F_GETFD);
-                if (fdflags < 0 || fcntl(a[i].action.dup2_action.fd, F_SETFD, fdflags & ~FD_CLOEXEC) < 0) return errno;
-            } else if (dup2(a[i].action.dup2_action.fd, a[i].action.dup2_action.newfd) < 0) {
-                return errno;
+        case DDH_DO_DUP2: {
+            int from = a[i].action.dup2_action.fd, to = a[i].action.dup2_action.newfd;
+            if (from == to) {
+                long fdflags = call_orig_syscall(SYS_fcntl, (unsigned long)from, F_GETFD, 0, 0, 0, 0);
+                if (fdflags < 0) return errno;
+                if ((err = ddh_spawn_errno(call_orig_syscall(SYS_fcntl, (unsigned long)from, F_SETFD, (unsigned long)(fdflags & ~FD_CLOEXEC), 0, 0, 0))))
+                    return err;
+            } else if ((err = ddh_spawn_errno(call_orig_syscall(SYS_dup3, (unsigned long)from, (unsigned long)to, 0, 0, 0, 0)))) {
+                return err;
             }
             break;
-        case DDH_DO_CHDIR:
-            if (chdir(a[i].action.chdir_action.path) != 0) return errno;
+        }
+        case DDH_DO_CHDIR: {
+            const char *real = rewrite_path_follow(a[i].action.chdir_action.path, path, sizeof(path));
+            if ((err = ddh_spawn_errno(call_orig_syscall(SYS_chdir, (unsigned long)real, 0, 0, 0, 0, 0)))) return err;
             break;
+        }
         case DDH_DO_FCHDIR:
-            if (fchdir(a[i].action.fchdir_action.fd) != 0) return errno;
+            if ((err = ddh_spawn_errno(call_orig_syscall(SYS_fchdir, (unsigned long)a[i].action.fchdir_action.fd, 0, 0, 0, 0, 0))))
+                return err;
             break;
         case DDH_DO_CLOSEFROM:
-            close_range((unsigned int)a[i].action.closefrom_action.from, ~0U, 0);
+            for_each_range_without((unsigned int)a[i].action.closefrom_action.from, ~0U, g_kept_fds, g_kept_fd_count,
+                                   ddh_spawn_close_part, NULL);
             break;
         case DDH_DO_TCSETPGRP:
             if (tcsetpgrp(a[i].action.setpgrp_action.fd, getpgrp()) != 0) return errno;
@@ -1175,7 +1201,7 @@ static int ddh_spawn_forked(pid_t *pid, const char *path, const posix_spawn_file
         return err;
     }
     if (child == 0) {
-        close(report[0]);
+        call_orig_syscall(SYS_close, (unsigned long)report[0], 0, 0, 0, 0, 0);
         int err = ddh_spawn_child_setup(fa, attr);
         if (!err) {
             execve(path, argv, envp);

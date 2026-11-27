@@ -330,6 +330,10 @@ static void ddh_linger(int flush) {
     }
 }
 
+static void ddh_register_group(void);
+static void ddh_unregister_group(void);
+static pid_t ddh_logical_pgrp(void);
+
 // From exit() (on_exit, arg 1) or _exit() (arg NULL) in a worker's own process.
 // Only a handed-off child lingers: the app waits for the death of the programs it starts itself
 // (the session's root) to tear everything down.
@@ -340,6 +344,7 @@ static void ddh_report_exit(int status, void *from_exit) {
     __atomic_store_n(&e->state, DDH_EXITED, __ATOMIC_RELEASE);
     if (g_ddh_report_parent > 0) syscall(SYS_kill, g_ddh_report_parent, SIGCHLD);
     ddh_linger(from_exit != NULL);
+    ddh_unregister_group();
 }
 
 // A program that leaves with _exit() skips on_exit(): a daemon's first process does, once it has
@@ -372,6 +377,7 @@ static void ddh_setup_report(void) {
     g_ddh_report_slot = slot;
     g_ddh_report_parent = parent;
     on_exit(ddh_report_exit, (void *)1);
+    ddh_register_group();
 }
 
 // In a program a worker started: the state its forked parent had, sent along with the exec.
@@ -543,11 +549,14 @@ static int ddh_open_fds(int *fds, int max) {
 }
 
 // The interpreter a script names on its "#!" line ("/usr/bin/env NAME" gives NAME), into buf.
+// In a forked child: system calls only, as the hook's own open() and close() take locks another
+// thread of the parent may have held at fork().
 static const char *ddh_interpreter(const char *path, char *buf, size_t size) {
-    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    char real[PATH_MAX];
+    int fd = (int)call_orig_syscall(SYS_openat, (unsigned long)AT_FDCWD, (unsigned long)rewrite_path(path, real, sizeof(real)), O_RDONLY | O_CLOEXEC, 0, 0, 0);
     if (fd < 0) return NULL;
-    long n = read(fd, buf, size - 1);
-    close(fd);
+    long n = call_orig_syscall(SYS_read, (unsigned long)fd, (unsigned long)buf, size - 1, 0, 0, 0);
+    syscall(SYS_close, fd);
     if (n < 3 || buf[0] != '#' || buf[1] != '!') return NULL;
     buf[n] = 0;
     char *p = buf + 2;
@@ -701,6 +710,10 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
         ddh_putint(&b, (long)nofile.rlim_cur);
         ddh_puts(&b, ",\"umask\":");
         ddh_putint(&b, (long)mask);
+        ddh_puts(&b, ",\"pgid\":");
+        ddh_putint(&b, (long)ddh_logical_pgrp());
+        ddh_puts(&b, ",\"anchor\":");
+        ddh_putint(&b, getenv("DDH_WORKER_PID") ? (long)atoi(getenv("DDH_WORKER_PID")) : (long)parent);
         ddh_puts(&b, "}");
         if (pass == 0) {
             b.cap = b.len + 4;
@@ -941,6 +954,230 @@ static int ddh_app_group(pid_t pgid) {
     return n > 0 && strncmp(name, "zygote", 6) == 0;
 }
 
+// A handed-off program runs in a session of its own (the worker's setsid()), out of the process
+// group its forked parent's child was in, so a signal to that group (Steam ends a game with one)
+// would miss it. Each one is listed here as GROUP.PID.START, GROUP being the group it stands for,
+// and a signal to GROUP also goes to the group the program leads.
+#define DDH_GROUPS "/run/droiddeck-handoff-groups"
+
+static long ddh_start_time(pid_t pid) {
+    char path[48], stat[512];
+    snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    long n = syscall(SYS_read, fd, stat, sizeof(stat) - 1);
+    syscall(SYS_close, fd);
+    if (n <= 0) return -1;
+    stat[n] = 0;
+    char *p = strrchr(stat, ')');
+    // starttime is field 22; after ") " comes field 3
+    for (int field = 2; p && field < 22; field++) p = strchr(p + 1, ' ');
+    return p ? atol(p + 1) : -1;
+}
+
+// The group a process stands for: its worker's (DDH_PGID) while it is in the group its worker leads.
+static pid_t ddh_logical_pgrp(void) {
+    pid_t real = getpgrp();
+    const char *worker = getenv("DDH_WORKER_PID"), *group = getenv("DDH_PGID");
+    if (worker && group && real == (pid_t)atoi(worker)) return (pid_t)atoi(group);
+    return real;
+}
+
+static char g_ddh_group_entry[96];
+static int g_ddh_parent_entry;
+
+static int ddh_open_groups(int create) {
+    char dir[PATH_MAX];
+    const char *real_dir = rewrite_path(DDH_GROUPS, dir, sizeof(dir));
+    if (create) call_orig_syscall(SYS_mkdirat, (unsigned long)AT_FDCWD, (unsigned long)real_dir, 0755, 0, 0, 0);
+    return (int)call_orig_syscall(SYS_openat, (unsigned long)AT_FDCWD, (unsigned long)real_dir,
+                                  O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0, 0, 0);
+}
+
+// Also P<PID>, "START PARENT ANCHOR": the process that forked this program's child, the parent it
+// has in place of the worker's (see ddh_signal_reaper_tree()), and the worker's program that process
+// descends from (DDH_ANCHOR), for when it is gone: Wine starts a process through a fork that exits.
+static void ddh_register_group(void) {
+    if (getpid() != g_ddh_worker) return;
+    int dir = ddh_open_groups(1);
+    if (dir < 0) return;
+    long start = ddh_start_time(getpid());
+    char name[96], text[48];
+    const char *group = getenv("DDH_PGID");
+    if (group) {
+        snprintf(name, sizeof(name), "%d.%d.%ld", atoi(group), (int)getpid(), start);
+        int fd = (int)call_orig_syscall(SYS_openat, (unsigned long)dir, (unsigned long)name, O_WRONLY | O_CREAT | O_CLOEXEC, 0644, 0, 0);
+        if (fd >= 0) {
+            syscall(SYS_close, fd);
+            snprintf(g_ddh_group_entry, sizeof(g_ddh_group_entry), "%s", name);
+        }
+    }
+    if (g_ddh_report_parent > 0) {
+        snprintf(name, sizeof(name), "P%d", (int)getpid());
+        const char *anchor = getenv("DDH_ANCHOR");
+        int len = snprintf(text, sizeof(text), "%ld %d %d\n", start, (int)g_ddh_report_parent,
+                           anchor ? atoi(anchor) : (int)g_ddh_report_parent);
+        int fd = (int)call_orig_syscall(SYS_openat, (unsigned long)dir, (unsigned long)name,
+                                        O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644, 0, 0);
+        if (fd >= 0) {
+            call_orig_syscall(SYS_write, (unsigned long)fd, (unsigned long)text, (unsigned long)len, 0, 0, 0);
+            syscall(SYS_close, fd);
+            g_ddh_parent_entry = 1;
+        }
+    }
+    syscall(SYS_close, dir);
+}
+
+static void ddh_unregister_group(void) {
+    if ((!g_ddh_group_entry[0] && !g_ddh_parent_entry) || getpid() != g_ddh_worker) return;
+    int dir = ddh_open_groups(0);
+    if (dir < 0) return;
+    if (g_ddh_group_entry[0]) call_orig_syscall(SYS_unlinkat, (unsigned long)dir, (unsigned long)g_ddh_group_entry, 0, 0, 0, 0);
+    if (g_ddh_parent_entry) {
+        char name[24];
+        snprintf(name, sizeof(name), "P%d", (int)getpid());
+        call_orig_syscall(SYS_unlinkat, (unsigned long)dir, (unsigned long)name, 0, 0, 0, 0);
+    }
+    syscall(SYS_close, dir);
+    g_ddh_group_entry[0] = 0;
+    g_ddh_parent_entry = 0;
+}
+
+// The process that forked pid's child (or, gone, the worker's program it descended from), when pid
+// is a handed-off program; else 0.
+static pid_t ddh_logical_parent(pid_t pid) {
+    char path[PATH_MAX], text[48];
+    const char *real_dir = rewrite_path(DDH_GROUPS, path, sizeof(path));
+    if (real_dir != path) snprintf(path, sizeof(path), "%s", real_dir);
+    size_t used = strlen(path);
+    if (used + 16 >= sizeof(path)) return 0;
+    snprintf(path + used, sizeof(path) - used, "/P%d", (int)pid);
+    int fd = (int)call_orig_syscall(SYS_openat, (unsigned long)AT_FDCWD, (unsigned long)path, O_RDONLY | O_CLOEXEC, 0, 0, 0);
+    if (fd < 0) return 0;
+    long n = call_orig_syscall(SYS_read, (unsigned long)fd, (unsigned long)text, sizeof(text) - 1, 0, 0, 0);
+    syscall(SYS_close, fd);
+    if (n <= 0) return 0;
+    text[n] = 0;
+    long start = 0;
+    int parent = 0, anchor = 0;
+    if (sscanf(text, "%ld %d %d", &start, &parent, &anchor) < 2 || parent <= 1 || ddh_start_time(pid) != start) return 0;
+    return (pid_t)(ddh_start_time(parent) < 0 && anchor > 1 ? anchor : parent);
+}
+
+// Signals the groups of the programs standing for group; returns how many took it.
+static int ddh_signal_stand_ins(pid_t group, int sig, pid_t done) {
+    char dir[PATH_MAX];
+    const char *real_dir = rewrite_path(DDH_GROUPS, dir, sizeof(dir));
+    int fd = (int)call_orig_syscall(SYS_openat, (unsigned long)AT_FDCWD, (unsigned long)real_dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0, 0, 0);
+    if (fd < 0) return 0;
+    char prefix[24], entries[4096];
+    int plen = snprintf(prefix, sizeof(prefix), "%d.", (int)group);
+    int sent = 0;
+    long n;
+    while ((n = syscall(SYS_getdents64, fd, entries, sizeof(entries))) > 0) {
+        for (long off = 0; off < n;) {
+            unsigned short reclen;
+            memcpy(&reclen, entries + off + 16, sizeof(reclen));
+            const char *name = entries + off + 19;
+            off += reclen ? reclen : n;
+            if (strncmp(name, prefix, (size_t)plen) != 0) continue;
+            int real = 0;
+            long start = 0;
+            if (sscanf(name + plen, "%d.%ld", &real, &start) != 2 || real <= 1) continue;
+            if (ddh_start_time(real) != start) {
+                call_orig_syscall(SYS_unlinkat, (unsigned long)fd, (unsigned long)name, 0, 0, 0, 0);  // gone, or its pid reused
+                continue;
+            }
+            if (real == done || ddh_app_group(real)) continue;
+            if (syscall(SYS_kill, -real, sig) == 0) sent++;
+        }
+    }
+    syscall(SYS_close, fd);
+    return sent;
+}
+
+static int ddh_kill_group(pid_t pid, int sig) {
+    pid_t group = pid == 0 ? ddh_logical_pgrp() : -pid;
+    pid_t own = pid == 0 ? getpgrp() : -pid;
+    long ret = syscall(SYS_kill, pid, sig);
+    int err = errno;
+    if (group != own && !ddh_app_group(group) && syscall(SYS_kill, -group, sig) == 0) ret = 0;
+    if (ddh_signal_stand_ins(group, sig, own) > 0) ret = 0;
+    if (ret != 0) errno = err;
+    return (int)ret;
+}
+
+// The kernel's parent of pid, from /proc/<pid>/stat; 0 when unknown.
+static pid_t ddh_proc_parent(pid_t pid) {
+    char path[48], stat[512];
+    snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    long n = syscall(SYS_read, fd, stat, sizeof(stat) - 1);
+    syscall(SYS_close, fd);
+    if (n <= 0) return 0;
+    stat[n] = 0;
+    char *p = strrchr(stat, ')');
+    return p && p[1] == ' ' && p[2] && p[3] == ' ' ? (pid_t)atoi(p + 4) : 0;
+}
+
+// Steam's "reaper SteamLaunch AppId=N -- ...", which runs a game's launch.
+static int ddh_is_steam_reaper(pid_t pid) {
+    char path[48], cmd[128];
+    snprintf(path, sizeof(path), "/proc/%d/cmdline", (int)pid);
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    long n = syscall(SYS_read, fd, cmd, sizeof(cmd) - 1);
+    syscall(SYS_close, fd);
+    if (n <= 0) return 0;
+    cmd[n] = 0;
+    size_t first = strlen(cmd);
+    return (size_t)n > first + 1 && strcmp(ddh_base(cmd), "reaper") == 0 && strcmp(cmd + first + 1, "SteamLaunch") == 0;
+}
+
+static int ddh_descends_from(pid_t pid, pid_t ancestor) {
+    for (int depth = 0; pid > 1 && depth < 64; depth++) {
+        if (pid == ancestor) return 1;
+        pid_t up = ddh_logical_parent(pid);
+        pid = up > 0 ? up : ddh_proc_parent(pid);
+    }
+    return 0;
+}
+
+// Steam ends a game by signalling its launch's reaper, which ends every process under it; the
+// handed-off ones are not under it, so they (and the groups they lead) get the signal here. All are
+// found before any is signalled: one that exits takes its place in the chain of parents with it.
+// SIGINT goes as SIGTERM: Wine takes SIGINT for a console's Ctrl+C, which windowed programs ignore.
+static void ddh_signal_reaper_tree(pid_t reaper, int sig) {
+    int dir = ddh_open_groups(0);
+    if (dir < 0) return;
+    pid_t found[256];
+    int count = 0;
+    char entries[4096];
+    long n;
+    while ((n = syscall(SYS_getdents64, dir, entries, sizeof(entries))) > 0) {
+        for (long off = 0; off < n;) {
+            unsigned short reclen;
+            memcpy(&reclen, entries + off + 16, sizeof(reclen));
+            const char *name = entries + off + 19;
+            off += reclen ? reclen : n;
+            if (name[0] != 'P' || name[1] < '1' || name[1] > '9') continue;
+            pid_t pid = (pid_t)atoi(name + 1);
+            if (count < 256 && ddh_logical_parent(pid) > 0 && ddh_descends_from(pid, reaper)) found[count++] = pid;
+        }
+    }
+    syscall(SYS_close, dir);
+    for (int i = 0; i < count; i++) syscall(SYS_kill, -found[i], sig == SIGINT ? SIGTERM : sig);
+}
+
+int killpg(int pgrp, int sig) {
+    if (pgrp < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    return kill(-pgrp, sig);
+}
+
 int kill(pid_t pid, int sig) {
     if (g_ddh && pid > 0) {
         struct ddh_entry *e = ddh_find(pid);
@@ -951,6 +1188,17 @@ int kill(pid_t pid, int sig) {
         errno = EPERM;
         return -1;
     }
+    if (pid < -1 || pid == 0) {
+        if (sig != 0 && getenv("DD_HANDOFF_DEBUG")) {
+            char line[96];
+            int len = snprintf(line, sizeof(line), "ddnatv handoff: %d kill group %d (stands for %d), %d\n", (int)getpid(),
+                               pid == 0 ? (int)getpgrp() : (int)-pid, pid == 0 ? (int)ddh_logical_pgrp() : (int)-pid, sig);
+            if (len > 0) ddh_log(getenv("DD_HANDOFF_DEBUG"), line, (size_t)len);
+        }
+        return ddh_kill_group(pid, sig);
+    }
+    if (pid > 1 && (sig == SIGINT || sig == SIGTERM || sig == SIGKILL || sig == SIGHUP) && ddh_is_steam_reaper(pid))
+        ddh_signal_reaper_tree(pid, sig);
     if (sig != 0 && getenv("DD_HANDOFF_DEBUG")) {
         char line[160], comm[32] = "?";
         int fd = (int)syscall(SYS_openat, AT_FDCWD, "/proc/self/comm", O_RDONLY | O_CLOEXEC);
