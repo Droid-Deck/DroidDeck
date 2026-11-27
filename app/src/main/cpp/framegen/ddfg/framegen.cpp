@@ -169,6 +169,13 @@ bool FrameGen::onResize(VkExtent2D extent, VkFormat  , bool force) {
 
 
     if (!force && ready_ && extent.width == extent_.width && extent.height == extent_.height) return true;
+    if (ready_) {
+        const VkResult idleResult = dd_->DeviceWaitIdle(device_);
+        if (idleResult != VK_SUCCESS) {
+            DDFG_LOGE("framegen resize: DeviceWaitIdle failed (%d); keeping existing images", (int)idleResult);
+            return false;
+        }
+    }
     ++imageGeneration_;
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
@@ -230,8 +237,10 @@ void FrameGen::initializeImage(VkCommandBuffer cmd, VkImage img, VkImageLayout t
 void FrameGen::destroy() {
     if (!device_) return;
     const VkResult idleResult = dd_->DeviceWaitIdle(device_);
-    if (idleResult != VK_SUCCESS)
-        DDFG_LOGE("framegen destroy: DeviceWaitIdle failed (%d); continuing teardown", (int)idleResult);
+    if (idleResult != VK_SUCCESS) {
+        DDFG_LOGE("framegen destroy: DeviceWaitIdle failed (%d); preserving resources for safe retry", (int)idleResult);
+        return;
+    }
     destroyScratchResources();
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
