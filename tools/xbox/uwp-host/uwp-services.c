@@ -9182,6 +9182,12 @@ static HRESULT __stdcall xbl_ep_get_RemoteHostName(xbl_ep_object *self, void **o
     WCHAR host[96];
     if (!out) return E_POINTER;
     *out = NULL;
+    /* The QoS server list publishes an empty secure device address for every
+       entry, so the paired address carries no IP to hand back. Reporting that
+       as a null hostname tells the title the pair has no far end, which reads
+       as "nothing to measure" rather than "measure this server". */
+    svc_tracef("xbl_ep_get_RemoteHostName snapshot_len=%u",
+               self->remote ? (unsigned)self->remote->snapshot_len : 0);
     if (self->remote && xbl_sda_extract_ip(self->remote->snapshot, self->remote->snapshot_len, &ip)) {
         if (ip.family == 2) {
             _snwprintf(host, 95, L"%u.%u.%u.%u",
@@ -9199,12 +9205,14 @@ static HRESULT __stdcall xbl_ep_get_RemoteHostName(xbl_ep_object *self, void **o
             return *out ? S_OK : E_OUTOFMEMORY;
         }
     }
+    svc_trace("xbl_ep_get_RemoteHostName -> null");
     return S_OK;
 }
 static HRESULT __stdcall xbl_ep_get_RemotePort(xbl_ep_object *self, hstring_t *out)
 {
     if (!out) return E_POINTER;
     *out = svc_string(self->remote_port[0] ? self->remote_port : L"3074");
+    svc_tracef("xbl_ep_get_RemotePort -> %ls", self->remote_port[0] ? self->remote_port : L"3074");
     return S_OK;
 }
 static HRESULT __stdcall xbl_ep_get_LocalHostName(xbl_ep_object *self, void **out)
@@ -9218,12 +9226,18 @@ static HRESULT __stdcall xbl_ep_get_LocalHostName(xbl_ep_object *self, void **ou
                (unsigned)g_xbl_local_ipv4[2], (unsigned)g_xbl_local_ipv4[3]);
     host[63] = 0;
     *out = xbl_hostname_new(host, 1);
+    svc_tracef("xbl_ep_get_LocalHostName -> %ls", host);
     return *out ? S_OK : E_OUTOFMEMORY;
 }
 static HRESULT __stdcall xbl_ep_get_LocalPort(xbl_ep_object *self, hstring_t *out)
 {
     if (!out) return E_POINTER;
+    /* A pair with no explicit port falls back to the template's lower bound,
+       which for InsecureQosTraffic is 1: below the unprivileged bind floor, so
+       the title's own bind cannot succeed. Real endpoint selection picks a free
+       port from inside the range. */
     *out = svc_string(self->local_port[0] ? self->local_port : L"0");
+    svc_tracef("xbl_ep_get_LocalPort -> %ls", self->local_port[0] ? self->local_port : L"0");
     return S_OK;
 }
 
@@ -9328,6 +9342,84 @@ static HRESULT __stdcall xbl_ept_remove_Inbound(xbl_ept_object *self, long long 
     (void)self; (void)tok;
     return S_OK;
 }
+/* The port a title is told to bind for this pair. A manifest range that opens
+   at 1 - the QoS template declares 1-65535 - cannot be entered at its lower
+   bound: the host runs as an unprivileged app uid, the kernel only lets that
+   bind from 1024 upward, and a refused bind leaves the title with no socket for
+   its QoS pass at all. Endpoint selection on Windows picks a free port inside
+   the range, so ask the stack for one and keep it only if it fits. */
+static WORD xbl_ep_pick_local_port(WORD lower, WORD upper)
+{
+    typedef int (WINAPI *pfn_WSAStartup)(WORD, void *);
+    typedef UINT_PTR (WINAPI *pfn_socket)(int, int, int);
+    typedef int (WINAPI *pfn_bind_t)(UINT_PTR, const void *, int);
+    typedef int (WINAPI *pfn_getsockname)(UINT_PTR, void *, int *);
+    typedef int (WINAPI *pfn_closesocket)(UINT_PTR);
+    HMODULE ws2;
+    pfn_WSAStartup fn_start;
+    pfn_socket fn_sock;
+    pfn_bind_t fn_bind;
+    pfn_getsockname fn_gsn;
+    pfn_closesocket fn_close;
+    unsigned char wsa_data[512];
+    unsigned char addr[16];
+    UINT_PTR s;
+    unsigned tries, port;
+    int len;
+
+    if (!lower) lower = 1;
+    if (!upper) upper = 65535;
+    if (lower < 1024) lower = 1024; /* unprivileged bind floor */
+    if (upper < lower) return 0;
+
+    ws2 = LoadLibraryW(L"ws2_32.dll");
+    if (!ws2) return lower;
+    fn_start = (pfn_WSAStartup)(void *)GetProcAddress(ws2, "WSAStartup");
+    fn_sock = (pfn_socket)(void *)GetProcAddress(ws2, "socket");
+    fn_bind = (pfn_bind_t)(void *)GetProcAddress(ws2, "bind");
+    fn_gsn = (pfn_getsockname)(void *)GetProcAddress(ws2, "getsockname");
+    fn_close = (pfn_closesocket)(void *)GetProcAddress(ws2, "closesocket");
+    if (!fn_start || !fn_sock || !fn_bind || !fn_gsn || !fn_close) return lower;
+
+    memset(wsa_data, 0, sizeof wsa_data);
+    if (fn_start(0x0202, wsa_data) != 0) return lower;
+
+    /* First pass: let the stack choose, which keeps us in its ephemeral band. */
+    s = fn_sock(2 /* AF_INET */, 2 /* SOCK_DGRAM */, 17 /* IPPROTO_UDP */);
+    if (s != (UINT_PTR)-1) {
+        memset(addr, 0, sizeof addr);
+        addr[0] = 2; addr[1] = 0; /* AF_INET, port 0 */
+        len = (int)sizeof addr;
+        if (fn_bind(s, addr, (int)sizeof addr) == 0 &&
+            fn_gsn(s, addr, &len) == 0 && len >= 4) {
+            port = ((unsigned)addr[2] << 8) | addr[3];
+            fn_close(s);
+            if (port >= lower && port <= upper) {
+                svc_tracef("xbl_ept local port %u in %u-%u", port, (unsigned)lower, (unsigned)upper);
+                return (WORD)port;
+            }
+        }
+        else fn_close(s);
+    }
+
+    /* The stack's choice fell outside a narrow range, so walk the range. */
+    for (tries = 0; tries < 512 && lower + tries <= upper; tries++) {
+        port = lower + tries;
+        s = fn_sock(2, 2, 17);
+        if (s == (UINT_PTR)-1) break;
+        memset(addr, 0, sizeof addr);
+        addr[0] = 2; addr[1] = 0;
+        addr[2] = (unsigned char)(port >> 8);
+        addr[3] = (unsigned char)port;
+        if (fn_bind(s, addr, (int)sizeof addr) == 0) {
+            fn_close(s);
+            svc_tracef("xbl_ept local port %u in %u-%u", port, (unsigned)lower, (unsigned)upper);
+            return (WORD)port;
+        }
+        fn_close(s);
+    }
+    return (WORD)lower;
+}
 static HRESULT xbl_ept_create_pair_impl(xbl_ept_object *self, void *dev_addr,
                                         hstring_t init_port, hstring_t acc_port, void **out)
 {
@@ -9352,10 +9444,15 @@ static HRESULT xbl_ept_create_pair_impl(xbl_ept_object *self, void *dev_addr,
     pair->remote = (xbl_devaddr_object *)dev_addr;
     if (pair->remote) svc_AddRef(&pair->remote->base);
     if (ip && ip[0]) wcsncpy(pair->local_port, ip, 15);
-    else if (self->init_lower) _snwprintf(pair->local_port, 15, L"%u", (unsigned)self->init_lower);
+    else {
+        WORD picked = xbl_ep_pick_local_port(self->init_lower, self->init_upper);
+        _snwprintf(pair->local_port, 15, L"%u", (unsigned)picked);
+    }
     if (ap && ap[0]) wcsncpy(pair->remote_port, ap, 15);
     else if (self->acc_lower) _snwprintf(pair->remote_port, 15, L"%u", (unsigned)self->acc_lower);
     pair->state = 4; /* XboxLiveEndpointPairState_Ready */
+    svc_tracef("xbl_ept pair local_port=%ls remote_port=%ls tmpl=%ls",
+               pair->local_port, pair->remote_port, self->name);
 
     res->base.vtbl = xbl_ep_result_vtable;
     res->base.refs = 1;
@@ -9399,36 +9496,55 @@ static HRESULT __stdcall xbl_ept_get_SocketKind(xbl_ept_object *self, INT32 *out
 {
     if (!out) return E_POINTER;
     *out = self->socket_kind; /* 0 = Datagram, 1 = Stream */
+    svc_tracef("xbl_ept_get_SocketKind -> %d", (int)self->socket_kind);
     return S_OK;
 }
+/* A title reads the range it must stay inside before it opens any socket, so a
+   range it cannot bind from makes the whole QoS pass fail with no packet sent.
+   Recording the exact answer is the only way to tell a manifest value apart from
+   a host that picked the wrong end of it. */
 static HRESULT __stdcall xbl_ept_get_InitiatorLower(xbl_ept_object *self, UINT16 *out)
 {
+    UINT16 value;
     if (!out) return E_POINTER;
-    *out = self->init_lower;
+    /* The manifest range opens at 1, but this host is an unprivileged app uid
+       and the kernel starts unprivileged binds at 1024. A title that takes this
+       bound as the port it may bind is then handed a port it cannot have, and
+       the QoS pass it was opening dies before it sends anything. Report the
+       lowest port the range and this host agree on. */
+    value = self->init_lower;
+    if (value < 1024 && self->init_upper >= 1024) value = 1024;
+    *out = value;
+    svc_tracef("xbl_ept_get_InitiatorLower -> %u (manifest %u)", (unsigned)value,
+               (unsigned)self->init_lower);
     return S_OK;
 }
 static HRESULT __stdcall xbl_ept_get_InitiatorUpper(xbl_ept_object *self, UINT16 *out)
 {
     if (!out) return E_POINTER;
     *out = self->init_upper;
+    svc_tracef("xbl_ept_get_InitiatorUpper -> %u", (unsigned)self->init_upper);
     return S_OK;
 }
 static HRESULT __stdcall xbl_ept_get_AcceptorLower(xbl_ept_object *self, UINT16 *out)
 {
     if (!out) return E_POINTER;
     *out = self->acc_lower;
+    svc_tracef("xbl_ept_get_AcceptorLower -> %u", (unsigned)self->acc_lower);
     return S_OK;
 }
 static HRESULT __stdcall xbl_ept_get_AcceptorUpper(xbl_ept_object *self, UINT16 *out)
 {
     if (!out) return E_POINTER;
     *out = self->acc_upper;
+    svc_tracef("xbl_ept_get_AcceptorUpper -> %u", (unsigned)self->acc_upper);
     return S_OK;
 }
 static HRESULT __stdcall xbl_ept_get_EndpointPairs(xbl_ept_object *self, void **out)
 {
     (void)self;
     if (!out) return E_POINTER;
+    svc_trace("xbl_ept_get_EndpointPairs");
     *out = &package_deps;
     svc_AddRef(&package_deps);
     return S_OK;
