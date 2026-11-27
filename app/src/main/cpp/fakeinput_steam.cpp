@@ -25,6 +25,7 @@
 #include <gnu/lib-names.h>
 #endif
 #include <fcntl.h>
+#include <linux/futex.h>
 #include <linux/input.h>
 #include <linux/joystick.h>
 #include <linux/uinput.h>
@@ -711,6 +712,19 @@ ring_header_is_valid(const FakeInputRingHeader *ring) {
          ring->capacity == FAKE_INPUT_RING_CAPACITY;
 }
 
+__attribute__((visibility("hidden"))) static int ring_wait(const FakeInputRingHeader *ring, uint64_t seen, long ns) {
+  struct timespec wait = {0, ns};
+  if (syscall(SYS_futex, &ring->write_seq, FUTEX_WAIT, static_cast<uint32_t>(seen), &wait, nullptr, 0) == 0 ||
+      errno == EAGAIN || errno == ETIMEDOUT)
+    return 0;
+  if (errno == EINTR) return -1;
+  return nanosleep(&wait, nullptr);
+}
+
+__attribute__((visibility("hidden"))) static void ring_wake(const FakeInputRingHeader *ring) {
+  syscall(SYS_futex, &ring->write_seq, FUTEX_WAKE, INT_MAX, nullptr, nullptr, 0);
+}
+
 struct SnapshotState {
   uint64_t sequence = 0;
   uint64_t write_seq = 0;
@@ -1167,6 +1181,7 @@ __attribute__((visibility("hidden"))) static void flush_uinput(UinputWriter &w) 
   __atomic_thread_fence(__ATOMIC_RELEASE);
   __atomic_store_n(&ring->snapshot_seq, sequence + 2, __ATOMIC_RELEASE);
   __atomic_store_n(&ring->write_seq, write_seq, __ATOMIC_RELEASE);
+  ring_wake(ring);
 }
 
 __attribute__((visibility("hidden"))) static ssize_t
@@ -1540,6 +1555,12 @@ __attribute__((visibility("hidden"))) static void sleep_us(int us) {
   nanosleep(&interval, nullptr);
 }
 
+__attribute__((visibility("hidden"))) static void
+report_wait(const FakeInputRingHeader *ring, bool fresh, uint64_t seen, int us) {
+  if (fresh) ring_wait(ring, seen, us * 1000L);
+  else sleep_us(us);
+}
+
 __attribute__((visibility("hidden"))) static uint64_t monotonic_us() {
   struct timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
@@ -1712,7 +1733,8 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
   int32_t axes[8] = {};
   DeckExtras extras;
   while (live_pad_type() == PAD_TYPE_DECK) {
-    if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
+    bool fresh = read_snapshot(self->ring, snap);
+    if (fresh && snap.generation == ring_generation(self->ring)) {
       buttons = snap.buttons;
       memcpy(axes, snap.axes, sizeof(axes));
     }
@@ -1722,7 +1744,7 @@ __attribute__((visibility("hidden"))) static void *deck_report_thread(void *arg)
     if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
         errno != EAGAIN && errno != EWOULDBLOCK)
       break;
-    sleep_us(controller_report_interval_us(DECK_REPORT_INTERVAL_US));
+    report_wait(self->ring, fresh, snap.write_seq, controller_report_interval_us(DECK_REPORT_INTERVAL_US));
   }
   syscall(SYS_close, self->peer);
   munmap(self->ring, self->mapping_size);
@@ -1828,7 +1850,8 @@ __attribute__((visibility("hidden"))) static void *sony_report_thread(void *arg)
   SonyTouch touch;
   const uint64_t start_us = monotonic_us();
   while (live_pad_type() == type) {
-    if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
+    bool fresh = read_snapshot(self->ring, snap);
+    if (fresh && snap.generation == ring_generation(self->ring)) {
       buttons = snap.buttons;
       memcpy(axes, snap.axes, sizeof(axes));
     }
@@ -1838,7 +1861,7 @@ __attribute__((visibility("hidden"))) static void *sony_report_thread(void *arg)
     if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
         errno != EAGAIN && errno != EWOULDBLOCK)
       break;
-    sleep_us(controller_report_interval_us(DECK_REPORT_INTERVAL_US));
+    report_wait(self->ring, fresh, snap.write_seq, controller_report_interval_us(DECK_REPORT_INTERVAL_US));
   }
   syscall(SYS_close, self->peer);
   munmap(self->ring, self->mapping_size);
@@ -2037,7 +2060,8 @@ __attribute__((visibility("hidden"))) static void *triton_pad_thread(void *arg) 
   DeckExtras extras;
   const uint64_t start_us = monotonic_us();
   while (live_pad_type() == PAD_TYPE_STEAM) {
-    if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
+    bool fresh = read_snapshot(self->ring, snap);
+    if (fresh && snap.generation == ring_generation(self->ring)) {
       buttons = snap.buttons;
       memcpy(axes, snap.axes, sizeof(axes));
     }
@@ -2048,7 +2072,7 @@ __attribute__((visibility("hidden"))) static void *triton_pad_thread(void *arg) 
     if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
         errno != EAGAIN && errno != EWOULDBLOCK)
       break;
-    sleep_us(controller_report_interval_us(TRITON_REPORT_INTERVAL_US));
+    report_wait(self->ring, fresh, snap.write_seq, controller_report_interval_us(TRITON_REPORT_INTERVAL_US));
   }
   syscall(SYS_close, self->peer);
   munmap(self->ring, self->mapping_size);
@@ -4016,6 +4040,7 @@ static ssize_t read_input(int fd, void *buf, size_t count) {
       errno = ENODEV;
       return -1;
     }
+    bool idle = false;
     for (int attempt = 0; attempt < 8; ++attempt) {
       size_t requested = count / sizeof(struct input_event);
       if (fake.keyframe_remaining == 0) {
@@ -4037,7 +4062,10 @@ static ssize_t read_input(int fd, void *buf, size_t count) {
           capture_keyframe(fake, snap);
         } else {
           size_t events = std::min<uint64_t>(requested, snap.write_seq - fake.read_seq);
-          if (events == 0) break;
+          if (events == 0) {
+            idle = true;
+            break;
+          }
           const uint8_t *ring_events = reinterpret_cast<const uint8_t *>(fake.ring) +
                                        FAKE_INPUT_RING_HEADER_SIZE;
           std::vector<struct input_event> input_events(events);
@@ -4083,9 +4111,11 @@ static ssize_t read_input(int fd, void *buf, size_t count) {
       errno = EAGAIN;
       return -1;
     }
+    const FakeInputRingHeader *ring = fake.ring;
+    uint64_t seen = fake.read_seq;
     guard.unlock();
     struct timespec sleep_time = {0, backoff_ns};
-    int result = nanosleep(&sleep_time, nullptr);
+    int result = idle ? ring_wait(ring, seen, backoff_ns) : nanosleep(&sleep_time, nullptr);
     guard.lock();
     if (result < 0) return -1;
     if (low_latency(LATENCY_CONTROLLER)) backoff_ns = kLowLatencyRingWaitUs * 1000;
