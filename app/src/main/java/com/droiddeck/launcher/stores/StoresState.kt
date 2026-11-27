@@ -135,7 +135,16 @@ object StoresState {
         StoreInstalls.discard(app, folder, listOf(java.io.File(folder, ".chunks"), java.io.File(folder, ".gog_chunks"), StoreInstallRoot.scratchDir(app, item.store, item.id)))
     }
 
-    fun installedGame(store: Store, id: String): InstalledStoreGame? = installed.firstOrNull { it.sidecar.store == store && it.sidecar.id == id }
+    fun installedGame(store: Store, id: String, folder: java.io.File? = null): InstalledStoreGame? =
+        pickInstalled(store, id, folder, installed)
+
+    internal fun pickInstalled(
+        store: Store, id: String, folder: java.io.File?, candidates: List<InstalledStoreGame>,
+    ): InstalledStoreGame? {
+        val matches = candidates.filter { it.sidecar.store == store && it.sidecar.id == id }
+        if (folder != null) return matches.firstOrNull { it.folder.absolutePath == folder.absolutePath }
+        return matches.firstOrNull()
+    }
 
     fun detailItem(store: Store, id: String): CatalogItem? = detailCatalogItem(
         store, id, library[store].orEmpty(),
@@ -334,9 +343,13 @@ object StoresState {
 
     private fun uninstallHeld(app: Context, game: InstalledStoreGame, key: String, onDone: () -> Unit) {
         runCatching { backends[game.sidecar.store]?.uninstall(app, game) }
-        if (game.sidecar.store == Store.BATTLENET && com.droiddeck.launcher.runtime.BattleNet.games(app).any { it.folder.absolutePath == game.folder.absolutePath }) {
-            main.post { uninstalling.remove(key); onDone() }
-            return
+        if (game.sidecar.store == Store.BATTLENET) {
+            val listed = com.droiddeck.launcher.runtime.BattleNet.games(app).any { it.folder.absolutePath == game.folder.absolutePath }
+            // A registration we could not read is not the same as no registration: keep the folder.
+            if (listed || !com.droiddeck.launcher.runtime.BattleNet.registrationsReadable(app)) {
+                main.post { uninstalling.remove(key); onDone() }
+                return
+            }
         }
         StoreInstalls.uninstall(app, game, progress = { f -> main.post { if (key in uninstalling) uninstalling[key] = f } }, removed = {
             main.post {

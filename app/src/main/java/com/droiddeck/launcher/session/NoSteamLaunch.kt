@@ -38,11 +38,13 @@ object NoSteamLaunch {
         else -> null
     }?.takeIf { it.isNotEmpty() && GameEnvironment.validScope(it) }
 
-    fun battleNetTitleScope(context: Context, code: String): String? =
-        AddedGames.scan(context).firstOrNull { game ->
+    fun battleNetTitleScope(context: Context, code: String): String? {
+        val games = runCatching { com.droiddeck.launcher.runtime.BattleNet.games(context) }.getOrDefault(emptyList())
+        return AddedGames.scan(context).firstOrNull { game ->
             game.source == com.droiddeck.launcher.stores.Store.BATTLENET.id &&
-                game.storeId?.let(com.droiddeck.launcher.runtime.BattleNet::title)?.code == code
+                game.storeId?.let { com.droiddeck.launcher.runtime.BattleNet.launchCode(games, it, game.folder) } == code
         }?.let { settingsId(it).toString() }
+    }
 
     fun resolution(config: GameEnvironment.Config, scope: String?, output: Pair<Int, Int>): Pair<Int, Int>? {
         val choice = scope?.let { GameEnvironment.gameResolution(config, it) } ?: return null
@@ -54,10 +56,11 @@ object NoSteamLaunch {
     private fun viaBattleNet(game: Library.SteamGame): Boolean =
         game.library == Library.ADDED && game.source == com.droiddeck.launcher.stores.Store.BATTLENET.id
 
-    fun command(game: Library.SteamGame, added: AddedGames.Game?): Command? = when {
+    fun command(context: Context, game: Library.SteamGame, added: AddedGames.Game?): Command? = when {
         game.library == Library.EPIC_LAUNCHER -> Command(EPIC, listOf("run"), game.name)
         viaBattleNet(game) ->
-            game.storeId?.let(com.droiddeck.launcher.runtime.BattleNet::title)?.let { Command(BATTLENET, listOf("launch", it.code), game.name) }
+            game.storeId?.let { com.droiddeck.launcher.runtime.BattleNet.launchCode(context, it, game.gameFiles) }
+                ?.let { Command(BATTLENET, listOf("launch", it), game.name) }
         game.library == Library.ADDED -> added?.let { a -> a.steamAppId?.let { Command(PROTON_RUN, listOf("--app", it.toString()), a.name) } ?: addedCommand(a) }
         game.appId > 0 -> Command(PROTON_RUN, listOf("--app", game.appId.toString()), game.name)
         else -> null
