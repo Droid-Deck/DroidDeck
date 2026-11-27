@@ -413,7 +413,8 @@ public final class WaylandCompositor {
 
     public static native void nativeSendSceneInput(int type, int a, int b);
 
-    public static final int SCENE_BUTTON = 3, SCENE_WHEEL = 4, SCENE_POINTER_DELTA = 6, SCENE_AXIS = 11, SCENE_AXIS_FINGER = 12;
+    public static final int SCENE_BUTTON = 3, SCENE_WHEEL = 4, SCENE_POINTER_DELTA = 6, SCENE_AXIS = 11, SCENE_AXIS_FINGER = 12,
+        SCENE_POINTER_SCALED = 14;
     public static final int WHEEL_STEP_UNITS = 120, POINTER_DELTA_SCALE = 256;
 
     public static final int FG_ENGINE_LSFG = 0, FG_ENGINE_DDFG = 1;
