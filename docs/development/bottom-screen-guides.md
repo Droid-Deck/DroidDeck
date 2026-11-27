@@ -1,6 +1,6 @@
 # Bottom screen: guides tab
 
-Part of the [bottom screen research](bottom-screen.md). Researched 2026-11-26 against `main` at `d788afc12`. Milestone 1 is built; see the status in the overview.
+Part of the [bottom screen research](bottom-screen.md). Researched 2026-11-26 against `main` at `d788afc12`. Milestones 1 and 4 are built (Steam guides with tag and language filters, the Wikidata crosswalk with wiki, fixes and the ProtonDB tier, pinned maps with markers, and saved pages); see the status in the overview. Milestones 2 (achievement checklist with spoiler blur), 3 (native section reader and controller mode) and 5 (progress-aware help) are not started.
 
 A dashboard tab that follows the running game and shows its guides, achievements, maps and fixes, reopens where the user left off, and saves pages for offline use.
 

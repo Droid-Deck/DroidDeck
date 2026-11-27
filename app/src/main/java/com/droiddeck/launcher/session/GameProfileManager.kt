@@ -23,7 +23,10 @@ object GameProfileManager {
         clear("texture filtering") { SessionPrefs.clearGameTextureFiltering(context, scope) }
         clear("Windows components") { WinComponents.setPicks(context, scope, emptyList()) }
         clear("bottom screen") { SessionPrefs.clearGameBottomScreen(context, scope) }
-        clear("guides") { SteamGuides.clear(context, scope) }
+        clear("guides") {
+            SteamGuides.clear(context, scope)
+            GuideLibrary.clear(context, scope)
+        }
 
         if (failures.isNotEmpty()) {
             val names = failures.joinToString { it.first }

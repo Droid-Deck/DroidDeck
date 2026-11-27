@@ -1,6 +1,6 @@
 # Bottom screen: region mirror
 
-Part of the [bottom screen research](bottom-screen.md). Researched 2026-11-26 against `main` at `d788afc12`. Milestone 1 (the PixelCopy prototype) is built: a Mirror tab with a drag-to-pick editor on a still frame, a live view at about 15 fps with sharp or smooth scaling, and one region per game stored as fractions of the output. PixelCopy sees nothing while the zero-copy path puts the game on a child layer, so the tab turns zero-copy off while it is shown (HDR still forces it on). Checked on a Retroid Pocket Duo Lite Plus.
+Part of the [bottom screen research](bottom-screen.md). Researched 2026-11-26 against `main` at `d788afc12`. Milestone 1 (the PixelCopy prototype) is built: a Mirror tab with a drag-to-pick editor on a still frame, a live view at about 15 fps with sharp or smooth scaling, and one region per game stored as fractions of the output. PixelCopy sees nothing while the zero-copy path puts the game on a child layer, so the tab turns zero-copy off while it is shown (HDR still forces it on). Checked on a Retroid Pocket Duo Lite Plus. Hide on top (milestone 3 in part) is built as a view over the game surface while the tab is shown: shown, black or dimmed per game. App views sit above the SurfaceView, so the mask hides the region on screen while PixelCopy still reads the real pixels. Blur and the compositor output are not done.
 
 Show live crops of the game image (minimap, HUD, ability bar, dialogue box) scaled up on the bottom screen, and optionally remove them from the top screen. Regions are saved per game.
 

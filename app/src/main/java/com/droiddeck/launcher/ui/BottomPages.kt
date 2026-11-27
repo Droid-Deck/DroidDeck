@@ -36,6 +36,7 @@ class BottomPageActions(
     val screenOff: (() -> Unit)? = null,
     val copyRegion: ((android.graphics.RectF?, Int, Int, (android.graphics.Bitmap?) -> Unit) -> Unit)? = null,
     val holdComposed: (Boolean) -> Unit = {},
+    val maskRegion: (android.graphics.RectF?, Boolean) -> Unit = { _, _ -> },
 )
 
 internal const val BOTTOM_PAGE_TELEMETRY = "telemetry"

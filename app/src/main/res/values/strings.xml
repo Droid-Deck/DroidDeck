@@ -2355,7 +2355,6 @@
     <string name="bottom_page_guides">Guides</string>
     <string name="bottom_guides_no_game">Start a game to see its Steam guides here.</string>
     <string name="bottom_guides_continue">Continue reading</string>
-    <string name="bottom_guides_back">All guides</string>
     <string name="bottom_guides_empty">There are no Steam guides for this game yet.</string>
     <string name="bottom_guides_failed">Could not load Steam guides. Check back once you are online.</string>
     <string name="bottom_page_companion">Companion</string>
@@ -2386,6 +2385,41 @@
     <string name="bottom_mirror_sharp">Sharp</string>
     <string name="bottom_mirror_smooth">Smooth</string>
     <string name="bottom_mirror_no_frame">The game picture cannot be copied right now.</string>
+    <string name="bottom_guides_wiki">Wiki &amp; fixes</string>
+    <string name="bottom_guides_maps">Maps</string>
+    <string name="bottom_guides_saved">Saved</string>
+    <string name="bottom_guides_tag_all">All</string>
+    <string name="bottom_guides_tag_walkthroughs">Walkthroughs</string>
+    <string name="bottom_guides_tag_secrets">Secrets</string>
+    <string name="bottom_guides_pinned">Map pinned to this game\'s maps.</string>
+    <string name="bottom_guides_pin_failed">That image could not be saved.</string>
+    <string name="bottom_guides_saved_note">Page saved for offline reading.</string>
+    <string name="bottom_guides_search">Search the web</string>
+    <string name="bottom_guides_maps_hint">Long-press a map image in a guide or wiki page to pin it here.</string>
+    <string name="bottom_guides_markers">Markers: %1$d</string>
+    <string name="bottom_guides_find_maps">Find maps</string>
+    <string name="bottom_guides_saved_hint">Use Save in the reader to keep a page for offline reading.</string>
+    <string name="bottom_guides_pin">Pin as map</string>
+    <string name="bottom_guides_pin_hint">Long-press an image to pin it as a map.</string>
+    <string name="bottom_guides_marker_hint">Pinch to zoom. Long-press to add a marker, tap one to remove it.</string>
+    <string name="bottom_guides_link_wiki">Game wiki</string>
+    <string name="bottom_guides_link_pcgw">PCGamingWiki fixes</string>
+    <string name="bottom_guides_search_youtube">YouTube walkthroughs</string>
+    <string name="bottom_mirror_hide_off">Shown on top</string>
+    <string name="bottom_mirror_hide_black">Hidden on top</string>
+    <string name="bottom_mirror_hide_dim">Dimmed on top</string>
+    <string name="bottom_guides_protondb" translatable="false">ProtonDB</string>
+    <string name="bottom_guides_link_strategywiki" translatable="false">StrategyWiki</string>
+    <string name="bottom_guides_link_gamefaqs" translatable="false">GameFAQs</string>
+    <string name="bottom_guides_link_ign" translatable="false">IGN</string>
+    <string name="bottom_guides_link_hltb" translatable="false">HowLongToBeat</string>
+    <string name="bottom_guides_search_mapgenie" translatable="false">Map Genie</string>
+    <string name="bottom_guides_search_vgmaps" translatable="false">VGMaps</string>
+    <string name="bottom_guides_tier_platinum" translatable="false">Platinum</string>
+    <string name="bottom_guides_tier_gold" translatable="false">Gold</string>
+    <string name="bottom_guides_tier_silver" translatable="false">Silver</string>
+    <string name="bottom_guides_tier_bronze" translatable="false">Bronze</string>
+    <string name="bottom_guides_tier_borked" translatable="false">Borked</string>
     <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_hud_group">Bottom screen HUD</string>
     <string name="bottom_strip_tabs">Strip on every tab</string>

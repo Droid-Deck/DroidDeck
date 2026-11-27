@@ -51,6 +51,18 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+internal enum class MirrorHide(val id: String, val label: Int) {
+    OFF("off", R.string.bottom_mirror_hide_off),
+    BLACK("black", R.string.bottom_mirror_hide_black),
+    DIM("dim", R.string.bottom_mirror_hide_dim);
+
+    fun next(): MirrorHide = entries[(ordinal + 1) % entries.size]
+
+    companion object {
+        fun from(id: String?): MirrorHide = entries.firstOrNull { it.id == id } ?: OFF
+    }
+}
+
 internal object MirrorRegion {
     const val MIN_SIZE = 0.02f
 
@@ -106,6 +118,11 @@ internal fun BottomMirrorPage(actions: BottomPageActions) {
         return
     }
     val r = region ?: return
+    var hide by remember(game) { mutableStateOf(MirrorHide.from(SessionPrefs.mirrorHide(context, game))) }
+    DisposableEffect(r, hide) {
+        actions.maskRegion(r.takeIf { hide != MirrorHide.OFF }, hide == MirrorHide.DIM)
+        onDispose { actions.maskRegion(null, false) }
+    }
     var frame by remember(r) { mutableStateOf<ImageBitmap?>(null) }
     var failed by remember(r) { mutableStateOf(false) }
     LaunchedEffect(r) {
@@ -121,6 +138,10 @@ internal fun BottomMirrorPage(actions: BottomPageActions) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             BottomPillButton(stringResource(R.string.bottom_mirror_edit), "bottom-mirror-edit") { editing = true }
             BottomPillButton(stringResource(if (sharp) R.string.bottom_mirror_sharp else R.string.bottom_mirror_smooth), "bottom-mirror-filter") { sharp = !sharp }
+            BottomPillButton(stringResource(hide.label), "bottom-mirror-hide") {
+                hide = hide.next()
+                SessionPrefs.setMirrorHide(context, game, hide.id)
+            }
         }
         Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
             val f = frame

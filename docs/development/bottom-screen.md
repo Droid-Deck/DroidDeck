@@ -141,13 +141,15 @@ Rearrangeable tiles on the dashboard: FPS limit, 60/120 Hz, per-screen brightnes
 
 ### 6. Region mirror from our compositor
 
+**Status:** milestone 1 built (PixelCopy prototype with the editor and per-game regions), plus hiding the region on the top screen (shown, black or dimmed). Checked on a Retroid Pocket Duo Lite Plus; see the region mirror doc.
+
 Crop rectangles of the game image (minimap, HUD, ability bars) onto the bottom screen, saved per game, optionally hidden on the top screen. Other Thor tools need MediaProjection or a privileged helper and cannot hide the original; our compositor has the game image before display, so it can do both with no permission prompt. Recommended path: a second output in `vk_present` that blits region sub-rectangles, with zero-copy layers later.
 
 Details: [bottom-screen-region-mirror.md](bottom-screen-region-mirror.md).
 
 ### 7. Guides tab
 
-**Status:** milestone 1 built. A Guides tab lists the running game's top-rated Steam guides (with the user's Steam web cookies, so their language filter applies), opens one in a non-focusable WebView restricted to Steam hosts, and remembers the guide and scroll position per game ("Continue reading"). With no game running it shows the game selected in Steam. Checked on hardware. Code: [`session/SteamGuides.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamGuides.kt), [`ui/BottomGuidesPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomGuidesPage.kt).
+**Status:** milestones 1 and 4 built and checked on a Retroid Pocket Duo Lite Plus. The Guides tab has four sections for the running game, or the one selected in Steam: Guides (top-rated Steam guides in the device's language, filtered by Walkthroughs, Achievements, Secrets or Maps, with "Continue reading"), Wiki & fixes (the ProtonDB tier, and the game wiki, StrategyWiki, PCGamingWiki, GameFAQs, IGN and HowLongToBeat found through Wikidata, plus web searches), Maps (images pinned from any page by long-press, opened in a viewer with pinch and double-tap zoom and markers saved per map, plus Map Genie and VGMaps searches) and Saved (pages kept with Save as web archives for offline reading). The reader never takes focus, blocks common ad hosts, and stays on the opened site unless the user follows a link. Code: [`session/SteamGuides.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamGuides.kt), [`session/GameLinks.kt`](../../app/src/main/java/com/droiddeck/launcher/session/GameLinks.kt), [`ui/BottomGuidesPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomGuidesPage.kt).
 
 A per-game tab with Steam Community guides for the exact app id, Steam achievements as a spoiler-safe checklist, the game's wiki and fixes (found through Wikidata), saved pages for offline use, and a workspace that reopens at the last section. It must never take focus from the game, and pauses pages it is not showing.
 

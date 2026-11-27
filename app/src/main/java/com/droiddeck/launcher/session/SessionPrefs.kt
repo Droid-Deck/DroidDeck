@@ -166,8 +166,15 @@ object SessionPrefs {
         prefs(context).edit().putString("mirrorRegion.app.$game", region).apply()
     }
 
+    fun mirrorHide(context: Context, game: String): String = prefs(context).getString("mirrorHide.app.$game", null) ?: "off"
+
+    fun setMirrorHide(context: Context, game: String, mode: String) {
+        prefs(context).edit().putString("mirrorHide.app.$game", mode).apply()
+    }
+
     fun clearGameBottomScreen(context: Context, game: String) {
-        prefs(context).edit().remove("secondScreenPanel.app.$game").remove("bottomPage.app.$game").remove("mirrorRegion.app.$game").apply()
+        prefs(context).edit().remove("secondScreenPanel.app.$game").remove("bottomPage.app.$game").remove("mirrorRegion.app.$game")
+            .remove("mirrorHide.app.$game").apply()
     }
 
     /** The bottom-screen desktop takes touch as a trackpad unless the user switched it to direct touch. */

@@ -68,7 +68,7 @@ internal object IdleHome {
         Overview(o.optString("name").ifEmpty { return null }, o.optLong("minutes"), o.optLong("last"))
     }.getOrNull()
 
-    private fun overview(context: Context, appId: Long): Overview? = runCatching {
+    internal fun overview(context: Context, appId: Long): Overview? = runCatching {
         val answer = AgentGuest.steamEval(context, overviewExpression(appId), 4_000)
         if (!answer.optBoolean("ok")) null else parseOverview(answer.opt("value")?.takeIf { it != org.json.JSONObject.NULL }?.toString())
     }.getOrNull()

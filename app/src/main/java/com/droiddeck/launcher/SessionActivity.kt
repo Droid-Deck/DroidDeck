@@ -4651,6 +4651,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         quick = { drawerActions },
         copyRegion = ::copyGameRegion,
         holdComposed = ::holdComposedOutput,
+        maskRegion = ::maskGameRegion,
         screenOff = { secondScreenPresentation?.screenOff() },
     ))
 
@@ -5978,6 +5979,43 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private var composedHolds = 0
+    private var mirrorMask: android.view.View? = null
+    private var maskedRegion: android.graphics.RectF? = null
+    private var maskDim = false
+    private val maskLayout = android.view.View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> placeMirrorMask() }
+
+    private fun maskGameRegion(region: android.graphics.RectF?, dim: Boolean) {
+        maskedRegion = region
+        maskDim = dim
+        if (region != null && mirrorMask == null && ::sessionRoot.isInitialized && ::surfaceView.isInitialized) {
+            val mask = android.view.View(this).apply {
+                isClickable = false
+                isFocusable = false
+                importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+            sessionRoot.addView(mask, sessionRoot.indexOfChild(surfaceView) + 1, FrameLayout.LayoutParams(0, 0))
+            surfaceView.addOnLayoutChangeListener(maskLayout)
+            mirrorMask = mask
+        }
+        placeMirrorMask()
+    }
+
+    private fun placeMirrorMask() {
+        val mask = mirrorMask ?: return
+        val r = maskedRegion
+        if (r == null || glassesOutputActive || bottomOutputActive || surfaceView.width <= 0) {
+            mask.visibility = android.view.View.GONE
+            return
+        }
+        mask.setBackgroundColor(if (maskDim) 0xB3000000.toInt() else android.graphics.Color.BLACK)
+        val w = surfaceView.width
+        val h = surfaceView.height
+        mask.layoutParams = FrameLayout.LayoutParams(((r.right - r.left) * w).toInt(), ((r.bottom - r.top) * h).toInt(), Gravity.TOP or Gravity.START).apply {
+            leftMargin = surfaceView.left + (r.left * w).toInt()
+            topMargin = surfaceView.top + (r.top * h).toInt()
+        }
+        mask.visibility = android.view.View.VISIBLE
+    }
 
     private fun holdComposedOutput(hold: Boolean) {
         composedHolds = (composedHolds + if (hold) 1 else -1).coerceAtLeast(0)
