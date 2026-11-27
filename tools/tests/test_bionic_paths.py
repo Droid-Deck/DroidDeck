@@ -65,6 +65,16 @@ class ToolArguments(unittest.TestCase):
     def test_wine_keeps_the_guest_root(self):
         self.assertIn('DROIDDECK_GUEST_ROOT) ;;', LAUNCH.read_text())
 
+    def test_wine_keeps_the_zone_and_its_wine_host_form(self):
+        text = LAUNCH.read_text()
+        start = text.index('KEEP=" ')
+        loop = text[start:text.index('\ndone\n', start) + 6]
+        env = {'PATH': os.environ['PATH'], 'TZ': 'Asia/Yekaterinburg', 'WINE_HOST_TZ': 'Asia/Yekaterinburg',
+               'STALE_HOST': '1'}
+        result = subprocess.run(['bash', '-c', loop + 'echo "${TZ-}|${WINE_HOST_TZ-}|${STALE_HOST-unset}"'],
+                                env=env, capture_output=True, text=True, check=True)
+        self.assertEqual('Asia/Yekaterinburg|Asia/Yekaterinburg|unset', result.stdout.strip())
+
 
 class SessionLogs(unittest.TestCase):
     SESSION = '/data/user/0/com.droiddeck.launcher/files/logs/2026-11-22-09-steam'

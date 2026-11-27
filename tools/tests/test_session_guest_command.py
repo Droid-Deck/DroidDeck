@@ -37,6 +37,11 @@ def guest_prefix(package):
     return prefix
 
 
+def client_environment():
+    body = SERVICE.read_text().split("private fun addClientEnvironment(", 1)[1].split("\n    private fun ", 1)[0]
+    return [line.strip() for line in body.splitlines()]
+
+
 class SessionGuestCommandTest(unittest.TestCase):
     def test_env_is_the_executable_for_every_package(self):
         for package in PACKAGES:
@@ -53,6 +58,13 @@ class SessionGuestCommandTest(unittest.TestCase):
                 self.assertEqual(
                     ["DROIDDECK_BWRAP_SOCKET=" + package + ".bwrap"],
                     result.stdout.splitlines())
+
+    def test_wine_gets_the_android_zone_without_putting_tz_in_the_windows_environment(self):
+        lines = client_environment()
+        zone = lines.index("val timeZone = java.util.TimeZone.getDefault().id")
+        self.assertEqual(['guest.add("TZ=$timeZone")', 'guest.add("WINE_HOST_TZ=$timeZone")'],
+                         lines[zone + 1:zone + 3])
+        self.assertEqual(1, sum(line.startswith('guest.add("TZ=') for line in lines))
 
 
 if __name__ == "__main__":
