@@ -965,17 +965,25 @@ static int swap_init_locked(void) {
     cr = g_vk.GetSwapchainImagesKHR(g_dev, g_swapchain, &g_nimg, NULL);
     if (cr != VK_SUCCESS || !g_nimg) {
         SWLOGE("present: vkGetSwapchainImagesKHR count failed (%s)", vk_result_name(cr));
+        g_nimg = 0;
         return -1;
     }
     g_images = calloc(g_nimg, sizeof(VkImage));
     if (!g_images) {
         SWLOGE("present: failed to allocate swapchain image list");
+        g_nimg = 0;
         return -1;
     }
     cr = g_vk.GetSwapchainImagesKHR(g_dev, g_swapchain, &g_nimg, g_images);
-    if (cr != VK_SUCCESS || create_present_semaphores() != 0) {
-        SWLOGE("present: failed to initialize per-image present semaphores (%s)",
-               vk_result_name(cr));
+    if (cr != VK_SUCCESS) {
+        SWLOGE("present: vkGetSwapchainImagesKHR failed (%s)", vk_result_name(cr));
+        free(g_images);
+        g_images = NULL;
+        g_nimg = 0;
+        return -1;
+    }
+    if (create_present_semaphores() != 0) {
+        SWLOGE("present: failed to initialize per-image present semaphores");
         return -1;
     }
 
