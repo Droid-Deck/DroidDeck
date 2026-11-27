@@ -106,7 +106,6 @@ static VkCommandPool g_pool;
 #define MAX_PRESENTS (1 + VKP_FG_MAX_GENERATIONS)
 static VkCommandBuffer g_cmds[MAX_PRESENTS];
 static VkSemaphore g_acqs[MAX_PRESENTS];
-/* Present-wait semaphores belong to swapchain images, not frame slots. */
 static VkSemaphore *g_rnds;
 static uint32_t g_rnd_count;
 static VkFence g_fence;
@@ -317,7 +316,6 @@ static void destroy_swapchain(void) {
     for (uint32_t i = 0; i < g_nimg; i++) blendp_forget_image(g_images[i]);
     if (g_swapchain) g_vk.DestroySwapchainKHR(g_dev, g_swapchain, NULL);
     g_swapchain = VK_NULL_HANDLE;
-    /* Keep image semaphores alive until after their swapchain is destroyed. */
     destroy_present_semaphores();
     reset_sync();
     g_swap_md_identity = 0;
