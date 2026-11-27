@@ -69,6 +69,64 @@ class XboxLaunchTest(unittest.TestCase):
             close.assert_called_once()
             self.assertEqual(store['ask'].call_args.args[1], {'op': 'xbox-released', 'lease': 'lease-1'})
 
+    def launch_env(self, env):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            runtime = root / 'runtime/windows'
+            runtime.mkdir(parents=True)
+            for name in xbox['DLLS']:
+                (runtime / name).write_bytes(b'MZ')
+            store = {'find_store_game': lambda argv: (root, {'store': 'xbox', 'id': 'GAME'}),
+                     'ask': unittest.mock.Mock(return_value={'ok': True, 'socket': '/service', 'lease': 'lease-1',
+                                                            'exe': '/private/Game.exe'})}
+            wine = unittest.mock.Mock(return_value=0)
+            with patch('runpy.run_path', return_value=store), \
+                 patch.dict(xbox['launch'].__globals__, RUNTIME=runtime.parent, wine=wine,
+                            bridge=lambda path: (1234, 'key', lambda: None)):
+                self.assertEqual(xbox['launch'](['/proton', 'waitforexitandrun', '/encrypted/Game.exe'],
+                                                dict(env, DD_LAUNCH_DIR='/launch')), 0)
+            return wine.call_args.args[1]
+
+    def test_game_logs_get_the_runtime_store_and_sign_in_results(self):
+        with tempfile.TemporaryDirectory() as logs:
+            env = self.launch_env({'PROTON_LOG_DIR': logs})
+            for name, file in xbox['RUNTIME_LOGS']:
+                self.assertEqual(env[name], 'Z:' + str(Path(logs) / file).replace('/', '\\'))
+                self.assertEqual((Path(logs) / file).read_bytes(), b'')
+
+    def test_runtime_results_stay_off_without_game_logs(self):
+        for env in ({}, {'PROTON_LOG_DIR': ''}, {'PROTON_LOG_DIR': 'relative/logs'}, {'PROTON_LOG_DIR': '/missing/logs'}):
+            with self.subTest(env=env):
+                launched = self.launch_env(env)
+                for name, _ in xbox['RUNTIME_LOGS']:
+                    self.assertNotIn(name, launched)
+
+    def test_runtime_results_keep_earlier_lines_and_never_follow_links(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            logs = root / 'logs'
+            logs.mkdir()
+            outside = root / 'outside.txt'
+            outside.write_text('private')
+            store, sign_in, rejections = (logs / file for _, file in xbox['RUNTIME_LOGS'])
+            store.write_text('STORE_META api=20\n')
+            sign_in.symlink_to(outside)
+            found = xbox['runtime_logs']({'PROTON_LOG_DIR': str(logs)})
+            self.assertEqual(store.read_text(), 'STORE_META api=20\n')
+            self.assertNotIn('XUSER_AUTH_METADATA_LOG', found)
+            self.assertEqual(outside.read_text(), 'private')
+            self.assertEqual(found['XUSER_AUTH_REJECTION_LOG'], 'Z:' + str(rejections).replace('/', '\\'))
+            linked = root / 'linked'
+            linked.symlink_to(logs)
+            self.assertEqual(xbox['runtime_logs']({'PROTON_LOG_DIR': str(linked)}), {})
+
+    def test_runtime_results_need_a_path_the_runtime_can_open(self):
+        with tempfile.TemporaryDirectory() as root:
+            logs = Path(root) / ('g' * 240)
+            logs.mkdir()
+            self.assertEqual(xbox['runtime_logs']({'PROTON_LOG_DIR': str(logs)}), {})
+            self.assertEqual(list(logs.iterdir()), [])
+
     def test_bridge_start_failure_still_releases_the_lease(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)

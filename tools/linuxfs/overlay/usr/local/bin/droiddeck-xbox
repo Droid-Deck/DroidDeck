@@ -477,6 +477,28 @@ def stage_playfab_proxy(folder):
     return staged
 
 
+RUNTIME_LOGS = (('NEXUS_STORE_METADATA_LOG', 'xbox-store-calls.log'), ('XUSER_AUTH_METADATA_LOG', 'xbox-sign-in.log'),
+                ('XUSER_AUTH_REJECTION_LOG', 'xbox-sign-in-rejections.log'))
+
+
+def runtime_logs(env):
+    folder = env.get('PROTON_LOG_DIR')
+    if not isinstance(folder, str) or not os.path.isabs(folder) or os.path.islink(folder) or not os.path.isdir(folder):
+        return {}
+    found = {}
+    for name, file in RUNTIME_LOGS:
+        path = Path(folder) / file
+        windows = 'Z:' + str(path).replace('/', '\\')
+        if len(windows) >= 260:
+            continue
+        try:
+            os.close(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o644))
+        except OSError:
+            continue
+        found[name] = windows
+    return found
+
+
 def renew_lease(ask, channel, product, lease, stopped):
     while not stopped.wait(15):
         response = ask(channel, {'op': 'xbox-renew', 'id': product, 'lease': lease}, timeout=10)
@@ -521,6 +543,7 @@ def launch(command, env):
                              XODUS_LOG='off', RUST_LOG='off', XODUS_SAVE_SYNC='auto' if sidecar.get('cloud', True) else 'none')
             for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
                 owned_env.pop(name, None)
+            owned_env.update(runtime_logs(env))
             if reply.get('playfab'):
                 owned_env['XODUS_XSTS_PLAYFAB'] = reply['playfab']
             # The runtime mounts DLC only inside this backend-owned workspace (E_NOTIMPL without it).
