@@ -13,6 +13,7 @@ object GameEnvironmentStore {
     private const val TAG = "GameEnvironmentStore"
     private const val SETTINGS = "game-environment.json"
     private const val GUEST_FILE = "root/.config/droiddeck/game-environment.json"
+    private const val GAME_CORES_FILE = "root/.config/droiddeck/game-cores"
     const val DXVK_CONFIG = "dxvkConfig"
     const val DXVK_CONFIG_GAMES = "dxvkConfigGames"
     const val GAME_DEBUG_LOGS = "gameDebugLogs"
@@ -138,6 +139,10 @@ object GameEnvironmentStore {
             gameDebugLogsOverride ?: SessionPrefs.gameDebugLogsEffective(context),
         )
         write(File(LinuxRuntime.rootDir(context), GUEST_FILE), json.toString())
+        write(
+            File(LinuxRuntime.rootDir(context), GAME_CORES_FILE),
+            com.droiddeck.launcher.core.CpuCores.restrictionOrEmpty(SessionPrefs.gameCpus(context)) + "\n",
+        )
     }
 
     private fun write(file: File, text: String) {

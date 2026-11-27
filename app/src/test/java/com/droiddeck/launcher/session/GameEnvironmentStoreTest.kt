@@ -36,7 +36,19 @@ class GameEnvironmentStoreTest {
         context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
             .remove("logs")
             .remove("gameDebugLogsEnabled")
+            .remove("gameCpus")
             .commit()
+    }
+
+    @Test fun gameCoresChangedInSettingsReachTheGuestAtOnce() {
+        val live = File(LinuxRuntime.rootDir(context), "root/.config/droiddeck/game-cores")
+        val all = com.droiddeck.launcher.core.CpuCores.all
+
+        SessionPrefs.setGameCpus(context, all.last().toString())
+        assertEquals("${all.last()}\n", live.readText())
+
+        SessionPrefs.setGameCpus(context, com.droiddeck.launcher.core.CpuCores.format(all.toSet()))
+        assertEquals("\n", live.readText())
     }
 
     @Test fun gameDebugLogsAreOffByDefault() {
