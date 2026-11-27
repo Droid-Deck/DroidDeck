@@ -120,6 +120,14 @@ class NativeHookLdsoSpawnTest(unittest.TestCase):
             script.parent.mkdir(exist_ok=True)
             script.write_text(f"#!{interpreter}\n")
             script.chmod(0o755)
+        cls.app_files = tmp / "app-files"
+        cls.app_files.mkdir()
+        shutil.copy(cls.probe, cls.app_files / "tool")
+        shutil.copy(cls.android / "sh", cls.app_files / "android-tool")
+        for name, interpreter in (("guest.py", GUEST_TOOL), ("android.sh", f"{ANDROID_DIR}/sh")):
+            (cls.app_files / name).write_text(f"#!{interpreter}\n")
+        for entry in cls.app_files.iterdir():
+            entry.chmod(0o755)
 
     @classmethod
     def tearDownClass(cls):
@@ -219,6 +227,32 @@ class NativeHookLdsoSpawnTest(unittest.TestCase):
             with self.subTest(how=how):
                 call = self.call(how, "/opt/host.sh", "x", binds=f"{self.runtime}:{BOUND_DIR}")
                 self.assertEqual([HOST_SHELL, HOST_SHELL, str(self.root / "opt/host.sh"), "x"], call)
+
+    def test_a_script_on_a_mount_at_its_host_path_runs_with_the_guest_interpreter(self):
+        script = str(self.app_files / "guest.py")
+        for how in ("exec", "spawn"):
+            with self.subTest(how=how):
+                call = self.call(how, script, "x", binds=f"{self.app_files}:{self.app_files}")
+                self.assertEqual(str(self.root / GUEST_LDSO.lstrip("/")), call[0])
+                self.assertEqual([str(self.root / GUEST_TOOL.lstrip("/")), script, "x"], call[-3:])
+
+    def test_a_glibc_program_on_a_mount_at_its_host_path_starts_through_the_guest_ldso(self):
+        tool = str(self.app_files / "tool")
+        for how in ("exec", "spawn"):
+            with self.subTest(how=how):
+                call = self.call(how, tool, "x", binds=f"{self.app_files}:{self.app_files}")
+                self.assertEqual(str(self.root / GUEST_LDSO.lstrip("/")), call[0])
+                self.assertEqual([tool, "x"], call[-2:])
+
+    def test_android_programs_on_a_mount_at_its_host_path_stay_on_the_host(self):
+        tool = str(self.app_files / "android-tool")
+        script = str(self.app_files / "android.sh")
+        sh = str(self.android / "sh")
+        binds = f"{self.app_files}:{self.app_files}|{self.android}:{ANDROID_DIR}"
+        for how in ("exec", "spawn"):
+            with self.subTest(how=how):
+                self.assertEqual([tool, tool, "x"], self.call(how, tool, "x", binds=binds))
+                self.assertEqual([sh, sh, script, "x"], self.call(how, script, "x", binds=binds))
 
     def test_an_android_interpreter_reached_through_a_bind_stays_on_the_host(self):
         sh = str(self.android / "sh")
