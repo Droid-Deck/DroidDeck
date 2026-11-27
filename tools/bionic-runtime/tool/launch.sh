@@ -29,6 +29,11 @@ echo "$(date +%H:%M:%S) $verb $EXE ($VERSION, uid $(id -u), DISPLAY ${DISPLAY:-u
 # Keep Steam's game identity, DroidDeck's input/display/driver/sync settings and its game environment (the names
 # ../proton lists in DROIDDECK_BIONIC_KEEP); drop the rest of the glibc guest's environment.
 KEEP=" ${DROIDDECK_BIONIC_KEEP:-} "
+# The built-in DirectAudio driver reads DroidDeck's AUDIO_DIRECT_* settings (the microphone switch among them) under
+# the BANNER_ names droiddeck-proton gives them for Proton.
+for v in $(env | sed -n 's/^\(AUDIO_DIRECT_[A-Za-z0-9_]*\)=.*/\1/p'); do
+  eval "export BANNER_$v=\"\$$v\""
+done
 for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
   case "$KEEP" in *" $v "*) continue ;; esac
   case "$v" in
@@ -36,7 +41,7 @@ for v in $(env | sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p'); do
     ANDROID_*|BOOTCLASSPATH|DEX2OATBOOTCLASSPATH|SYSTEMSERVERCLASSPATH|EXTERNAL_STORAGE|ASEC_MOUNTPOINT) ;;
     FAKE_*|SDL_*|DD_WIDTH|DD_HEIGHT|DD_VK_DRIVER|WINEDLLOVERRIDES) ;;
     DISPLAY|GAMESCOPE_WAYLAND_DISPLAY|FEX_*) ;;
-    TU_DEBUG|MESA_NO_ERROR|DXVK_CONFIG|DXVK_HUD|DROIDDECK_FORCE_SSBS) ;;
+    TU_DEBUG|MESA_NO_ERROR|DXVK_CONFIG|DXVK_HUD|DROIDDECK_FORCE_SSBS|BANNER_AUDIO_DIRECT_*) ;;
     mesa_glthread|vblank_mode|ZINK_*|GALLIUM_HUD|GALLIUM_THREAD) ;;
     DD_SYNC|DD_FSYNC_FIRST|DD_SYNC_FALLBACK|PROTON_NO_ESYNC|PROTON_NO_FSYNC|PROTON_NO_NTSYNC|WINEESYNC) ;;
     PROTON_USE_D7VK) ;;
