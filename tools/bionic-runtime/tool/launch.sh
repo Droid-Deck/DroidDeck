@@ -314,7 +314,7 @@ steam_pid() {
   awk '/^\[/ { on = index($0, "[Software\\\\Valve\\\\Steam\\\\ActiveProcess]") == 1 }
     on && /^"PID"=dword:/ && $0 != "\"PID\"=dword:0000fffe" { found = 1 } END { exit !found }' "$R" || return 0
   awk '/^\[/ { on = index($0, "[Software\\\\Valve\\\\Steam\\\\ActiveProcess]") == 1 }
-    on && /^"PID"=dword:/ { print "\"PID\"=dword:0000fffe"; next } { print }' "$R" > "$R.dd-new" && mv -f "$R.dd-new" "$R" &&
+    on && /^"PID"=dword:/ { print "\"PID\"=dword:0000fffe"; next } { print }' "$R" > "$R.dd-new.$$" && mv -f "$R.dd-new.$$" "$R" &&
     echo "$(date +%H:%M:%S) Steam's process ID in the registry set to this tool's"
 }
 prefix_busy || steam_pid

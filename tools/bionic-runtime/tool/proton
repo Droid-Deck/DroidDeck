@@ -47,7 +47,7 @@ android_drives() {
     case "$t" in /*) ;; *) continue ;; esac
     a=$(real "$t")
     [ "$a" = "$t" ] && continue
-    ln -sfn "$a" "$d.dd-new" && mv -fT "$d.dd-new" "$d" && echo "drive ${d##*/} -> $a"
+    ln -sfn "$a" "$d.dd-new.$$" && mv -fT "$d.dd-new.$$" "$d" && echo "drive ${d##*/} -> $a"
   done
 }
 
