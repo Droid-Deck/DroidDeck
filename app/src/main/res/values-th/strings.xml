@@ -4109,6 +4109,7 @@
     <string name="theme_custom_signal">จุดเน้น</string>
     <string name="theme_custom_good">สำเร็จ</string>
     <string name="theme_custom_error">ข้อผิดพลาด</string>
+    <string name="theme_custom_warning">คำเตือน</string>
     <string name="hud_only_during_game">แสดง HUD เฉพาะขณะเล่นเกม</string>
     <string name="hud_only_during_game_hint">ซ่อน HUD เมื่อไม่พบเฟรมของเกม</string>
     <string name="steam_store_close_steam">ปิด Steam ก่อน</string>

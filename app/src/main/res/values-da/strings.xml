@@ -4139,6 +4139,7 @@
     <string name="theme_custom_signal">Fremhævninger</string>
     <string name="theme_custom_good">Succes</string>
     <string name="theme_custom_error">Fejl</string>
+    <string name="theme_custom_warning">Advarsel</string>
     <string name="hud_only_during_game">Vis kun HUD under spil</string>
     <string name="hud_only_during_game_hint">Skjul HUD, når der ikke registreres spilbilleder.</string>
     <string name="steam_store_close_steam">Luk Steam først</string>

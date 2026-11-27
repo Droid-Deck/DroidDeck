@@ -4220,6 +4220,7 @@
     <string name="theme_custom_signal">Выделения</string>
     <string name="theme_custom_good">Успех</string>
     <string name="theme_custom_error">Ошибка</string>
+    <string name="theme_custom_warning">Предупреждение</string>
     <string name="hud_only_during_game">Показывать HUD только во время игры</string>
     <string name="hud_only_during_game_hint">Скрывать HUD, когда кадры игры не обнаруживаются.</string>
     <string name="steam_store_close_steam">Сначала закройте Steam</string>

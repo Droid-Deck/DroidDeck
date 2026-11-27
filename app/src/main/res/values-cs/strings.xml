@@ -4219,6 +4219,7 @@
     <string name="theme_custom_signal">Zvýraznění</string>
     <string name="theme_custom_good">Úspěch</string>
     <string name="theme_custom_error">Chyba</string>
+    <string name="theme_custom_warning">Varování</string>
     <string name="hud_only_during_game">Zobrazovat HUD pouze během hry</string>
     <string name="hud_only_during_game_hint">Skrýt HUD, když nejsou detekovány snímky hry.</string>
     <string name="steam_store_close_steam">Nejprve zavřete Steam</string>

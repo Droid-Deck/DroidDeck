@@ -4139,6 +4139,7 @@
     <string name="theme_custom_signal">Επισημάνσεις</string>
     <string name="theme_custom_good">Επιτυχία</string>
     <string name="theme_custom_error">Σφάλμα</string>
+    <string name="theme_custom_warning">Προειδοποίηση</string>
     <string name="hud_only_during_game">Εμφάνιση HUD μόνο κατά τη διάρκεια παιχνιδιού</string>
     <string name="hud_only_during_game_hint">Απόκρυψη HUD όταν δεν ανιχνεύονται καρέ παιχνιδιού.</string>
     <string name="steam_store_close_steam">Κλείστε πρώτα το Steam</string>

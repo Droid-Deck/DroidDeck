@@ -4139,6 +4139,7 @@
     <string name="theme_custom_signal">Hervorhebungen</string>
     <string name="theme_custom_good">Erfolg</string>
     <string name="theme_custom_error">Fehler</string>
+    <string name="theme_custom_warning">Warnung</string>
     <string name="hud_only_during_game">HUD nur während eines Spiels anzeigen</string>
     <string name="hud_only_during_game_hint">HUD ausblenden, wenn keine Spielframes erkannt werden.</string>
     <string name="steam_store_close_steam">Schließe zuerst Steam</string>

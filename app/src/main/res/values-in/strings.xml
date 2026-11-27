@@ -4109,6 +4109,7 @@
     <string name="theme_custom_signal">Sorotan</string>
     <string name="theme_custom_good">Berhasil</string>
     <string name="theme_custom_error">Kesalahan</string>
+    <string name="theme_custom_warning">Peringatan</string>
     <string name="hud_only_during_game">Tampilkan HUD hanya saat bermain</string>
     <string name="hud_only_during_game_hint">Sembunyikan HUD saat tidak ada frame game yang terdeteksi.</string>
     <string name="steam_store_close_steam">Tutup Steam terlebih dahulu</string>

@@ -1735,6 +1735,7 @@ object SessionPrefs {
                 signal = p.getInt("customThemeSignal", defaults.signal),
                 good = p.getInt("customThemeGood", defaults.good),
                 error = p.getInt("customThemeError", defaults.error),
+                warning = p.getInt("customThemeWarning", defaults.warning),
             )
         }
 
@@ -1755,6 +1756,7 @@ object SessionPrefs {
             .putInt("customThemeSignal", colors.signal)
             .putInt("customThemeGood", colors.good)
             .putInt("customThemeError", colors.error)
+            .putInt("customThemeWarning", colors.warning)
             .apply()
     }
 

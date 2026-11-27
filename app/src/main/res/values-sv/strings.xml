@@ -4139,6 +4139,7 @@
     <string name="theme_custom_signal">Markeringar</string>
     <string name="theme_custom_good">Lyckades</string>
     <string name="theme_custom_error">Fel</string>
+    <string name="theme_custom_warning">Varning</string>
     <string name="hud_only_during_game">Visa HUD endast under spel</string>
     <string name="hud_only_during_game_hint">Dölj HUD när inga spelbildrutor upptäcks.</string>
     <string name="steam_store_close_steam">Stäng Steam först</string>

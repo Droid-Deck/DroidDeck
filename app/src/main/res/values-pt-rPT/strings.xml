@@ -1812,6 +1812,7 @@
     <string name="theme_custom_signal">Destaques e indicadores</string>
     <string name="theme_custom_good">Sucesso</string>
     <string name="theme_custom_error">Erro</string>
+    <string name="theme_custom_warning">Aviso</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
