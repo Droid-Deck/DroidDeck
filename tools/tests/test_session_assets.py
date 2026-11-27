@@ -38,6 +38,9 @@ class SessionAssetsTest(unittest.TestCase):
             package.writestr(self.name, self.helper.read_bytes())
         self.assertEqual([], assets.check(self.apk, self.overlay))
 
+    def test_shipped_helpers_are_extracted_at_session_start(self):
+        self.assertEqual([], assets.check_extraction(assets.OVERLAY, assets.SESSION_FILES.read_text()))
+
     def test_bundled_helper_must_also_be_extracted(self):
         self.assertEqual(['not extracted at session start: usr/local/bin/droiddeck-login1'],
                          assets.check_extraction(self.overlay, ''))
