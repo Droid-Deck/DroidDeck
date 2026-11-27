@@ -1785,16 +1785,19 @@ class GameEnvironmentTest(unittest.TestCase):
             images = {
                 "GAMESCOPE_WSI_MIN_IMAGE_COUNT": None,
                 "GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT": None,
+                "vk_wsi_override_min_image_count": None,
                 "vk_x11_strict_image_count": "true",
             }
             for exe in ("DOOMx64.exe", "DOOMx64vk.exe"):
                 env, extra, notes = MODULE["engine_fixes"](str(game / exe), [])
                 self.assertEqual((env, extra), (images, []))
                 self.assertTrue(notes)
-            launched = {"GAMESCOPE_WSI_MIN_IMAGE_COUNT": "8", "GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT": "1"}
+            launched = {"GAMESCOPE_WSI_MIN_IMAGE_COUNT": "8", "GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT": "1",
+                        "vk_wsi_override_min_image_count": "4"}
             result = MODULE["apply_config"](launched, {"version": 1}, "3566086475", env)
             self.assertNotIn("GAMESCOPE_WSI_MIN_IMAGE_COUNT", result)
             self.assertNotIn("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT", result)
+            self.assertNotIn("vk_wsi_override_min_image_count", result)
             self.assertEqual(result["vk_x11_strict_image_count"], "true")
             config = {"version": 1, "games": {"3566086475": {"GAMESCOPE_WSI_MIN_IMAGE_COUNT": "3"}}}
             self.assertEqual(MODULE["apply_config"](launched, config, "3566086475", env)["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "3")
@@ -1882,6 +1885,10 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertTrue(MODULE["game_images"](game))
         self.assertEqual(game["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "8")
         self.assertEqual(game["GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT"], "1")
+        session = {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/945360", "vk_wsi_override_min_image_count": "4",
+                   "GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT": "1"}
+        self.assertTrue(MODULE["game_images"](session))
+        self.assertEqual(session["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "8")
         own = {"STEAM_COMPAT_DATA_PATH": "/steam/compatdata/945360", "GAMESCOPE_WSI_MIN_IMAGE_COUNT": "3"}
         MODULE["game_images"](own)
         self.assertEqual(own["GAMESCOPE_WSI_MIN_IMAGE_COUNT"], "3")

@@ -54,6 +54,15 @@ class SessionGuestCommandTest(unittest.TestCase):
                     ["DROIDDECK_BWRAP_SOCKET=" + package + ".bwrap"],
                     result.stdout.splitlines())
 
+    def test_display_buffer_sessions_raise_the_default_image_count_below_games(self):
+        source = SERVICE.read_text()
+        branch = source.split("if (displayBuffers) {", 1)[1].split("}", 1)[0]
+        self.assertIn('guest.add("vk_wsi_override_min_image_count=$DISPLAY_BUFFER_IMAGES")', branch)
+        self.assertIn('guest.add("GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT=1")', branch)
+        self.assertNotIn("GAMESCOPE_WSI_MIN_IMAGE_COUNT=", branch)
+        self.assertRegex(source, r"const val DISPLAY_BUFFER_IMAGES = 4\b")
+        self.assertIn("nativeSetDisplayBufferDriver(displayBuffers)", source)
+
 
 if __name__ == "__main__":
     unittest.main()
