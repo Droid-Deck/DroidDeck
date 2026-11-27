@@ -178,7 +178,11 @@ void FrameGen::configure(const Config& c) {
 
 
 
-    dd_->DeviceWaitIdle(device_);
+    const VkResult idleResult = dd_->DeviceWaitIdle(device_);
+    if (idleResult != VK_SUCCESS) {
+        DDFG_LOGE("framegen configure: DeviceWaitIdle failed (%d); aborting live rebuild", (int)idleResult);
+        return;
+    }
     destroyScratch(dd_, device_, descPool_);
     if (!onResize(extent_, VK_FORMAT_UNDEFINED,  true))
         DDFG_LOGE("perf-preset live rebuild: onResize FAILED at %ux%u - FG disabled until next resize",
@@ -266,7 +270,11 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
 
     if (!g_scratch.built || g_scratch.builtFor.width != extent_.width || g_scratch.builtFor.height != extent_.height) {
         if (g_scratch.built) {
-            dd_->DeviceWaitIdle(device_);
+            const VkResult idleResult = dd_->DeviceWaitIdle(device_);
+            if (idleResult != VK_SUCCESS) {
+                DDFG_LOGE("framegen record: DeviceWaitIdle failed (%d); skipping scratch rebuild", (int)idleResult);
+                return;
+            }
             destroyScratch(dd_, device_, descPool_);
         }
         ensureScratch(this, dd_, device_, memProps_, descPool_, linear_, extent_,
