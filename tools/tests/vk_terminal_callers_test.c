@@ -268,7 +268,20 @@ int main(int argc, char **argv) {
     else if (!strcmp(name, "later-surface-lost")) acquire_failure(1, VK_ERROR_SURFACE_LOST_KHR);
     else if (!strcmp(name, "shm-timeout")) upload_timeout(0);
     else if (!strcmp(name, "pixel-timeout")) upload_timeout(1);
-    else if (!strcmp(name, "pass-terminal")) { setup(0); g_dev_state = -3; assert_stopped(); free(g_images); }
+    else if (!strcmp(name, "lost-shm-upload")) {
+        setup(0);
+        uint8_t bytes[64], data[16];
+        memset(bytes, 0xa5, sizeof(bytes));
+        for (unsigned i = 0; i < sizeof(data); i++) data[i] = (uint8_t)(i + 1);
+        struct vkp_image img = {.map = bytes, .offset = 3, .row_pitch = 16, .w = 2, .h = 2,
+                                .source_type = VKP_IMAGE_SOURCE_SHM};
+        g_dev_state = -2;
+        vkp_image_upload_shm(&img, data, 8);
+        assert(img.recovery_pixels && !memcmp(img.recovery_pixels, data, sizeof(data)));
+        assert(bytes[3] == 0xa5 && bytes[19] == 0xa5);
+        free(img.recovery_pixels);
+        free(g_images);
+    } else if (!strcmp(name, "pass-terminal")) { setup(0); g_dev_state = -3; assert_stopped(); free(g_images); }
     else if (!strcmp(name, "normal") || !strcmp(name, "framegen")) {
         int extra = !strcmp(name, "framegen"); setup(extra);
         assert(vkp_render(64, 64, NULL, 0) == 0 && g_dev_state == 1);

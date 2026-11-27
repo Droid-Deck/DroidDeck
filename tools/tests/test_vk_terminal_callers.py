@@ -117,6 +117,9 @@ int __android_log_print(int, const char *, const char *, ...);
     def test_finite_blit_timeout_same_size_pixel_upload(self):
         self.run_scenario('pixel-timeout')
 
+    def test_lost_device_shm_upload_keeps_cpu_snapshot(self):
+        self.run_scenario('lost-shm-upload')
+
     def test_normal_present(self):
         self.run_scenario('normal')
 

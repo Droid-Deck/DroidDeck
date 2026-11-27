@@ -778,25 +778,10 @@ static int dev_init_once(void) {
 
 static void suspend_client_images(void) {
     for (struct vkp_image *img = g_client_images; img; img = img->next) {
-        if (img->source_type == VKP_IMAGE_SOURCE_SHM && img->map && img->w > 0 && img->h > 0) {
-            const size_t row_bytes = (size_t)img->w * 4;
-            free(img->recovery_pixels);
-            img->recovery_pixels = NULL;
-            if ((size_t)img->h <= SIZE_MAX / row_bytes) {
-                const size_t bytes = row_bytes * (size_t)img->h;
-                img->recovery_pixels = malloc(bytes);
-                if (img->recovery_pixels) {
-                    for (int y = 0; y < img->h; y++)
-                        memcpy(img->recovery_pixels + (size_t)y * row_bytes,
-                               (const uint8_t *)img->map + img->offset + (size_t)y * img->row_pitch,
-                               row_bytes);
-                } else {
-                    img->source_type = VKP_IMAGE_SOURCE_NONE;
-                }
-            } else {
-                img->source_type = VKP_IMAGE_SOURCE_NONE;
-            }
-        }
+        /* Recovery pixels must come from the CPU copy maintained by uploads.
+         * Mapped Vulkan memory is not reliable after VK_ERROR_DEVICE_LOST. */
+        if (img->source_type == VKP_IMAGE_SOURCE_SHM && !img->recovery_pixels)
+            img->source_type = VKP_IMAGE_SOURCE_NONE;
         if (img->map && g_vk.UnmapMemory && g_dev) g_vk.UnmapMemory(g_dev, img->mem);
         img->map = NULL;
         destroy_image_objects(img);
@@ -846,6 +831,8 @@ static int restore_client_image(struct vkp_image *img) {
         for (int y = 0; y < img->h; y++)
             memcpy((uint8_t *)img->map + img->offset + (size_t)y * img->row_pitch,
                    pixels + (size_t)y * row_bytes, row_bytes);
+        img->recovery_pixels = pixels;
+        pixels = NULL;
     }
     free(pixels);
     return 0;
@@ -952,6 +939,10 @@ static int dev_init(void) {
     droiddeck_log("gpu", "VK_ERROR_DEVICE_LOST: attempting one in-process compositor recovery");
     release_lost_device();
     if (dev_init_once() != 0) {
+        if (g_dev_state == -3) {
+            droiddeck_log("error", "GPU recovery initialization left completion unknown; retaining resources");
+            return -1;
+        }
         release_lost_device();
         g_dev_state = -2;
         droiddeck_log("error", "GPU recovery failed while recreating the Vulkan device; restart the session");
@@ -1900,9 +1891,30 @@ struct vkp_image *vkp_image_create_shm(int w, int h) {
 }
 
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride) {
-    if (g_dev_state != 1 || !img || !img->map || !data) return;
-    size_t rowbytes = (size_t)img->w * 4;
+    if (!img || !data || img->w <= 0 || img->h <= 0 || stride <= 0 ||
+        (size_t)img->w > SIZE_MAX / 4)
+        return;
+
+    const size_t full_rowbytes = (size_t)img->w * 4;
+    size_t rowbytes = full_rowbytes;
     if ((size_t)stride < rowbytes) rowbytes = (size_t)stride;
+
+    if (img->source_type == VKP_IMAGE_SOURCE_SHM && !img->recovery_pixels) {
+        if ((size_t)img->h <= SIZE_MAX / full_rowbytes) {
+            const size_t bytes = full_rowbytes * (size_t)img->h;
+            img->recovery_pixels = calloc(1, bytes);
+        }
+        if (!img->recovery_pixels) img->source_type = VKP_IMAGE_SOURCE_NONE;
+    }
+    if (img->source_type == VKP_IMAGE_SOURCE_SHM && img->recovery_pixels) {
+        for (int y = 0; y < img->h; y++)
+            memcpy(img->recovery_pixels + (size_t)y * full_rowbytes,
+                   (const uint8_t *)data + (size_t)y * stride, rowbytes);
+    }
+
+    /* A lost device can leave the mapping accessible but its contents undefined.
+     * Still keep the new SHM pixels on the CPU, but never write through that map. */
+    if (g_dev_state != 1 || !img->map) return;
     for (int y = 0; y < img->h; y++)
         memcpy((uint8_t *)img->map + img->offset + (size_t)y * img->row_pitch,
                (const uint8_t *)data + (size_t)y * stride, rowbytes);
