@@ -1439,7 +1439,7 @@ internal fun secondScreenModes(none: Boolean, deckPad: Boolean, dashboard: Boole
         (if (deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()) + listOf(SecondScreenMode.CUSTOM_CONTROLS) +
         (if (dashboard) listOf(SecondScreenMode.DASHBOARD) else emptyList()) +
         (if (dashboard && steam) listOf(SecondScreenMode.STEAM_QAM, SecondScreenMode.ART) else emptyList()) +
-        (if (dashboard) listOf(SecondScreenMode.GUIDES, SecondScreenMode.MIRROR) else emptyList()) +
+        (if (dashboard) listOf(SecondScreenMode.GUIDES, SecondScreenMode.MIRROR, SecondScreenMode.COMPANION) else emptyList()) +
         (if (desktop) listOf(SecondScreenMode.DESKTOP) else emptyList())
 
 private val DRAWER_MIN_WIDTH = 300.dp
