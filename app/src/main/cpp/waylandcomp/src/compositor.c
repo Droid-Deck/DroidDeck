@@ -237,6 +237,7 @@ struct surface {
     int drawn;
     int64_t next_release_ns;
     int releases_pending;
+    int release_pace_open;
 
     enum surface_role role;
     struct wl_resource *idle_buffer;
@@ -288,6 +289,7 @@ static int g_scene_queues;
 static int g_tick_held;
 static int64_t g_hold_missed_ns;
 #define HOLD_RETRY_NS 1000000000LL
+#define RELEASE_PACE_DEPTH 8
 #define PACE_BUFFERS 32
 static struct {
     unsigned ticks, ticks_late_2ms, renders, commit_renders, null_attaches, reattaches, presented, replaced, undrawn, distinct;
@@ -548,13 +550,25 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
     return 0;
 }
 
+static void describe(const struct surface *s, char *out, size_t size);
+
 static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_t since_ns, struct surface *holder) {
     /* No allocation or immediate-release fallback is allowed for a quarantined
      * DMA-BUF. Existing queued releases stay held; their timer is disarmed. */
     if (buffer_release_blocked(buffer)) return;
     const int limit = g_fps_limit;
     const int64_t interval = limit > 0 ? 1000000000LL / limit : g_refresh_ns;
-    const int paced = !g_release_unpaced && interval > 0 && g_release_timer_fd >= 0;
+    int paced = !g_release_unpaced && interval > 0 && g_release_timer_fd >= 0;
+    if (paced && s->releases_pending >= RELEASE_PACE_DEPTH) {
+        paced = 0;
+        if (!s->release_pace_open) {
+            char name[160];
+            describe(s, name, sizeof(name));
+            droiddeck_log("pace", "%s keeps drawing into new buffers instead of waiting for releases: "
+                       "its releases beyond %d are no longer held for the frame limit", name, RELEASE_PACE_DEPTH);
+            s->release_pace_open = 1;
+        }
+    }
     if (!paced && !holder) { send_buffer_release(buffer); perf_note_release(since_ns); return; }
     int64_t now = now_ns();
     int64_t at = now;
