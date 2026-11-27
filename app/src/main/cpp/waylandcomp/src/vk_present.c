@@ -110,6 +110,7 @@ static int g_drm_modifiers;
 static char *g_driver_path, *g_library_name, *g_native_lib_dir;
 static int g_allow_driver_fallback;
 static int g_dev_state;
+static int dev_init(void);
 static void device_lost(const char *where);
 static const char *vk_result_name(VkResult r);
 
