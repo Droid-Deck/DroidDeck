@@ -415,7 +415,8 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
         // the other levels can use the common initialization barrier.
         for (int l = flowFinest_; l < kLevels - 1; ++l) addInitBarrier(flowLvl_[l].image);
         if (initBarrierCount != 0) {
-            dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            dd_->CmdPipelineBarrier(cmd,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
                 0, nullptr, static_cast<uint32_t>(initBarrierCount), initBarriers.data());
         }
@@ -430,7 +431,8 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
             b.image = flowLvl_[kLevels - 1].image;
             b.subresourceRange = rng;
             b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            dd_->CmdPipelineBarrier(cmd,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
                 VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &b);
             dd_->CmdClearColorImage(cmd, flowLvl_[kLevels - 1].image,
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &zero, 1, &rng);
