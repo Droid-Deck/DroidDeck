@@ -54,8 +54,8 @@ int64_t present_cadence_vsync_at_or_after(int64_t t_ns, int64_t grid_ns, int64_t
 /* Where a frame planned for target_ns stands against the refresh at slot_ns: -1 that refresh is past
  * its own, 0 it is this refresh, 1 a later one. Two reads of the refresh grid can differ slightly. */
 int present_cadence_slot_order(int64_t target_ns, int64_t slot_ns, int64_t period_ns);
-/* Whether a refresh at slot_ns with its deadline lead_ns before it is still there, with the same
- * deadline, on a timeline read again. */
+/* Whether a frame woken for the refresh at slot_ns, PRESENT_CADENCE_APPLY_NS before its deadline
+ * lead_ns ahead of it, still makes that refresh and only that one on a timeline read again. */
 int present_cadence_slot_unchanged(int64_t slot_ns, int64_t lead_ns, int64_t period_ns, int64_t grid_now_ns,
                                    int64_t lead_now_ns, int64_t period_now_ns);
 

@@ -233,6 +233,8 @@ static void test_presenter_notices_a_moved_refresh(void) {
     assert(!present_cadence_slot_unchanged(slot, lead, p, slot - 4 * MS, lead, p));
     assert(!present_cadence_slot_unchanged(slot, lead, p, slot + p + 4 * MS, lead, p));
     assert(!present_cadence_slot_unchanged(slot, lead, p, slot, lead + 2 * MS, p));
+    assert(!present_cadence_slot_unchanged(slot, lead, p, slot - 750000, lead + 750000, p));
+    assert(present_cadence_slot_unchanged(slot, lead, p, slot, lead - 2 * MS, p));
     assert(!present_cadence_slot_unchanged(slot, lead, p, slot, lead, 2 * p));
 }
 
