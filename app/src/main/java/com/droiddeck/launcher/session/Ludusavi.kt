@@ -45,7 +45,7 @@ object Ludusavi {
     fun start(context: Context, operation: (Context, (String) -> Unit) -> Int, blockDuringSession: Boolean = false) {
         val app = context.applicationContext
         val accepted = synchronized(SessionState.startLock) {
-            val sessionBusy = SessionState.running || SessionState.teardownPending ||
+            val sessionBusy = SessionState.running || SessionState.teardownCount.get() > 0 ||
                 SessionState.phase == SessionPhase.STOPPING
             if (blockDuringSession && sessionBusy) {
                 mutableStatus.value = mutableStatus.value.copy(output = app.getString(R.string.main_saves_close_session))

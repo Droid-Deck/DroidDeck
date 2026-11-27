@@ -417,7 +417,9 @@ class SessionService : Service() {
             SessionPrefs.screenEffectsProfileId(SessionState.mode, resolvedGameId, SessionState.program),
         )
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
-        if (synchronized(SessionState.startLock) { Ludusavi.active() }) return START_NOT_STICKY
+        if (synchronized(SessionState.startLock) {
+                Ludusavi.active() || SessionState.teardownCount.get() > 0
+            }) return START_NOT_STICKY
         val gen = synchronized(SessionState.startLock) {
             synchronized(stopLock) {
                 SessionState.steamClientArch = null
@@ -834,6 +836,8 @@ class SessionService : Service() {
             abandonStart(gen, sessionDir)
             return
         }
+        SessionState.teardownCount.incrementAndGet()
+        try {
         val started = ArrayList<SessionPart>()
         try {
             for (part in components.toList()) {
@@ -878,7 +882,16 @@ class SessionService : Service() {
                 syncWatcher = null
             }
             abandonStart(gen, sessionDir, started)
-            if (pid > 1) Thread({ teardown(pid) }, "session-teardown").start()
+            if (pid > 1) {
+                SessionState.teardownCount.incrementAndGet()
+                Thread({
+                    try {
+                        teardown(pid)
+                    } finally {
+                        SessionState.teardownCount.decrementAndGet()
+                    }
+                }, "session-teardown").start()
+            }
             return
         }
         sessionPid = pid
@@ -940,6 +953,9 @@ class SessionService : Service() {
             )
             updateDownloadMonitoring()
             mainHandler.post { updateSuspendPolicy() }
+        }
+        } finally {
+            SessionState.teardownCount.decrementAndGet()
         }
     }
 
@@ -2285,12 +2301,7 @@ class SessionService : Service() {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             } finally {
-                synchronized(SessionState.startLock) {
-                    if (SessionState.teardownGen == stoppedGen) {
-                        SessionState.teardownPending = false
-                        SessionState.teardownGen = -1
-                    }
-                }
+                SessionState.teardownCount.decrementAndGet()
                 afterStopped()
             }
         }
@@ -2337,8 +2348,7 @@ class SessionService : Service() {
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
-            SessionState.teardownPending = true
-            SessionState.teardownGen = sessionGen
+            SessionState.teardownCount.incrementAndGet()
             val ended = SessionPaths.take()
             if (ended != null) SessionArtifacts.collectionStarted(ended)
             ended to SessionState.steamClientArch

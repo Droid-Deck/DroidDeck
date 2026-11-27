@@ -132,7 +132,7 @@ private fun LudusaviSection() {
                 start { context, onLine -> Ludusavi.backup(context, game, onLine) }
             }
             SecondaryButton(stringResource(R.string.ludusavi_restore), enabled = installed && title.isNotBlank() && !status.running, compact = true) {
-                if (SessionState.running || SessionState.teardownPending ||
+                if (SessionState.running || SessionState.teardownCount.get() > 0 ||
                     SessionState.phase == SessionPhase.STOPPING) {
                     Ludusavi.report(ctx.getString(R.string.main_saves_close_session))
                     return@SecondaryButton
