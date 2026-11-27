@@ -196,7 +196,7 @@ static int g_dev_state = 1, g_window = 1, g_swapchain, g_swap_extra;
 static int g_colorspace_ext, g_swap_hdr_unavailable, g_swap_is_hdr, g_swap_hdr_want;
 static int g_plain_frame, g_first_frame_done, g_base_black;
 static int g_qfam, g_queue, g_dev, g_fence, g_swap_fmt = SCENE_FMT;
-static int g_cmds[3], g_acqs[3], g_rnds[3], images[1] = {2}, *g_images = images;
+static int g_cmds[3], g_acqs[3], g_rnds[3], g_rnd_count = 3, images[1] = {2}, *g_images = images;
 static uint32_t g_swap_md_identity;
 static VkExtent2D g_extent = {1920, 1080};
 static struct { float kx, ky, off_x, off_y; int rx, ry, rw, rh; } g_map;
