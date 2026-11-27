@@ -169,6 +169,16 @@ class StoreAccountsCipherTest {
         assertNull(StoreAccounts.read(app, Store.GOG))
     }
 
+    @Test fun steamCredentialsFromThePreviousStoreIdAreMigrated() {
+        val previous = File(File(File(app.filesDir, "stores"), "steam-account"), "credentials.json")
+        previous.parentFile?.mkdirs()
+        previous.writeText(JSONObject().put("steam_id", "76561198000000001").put("display_name", "GuideAhon").toString())
+
+        assertEquals("GuideAhon", StoreAccounts.signedInAs(app, Store.STEAM))
+        assertTrue(file(Store.STEAM).isFile)
+        assertFalse(previous.exists())
+    }
+
     private class Flaky(private val key: SecretKey, var failures: Int, private val error: () -> Exception) : CredentialCipher.KeyProvider {
         override fun key(): SecretKey = key
         override fun existing(): SecretKey { if (failures > 0) { failures--; throw error() }; return key }

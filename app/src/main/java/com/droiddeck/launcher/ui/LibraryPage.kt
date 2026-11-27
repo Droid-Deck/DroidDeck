@@ -188,7 +188,14 @@ internal fun librarySources(
 ): List<String> {
     val tabs = arrangeStoreTabs(order, offStores)
     val shown = tabs.filter { it.shown }.map { it.store.id }.toSet() + LIBRARY_OWN_TABS - offTabs
-    return (placeLibraryTabs(tabs.map { it.store.id }, places).filter { it in shown } + Library.SOURCE_COLLECTION)
+    val placed = placeLibraryTabs(tabs.map { it.store.id }, places)
+    val steam = Store.STEAM.id.takeIf { id -> tabs.any { it.store.id == id && it.shown } }
+    val ordered = if (steam == null) placed else {
+        val withoutSteam = placed.filterNot { it == steam }
+        val firstStore = withoutSteam.indexOfFirst { it !in LIBRARY_OWN_TABS }.takeIf { it >= 0 } ?: 0
+        withoutSteam.take(firstStore) + steam + withoutSteam.drop(firstStore)
+    }
+    return (ordered.filter { it in shown } + Library.SOURCE_COLLECTION)
         .filter { source ->
             when (source) {
                 LIBRARY_HIDDEN -> true

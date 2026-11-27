@@ -20,7 +20,17 @@ object StoreAccounts {
 
     fun dir(context: Context, store: Store): File = File(File(context.filesDir, "stores"), store.id).apply { mkdirs() }
 
-    fun credentialsFile(context: Context, store: Store): File = File(dir(context, store), FILE)
+    fun credentialsFile(context: Context, store: Store): File {
+        val current = File(dir(context, store), FILE)
+        if (store == Store.STEAM && !current.exists()) {
+            val previous = File(File(File(context.filesDir, "stores"), "steam-account"), FILE)
+            if (previous.isFile) runCatching {
+                previous.copyTo(current, overwrite = false)
+                previous.delete()
+            }
+        }
+        return current
+    }
 
     private val unavailable = java.util.concurrent.ConcurrentHashMap.newKeySet<Store>()
 

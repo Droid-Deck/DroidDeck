@@ -81,7 +81,6 @@ class App : Application() {
         com.droiddeck.launcher.stores.ea.EaBackend.app = this
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.ea.EaBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.rockstar.RockstarBackend)
-        com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.steam.SteamBackend)
     }
 
     private fun prefetchAddonPacks() {

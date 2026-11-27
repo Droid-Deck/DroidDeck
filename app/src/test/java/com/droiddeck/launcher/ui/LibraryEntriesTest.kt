@@ -35,7 +35,7 @@ class LibraryEntriesTest {
         assertEquals(listOf(Library.SOURCE_STEAM, Library.SOURCE_STEAM), entries.map { it.source })
         assertFalse(entries[1].installed)
         assertEquals("app:620", entries[1].favoriteKey)
-        assertEquals(listOf("steam"), librarySources(entries, listOf(Store.STEAM.id, "epic")))
+        assertEquals(listOf(Store.STEAM.id), librarySources(entries, listOf(Store.STEAM.id, "epic")))
     }
 
     @Test fun theEpicLauncherIsNotAGame() {
@@ -104,9 +104,9 @@ class LibraryEntriesTest {
     @Test fun theLibrarysOwnTabsSitAfterTheTabTheyFollow() {
         val entries = listOf("added", "gog", "steam", "epic", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
         val order = listOf("xbox", "epic", "gog")
-        assertEquals(listOf("xbox", "added", "epic", "gog", Store.STEAM.id), librarySources(entries, order, places = listOf("added" to "xbox")))
-        assertEquals(listOf("added", "xbox", "epic", "gog", Store.STEAM.id), librarySources(entries, order, places = listOf("added" to "", "favorites" to "added", "steam" to "favorites")))
-        assertEquals(listOf("xbox", "epic", "gog", Store.STEAM.id, "added"), librarySources(entries, order, places = listOf("favorites" to "epic", "steam" to "favorites", "added" to "nope")))
+        assertEquals(listOf(Store.STEAM.id, "xbox", "added", "epic", "gog"), librarySources(entries, order, places = listOf("added" to "xbox")))
+        assertEquals(listOf("added", Store.STEAM.id, "xbox", "epic", "gog"), librarySources(entries, order, places = listOf("added" to "", "favorites" to "added", "steam" to "favorites")))
+        assertEquals(listOf(Store.STEAM.id, "xbox", "epic", "gog", "added"), librarySources(entries, order, places = listOf("favorites" to "epic", "steam" to "favorites", "added" to "nope")))
     }
 
     @Test fun legacyCustomTabPlacementStillFollowsTheSteamStoreTab() {
@@ -135,7 +135,7 @@ class LibraryEntriesTest {
 
     @Test fun aSteamLibraryGameUsesItsSingleStoreTabAndOtherEmptySourcesKeepTheirPlace() {
         val entries = listOf("steam", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
-        assertEquals(listOf("xbox", "itch", "gamejolt", Store.STEAM.id), librarySources(entries, listOf("xbox", "itch", "gamejolt"), setOf("itch", "gamejolt")))
+        assertEquals(listOf(Store.STEAM.id, "xbox", "itch", "gamejolt"), librarySources(entries, listOf("xbox", "itch", "gamejolt"), setOf("itch", "gamejolt")))
     }
 
     @Test fun gameKeysNameEitherAnAppOrAStoreProduct() {

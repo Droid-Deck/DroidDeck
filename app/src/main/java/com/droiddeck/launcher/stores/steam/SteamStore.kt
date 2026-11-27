@@ -3,6 +3,8 @@ package com.droiddeck.launcher.stores.steam
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.StringRes
@@ -11,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.frontend.Library
+import com.droiddeck.launcher.frontend.SteamOwnedLibrary
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.storage.SteamStorage
 import com.droiddeck.launcher.stores.CatalogItem
@@ -32,6 +35,8 @@ import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 /** Games land in the active client's own libraries, registered as the client does, and only while no session can run the client. */
 internal object SteamStore {
@@ -63,6 +68,7 @@ internal object SteamStore {
     /** Each plan with the language it was made for. */
     private val plans = ConcurrentHashMap<Int, Pair<String, Plan>>()
     private val work = Executors.newSingleThreadExecutor { r -> Thread(r, "steam-store") }
+    private val syncGeneration = AtomicLong()
     @Volatile private var rejectedThisRun: String? = null
 
     fun key(appId: Int): String = "${Store.STEAM.id}:$appId"
@@ -111,7 +117,7 @@ internal object SteamStore {
         val storedId = stored?.optString("steam_id").orEmpty()
         if (saved != null && saved.id == storedId) {
             if (saved.name != stored?.optString("display_name")) {
-                StoreAccounts.write(context, Store.STEAM, JSONObject().put("display_name", saved.name).put("steam_id", saved.id))
+                StoreAccounts.write(context, Store.STEAM, updateSteamClientAccount(stored, saved.name, saved.id))
             }
             return false
         }
@@ -120,6 +126,7 @@ internal object SteamStore {
         else StoreAccounts.write(context, Store.STEAM, JSONObject().put("display_name", saved.name).put("steam_id", saved.id))
         plans.clear()
         SteamEngine.forget()
+        SteamBackend.resetCatalog()
         StoresState.post {
             StoresState.library.remove(Store.STEAM)
             StoresState.problems.remove(Store.STEAM)
@@ -135,6 +142,7 @@ internal object SteamStore {
         rejectedThisRun = print
         if (error in SIGNED_OUT) prefs(context).edit().putString("rejected", print).apply()
         StoreAccounts.clear(context, Store.STEAM)
+        SteamBackend.resetCatalog()
         StoresState.logLine("Steam: the saved sign-in was not accepted ($error)")
         StoresState.post {
             StoresState.accounts.remove(Store.STEAM)
@@ -152,29 +160,28 @@ internal object SteamStore {
         return mode != SessionService.MODE_RUN && (downloading() || StoresState.uninstalling.keys.any { it.startsWith("${Store.STEAM.id}:") })
     }
 
-    internal fun syncLibrary(context: Context, force: Boolean) {
+    internal fun syncLibrary(context: Context, force: Boolean, onResult: (List<CatalogItem>?, String?) -> Unit) {
         val app = context.applicationContext
+        val generation = syncGeneration.get()
         if (force) plans.clear()
         work.execute {
             val answer = SteamEngine.library(app)
+            if (syncGeneration.get() != generation) return@execute
             if (!answer.optBoolean("ok")) {
                 val error = answer.optString("error")
                 if (isSignInError(error)) signInFailed(app, error)
-                else StoresState.post {
-                    StoresState.problems[Store.STEAM] = errorText(app, answer)
-                    StoresState.library[Store.STEAM] = emptyList()
-                }
+                onResult(null, errorText(app, answer))
                 return@execute
             }
             val art = runCatching { Library.steamLibraryArt(app).toMap() }.getOrDefault(emptyMap())
             val items = items(answer.optJSONArray("games"), art)
+            if (syncGeneration.get() != generation) return@execute
             StoresState.logLine("Steam: library has ${items.size} games")
-            StoresState.post {
-                StoresState.problems.remove(Store.STEAM)
-                StoresState.library[Store.STEAM] = items
-            }
+            onResult(items, null)
         }
     }
+
+    internal fun cancelLibrarySync() { syncGeneration.incrementAndGet() }
 
     private fun items(games: JSONArray?, art: Map<Int, File>): List<CatalogItem> {
         val out = ArrayList<CatalogItem>()
@@ -378,15 +385,124 @@ internal object SteamStore {
 }
 
 internal object SteamBackend : StoreBackend {
+    private val catalogLock = Any()
+    private val syncSequence = AtomicLong()
+    private var catalogSteamId: String? = null
+    private var clientItems = emptyList<CatalogItem>()
+    private var ownedItems = emptyList<CatalogItem>()
+    private var hasClientCatalog = false
+    private var hasOwnedCatalog = false
+
     override val store: Store = Store.STEAM
 
     override fun signIn(context: Context) {
-        StoresState.logLine("Steam: sign in from the Steam client")
+        SteamClientSignIn.open(context)
     }
 
-    override fun signOut(context: Context) = SteamEngine.forget()
+    override fun signOut(context: Context) {
+        val app = context.applicationContext
+        SteamStore.cancelLibrarySync()
+        SteamEngine.forget()
+        SteamOwnedLibrary.clear(app)
+        resetCatalog()
+        Handler(Looper.getMainLooper()).post {
+            com.droiddeck.launcher.stores.WebCookies.expire(
+                listOf("https://store.steampowered.com/", "https://steamcommunity.com/"),
+                ".steampowered.com",
+                listOf("/", "/login"),
+            ) {}
+            com.droiddeck.launcher.stores.WebCookies.expire(
+                listOf("https://steamcommunity.com/"),
+                ".steamcommunity.com",
+                listOf("/", "/login"),
+            ) {}
+        }
+    }
 
-    override fun syncLibrary(context: Context, force: Boolean) = SteamStore.syncLibrary(context, force)
+    override fun syncLibrary(context: Context, force: Boolean) {
+        val app = context.applicationContext
+        SteamStore.syncAccount(app)
+        val request = syncSequence.incrementAndGet()
+        val pending = AtomicInteger(2)
+        StoresState.post { StoresState.status[store] = app.getString(R.string.stores_sync_library) }
+        SteamStore.syncLibrary(app, force) { items, error ->
+            if (syncSequence.get() == request) {
+                if (items != null) updateClientCatalog(items)
+                else if (error != null) StoresState.post {
+                    synchronized(catalogLock) {
+                        if (!hasOwnedCatalog) StoresState.problems[store] = error
+                    }
+                }
+            }
+            finishSync(request, pending)
+        }
+        SteamOwnedLibrary.syncAsync(app, force) { steamId, games ->
+            if (steamId != null && syncSequence.get() == request) {
+                val items = games.map { game ->
+                    CatalogItem(
+                        store = store,
+                        id = game.appId.toString(),
+                        title = game.name,
+                        imageUrl = game.remoteHero,
+                        tallImageUrl = game.remoteArt,
+                        storeUrl = "https://store.steampowered.com/app/${game.appId}/",
+                        owned = true,
+                    )
+                }
+                updateOwnedCatalog(steamId, items)
+            }
+            finishSync(request, pending)
+        }
+    }
+
+    private fun updateClientCatalog(items: List<CatalogItem>) = synchronized(catalogLock) {
+        clientItems = items
+        hasClientCatalog = true
+        publishCatalogLocked()
+    }
+
+    private fun updateOwnedCatalog(steamId: String, items: List<CatalogItem>) = synchronized(catalogLock) {
+        if (catalogSteamId != null && catalogSteamId != steamId) {
+            clientItems = emptyList()
+            hasClientCatalog = false
+        }
+        catalogSteamId = steamId
+        ownedItems = items
+        hasOwnedCatalog = true
+        publishCatalogLocked()
+    }
+
+    private fun publishCatalogLocked() {
+        if (!hasClientCatalog && !hasOwnedCatalog) return
+        val merged = combineSteamCatalog(ownedItems, clientItems)
+        StoresState.post {
+            StoresState.problems.remove(store)
+            StoresState.library[store] = merged
+        }
+    }
+
+    private fun finishSync(request: Long, pending: AtomicInteger) {
+        if (pending.decrementAndGet() == 0 && syncSequence.get() == request) {
+            StoresState.post { StoresState.status.remove(store) }
+        }
+    }
+
+    internal fun resetCatalog() {
+        syncSequence.incrementAndGet()
+        SteamStore.cancelLibrarySync()
+        synchronized(catalogLock) {
+            catalogSteamId = null
+            clientItems = emptyList()
+            ownedItems = emptyList()
+            hasClientCatalog = false
+            hasOwnedCatalog = false
+        }
+        StoresState.post {
+            StoresState.library.remove(store)
+            StoresState.status.remove(store)
+            StoresState.problems.remove(store)
+        }
+    }
 
     override fun loadShelves(context: Context, force: Boolean) {}
 
@@ -396,4 +512,14 @@ internal object SteamBackend : StoreBackend {
     override fun install(context: Context, item: CatalogItem, root: File) = SteamStore.restore(context, item)
 
     override fun uninstall(context: Context, game: InstalledStoreGame) {}
+}
+
+internal fun combineSteamCatalog(owned: List<CatalogItem>, client: List<CatalogItem>): List<CatalogItem> =
+    (owned + client).distinctBy { it.id }.sortedBy { it.title.lowercase() }
+
+internal fun updateSteamClientAccount(stored: JSONObject?, displayName: String, steamId: String): JSONObject {
+    val updated = stored?.let { JSONObject(it.toString()) } ?: JSONObject()
+    updated.put("display_name", displayName)
+    updated.put("steam_id", steamId)
+    return updated
 }

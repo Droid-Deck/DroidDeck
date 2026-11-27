@@ -139,7 +139,7 @@ class LibraryVisibilityTest {
         SessionPrefs.setStoresTabOrder(ctx, listOf("epic", "gog"))
         SessionPrefs.setStoresTabHidden(ctx, setOf("gog"))
         show()
-        val steam = compose.onNodeWithTag("library-source-steam").fetchSemanticsNode().boundsInRoot.left
+        val steam = compose.onNodeWithTag("library-source-${Store.STEAM.id}").fetchSemanticsNode().boundsInRoot.left
         val epic = compose.onNodeWithTag("library-source-epic").fetchSemanticsNode().boundsInRoot.left
         assertTrue(steam < epic)
         compose.onNodeWithTag("library-source-gog").assertDoesNotExist()
