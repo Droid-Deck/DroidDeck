@@ -2,6 +2,7 @@ package com.droiddeck.launcher.gpu
 
 import android.content.Context
 import android.os.Process
+import android.system.Os
 import android.util.Log
 import com.droiddeck.launcher.core.HostProcess
 import com.droiddeck.launcher.core.SessionPart
@@ -21,6 +22,7 @@ class VkBridgeComponent(private val socket: File, private val logFile: File) : S
         socket.parentFile?.mkdirs()
         val cacheDir = cacheDir(app())
         writeMode(cacheDir, com.droiddeck.launcher.session.SessionPrefs.vkBridgeMode(app()))
+        applyServerDefaults()
         if (VkBridgeNative.start(app(), socket, logFile, cacheDir)) {
             Log.i(TAG, "server ready in the app's process at $socket")
             return
@@ -30,7 +32,7 @@ class VkBridgeComponent(private val socket: File, private val logFile: File) : S
         val cmd = listOf(binary.absolutePath, "--socket", socket.absolutePath, "--log", logFile.absolutePath,
             "--cache-dir", cacheDir.absolutePath)
             .joinToString(" ") { it.replace("\\", "\\\\").replace(" ", "\\ ") }
-        val env = arrayOf("HOME=" + app().filesDir)
+        val env = serverEnv(app().filesDir.path, Os::getenv)
         pid = HostProcess.start(cmd, env, app().filesDir, { status ->
             exited = true
             Log.w(TAG, "server exited with status $status")
@@ -61,6 +63,16 @@ class VkBridgeComponent(private val socket: File, private val logFile: File) : S
         private const val TAG = "VkBridge"
         private const val CACHE_DIR = "vkbridge-pipelines"
         private const val MODE_FILE = "mode"
+        internal val SERVER_DEFAULTS = mapOf("VKBRIDGE_ASYNC_ACQUIRE" to "1")
+
+        internal fun serverEnv(home: String, getenv: (String) -> String?): Array<String> =
+            arrayOf("HOME=$home") + SERVER_DEFAULTS.map { (key, value) -> "$key=${getenv(key) ?: value}" }
+
+        private fun applyServerDefaults() {
+            for ((key, value) in SERVER_DEFAULTS) {
+                runCatching { Os.setenv(key, value, false) }.onFailure { Log.w(TAG, "setenv $key failed: $it") }
+            }
+        }
 
         fun cacheDir(context: Context): File {
             val dir = File(context.filesDir, CACHE_DIR)
