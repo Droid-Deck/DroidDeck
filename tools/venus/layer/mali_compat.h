@@ -144,7 +144,9 @@ struct instance {
     X(CmdBindVertexBuffers2) \
     X(CmdSetColorBlendEquationEXT) \
     X(CmdSetDepthTestEnable) \
-    X(CmdSetDepthCompareOp)
+    X(CmdSetDepthCompareOp) \
+    X(CmdBindPipeline) \
+    X(DestroyPipeline)
 
 struct staging_block;
 
@@ -170,6 +172,7 @@ struct device {
     struct staging_block *free_staging;
     struct handle_map templates;       /* VkDescriptorUpdateTemplate -> struct template_info (draw.c) */
     struct handle_map depth_states;    /* VkCommandBuffer -> packed depth test state (draw.c) */
+    struct handle_map depth_pipelines; /* VkPipeline -> packed depth dynamic-state flags (draw.c) */
     /* nullDescriptor stand-ins (draw.c): 0 not made yet, 1 ready, -1 failed. */
     int null_ready;
     VkBuffer null_buffer;
@@ -320,5 +323,8 @@ VKAPI_ATTR void VKAPI_CALL CmdBindVertexBuffers2(VkCommandBuffer cmd, uint32_t f
 void null_resources_destroy(struct device *dev);
 VKAPI_ATTR void VKAPI_CALL CmdSetDepthTestEnable(VkCommandBuffer cmd, VkBool32 enable);
 VKAPI_ATTR void VKAPI_CALL CmdSetDepthCompareOp(VkCommandBuffer cmd, VkCompareOp op);
+VKAPI_ATTR void VKAPI_CALL CmdBindPipeline(VkCommandBuffer cmd, VkPipelineBindPoint point, VkPipeline pipeline);
+VKAPI_ATTR void VKAPI_CALL DestroyPipeline(VkDevice device, VkPipeline pipeline, const VkAllocationCallbacks *allocator);
 void depth_state_forget(struct device *dev, VkCommandBuffer cmd);
+void depth_pipeline_record(struct device *dev, VkPipeline pipeline, const VkGraphicsPipelineCreateInfo *info);
 #endif

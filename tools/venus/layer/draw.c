@@ -456,8 +456,22 @@ VKAPI_ATTR void VKAPI_CALL CmdBindVertexBuffers2(VkCommandBuffer cmd, uint32_t f
 /* --- depthCompareOp while the depth test is off --- */
 
 /* Per command buffer, packed into the map's value pointer so it is never NULL: bit 0 always set,
- * bit 1 the test enable is known, bit 2 the test is on, bit 3 an op was set, bits 4 and up that op. */
-enum { DEPTH_VALID = 1, DEPTH_KNOWN = 2, DEPTH_ON = 4, DEPTH_OP = 8 };
+ * bit 1 the test enable is known, bit 2 the test is on, bit 3 an op was set, bit 4 the bound
+ * pipeline has the compare op dynamic, bit 5 the known enable came from a pipeline's static state,
+ * bits 8 and up the op. The layer only issues compare-op commands while the bound pipeline has it
+ * dynamic: on a static one they would be invalid. */
+enum {
+    DEPTH_VALID = 1,
+    DEPTH_KNOWN = 2,
+    DEPTH_ON = 4,
+    DEPTH_OP = 8,
+    DEPTH_OP_DYNAMIC = 16,
+    DEPTH_FROM_PIPELINE = 32,
+    DEPTH_OP_SHIFT = 8,
+};
+
+/* Per pipeline, same packing: bit 0 always set. */
+enum { PIPE_VALID = 1, PIPE_TEST_DYNAMIC = 2, PIPE_OP_DYNAMIC = 4, PIPE_TEST_ON = 8 };
 
 static uintptr_t depth_state(struct device *dev, VkCommandBuffer cmd)
 {
@@ -472,19 +486,77 @@ void depth_state_forget(struct device *dev, VkCommandBuffer cmd)
     pthread_mutex_unlock(&dev->lock);
 }
 
+void depth_pipeline_record(struct device *dev, VkPipeline pipeline, const VkGraphicsPipelineCreateInfo *info)
+{
+    uintptr_t flags = PIPE_VALID;
+    for (uint32_t i = 0; info->pDynamicState && i < info->pDynamicState->dynamicStateCount; i++) {
+        VkDynamicState state = info->pDynamicState->pDynamicStates[i];
+        if (state == VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE)
+            flags |= PIPE_TEST_DYNAMIC;
+        else if (state == VK_DYNAMIC_STATE_DEPTH_COMPARE_OP)
+            flags |= PIPE_OP_DYNAMIC;
+    }
+    if (info->pDepthStencilState && info->pDepthStencilState->depthTestEnable)
+        flags |= PIPE_TEST_ON;
+    pthread_mutex_lock(&dev->lock);
+    map_put(&dev->depth_pipelines, (uint64_t)(uintptr_t)pipeline, (void *)flags);
+    pthread_mutex_unlock(&dev->lock);
+}
+
+VKAPI_ATTR void VKAPI_CALL DestroyPipeline(VkDevice device, VkPipeline pipeline, const VkAllocationCallbacks *allocator)
+{
+    struct device *dev = device_from_handle(device);
+    pthread_mutex_lock(&dev->lock);
+    map_remove(&dev->depth_pipelines, (uint64_t)(uintptr_t)pipeline);
+    pthread_mutex_unlock(&dev->lock);
+    dev->DestroyPipeline(device, pipeline, allocator);
+}
+
+VKAPI_ATTR void VKAPI_CALL CmdBindPipeline(VkCommandBuffer cmd, VkPipelineBindPoint point, VkPipeline pipeline)
+{
+    struct device *dev = device_from_handle(cmd);
+    dev->CmdBindPipeline(cmd, point, pipeline);
+    if (point != VK_PIPELINE_BIND_POINT_GRAPHICS)
+        return;
+
+    pthread_mutex_lock(&dev->lock);
+    uintptr_t flags = (uintptr_t)map_get(&dev->depth_pipelines, (uint64_t)(uintptr_t)pipeline);
+    uintptr_t state = depth_state(dev, cmd);
+    uintptr_t next = state & ~(uintptr_t)DEPTH_OP_DYNAMIC;
+    if (flags & PIPE_OP_DYNAMIC)
+        next |= DEPTH_OP_DYNAMIC;
+    if (flags && !(flags & PIPE_TEST_DYNAMIC)) {
+        next = (next & ~(uintptr_t)DEPTH_ON) | DEPTH_KNOWN | DEPTH_FROM_PIPELINE | ((flags & PIPE_TEST_ON) ? DEPTH_ON : 0);
+    } else if (flags && (next & DEPTH_FROM_PIPELINE)) {
+        /* A static enable made the dynamic value undefined until the application sets it again. */
+        next &= ~(uintptr_t)(DEPTH_KNOWN | DEPTH_ON | DEPTH_FROM_PIPELINE);
+    }
+    map_put(&dev->depth_states, (uint64_t)(uintptr_t)cmd, (void *)next);
+    pthread_mutex_unlock(&dev->lock);
+
+    if (!(flags & PIPE_OP_DYNAMIC) || !(next & DEPTH_KNOWN))
+        return;
+    if (!(next & DEPTH_ON))
+        dev->CmdSetDepthCompareOp(cmd, VK_COMPARE_OP_ALWAYS);
+    else if (next & DEPTH_OP)
+        dev->CmdSetDepthCompareOp(cmd, (VkCompareOp)(next >> DEPTH_OP_SHIFT));
+}
+
 VKAPI_ATTR void VKAPI_CALL CmdSetDepthTestEnable(VkCommandBuffer cmd, VkBool32 enable)
 {
     struct device *dev = device_from_handle(cmd);
     dev->CmdSetDepthTestEnable(cmd, enable);
     pthread_mutex_lock(&dev->lock);
     uintptr_t state = depth_state(dev, cmd);
-    uintptr_t next = (state & ~(uintptr_t)DEPTH_ON) | DEPTH_KNOWN | (enable ? DEPTH_ON : 0);
+    uintptr_t next = (state & ~(uintptr_t)(DEPTH_ON | DEPTH_FROM_PIPELINE)) | DEPTH_KNOWN | (enable ? DEPTH_ON : 0);
     map_put(&dev->depth_states, (uint64_t)(uintptr_t)cmd, (void *)next);
     pthread_mutex_unlock(&dev->lock);
+    if (!(state & DEPTH_OP_DYNAMIC))
+        return;
     if (!enable)
         dev->CmdSetDepthCompareOp(cmd, VK_COMPARE_OP_ALWAYS);
     else if (state & DEPTH_OP)
-        dev->CmdSetDepthCompareOp(cmd, (VkCompareOp)(state >> 4));
+        dev->CmdSetDepthCompareOp(cmd, (VkCompareOp)(state >> DEPTH_OP_SHIFT));
 }
 
 VKAPI_ATTR void VKAPI_CALL CmdSetDepthCompareOp(VkCommandBuffer cmd, VkCompareOp op)
@@ -492,7 +564,7 @@ VKAPI_ATTR void VKAPI_CALL CmdSetDepthCompareOp(VkCommandBuffer cmd, VkCompareOp
     struct device *dev = device_from_handle(cmd);
     pthread_mutex_lock(&dev->lock);
     uintptr_t state = depth_state(dev, cmd);
-    uintptr_t next = (state & (uintptr_t)(DEPTH_VALID | DEPTH_KNOWN | DEPTH_ON)) | DEPTH_OP | ((uintptr_t)op << 4);
+    uintptr_t next = (state & ~((uintptr_t)-1 << DEPTH_OP_SHIFT)) | DEPTH_OP | ((uintptr_t)op << DEPTH_OP_SHIFT);
     map_put(&dev->depth_states, (uint64_t)(uintptr_t)cmd, (void *)next);
     pthread_mutex_unlock(&dev->lock);
     bool off = (state & DEPTH_KNOWN) && !(state & DEPTH_ON);
