@@ -282,7 +282,7 @@ internal object SteamStore {
         if (key in StoresState.uninstalling) return
         StoresState.uninstalling[key] = 0f
         Thread({
-            if (!DownloadQueue.holdForRemovalWhenFree(key)) {
+            if (!DownloadQueue.stopForRemoval(app, key)) {
                 StoresState.logLine("Steam: kept $appId, its download is still running")
                 StoresState.post { StoresState.uninstalling.remove(key); onDone() }
                 return@Thread

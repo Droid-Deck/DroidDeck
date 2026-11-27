@@ -5,6 +5,7 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.GuestCommand
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.stores.StoreInstallRoot
+import com.droiddeck.launcher.stores.StoreInstalls
 import com.droiddeck.launcher.stores.download.DownloadQueue
 import com.droiddeck.launcher.stores.download.DownloadStage
 import com.droiddeck.launcher.stores.formatBytes
@@ -215,7 +216,7 @@ internal class EpicClientInstaller(private val app: Context) : DownloadQueue.Dow
         val before = EpicClient.read(app)
         val needApp = !(before.version == launcher.version && File(state, "app/${launcher.version}/.droiddeck-ready").isFile)
         val needRuntime = !(before.runtimeVersion == runtime.version && File(state, "runtime/${runtime.version}/.droiddeck-ready").isFile)
-        val dir = EpicClient.downloadsDir(app).apply { mkdirs() }
+        val dir = EpicClient.downloadsDir(app).also { StoreInstalls.awaitDiscard(it) }.apply { mkdirs() }
         val gles = EpicClientSources.gles()
         val appPart = if (needApp) Part(listOf(launcher.url), File(dir, "${launcher.version}-${EpicClientSources.LAUNCHER_FILE}"), null, true) else null
         val desktopParts = if (needApp) EpicClientSources.DESKTOP.map { Part(it.urls, File(dir, it.file), it.sha256, false, it.size) } else emptyList()
@@ -265,7 +266,7 @@ internal class EpicClientInstaller(private val app: Context) : DownloadQueue.Dow
     override fun cancel(deleteFiles: Boolean) {
         cancelled.set(true)
         runCatching { connection?.disconnect() }
-        if (deleteFiles) EpicClient.downloadsDir(app).deleteRecursively()
+        if (deleteFiles) StoreInstalls.deleteLater(EpicClient.downloadsDir(app))
     }
 
     private fun length(url: String): Long {
