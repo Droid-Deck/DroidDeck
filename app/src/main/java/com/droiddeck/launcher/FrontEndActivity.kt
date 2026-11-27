@@ -1349,6 +1349,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         val shortcutsFilter = android.content.IntentFilter(SteamIntegration.SHORTCUTS_STATUS)
         if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(shortcutsInstallStatus, shortcutsFilter, RECEIVER_NOT_EXPORTED)
         else registerReceiver(shortcutsInstallStatus, shortcutsFilter)
+        if (GameLaunchIntent.accepts(intent.action) &&
+            GameLaunchIntent.replayed(intent, savedInstanceState != null, savedInstanceState?.getString(STATE_PROCESS), PROCESS))
+            clearGameLinkIntent(intent)
         readGameIntent(intent)
         // A Lab build is usually the agent's work, so the app comes back where the agent is.
         if (savedInstanceState == null && navRequest == null && com.droiddeck.launcher.lab.LabOverlay.promoted && com.droiddeck.launcher.agent.AgentTab.visible) navRequest = "agent"
@@ -2312,6 +2315,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun saveLauncherState(outState: Bundle) {
+        outState.putString(STATE_PROCESS, PROCESS)
         outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
         outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
         pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
@@ -3684,6 +3688,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     companion object {
+        private val PROCESS = java.util.UUID.randomUUID().toString()
+        private const val STATE_PROCESS = "process"
         private const val REQUEST_NOTIFICATIONS = 7103
         private const val EXTRA_RESTARTED = "com.droiddeck.launcher.extra.RESTARTED"
         private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
