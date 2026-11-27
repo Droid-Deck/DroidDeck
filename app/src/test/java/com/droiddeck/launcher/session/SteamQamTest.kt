@@ -39,6 +39,20 @@ class SteamQamTest {
         assertTrue(SteamQam.script(false).contains("g.__ddQamUntil = 0;"))
     }
 
+    @Test fun readsWhetherTheMenuIsShownOnTheTopScreen() {
+        assertEquals(SteamQam.Hold(2, false), SteamQam.parseHold("[2,0]"))
+        assertEquals(SteamQam.Hold(2, true), SteamQam.parseHold("[2,1]"))
+        assertNull(SteamQam.parseHold("2"))
+    }
+
+    @Test fun theQuickAccessButtonTogglesTheTopScreenAndTheWideLayoutFollows() {
+        val script = SteamQam.script(true)
+        assertTrue(script.contains("const ours = () => held() && m.m_eOpenSideMenu === QAM && !g.__ddQamTop;"))
+        assertTrue(script.contains("if (press !== g.__ddQamPress) {"))
+        assertTrue(QamLayout.contentScript(true).contains("max-width: none !important"))
+        assertFalse(QamLayout.contentScript(false).contains("max-width: none"))
+    }
+
     @Test fun theMenuIsLaidOutAtThePanelsShapeOnlyWhileHeld() {
         assertTrue(SteamQam.script(true, 1.5f).contains("g.__ddQamAspect = 1.5;"))
         assertFalse(SteamQam.script(true).contains("g.__ddQamAspect ="))

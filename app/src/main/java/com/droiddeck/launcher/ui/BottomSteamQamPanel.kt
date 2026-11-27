@@ -76,6 +76,8 @@ internal class QamFrame(val image: ImageBitmap, val cssWidth: Float, val cssHeig
 }
 
 internal object QamLayout {
+    private const val WIDE_CSS = "div.BasicUI { width: 100% !important; } div[class*=\\\"tab_\\\"] { max-width: none !important; }"
+
     /** Scale and left edge of the menu in a box; [align] -1, 0 or 1 places a narrower menu left, centred or right. */
     fun fit(boxWidth: Float, boxHeight: Float, contentRight: Float, cssHeight: Float, align: Int = 0): Pair<Float, Float> {
         val scale = min(boxWidth / contentRight, boxHeight / cssHeight)
@@ -85,9 +87,10 @@ internal object QamLayout {
     fun toCss(x: Float, y: Float, scale: Float, left: Float): Pair<Float, Float> = (x - left) / scale to y / scale
 
     /** Makes the menu follow the panel-shaped view (Steam sizes it once, on open) and lifts each tab's 300 px cap, then measures where the content ends. */
-    const val CONTENT_SCRIPT = "(() => { let s = document.getElementById('dd-qam-wide'); " +
+    /** [wide] is false while the menu is shown on the top screen, where it keeps Steam's own layout. */
+    fun contentScript(wide: Boolean): String = "(() => { let s = document.getElementById('dd-qam-wide'); " +
         "if (!s) { s = document.createElement('style'); s.id = 'dd-qam-wide'; document.head.appendChild(s); } " +
-        "const css = 'div.BasicUI { width: 100% !important; } div[class*=\"tab_\"] { max-width: none !important; }'; " +
+        "const css = '${if (wide) WIDE_CSS else ""}'; " +
         "if (s.textContent !== css) s.textContent = css; if (document.scrollingElement.scrollLeft) document.scrollingElement.scrollLeft = 0; " +
         "const w = innerWidth; let right = 0; for (const e of document.body.querySelectorAll('*')) { " +
         "const r = e.getBoundingClientRect(); const tab = /(^| )tab_/.test(String(e.className)); " +
@@ -146,9 +149,9 @@ internal fun SteamQamPanel() {
                     delay(FAST_TICK_MS)
                     continue
                 }
-                val open = SteamQam.hold(context, aspect[0])
-                failed = open == null
-                if (open == SteamQam.QUICK_ACCESS) {
+                val held = SteamQam.hold(context, aspect[0])
+                failed = held == null
+                if (held?.open == SteamQam.QUICK_ACCESS) {
                     var page = holder[0]
                     if (page == null || page.closed) {
                         page?.close()
@@ -174,7 +177,7 @@ internal fun SteamQamPanel() {
                         page?.call("Page.captureScreenshot", JSONObject().put("format", "jpeg").put("quality", 85))
                             ?.optJSONObject("result")?.optString("data")?.let(::decodeFrame)?.let(show)
                     }
-                    (page?.evaluate(QamLayout.CONTENT_SCRIPT) as? String)?.let { text ->
+                    (page?.evaluate(QamLayout.contentScript(wide = !held.top)) as? String)?.let { text ->
                         runCatching {
                             val a = JSONArray(text)
                             val layout = floatArrayOf(a.getDouble(0).toFloat(), a.getDouble(1).toFloat(), a.getDouble(2).toFloat(), a.getDouble(3).toFloat())

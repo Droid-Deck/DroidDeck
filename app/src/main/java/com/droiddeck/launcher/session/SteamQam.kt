@@ -25,7 +25,7 @@ object SteamQam {
         const nav = W.m_FocusNavContext;
         const popup = g_PopupManager.GetExistingPopup("SP BPM_uid0");
         const held = () => g.__ddQamUntil > Date.now();
-        const ours = () => held() && m.m_eOpenSideMenu === QAM;
+        const ours = () => held() && m.m_eOpenSideMenu === QAM && !g.__ddQamTop;
         const width = (h) => g.__ddQamAspect > 0 ? Math.round(h * g.__ddQamAspect) : 0;
         if (!c.__ddQam) {
             c.__ddQam = c.ComputeOverallMinimumRequestedComposition;
@@ -34,7 +34,7 @@ object SteamQam {
                 return v === 2 && ours() ? 1 : v;
             };
             m.__ddQam = m.OnMenuDeactivated;
-            m.OnMenuDeactivated = function (d) { if (d === QAM && held()) return; return m.__ddQam.call(this, d); };
+            m.OnMenuDeactivated = function (d) { if (d === QAM && held() && !g.__ddQamTop) return; return m.__ddQam.call(this, d); };
         }
         const views = () => popup?.m_rgChildBrowserViews || [];
         const backdrop = (hide) => {
@@ -63,12 +63,33 @@ object SteamQam {
                 };
             }
             if (!held()) {
+                g.__ddQamTop = false;
                 if (!g.__ddQamOn) return;
                 g.__ddQamOn = false;
                 backdrop(false);
                 if (m.m_eOpenSideMenu === QAM) m.CloseSideMenus();
                 c.EnsureCorrectComposition?.();
                 return;
+            }
+            // The Quick Access button shows the menu on the top screen as usual; closing it there parks it again.
+            const press = W.m_flLastQuickAccessPressMS || 0;
+            if (g.__ddQamPress === undefined) g.__ddQamPress = press;
+            if (press !== g.__ddQamPress) {
+                g.__ddQamPress = press;
+                g.__ddQamTop = !g.__ddQamTop;
+                if (!g.__ddQamTop) { if (m.m_eOpenSideMenu === QAM) m.CloseSideMenus(); return; }
+                backdrop(false);
+                if (m.m_eOpenSideMenu !== QAM) m.OpenQuickAccessMenu(g.__ddQamTab ?? undefined);
+                for (const v of views()) if (v.__ddAsked?.[2] > 0) { v.__ddAt = v.__ddAsked[0]; v.__ddW = v.__ddAsked[2]; v.__ddQam.call(v, ...v.__ddAsked); }
+                c.EnsureCorrectComposition?.();
+                return;
+            }
+            if (g.__ddQamTop) {
+                if (m.m_eOpenSideMenu === QAM) {
+                    if (m.m_eQuickAccessTab != null) g.__ddQamTab = m.m_eQuickAccessTab;
+                    return;
+                }
+                g.__ddQamTop = false;
             }
             const decky = !!g.DeckyPluginLoader?.tabsHook?.qamBrowserViewPatch;
             // Decky hooks the menu after Steam starts; the menu has to unmount for its tab to appear, so reopen on the next tick.
@@ -102,10 +123,18 @@ object SteamQam {
                 if (!held() && !g.__ddQamOn) { clearInterval(g.__ddQamTimer); g.__ddQamTimer = 0; }
             }, 250);
         }
-        return m.m_eOpenSideMenu;
+        return JSON.stringify([m.m_eOpenSideMenu, g.__ddQamTop ? 1 : 0]);
     })()"""
 
-    fun hold(context: Context, aspect: Float): Int? = eval(context, script(true, aspect))?.toIntOrNull()
+    /** [open] is Steam's open side menu; [top] is true while the menu is shown on the top screen. */
+    data class Hold(val open: Int, val top: Boolean)
+
+    fun hold(context: Context, aspect: Float): Hold? = eval(context, script(true, aspect))?.let(::parseHold)
+
+    internal fun parseHold(text: String): Hold? = runCatching {
+        val a = JSONArray(text)
+        Hold(a.getInt(0), a.getInt(1) == 1)
+    }.getOrNull()
 
     fun release(context: Context, relayPort: Int) {
         eval(context, script(false))
