@@ -229,10 +229,10 @@ bool FrameGen::updateGlobalMotion(uint32_t gmSlot, VkExtent2D fullExtent) {
     bool good = false;
     if (gmSlotValid_[gmSlot]) {
         const float* pt = (const float*)gmSsboPtr_[gmSlot];
-        double sums[32]; for (int k = 0; k < 32; ++k) sums[k] = 0.0;
+        double sums[28]{};
         for (int t = 0; t < kGmThreads; ++t) {
             const float* row = pt + (size_t)t * kGmStride;
-            for (int k = 0; k < kGmStride; ++k) sums[k] += (double)row[k];
+            for (int k = 0; k < 28; ++k) sums[k] += (double)row[k];
         }
         double coverage = sums[27];
         double lvlpx = double((fullExtent.width >> kGmLevel) * (fullExtent.height >> kGmLevel));
