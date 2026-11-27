@@ -96,4 +96,11 @@ class SteamOwnedLibraryTest {
         assertFalse(ownedGamesBelongToAccount(result, 3, "account-b"))
         assertFalse(ownedGamesBelongToAccount(result.copy(available = false), 3, "account-a"))
     }
+
+    @Test fun initialAccountBindingKeepsItsCallbackCurrentWithoutTreatingAccountChangesAsCurrent() {
+        assertTrue(steamSyncCallbackMatches(4, null, 5, "account-a", 5, "account-a"))
+        assertFalse(steamSyncCallbackMatches(4, "account-a", 5, "account-b", 5, "account-b"))
+        assertFalse(steamSyncCallbackMatches(4, null, 6, "account-b", 6, "account-b"))
+        assertFalse(steamSyncCallbackMatches(4, null, 5, "account-a", 5, "account-b"))
+    }
 }

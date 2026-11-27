@@ -21,13 +21,23 @@ class SteamBackendCatalogTest {
 
     @Test fun ownedAndSteamClientLibrariesAreCombinedWithoutDuplicateApps() {
         val owned = CatalogItem(Store.STEAM, "620", "Portal 2", "owned-hero")
+        val ownedOnly = CatalogItem(Store.STEAM, "550", "A game owned on Steam", "owned-only-hero")
         val installed = CatalogItem(Store.STEAM, "620", "Portal 2 from client", "client-header")
         val anotherInstalled = CatalogItem(Store.STEAM, "440", "Team Fortress 2", "client-header")
 
-        val combined = combineSteamCatalog(listOf(owned), listOf(installed, anotherInstalled))
+        val combined = combineSteamCatalog(listOf(owned, ownedOnly), listOf(installed, anotherInstalled))
 
-        assertEquals(listOf("620", "440"), combined.map { it.id })
-        assertSame(installed, combined.first())
+        assertEquals(listOf("550", "620", "440"), combined.map { it.id })
+        assertSame(installed, combined.first { it.id == "620" })
+        assertEquals(1, combined.count { it.id == "620" })
+    }
+
+    @Test fun steamCatalogRowsAreResetWhenTheSelectedAccountChanges() {
+        assertEquals(false, steamCatalogAccountMatches("account-a", "account-a", "account-b"))
+        assertEquals(false, steamCatalogAccountMatches(null, "account-a", "account-b"))
+        assertEquals(false, steamCatalogAccountMatches("account-a", null, null))
+        assertEquals(true, steamCatalogAccountMatches("account-a", "account-a", "account-a"))
+        assertEquals(true, steamCatalogAccountMatches(null, null, "account-b"))
     }
 
     @Test fun steamClientResultsMustMatchTheAccountRequestedByTheSync() {

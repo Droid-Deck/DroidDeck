@@ -365,8 +365,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         val installedGames = steamGames.toList()
         Thread({
             val result = runCatching { SteamOwnedLibrary.syncResult(this) }.getOrNull()
-            val owned = result?.takeIf { SteamOwnedLibrary.belongsToCurrentAccount(this, it) }?.games.orEmpty()
-            val contents = runCatching { DroidDeckLibraryExport.json(installedGames + owned, owned) }
+            val contents = runCatching {
+                val available = result?.takeIf {
+                    it.available && SteamOwnedLibrary.belongsToCurrentAccount(this, it)
+                } ?: error("Steam ownership is unavailable for the current account")
+                DroidDeckLibraryExport.json(installedGames + available.games, available.games)
+            }
             ui.post {
                 if (isFinishing || isDestroyed) {
                     libraryExportInProgress = false
@@ -1610,7 +1614,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         },
                         onPlaySteamVr = { playSteamVr() },
                         onSteamUrl = { url ->
-                            if (!SessionState.running) startSession(
+                            if (SessionState.running) {
+                                val opened = runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.isSuccess
+                                if (!opened) android.widget.Toast.makeText(this, R.string.game_link_failed, android.widget.Toast.LENGTH_LONG).show()
+                            } else startSession(
                                 Intent(this, SessionActivity::class.java).putExtra(SessionService.EXTRA_STEAM_URL, url), steamSession = true,
                             )
                         },

@@ -115,6 +115,7 @@ internal object SteamStore {
         val saved = savedAccount(context).takeUnless { SteamOwnedLibrary.clientSessionImportBlocked(context) }
         val stored = StoreAccounts.read(context, Store.STEAM)
         val storedId = stored?.optString("steam_id").orEmpty()
+        SteamBackend.accountChanged(saved?.id ?: storedId.takeIf { it.isNotBlank() })
         if (saved != null && saved.id == storedId) {
             if (saved.name != stored?.optString("display_name")) {
                 StoreAccounts.write(context, Store.STEAM, updateSteamClientAccount(stored, saved.name, saved.id))
@@ -576,6 +577,28 @@ internal object SteamBackend : StoreBackend {
         }
     }
 
+    internal fun accountChanged(steamId: String?) {
+        val revision = synchronized(catalogLock) {
+            if (steamCatalogAccountMatches(catalogSteamId, clientCatalogSteamId, steamId)) return
+            syncSequence.incrementAndGet()
+            catalogSteamId = null
+            clientCatalogSteamId = null
+            clientItems = emptyList()
+            ownedItems = emptyList()
+            hasClientCatalog = false
+            hasOwnedCatalog = false
+            ++catalogRevision
+        }
+        SteamStore.cancelLibrarySync()
+        StoresState.post {
+            synchronized(catalogLock) {
+                if (catalogRevision == revision && !hasClientCatalog && !hasOwnedCatalog) {
+                    StoresState.library.remove(store)
+                }
+            }
+        }
+    }
+
     override fun loadShelves(context: Context, force: Boolean) {}
 
     override fun search(context: Context, query: String): List<CatalogItem> =
@@ -591,6 +614,10 @@ internal fun combineSteamCatalog(owned: List<CatalogItem>, client: List<CatalogI
 
 internal fun steamLibraryBelongsToAccount(expectedSteamId: String?, answerSteamId: String?): Boolean =
     expectedSteamId != null && expectedSteamId == answerSteamId
+
+internal fun steamCatalogAccountMatches(ownedSteamId: String?, clientSteamId: String?, selectedSteamId: String?): Boolean =
+    (ownedSteamId == null || ownedSteamId == selectedSteamId) &&
+        (clientSteamId == null || clientSteamId == selectedSteamId)
 
 internal fun updateSteamClientAccount(stored: JSONObject?, displayName: String, steamId: String): JSONObject {
     val updated = stored?.let { JSONObject(it.toString()) } ?: JSONObject()

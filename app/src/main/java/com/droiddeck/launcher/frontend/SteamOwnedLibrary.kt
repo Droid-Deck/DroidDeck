@@ -103,8 +103,12 @@ object SteamOwnedLibrary {
                 }
                 val currentAccount = accountSnapshot()
                 val (completed, runForcedPass) = synchronized(callbacksLock) {
-                    val done = activeCallbacks.filter { it.generation == result.generation && it.steamId == result.steamId }
-                    val stale = activeCallbacks.filterNot { it.generation == result.generation && it.steamId == result.steamId }
+                    val done = activeCallbacks.filter {
+                        steamSyncCallbackMatches(it.generation, it.steamId, result.generation, result.steamId, currentAccount.first, currentAccount.second)
+                    }
+                    val stale = activeCallbacks.filterNot {
+                        steamSyncCallbackMatches(it.generation, it.steamId, result.generation, result.steamId, currentAccount.first, currentAccount.second)
+                    }
                     activeCallbacks.clear()
                     if (forceAfterActive || stale.isNotEmpty()) {
                         activeCallbacks += stale.map { it.copy(generation = currentAccount.first, steamId = currentAccount.second) }
@@ -499,3 +503,14 @@ internal fun ownedGamesBelongToAccount(
     currentSteamId: String?,
 ): Boolean = result.available && result.generation == currentGeneration &&
     result.steamId != null && result.steamId == currentSteamId
+
+internal fun steamSyncCallbackMatches(
+    pendingGeneration: Long,
+    pendingSteamId: String?,
+    resultGeneration: Long,
+    resultSteamId: String?,
+    currentGeneration: Long,
+    currentSteamId: String?,
+): Boolean = (pendingGeneration == resultGeneration && pendingSteamId == resultSteamId) ||
+    (pendingSteamId == null && resultSteamId != null && resultGeneration == pendingGeneration + 1 &&
+        currentGeneration == resultGeneration && currentSteamId == resultSteamId)

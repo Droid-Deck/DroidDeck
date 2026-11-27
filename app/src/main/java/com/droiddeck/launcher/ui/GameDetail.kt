@@ -546,7 +546,7 @@ internal fun GameActions(
                 if (lead) PrimaryButton(stringResource(R.string.game_shortcut_choose), enabled = !s.busy, main = true, icon = Icons.Filled.PlayArrow, modifier = leadOn) { a.onSteamGame(game) }
                 if (rest) FileButtons(game, a)
             }
-            game != null && game.source == Library.SOURCE_STEAM && !game.installed -> {
+            game != null && game.source == Library.SOURCE_STEAM && !game.installed && download == null && failed == null -> {
                 if (lead) InstallButton(stringResource(R.string.stores_install), leadOn) { a.onSteamInstall(game) }
                 if (rest) SecondaryButton(stringResource(R.string.stores_view_on, ctx.getString(R.string.source_steam))) {
                     a.onSteamUrl("https://store.steampowered.com/app/${game.appId}/")
