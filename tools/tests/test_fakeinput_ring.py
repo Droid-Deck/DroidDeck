@@ -29,14 +29,21 @@ PAD_TYPE_STEAM = 1
 READER = r"""
 #include <fcntl.h>
 #include <linux/input.h>
+#include <poll.h>
 #include <stdio.h>
 #include <sys/uio.h>
 #include <unistd.h>
 
+ssize_t __read_chk(int fd, void *buffer, size_t size, size_t buffer_size);
+int __poll_chk(struct pollfd *fds, nfds_t nfds, int timeout, size_t fds_size);
+
 static int vector_count;
+static int fortified;
 
 static ssize_t controller_read(int fd, void *buffer, size_t size)
 {
+    if (fortified)
+        return __read_chk(fd, buffer, size, size);
     if (!vector_count)
         return read(fd, buffer, size);
     struct iovec vectors[3] = {
@@ -53,7 +60,8 @@ static ssize_t controller_read(int fd, void *buffer, size_t size)
 
 int main(int argc, char **argv)
 {
-    vector_count = argc > 1 ? (argv[1][0] == '1' ? 1 : 3) : 0;
+    fortified = argc > 1 && argv[1][0] == 'f';
+    vector_count = argc > 1 && !fortified ? (argv[1][0] == '1' ? 1 : 3) : 0;
     struct input_event events[64];
     int fd = open("/dev/input/event16", O_RDONLY | O_NONBLOCK);
     if (fd < 0) {
@@ -62,11 +70,17 @@ int main(int argc, char **argv)
     }
     while (controller_read(fd, events, sizeof(events)) > 0)
         ;
+    struct pollfd idle = {fd, POLLIN, 0};
+    if (fortified && __poll_chk(&idle, 1, 0, sizeof(idle)) != 0)
+        return 3;
     puts("ready");
     fflush(stdout);
     char go;
     if (read(0, &go, 1) != 1)
         return 1;
+    struct pollfd ready = {fd, POLLIN, 0};
+    if (fortified && (__poll_chk(&ready, 1, 1000, sizeof(ready)) != 1 || !(ready.revents & POLLIN)))
+        return 2;
     ssize_t got = controller_read(fd, events, sizeof(events));
     for (ssize_t i = 0; i < got / (ssize_t)sizeof(events[0]); i++)
         printf("%ld.%06ld %u %u %d\n", (long)events[i].time.tv_sec, (long)events[i].time.tv_usec, events[i].type,
@@ -345,7 +359,7 @@ class FakeinputRingTest(unittest.TestCase):
         subprocess.run(["gcc", bits, "-o", str(binary), str(self.tmp / (name + ".c"))], check=True)
         return library, binary
 
-    def read_through(self, bits, vectors=None, overlay=False, virtual=True, program=READER):
+    def read_through(self, bits, vectors=None, overlay=False, virtual=True, program=READER, fortified=False):
         if not virtual:
             program = program.replace("event16", "event0")
         library, reader = self.build(bits, program, "reader")
@@ -359,7 +373,7 @@ class FakeinputRingTest(unittest.TestCase):
             overlay_library = self.tmp / "overlay.so"
             subprocess.run(["gcc", bits, "-shared", "-fPIC", "-o", str(overlay_library), str(source)], check=True)
             env["LD_PRELOAD"] = str(overlay_library) + ":" + str(library)
-        command = [str(reader)] + ([str(vectors)] if vectors else [])
+        command = [str(reader)] + (["fortified"] if fortified else [str(vectors)] if vectors else [])
         process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=env, text=True)
         self.addCleanup(process.kill)
         self.assertEqual(process.stdout.readline(), "ready\n")
@@ -379,6 +393,10 @@ class FakeinputRingTest(unittest.TestCase):
 
     def test_a_64_bit_guest_reads_the_same_ring(self):
         self.assertEqual(self.read_through("-m64"),
+                         "1700000000.250000 1 304 1\n1700000001.250000 3 1 -32768\n1700000002.250000 0 0 0\n")
+
+    def test_a_fortified_guest_polls_and_reads_the_ring(self):
+        self.assertEqual(self.read_through("-m64", virtual=False, fortified=True),
                          "1700000000.250000 1 304 1\n1700000001.250000 3 1 -32768\n1700000002.250000 0 0 0\n")
 
     def test_readv_reads_events_instead_of_the_backing_file(self):
