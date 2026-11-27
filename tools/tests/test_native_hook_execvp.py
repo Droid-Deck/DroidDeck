@@ -36,13 +36,23 @@ int execve(const char *path, char *const argv[], char *const envp[]) {
 PROBE = r"""
 #define _GNU_SOURCE
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/syscall.h>
 #include <unistd.h>
+
+extern char **environ;
 
 int main(int argc, char **argv) {
   int ret;
-  if (strcmp(argv[1], "vpe") == 0) {
+  if (strcmp(argv[1], "sys") == 0) {
+    ret = (int)syscall(SYS_execve, argv[2], argv + 2, environ);
+  } else if (strcmp(argv[1], "sysat") == 0) {
+    ret = (int)syscall(SYS_execveat, AT_FDCWD, argv[2], argv + 2, environ, 0);
+  } else if (strcmp(argv[1], "sysfd") == 0) {
+    ret = (int)syscall(SYS_execveat, open("/", O_RDONLY | O_DIRECTORY), argv[2], argv + 2, environ, 0);
+  } else if (strcmp(argv[1], "vpe") == 0) {
     char path[4096];
     snprintf(path, sizeof(path), "PATH=%s", argv[2]);
     char *envp[] = {path, NULL};
@@ -93,8 +103,8 @@ class NativeHookExecvpTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def call(self, *argv, cwd=None):
-        hook_env = {"DDNATV_ROOT": str(self.root), "LD_PRELOAD": f"{self.hook}:{self.recorder}"}
+    def call(self, *argv, cwd=None, hook=True):
+        hook_env = {"DDNATV_ROOT": str(self.root), "LD_PRELOAD": f"{self.hook}:{self.recorder}"} if hook else {}
         env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "DDNATV_ROOT")}
         if self.prefix:
             cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
@@ -134,6 +144,22 @@ class NativeHookExecvpTest(unittest.TestCase):
     def test_a_bare_name_is_not_run_from_the_current_directory_without_an_empty_entry(self):
         missing = self.call("vpe", str(self.dirs / "open"), "here", cwd=self.root / "opt/probe/work")
         self.assertEqual(["-1", os.strerror(2)], missing)
+
+    def test_a_guest_path_through_the_execve_syscall_is_run_from_the_root(self):
+        tool = str(self.dirs / "open/tool")
+        for mode in ("sys", "sysat", "sysfd"):
+            with self.subTest(mode=mode):
+                call = self.call(mode, tool, "x")
+                self.assertTrue(call[-2].endswith("/opt/probe/open/tool"), call)
+                self.assertEqual("x", call[-1])
+
+    def test_a_missing_guest_path_through_the_execve_syscall_reports_not_found(self):
+        for mode in ("sys", "sysat"):
+            with self.subTest(mode=mode):
+                self.assertEqual(["-1", os.strerror(2)], self.call(mode, str(self.dirs / "open/missing")))
+
+    def test_without_the_hook_the_execve_syscall_does_not_see_the_root(self):
+        self.assertEqual(["-1", os.strerror(2)], self.call("sys", str(self.dirs / "open/tool"), hook=False))
 
 
 if __name__ == "__main__":

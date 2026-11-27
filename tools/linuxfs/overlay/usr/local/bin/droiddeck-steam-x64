@@ -38,6 +38,12 @@ x64_client_parts() {
   ' "$1" | sort
 }
 
+x64_build() {
+  local chan
+  chan=$(cat "$STEAM_X64/package/beta" 2>/dev/null || echo "$X64_CHANNEL")
+  awk -F'"' '$2 == "version" { print $4; exit }' "$STEAM_X64/package/steam_client_${chan}_steamrt64.manifest" 2>/dev/null || true
+}
+
 x64_sync_client() {
   local chan cur version work total i block file sum old
   chan=$(cat "$STEAM_X64/package/beta" 2>/dev/null || echo "$X64_CHANNEL")
@@ -853,10 +859,9 @@ x64_exec() {
   cd "$STEAM_X64"
   if [ "${DD_X64_X86_WEBHELPER:-0}" != 1 ] && [ -x /usr/local/bin/droiddeck-x64-arm-webhelper ] &&
      [ -x "$ARM_STEAM/steamrtarm64/steamwebhelper" ] && x64_arm_webhelper_cpu_supported; then
-    local chan x86_build arm_build
-    chan=$(cat "$STEAM_X64/package/beta" 2>/dev/null || echo "$X64_CHANNEL")
-    x86_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$STEAM_X64/package/steam_client_${chan}_steamrt64.manifest" 2>/dev/null || true)
-    arm_build=$(awk -F'"' '$2 == "version" { print $4; exit }' "$ARM_STEAM/package/steam_client_${chan}_linuxarm64.manifest" 2>/dev/null || true)
+    local x86_build arm_build
+    x86_build=$(x64_build)
+    arm_build=$(XDG_DATA_HOME=${ARM_STEAM%/Steam} droiddeck-steam-install --build 2>/dev/null || true)
     if [ -n "$x86_build" ] && [ "$x86_build" = "$arm_build" ]; then
       export DD_X64_ARM_WEBHELPER=/usr/local/bin/droiddeck-x64-arm-webhelper
     else
@@ -1011,6 +1016,7 @@ case "${1:-}" in
   --sync-login) x64_sync_login; exit 0 ;;
   --share) x64_share arm64; exit 0 ;;
   --prepare) x64_prepare; exit 0 ;;
+  --build) x64_build; exit 0 ;;
   --exec) shift; x64_exec "$@" ;;
   --gpu) x64_gpu; exit $? ;;
   --webhelper-gpu) x64_webhelper_gpu; exit $? ;;

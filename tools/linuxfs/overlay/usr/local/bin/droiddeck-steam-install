@@ -20,6 +20,19 @@ if [ "${1:-}" = --channel ]; then
   echo "$steam_channel"
   exit 0
 fi
+installed_build() {
+  local newest
+  newest=$(ls -t "$steam_root"/package/steam_client_*linuxarm64.manifest "$steam_root/package/droiddeck-installed" 2>/dev/null | head -n 1)
+  case $newest in
+    "") ;;
+    *.manifest) awk -F'"' '$2 == "version" { print $4; exit }' "$newest" ;;
+    *) cat "$newest" ;;
+  esac
+}
+if [ "${1:-}" = --build ]; then
+  installed_build
+  exit 0
+fi
 manifest=steam_client_${steam_channel}_linuxarm64
 stamp=$steam_root/package/droiddeck-installed
 legacy_stamp=$steam_root/package/bannerlator-installed
@@ -70,8 +83,13 @@ applied=
 [ "${1:-}" = --cache ] && cache_only=1
 sync=
 if [ "${1:-}" = --sync ]; then
-  case "${2:-}" in publicbeta|steamdeck_publicbeta) sync=$2 ;; *) sync=$steam_channel ;; esac
-  manifest=steam_client_${sync}_linuxarm64
+  sync=${2:-}
+  [ -n "$sync" ] || { echo "droiddeck-steam-install: --sync needs the client build to match" >&2; exit 1; }
+  installed=$(installed_build)
+  if [ -x "$steam_root/steamrtarm64/steam" ] && [ "$installed" = "$sync" ]; then
+    chmod -R a+x "$steam_root/steamrtarm64" "$steam_root/linuxarm64" 2>/dev/null || true
+    exit 0
+  fi
 fi
 [ -z "$sync" ] && [ -z "$cache_only" ] && [ -x "$steam_root/steamrtarm64/steam" ] && [ -f "$stamp" ] && exit 0
 
@@ -292,7 +310,11 @@ fetch_manifest() {
       break
     fi
   done
-  [ -n "$cdn" ] || { echo "droiddeck-steam-install: no Steam client CDN answered for $manifest" >&2; exit 1; }
+  if [ -z "$cdn" ]; then
+    echo "droiddeck-steam-install: no Steam client CDN answered for $manifest" >&2
+    [ -z "$sync" ] || return 1
+    exit 1
+  fi
   cdn_order=("$cdn")
   for candidate in $cdn_list; do
     [ "$candidate" = "$cdn" ] || cdn_order+=("$candidate")
@@ -310,8 +332,18 @@ fetch_manifest() {
     "$(awk -F'"' '/^\t"/ && NF >= 3 && $4 == "" { printf "%s ", $2 }' "$work/manifest")" >&2
   return 1
 }
-if ! fetch_manifest; then
-  if [ -n "$sync" ] || [ -n "$pinned" ] || [ "$steam_channel" = "$stable_channel" ]; then
+if [ -n "$sync" ]; then
+  matched=""
+  for branch in "$beta_channel" publicbeta "$stable_channel" ""; do
+    manifest=steam_client_${branch:+${branch}_}linuxarm64
+    if fetch_manifest 2>/dev/null && [ "$version" = "$sync" ]; then
+      matched=1
+      break
+    fi
+  done
+  [ -n "$matched" ] || { echo "droiddeck-steam-install: Valve has no arm64 Steam client of build $sync" >&2; exit 1; }
+elif ! fetch_manifest; then
+  if [ -n "$pinned" ] || [ "$steam_channel" = "$stable_channel" ]; then
     exit 1
   fi
   echo "== STEP $(date -u +%H:%M:%S) falling back to Valve's $stable_channel Steam client: $manifest has no arm64 client"
@@ -381,11 +413,6 @@ if [ -n "$cache_only" ]; then
   [ -n "$applied" ] || exit 0
 fi
 if [ -n "$sync" ]; then
-  installed=$(awk -F'"' '$2 == "version" { print $4; exit }' "$steam_root/package/$manifest.manifest" 2>/dev/null || true)
-  if [ -x "$steam_root/steamrtarm64/steam" ] && [ "$installed" = "$version" ]; then
-    chmod -R a+x "$steam_root/steamrtarm64" "$steam_root/linuxarm64" 2>/dev/null || true
-    exit 0
-  fi
   echo "== STEP $(date -u +%H:%M:%S) updating the arm64 Steam client to $version (was ${installed:-none}) for the x86-64 client"
 fi
 if [ -z "$applied" ]; then

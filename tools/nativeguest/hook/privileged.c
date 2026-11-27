@@ -665,6 +665,16 @@ long syscall(long number, ...) {
 #endif
 
     if (g_initialized) {
+#ifdef __NR_execve
+        if (number == __NR_execve && arg1) {
+            return (long)execve((const char *)arg1, (char *const *)arg2, (char *const *)arg3);
+        }
+#endif
+#ifdef __NR_execveat
+        if (number == __NR_execveat && arg2 && !arg5 && (((const char *)arg2)[0] == '/' || (int)arg1 == AT_FDCWD)) {
+            return (long)execve((const char *)arg2, (char *const *)arg3, (char *const *)arg4);
+        }
+#endif
 #ifdef __NR_openat
         if (number == __NR_openat) {
             if (t_syscall_redirect) return nested_path_syscall(number, arg1, arg2, arg3, arg4);
