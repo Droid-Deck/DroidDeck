@@ -45,7 +45,9 @@ object Ludusavi {
     fun start(context: Context, operation: (Context, (String) -> Unit) -> Int, blockDuringSession: Boolean = false) {
         val app = context.applicationContext
         val accepted = synchronized(SessionState.startLock) {
-            if (blockDuringSession && SessionState.running) {
+            val sessionBusy = SessionState.running || SessionState.teardownPending ||
+                SessionState.phase == SessionPhase.STOPPING
+            if (blockDuringSession && sessionBusy) {
                 mutableStatus.value = mutableStatus.value.copy(output = app.getString(R.string.main_saves_close_session))
                 false
             } else if (!starting.compareAndSet(false, true)) {
@@ -97,8 +99,7 @@ object Ludusavi {
         val item = " ".repeat(existing?.takeWhile { it == ' ' }?.length ?: 2)
         val field = " ".repeat(item.length + 2)
         lines.addAll(roots + 1, listOf("${item}- store: steam", "${field}path: $X64_STEAM_ROOT"))
-        val joined = lines.joinToString("\n")
-        return if (config.endsWith("\n")) "$joined\n" else joined
+        return lines.joinToString("\n")
     }
 
     private fun ensureX64Root(context: Context) {

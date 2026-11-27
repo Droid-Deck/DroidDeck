@@ -43,6 +43,12 @@ object SessionState {
     @Volatile
     var stopRequested = false
 
+    @Volatile
+    var teardownPending = false
+
+    @Volatile
+    var teardownGen = -1
+
     val startLock = Any()
 
     @Volatile

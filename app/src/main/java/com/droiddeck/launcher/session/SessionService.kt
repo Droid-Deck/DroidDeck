@@ -2285,6 +2285,12 @@ class SessionService : Service() {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             } finally {
+                synchronized(SessionState.startLock) {
+                    if (SessionState.teardownGen == stoppedGen) {
+                        SessionState.teardownPending = false
+                        SessionState.teardownGen = -1
+                    }
+                }
                 afterStopped()
             }
         }
@@ -2331,6 +2337,8 @@ class SessionService : Service() {
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
+            SessionState.teardownPending = true
+            SessionState.teardownGen = sessionGen
             val ended = SessionPaths.take()
             if (ended != null) SessionArtifacts.collectionStarted(ended)
             ended to SessionState.steamClientArch
