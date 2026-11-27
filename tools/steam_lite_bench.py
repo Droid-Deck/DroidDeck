@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Benchmark the Steam Lite Runtime profiles on a device (docs/development/steam-lite-runtime.md).
+"""Measure the Steam web helper on a device (docs/development/steam-lite-runtime.md).
 
-    tools/steam_lite_bench.py info --out runs/thor
-    tools/steam_lite_bench.py cycle --app 1234 --profiles stock,1,2,3 --repeat 3 --out runs/thor
-    tools/steam_lite_bench.py report runs/thor
+    tools/steam_lite_bench.py info --out runs/duo
+    tools/steam_lite_bench.py steady --app 584400 --arms stock,softcomp,stock,softcomp --out runs/duo/steady
+    tools/steam_lite_bench.py cycle --app 584400 --arms stock,softcomp --repeat 3 --out runs/duo
+    tools/steam_lite_bench.py ablate --actions gc,moderate,pageout --label gc --out runs/duo
+    tools/steam_lite_bench.py report runs/duo
 
-Needs a DroidDeck build with debugging tools on, a Steam session started with DD_STEAM_LITE set
-(any level: the profile under test is switched at runtime through agent/steam-lite.json), and
-tools/droiddeckctl. Each cycle samples the client's process tree inside the guest (smaps_rollup
-PSS and SwapPss, CPU ticks, MemAvailable, PSI) through idle, a game launch, the game in front,
-an overlay round trip and the return to the library.
+Needs a DroidDeck build with debugging tools on and tools/droiddeckctl. An arm is a set of
+persistent session variables (ARMS); every run starts a fresh session with them. Samples come from
+droiddeck-steam-lite inside the guest: the client's process tree (smaps_rollup PSS and SwapPss, CPU
+ticks), KGSL GPU memory, MemAvailable and PSI. `ablate` applies single DevTools or zRAM actions to
+a running session and samples around each one.
 """
 
 from __future__ import annotations
@@ -29,20 +31,14 @@ from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parent
 CTL = TOOLS / "droiddeckctl"
-PROFILES = {
-    "stock": {"level": "stock"},
-    "1": {"level": "1"},
-    "2": {"level": "2"},
-    "3": {"level": "3"},
-    "gc": {"level": "stock", "switches": "+gc"},
-    "moderate": {"level": "stock", "switches": "+moderate"},
-    "critical": {"level": "stock", "switches": "+critical"},
-    "pause": {"level": "stock", "switches": "+pause"},
-    "freeze": {"level": "stock", "switches": "+freeze"},
-    "gc+critical": {"level": "stock", "switches": "+gc +critical"},
+ARMS = {
+    "stock": {"DD_STEAM_SOFT_COMPOSITING": "0", "DD_STEAM_CEF_GPU": "1"},
+    "softcomp": {"DD_STEAM_SOFT_COMPOSITING": "1", "DD_STEAM_CEF_GPU": "1"},
+    "cef-software": {"DD_STEAM_SOFT_COMPOSITING": "0", "DD_STEAM_CEF_GPU": "0"},
 }
 WEB = ("browser", "renderer", "gpu-process", "zygote")
-# The supervisor ("steam-lite") and the sampler measuring ("sampler") are not part of the client.
+# Not part of the client: the measuring tool ("sampler"), and the supervisor ("steam-lite") in the
+# recordings made while it existed.
 NOT_CLIENT = ("steam-lite", "sampler")
 REMOTE = "/root/.cache/steam-lite-bench"
 LITE = os.environ.get("DD_STEAM_LITE_BIN", "droiddeck-steam-lite")
@@ -75,20 +71,8 @@ class Device:
         cmd = ["adb"] + (["-s", self.serial] if self.serial else []) + list(args)
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout).stdout
 
-    def profile(self, name: str) -> None:
-        body = json.dumps(PROFILES[name])
-        reply = self.guest("sh", "-c", 'printf %s "$1" > "$DD_LAUNCH_DIR/agent/steam-lite.json"', "sh", body)
-        if reply.get("exitCode") != 0:
-            raise RuntimeError("could not switch the profile to %s: %s" % (name, json.dumps(reply)[:300]))
-
     def mark(self, text: str) -> None:
         self.sh('printf %s "$1" > ' + REMOTE + "/mark", text)
-
-    def status(self) -> dict:
-        try:
-            return json.loads(self.sh('cat "$DD_LAUNCH_DIR/agent/steam-lite-status.json"') or "{}")
-        except ValueError:
-            return {}
 
     def fetch(self, path: str) -> str:
         text = self.sh("gzip -c \"$1\" | base64 -w0", path, timeout=120)
@@ -104,7 +88,7 @@ def info(dev: Device, out: Path) -> dict:
     probe = dev.sh(LITE + " probe", timeout=60)
     zram = dev.sh("cat /proc/swaps; ls /sys/block | grep zram; cat /sys/block/zram0/mm_stat 2>&1 | head -1;"
                   " cat /proc/pressure/memory 2>&1 | head -2; ls /sys/class/kgsl/kgsl/proc 2>&1 | head -3")
-    env = dev.sh("env | grep -E '^(DD_STEAM_LITE|DD_ZRAM|DD_WEBHELPER_ARGS|DD_STEAM_CLIENT_ARCH|DD_VKBRIDGE|"
+    env = dev.sh("env | grep -E '^(DD_STEAM_CEF_GPU|DD_ZRAM|DD_WEBHELPER_ARGS|DD_STEAM_CLIENT_ARCH|DD_VKBRIDGE|"
                  "DD_STEAM_SOFT_COMPOSITING|DD_OPEN_DRIVER)=' | sort")
     body = {"props": props, "meminfo": mem, "package": package, "env": env, "counters": zram}
     try:
@@ -231,35 +215,30 @@ def recorder(dev: Device, seconds: float, interval: float, name: str) -> subproc
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
-# A trial arm: the supervisor profile plus the session environment it needs (set before the session starts).
-ARMS = {
-    "stock": ("stock", {"DD_STEAM_SOFT_COMPOSITING": "0"}),
-    "l1": ("1", {"DD_STEAM_SOFT_COMPOSITING": "0"}),
-    "l3": ("3", {"DD_STEAM_SOFT_COMPOSITING": "0"}),
-    "softcomp": ("stock", {"DD_STEAM_SOFT_COMPOSITING": "1"}),
-    "softcomp+l1": ("1", {"DD_STEAM_SOFT_COMPOSITING": "1"}),
-}
-
-
 def system_available(dev: Device) -> int | None:
     text = dev.sh("grep MemAvailable /proc/meminfo")
     parts = text.split()
     return int(parts[1]) // 1024 if len(parts) >= 2 and parts[1].isdigit() else None
 
 
-def oom_trial(dev: Device, app: str, profile: str, run_dir: Path, args, arm: str | None = None) -> dict:
+def set_arm(dev: Device, arm: str) -> dict:
+    for key, value in ARMS[arm].items():
+        set_env(dev, key, value)
+    return ARMS[arm]
+
+
+def oom_trial(dev: Device, app: str, arm: str, run_dir: Path, args) -> dict:
     """Fresh Steam, launch, load the save, and see whether the session survives."""
     run_dir.mkdir(parents=True, exist_ok=True)
+    env = set_arm(dev, arm)
     ensure_steam(dev, fresh=True)
-    dev.profile(profile)
     name = "oom-%s.jsonl" % run_dir.name
     dev.sh("mkdir -p " + REMOTE + " && rm -f " + REMOTE + "/" + name)
     dev.mark("idle")
     before_exit = last_exit(dev).get("timestamp")
     total = args.idle + 60 + args.title + 10 + args.watch + 20
     rec = recorder(dev, total, args.interval, name)
-    events = {"profile": profile, "app": app, "started": time.time(), "kind": "oom", "env": args.env or [],
-              "arm": arm or profile}
+    events = {"profile": arm, "app": app, "started": time.time(), "kind": "oom", "env": env, "arm": arm}
     time.sleep(args.idle)
     dev.mark("launch")
     t0 = time.monotonic()
@@ -272,7 +251,6 @@ def oom_trial(dev: Device, app: str, profile: str, run_dir: Path, args, arm: str
         raise RuntimeError("app %s did not launch: %s" % (app, events["launch_error"]))
     dev.mark("game")
     time.sleep(args.title)
-    events["status_in_game"] = dev.status()
     load_attempts = []
     base = system_available(dev)
     for attempt in range(args.load_attempts):
@@ -336,7 +314,6 @@ def oom_trial(dev: Device, app: str, profile: str, run_dir: Path, args, arm: str
         except (KeyError, ValueError):
             pass
     if alive:
-        events["status_after_load"] = dev.status()
         dev.ctl("screenshot", str(run_dir / "loaded.png"), timeout=60)
         dev.ctl("quit", app, "--timeout", "30", timeout=40)
     rec.wait(timeout=total + 120) if alive else rec.kill()
@@ -407,10 +384,10 @@ def flags_run(dev: Device, variant: str, run_dir: Path, args) -> dict:
             **{k: round(statistics.median([r[k] for r in rows]), 1) for k in ("total", "renderer", "browser", "gpu")}}
 
 
-def cycle(dev: Device, app: str, profile: str, run_dir: Path, args) -> dict:
+def cycle(dev: Device, app: str, arm: str, run_dir: Path, args) -> dict:
     run_dir.mkdir(parents=True, exist_ok=True)
-    ensure_steam(dev)
-    dev.profile(profile)
+    env = set_arm(dev, arm)
+    ensure_steam(dev, fresh=True)
     dev.sh("mkdir -p " + REMOTE + " && rm -f " + REMOTE + "/samples.jsonl")
     dev.mark("idle")
     total = args.idle + args.launch_timeout + args.game + args.overlay + args.back + 30
@@ -420,7 +397,7 @@ def cycle(dev: Device, app: str, profile: str, run_dir: Path, args) -> dict:
         ["guest", "--timeout", str(total + 30), "--", LITE, "record", str(total),
          str(args.interval), REMOTE + "/samples.jsonl", "--mark", REMOTE + "/mark"] + cdp,
         stdout=open(run_dir / "recorder.json", "w"), stderr=subprocess.STDOUT)
-    events = {"profile": profile, "app": app, "started": time.time()}
+    events = {"profile": arm, "env": env, "app": app, "started": time.time()}
     try:
         time.sleep(args.idle)
         dev.mark("launch")
@@ -435,7 +412,6 @@ def cycle(dev: Device, app: str, profile: str, run_dir: Path, args) -> dict:
         pacing = dev.ctl("pacing", "--seconds", str(args.pacing), timeout=args.pacing + 30)
         events["pacing"] = {k: pacing.get(k) for k in ("fpsOnScreen", "presentToPresentMs", "cadenceMs",
                                                         "offCadencePercent", "frames", "error")}
-        events["status_in_game"] = dev.status()
         if args.overlay:
             dev.mark("overlay")
             opens = []
@@ -466,7 +442,6 @@ def cycle(dev: Device, app: str, profile: str, run_dir: Path, args) -> dict:
         raise RuntimeError("the guest recorder failed (exit %s, %d samples); see %s"
                            % (reply.get("exitCode", recorder.returncode), len(samples), run_dir / "recorder.json"))
     events["finished"] = time.time()
-    events["status_after"] = dev.status()
     (run_dir / "events.json").write_text(json.dumps(events, indent=1))
     return events
 
@@ -503,8 +478,7 @@ def snapshot(dev: Device, label: str) -> dict | None:
            "swappss": sum(r.get("SwapPss") or 0 for r in rows) // 1024,
            "gpu": sum((d.get("gpu") or {}).values()) // 1048576,
            "avail": d["memory"]["MemAvailable"] // 1024,
-           "ticks": {str(r["pid"]): r.get("ticks") or 0 for r in rows if r["role"] in WEB},
-           "lite": [{k: r.get(k) for k in ("pid", "Pss", "ticks")} for r in d["processes"] if r["role"] == "steam-lite"]}
+           "ticks": {str(r["pid"]): r.get("ticks") or 0 for r in rows if r["role"] in WEB}}
     print(time.strftime("%H:%M:%S"), label, *("%s %s" % (k, out[k]) for k in
                                                 ("pss", "renderer", "swappss", "gpu", "avail")), flush=True)
     return out
@@ -541,14 +515,12 @@ def pacing_summary(pace: dict) -> dict:
     return out
 
 
-def steady(dev: Device, level: str, app: str, out: Path) -> dict:
-    """One fresh session at one level: library, a game in front for 80 s, three overlay round trips, library."""
+def steady(dev: Device, arm: str, app: str, out: Path) -> dict:
+    """One fresh session per arm: library, a game in front for 80 s, three overlay round trips, library."""
     out.mkdir(parents=True, exist_ok=True)
-    soft = level == "softcomp"
-    run = {"level": level, "app": app, "started": fresh_session(dev, {
-        "DD_STEAM_LITE": "stock" if soft else level, "DD_STEAM_SOFT_COMPOSITING": "1" if soft else "0"})}
+    run = {"level": arm, "env": ARMS[arm], "app": app, "started": fresh_session(dev, ARMS[arm])}
     if not run["started"]:
-        raise RuntimeError("Steam did not start for level %s" % level)
+        raise RuntimeError("Steam did not start for arm %s" % arm)
     time.sleep(30)
     run["idle"] = snapshot(dev, "library idle")
     t0 = time.monotonic()
@@ -562,7 +534,6 @@ def steady(dev: Device, level: str, app: str, out: Path) -> dict:
     run["pacing"] = pacing_summary(dev.ctl("pacing", "--seconds", "20", timeout=60))
     run["game"] = snapshot(dev, "game +80s")
     run["web_cpu_pct"] = web_cpu(a, run["game"])
-    run["status"] = dev.status()
     opens, closes = [], []
     for i in range(3):
         t1 = time.monotonic()
@@ -720,7 +691,7 @@ def main(argv=None) -> int:
     p_info.add_argument("--out", type=Path, required=True)
     p_cycle = sub.add_parser("cycle")
     p_cycle.add_argument("--app", required=True)
-    p_cycle.add_argument("--profiles", default="stock,1,2,3")
+    p_cycle.add_argument("--arms", default="stock,softcomp", help="comma-separated names from ARMS")
     p_cycle.add_argument("--repeat", type=int, default=3)
     p_cycle.add_argument("--out", type=Path, required=True)
     p_cycle.add_argument("--idle", type=float, default=40)
@@ -740,8 +711,7 @@ def main(argv=None) -> int:
     p_ablate.add_argument("--label", required=True)
     p_oom = sub.add_parser("oom")
     p_oom.add_argument("--app", required=True)
-    p_oom.add_argument("--profiles", default="stock,1")
-    p_oom.add_argument("--arms", help="comma-separated arms from ARMS; replaces --profiles and --env")
+    p_oom.add_argument("--arms", default="stock,softcomp", help="comma-separated names from ARMS")
     p_oom.add_argument("--repeat", type=int, default=3)
     p_oom.add_argument("--out", type=Path, required=True)
     p_oom.add_argument("--idle", type=float, default=20)
@@ -752,9 +722,6 @@ def main(argv=None) -> int:
     p_oom.add_argument("--watch", type=float, default=90)
     p_oom.add_argument("--interval", type=float, default=1)
     p_oom.add_argument("--seed", type=int, default=1)
-    p_oom.add_argument("--env", action="append", metavar="KEY=VALUE",
-                       help="persistent session environment for these trials (set before the first one)")
-    p_oom.add_argument("--arm", help="name for this set of trials in charts (default: the profile)")
     p_flags = sub.add_parser("flags")
     p_flags.add_argument("--variants", default="default,v8-small,gpu-budget")
     p_flags.add_argument("--repeat", type=int, default=2)
@@ -764,8 +731,8 @@ def main(argv=None) -> int:
     p_flags.add_argument("--out", type=Path, required=True)
     p_steady = sub.add_parser("steady")
     p_steady.add_argument("--app", required=True)
-    p_steady.add_argument("--levels", default="stock,1,2,softcomp,stock,1,2,softcomp,stock,1,2,softcomp",
-                          help="one fresh session per entry, in this order (softcomp: stock with software compositing)")
+    p_steady.add_argument("--arms", default="stock,softcomp,stock,softcomp,stock,softcomp",
+                          help="one fresh session per entry, in this order (names from ARMS)")
     p_steady.add_argument("--out", type=Path, required=True)
     p_library = sub.add_parser("library")
     p_library.add_argument("--order", default="1,0,1,0", help="DD_STEAM_SOFT_COMPOSITING per fresh session")
@@ -773,6 +740,9 @@ def main(argv=None) -> int:
     p_report = sub.add_parser("report")
     p_report.add_argument("root", type=Path)
     args = parser.parse_args(argv)
+    unknown = [n for n in (getattr(args, "arms", None) or "").split(",") if n and n not in ARMS]
+    if unknown:
+        parser.error("unknown arms: %s (known: %s)" % (", ".join(unknown), ", ".join(ARMS)))
     dev = Device(args.serial)
     failed = 0
     if args.command == "info":
@@ -780,12 +750,12 @@ def main(argv=None) -> int:
         return 0
     if args.command == "steady":
         counts: dict[str, int] = {}
-        for level in args.levels.split(","):
-            counts[level] = counts.get(level, 0) + 1
-            name = "%s-%d" % (level if level in ("stock", "softcomp") else "l" + level, counts[level])
+        for arm in args.arms.split(","):
+            counts[arm] = counts.get(arm, 0) + 1
+            name = "%s-%d" % (arm, counts[arm])
             print("== steady", name, flush=True)
             try:
-                steady(dev, level, args.app, args.out / name)
+                steady(dev, arm, args.app, args.out / name)
             except Exception as error:
                 failed += 1
                 print("run failed: %r" % error, flush=True)
@@ -817,14 +787,7 @@ def main(argv=None) -> int:
             set_variant(dev, "default")
         return 1 if failed else 0
     if args.command in ("cycle", "oom"):
-        for item in getattr(args, "env", None) or []:
-            key, _, value = item.partition("=")
-            set_env(dev, key, value)
-        arms = (getattr(args, "arms", None) or "").split(",") if getattr(args, "arms", None) else None
-        names = arms or args.profiles.split(",")
-        unknown = [n for n in names if n not in (ARMS if arms else PROFILES)]
-        if unknown:
-            parser.error("unknown profiles: %s" % ", ".join(unknown))
+        names = args.arms.split(",")
         order = []
         rng = random.Random(args.seed)
         for i in range(args.repeat):
@@ -836,17 +799,8 @@ def main(argv=None) -> int:
             print("== %s run %d" % (name, i + 1), flush=True)
             try:
                 if args.command == "oom":
-                    profile = name
-                    if arms:
-                        profile, env = ARMS[name]
-                        for key, value in env.items():
-                            set_env(dev, key, value)
-                        args.arm, args.env = name, ["%s=%s" % kv for kv in env.items()]
-                    arm = args.arm or name
-                    if args.arm and not arms and len(names) > 1:
-                        arm = "%s-%s" % (args.arm, name)
-                    run_dir = args.out / ("oom-%s-%s-r%d" % (args.app, arm, i + 1))
-                    events = oom_trial(dev, args.app, profile, run_dir, args, arm)
+                    run_dir = args.out / ("oom-%s-%s-r%d" % (args.app, name, i + 1))
+                    events = oom_trial(dev, args.app, name, run_dir, args)
                     print(json.dumps({k: events.get(k) for k in ("arm", "profile", "loaded", "survived",
                                                                  "died_after_s", "exit", "launch_s")}), flush=True)
                 else:

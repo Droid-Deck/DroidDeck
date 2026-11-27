@@ -1,5 +1,3 @@
-import json
-import os
 from pathlib import Path
 import runpy
 import tempfile
@@ -8,20 +6,14 @@ import unittest
 
 BIN = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin'
 MODULE = runpy.run_path(str(BIN / 'droiddeck-steam-lite'))
-resolve = MODULE['resolve']
 process_role = MODULE['process_role']
 sample_processes = MODULE['sample_processes']
 renderer_groups = MODULE['renderer_groups']
 Actions = MODULE['Actions']
 Client = MODULE['Client']
 CdpError = MODULE['CdpError']
-Supervisor = MODULE['Supervisor']
 Pager = MODULE['Pager']
 ZramHold = MODULE['ZramHold']
-SETTLE = MODULE['SETTLE']
-PRESSURE_HOLD = MODULE['PRESSURE_HOLD']
-COOLDOWN = MODULE['COOLDOWN']
-PASSES_PER_GAME = MODULE['PASSES_PER_GAME']
 
 UI = 'https://steamloopback.host/routes/library/home'
 SHARED = {'id': 's', 'title': 'SharedJSContext', 'type': 'page', 'url': 'https://steamloopback.host/index.html',
@@ -79,25 +71,6 @@ def client(log, agent=None, unsupported=(), broken=()):
     return Client(agent or FakeAgent(), '/agent', opener=lambda url: FakeSession(url, log, unsupported, broken))
 
 
-class ResolveTest(unittest.TestCase):
-    def test_stock_by_default(self):
-        self.assertEqual(resolve('', ''), (0, set()))
-        self.assertEqual(resolve('off', ''), (0, set()))
-
-    def test_levels_are_cumulative(self):
-        self.assertEqual(resolve('1', '')[1], {'gc', 'moderate'})
-        self.assertEqual(resolve('balanced', '')[1], {'gc', 'moderate', 'pageout'})
-        self.assertEqual(resolve('3', '')[1], {'gc', 'moderate', 'pageout', 'critical', 'freeze'})
-
-    def test_switches_toggle_single_interventions(self):
-        self.assertEqual(resolve('0', '+gc')[1], {'gc'})
-        self.assertEqual(resolve('3', '-freeze,-pageout +pause')[1], {'gc', 'moderate', 'critical', 'pause'})
-        self.assertEqual(resolve('3', '+motion')[1], resolve('3', '')[1])
-
-    def test_unknown_values_fall_back_to_stock(self):
-        self.assertEqual(resolve('turbo', '+warp'), (0, set()))
-
-
 class RoleTest(unittest.TestCase):
     def test_web_helper_processes(self):
         helper = '/home/u/.local/share/Steam/ubuntu12_64/steamwebhelper'
@@ -113,9 +86,10 @@ class RoleTest(unittest.TestCase):
         self.assertIsNone(process_role(['/usr/lib/heroic/heroic', '--type=renderer']))
         self.assertIsNone(process_role([]))
 
-    def test_the_supervisor_is_its_own_role(self):
-        self.assertEqual(process_role(['/usr/bin/python3', '/usr/local/bin/droiddeck-steam-lite', 'run']), 'steam-lite')
-        self.assertIsNone(process_role(['/usr/bin/python3', '/usr/local/bin/droiddeck-steam-lite', 'probe']))
+    def test_the_measuring_tool_is_not_counted_as_steam(self):
+        self.assertEqual(process_role(['/usr/bin/python3', '/usr/local/bin/droiddeck-steam-lite', 'record']), 'sampler')
+        self.assertEqual(process_role(['/usr/bin/python3', '/usr/local/bin/droiddeck-steam-lite', 'apply', 'gc']),
+                         'sampler')
 
 
 class SampleTest(unittest.TestCase):
@@ -251,270 +225,6 @@ class ActionsTest(unittest.TestCase):
         self.assertEqual([t['id'] for t in self.client.targets()], ['s', 'b', 'q', 'w'])
 
 
-class FakeHold:
-    entered = 0
-
-    def __enter__(self):
-        FakeHold.entered += 1
-        return self
-
-    def __exit__(self, *_):
-        pass
-
-
-class FakePager:
-    def __init__(self):
-        self.out_kb = 0
-        self.calls = []
-
-    def pageout(self, budget, timeout=None):
-        self.calls.append(('pageout', budget))
-        self.out_kb = 100 * 1024
-        return {'kB': self.out_kb}
-
-    def readback(self):
-        self.calls.append(('readback',))
-        self.out_kb = 0
-        return {'after kB': 0}
-
-
-class SupervisorTest(unittest.TestCase):
-    def setUp(self):
-        temp = tempfile.TemporaryDirectory()
-        self.addCleanup(temp.cleanup)
-        self.dir = Path(temp.name)
-        self.now = 100.0
-        self.available = 4 << 20
-        self.swapped = 0
-        self.log = []
-        self.client = client(self.log)
-        self.actions = Actions(self.client, clock=lambda: self.now)
-        self.targets = lambda: TARGETS
-        self.seq = 0
-        self.pager = FakePager()
-        FakeHold.entered = 0
-
-    def make(self, level='3', switches=''):
-        return Supervisor(self.dir, self.actions, resolve(level, switches)[1], clock=lambda: self.now,
-                          memory=lambda: {'MemAvailable': self.available, 'MemTotal': 8 << 20},
-                          client_swap=lambda: self.swapped, hold=FakeHold, pager=self.pager, nap=lambda s: None)
-
-    def focus(self, app, apps=()):
-        self.seq += 1
-        path = self.dir / 'focus.json'
-        path.write_text(json.dumps({'focusedApp': app, 'focusableApps': list(apps), 'seq': self.seq}))
-        os.utime(path, ns=(self.seq * 10 ** 9, self.seq * 10 ** 9))
-
-    def methods(self):
-        return [m for _, m, _ in self.log]
-
-    def test_nothing_runs_while_the_client_is_in_front(self):
-        sup = self.make()
-        self.focus(769, [769])
-        for _ in range(5):
-            sup.tick(self.targets)
-            self.now += 10
-        self.assertEqual(sup.state, 'ui')
-        self.assertEqual(self.log, [])
-
-    def test_one_enter_pass_after_the_game_settles(self):
-        sup = self.make('2', '+pause')
-        self.focus(769, [769, 1234])
-        sup.tick(self.targets)
-        self.assertEqual(sup.state, 'launching')
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.assertEqual((sup.state, self.log), ('game', []))
-        self.now += SETTLE
-        sup.tick(self.targets)
-        self.assertEqual(self.methods().count('HeapProfiler.collectGarbage'), 2)
-        self.assertIn('Animation.setPlaybackRate', self.methods())
-        self.assertNotIn('Page.setWebLifecycleState', self.methods())
-        self.assertEqual(FakeHold.entered, 1)
-        self.log.clear()
-        for _ in range(10):
-            self.now += 10
-            sup.tick(self.targets)
-        self.assertEqual(self.log, [])
-
-    def test_the_overlay_restores_at_once(self):
-        sup = self.make('3', '+pause')
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-        sup.tick(self.targets)
-        self.assertTrue(self.actions.holding())
-        self.log.clear()
-        self.focus(769, [769, 1234])
-        sup.tick(self.targets)
-        self.assertEqual(sup.state, 'back')
-        self.assertFalse(self.actions.holding())
-        self.assertIn(('w', 'Page.setWebLifecycleState', {'state': 'active'}), self.log)
-        self.assertIn(('b', 'Animation.setPlaybackRate', {'playbackRate': 1}), self.log)
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-        self.log.clear()
-        sup.tick(self.targets)
-        self.assertIn('Animation.setPlaybackRate', self.methods())
-
-    def test_a_pass_stops_when_the_client_comes_to_the_front(self):
-        sup = self.make('3')
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-
-        def gc_then_overlay(targets):
-            self.focus(769, [769, 1234])
-            return {}
-        self.actions.gc = gc_then_overlay
-        sup.tick(self.targets)
-        self.assertIn('cancelled', sup.history[-1]['outcome'])
-        self.assertFalse(self.actions.holding())
-        self.assertNotIn('Memory.simulatePressureNotification', self.methods())
-
-    def test_sustained_pressure_repeats_with_cooldown_and_a_cap(self):
-        sup = self.make('1')
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-        sup.tick(self.targets)
-        self.log.clear()
-        self.available = 300 << 10
-        passes = 0
-        for _ in range(int((COOLDOWN * (PASSES_PER_GAME + 3)) // 5)):
-            self.now += 5
-            sup.tick(self.targets)
-        passes = self.methods().count('HeapProfiler.collectGarbage') // 2
-        self.assertEqual(passes, PASSES_PER_GAME - 1)
-        self.assertIn(('s', 'Memory.simulatePressureNotification', {'level': 'moderate'}), self.log)
-
-    def test_brief_dips_do_not_trigger(self):
-        sup = self.make('1')
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-        sup.tick(self.targets)
-        self.log.clear()
-        for _ in range(20):
-            self.available = 300 << 10
-            self.now += PRESSURE_HOLD / 2
-            sup.tick(self.targets)
-            self.available = 4 << 20
-            self.now += 1
-            sup.tick(self.targets)
-        self.assertEqual(self.log, [])
-
-    def test_no_reclaim_once_the_client_is_in_zram(self):
-        sup = self.make('3', '+pause')
-        self.swapped = 200 * 1024
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-        sup.tick(self.targets)
-        self.assertNotIn('HeapProfiler.collectGarbage', self.methods())
-        self.assertNotIn('Memory.simulatePressureNotification', self.methods())
-        self.assertIn('Animation.setPlaybackRate', self.methods())
-
-    def test_runtime_control_file_switches_to_stock_and_restores(self):
-        sup = self.make('3')
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-        sup.tick(self.targets)
-        self.assertTrue(self.actions.holding())
-        (self.dir / 'steam-lite.json').write_text(json.dumps({'level': 'stock'}))
-        sup.tick(self.targets)
-        self.assertEqual(sup.on, set())
-        self.assertFalse(self.actions.holding())
-
-    def test_no_devtools_keeps_stock(self):
-        log = []
-        dead = client(log, agent=FakeAgent(fail='DevTools unreachable'))
-        actions = Actions(dead, clock=lambda: self.now)
-        sup = Supervisor(self.dir, actions, resolve('3')[1], clock=lambda: self.now,
-                         memory=lambda: {}, client_swap=lambda: 0, hold=FakeHold, pager=self.pager, nap=lambda s: None)
-        self.focus(1234, [769, 1234])
-        sup.tick(dead.targets)
-        self.now += SETTLE
-        sup.tick(dead.targets)
-        self.assertIn('error', sup.history[-1]['outcome'])
-        self.assertEqual(log, [])
-        self.assertEqual(json.loads((self.dir / 'steam-lite-status.json').read_text())['state'], 'game')
-
-    def test_pageout_follows_the_gc_and_reads_back_when_the_client_returns(self):
-        sup = self.make('2')
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-        sup.tick(self.targets)
-        self.assertEqual(self.pager.calls, [('pageout', MODULE['PAGEOUT_BUDGET_KB'])])
-        self.assertIn('pageout', sup.history[-1]['outcome'])
-        self.focus(769, [769, 1234])
-        sup.tick(self.targets)
-        self.assertEqual(self.pager.calls[-1], ('readback',))
-        self.assertEqual(self.pager.out_kb, 0)
-
-    def test_closing_the_overlay_does_not_repeat_reclaim_within_the_cooldown(self):
-        sup = self.make('2', '+pause')
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-        sup.tick(self.targets)
-        for _ in range(3):
-            self.focus(769, [769, 1234])
-            sup.tick(self.targets)
-            self.focus(1234, [769, 1234])
-            sup.tick(self.targets)
-            self.now += SETTLE
-            sup.tick(self.targets)
-        self.assertEqual(self.methods().count('HeapProfiler.collectGarbage'), 2)
-        self.assertEqual([c[0] for c in self.pager.calls], ['pageout', 'readback'])
-        self.assertEqual(sum(1 for t, m, p in self.log if m == 'Animation.setPlaybackRate' and p == {'playbackRate': 0}),
-                         4 * 2)
-        self.now += COOLDOWN
-        self.focus(769, [769, 1234])
-        sup.tick(self.targets)
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-        sup.tick(self.targets)
-        self.assertEqual(self.methods().count('HeapProfiler.collectGarbage'), 4)
-
-    def test_no_pageout_at_level_one(self):
-        sup = self.make('1')
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-        sup.tick(self.targets)
-        self.assertEqual(self.pager.calls, [])
-
-    def test_unreadable_focus_cancels_a_pass(self):
-        sup = self.make('3', '+pause')
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-
-        def gc_then_lose_focus(targets):
-            (self.dir / 'focus.json').unlink()
-            return {}
-        self.actions.gc = gc_then_lose_focus
-        sup.tick(self.targets)
-        self.assertIn('cancelled', sup.history[-1]['outcome'])
-        self.assertNotIn('Animation.setPlaybackRate', self.methods())
-
-    def test_game_exit_returns_to_ui(self):
-        sup = self.make('2')
-        self.focus(1234, [769, 1234])
-        sup.tick(self.targets)
-        self.now += SETTLE
-        sup.tick(self.targets)
-        self.focus(769, [769])
-        sup.tick(self.targets)
-        self.assertEqual(sup.state, 'ui')
-        self.assertFalse(self.actions.holding())
-
-
 class PagerTest(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
@@ -599,7 +309,7 @@ class ZramHoldTest(unittest.TestCase):
     def test_a_suspend_request_written_over_our_hold_is_left_to_the_app(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / '.dd-zram.hold'
-            with ZramHold(path) as hold:
+            with ZramHold(path):
                 self.assertEqual(path.read_bytes(), b'')
                 path.write_text('1')
             self.assertEqual(path.read_text(), '1')

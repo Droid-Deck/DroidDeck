@@ -18,9 +18,9 @@ def row(pid, role, pss, ticks, swap=0):
 
 
 class AccountingTest(unittest.TestCase):
-    def test_tree_sums_pss_and_leaves_out_the_supervisor(self):
+    def test_tree_sums_pss_and_leaves_out_the_measuring_tools(self):
         s = sample(0, 'idle', [row(1, 'client', 100, 0), row(2, 'renderer', 300, 0, swap=20),
-                               row(3, 'steam-lite', 9000, 0)])
+                               row(3, 'steam-lite', 9000, 0), row(4, 'sampler', 7000, 0)])
         self.assertEqual(bench.tree(s)['pss'], 400)
         self.assertEqual(bench.tree(s)['swap'], 20)
         self.assertEqual(bench.tree(s, bench.WEB)['pss'], 300)
@@ -63,6 +63,23 @@ class HarnessTest(unittest.TestCase):
         self.sleep = bench.time.sleep
         bench.time.sleep = lambda s: None
         self.addCleanup(setattr, bench.time, 'sleep', self.sleep)
+
+    def test_unknown_arms_are_refused_before_touching_the_device(self):
+        with self.assertRaises(SystemExit):
+            bench.main(['steady', '--app', '1', '--arms', 'stock,turbo', '--out', 'unused'])
+
+    def test_an_arm_sets_every_variable_it_names(self):
+        class Recording(FakeDevice):
+            def __init__(self):
+                super().__init__([{'ok': True}] * 2)
+                self.calls = []
+
+            def ctl(self, *args, timeout=0):
+                self.calls.append(args)
+                return super().ctl(*args, timeout=timeout)
+        dev = Recording()
+        bench.set_arm(dev, 'softcomp')
+        self.assertEqual([c[-1] for c in dev.calls], ['DD_STEAM_SOFT_COMPOSITING=1', 'DD_STEAM_CEF_GPU=1'])
 
     def test_an_unanswered_state_query_is_not_a_stopped_session(self):
         self.assertIsNone(bench.running(FakeDevice([{'ok': False}] * 3)))

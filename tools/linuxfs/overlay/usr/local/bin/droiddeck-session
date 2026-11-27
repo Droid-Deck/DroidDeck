@@ -1132,16 +1132,6 @@ case $mode in
        && [ "${DD_STEAM_UI:-}" != desktop ] && [ -x /usr/local/bin/droiddeck-launcher-cores ]; then
       /usr/local/bin/droiddeck-launcher-cores "$DD_LAUNCH_DIR/agent/focus.json" 2>&1 &
     fi
-    case ${DD_STEAM_LITE:-0} in
-      0|stock|off) ;;
-      *)
-        if [ -n "${DD_LAUNCH_DIR:-}" ] && [ -z "${DD_DESKTOP:-}" ] && [ "${DD_STEAM_UI:-}" != desktop ] &&
-           command -v droiddeck-steam-lite >/dev/null 2>&1; then
-          step "Steam Lite Runtime experiment: ${DD_STEAM_LITE}${DD_STEAM_LITE_SWITCHES:+ ($DD_STEAM_LITE_SWITCHES)}"
-          droiddeck-steam-lite run 2>&1 &
-        fi
-        ;;
-    esac
     if [ "${DD_PACE_CORES:-1}" != 0 ] && [ -n "${DROIDDECK_HUD_FRAMES:-}" ] && [ -z "${DD_DESKTOP:-}" ] \
        && [ -x /usr/local/bin/droiddeck-pace-cores ]; then
       /usr/local/bin/droiddeck-pace-cores "$DROIDDECK_HUD_FRAMES" 2>&1 &

@@ -1,7 +1,6 @@
 #!/usr/bin/python3
-"""Opt-in Steam web helper resource experiments (docs/development/steam-lite-runtime.md).
+"""Measuring tool for the Steam web helper (docs/development/steam-lite-runtime.md).
 
-    droiddeck-steam-lite run              supervisor, started by droiddeck-session when DD_STEAM_LITE is set
     droiddeck-steam-lite probe            CEF version, targets and which DevTools methods answer
     droiddeck-steam-lite sample [--cdp]   one JSON sample of the client's memory and CPU
     droiddeck-steam-lite record SECONDS INTERVAL OUT.jsonl [--cdp] [--mark FILE]
@@ -22,33 +21,11 @@ import time
 import urllib.request
 from pathlib import Path
 
-STEAM_CLIENT = 769
-LEVELS = {"0": 0, "stock": 0, "off": 0, "1": 1, "conservative": 1, "2": 2, "balanced": 2, "3": 3, "aggressive": 3}
-LEVEL_NAMES = ("stock", "conservative", "balanced", "aggressive")
-# Each intervention and the lowest level that turns it on (None: only a switch turns it on);
-# DD_STEAM_LITE_SWITCHES (+name/-name) overrides.
-INTERVENTIONS = {
-    "gc": 1,
-    "moderate": 1,
-    "pageout": 2,
-    "pause": None,
-    "critical": 3,
-    "freeze": 3,
-}
-SETTLE = 4.0
-POLL = 1.0
-IDLE_POLL = 2.0
-PRESSURE_HOLD = 10.0
-COOLDOWN = 120.0
-PASSES_PER_GAME = 4
 CALL_TIMEOUT = 5.0
-PASS_BUDGET = 12.0
-SWAPPED_SKIP_KB = 32 * 1024
 PAGEOUT_BUDGET_KB = 1024 * 1024
 PAGEOUT_TIMEOUT = 6.0
 READBACK_TIMEOUT = 8.0
 READBACK_ATTEMPTS = 3
-GC_RELEASE_WAIT = 2.0
 HOLD = Path("/tmp/.dd-zram.hold")
 UI_ORIGIN = "https://steamloopback.host/"
 
@@ -68,27 +45,6 @@ def load_agent():
     raise ImportError("droiddeck-agent is not installed")
 
 
-def resolve(level=None, switches=None):
-    """The interventions a level and a switch list turn on."""
-    raw = (level if level is not None else os.environ.get("DD_STEAM_LITE", "")).strip().lower()
-    number = LEVELS.get(raw or "0")
-    if number is None:
-        log("unknown DD_STEAM_LITE %r; stock" % raw)
-        number = 0
-    on = {name for name, lowest in INTERVENTIONS.items() if lowest is not None and number >= lowest}
-    spec = switches if switches is not None else os.environ.get("DD_STEAM_LITE_SWITCHES", "")
-    for token in spec.replace(",", " ").split():
-        name = token[1:] if token[:1] in "+-" else token
-        if name not in INTERVENTIONS:
-            log("unknown switch %r ignored" % token)
-            continue
-        if token.startswith("-"):
-            on.discard(name)
-        else:
-            on.add(name)
-    return number, on
-
-
 # ---- process accounting -------------------------------------------------------------------------
 
 def read_text(path):
@@ -103,8 +59,8 @@ def process_role(argv):
     if not argv:
         return None
     name = argv[0].rsplit("/", 1)[-1]
-    if name.startswith("python") and len(argv) > 2 and argv[1].endswith("/droiddeck-steam-lite") and argv[2] == "run":
-        return "steam-lite"
+    if name.startswith("python") and len(argv) > 1 and argv[1].endswith("/droiddeck-steam-lite"):
+        return "sampler"
     if name in ("FEX", "FEXInterpreter") and len(argv) > 1:
         argv = argv[1:]
         name = argv[0].rsplit("/", 1)[-1]
@@ -526,12 +482,7 @@ class Actions:
         return bool(self.paused or self.frozen or self.hidden or self.motion)
 
 
-# ---- supervisor ---------------------------------------------------------------------------------
-
-def focused(snapshot):
-    app = snapshot.get("focusedApp")
-    return None if app in (None, 0) else app
-
+# ---- zRAM preload requests -----------------------------------------------------------------------
 
 class ZramHold:
     """Holds droiddeck-session's zRAM monitor off for one pass, optionally carrying a preload request.
@@ -594,7 +545,7 @@ class Pager:
         self.clock = clock
         self.nap = nap
         self.signal_pid = signal_pid or (lambda pid: os.kill(pid, signal.SIGURG))
-        self.pids = pids or (lambda: [pid for pid, role in steam_processes(proc) if role not in ("steam-lite", "sampler")])
+        self.pids = pids or (lambda: [pid for pid, role in steam_processes(proc) if role != "sampler"])
         self.out_kb = 0
 
     def ack_path(self, pid):
@@ -666,277 +617,6 @@ class Pager:
         return {"before kB": before, "after kB": last}
 
 
-class Supervisor:
-    """Turns focus and memory transitions into bounded, reversible passes.
-
-    States: ui (the client is in front, nothing runs), launching (a game started but has not taken
-    focus), game (a game has had focus for SETTLE seconds: passes may run), back (the client came
-    to the front over a running game: everything held is restored first).
-    """
-
-    def __init__(self, agent_dir, actions, interventions, clock=time.monotonic, memory=system_memory,
-                 client_swap=None, status_path=None, hold=None, pager=None, nap=time.sleep):
-        self.agent_dir = Path(agent_dir)
-        self.focus_path = self.agent_dir / "focus.json"
-        self.control_path = self.agent_dir / "steam-lite.json"
-        self.status_path = status_path or self.agent_dir / "steam-lite-status.json"
-        self.actions = actions
-        self.on = set(interventions)
-        self.level = None
-        self.clock = clock
-        self.memory = memory
-        self.client_swap = client_swap or (lambda: sum(r.get("VmSwap") or 0 for r in sample_processes()
-                                                       if r["role"] not in ("steam-lite", "sampler")))
-        self.hold = hold or ZramHold
-        self.pager = pager or Pager()
-        self.nap = nap
-        self.state = "ui"
-        self.app = None
-        self.since = clock()
-        self.focus = {}
-        self.focus_seen = None
-        self.control_seen = None
-        self.low_since = None
-        self.last_pass = None
-        self.passes = 0
-        self.entered = False
-        self.history = []
-        self.errors = 0
-
-    def read_focus(self):
-        try:
-            stamp = self.focus_path.stat().st_mtime_ns
-        except OSError:
-            return None
-        if stamp == self.focus_seen:
-            return False
-        try:
-            snap = json.loads(self.focus_path.read_text())
-        except (OSError, ValueError):
-            return None
-        self.focus_seen = stamp
-        self.focus = snap
-        return True
-
-    def read_control(self):
-        try:
-            stamp = self.control_path.stat().st_mtime_ns
-        except OSError:
-            stamp = None
-        if stamp == self.control_seen:
-            return False
-        self.control_seen = stamp
-        if stamp is None:
-            return False
-        try:
-            body = json.loads(self.control_path.read_text())
-            level, on = resolve(str(body.get("level", "")), str(body.get("switches", "")))
-        except (OSError, ValueError, AttributeError):
-            log("unreadable %s ignored" % self.control_path.name)
-            return False
-        self.level = level
-        if on != self.on:
-            self.on = on
-            log("interventions now %s" % (",".join(sorted(on)) or "none (stock)"))
-            return True
-        return False
-
-    def game_app(self):
-        app = focused(self.focus)
-        games = [a for a in self.focus.get("focusableApps") or [] if a not in (0, STEAM_CLIENT)]
-        return app, games
-
-    def transition(self, state, app=None):
-        if state == self.state and app == self.app:
-            return
-        log("%s -> %s%s" % (self.state, state, " (app %s)" % app if app else ""))
-        self.state, self.app, self.since = state, app, self.clock()
-        if state != "game":
-            self.entered = False
-            self.low_since = None
-        if state in ("ui", "back"):
-            self.passes = 0
-
-    def tick(self, targets):
-        self.read_control()
-        self.read_focus()
-        app, games = self.game_app()
-        if not games:
-            self.transition("ui")
-        elif app in (None, STEAM_CLIENT):
-            self.transition("back" if self.state in ("game", "back") else "launching")
-        elif app in games:
-            if self.state != "game" or self.app != app:
-                self.transition("game", app)
-        else:
-            self.transition("launching")
-
-        if self.state != "game" or not self.on:
-            if self.pager.out_kb:
-                self.record("readback", self.pager.readback())
-            if self.actions.holding():
-                self.record("restore", self.actions.restore(targets()))
-            return
-        if self.clock() - self.since < SETTLE:
-            return
-        memory = self.memory()
-        available, total = memory.get("MemAvailable"), memory.get("MemTotal")
-        if available is not None and total:
-            floor = min(max(total // 8, 640 * 1024), 1280 * 1024)
-            if available < floor:
-                self.low_since = self.low_since if self.low_since is not None else self.clock()
-            else:
-                self.low_since = None
-        if not self.entered:
-            self.entered = True
-            if self.last_pass is None or self.clock() - self.last_pass >= COOLDOWN:
-                self.run_pass("enter", targets, visual=True)
-            elif self.on & {"pause", "freeze"}:
-                self.run_pass("return", targets, visual=True, reclaim=False)
-            return
-        pressed = self.low_since is not None and self.clock() - self.low_since >= PRESSURE_HOLD
-        cooled = self.last_pass is None or self.clock() - self.last_pass >= COOLDOWN
-        if pressed and cooled and self.passes < PASSES_PER_GAME:
-            self.run_pass("pressure", targets, visual=False)
-            self.low_since = None
-
-    def still_hidden(self):
-        if self.read_focus() is None:
-            return False
-        app, games = self.game_app()
-        return app is not None and app in games and app != STEAM_CLIENT
-
-    def run_pass(self, why, targets, visual, reclaim=True):
-        start = self.clock()
-        self.last_pass = start
-        self.passes += 1
-        try:
-            found = targets()
-        except Exception as error:
-            self.record(why, {"error": "targets: %s" % error})
-            return
-        if not found:
-            self.record(why, {"skipped": "no DevTools targets"})
-            return
-        steps = []
-        swapped = self.client_swap() if reclaim else 0
-        if reclaim and swapped >= SWAPPED_SKIP_KB:
-            reclaim = False
-            self.record(why, {"skipped-reclaim": "%d MB of the client is already in zRAM" % (swapped // 1024)})
-        if reclaim and "gc" in self.on:
-            steps.append(("gc", lambda: self.actions.gc(found)))
-        if reclaim and "moderate" in self.on and "critical" not in self.on:
-            steps.append(("moderate", lambda: self.actions.pressure(found, "moderate")))
-        if reclaim and "critical" in self.on:
-            steps.append(("critical", lambda: self.actions.pressure(found, "critical")))
-        if visual and "pause" in self.on:
-            steps.append(("pause", lambda: self.actions.pause(found)))
-        if visual and "freeze" in self.on:
-            steps.append(("freeze", lambda: self.actions.freeze(found)))
-        outcome = {}
-        deadline = start + PASS_BUDGET
-        self.actions.deadline = deadline
-        try:
-            with self.hold():
-                for name, step in steps:
-                    if not self.still_hidden():
-                        outcome["cancelled"] = "the client came to the front before %s" % name
-                        break
-                    if self.clock() > deadline:
-                        outcome["cancelled"] = "pass budget spent before %s" % name
-                        break
-                    outcome[name] = step()
-        finally:
-            self.actions.deadline = None
-        if reclaim and "pageout" in self.on and "cancelled" not in outcome:
-            if "gc" in outcome:
-                self.nap(GC_RELEASE_WAIT)
-            left = deadline - self.clock()
-            if left <= 0:
-                outcome["cancelled"] = "pass budget spent before pageout"
-            elif self.still_hidden():
-                outcome["pageout"] = self.pager.pageout(PAGEOUT_BUDGET_KB, timeout=min(PAGEOUT_TIMEOUT, left))
-            else:
-                outcome["cancelled"] = "the client came to the front before pageout"
-        if not self.still_hidden():
-            if self.pager.out_kb:
-                outcome["readback"] = self.pager.readback()
-            if self.actions.holding():
-                outcome["restore"] = self.actions.restore(found)
-        outcome["ms"] = round((self.clock() - start) * 1000)
-        self.record(why, outcome)
-
-    def record(self, why, outcome):
-        entry = {"t": round(time.time(), 3), "state": self.state, "app": self.app, "why": why, "outcome": outcome}
-        self.history = (self.history + [entry])[-20:]
-        log("%s: %s" % (why, json.dumps(outcome, separators=(",", ":"))))
-        self.publish()
-
-    def publish(self):
-        body = {"state": self.state, "app": self.app, "level": self.level, "interventions": sorted(self.on),
-                "passes": self.passes,
-                "history": self.history, "unsupported": sorted(self.actions.client.unsupported)}
-        try:
-            tmp = self.status_path.with_name(self.status_path.name + ".tmp")
-            tmp.write_text(json.dumps(body, separators=(",", ":")))
-            os.replace(tmp, self.status_path)
-        except OSError:
-            pass
-
-
-def run(agent_dir):
-    agent = load_agent()
-    level, on = resolve()
-    if level == 0 and not on:
-        log("DD_STEAM_LITE is stock; not supervising")
-        return 0
-    client = Client(agent, agent_dir)
-    actions = Actions(client)
-    supervisor = Supervisor(agent_dir, actions, on)
-    log("level %s (%s), interventions %s" % (level, LEVEL_NAMES[level], ",".join(sorted(on)) or "none"))
-    cached = {"at": None, "targets": []}
-
-    def targets():
-        now = time.monotonic()
-        if cached["at"] is None or now - cached["at"] > 2:
-            cached["targets"] = client.targets()
-            cached["at"] = now
-        return cached["targets"]
-
-    def stop(*_):
-        try:
-            if supervisor.pager.out_kb:
-                log("read back on exit: %s" % json.dumps(supervisor.pager.readback()))
-        except Exception as error:
-            log("read back on exit failed: %s" % error)
-        try:
-            if actions.holding():
-                cached["at"] = None
-                log("restore on exit: %s" % json.dumps(actions.restore(targets())))
-        except Exception as error:
-            log("restore on exit failed: %s" % error)
-        client.close()
-        sys.exit(0)
-
-    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
-        signal.signal(sig, stop)
-    supervisor.publish()
-    parent = os.getppid()
-    while True:
-        if os.getppid() != parent:
-            stop()
-        try:
-            supervisor.tick(targets)
-            supervisor.errors = 0
-        except Exception as error:
-            supervisor.errors += 1
-            client.close()
-            cached["at"] = None
-            if supervisor.errors in (1, 10) or supervisor.errors % 100 == 0:
-                log("tick failed (%d): %s" % (supervisor.errors, error))
-        time.sleep(POLL if supervisor.state in ("game", "back") else IDLE_POLL)
-
-
 # ---- command line -------------------------------------------------------------------------------
 
 def agent_dir():
@@ -951,8 +631,6 @@ def main(argv):
         print(__doc__.strip())
         return 0 if argv else 2
     command, rest = argv[0], argv[1:]
-    if command == "run":
-        return run(agent_dir())
     if command == "probe":
         client = Client(load_agent(), agent_dir())
         try:
