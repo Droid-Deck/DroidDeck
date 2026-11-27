@@ -228,6 +228,7 @@ void FrameGen::initializeImage(VkCommandBuffer cmd, VkImage img, VkImageLayout t
 void FrameGen::destroy() {
     if (!device_) return;
     dd_->DeviceWaitIdle(device_);
+    destroyScratchResources();
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
     for (auto& i : pyrAs_) destroyImage(i); pyrAs_.clear();
