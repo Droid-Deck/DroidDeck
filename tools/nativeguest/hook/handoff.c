@@ -797,11 +797,27 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     e->pad[1] = real_group;
     e->status = DDH_NO_STATUS;
     char cwd[PATH_MAX];
-    // A directory with no name (removed) cannot be sent: the exec stays here, in it.
+    // The guest's name for it, else the kernel's (the worker's cd takes either). A directory with no
+    // name (removed) cannot be sent: the exec stays here, in it.
     if (!getcwd(cwd, sizeof(cwd))) {
-        __atomic_store_n(&e->state, DDH_FREE, __ATOMIC_RELEASE);
-        ddh_debug(envp, "no name for the working directory:", filename);
-        return;
+        int err = errno;
+        long n = call_orig_syscall(SYS_getcwd, (unsigned long)cwd, sizeof(cwd), 0, 0, 0, 0);
+        // Outside this process's root (a program in Steam's runtime container): the rest is the path
+        // from Android's root, where the worker runs
+        static const char unreachable[] = "(unreachable)/";
+        if (n > 0 && strncmp(cwd, unreachable, sizeof(unreachable) - 1) == 0)
+            memmove(cwd, cwd + sizeof(unreachable) - 2, strlen(cwd + sizeof(unreachable) - 2) + 1);
+        if (n <= 0 || cwd[0] != '/') {
+            __atomic_store_n(&e->state, DDH_FREE, __ATOMIC_RELEASE);
+            char why[160];
+            snprintf(why, sizeof(why), "no name for the working directory (errno %d, then %ld/%d \"%.40s\"):", err, n,
+                     n < 0 ? errno : 0, n > 0 ? cwd : "");
+            ddh_debug(envp, why, filename);
+            return;
+        }
+        char why[64];
+        snprintf(why, sizeof(why), "kernel name for the working directory (errno %d):", err);
+        ddh_debug(envp, why, cwd);
     }
     // What the program would have inherited here and a worker does not have: ignored signals, the
     // open-files limit, the umask (ddh_apply_inherited() restores them in the program).
