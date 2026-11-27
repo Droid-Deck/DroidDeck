@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use sha1::{Digest, Sha1};
 
 use super::cache;
+use crate::grow_write::{holes_supported, is_cancel, GrowFront};
 use super::schedule::{PlanPart, Schedule, NONE};
 use super::{staging, Events, Stop};
 use crate::epic::chunk;
@@ -80,6 +81,7 @@ struct Coord {
 struct Engine<'a> {
     input: &'a EngineInput<'a>,
     slots: Vec<Mutex<Slot>>,
+    fronts: Vec<GrowFront>,
     coord: Mutex<Coord>,
     wake: Condvar,
     admitted: AtomicUsize,
@@ -93,6 +95,17 @@ struct Engine<'a> {
     replace_ok: Mutex<Option<bool>>,
     events: &'a dyn Events,
     total_bytes: u64,
+}
+
+enum Halt {
+    Cancelled,
+    Failed(String),
+}
+
+impl From<String> for Halt {
+    fn from(message: String) -> Self {
+        Halt::Failed(message)
+    }
 }
 
 enum Source<'d> {
@@ -110,6 +123,13 @@ impl<'a> Engine<'a> {
         self.stop.store(true, Ordering::SeqCst);
         self.wake.notify_all();
         message
+    }
+
+    fn sink_error(&self, halt: Halt) -> SinkError {
+        match halt {
+            Halt::Cancelled => SinkError::Retry("cancelled".into()),
+            Halt::Failed(message) => SinkError::Fatal(self.fail(message)),
+        }
     }
 
     fn cache_path(&self, producer: usize) -> PathBuf {
@@ -158,7 +178,7 @@ impl<'a> Engine<'a> {
         self.input.schedule.producers[fetch[at] as usize].anchor as usize + 1
     }
 
-    fn write_use(&self, u: usize, source: &Source<'_>) -> Result<(), String> {
+    fn write_use(&self, u: usize, source: &Source<'_>) -> Result<(), Halt> {
         let schedule = &self.input.schedule;
         let f = schedule.use_file[u] as usize;
         let j = u - schedule.file_start[f] as usize;
@@ -175,16 +195,22 @@ impl<'a> Engine<'a> {
         let start = part.chunk_offset as usize;
         let end = start + part.size as usize;
         if end > data.len() {
-            return Err(format!("A chunk is too short for {}", file.path));
+            return Err(format!("A chunk is too short for {}", file.path).into());
         }
         let piece = &data[start..end];
         let handle = self.slots[f].lock().expect("slot lock").file.clone();
         let Some(handle) = handle else {
-            return Err(format!("internal: {} is not open", file.path));
+            return Err(format!("internal: {} is not open", file.path).into());
         };
-        handle
-            .write_all_at(piece, part.file_offset)
-            .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))?;
+        self.fronts[f]
+            .write_all_at(&handle, part.file_offset, piece, self.stop)
+            .map_err(|e| {
+                if is_cancel(&e) {
+                    Halt::Cancelled
+                } else {
+                    Halt::Failed(format!("Could not assemble or atomically replace {}: {e}", file.path))
+                }
+            })?;
         self.written.fetch_add(piece.len() as u64, Ordering::Relaxed);
 
         let complete = {
@@ -343,14 +369,18 @@ impl<'a> Engine<'a> {
                 }
             };
             let Some(f) = candidate else { continue };
-            if let Err(e) = self.admit(f) {
-                self.fail(e);
-                return;
+            match self.admit(f) {
+                Ok(()) => {}
+                Err(Halt::Cancelled) => return,
+                Err(Halt::Failed(e)) => {
+                    self.fail(e);
+                    return;
+                }
             }
         }
     }
 
-    fn admit(&self, f: usize) -> Result<(), String> {
+    fn admit(&self, f: usize) -> Result<(), Halt> {
         self.open_stage(f)?;
         let schedule = &self.input.schedule;
         let file = &self.input.files[f];
@@ -415,7 +445,7 @@ impl<'a> Engine<'a> {
             out
         };
         for u in claims {
-            self.write_use(u, &Source::Memory(&data)).map_err(|e| SinkError::Fatal(self.fail(e)))?;
+            self.write_use(u, &Source::Memory(&data)).map_err(|h| self.sink_error(h))?;
         }
         Ok(0)
     }
@@ -446,8 +476,10 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
             cached[i] = true;
         }
     }
+    let holes = holes_supported(&input.stage_dir);
     let engine = Engine {
         input,
+        fronts: input.files.iter().map(|_| GrowFront::new(holes)).collect(),
         slots: input
             .files
             .iter()
@@ -532,7 +564,7 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
         }
         ready
     };
-    let outcome = std::thread::scope(|scope| {
+    let (outcome, cancelled) = std::thread::scope(|scope| {
         let admitter = std::thread::Builder::new()
             .name("epic-admit".into())
             .spawn_scoped(scope, || {
@@ -541,7 +573,7 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
             });
         if let Err(e) = admitter {
             engine.fail(format!("could not start the install thread: {e}"));
-            return None;
+            return (None, false);
         }
         let outcome = if items.is_empty() {
             None
@@ -552,11 +584,9 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
             let mut c = engine.coord.lock().expect("coord lock");
             c.fetch_done = true;
         }
-        if outcome.as_ref().is_some_and(|o| !o.ok()) {
-            stop.store(true, Ordering::SeqCst);
-        }
+        let cancelled = settle(outcome.as_ref().is_some_and(|o| !o.ok()), stop);
         engine.wake.notify_all();
-        outcome
+        (outcome, cancelled)
     });
 
     let failure = engine.failure.lock().expect("failure lock").take().filter(|m| !m.is_empty());
@@ -593,16 +623,35 @@ fetches={} refetches={} peak_cache_mib={} hosts={}",
         hosts.join(","),
     ));
 
+    ending(failure, complete, fetch_error, cancelled, stop.load(Ordering::SeqCst))?;
+    Ok(Stats { bytes_written: written, files_written: input.files.len() })
+}
+
+fn settle(fetch_failed: bool, stop: &AtomicBool) -> bool {
+    let cancelled = stop.load(Ordering::SeqCst);
+    if fetch_failed {
+        stop.store(true, Ordering::SeqCst);
+    }
+    cancelled
+}
+
+fn ending(
+    failure: Option<String>,
+    complete: bool,
+    fetch_error: Option<String>,
+    cancelled: bool,
+    stopped: bool,
+) -> Result<(), Stop> {
     if let Some(message) = failure {
         return Err(Stop::Failed(message));
     }
     if complete {
-        return Ok(Stats { bytes_written: written, files_written: input.files.len() });
+        return Ok(());
     }
-    if let Some(message) = fetch_error {
+    if let Some(message) = fetch_error.filter(|_| !cancelled) {
         return Err(Stop::Failed(format!("Download failed: {}", tidy_fetch_error(&message))));
     }
-    if stop.load(Ordering::SeqCst) {
+    if stopped {
         return Err(Stop::Cancelled);
     }
     Err(Stop::Failed("The download ended before every file was written".into()))
@@ -703,5 +752,38 @@ mod tests {
         assert!(keep_partial(&resumed, &[false], &kept, &dir));
         assert_eq!(fs::read_to_string(staging::list_path(&kept)).unwrap(), "10\n20\n");
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    fn end(fetch_error: Option<&str>, stop: &AtomicBool) -> Result<(), Stop> {
+        let cancelled = settle(fetch_error.is_some(), stop);
+        ending(None, false, fetch_error.map(str::to_string), cancelled, stop.load(Ordering::SeqCst))
+    }
+
+    #[test]
+    fn a_cancel_during_the_last_fetch_attempt_ends_as_cancelled() {
+        let stop = AtomicBool::new(true);
+        assert!(matches!(end(Some("timed out"), &stop), Err(Stop::Cancelled)));
+        assert!(matches!(end(None, &stop), Err(Stop::Cancelled)));
+    }
+
+    #[test]
+    fn a_fetch_failure_without_a_cancel_ends_as_failed() {
+        let stop = AtomicBool::new(false);
+        match end(Some("timed out"), &stop) {
+            Err(Stop::Failed(message)) => assert!(message.starts_with("Download failed: ")),
+            _ => panic!("a fetch failure must be reported"),
+        }
+        assert!(stop.load(Ordering::SeqCst));
+        let idle = AtomicBool::new(false);
+        assert!(matches!(end(None, &idle), Err(Stop::Failed(_))));
+    }
+
+    #[test]
+    fn a_write_failure_or_a_finished_install_wins_over_a_cancel() {
+        assert!(matches!(
+            ending(Some("disk full".into()), false, None, true, true),
+            Err(Stop::Failed(message)) if message == "disk full"
+        ));
+        assert!(ending(None, true, Some("late".into()), true, true).is_ok());
     }
 }

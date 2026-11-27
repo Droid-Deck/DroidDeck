@@ -526,11 +526,11 @@ fun ComponentsPage(
     val availableTitle: @Composable (String) -> String = { l ->
         when (l) {
             PROTON_TAB -> stringResource(R.string.comp_available_count, protons.rows.count(ProtonRow::available))
-            else -> stringResource(R.string.comp_nightlies_count, availableRows(l, catalog, snapshot).size)
+            else -> stringResource(R.string.comp_nightlies_count, availableRows(l, catalog, snapshot, view?.proton?.dir?.name).size)
         }
     }
-    val followed = view?.proton?.let(ComponentUpdates::follows) == true
-    val moded: (String) -> Boolean = { followed && it in compModes && it !in compAutoHeld && !ComponentsManager.runtimeManaged(it, gpu.systemPowerVr) }
+    val followed: (String) -> Boolean = { l -> view?.proton?.let { ComponentUpdates.autoFollows(it, l) } == true }
+    val moded: (String) -> Boolean = { followed(it) && it in compModes && it !in compAutoHeld && !ComponentsManager.runtimeManaged(it, gpu.systemPowerVr) }
     val automatic: (String) -> Boolean = { moded(it) && compModes[it] == ComponentUpdates.AUTO }
     val installedRows: @Composable ColumnScope.(String, Boolean) -> Unit = { l, right ->
         when (l) {
@@ -614,7 +614,7 @@ fun ComponentsPage(
                 }
             }
             else -> {
-                val available = availableRows(l, catalog, snapshot)
+                val available = availableRows(l, catalog, snapshot, view?.proton?.dir?.name)
                 if (available.isEmpty()) EmptyLine(if (catalogAt == 0L) stringResource(R.string.comp_refresh_to_list) else stringResource(R.string.comp_nothing_new))
                 for ((stable, nightly) in available) {
                     val d = if (nightly != null && nightlyPicked[stable.file] == true) nightly else stable
@@ -974,18 +974,18 @@ private fun installedFor(l: String, view: ComponentsManager.ProtonView?, snapsho
             o.label.substringAfterLast(" · ", "").ifEmpty { o.label }.let { if (isCurrent) stringResource(R.string.comp_this_build, it) else stringResource(R.string.comp_earlier_build, it) },
             "ORIGINAL", activeIsOriginal && isCurrent, !isCurrent, null, o.protonVersion,
         )
-    } + (snapshot?.packages ?: emptyList()).filter { it.comp == l }.map { s ->
+    } + ComponentsManager.forTool(l, view.proton.dir.name, (snapshot?.packages ?: emptyList()).filter { it.comp == l }, st.activeFile) { it.file }.map { s ->
         InstalledItem(s.version, stringResource(R.string.common_size_mb, s.size / 1048576.0), "STORED", !runtimeManaged && s.file == st.activeFile, true, s.file, null)
     }
 }
 
-private fun availableFor(l: String, catalog: List<CatalogItem>, snapshot: Snapshot?): List<CatalogItem> {
+private fun availableFor(l: String, catalog: List<CatalogItem>, snapshot: Snapshot?, toolDir: String?): List<CatalogItem> {
     val stored = (snapshot?.packages ?: emptyList()).map { it.file }.toSet()
-    return catalog.filter { it.comp == l && ComponentsManager.safeName(it.file) !in stored }
+    return ComponentsManager.forTool(l, toolDir, catalog.filter { it.comp == l && ComponentsManager.safeName(it.file) !in stored }) { it.file }
 }
 
-private fun availableRows(l: String, catalog: List<CatalogItem>, snapshot: Snapshot?): List<Pair<CatalogItem, CatalogItem?>> {
-    val available = availableFor(l, catalog, snapshot)
+private fun availableRows(l: String, catalog: List<CatalogItem>, snapshot: Snapshot?, toolDir: String?): List<Pair<CatalogItem, CatalogItem?>> {
+    val available = availableFor(l, catalog, snapshot, toolDir)
     val pairs = ComponentsManager.nightlyPairs(available)
     val paired = pairs.values.toSet()
     return available.filter { it !in paired }.map { it to pairs[it] }
@@ -1201,7 +1201,7 @@ private fun GameComponentOverrides(
             }
             GamePackageRow(
                 comp = "fex",
-                packages = packages,
+                packages = ComponentsManager.forTool("fex", protonChoice?.dir ?: generalProton?.dir?.name, packages, componentChoices["fex"]) { it.file },
                 selectedFile = componentChoices["fex"],
                 open = componentMenu == "fex",
                 busy = busy,
@@ -1629,7 +1629,7 @@ private fun DeviceChip(s: GpuDriversState) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier.onGloballyPositioned { at = it.boundsInRoot() }.heightIn(min = 44.dp).paneItem("gpu-device").clip(shape)
-            .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface)
+            .background(colors.surface).then(if (hot) Modifier.background(pal.signal.copy(alpha = 0.14f)) else Modifier)
             .glideBorder(hot, shape, pal.signal, pal.line)
             .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Button, onClick = open)
             .controllerConfirm(onClick = open)

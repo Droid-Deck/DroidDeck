@@ -113,7 +113,7 @@ object CloudSaves {
             }
             Store.UBISOFT -> UBISOFT_TEMPLATE
             Store.EA -> eaRules(context, id) ?: return null
-            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.ROCKSTAR -> ""
+            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.ROCKSTAR, Store.STEAM -> ""
         } ?: return null
         p.edit()
             .putString("cloud_template_$id", fetched.ifEmpty { TEMPLATE_NONE })
@@ -181,7 +181,7 @@ object CloudSaves {
             Store.EPIC -> CloudSavePaths.epic(template, pfx, folder, EpicCredentialStore.load(context)?.accountId.orEmpty(), id)
             Store.EA -> if (sidecar.extra["masterTitleId"].isNullOrEmpty()) null
                 else EaSaveRules.parse(template)?.base()?.let(EaSaveRules::template)?.let { CloudSavePaths.gog(it, pfx, folder) }
-            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> null
+            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR, Store.STEAM -> null
         }
         return dir to (if (dir == null) "unresolved" else "ok")
     }
@@ -221,7 +221,7 @@ object CloudSaves {
             if (rules == null || base == null || token == null || uid.isEmpty() || master.isEmpty()) null
             else EaCloud(token, uid, EaCloud.keys(master, sidecar?.extra?.get("multiplayerId").orEmpty()), base, rules, saveFolder(context, store, id).first)
         }
-        Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.ROCKSTAR -> null
+        Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.ROCKSTAR, Store.STEAM -> null
     }
 
     private fun signedIn(context: Context, store: Store): Boolean = when (store) {
@@ -430,17 +430,20 @@ object CloudSaves {
 
     internal fun md5(data: ByteArray): String = MessageDigest.getInstance("MD5").digest(data).joinToString("") { "%02x".format(it) }
 
-    private fun remote(cloud: CloudTransport, wanted: (String) -> Boolean): Map<String, CloudFile> {
+    private class Listing(val live: Map<String, CloudFile>, val deleted: Set<String>)
+
+    private fun remote(cloud: CloudTransport, wanted: (String) -> Boolean): Listing {
         val files = cloud.list()
         val pool = Executors.newFixedThreadPool(PARALLEL, com.droiddeck.launcher.stores.download.DownloadQueue.workerFactory("cloud"))
         for (f in files) if (wanted(f.name)) pool.execute { runCatching { cloud.details(f) } }
         pool.shutdown(); pool.awaitTermination(2, TimeUnit.MINUTES)
-        return files.associateBy { it.name }
+        val (gone, live) = files.partition(cloud::deleted)
+        return Listing(live.associateBy { it.name }, gone.mapTo(HashSet()) { it.name })
     }
 
     internal fun downWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean, claim: () -> Boolean = { true }): Result {
         val files = localFiles(dir).filterKeys(cloud::wants)
-        val remote = remote(cloud) { it in files }
+        val remote = remote(cloud) { it in files }.live
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
         val key = scope(store, id, dir)
         val base = baseline(context, store, key)
@@ -498,9 +501,10 @@ object CloudSaves {
         val base = baseline(context, store, key) ?: return Result("skipped", 0, 0, "no-baseline")
         val files = localFiles(dir).filterKeys(cloud::wants).let { all -> if (cloud is UbisoftCloudTransport) all.filterValues(::markUbisoftSave) else all }
         if (files.isEmpty()) return Result("skipped", 0, 0, "nothing-local")
-        val remote = remote(cloud) { it in files }
+        val listing = remote(cloud) { it in files }
+        val remote = listing.live
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
-        val planned = CloudPlan.up(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base)
+        val planned = CloudPlan.up(local, remote.mapValues { CloudPlan.Remote(it.value.md5, it.value.modifiedMs) }, base, listing.deleted)
         val alike = alike(cloud, planned.conflicts, local, remote)
         val plan = settled(planned, alike)
         val saved = savedConflicts(context, store, key).filter { it !in alike && it !in plan.same }
@@ -547,7 +551,7 @@ object CloudSaves {
                 send = send.filter { it in stamped }
                 for ((name, t) in stamped) if (t > 0) files[name]?.setLastModified(t)
             }
-            val after = if (send.all { cloud.committed(it) != null }) emptyMap() else remote(cloud) { it in send && cloud.committed(it) == null }
+            val after = if (send.all { cloud.committed(it) != null }) emptyMap() else remote(cloud) { it in send && cloud.committed(it) == null }.live
             for (name in send) {
                 val r = cloud.committed(name) ?: after[name]
                 next[name] = CloudPlan.Entry(sentMd5.getValue(name), r?.md5, r?.modifiedMs ?: stamped[name] ?: -1L)

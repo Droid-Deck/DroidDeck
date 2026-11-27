@@ -526,6 +526,21 @@ class PrepareTest(FexTestCase):
             for name in names:
                 self.assertEqual((Path(fex["rootfs"]) / "lib" / arch / name).read_bytes(), b"new ABI " + name.encode())
 
+    def test_opengl_dispatch_library_comes_from_the_newer_runtime_when_the_base_lacks_it(self):
+        self.fex_tool()
+        sniper = self.runtime()
+        FEX["materialize"](str(sniper))
+        provider = self.graphics(sniper)
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            self.write(sniper / "files/lib" / arch / "libGLdispatch.so.0", b"base dispatch")
+            self.write(provider / "files/lib" / arch / "libOpenGL.so.0.0.0", b"opengl " + arch.encode())
+            os.symlink("libOpenGL.so.0.0.0", provider / "files/lib" / arch / "libOpenGL.so.0")
+        fex, _ = self.quiet(FEX["prepare"])
+        for arch in ("x86_64-linux-gnu", "i386-linux-gnu"):
+            root = Path(fex["rootfs"]) / "lib" / arch
+            self.assertEqual((root / "libOpenGL.so.0").read_bytes(), b"opengl " + arch.encode())
+            self.assertEqual((root / "libGLdispatch.so.0").read_bytes(), b"base dispatch")
+
     def test_gbm_requires_usable_provider_dependencies_on_both_architectures(self):
         self.fex_tool()
         sniper = self.runtime()
@@ -1008,6 +1023,128 @@ class ExtractTest(FexTestCase):
         self.assertIn("-no-xattrs", commands[-1])
         self.assertTrue(Path("squashfs-root/AppRun").is_file())
 
+    def seven_zip(self, tool, which, works=True):
+        commands = []
+
+        def call(argv, **kwargs):
+            commands.append(argv)
+            if argv[0] != "/usr/bin/7z" or not works:
+                return 2
+            (self.work / "squashfs-root").mkdir()
+            (self.work / "squashfs-root/AppRun").touch()
+            return 0
+
+        with mock.patch.dict(G, {
+            "URUNTIME": tool,
+            "prepare": lambda: None,
+            "fex_install": lambda: None,
+            "steam_running": lambda: False,
+            "want_fex": lambda: None,
+        }), mock.patch("shutil.which", side_effect=lambda name: which.get(name)), \
+                mock.patch("subprocess.call", side_effect=call):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        return status, said, commands
+
+    def test_without_proot_the_shipped_runtime_reads_the_open_image(self):
+        self.write(self.image, elf(183) + b"payload", 0o755)
+        tool = self.uruntime('cmp "$TARGET_APPIMAGE" "%s" || exit 9\nmkdir -p AppDir && touch AppDir/AppRun\n' % self.image)
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(self.tmp / "rootfs")}):
+            status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
+        self.assertEqual((status, said), (0, ""))
+        self.assertEqual([], commands)
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+
+    def test_without_proot_runtime_failure_falls_back_to_7zip(self):
+        self.write(self.image, elf(183) + b"payload", 0o755)
+        tool = self.uruntime("exit 1\n")
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(self.tmp / "rootfs")}):
+            status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertEqual("/usr/bin/7z", commands[-1][0])
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+
+    def test_with_proot_the_shipped_runtime_is_still_tried_first(self):
+        ran = self.tmp / "uruntime-ran"
+        tool = self.uruntime("touch %s\nexit 1\n" % ran)
+        env = {k: v for k, v in os.environ.items() if k != "DDNATV_ROOT"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            status, said, commands = self.seven_zip(tool, {"7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertTrue(ran.exists())
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertEqual("/usr/bin/7z", commands[-1][0])
+
+    def test_unsquashfs_is_preferred_over_7zip(self):
+        tool = self.uruntime("exit 1\n")
+        status, said, commands = self.seven_zip(tool, {"unsquashfs": "/usr/bin/unsquashfs", "7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertIn("unsquashfs could not extract it (status 2)", said)
+        self.assertEqual(["/usr/bin/unsquashfs", "/usr/bin/7z"], [c[0] for c in commands])
+
+    def test_a_7zip_failure_leaves_nothing_unpacked(self):
+        tool = self.uruntime("exit 1\n")
+        status, said, _ = self.seven_zip(tool, {"7z": "/usr/bin/7z"}, works=False)
+        self.assertEqual(status, 1)
+        self.assertIn("7-Zip could not extract it (status 2)", said)
+        self.assertNotIn("no unsquashfs", said)
+        self.assertFalse(os.path.lexists("squashfs-root"))
+
+    def runtime_elf(self):
+        head = bytearray(elf(183))
+        struct.pack_into("<Q", head, 0x28, len(head))
+        return bytes(head)
+
+    def dwarfs(self, body):
+        self.write(self.image, self.runtime_elf() + b"DWARFS\x02\x05payload", 0o755)
+        self.ran = self.tmp / "dwarfsextract-ran"
+        return str(self.write(self.tmp / "dwarfsextract", "#!/bin/sh\ntouch %s\n%s" % (self.ran, body), 0o755))
+
+    def test_a_dwarfs_image_the_runtime_cannot_unpack_is_read_through_its_open_descriptor(self):
+        reader = self.dwarfs(
+            '[ "$1 $3 $4 $5" = "--input --image-offset=64 --output squashfs-root" ] || exit 9\n'
+            'case $2 in /proc/self/fd/*) ;; *) exit 8 ;; esac\n'
+            'cmp -s "$2" "%s" || exit 7\ntouch squashfs-root/AppRun\n' % self.image)
+        tool = self.uruntime("echo 'Failed to execute dwarfsextract: EACCES: Permission denied' >&2\nexit 1\n")
+        with mock.patch.dict(os.environ, {"DDNATV_ROOT": str(self.tmp / "rootfs")}), \
+                mock.patch.dict(G, {"URUNTIME": tool, "DWARFSEXTRACT": reader}), \
+                mock.patch("shutil.which", return_value=None):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual(status, 0)
+        self.assertIn("uruntime could not extract it (status 1)", said)
+        self.assertNotIn("dwarfsextract could not", said)
+        self.assertTrue(Path("squashfs-root/AppRun").is_file())
+        self.assertFalse((self.home / ".config/droiddeck/fex-wanted").exists())
+
+    def test_a_dwarfs_image_the_runtime_unpacks_never_runs_dwarfsextract(self):
+        reader = self.dwarfs("touch squashfs-root/AppRun\n")
+        tool = self.uruntime("mkdir -p AppDir && touch AppDir/AppRun\n")
+        with mock.patch.dict(G, {"URUNTIME": tool, "DWARFSEXTRACT": reader}):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual((status, said), (0, ""))
+        self.assertFalse(self.ran.exists())
+
+    def test_a_dwarfsextract_failure_leaves_nothing_unpacked(self):
+        reader = self.dwarfs("mkdir -p squashfs-root/usr\nexit 3\n")
+        tool = self.uruntime("exit 1\n")
+        with mock.patch.dict(G, {"URUNTIME": tool, "DWARFSEXTRACT": reader}), \
+                mock.patch("shutil.which", return_value=None):
+            status, said = self.quiet(FEX["extract"], "image.AppImage")
+        self.assertEqual(status, 1)
+        self.assertTrue(self.ran.exists())
+        self.assertIn("dwarfsextract could not extract it (status 3)", said)
+        self.assertFalse(os.path.lexists("squashfs-root"))
+
+    def test_a_squashfs_image_still_goes_to_unsquashfs(self):
+        reader = self.dwarfs("exit 0\n")
+        self.write(self.image, self.runtime_elf() + b"hsqs" + b"payload", 0o755)
+        tool = self.uruntime("exit 1\n")
+        with mock.patch.dict(G, {"DWARFSEXTRACT": reader}):
+            status, said, commands = self.seven_zip(tool, {"unsquashfs": "/usr/bin/unsquashfs", "7z": "/usr/bin/7z"})
+        self.assertEqual(status, 0)
+        self.assertNotIn("dwarfsextract", said)
+        self.assertEqual(["/usr/bin/unsquashfs", "/usr/bin/7z"], [c[0] for c in commands])
+
 
 class LaunchTest(FexTestCase):
     def test_the_guest_environment(self):
@@ -1024,9 +1161,20 @@ class LaunchTest(FexTestCase):
         self.assertTrue(guest["FEX_APP_CONFIG_LOCATION"].endswith("/config/"))
         self.assertEqual((guest["FEX_SILENTLOG"], guest["FEX_OUTPUTLOG"]), ("0", "stderr"))
         self.assertEqual(guest["GC_DISABLE_INCREMENTAL"], "1")
+        self.assertEqual(guest["DOTNET_INTERNAL_ThreadSuspendInjection"], "0")
+        self.assertEqual(guest["COMPlus_INTERNAL_ThreadSuspendInjection"], "0")
+        legacy = FEX["guest_environment"]({"portable": False}, {"COMPlus_INTERNAL_ThreadSuspendInjection": "1"})
+        self.assertEqual(legacy["COMPlus_INTERNAL_ThreadSuspendInjection"], "1")
+        self.assertNotIn("DOTNET_INTERNAL_ThreadSuspendInjection", legacy)
+        blank = FEX["guest_environment"]({"portable": False}, {"COMPlus_INTERNAL_ThreadSuspendInjection": "",
+                                                               "DOTNET_INTERNAL_ThreadSuspendInjection": ""})
+        self.assertEqual(blank["DOTNET_INTERNAL_ThreadSuspendInjection"], "0")
+        self.assertEqual(blank["COMPlus_INTERNAL_ThreadSuspendInjection"], "0")
         guest = FEX["guest_environment"]({"portable": False}, {"LD_PRELOAD": str(arm), "FEX_PORTABLE": "1", "FEX_OUTPUTLOG": "/tmp/fex.log",
-                                                               "GC_DISABLE_INCREMENTAL": "0"})
+                                                               "GC_DISABLE_INCREMENTAL": "0", "DOTNET_INTERNAL_ThreadSuspendInjection": "1"})
         self.assertEqual((guest["FEX_OUTPUTLOG"], guest["GC_DISABLE_INCREMENTAL"]), ("/tmp/fex.log", "0"))
+        self.assertEqual(guest["DOTNET_INTERNAL_ThreadSuspendInjection"], "1")
+        self.assertEqual(guest["COMPlus_INTERNAL_ThreadSuspendInjection"], "1")
         self.assertNotIn("LD_PRELOAD", guest)
         self.assertNotIn("FEX_PORTABLE", guest)
 
@@ -1051,9 +1199,31 @@ class LaunchTest(FexTestCase):
         thunks = json.loads((self.home / ".local/share/droiddeck-fex/config/ThunksConfig.json").read_text())
         self.assertEqual(thunks, {"ThunksDB": {"GL": 1, "Vulkan": 1}})
 
+    def test_wayland_and_egl_thunks_turn_on_only_when_the_build_ships_all_of_them(self):
+        guest = self.tmp / "guest-thunks"
+        guest.mkdir()
+        fex = {"host_thunks": "/h", "guest_thunks": str(guest), "thunks_db": "/db"}
+        thunks_file = self.home / ".local/share/droiddeck-fex/config/ThunksConfig.json"
+        for name in ("libwayland-client-guest.so", "libEGL-guest.so"):
+            (guest / name).write_bytes(b"")
+        FEX["write_config"](fex, "/root")
+        self.assertEqual({"GL": 1, "Vulkan": 1}, json.loads(thunks_file.read_text())["ThunksDB"])
+        (guest / "libwayland-egl-guest.so").write_bytes(b"")
+        FEX["write_config"](fex, "/root")
+        expected = {"GL": 1, "Vulkan": 1, "WaylandClient": 1, "EGL": 1, "WaylandEGL": 1}
+        self.assertEqual(expected, json.loads(thunks_file.read_text())["ThunksDB"])
+        config = json.loads((self.home / ".local/share/droiddeck-fex/config/Config.json").read_text())
+        self.assertEqual(expected, config["ThunksDB"])
+
     def test_host_libc_tunables_stay_on_the_host(self):
         guest = FEX["guest_environment"]({"portable": True}, {"GLIBC_TUNABLES": "glibc.pthread.rseq=0"})
         self.assertNotIn("GLIBC_TUNABLES", guest)
+
+    def test_host_iconv_modules_stay_on_the_host(self):
+        guest = FEX["guest_environment"]({"portable": True}, {"GCONV_PATH": "/r/usr/lib/aarch64-linux-gnu/gconv"})
+        self.assertEqual(guest["GCONV_PATH"], "")
+        own = FEX["guest_environment"]({"portable": True}, {"GCONV_PATH": "/opt/gconv"})
+        self.assertEqual(own["GCONV_PATH"], "/opt/gconv")
 
     def test_proton_runs_in_the_runtime_its_manifest_requires(self):
         self.fex_tool()
@@ -1286,6 +1456,43 @@ class AppInfoTest(unittest.TestCase):
             for app in ("4427310", "3127680", "4183110"):
                 self.manifest(steam, app)
             self.assertEqual(downloads(str(steam)), [])
+
+    def test_valve_proton_on_demand_waits_for_a_title_that_uses_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steam = Path(tmp)
+            for app in ("3127680", "1628350", "4183110"):
+                self.manifest(steam, app)
+            downloads, needed, tool = self.COMPAT["tool_downloads"], self.COMPAT["valve_proton_needed"], self.COMPAT["TOOL"]
+            own = steam / "compatibilitytools.d/DroidDeck-Proton 11-14.1"
+            with mock.patch.dict(os.environ, {"DD_VALVE_PROTON": "0"}):
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                ge = steam / "compatibilitytools.d/GE-Proton10-25"
+                ge.mkdir(parents=True)
+                (ge / "droiddeck-proton-wrap").write_text("")
+                (ge / "compatibilitytool.vdf").write_text(
+                    '"compatibilitytools" { "compat_tools" { "GE-Proton10-25" { "install_path" "." } } }')
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                own.mkdir(parents=True)
+                (own / "droiddeck-proton-wrap").write_text("")
+                (own / "compatibilitytool.vdf").write_text(
+                    '"compatibilitytools" { "compat_tools" { "DroidDeck-Proton-11-14.1" { "install_path" "." } } }')
+                self.assertEqual(downloads(str(steam)), [])
+                self.assertFalse(needed(str(steam), {"DroidDeck-Proton-11-14.1", None}))
+                self.assertTrue(needed(str(steam), {"DroidDeck-Proton-11-14.1", tool}))
+                self.assertTrue(needed(str(steam), {"proton-experimental-arm64"}))
+                self.assertEqual(downloads(str(steam), True), [("4427310", "install")])
+                config = steam / "config/config.vdf"
+                config.parent.mkdir()
+                config.write_text('"InstallConfigStore" { "Software" { "Valve" { "Steam" { "CompatToolMapping" { '
+                                  '"0" { "name" "DroidDeck-Proton-11-14.1" "config" "" "priority" "75" } '
+                                  '"10" { "name" "%s" "config" "" "priority" "250" } } } } } }' % tool)
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
+                config.unlink()
+                self.manifest(steam, "4427310", flags="6")
+                self.assertEqual(downloads(str(steam), False), [("4427310", "update")])
+            with mock.patch.dict(os.environ, {"DD_VALVE_PROTON": "1"}):
+                (steam / "steamapps/appmanifest_4427310.acf").unlink()
+                self.assertEqual(downloads(str(steam)), [("4427310", "install")])
 
     def test_titles_with_a_valve_pick_are_found_installed_or_not(self):
         def deck(oslist, runtime, kind="game"):

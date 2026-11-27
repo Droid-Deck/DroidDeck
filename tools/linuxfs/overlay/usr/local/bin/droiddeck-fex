@@ -27,6 +27,7 @@ GAME_ENVIRONMENT = os.path.join(HOME, ".config", "droiddeck", "game-environment.
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
 PRELOADS = "/usr/local/lib/droiddeck-fex"
 URUNTIME = "/usr/local/lib/droiddeck/uruntime"
+DWARFSEXTRACT = "/usr/local/lib/droiddeck/dwarfsextract"
 HOST_PRELOAD = "/etc/ld.so.preload"
 FEX_APPID = "3127680"
 OWN_FEX = "/usr/local"
@@ -51,7 +52,7 @@ PROVIDED = frozenset((
     "libssl.so.3", "libcrypto.so.3",
     "libfreetype.so.6", "libpng16.so.16", "libbrotlidec.so.1", "libbrotlicommon.so.1", "libbz2.so.1.0", "libz.so.1",
     "libwayland-client.so.0", "libwayland-egl.so.1", "libwayland-server.so.0", "libffi.so.8",
-    "libgbm.so.1", "libdrm.so.2", "libexpat.so.1",
+    "libgbm.so.1", "libdrm.so.2", "libexpat.so.1", "libOpenGL.so.0",
 ))
 PROVIDED_NEEDS = {
     "libwayland-client.so.0": ("libffi.so.8",),
@@ -70,6 +71,7 @@ RUNTIME_LIBRARIES = (("libc.so.6", b"GLIBC_"), ("libstdc++.so.6", b"GLIBCXX_"))
 VERSION_NAME = re.compile(rb"GLIBC(?:XX)?_[0-9][0-9.]*[0-9]")
 BUNDLE_DEPTH = 3
 THUNKS = {"GL": 1, "Vulkan": 1}
+WAYLAND_THUNKS = {"WaylandClient": "libwayland-client-guest.so", "EGL": "libEGL-guest.so", "WaylandEGL": "libwayland-egl-guest.so"}
 X86 = {3: "i386", 62: "x86_64"}
 ARM = {40: "arm", 183: "arm64"}
 SCAN_DEPTH = 4
@@ -447,13 +449,20 @@ def install_preloads(root):
     write_if_changed(os.path.join(root, "etc", "asound.conf"), ASOUND_CONF)
 
 
+def enabled_thunks(fex):
+    thunks = dict(THUNKS)
+    if all(os.path.isfile(os.path.join(fex["guest_thunks"], name)) for name in WAYLAND_THUNKS.values()):
+        thunks.update(dict.fromkeys(WAYLAND_THUNKS, 1))
+    return thunks
+
+
 def write_config(fex, root):
     config = {"Config": {"RootFS": root}}
     if fex["host_thunks"] and fex["guest_thunks"] and fex["thunks_db"]:
         config["Config"]["ThunkHostLibs"] = fex["host_thunks"]
         config["Config"]["ThunkGuestLibs"] = fex["guest_thunks"]
-        config["ThunksDB"] = dict(THUNKS)
-        write_if_changed(os.path.join(CONFIG_DIR, "ThunksConfig.json"), json.dumps({"ThunksDB": dict(THUNKS)}, indent=2) + "\n")
+        config["ThunksDB"] = enabled_thunks(fex)
+        write_if_changed(os.path.join(CONFIG_DIR, "ThunksConfig.json"), json.dumps({"ThunksDB": config["ThunksDB"]}, indent=2) + "\n")
     write_if_changed(os.path.join(CONFIG_DIR, "Config.json"), json.dumps(config, indent=2) + "\n")
 
 
@@ -670,7 +679,13 @@ def guest_environment(fex, env):
     result.setdefault("FEX_SILENTLOG", "0")
     result.setdefault("FEX_OUTPUTLOG", "stderr")
     result.pop("GLIBC_TUNABLES", None)
+    if "aarch64" in result.get("GCONV_PATH", ""):
+        result["GCONV_PATH"] = ""
     result.setdefault("GC_DISABLE_INCREMENTAL", "1")
+    if not result.get("COMPlus_INTERNAL_ThreadSuspendInjection"):
+        if not result.get("DOTNET_INTERNAL_ThreadSuspendInjection"):
+            result["DOTNET_INTERNAL_ThreadSuspendInjection"] = "0"
+        result["COMPlus_INTERNAL_ThreadSuspendInjection"] = result["DOTNET_INTERNAL_ThreadSuspendInjection"]
     if fex["portable"]:
         result["FEX_PORTABLE"] = "1"
     else:
@@ -822,6 +837,30 @@ def extracted():
     return os.path.isdir("squashfs-root")
 
 
+def dwarfs_image(image):
+    try:
+        offset = appimage_offset(image)
+        with open(image, "rb") as f:
+            f.seek(offset)
+            return f.read(6) == b"DWARFS"
+    except (OSError, ValueError, struct.error):
+        return False
+
+
+def dwarfs_extract(image):
+    clear_extracted()
+    os.mkdir("squashfs-root")
+    with open(image, "rb") as source:
+        status = subprocess.call([DWARFSEXTRACT, "--input", "/proc/self/fd/%d" % source.fileno(),
+                                  "--image-offset=%d" % appimage_offset(image), "--output", "squashfs-root",
+                                  "--log-level=error"], stdout=subprocess.DEVNULL, pass_fds=(source.fileno(),))
+    if status == 0 and extracted():
+        return True
+    say("dwarfsextract could not extract it (status %d)" % status)
+    clear_extracted()
+    return False
+
+
 def want_fex():
     with locked():
         update_own_fex()
@@ -849,8 +888,12 @@ def extract(image):
     clear_extracted()
     x86 = elf_arch(image) in X86.values()
     if os.access(URUNTIME, os.X_OK):
-        run = subprocess.run([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                             env=dict(os.environ, TARGET_APPIMAGE=image))
+        with open(image, "rb") as source:
+            native = bool(os.environ.get("DDNATV_ROOT"))
+            target = "/proc/self/fd/%d" % source.fileno() if native else image
+            run = subprocess.run([URUNTIME, "--appimage-extract"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                 env=dict(os.environ, TARGET_APPIMAGE=target),
+                                 pass_fds=(source.fileno(),) if native else ())
         errors = run.stderr.decode("utf-8", "replace")
         sys.stderr.write(errors)
         status = run.returncode
@@ -863,6 +906,10 @@ def extract(image):
             return 0
         say("uruntime could not extract it (status %d)" % status)
         clear_extracted()
+    if os.access(DWARFSEXTRACT, os.X_OK) and dwarfs_image(image) and dwarfs_extract(image):
+        if x86:
+            want_fex()
+        return 0
     fex = prepare() if x86 else None
     if fex is not None:
         status = subprocess.call([fex["bin"], image, "--appimage-extract"], stdout=subprocess.DEVNULL,
@@ -880,7 +927,17 @@ def extract(image):
                 want_fex()
             return 0
         say("unsquashfs could not extract it (status %d)" % status)
-    elif fex is None:
+    seven = shutil.which("7z")
+    if seven:
+        clear_extracted()
+        status = subprocess.call([seven, "x", "-tSquashFS", "-y", "-osquashfs-root", image], stdout=subprocess.DEVNULL)
+        if status == 0 and extracted():
+            if x86:
+                want_fex()
+            return 0
+        say("7-Zip could not extract it (status %d)" % status)
+        clear_extracted()
+    elif fex is None and not unsquashfs:
         say("this AppImage could not be unpacked here: no AppImage runtime for ARM64, no FEX yet and no unsquashfs")
     return 1
 

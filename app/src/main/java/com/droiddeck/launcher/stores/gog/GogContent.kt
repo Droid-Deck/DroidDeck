@@ -100,6 +100,7 @@ internal object GogContent {
         val manifest = metadata(build.link, token)
         onManifest(manifest)
         val files = JSONArray()
+        val overlayPositions = HashMap<String, Int>()
         val depots = if (build.generation == 1) manifest.optJSONObject("product")?.optJSONArray("depots") ?: manifest.optJSONArray("depot") else manifest.optJSONArray("depots")
         check(depots != null) { "GOG build has no depot list" }
         val resolvedLanguage = StoreLanguage.pick(StoreLanguage.codesFromDepots(depots), old.language)
@@ -132,10 +133,15 @@ internal object GogContent {
                 val directory = type == "DepotDirectory" || entry.has("directory")
                 val chunks = entry.optJSONArray("chunks") ?: JSONArray()
                 val size = if (build.generation == 2) chunks.objects().sumOf { it.optLong("size") } else entry.optLong("size")
-                files.put(JSONObject().put("path", path).put("size", size).put("directory", directory)
+                val file = JSONObject().put("path", path).put("size", size).put("directory", directory)
                     .put("md5", entry.optString("md5").ifBlank { entry.optString("hash") }.takeIf { it.matches(Regex("[a-fA-F0-9]{32}")) }.orEmpty())
                     .put("sha256", entry.optString("sha256")).put("chunks", chunks).put("product", product)
-                    .put("offset", entry.optLong("offset")).put("remotePath", entry.optString("url").substringBefore('?')))
+                    .put("offset", entry.optLong("offset")).put("remotePath", entry.optString("url").substringBefore('?'))
+                val position = if (build.generation == 2) overlayPositions.putIfAbsent(path, files.length()) else null
+                if (position == null) files.put(file) else {
+                    require(files.getJSONObject(position).getBoolean("directory") == directory)
+                    files.put(position, file)
+                }
             }
         }
         check(files.length() > 0) { "GOG build contains no matching files" }

@@ -669,6 +669,8 @@ class SessionService : Service() {
         guest.add("DROIDDECK_WSI_BYPASS_CHECK_MS=100")
         guest.add("WINE_OFFSCREEN_CHECK_MS=100")
         guest.add("DD_REFRESH=" + Math.round(SessionState.refreshHz))
+        guest.add("DD_DEVICE_NAME=" + android.os.Build.MODEL)
+        com.droiddeck.launcher.gpu.SocNames.plainName().takeIf { it.isNotEmpty() }?.let { guest.add("DD_SOC_NAME=$it") }
         guest.add("DD_LOG=" + sessionLog.path)
         guest.add("DD_DEBUG_DIR=" + sessionDir.path)
         if (EnhancedDiagnostics.isActive(this, sessionDir)) guest.add("DROIDDECK_ENHANCED_DIAGNOSTICS=1")
@@ -691,12 +693,14 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "Epic install directory setup failed", it) }
         }
         if (steamHere || noSteamGame) {
-            val added = SessionEvents.step("added-games-scan") { com.droiddeck.launcher.frontend.AddedGames.scan(this) }
-            val listing = SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added) }
+            val listing = if (steamHere) SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGamesPublisher.sessionListing(this) } else {
+                val added = SessionEvents.step("added-games-scan") { com.droiddeck.launcher.frontend.AddedGames.scan(this) }
+                com.droiddeck.launcher.frontend.AddedGamesPublisher.log(added)
+                SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added) }
+            }
             guest.add("DD_ADDED_GAMES=" + listing.path)
-            if (OfflineMode.enabled(this)) guest.add("DD_STEAM_OFFLINE=1")
+            if (OfflineMode.active(this)) guest.add("DD_STEAM_OFFLINE=1")
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("DD_LOSSLESS_OWNED=1")
-            if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
         guest.add("DD_LAUNCH_DIR=" + sessionRoot.path)
         // Proton builds up to 11.12 report X11 text fields under this name.
@@ -784,7 +788,7 @@ class SessionService : Service() {
         if (drives > 0) Log.i(TAG, "$drives Wine drive links given their guest paths back")
         val hostEnv = if (nativeUserland) HostEnvironment().also { env ->
             Log.i(TAG, "native userland: no proot (${sessionBindSpecs.size} mounts)")
-            com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(root, sessionBindSpecs, SessionPrefs.guestHostname(this))
+            com.droiddeck.launcher.runtime.NativeGuest.sessionEnvironment(root, sessionBindSpecs, guest.first(), SessionPrefs.guestHostname(this))
                 .forEach { (k, v) -> env[k] = v }
         } else prootEnv
 
@@ -813,6 +817,11 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "desktop language pack: $it") }
         }
 
+        if (SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP) {
+            val steamOffline = SteamOfflineFollow()
+            steamOffline.attach(this)
+            components.add(steamOffline)
+        }
         val networkLink = LinuxNetworkLinkComponent(this, root)
         networkLink.attach(this)
         networkLink.publish()
@@ -1002,6 +1011,7 @@ class SessionService : Service() {
         ))
         guest.add("TZ=" + java.util.TimeZone.getDefault().id)
         if (SessionState.mode == MODE_STEAM) SessionPrefs.pendingShaderPrecache(this)?.let { guest.add("DD_SHADER_PRECACHE=" + if (it) "1" else "0") }
+        guest.add("DD_VALVE_PROTON=" + if (SessionPrefs.ownProtonFirst(this)) "0" else "1")
         guest.add("XDG_RUNTIME_DIR=" + LinuxRuntime.GUEST_RUNTIME_DIR)
         guest.add("XDG_SESSION_TYPE=wayland")
         guest.add("WAYLAND_DISPLAY=wayland-0")
@@ -1033,6 +1043,9 @@ class SessionService : Service() {
         )
         (if (bridge || venus) null else LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId))
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
+        // DroidDeck-Bionic games load an Android driver build; this is the one the display uses, for a runtime driver
+        // that has none.
+        guest.add("DROIDDECK_DISPLAY_DRIVER=" + com.droiddeck.launcher.gpu.TurnipDriver(this).effectiveId())
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno() && lastXwaylandCrashed()) {
             guest.add("XWAYLAND_NO_GLAMOR=1")
             Log.w(TAG, "xwayland: the last session's Xwayland crashed; glamor off for this one (XWAYLAND_NO_GLAMOR=1)")
@@ -1070,6 +1083,7 @@ class SessionService : Service() {
         guest.addAll(GpuStatsComponent.guestEnv(LinuxRuntime.rootDir(this)))
         guest.add("GLIBC_TUNABLES=glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216")
         if (SessionState.mode == MODE_STEAM) guest.add("DD_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
+        SessionPaths.current()?.let { SessionArtifacts.markRpcs3Log(it, LinuxRuntime.rootDir(this)) }
         SessionState.steamClientArch = if (steamHere) SessionPrefs.steamClientArch(this) else null
         SessionState.steamClientArch?.let { arch ->
             guest.add("DD_STEAM_CLIENT_ARCH=$arch")
@@ -1263,6 +1277,7 @@ class SessionService : Service() {
             components.add(hwmon)
             binds.add(hwmon.dir.path + ":/sys/class/hwmon")
         }
+        binds.addAll(CpuCacheSysfs.binds(File(filesDir, "session/sys/cpu-cache")))
         val cpuStat = CpuStatComponent(File(filesDir, "session/proc-stat"))
         if (cpuStat.prepare()) {
             cpuStat.attach(this)
@@ -1714,6 +1729,7 @@ class SessionService : Service() {
             var startupWasSuspended = false
             var seen = false
             var goneSince = 0L
+            var gamePid: String? = null
             while (token == gameExitWatchToken && gen == sessionGen && SessionState.running && !SessionState.stopRequested) {
                 val now = android.os.SystemClock.elapsedRealtime()
                 val startupSuspended = SessionState.suspended || SessionState.suspending || SessionState.phase != SessionPhase.READY
@@ -1729,7 +1745,8 @@ class SessionService : Service() {
                         lastStartupCheck = now
                     }
                 }
-                if (steamGameRunning(gameId)) {
+                gamePid = SteamGameProcess.runningPid(gameId, gamePid)
+                if (gamePid != null) {
                     if (!seen) {
                         Log.i(TAG, "game $gameId started; tracking its exit")
                         mainHandler.post {
@@ -2705,6 +2722,7 @@ class SessionService : Service() {
             gameId: String? = null,
             displayId: Int = Display.DEFAULT_DISPLAY,
         ) {
+            SteamClientPrefetch.cancel()
             SessionState.activityDisplayId = displayId
             val intent = Intent(context, SessionService::class.java).putExtra(EXTRA_MODE, mode)
                 .putExtra(EXTRA_DISPLAY_ID, displayId)

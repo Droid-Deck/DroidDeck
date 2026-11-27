@@ -13,7 +13,7 @@ object SettingsReset {
 
     internal val SESSION_KEYS = setOf(
         "orientation", "launcherFullscreen", "controllerHaptics", "animations", "lowStorageWarning", "theme", "runSteamAtStartup", "startupSession", "addedGamesArt",
-        "dualScreenMode", "dualScreenSessionMode", "dualScreenLauncher", "dualScreenSessionControls", "androidTextFieldKeyboard",
+        "drawerWidthDp", "dualScreenMode", "dualScreenSessionMode", "dualScreenLauncher", "dualScreenSessionControls", "androidTextFieldKeyboard",
         "soundtracksIngame", "gameStoresSpeedTier", "gameStoresParallel", "storesOpenTab", "storesShowMature",
         "storesInstallLanguage",
         "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "__KEEP_droidDeckHud__", "__KEEP_droidDeckHudPos__", "backHold", "dockedMenuController", "backActionsInverted", "backDoubleTapMs", "touch", "pen", "penButton", "osc", "shape", "steamController",
@@ -25,7 +25,7 @@ object SettingsReset {
         "noXalia", "fastSync", "fsyncFirst", "syncFallback", "prootNoSeccomp", "prootFastPath", "nativeUserland", "cursorComposite",
         "guestHostname", "fexPreset", "forceSsbs", "logs", "gameDebugLogsEnabled", "enhancedDiagnosticsNext", "storageDiagnostics", "buildWatermark",
         "upscaler", "upscaleSharpness", "screenEffects", "blackFrameInsertion", "textureAnisotropy", "textureLodBias",
-        "steamDownloadsInBackground", "steam_offline", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds", "skipBootMovie",
+        "steamDownloadsInBackground", "steam_offline", "steam_offline_auto", "steam_offline_by_network", "bootMovie", "bootMovieSound", "bootMovieVolume", "bootMovieSeconds", "skipBootMovie",
         "bootMovieApplyNext", "bootMovieSteamSeen", "bootMovieShuffle",
         "questDefaultsV1", "telemetryAuto", "telemetryOff", "statsStrip", "statsHud", "bottomHud", "bottomStripMetrics", "bottomStripTabs", "statsDash", "statsSpeedUnit",
     )
@@ -67,7 +67,7 @@ object SettingsReset {
         }
 
         QuestExperimental.initialize(context)
-        runCatching { OfflineMode.apply(context, LinuxRuntime.rootDir(context)) }
+        runCatching { OfflineMode.setEnabled(context, false) }
             .onFailure { ok = false; Log.w(TAG, "Could not turn offline mode off", it) }
         runCatching { GameEnvironmentStore.publish(context) }
             .onFailure { ok = false; Log.w(TAG, "Could not update game environment", it) }

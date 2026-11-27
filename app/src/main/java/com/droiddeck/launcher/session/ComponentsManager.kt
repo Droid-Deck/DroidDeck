@@ -29,6 +29,7 @@ object ComponentsManager {
     private const val NIGHTLIES = "The412Banner/Nightlies"
     private const val DD_COMPONENTS = "Droid-Deck/DroidDeck-Components"
     internal const val DD_NIGHTLY = "linux-nightly"
+    internal const val DD_BIONIC = "bionic-stable"
     private val RELEASES = linkedMapOf(
         "FexCore-Linux" to "fex",
         "Dxvk-Linux" to "dxvk",
@@ -37,9 +38,9 @@ object ComponentsManager {
         "Vkd3d-proton-Linux" to "vkd3d",
     )
     private val NIGHTLY_PREFIXES = linkedMapOf("DD-dxvk-" to "dxvk", "DD-vkd3d-proton-" to "vkd3d", "DD-FEXCore-" to "fex")
-    private val SOURCES = RELEASES.keys.map { NIGHTLIES to it } + (DD_COMPONENTS to DD_NIGHTLY)
+    private val SOURCES = RELEASES.keys.map { NIGHTLIES to it } + (DD_COMPONENTS to DD_NIGHTLY) + (DD_COMPONENTS to DD_BIONIC)
     private val DOWNLOAD_REPOS = listOf(NIGHTLIES, DD_COMPONENTS)
-    private val TYPES = mapOf("FEXCore-Linux" to "fex", "DXVK-Linux" to "dxvk", "VKD3D-Linux" to "vkd3d")
+    private val TYPES = mapOf("FEXCore-Linux" to "fex", "FEXCore-Bionic" to "fex", "DXVK-Linux" to "dxvk", "VKD3D-Linux" to "vkd3d")
     private val TYPE_OF = mapOf("fex" to "FEXCore-Linux", "dxvk" to "DXVK-Linux", "vkd3d" to "VKD3D-Linux")
     val COMPONENTS = listOf("fex", "dxvk", "vkd3d")
     val LABEL = mapOf("fex" to "FEX", "dxvk" to "DXVK", "vkd3d" to "VKD3D-Proton")
@@ -201,8 +202,34 @@ object ComponentsManager {
         COMPONENTS.mapNotNull { comp -> profile.optString(comp).takeIf(String::isNotEmpty)?.let { comp to it } }.toMap()
     }
 
-    fun setGameComponent(context: Context, scope: String, comp: String, file: String?) =
+    fun setGameComponent(context: Context, scope: String, comp: String, file: String?) {
         setGameComponent(context, scope, comp, file) { runtimeManaged(context, it) }
+        if (comp == "fex" && file != null) fetchFexTwin(context, safeName(file))
+    }
+
+    // Twin downloads in flight: one worker per name, so two profile changes cannot share one partial download.
+    private val twinDownloads = HashSet<String>()
+
+    private fun fetchFexTwin(context: Context, file: String) {
+        val twin = fexTwin(file) ?: return
+        if (protons(context).all { fexFits(it.dir.name, file) }) return
+        synchronized(lock) { if (isStored(context, twin) || !twinDownloads.add(twin)) return }
+        val app = context.applicationContext
+        Thread({
+            try {
+                runCatching {
+                    val item = catalogItem(app, twin, if (bionicFex(twin)) DD_BIONIC else "FexCore-Linux")
+                    if (item == null) Log.i(TAG, "$twin is not listed")
+                    else {
+                        download(app, item) {}
+                        republish(app)
+                    }
+                }.onFailure { Log.w(TAG, "download $twin", it) }
+            } finally {
+                synchronized(lock) { twinDownloads.remove(twin) }
+            }
+        }, "fex-twin").start()
+    }
 
     internal fun setGameComponent(context: Context, scope: String, comp: String, file: String?, managed: (String) -> Boolean) = synchronized(lock) {
         require(scope.matches(Regex("[1-9][0-9]{0,9}")) && scope.toLong() <= 4294967295L)
@@ -413,7 +440,7 @@ object ComponentsManager {
                 }
             }
             require(File(staged, "files").isDirectory) { "${wcp.name} has no files/" }
-            if (comp == "fex") FEX_FILES.filter { it.endsWith(".so") && !File(staged, it).isFile }.forEach { File(dir, it).delete() }
+            if (comp == "fex" && !bionicTool(dir.name)) FEX_FILES.filter { it.endsWith(".so") && !File(staged, it).isFile }.forEach { File(dir, it).delete() }
             COMP_DIR[comp]?.let { compDir ->
                 for (arch in PE_ARCHES) {
                     val target = File(dir, "$compDir/$arch")
@@ -603,7 +630,9 @@ object ComponentsManager {
                 File(base, "files").walkTopDown().filter { it.isFile }.map { it.relativeTo(base).invariantSeparatorsPath }
                     .filter { owned(comp, it) }.associateWith { File(base, it) }
             }
-            for (rel in managed(comp) - files.keys) {
+            // A bionic tool never loses a FEX file: its launch.sh would put the whole bundled FEX back.
+            val removed = if (comp == "fex" && bionicTool(p.dir.name)) emptySet() else managed(comp) - files.keys
+            for (rel in removed) {
                 lines.append(scope).append('\t').append(p.dir.name).append('\t').append(p.version).append('\t').append(comp)
                     .append('\t').append(rel).append("\t-\t-\n")
             }
@@ -620,7 +649,8 @@ object ComponentsManager {
                 val version = safeName(file.removePrefix("original "))
                 "original-${p.id}-$version-$comp" to File(originalsDir(context), "${p.id}/$version/$comp.wcp")
             } else {
-                safeName(file.removeSuffix(".wcp")) to File(packagesDir(context), file)
+                val fit = (if (comp == "fex") launchFex(p.dir.name, file) { File(packagesDir(context), it).isFile } else file) ?: return null
+                safeName(fit.removeSuffix(".wcp")) to File(packagesDir(context), fit)
             }.takeIf { it.second.isFile }
         }
 
@@ -651,12 +681,14 @@ object ComponentsManager {
         for (scope in profiles.keys()) {
             val profile = profiles.optJSONObject(scope) ?: continue
             for (comp in COMPONENTS) {
-                val file = profile.optString(comp)
-                if (file.isEmpty()) continue
-                val wcp = File(packagesDir(context), file)
-                if (!wcp.isFile) continue
-                val key = safeName(file.removeSuffix(".wcp"))
-                for (p in all) append(scope, p, comp, key, wcp)
+                val chosen = profile.optString(comp)
+                if (chosen.isEmpty()) continue
+                for (p in all) {
+                    val file = (if (comp == "fex") launchFex(p.dir.name, chosen) { File(packagesDir(context), it).isFile } else chosen) ?: continue
+                    val wcp = File(packagesDir(context), file)
+                    if (!wcp.isFile) continue
+                    append(scope, p, comp, safeName(file.removeSuffix(".wcp")), wcp)
+                }
             }
         }
         return PreparedLaunchState(lines.toString(), keep)
@@ -677,6 +709,7 @@ object ComponentsManager {
         val wcp = File(packagesDir(context), safeName(file))
         val info = packageInfo(context, wcp)
         requireSelectable(context, info.comp)
+        requireFits(p, info)
         val state = loadState(context)
         if (inUse(context, p)) {
             state.sub("queued").sub(p.id).put(info.comp, JSONObject().put("kind", "package").put("file", wcp.name).put("label", info.version)
@@ -690,7 +723,11 @@ object ComponentsManager {
         context.getString(R.string.cmgr_swap_done, LABEL[info.comp], info.version, p.name)
     }
 
+    private fun requireFits(p: Proton, info: Package) =
+        check(info.comp != "fex" || fexFits(p.dir.name, info.file)) { "${info.file} is not a FEX build for ${p.name}" }
+
     private fun applyPackage(context: Context, p: Proton, info: Package, wcp: File, state: JSONObject, auto: Boolean = false) {
+        requireFits(p, info)
         ensureOriginal(context, p, info.comp, state)
         val hashes = installFiles(context, p.dir, info.comp, wcp)
         state.sub("active").sub(p.id).put(info.comp, JSONObject()
@@ -803,6 +840,18 @@ object ComponentsManager {
     internal fun liveOnAny(key: String, entry: JSONObject, installs: List<Proton>?): Boolean =
         installs?.any { liveSelection(key, entry, it) } == true
 
+    // An installed tool that launches with `name` as the stored twin of a game's FEX choice (a Linux choice on
+    // DroidDeck-Bionic, a -bionic one on another Proton): deleting the twin would drop that choice for that tool.
+    internal fun twinUser(state: JSONObject, installed: List<Proton>, name: String): Proton? {
+        val profiles = state.optJSONObject("profiles") ?: return null
+        for (scope in profiles.keys()) {
+            val chosen = profiles.optJSONObject(scope)?.optString("fex")?.takeIf { it.isNotEmpty() } ?: continue
+            if (fexTwin(chosen) != name) continue
+            installed.firstOrNull { !fexFits(it.dir.name, chosen) }?.let { return it }
+        }
+        return null
+    }
+
     internal fun packagesInUse(state: JSONObject, installed: List<Proton>): Set<String> {
         val byId = installed.groupBy { it.id }
         val names = HashSet<String>()
@@ -819,7 +868,11 @@ object ComponentsManager {
         val profiles = state.optJSONObject("profiles")
         for (scope in profiles?.keys() ?: emptyList<String>().iterator()) {
             val profile = profiles?.optJSONObject(scope) ?: continue
-            COMPONENTS.forEach { comp -> profile.optString(comp).takeIf { it.isNotEmpty() }?.let(names::add) }
+            COMPONENTS.forEach { comp ->
+                val file = profile.optString(comp).takeIf { it.isNotEmpty() } ?: return@forEach
+                names.add(file)
+                if (comp == "fex" && installed.any { !fexFits(it.dir.name, file) }) fexTwin(file)?.let(names::add)
+            }
         }
         return names
     }
@@ -890,6 +943,7 @@ object ComponentsManager {
             val queued = state.sub("queued").sub(target.id)
             var changed = false
             wanted.forEach { (comp, entry) ->
+                if (comp == "fex" && !fexFits(target.dir.name, entry.optString("file"))) return@forEach
                 if (active?.has(comp) != true && !queued.has(comp)) {
                     queued.put(comp, entry)
                     changed = true
@@ -970,6 +1024,8 @@ object ComponentsManager {
     fun deletePackage(context: Context, file: String): String = synchronized(lock) {
         val name = safeName(file)
         val state = loadState(context)
+        val twinTool = twinUser(state, protons(context), name)
+        check(twinTool == null) { context.getString(R.string.cmgr_package_in_use, name, twinTool?.name ?: "") }
         val installed = protons(context).groupBy { it.id }
         var changed = false
         for (key in listOf("queued", "active")) {
@@ -1066,8 +1122,11 @@ object ComponentsManager {
         return Catalog(items, o.optLong("fetchedAt"))
     }
 
-    internal fun assetComp(release: String, name: String): String? =
-        RELEASES[release] ?: if (release == DD_NIGHTLY) NIGHTLY_PREFIXES.entries.firstOrNull { name.startsWith(it.key) }?.value else null
+    internal fun assetComp(release: String, name: String): String? = RELEASES[release] ?: when (release) {
+        DD_NIGHTLY -> NIGHTLY_PREFIXES.entries.firstOrNull { name.startsWith(it.key) }?.value
+        DD_BIONIC -> "fex"
+        else -> null
+    }
 
     internal val CATALOG_ORDER: Comparator<CatalogItem> =
         compareBy<CatalogItem> { it.comp }.thenBy { it.release == DD_NIGHTLY }.then(newestFirst { it.file })
@@ -1154,6 +1213,25 @@ object ComponentsManager {
         }
         return runCatching { readWcpEntry(original, rel) }.getOrNull()
     }
+
+    // DroidDeck-Bionic loads only Android builds of FEX's unix libraries; other Protons only glibc builds.
+    internal fun bionicTool(dirName: String?): Boolean = dirName?.startsWith("DroidDeck-Bionic") == true
+
+    internal fun bionicFex(file: String): Boolean = file.endsWith("-bionic.wcp", ignoreCase = true)
+
+    internal fun fexFits(toolDir: String?, file: String): Boolean = bionicTool(toolDir) == bionicFex(file)
+
+    internal fun fexTwin(file: String): String? = when {
+        file.endsWith("-linux.wcp", ignoreCase = true) -> file.dropLast("-linux.wcp".length) + "-bionic.wcp"
+        file.endsWith("-bionic.wcp", ignoreCase = true) -> file.dropLast("-bionic.wcp".length) + "-linux.wcp"
+        else -> null
+    }
+
+    internal fun launchFex(toolDir: String, file: String, stored: (String) -> Boolean): String? =
+        if (fexFits(toolDir, file)) file else fexTwin(file)?.takeIf(stored)
+
+    internal fun <T> forTool(comp: String, toolDir: String?, items: List<T>, selected: String? = null, file: (T) -> String): List<T> =
+        if (comp != "fex") items else items.filter { file(it) == selected || fexFits(toolDir, file(it)) }
 
     fun supports(p: Proton, comp: String): Boolean =
         if (comp == "fex") File(p.dir, FEX_FILES.first()).isFile else File(p.dir, "${COMP_DIR.getValue(comp)}/aarch64-windows").isDirectory

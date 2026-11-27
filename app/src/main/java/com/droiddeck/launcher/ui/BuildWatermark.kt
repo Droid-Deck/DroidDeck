@@ -81,10 +81,13 @@ object BuildWatermark {
         if (activity is QuestXrActivity) return
         val decor = activity.window.decorView as? ViewGroup ?: return
         decor.findViewWithTag<View>(TAG)?.let(decor::removeView)
-        if (!com.droiddeck.launcher.session.SessionPrefs.buildWatermarkEnabled(activity)) return
-        val lab = com.droiddeck.launcher.lab.LabOverlay.active?.let { "LAB | ${truncate(it.label)}" }
-        val build = lineProvider().orEmpty()
-        val content = (listOfNotNull(lab) + build).ifEmpty { return }
+        val prefs = com.droiddeck.launcher.session.SessionPrefs
+        val debugLogs = if (prefs.logsEnabled(activity) && prefs.gameDebugLogsEnabled(activity)) DEBUG_LOGS_LINE else null
+        val build = if (prefs.buildWatermarkEnabled(activity)) {
+            listOfNotNull(com.droiddeck.launcher.lab.LabOverlay.active?.let { "LAB | ${truncate(it.label)}" }) +
+                lineProvider().orEmpty()
+        } else emptyList()
+        val content = (build + listOfNotNull(debugLogs)).ifEmpty { return }
         val margin = (8 * activity.resources.displayMetrics.density).toInt()
         decor.addView(
             MarkView(activity, content).apply { tag = TAG },
@@ -95,6 +98,8 @@ object BuildWatermark {
             ).apply { setMargins(margin, margin, margin, margin) },
         )
     }
+
+    internal const val DEBUG_LOGS_LINE = "GAME DEBUG LOGS ON | slows games"
 
     private const val TAG = "build-watermark"
 

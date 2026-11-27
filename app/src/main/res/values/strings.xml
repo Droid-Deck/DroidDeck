@@ -35,8 +35,9 @@
     <string name="wall_settings_fps" translatable="false">Frame rate (fps)</string>
     <string name="wall_settings_match" translatable="false">Match screen</string>
     <string name="wall_settings_speed" translatable="false">Scroll speed</string>
+    <string name="loading_first_run">First launch also downloads Proton Experimental (about 400 MB) and sets Steam up. After this it starts much faster.</string>
     <string-array name="loading_hints">
-        <item>First run downloads Steam. This may take a few minutes.</item>
+        <item>DroidDeck downloads Steam in the background while you set up, so your first launch is quicker.</item>
         <item>Your controller shows up to Steam as a Steam Deck controller. Switch it to a Steam Controller, DualShock 4, DualSense or Xbox 360 pad in the session settings; it applies next session.</item>
         <item>Hold Back on your controller to open Steam\'s Quick Access menu. Hold Back for Steam shortcuts must be on in the session settings.</item>
         <item>Background behavior decides what happens when you leave the app: Native readies Steam for sleep, Auto pauses it, Manual waits for Resume, Never keeps it running.</item>
@@ -362,7 +363,6 @@
     <string name="mode_startup">Startup</string>
     <string name="mode_startup_session">Open at launch</string>
     <string name="mode_startup_session_hint">Starts this session when DroidDeck launches.</string>
-    <string name="mode_decky">Decky</string>
     <string name="mode_decky_checking">Checking for releases…</string>
     <string name="mode_decky_ready">Ready to install %1$s.</string>
     <string name="mode_decky_none">No compatible build found. Try again later.</string>
@@ -371,14 +371,10 @@
     <string name="mode_decky_current">Up to date · %1$s</string>
     <string name="mode_decky_loader">Loader</string>
     <string name="mode_decky_install_latest">Install latest</string>
-    <string name="decky_channel">Update Channel</string>
-    <string name="decky_channel_hint">Which Decky Loader releases to install. Decky\'s own updater uses the same channel.</string>
     <string name="decky_channel_stable">Stable</string>
     <string name="decky_channel_prerelease">Prerelease</string>
     <string name="decky_channel_testing">Testing</string>
     <string name="decky_channel_failed">Could not save the Decky update channel</string>
-    <string name="mode_decky_on">Starts with Steam. While on, other apps on this device may be able to control Steam.</string>
-    <string name="mode_decky_off">Off. Steam\'s remote debugging port stays closed.</string>
     <string name="mode_decky_remove_title">Uninstall Decky Loader?</string>
     <string name="mode_decky_remove_text">Removes the loader. Your plugins and settings are kept.</string>
     <string name="mode_client">Client</string>
@@ -387,6 +383,7 @@
     <string name="mode_return_after_game">Return to DroidDeck after a game</string>
     <string name="mode_return_after_game_hint">When a game you started from DroidDeck or another launcher closes, Steam exits cleanly (cloud saves finish first) and you go back there. Off: stay in Steam.</string>
     <string name="mode_shader_precache">Shader pre-caching</string>
+    <string name="mode_valve_proton_on_demand">Valve Proton only when needed</string>
     <string name="mode_shader_precache_hint">Steam downloads shaders prebuilt for your games and processes them in the background, so games stutter less. Off saves data, storage and battery; games build shaders as they play instead. The same setting as Steam’s Downloads > Shader Pre-Caching. Applies next session.</string>
     <string name="mode_steam_repair">Repair Steam client</string>
     <string name="mode_steam_repair_hint">Downloads the Steam client again the next time Steam starts. Use it if Steam stays on its loading screen. Games, sign-in and settings are kept.</string>
@@ -676,7 +673,7 @@
     <string name="perf_fastpath_needs_seccomp">Needs proot\'s seccomp filter.</string>
     <string name="perf_fastpath_hint">Faster file lookups and less stutter. Turn off if a program can\'t find its files.</string>
     <string name="perf_cursor_composite">Draw the cursor inside gamescope</string>
-    <string name="perf_cursor_composite_hint">Gamescope paints the pointer itself instead of handing it to Android. Turn on for a controller-driven cursor. Off is faster on a phone. Applies next session.</string>
+    <string name="perf_cursor_composite_hint">Gamescope paints the pointer itself instead of handing it to Android. Applies next session.</string>
     <string name="perf_identity">Session identity</string>
     <string name="perf_hostname">Host name</string>
     <string name="perf_hostname_hint">The name Steam sees for this device. Blank restores %1$s.</string>
@@ -709,6 +706,9 @@
     <string name="drawer_prev_page">Previous page</string>
     <string name="drawer_next_page">Next page</string>
     <string name="drawer_manage_pages">Arrange pages</string>
+    <string name="drawer_page_more">More</string>
+    <string name="drawer_more_back">Back to %1$s</string>
+    <string name="drawer_more_empty">Nothing is kept here. Arrange pages and move one below the More row.</string>
     <string name="drawer_pages_reset">Reset</string>
     <string name="drawer_pages_done">Done</string>
     <string name="drawer_hud">Performance HUD</string>
@@ -869,6 +869,7 @@
     <string name="drawer_pc_keyboard">PC keyboard</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Second screen</string>
+    <string name="drawer_resize">Resize the menu</string>
     <string name="drawer_second_screen_shows">Shows</string>
     <string name="drawer_android_apps">Android apps</string>
     <string name="drawer_launch_app">Launch an app</string>
@@ -965,7 +966,7 @@
     <string name="diagnostics_share_games">Games and compatibility</string>
     <string name="diagnostics_share_all">All bundles</string>
     <string name="setup_game_debug_logs">Game debug logs</string>
-    <string name="setup_game_debug_logs_hint">Include Proton, Wine and graphics diagnostics on the next game launch. Can reduce performance and use more storage.</string>
+    <string name="setup_game_debug_logs_hint">Include Proton, Wine and graphics diagnostics on the next game launch. Turns itself off when that session ends. Can reduce performance and use more storage.</string>
     <string name="setup_game_debug_logs_restart">Restart this session to save game debug logs</string>
     <string name="setup_logging_update_failed">Couldn\'t update logging. Check the switch and try again.</string>
     <string name="setup_agent_commands">Debugging tools</string>
@@ -1003,6 +1004,7 @@
     <string name="setup_reset_settings_session_running">Stop the session before resetting settings.</string>
     <string name="setup_reset_settings_partial">Settings were reset, but some parts could not be. The logs have the details.</string>
     <string name="setup_offline">Offline mode</string>
+    <string name="setup_offline_auto">Auto offline mode</string>
     <string name="setup_sign_in_first">Sign in to Steam first</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Language</string>
@@ -1042,10 +1044,11 @@
     <string name="setup_dual_screen_launcher">Dual screen launcher</string>
     <string name="setup_dual_screen_launcher_hint">Automatic puts the launcher sections (Steam, Library, Stores and the rest) on the second screen of handhelds with a built-in one. On uses any second display. Off keeps the launcher on one screen.</string>
     <string name="setup_dual_screen_sessions">Dual screen sessions</string>
-    <string name="setup_dual_screen_sessions_hint">Automatic docks the in-game menu on the built-in second screen instead of a pop-over. On uses any second display. Off keeps the menu on the game screen; you can still pick a second screen from it.</string>
+    <string name="setup_dual_screen_sessions_hint">Automatic docks the in-game menu on the built-in second screen instead of a pop-over. On uses any second display. On, game on second screen runs the game there and keeps the menu and controls on this screen, for a phone driving a monitor or TV. Off keeps the menu on the game screen; you can still pick a second screen from it.</string>
     <string name="setup_dual_screen_auto">Automatic</string>
     <string name="setup_dual_screen_on">On</string>
     <string name="setup_dual_screen_off">Off</string>
+    <string name="setup_dual_screen_swapped">On, game on second screen</string>
     <string name="setup_dual_screen_controls">Bottom screen controls in games</string>
     <string name="setup_android_text_field_keyboard">Android keyboard for text fields</string>
     <string name="setup_dual_screen_controls_hint">Opens a panel on the second screen when a session starts: the Deck buttons and trackpads with a Steam Deck or Steam Controller, otherwise the one you used last.</string>
@@ -1421,13 +1424,12 @@
     <string name="gate_title">One Android setting to change</string>
     <string name="gate_eyebrow">Steam</string>
     <string name="gate_lede">Android stops apps that start many background processes, and Steam starts dozens. Until this changes, games close without an error.</string>
+    <string name="gate_notifications_toast">The pairing code goes in a notification. Turn on notifications for DroidDeck, then try again.</string>
     <string name="gate_fix_for_me">Fix it for me</string>
     <string name="gate_toggle_steps">Turn on “Disable child process restrictions”, then come back. Leave Developer options on, or the switch turns off again.</string>
     <string name="gate_open_dev">Open Developer options</string>
     <string name="gate_no_toggle">This Android version has no switch for it, so DroidDeck changes it over Wireless debugging. Takes about a minute, no computer needed.</string>
     <string name="gate_needs_wifi">Wireless debugging needs Wi-Fi. Any network works; it doesn\'t need internet.</string>
-    <string name="gate_needs_notifications">The pairing code goes in a notification. Allow notifications for DroidDeck, or use Other ways.</string>
-    <string name="gate_allow_notifications">Allow notifications</string>
     <string name="gate_step1">Open Settings → Developer options → Wireless debugging and turn it on</string>
     <string name="gate_step2">Tap “Pair device with pairing code”</string>
     <string name="gate_step3">Type the code into the DroidDeck notification</string>
@@ -1444,49 +1446,16 @@
     <string name="gate_status">Status</string>
     <string name="gate_polling">Checking every 2 seconds. This page closes when it\'s off.</string>
     <string name="gate_other_ways">Other ways</string>
-    <string name="gate_other_toggle">Wireless debugging, manual address, computer ADB</string>
-    <string name="gate_other_no_toggle">Manual address, computer ADB, Developer options</string>
+    <string name="gate_other_toggle">Computer ADB</string>
+    <string name="gate_other_no_toggle">Computer ADB, Developer options</string>
     <string name="gate_use_wireless_instead">Use Wireless debugging instead</string>
     <string name="gate_some_roms">Some ROMs add the switch anyway. Look for “child process” in Developer options.</string>
-    <string name="gate_manual_hint">If the notification doesn\'t work, enter the pop-up\'s address and code yourself.</string>
-    <string name="gate_enter_manually">Enter address manually</string>
     <string name="gate_from_computer">From a computer with ADB:</string>
     <string name="gate_copy_command">Copy command</string>
     <string name="gate_sidequest" translatable="false">SideQuest</string>
     <string name="gate_sidequest_steps">Connect the headset to a computer and open SideQuest. Choose “Run ADB Command”, then “Custom Command”, type the command shown below and select “Run Command”.</string>
     <string name="gate_choose_display">Choose which display to open Android Settings on.</string>
     <string name="gate_main_screen">Main screen</string>
-    <string name="wadb_finding_port">Paired. Finding the Wireless debugging port…</string>
-    <string name="wadb_enter_port">Paired. Enter the port from Settings.</string>
-    <string name="wadb_applying">Device found. Applying the setting…</string>
-    <string name="wadb_apply_failed">Couldn\'t apply automatically. Check the address below and retry. %1$s</string>
-    <string name="wadb_title_wireless">Wireless debugging</string>
-    <string name="wadb_title_done">Child-process limit updated</string>
-    <string name="wadb_title">Change the child-process limit</string>
-    <string name="wadb_lede_compact0">If the option is missing, pair over Wireless debugging.</string>
-    <string name="wadb_lede_compact1">Paired. Check the IP address and port in Wireless debugging.</string>
-    <string name="wadb_lede_done">The child-process limit was updated.</string>
-    <string name="wadb_lede0">Use step 2 if Developer options has no child-process setting. Open Developer options → Wireless debugging → Pair device with pairing code.</string>
-    <string name="wadb_lede1">Paired. Use the address below, or update it from Wireless debugging → IP address &amp; Port.</string>
-    <string name="wadb_lede_done_long">The child-process limit was updated over Wireless debugging.</string>
-    <string name="wadb_confirmed_on">Android confirmed the limit is on.</string>
-    <string name="wadb_confirmed_off">Android confirmed the limit is off.</string>
-    <string name="wadb_pair_group">2 · Pair Wireless debugging</string>
-    <string name="wadb_pair_address">Pairing pop-up IP address &amp; port</string>
-    <string name="wadb_pin">Pairing code (PIN)</string>
-    <string name="wadb_pin_placeholder">6 digits</string>
-    <string name="wadb_pair">Pair</string>
-    <string name="wadb_apply_group">2 · Apply over Wireless debugging</string>
-    <string name="wadb_connect_address">Connection IP address &amp; port</string>
-    <string name="wadb_pair_again">Pair again</string>
-    <string name="wadb_turn_off">Turn limit off</string>
-    <string name="wadb_other_ways">Other ways to change it</string>
-    <string name="wadb_dev_try_first">1 · Developer options (try first)</string>
-    <string name="wadb_restrict_on">Turn off “Disable child process restrictions”.</string>
-    <string name="wadb_restrict_off">Turn on “Disable child process restrictions”.</string>
-    <string name="wadb_computer_last">3 · Computer ADB (last resort)</string>
-    <string name="wadb_only_if">Only if Wireless debugging is unavailable.</string>
-    <string name="wadb_computer_group">3 · Computer ADB (last resort)</string>
     <string name="ctrl_color">Color</string>
     <string name="ctrl_custom">Custom</string>
     <string name="ctrl_opacity">Opacity</string>
@@ -1838,8 +1807,6 @@
         <item quantity="one">Cleared %1$d session log folder.</item>
         <item quantity="other">Cleared %1$d session log folders.</item>
     </plurals>
-    <string name="main_wadb_pair_failed">Wireless debugging pairing failed</string>
-    <string name="main_wadb_command_failed">Wireless debugging command failed</string>
     <string name="main_wadb_unavailable">Wireless debugging is unavailable</string>
     <string name="main_adb_copied">ADB command copied</string>
     <string name="main_pick_roms">Choose the ROMs folder</string>
@@ -1876,6 +1843,7 @@
     <string name="main_pick_game_storage">Choose the game storage folder</string>
     <string name="main_pick_decky_zip">Choose a Decky plugin ZIP</string>
     <string name="main_storage_not_usable">Not usable: %1$s</string>
+    <string name="main_storage_fat32">FAT32 cannot hold files over 4 GB, so some games will fail to install. Reformat as exFAT.</string>
     <string name="main_running_program">Program</string>
     <string name="main_removing_runtime">Removing Linux runtime</string>
     <string name="main_settings_main_screen">Could not open Settings on the bottom screen; opened it on the main screen.</string>
@@ -2221,6 +2189,23 @@
     <string name="fm_favorite_removed">Removed \"%1$s\" from Favorites</string>
     <string name="fm_empty_directory">Empty directory</string>
     <string name="fm_up_one_level">Up one level</string>
+    <string name="fm_edit_open">Open</string>
+    <string name="fm_edit_save">Save</string>
+    <string name="fm_edit_read_only">Read only</string>
+    <string name="fm_edit_binary">Binary</string>
+    <string name="fm_edit_modified">Modified</string>
+    <string name="fm_edit_position">Ln %1$d, Col %2$d</string>
+    <string name="fm_edit_find">Find</string>
+    <string name="fm_edit_find_previous">Find previous</string>
+    <string name="fm_edit_find_next">Find next</string>
+    <string name="fm_edit_replace">Replace</string>
+    <string name="fm_edit_replace_all">All</string>
+    <string name="fm_edit_discard_title">Discard changes?</string>
+    <string name="fm_edit_discard_text">Changes to \"%1$s\" will be lost.</string>
+    <string name="fm_edit_discard">Discard</string>
+    <string name="fm_edit_save_failed">Couldn\'t save \"%1$s\"</string>
+    <string name="fm_edit_open_failed">Couldn\'t open \"%1$s\"</string>
+    <string name="fm_edit_too_large">Too large to open (%1$s)</string>
     <string name="fm_choose_folder">Choose a folder</string>
     <string name="fm_choose_file">Choose a file</string>
     <string name="ctrl_tint_steam_blue">Steam blue</string>
@@ -2334,6 +2319,14 @@
     <string name="stats_hud_red_mark">The red mark is where the HUD shows the temperature in red.</string>
     <string name="stats_hud_whole_device">whole device</string>
     <string name="stats_hud_battery_temp">battery</string>
+    <string name="bottom_art_title">Game art</string>
+    <string name="bottom_art_playing">Playing</string>
+    <string name="bottom_idle_selected">Selected in Steam</string>
+    <string name="bottom_idle_recent">Last played</string>
+    <string name="bottom_idle_never">Not played yet</string>
+    <string name="bottom_idle_minutes">%1$d min played</string>
+    <string name="bottom_idle_hours">%1$d h played</string>
+    <string name="bottom_idle_details" translatable="false">%1$s · %2$s</string>
     <string name="bottom_telemetry_send_title">Send dashboard data</string>
     <string name="bottom_telemetry_send_auto">Automatic</string>
     <string name="bottom_telemetry_send_auto_hint">Turns it on for every game listed here, including games found later. Games you switch off stay off.</string>
@@ -2356,6 +2349,70 @@
     <string name="bottom_chat_mic_off">Mic off</string>
     <string name="bottom_chat_mic_unavailable">Mic is off for this game. To talk, turn on Microphone in DroidDeck\'s Steam settings (Audio) and start the game again.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
+    <string name="bottom_bar_hide">Hide bar</string>
+    <string name="bottom_bar_show">Show bar</string>
+    <string name="bottom_brightness">Bottom screen brightness</string>
+    <string name="bottom_screen_off">Turn off the bottom screen</string>
+    <string name="bottom_page_guides">Guides</string>
+    <string name="bottom_guides_no_game">Start a game to see its Steam guides here.</string>
+    <string name="bottom_guides_continue">Continue reading</string>
+    <string name="bottom_guides_empty">There are no Steam guides for this game yet.</string>
+    <string name="bottom_guides_failed">Could not load Steam guides. Check back once you are online.</string>
+    <string name="bottom_page_mirror">Mirror</string>
+    <string name="bottom_mirror_pick">Drag over the part of the game to show here, such as the minimap.</string>
+    <string name="bottom_mirror_save">Save region</string>
+    <string name="bottom_mirror_sharp">Sharp</string>
+    <string name="bottom_mirror_smooth">Smooth</string>
+    <string name="bottom_mirror_no_frame">The game picture cannot be copied right now.</string>
+    <string name="bottom_guides_wiki">Wiki &amp; fixes</string>
+    <string name="bottom_guides_maps">Maps</string>
+    <string name="bottom_guides_saved">Saved</string>
+    <string name="bottom_guides_tag_all">All</string>
+    <string name="bottom_guides_tag_walkthroughs">Walkthroughs</string>
+    <string name="bottom_guides_tag_secrets">Secrets</string>
+    <string name="bottom_guides_pinned">Map pinned to this game\'s maps.</string>
+    <string name="bottom_guides_pin_failed">That image could not be saved.</string>
+    <string name="bottom_guides_saved_note">Page saved for offline reading.</string>
+    <string name="bottom_guides_search">Search the web</string>
+    <string name="bottom_guides_markers">Markers: %1$d</string>
+    <string name="bottom_guides_find_maps">Find maps</string>
+    <string name="bottom_guides_saved_hint">Use Save in the reader to keep a page for offline reading.</string>
+    <string name="bottom_guides_pin">Pin as map</string>
+    <string name="bottom_guides_pin_hint">Long-press an image to pin it as a map.</string>
+    <string name="bottom_guides_marker_hint">Pinch to zoom. Long-press to add a marker, tap one to remove it.</string>
+    <string name="bottom_guides_link_wiki">Game wiki</string>
+    <string name="bottom_guides_link_pcgw">PCGamingWiki fixes</string>
+    <string name="bottom_guides_search_youtube">YouTube walkthroughs</string>
+    <string name="bottom_mirror_hide_off">Shown</string>
+    <string name="bottom_mirror_hide_black">Hidden</string>
+    <string name="bottom_mirror_hide_dim">Dimmed</string>
+    <string name="bottom_guides_protondb" translatable="false">ProtonDB</string>
+    <string name="bottom_guides_link_strategywiki" translatable="false">StrategyWiki</string>
+    <string name="bottom_guides_link_gamefaqs" translatable="false">GameFAQs</string>
+    <string name="bottom_guides_link_ign" translatable="false">IGN</string>
+    <string name="bottom_guides_link_hltb" translatable="false">HowLongToBeat</string>
+    <string name="bottom_guides_search_mapgenie" translatable="false">Map Genie</string>
+    <string name="bottom_guides_tier_platinum" translatable="false">Platinum</string>
+    <string name="bottom_guides_tier_gold" translatable="false">Gold</string>
+    <string name="bottom_guides_tier_silver" translatable="false">Silver</string>
+    <string name="bottom_guides_tier_bronze" translatable="false">Bronze</string>
+    <string name="bottom_guides_tier_borked" translatable="false">Borked</string>
+    <string name="bottom_guides_steam">Steam guides</string>
+    <string name="bottom_guides_category">Category</string>
+    <string name="bottom_guides_maps_empty">No pinned maps yet</string>
+    <string name="bottom_guides_map_name">Map %1$d</string>
+    <string name="bottom_guides_saved_empty">No saved pages yet</string>
+    <string name="bottom_mirror_options">Mirror options</string>
+    <string name="bottom_mirror_region">Region</string>
+    <string name="bottom_mirror_top">Top screen</string>
+    <string name="bottom_mirror_scaling">Scaling</string>
+    <string name="bottom_qam_title">Quick Access</string>
+    <string name="bottom_qam_layout">Layout: %1$s</string>
+    <string name="bottom_qam_layout_full">Full width</string>
+    <string name="bottom_qam_layout_left">Left</string>
+    <string name="bottom_qam_layout_center">Center</string>
+    <string name="bottom_qam_layout_right">Right</string>
+    <string name="bottom_qam_unavailable">Steam\'s Quick Access menu is not available yet.</string>
     <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_hud_group">Bottom screen HUD</string>
     <string name="bottom_strip_tabs">Strip on every tab</string>
@@ -3051,6 +3108,7 @@
     <string name="stores_login_error_ssl">The connection to the sign-in page is not secure.</string>
     <string name="stores_login_error_verification">The sign-in could not be verified. Try again.</string>
     <string name="stores_login_error_generic">Sign-in failed. Try again.</string>
+    <string name="stores_login_continue_in_browser">%1$s needs one more step. Finish it in the browser that opened, then try again.</string>
     <string name="common_close">Close</string>
     <string name="common_back">Back</string>
     <string name="common_edit">Edit</string>
@@ -3469,7 +3527,7 @@
     <string name="hand_camera_done">Done</string>
     <string name="glasses_xreal_network_missing">Waiting for the glasses’ USB Ethernet connection. This phone may not expose it to apps.</string>
     <string name="glasses_xreal_connection_failed">The XREAL connection was interrupted or returned an unsupported response. Retrying…</string>
-    <string name="glasses_xreal_experimental">Experimental XREAL 1S, One, One Pro, One Pro+ and Aura support. Use Follow mode and turn off stabilization in the glasses menu; on the Aura, also turn off Spatial Anchor. Head tracking and 2D/3D switching are tested on the Aura.</string>
+    <string name="glasses_xreal_experimental">Experimental XREAL 1S, One, One Pro, One Pro+ and Aura support. Use Follow mode and turn off stabilization in the glasses menu; on the Aura, also turn off Spatial Anchor. Head tracking and 2D/3D switching are tested on the Aura and One Pro+.</string>
     <string name="glasses_pro2_experimental">Experimental Pro 2 head tracking. Brightness, volume, and display switching are not supported yet.</string>
     <string name="display_picture_position">Picture position</string>
     <string name="display_position_top">Top</string>
@@ -4136,6 +4194,8 @@
     <string name="integration_wifi_denied">Location denied · allow it in App info</string>
     <string name="integration_brightness_hint">Steam’s slider sets screen brightness</string>
     <string name="integration_home_hint">Home opens the Steam menu in a session</string>
+    <string name="integration_bluetooth">Bluetooth controllers</string>
+    <string name="integration_bluetooth_hint">Lets DroidDeck connect to Steam Controllers and other Bluetooth pads</string>
     <string name="integration_shortcuts_hint">Alt+Tab, Win key and Home button stay in the session</string>
     <string name="integration_shortcuts_maybe_restricted">Greyed out in Android? App info → ⋮ → Allow restricted settings</string>
     <string name="integration_shortcuts_install_failed">System keys didn\'t install</string>
@@ -4202,6 +4262,7 @@
     <string name="addons_sort_downloads">Most downloaded</string>
     <string name="addons_category_all">All categories</string>
     <string name="addons_none_found">No addons found</string>
+    <string name="addons_curse_busy">Close CurseForge first</string>
     <string name="addons_unreachable">Could not reach %1$s</string>
     <string name="addons_no_file">No file for this game version</string>
     <string name="addons_source_wowi" translatable="false">WoWInterface</string>
@@ -4323,6 +4384,27 @@
     <string name="dev_preview_drawer">In-game menu</string>
     <string name="dev_preview_drawer_backdrop">In-game menu preview · Back to close</string>
     <string name="settings_place_tab">Tabs</string>
+    <string name="decky_status">Status</string>
+    <string name="decky_enable">Enable</string>
+    <string name="decky_release_channel">Release channel</string>
+    <string name="rail_decky">Decky</string>
+    <string name="rail_boot_movies">Boot movies</string>
+    <string name="decky_tab_installed">Installed · %1$d</string>
+    <string name="decky_tab_store">Store</string>
+    <string name="decky_tab_zip">From ZIP</string>
+    <string name="decky_none_installed">No plugins installed. Browse the Store or install a ZIP.</string>
+    <string name="decky_update_to">Update to %1$s</string>
+    <string name="decky_remove">Remove</string>
+    <string name="decky_remove_confirm">Remove %1$s?</string>
+    <string name="decky_remove_confirm_body">Deletes the plugin from Decky. Its settings are kept.</string>
+    <string name="decky_changes_next_session">Plugin changes apply the next time Steam starts.</string>
+    <string name="decky_store_search">Search plugins</string>
+    <string name="decky_store_failed">Could not reach the Decky plugin store</string>
+    <string name="decky_store_empty">No plugins found</string>
+    <string name="decky_store_more">Show %1$d more</string>
+    <string name="decky_store_downloading">Downloading %1$s…</string>
+    <string name="decky_store_download_failed">Could not download %1$s</string>
+    <string name="decky_store_remove_failed">Could not remove the plugin</string>
     <string name="rail_storage">Storage</string>
     <string name="rail_sync">Syncthing</string>
     <string name="downloads_settings">Download settings</string>
@@ -4361,4 +4443,26 @@
     <string name="tabs_reset_title">Reset tabs</string>
     <string name="tabs_reset_hint">Steam, Desktop, Library, Downloads, Settings and Updates on the bar, the rest under More.</string>
     <string name="tabs_reset_body">Your tab order and what sits under More or is hidden go back to the defaults.</string>
+    <string name="onboarding_title">Getting DroidDeck ready</string>
+    <string name="onboarding_summary">%1$d%% · you can keep using the app</string>
+    <string name="onboarding_step_runtime">Linux runtime</string>
+    <string name="onboarding_step_proton">DroidDeck Proton</string>
+    <string name="onboarding_step_steam">Steam client</string>
+    <string name="onboarding_waiting">Waiting</string>
+    <string name="onboarding_done">Ready</string>
+    <string name="onboarding_failed">Will retry</string>
+    <string name="onboarding_steam_downloading">Downloading the Steam client</string>
+    <string name="onboarding_steam_downloading_mb">Downloading the Steam client (%1$d MB)</string>
+    <string name="onboarding_steam_failed">The Steam client download will retry</string>
+    <string name="onboarding_limit_reason">Android can close Steam’s helper processes. Turn that off now, while the downloads run, and Play is ready the moment they finish.</string>
+    <string name="onboarding_limit_action">Do it for me</string>
+    <string name="onboarding_limit_while_waiting">Set up while you wait</string>
+    <string name="onboarding_chip">Getting ready · %1$d%% · %2$s</string>
+    <string name="hud_only_during_game">Show HUD only during a game</string>
+    <string name="hud_only_during_game_hint">Hide the HUD when no game frames are detected.</string>
+    <string name="onboarding_button_getting_ready">Getting ready · %1$d%%</string>
+    <string name="onboarding_button_finish">Finish setup · %1$d%%</string>
+    <string name="steam_store_close_steam">Close Steam first</string>
+    <string name="steam_store_session_wait">Pause the Steam download first</string>
+    <string name="steam_store_linux_build">This game installs its Linux build. Install it from Steam.</string>
 </resources>

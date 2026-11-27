@@ -308,8 +308,7 @@ public final class TurnipDriver {
             }
         }
         if (chosen != null && !chosen.isEmpty()) {
-            if (SessionPrefs.GPU_DRIVERS_AUTO.equals(SessionPrefs.INSTANCE.gpuDriverMode(context))
-                    && SessionPrefs.INSTANCE.gpuAutoInstalled(context).contains(chosen)
+            if (SessionPrefs.INSTANCE.displayDriverFromAuto(context)
                     && gpuDetector.get().getFamily() == GpuInfo.Family.A7XX_LOW) {
                 Log.i(TAG, "Auto-selected display driver does not cover Adreno 710/720/722; leaving the display driver to the system");
                 return null;

@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -12,17 +14,83 @@ PROBE = r"""
 #include <dirent.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 int main(int argc, char **argv) {
   char cwd[4096];
   for (int i = 1; i < argc; i++) {
     struct stat st;
+    if (strncmp(argv[i], "env:", 4) == 0) {
+      const char *value = getenv(argv[i] + 4);
+      printf("%s\t%s\n", argv[i], value ? value : "-");
+      continue;
+    }
+    if (strncmp(argv[i], "parent:", 7) == 0) {
+      char dir[4096];
+      snprintf(dir, sizeof(dir), "%s", argv[i] + 7);
+      char *rel = strchr(dir, '|'), *want = NULL;
+      if (rel) *rel++ = 0;
+      if (rel && (want = strchr(rel, '|'))) *want++ = 0;
+      int fd = open(dir, O_RDONLY | O_DIRECTORY);
+      struct stat expected;
+      int ok = fd >= 0 && fstatat(fd, rel ? rel : "..", &st, 0) == 0 && stat(want ? want : "/", &expected) == 0;
+      printf("%s\t%d\n", argv[i], ok && st.st_dev == expected.st_dev && st.st_ino == expected.st_ino);
+      if (fd >= 0) close(fd);
+      continue;
+    }
+    if (strncmp(argv[i], "exec-without:", 13) == 0) {
+      extern char **environ;
+      char *program = strchr(argv[i] + 13, '=');
+      if (!program) continue;
+      size_t n = 0, len = (size_t)(program++ - (argv[i] + 13));
+      while (environ[n]) n++;
+      char **env = calloc(n + 1, sizeof(char *));
+      size_t used = 0;
+      for (size_t k = 0; k < n; k++)
+        if (strncmp(environ[k], argv[i] + 13, len) != 0 || environ[k][len] != '=') env[used++] = environ[k];
+      char *args[] = {program, "env:DDNATV_BINDS_KERNEL", NULL};
+      fflush(stdout);
+      pid_t pid = fork();
+      if (pid == 0) {
+        execve(program, args, env);
+        _exit(127);
+      }
+      waitpid(pid, NULL, 0);
+      free(env);
+      continue;
+    }
+    if (strncmp(argv[i], "fork:", 5) == 0) {
+      fflush(stdout);
+      pid_t pid = fork();
+      if (pid == 0) {
+        int p[2];
+        char path[64], data[8] = "-";
+        if (pipe(p) == 0 && write(p[1], "x", 1) == 1 && dup2(p[0], 63) == 63) {
+          snprintf(path, sizeof(path), "%s/63", argv[i] + 5);
+          int fd = open(path, O_RDONLY);
+          ssize_t n = fd >= 0 ? read(fd, data, sizeof(data) - 1) : -1;
+          if (n > 0) data[n] = 0;
+          if (fd >= 0) close(fd);
+        }
+        printf("%s\t%s\n", argv[i], data);
+        fflush(stdout);
+        _exit(0);
+      }
+      waitpid(pid, NULL, 0);
+      continue;
+    }
     if (strncmp(argv[i], "cd:", 3) == 0) {
       int ok = chdir(argv[i] + 3) == 0 && getcwd(cwd, sizeof(cwd)) != NULL;
       printf("%s\t%s\n", argv[i], ok ? cwd : "-");
+      continue;
+    }
+    if (strncmp(argv[i], "lstat:", 6) == 0) {
+      int ok = lstat(argv[i] + 6, &st) == 0;
+      printf("%s\t%d\t%d\n", argv[i], ok, ok && S_ISLNK(st.st_mode));
       continue;
     }
     if (strncmp(argv[i], "at:", 3) == 0) {
@@ -76,6 +144,8 @@ class NativeHookMountTest(unittest.TestCase):
         cls.root = tmp / "root"
         cls.library = tmp / "storage/PC GAMES"
         (cls.root / "etc").mkdir(parents=True)
+        (cls.root / "deep/er/est").mkdir(parents=True)
+        (cls.root / "linked").symlink_to("deep/er/est")
         (cls.root / "etc/hostname").write_text("rootfs")
         (cls.root / "mnt/library/Some Game").mkdir(parents=True)
         (cls.root / "mnt/library/Some Game/game.txt").write_text("mount point")
@@ -107,6 +177,20 @@ class NativeHookMountTest(unittest.TestCase):
         private_copy = cls.private / "456/pfx/dosdevices"
         private_copy.mkdir(parents=True)
         os.symlink("../" * 12 + "..", private_copy / "z:")
+        cls.links = tmp / "links"
+        (cls.links / "real/sub").mkdir(parents=True)
+        (cls.links / "real/sub/file.txt").write_text("deep")
+        (cls.links / "real/sub/deeper/more").mkdir(parents=True)
+        (cls.links / "real/sub/deeper/more/leaf.txt").write_text("leaf")
+        os.symlink("real", cls.links / "dir")
+        os.symlink(str(cls.links / "real"), cls.links / "hostdir")
+        (cls.links / "real|data").mkdir()
+        os.symlink(str(cls.links / "real|data"), cls.links / "barlink")
+        os.symlink("/etc/hostname", cls.links / "guest")
+        os.symlink("real/sub/file.txt", cls.links / "file")
+        os.symlink("/mnt/links/real", cls.links / "real/up")
+        (cls.root / "pfx/card/dosdevices").mkdir(parents=True)
+        os.symlink("/mnt/links", cls.root / "pfx/card/dosdevices/d:")
         cls.eqlen_src = tmp / "eqsrcdir"
         cls.eqlen_dst = "/" + "d" * (len(str(cls.eqlen_src)) - 1)
         eqlen_pfx = cls.eqlen_src / "123/pfx/dosdevices"
@@ -117,19 +201,120 @@ class NativeHookMountTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_probe(self, *args):
-        binds = f"{self.library}:/mnt/library|{self.private}:/mnt/private|{self.eqlen_src}:{self.eqlen_dst}"
+    def run_probe(self, *args, binds=None, mounts=None, syscalls=False, table=None):
+        if binds is None:
+            binds = f"{self.library}:/mnt/library|{self.private}:/mnt/private|{self.eqlen_src}:{self.eqlen_dst}"
         hook_env = {"DDNATV_ROOT": str(self.root), "DDNATV_BINDS": binds, "LD_PRELOAD": str(self.hook)}
-        env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
+        if table is not None:
+            hook_env["DDNATV_BINDS_KERNEL"] = table
+        if mounts is not None:
+            table = Path(self.tmp.name) / f"mountinfo-{len(list(Path(self.tmp.name).glob('mountinfo-*')))}"
+            table.write_text("".join(f"{i + 20} 1 0:{i + 40} / {point} rw - {kind} {source} rw\n"
+                                     for i, (point, kind, source) in enumerate(mounts)))
+            hook_env["DDNATV_MOUNTINFO"] = str(table)
+        env = {k: v for k, v in os.environ.items() if k not in ("LD_PRELOAD", "LOCPATH", "GCONV_PATH")}
         if self.prefix:
-            cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
+            cmd = list(self.prefix[:1]) + (["-strace"] if syscalls else []) + list(self.prefix[1:])
+            cmd += [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
         else:
-            cmd = []
-            env.update(hook_env)
+            if syscalls and not shutil.which("strace"):
+                self.skipTest("no strace")
+            if syscalls:
+                cmd = ["strace", "-f", "-qq", "-e", "trace=openat,readlinkat,newfstatat,fstatat64,statx"]
+                cmd += [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
+            else:
+                cmd = []
+                env.update(hook_env)
         out = subprocess.run(cmd + [str(self.probe), *args], env=env, capture_output=True, text=True, timeout=120,
                              cwd=self.tmp.name)
         self.assertEqual(out.returncode, 0, out.stderr)
-        return {line.split("\t")[0]: line.split("\t")[1:] for line in out.stdout.splitlines()}
+        result = {line.split("\t")[0]: line.split("\t")[1:] for line in out.stdout.splitlines()}
+        return (result, out.stderr) if syscalls else result
+
+    def bind_table(self, binds, *sources):
+        h = 1469598103934665603
+        for byte in binds.encode():
+            h = ((h ^ byte) * 1099511628211) & 0xFFFFFFFFFFFFFFFF
+        return "%016x" % h + "".join("|" + source for source in sources)
+
+    def test_a_bind_source_through_a_link_is_resolved_once_and_handed_to_children(self):
+        binds = f"{self.links}/hostdir:/mnt/viahost|{self.links}/hostdir:/mnt/again|/dev:/dev"
+        out, log = self.run_probe("cd:/mnt/viahost/sub/", "env:DDNATV_BINDS_KERNEL", binds=binds, syscalls=True)
+        self.assertEqual(["/mnt/viahost/sub"], out["cd:/mnt/viahost/sub/"])
+        real = os.path.realpath(self.links / "real")
+        self.assertEqual([self.bind_table(binds, real, real, "")], out["env:DDNATV_BINDS_KERNEL"])
+        self.assertEqual(1, log.count(f'"{self.links}/hostdir"'))
+
+    def test_a_child_given_the_bind_spec_without_its_table_gets_the_table(self):
+        binds = f"{self.links}/hostdir:/mnt/viahost"
+        child = self.root / "child-probe"
+        subprocess.run([self.cc, "-static", "-O1", "-o", str(child), str(self.probe) + ".c"], check=True)
+        try:
+            subprocess.run([str(child)], capture_output=True, timeout=60)
+        except OSError:
+            self.skipTest("the host cannot start the probe's architecture directly")
+        out =self.run_probe("exec-without:DDNATV_BINDS_KERNEL=/child-probe", binds=binds)
+        self.assertEqual([self.bind_table(binds, os.path.realpath(self.links / "real"))], out["env:DDNATV_BINDS_KERNEL"])
+
+    def test_process_specific_bind_sources_are_not_handed_to_children(self):
+        binds = "/proc/self/fd/0:/dev/stdin|/proc/self/fd:/dev/fd|//proc/self/fd/0:/mnt/input"
+        out = self.run_probe("env:DDNATV_BINDS_KERNEL", binds=binds)
+        self.assertEqual([self.bind_table(binds, "", "", "")], out["env:DDNATV_BINDS_KERNEL"])
+
+    def test_a_bind_source_whose_real_place_holds_the_separator_is_not_handed_to_children(self):
+        binds = f"{self.links}/barlink:/mnt/bar"
+        out = self.run_probe("cd:/mnt/bar/", "env:DDNATV_BINDS_KERNEL", binds=binds)
+        self.assertEqual(["/mnt/bar"], out["cd:/mnt/bar/"])
+        self.assertEqual([self.bind_table(binds, "")], out["env:DDNATV_BINDS_KERNEL"])
+
+    def test_a_bind_table_too_long_for_the_environment_is_not_handed_to_children(self):
+        far = self.links.joinpath(*["f" * 200] * 9)
+        far.mkdir(parents=True, exist_ok=True)
+        (far / "marker").write_text("far")
+        if not (self.links / "farlink").is_symlink():
+            os.symlink(str(far), self.links / "farlink")
+        binds = "|".join(f"{self.links}/farlink:/mnt/far{n}" for n in range(80))
+        out = self.run_probe("ls:/mnt/far79", "env:DDNATV_BINDS_KERNEL", binds=binds)
+        self.assertEqual(["marker"], out["ls:/mnt/far79"])
+        self.assertEqual(["-"], out["env:DDNATV_BINDS_KERNEL"])
+
+    def test_a_handed_down_bind_table_is_used_without_looking_the_sources_up(self):
+        binds = f"{self.links}/hostdir:/mnt/viahost"
+        real = os.path.realpath(self.links / "real")
+        table = self.bind_table(binds, real)
+        out, log = self.run_probe("cd:/mnt/viahost/sub/", binds=binds, table=table, syscalls=True)
+        self.assertEqual(["/mnt/viahost/sub"], out["cd:/mnt/viahost/sub/"])
+        self.assertNotIn(f"{self.links}/hostdir", log)
+
+    def test_a_bind_table_for_other_binds_is_ignored(self):
+        binds = f"{self.links}/hostdir:/mnt/viahost"
+        stale = self.bind_table(f"{self.library}:/mnt/viahost", str(self.library))
+        out = self.run_probe("cd:/mnt/viahost/sub/", "env:DDNATV_BINDS_KERNEL", binds=binds, table=stale)
+        self.assertEqual(["/mnt/viahost/sub"], out["cd:/mnt/viahost/sub/"])
+        self.assertEqual([self.bind_table(binds, os.path.realpath(self.links / "real"))], out["env:DDNATV_BINDS_KERNEL"])
+
+    def readlinks_of(self, log, host):
+        return [line for line in log.splitlines()
+                if (m := re.search(r'readlinkat\([^,"]*,\s*"([^"]*)"', line)) and m.group(1) == host]
+
+    def test_readlink_lines_match_the_queried_path_only(self):
+        host = "/tmp/x/links/guest"
+        log = (f'readlinkat(AT_FDCWD, "/proc/self/fd/7", "{host}", 4096) = 18\n'
+               f'readlinkat(AT_FDCWD, "{host}", "/etc/hostname", 4095) = 13\n'
+               f'123 readlinkat(-100,"{host}",0x7f00,4095) = -1 errno=22\n')
+        self.assertEqual(len(self.readlinks_of(log, host)), 2)
+
+    def test_dev_fd_in_a_forked_child_names_the_child_descriptors(self):
+        out = self.run_probe("fork:/dev/fd", binds="/proc/self/fd:/dev/fd")
+        self.assertEqual(["x"], out["fork:/dev/fd"])
+
+    def test_a_mount_named_through_proc_self_root_reports_its_guest_path(self):
+        arg = f"cd:{GAME}/"
+        self.assertEqual(self.run_probe(arg, binds=f"/proc/self/root{self.library}:/mnt/library")[arg], [GAME])
+
+    def test_a_proc_mount_that_names_no_process_reports_its_guest_path(self):
+        arg = "cd:/mnt/sys/kernel/"
+        self.assertEqual(self.run_probe(arg, binds="/proc/self/root/proc/sys:/mnt/sys")[arg], ["/mnt/sys/kernel"])
 
     def test_drive_link_stored_as_rootfs_path_reaches_the_mount(self):
         path = f"/pfx/native/dosdevices/z:{GAME}/game.txt"
@@ -146,6 +331,42 @@ class NativeHookMountTest(unittest.TestCase):
     def test_guest_drive_link_is_unchanged(self):
         path = f"/pfx/guest/dosdevices/z:{GAME}/game.txt"
         self.assertEqual(self.run_probe(path)[path], ["1", "library"])
+
+    def test_glibc_locale_and_iconv_data_come_from_the_rootfs(self):
+        result = self.run_probe("env:LOCPATH", "env:GCONV_PATH")
+        self.assertEqual(result["env:LOCPATH"], [f"{self.root}/usr/lib/locale"])
+        self.assertEqual(result["env:GCONV_PATH"], [f"{self.root}/usr/lib/aarch64-linux-gnu/gconv"])
+
+    def test_parent_of_root_stays_at_root(self):
+        self.assertEqual(self.run_probe("parent:/")["parent:/"], ["1"])
+
+    def test_parent_of_root_without_mounts_stays_at_root(self):
+        self.assertEqual(self.run_probe("parent:/", binds="")["parent:/"], ["1"])
+
+    def test_parent_of_mount_ancestor_is_guest_root(self):
+        self.assertEqual(self.run_probe("parent:/mnt")["parent:/mnt"], ["1"])
+
+    def test_parent_walks_from_any_directory_stay_at_root(self):
+        cases = ["parent:/etc|../..", "parent:/mnt/library|../../..", "parent:/|../etc/.."]
+        self.assertEqual(self.run_probe(*cases), {case: ["1"] for case in cases})
+
+    def test_parent_walk_from_a_linked_mount_ancestor_follows_the_real_directory(self):
+        binds = f"{self.library}:/linked/library"
+        case = "parent:/linked|../..|/deep"
+        self.assertEqual(self.run_probe(case, binds=binds)[case], ["1"])
+
+    def test_absolute_paths_above_root_stay_at_root(self):
+        result = self.run_probe("cd:/..", "cd:/etc/../..", "/../etc/hostname")
+        self.assertEqual(result["cd:/.."], [str(self.root)])
+        self.assertEqual(result["cd:/etc/../.."], [str(self.root)])
+        self.assertEqual(result["/../etc/hostname"], ["1", "rootfs"])
+
+    def test_relative_parent_of_cwd_stays_in_guest(self):
+        result = self.run_probe("cd:/", "cd:..", "cd:./../..", "../etc/hostname", f"cd:{GAME}", "cd:../..")
+        self.assertEqual(result["cd:.."], [str(self.root)])
+        self.assertEqual(result["cd:./../.."], [str(self.root)])
+        self.assertEqual(result["cd:../.."], [str(self.root / "mnt")])
+        self.assertEqual(result["../etc/hostname"], ["1", "rootfs"])
 
     def test_rootfs_paths_outside_mounts_are_unchanged(self):
         paths = ["/pfx/native/dosdevices/z:/etc/hostname", f"{self.root}/etc/hostname", "/etc/hostname"]
@@ -218,6 +439,196 @@ class NativeHookMountTest(unittest.TestCase):
         result = self.run_probe(path, cd)
         self.assertEqual(result[path], ["1", "library"])
         self.assertEqual(result[cd], [GAME])
+
+    def test_plain_paths_in_a_mount_reach_their_files(self):
+        binds = f"{self.links}:/mnt/links"
+        paths = ["/mnt/links/real/sub/file.txt", "/mnt/links/real/sub/../sub/file.txt", "/mnt/links//real/sub/file.txt"]
+        result = self.run_probe(*paths, binds=binds)
+        for path in paths:
+            self.assertEqual(result[path], ["1", "deep"], path)
+
+    def test_links_inside_a_mount_are_followed_in_the_guest_view(self):
+        binds = f"{self.links}:/mnt/links"
+        paths = {"/mnt/links/dir/sub/file.txt": ["1", "deep"], "/mnt/links/hostdir/sub/file.txt": ["1", "deep"],
+                 "/mnt/links/file": ["1", "deep"], "/mnt/links/guest": ["1", "rootfs"],
+                 "/mnt/links/real/up/sub/file.txt": ["1", "deep"], "/mnt/links/dir/up/up/sub/file.txt": ["1", "deep"]}
+        result = self.run_probe(*paths, binds=binds)
+        for path, want in paths.items():
+            self.assertEqual(result[path], want, path)
+
+    def test_last_link_in_a_mount_is_seen_by_lstat(self):
+        binds = f"{self.links}:/mnt/links"
+        cases = {"lstat:/mnt/links/guest": ["1", "1"], "lstat:/mnt/links/dir": ["1", "1"],
+                 "lstat:/mnt/links/dir/sub/file.txt": ["1", "0"], "lstat:/mnt/links/real/sub": ["1", "0"],
+                 "lstat:/mnt/links/dir/missing": ["0", "0"]}
+        result = self.run_probe(*cases, binds=binds)
+        for case, want in cases.items():
+            self.assertEqual(result[case], want, case)
+
+    def test_links_above_missing_folders_in_a_mount_are_still_followed(self):
+        binds = f"{self.links}:/mnt/links"
+        paths = {"/mnt/links/real/up/sub/deeper/more/leaf.txt": ["1", "leaf"],
+                 "/mnt/links/dir/up/sub/deeper/more/leaf.txt": ["1", "leaf"],
+                 "/mnt/links/real/up/no/such/folder/file.txt": ["0", "-"],
+                 "/mnt/links/dir/up/sub/no/such/file.txt": ["0", "-"]}
+        result = self.run_probe(*paths, binds=binds)
+        for path, want in paths.items():
+            self.assertEqual(result[path], want, path)
+
+    def test_paths_below_missing_folders_in_a_mount_stay_missing(self):
+        binds = f"{self.links}:/mnt/links"
+        paths = ["/mnt/links/real/sub/no/such/folder/file.txt", "/mnt/links/real/sub/deeper/no/file.txt",
+                 "/mnt/links/no/such/folder", "/mnt/links/real/sub/file.txt/more/deeper",
+                 "/mnt/links/real/sub/deeper/more/leaf.txt/x/y"]
+        result = self.run_probe(*paths, binds=binds)
+        for path in paths:
+            self.assertEqual(result[path], ["0", "-"], path)
+        self.assertEqual(self.run_probe("/mnt/links/real/sub/deeper/more/leaf.txt", binds=binds)["/mnt/links/real/sub/deeper/more/leaf.txt"], ["1", "leaf"])
+
+    def test_missing_paths_in_a_mount_stay_missing(self):
+        binds = f"{self.links}:/mnt/links"
+        paths = ["/mnt/links/real/missing", "/mnt/links/dir/missing", "/mnt/links/missing/file.txt",
+                 "/mnt/links/real/sub/file.txt/more"]
+        result = self.run_probe(*paths, binds=binds)
+        for path in paths:
+            self.assertEqual(result[path], ["0", "-"], path)
+
+    def links_volume(self):
+        real = os.path.realpath(self.links)
+        return real, os.path.dirname(real), os.path.basename(real)
+
+    def test_links_in_a_mount_on_a_link_capable_filesystem_are_followed(self):
+        real, parent, _ = self.links_volume()
+        binds = f"{self.links}:/mnt/links"
+        paths = {"/mnt/links/guest": ["1", "rootfs"], "/mnt/links/real/up/sub/file.txt": ["1", "deep"],
+                 "/mnt/links/dir/sub/file.txt": ["1", "deep"]}
+        tables = [[("/", "ext4", "/dev/root")],
+                  [("/", "ext4", "/dev/root"), (parent, "vfat", "/dev/sdb1"), (real, "f2fs", "/dev/sda2")],
+                  [("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1"), (f"{real}/real", "ext4", "/dev/sda3")],
+                  [("/", "ext4", "/dev/root"), (real, "fuse", "/dev/fuse")],
+                  [("/", "ext4", "/dev/root"), ("/mnt/media_rw/other", "exfat", "/dev/sdb1"), (real, "fuse", "/dev/fuse")],
+                  [("/", "ext4", "/dev/root"), ("/mnt/media_rw/" + os.path.basename(real), "exfat", "/dev/sdb1"),
+                   (real, "fuse", "/dev/sdb9")],
+                  [("/", "ext4", "/dev/root"), ("/mnt/media_rw/" + os.path.basename(real), "exfat", "/dev/sdb1"),
+                   (real, "fuse", "/dev/fuse")],
+                  [("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1"),
+                   (f"{real}/real", "ext4", "/dev/" + "x" * 5000)],
+                  [("/", "ext4", "/dev/root"), (real, "ext4", "/dev/sda2"), (real, "exfat", "/dev/sdb1")]]
+        for table in tables:
+            result = self.run_probe(*paths, binds=binds, mounts=table)
+            for path, want in paths.items():
+                self.assertEqual(result[path], want, (path, table))
+
+    def test_mounts_on_filesystems_without_links_skip_the_link_walk(self):
+        real, parent, _ = self.links_volume()
+        binds = f"{self.links}:/mnt/links"
+        tables = [[("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1")],
+                  [("/", "ext4", "/dev/root"), (parent, "vfat", "/dev/sdb1")],
+                  [("/", "ext4", "/dev/root"), (real, "vfat", "/dev/sdb1"), (f"{real}/real", "exfat", "/dev/sdc1")]]
+        for table in tables:
+            result = self.run_probe("/mnt/links/guest", "/mnt/links/real/up/sub/file.txt",
+                                    "/mnt/links/real/sub/file.txt", "/mnt/links/real/missing",
+                                    "lstat:/mnt/links/real/sub", binds=binds, mounts=table)
+            self.assertNotEqual(result["/mnt/links/guest"], ["1", "rootfs"], table)
+            self.assertEqual(result["/mnt/links/real/up/sub/file.txt"], ["0", "-"], table)
+            self.assertEqual(result["/mnt/links/real/sub/file.txt"], ["1", "deep"], table)
+            self.assertEqual(result["/mnt/links/real/missing"], ["0", "-"], table)
+            self.assertEqual(result["lstat:/mnt/links/real/sub"], ["1", "0"], table)
+
+    def test_a_mount_table_without_the_mount_keeps_the_link_walk(self):
+        binds = f"{self.links}:/mnt/links"
+        paths = {"/mnt/links/guest": ["1", "rootfs"], "/mnt/links/real/up/sub/file.txt": ["1", "deep"]}
+        result = self.run_probe(*paths, binds=binds, mounts=[])
+        for path, want in paths.items():
+            self.assertEqual(result[path], want, path)
+
+    def test_drive_links_into_mounts_without_links_skip_the_last_link_check(self):
+        real, parent, name = self.links_volume()
+        binds = f"{self.links}:/mnt/links"
+        tables = [[("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1")],
+                  [("/", "ext4", "/dev/root"), (f"/mnt/media_rw/{name}", "exfat", "/dev/sdb1"), (real, "fuse", "/dev/fuse")]]
+        for table in tables:
+            result, log = self.run_probe("/pfx/card/dosdevices/d:/real/sub/file.txt", "/pfx/card/dosdevices/d:/real/missing",
+                                         "lstat:/pfx/card/dosdevices/d:/real/sub", binds=binds, mounts=table, syscalls=True)
+            self.assertEqual(result["/pfx/card/dosdevices/d:/real/sub/file.txt"], ["1", "deep"], table)
+            self.assertEqual(result["/pfx/card/dosdevices/d:/real/missing"], ["0", "-"], table)
+            self.assertEqual(result["lstat:/pfx/card/dosdevices/d:/real/sub"], ["1", "0"], table)
+            for host in (f"{self.links}/real/sub/file.txt", f"{self.links}/real/missing"):
+                self.assertEqual(self.readlinks_of(log, host), [], (host, table))
+
+    def test_drive_links_into_mounts_with_links_still_check_the_last_link(self):
+        real, _, _ = self.links_volume()
+        binds = f"{self.links}:/mnt/links"
+        paths = {"/pfx/card/dosdevices/d:/guest": ["1", "rootfs"], "/pfx/card/dosdevices/d:/file": ["1", "deep"],
+                 "/pfx/card/dosdevices/d:/real/sub/file.txt": ["1", "deep"],
+                 "/pfx/native/dosdevices/z:/etc/hostname": ["1", "rootfs"]}
+        for table in (None, [("/", "ext4", "/dev/root"), (real, "ext4", "/dev/sda2")]):
+            result, log = self.run_probe(*paths, binds=binds, mounts=table, syscalls=True)
+            for path, want in paths.items():
+                self.assertEqual(result[path], want, (path, table))
+            self.assertNotEqual(self.readlinks_of(log, f"{self.links}/guest"), [], table)
+            self.assertNotEqual(self.readlinks_of(log, f"{self.root}/etc/hostname"), [], table)
+
+    def test_relative_parent_walks_inside_mounts_without_links_stay_relative(self):
+        real, _, _ = self.links_volume()
+        binds = f"{self.links}:/mnt/links"
+        paths = {"sub/deeper/../file.txt": ["1", "deep"], "sub/deeper/more/../more/leaf.txt": ["1", "leaf"],
+                 "../real/sub/file.txt": ["1", "deep"], "../../../etc/hostname": ["1", "rootfs"],
+                 "sub/../../../../etc/hostname": ["1", "rootfs"]}
+        for kind, relative in (("exfat", True), ("ext4", False)):
+            table = [("/", "ext4", "/dev/root"), (real, kind, "/dev/sdb1")]
+            result, log = self.run_probe("cd:/mnt/links/real", *paths, binds=binds, mounts=table, syscalls=True)
+            for path, want in paths.items():
+                self.assertEqual(result[path], want, (path, kind))
+            stats = [m.group(1) for m in re.finditer(r'(?:fstatat|statx)\([^,"]*,\s*"([^"]*)"', log)]
+            for path in ("sub/deeper/../file.txt", "sub/deeper/more/../more/leaf.txt", "../real/sub/file.txt"):
+                self.assertEqual(path in stats, relative, (path, kind, stats))
+            for path in ("../../../etc/hostname", "sub/../../../../etc/hostname"):
+                self.assertNotIn(path, stats, (path, kind))
+        nested = f"{binds}|{self.library}:/mnt/links/real/sub"
+        table = [("/", "ext4", "/dev/root"), (real, "exfat", "/dev/sdb1")]
+        result, log = self.run_probe("cd:/mnt/links/real", "sub/deeper/../game.txt", binds=nested, mounts=table,
+                                     syscalls=True)
+        stats = [m.group(1) for m in re.finditer(r'(?:fstatat|statx)\([^,"]*,\s*"([^"]*)"', log)]
+        self.assertNotIn("sub/deeper/../game.txt", stats)
+        walk = "sub/Some Game/../Some Game/game.txt"
+        for order in ((f"{self.links}:/mnt/links", f"{self.links}:/mnt/longer/alias"),
+                      (f"{self.links}:/mnt/longer/alias", f"{self.links}:/mnt/links")):
+            shared = "|".join(order) + f"|{self.library}:/mnt/links/real/sub"
+            results = [self.run_probe("cd:/mnt/links/real", walk, binds=shared,
+                                      mounts=[("/", "ext4", "/dev/root"), (real, kind, "/dev/sdb1")])[walk]
+                       for kind in ("ext4", "exfat")]
+            self.assertEqual(results[0], results[1], order)
+
+    def test_relative_parent_walks_honour_identity_binds_shared_guest_paths_and_the_rootfs(self):
+        real, _, _ = self.links_volume()
+        tmp = os.path.realpath(self.tmp.name)
+        card = f"{tmp}/identity-card"
+        os.makedirs(f"{card}/real/sub/deeper", exist_ok=True)
+        Path(f"{card}/real/sub/file.txt").write_text("identity")
+        binds = f"{self.links}:{card}|{card}/real/sub:{card}/real/sub"
+        walk = "sub/deeper/../file.txt"
+        results = [self.run_probe(f"cd:{card}/real", walk, binds=binds,
+                                  mounts=[("/", "ext4", "/dev/root"), (real, kind, "/dev/sdb1")])[walk]
+                   for kind in ("ext4", "exfat")]
+        self.assertEqual(results[0], results[1])
+        twins = (f"{tmp}/twin-a", f"{tmp}/twin-b")
+        for twin in twins:
+            os.makedirs(f"{twin}/only/sub/deeper", exist_ok=True)
+            Path(f"{twin}/only/sub/file.txt").write_text(os.path.basename(twin))
+        for order in (twins, twins[::-1]):
+            shared = "|".join(f"{src}:/mnt/twin" for src in order)
+            result, log = self.run_probe("cd:/mnt/twin/only", walk, binds=shared, syscalls=True,
+                                         mounts=[("/", "ext4", "/dev/root")] +
+                                                [(twin, "exfat", f"/dev/sd{i}1") for i, twin in zip("bc", twins)])
+            stats = [m.group(1) for m in re.finditer(r'(?:fstatat|statx)\([^,"]*,\s*"([^"]*)"', log)]
+            self.assertEqual(result[walk], ["1", os.path.basename(order[0])], order)
+            self.assertNotIn(walk, stats, order)
+        climb = "../../etc/hostname"
+        for kind in ("ext4", "exfat"):
+            result = self.run_probe("cd:/etc", climb, binds=f"{tmp}:/mnt/card",
+                                    mounts=[("/", "ext4", "/dev/root"), (tmp, kind, "/dev/sdb1")])
+            self.assertEqual(result[climb], ["1", "rootfs"], kind)
 
 
 if __name__ == "__main__":

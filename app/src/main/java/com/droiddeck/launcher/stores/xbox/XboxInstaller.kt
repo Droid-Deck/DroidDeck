@@ -103,7 +103,9 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
                 XboxContent.complete(app, item, folder)
                 return folder.path
             }
-            val exe = executable(folder)
+            val exe = runCatching { executable(folder) }.onFailure {
+                StoresState.logLine("Xbox: install folder holds ${folder.list().orEmpty().sorted().take(MAX_ERROR_LINES).joinToString()}")
+            }.getOrThrow()
             StoreInstalls.complete(app, folder, StoreGameSidecar(Store.XBOX, item.id, item.title, exe,
                 installVersion = XboxManifest.read(folder).version, installedAt = System.currentTimeMillis(), cover = item.tallImageUrl, hero = item.imageUrl,
                 extra = item.extra + mapOf("contentId" to selected, "market" to market)))
@@ -135,7 +137,7 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
         delete = deleteFiles
         val process = child
         if (process == null) {
-            if (deleteFiles && !item.extra["baseId"].isNullOrBlank()) StoreInstalls.deleteTree(folder)
+            if (deleteFiles && !item.extra["baseId"].isNullOrBlank()) StoreInstalls.deleteLater(folder)
             else if (deleteFiles) StoreInstalls.discard(app, folder, emptyList())
             return
         }

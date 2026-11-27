@@ -79,7 +79,7 @@ internal object StoreTabsState {
         private set
 
     fun load(context: android.content.Context) {
-        SessionPrefs.settleStoresTabOrder(context, Store.entries.map { it.id })
+        SessionPrefs.settleStoresTabOrder(context, Store.tabbed.map { it.id })
         tabs = arrangeStoreTabs(SessionPrefs.storesTabOrder(context), SessionPrefs.storesTabHidden(context))
         libraryPlaces = SessionPrefs.libraryTabPlaces(context) ?: DEFAULT_LIBRARY_PLACES
         libraryHidden = SessionPrefs.libraryTabsHidden(context) + listOfNotNull(LIBRARY_HIDDEN.takeUnless { SessionPrefs.libraryShowHidden(context) })
@@ -202,7 +202,7 @@ internal fun SideSheet(open: Boolean, onClose: () -> Unit, returnFocus: FocusReq
                     if (!pad) return@LaunchedEffect
                     repeat(60) {
                         androidx.compose.runtime.withFrameNanos { }
-                        if (holds || !open) return@LaunchedEffect
+                        if (holds || !open || Steps.open) return@LaunchedEffect
                         runCatching { inside.requestFocus() }
                     }
                 }
@@ -210,7 +210,7 @@ internal fun SideSheet(open: Boolean, onClose: () -> Unit, returnFocus: FocusReq
                     Modifier.width(width).fillMaxHeight()
                         .onFocusChanged { holds = it.hasFocus }
                         .focusRequester(inside)
-                        .focusProperties { exit = { if (open) FocusRequester.Cancel else FocusRequester.Default } }
+                        .focusProperties { exit = { if (open && !Steps.open) FocusRequester.Cancel else FocusRequester.Default } }
                         .focusGroup()
                         .background(MaterialTheme.colorScheme.background)
                         .border(1.dp, pal.line).padding(horizontal = 18.dp, vertical = 16.dp).testTag(tag),

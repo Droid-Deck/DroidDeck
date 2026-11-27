@@ -56,7 +56,7 @@ object BattleNet {
         Title("aqua", "Avowed", "AQUA", 2457220, shop = "avowed", product = "aqua"),
     )
 
-    val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" && it.code != "WoWC" && it.code != "WoWF" }
+    val STORE: List<Title> get() = TITLES.distinctBy { it.code }.filter { it.uid != "d3cn" && it.code != "WoWC" }
 
     // Blizzard's China client installs some products under a CN uid; they are the same games and keep their store identity.
     private val CN_UIDS = mapOf("s2_cn" to "s2", "osic" to "osi", "anbs_cn" to "anbs")
@@ -207,7 +207,8 @@ object BattleNet {
         val taken = HashSet<File>()
         fun options(title: Title, folder: File) = listOfNotNull(folder, title.flavor?.let { File(folder, it) }?.takeIf { it.isDirectory })
         for ((code, game) in games) {
-            val keep = saved[code]?.let(::File)?.takeIf { it in options(game.first, game.second) && it !in taken } ?: continue
+            val want = saved[code]?.let { runCatching { File(it).canonicalFile }.getOrNull() } ?: continue
+            val keep = options(game.first, game.second).firstOrNull { runCatching { it.canonicalFile }.getOrNull() == want }?.takeIf { it !in taken } ?: continue
             out[code] = keep
             taken.add(keep)
         }
@@ -244,6 +245,14 @@ object BattleNet {
                 "/" + rootfs.relativize(resolved).joinToString("/")
             }
         }.trimEnd('/')
+        if (mapped?.startsWith("/") == true) {
+            val rootfs = LinuxRuntime.rootDir(context)
+            runCatching {
+                val home = rootfs.canonicalFile.toPath()
+                val host = File("$target/$relative").canonicalFile.toPath()
+                if (host.startsWith(home)) File(rootfs, home.relativize(host).toString()) else null
+            }.getOrNull()?.let { return it }
+        }
         return com.droiddeck.launcher.frontend.AddedGames.hostPath(context, "$target/$relative")
     }
 

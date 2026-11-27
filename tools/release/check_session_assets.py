@@ -1,6 +1,7 @@
 from pathlib import Path
 import importlib.util
 import re
+import shutil
 import sys
 from zipfile import ZipFile
 
@@ -26,12 +27,22 @@ def source_assets(overlay=OVERLAY):
     result = {source: 'assets/linuxfs/' + source.relative_to(overlay).as_posix() for source in sources}
     if overlay == OVERLAY:
         desktop = overlay.parent / 'desktop'
-        for name in ['droiddeck-desktop', 'droiddeck-gpu', 'droiddeck-desktop-gpu', 'kwin_wayland_wrapper']:
+        for name in ['droiddeck-desktop', 'droiddeck-gpu', 'droiddeck-desktop-gpu', 'droiddeck-device-info',
+                     'kwin_wayland_wrapper']:
             result[desktop / name] = 'assets/linuxfs/usr/local/bin/' + name
         result[desktop / 'firefox-droiddeck.js'] = 'assets/linuxfs/usr/lib/firefox/defaults/pref/droiddeck.js'
         result[desktop / 'droiddeck-clipboard.desktop'] = 'assets/linuxfs/etc/xdg/autostart/droiddeck-clipboard.desktop'
+        result[desktop / 'fastfetch.jsonc'] = 'assets/linuxfs/etc/xdg/fastfetch/config.jsonc'
         result[overlay.parent.parent / 'mangoapp/mangoapp'] = 'assets/linuxfs/usr/local/bin/mangoapp'
     return result
+
+
+def stage(target=OVERLAY.parents[2] / 'app/src/main', overlay=OVERLAY):
+    for source, asset in source_assets(overlay).items():
+        path = target / asset
+        if not path.is_file() or path.read_bytes() != source.read_bytes():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, path)
 
 
 def check(apk, overlay=OVERLAY):
@@ -60,6 +71,9 @@ def check(apk, overlay=OVERLAY):
 
 
 if __name__ == '__main__':
+    if sys.argv[1:] == ['--stage']:
+        stage()
+        sys.exit()
     errors = check(sys.argv[1])
     if errors:
         sys.exit('\n'.join(errors))

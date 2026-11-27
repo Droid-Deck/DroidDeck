@@ -58,17 +58,30 @@ object XboxBackend : StoreBackend {
                 if (cached != null && !cached.needsRefresh(force)) { XboxGamertag.ensure(app); return@Thread }
                 val response = Xodus.run(app, listOf("library", "--json", "--market", market))
                 val licenses = XboxCatalog.access(response, account, market, report = { StoresState.logLine("Xbox: $it") })
-                val products = XboxCatalog.rawProducts(licenses.keys.toList(), market)
                 val cloud = runCatching { XboxCatalog.cloudCatalog(market) }
                     .onFailure { StoresState.logLine("Xbox: cloud lists unavailable (${it.javaClass.simpleName})") }.getOrNull()
-                val games = mergeEditions(products.mapNotNull { XboxCatalog.product(it, licenses, cloud) }).sortedBy { it.title.lowercase() }
-                StoresState.logLine("Xbox: library catalog requested=${licenses.size} returned=${products.size} supported=${games.size} " +
-                    "filtered=${products.size - games.size} backend-skipped=${response.optInt("skippedEntitlements")} " +
+                // The PC entitlement list leaves out console purchases and free games; the streaming service lists them.
+                val titles = runCatching { XboxCloudSession.titleList(XboxCloudSession.get(app, account), fresh = true) }
+                    .onFailure { StoresState.logLine("Xbox: cloud titles unavailable (${it.javaClass.simpleName})") }.getOrNull()
+                // Without the Game Pass lists an entitled title cannot be told apart from a purchase, so none are added.
+                val added = if (cloud == null) emptyMap<String, String>() else titles?.entitled.orEmpty().filter { it !in licenses }
+                    .associateWith { if (it in cloud.gamePass) "gamepass" else "owned" }
+                StoresState.logLine("Xbox: cloud titles=${titles?.ids?.size ?: -1} entitled=${titles?.entitled?.size ?: -1} " +
+                    "added=${added.size} (owned ${added.values.count { it == "owned" }}, gamepass ${added.values.count { it == "gamepass" }})")
+                val entitlements = licenses + added
+                val returned = java.util.concurrent.atomic.AtomicInteger()
+                val supported = XboxCatalog.productBatches(entitlements.keys.toList(), market) { batch ->
+                    returned.addAndGet(batch.size)
+                    batch.mapNotNull { XboxCatalog.product(it, entitlements, cloud) }
+                }
+                val games = mergeEditions(supported).sortedBy { it.title.lowercase() }
+                StoresState.logLine("Xbox: library catalog requested=${entitlements.size} returned=${returned.get()} supported=${supported.size} " +
+                    "shown=${games.size} backend-skipped=${response.optInt("skippedEntitlements")} " +
                     "pc=${games.count { it.xboxPc }} cloud=${games.count { it.xboxCloud }} cloud-only=${games.count { !it.xboxPc }} " +
                     "cloud-lists=${cloud?.gamePass?.size ?: -1}/${cloud?.all?.size ?: -1}")
                 synchronized(this) {
                     if (current != generation || StoreAccounts.signedInAs(app, store) != account) return@Thread
-                    access = licenses
+                    access = entitlements
                     runCatching { XboxLibraryCache.write(app, account, market, games) }
                         .onFailure { StoresState.logLine("Xbox: library cache could not be saved") }
                 }

@@ -126,6 +126,16 @@ object AgentSetup {
         Thread({ for ((step, command) in probes) probe(app, harness, step, command) }, "agent-checks").start()
     }
 
+    /** The last failed refresh ends the script: the installs after it would run from stale indexes and could report success. */
+    internal fun installScript(harnessInstall: String) = "set -e; export DEBIAN_FRONTEND=noninteractive; " +
+        "apt() { apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 \"\$@\"; }; " +
+        "dpkg --configure -a || echo 'Some packages are not configured yet; repairing dependencies'; " +
+        "for i in 1 2 3; do apt -o APT::Update::Error-Mode=any update -q && break; " +
+        "[ \$i = 3 ] && { echo 'Some package sources could not be refreshed'; exit 1; }; " +
+        "echo 'Some package sources could not be refreshed; retrying'; sleep 3; done; " +
+        "apt -f install -y --fix-missing; " +
+        "apt install -y --no-install-recommends git gh adb curl ca-certificates python3; $harnessInstall"
+
     fun runsAsRoot(step: Step) = step == Step.INSTALL
 
     /** Runs [step]'s action. [CONNECTION] is the app's own pairing flow, so the caller opens it. */
@@ -140,12 +150,7 @@ object AgentSetup {
         val command = override ?: when (step) {
             Step.CONNECTION -> return
             Step.INSTALL -> {
-                listOf("sh", "-c", "set -e; export DEBIAN_FRONTEND=noninteractive; " +
-                    "apt() { apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 \"\$@\"; }; " +
-                    "dpkg --configure -a || echo 'Some packages are not configured yet; repairing dependencies'; " +
-                    "for i in 1 2 3; do apt update -q && break; echo 'Some package sources could not be refreshed; retrying'; sleep 3; done; " +
-                    "apt -f install -y --fix-missing; " +
-                    "apt install -y --fix-missing --no-install-recommends git gh adb curl ca-certificates python3; ${harness.install}")
+                listOf("sh", "-c", installScript(harness.install))
             }
             Step.SIGN_IN -> harness.signIn
             Step.GITHUB -> listOf("dd-gh-login")

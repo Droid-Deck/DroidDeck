@@ -28,12 +28,14 @@ object SessionFiles {
         "usr/local/bin/droiddeck-bottom-desktop" to "usr/local/bin/droiddeck-bottom-desktop",
         "usr/local/bin/droiddeck-gpu" to "usr/local/bin/droiddeck-gpu",
         "usr/local/bin/droiddeck-desktop-gpu" to "usr/local/bin/droiddeck-desktop-gpu",
+        "usr/local/bin/droiddeck-device-info" to "usr/local/bin/droiddeck-device-info",
         "usr/local/bin/droiddeck-desktop-window-rules" to "usr/local/bin/droiddeck-desktop-window-rules",
         "usr/local/bin/droiddeck-library-perms" to "usr/local/bin/droiddeck-library-perms",
         "usr/local/bin/droiddeck-ime" to "usr/local/bin/droiddeck-ime",
         "usr/local/bin/kwin_wayland_wrapper" to "usr/local/bin/kwin_wayland_wrapper",
         "usr/lib/firefox/defaults/pref/droiddeck.js" to "usr/lib/firefox/defaults/pref/droiddeck.js",
         "etc/xdg/autostart/droiddeck-clipboard.desktop" to "etc/xdg/autostart/droiddeck-clipboard.desktop",
+        "etc/xdg/fastfetch/config.jsonc" to "etc/xdg/fastfetch/config.jsonc",
     )
 
     private val SERVICE_PACKS = mapOf(
@@ -95,7 +97,11 @@ object SessionFiles {
         return all
     }
 
-    fun stage(context: Context, root: File, startsSession: Boolean = false) {
+    private val STAGE_LOCK = Any()
+
+    fun stage(context: Context, root: File, startsSession: Boolean = false) = synchronized(STAGE_LOCK) { stageNow(context, root, startsSession) }
+
+    private fun stageNow(context: Context, root: File, startsSession: Boolean) {
         if (DesktopCatalog.desktopInstalled(root) && !DesktopCatalog.desktopFromPack(root)) try { DesktopCatalog.cleanLegacy(context) }
         catch (e: Exception) { Log.w(TAG, "LXQt cleanup will retry next session", e) }
         GameEnvironmentStore.publish(context)
@@ -126,6 +132,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-desktop-clipboard" to "usr/local/bin/droiddeck-desktop-clipboard",
             "usr/local/bin/droiddeck-gpu-window" to "usr/local/bin/droiddeck-gpu-window",
             "usr/local/bin/droiddeck-steam-install" to "usr/local/bin/droiddeck-steam-install",
+            "usr/local/bin/droiddeck-steam-preapply" to "usr/local/bin/droiddeck-steam-preapply",
             "usr/local/bin/droiddeck-steam-ui-scale" to "usr/local/bin/droiddeck-steam-ui-scale",
             "usr/local/bin/droiddeck-steam-language" to "usr/local/bin/droiddeck-steam-language",
             "usr/local/bin/droiddeck-steam-shaders" to "usr/local/bin/droiddeck-steam-shaders",
@@ -138,7 +145,9 @@ object SessionFiles {
             "usr/local/bin/droiddeck-proton-extra" to "usr/local/bin/droiddeck-proton-extra",
             "usr/local/bin/droiddeck-netmanager" to "usr/local/bin/droiddeck-netmanager",
             "usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1",
+            "usr/local/bin/droiddeck-documents" to "usr/local/bin/droiddeck-documents",
             "usr/local/bin/droiddeck-steam-launch" to "usr/local/bin/droiddeck-steam-launch",
+            "usr/local/bin/droiddeck-qam-relay" to "usr/local/bin/droiddeck-qam-relay",
             "usr/local/bin/droiddeck-desktop-games" to "usr/local/bin/droiddeck-desktop-games",
             "usr/local/bin/droiddeck-desktop-programs" to "usr/local/bin/droiddeck-desktop-programs",
             "usr/local/bin/droiddeck-desktop-bookmarks" to "usr/local/bin/droiddeck-desktop-bookmarks",
@@ -149,6 +158,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-emulators" to "usr/local/bin/droiddeck-emulators",
             "usr/local/bin/droiddeck-snap-run" to "usr/local/bin/droiddeck-snap-run",
             "usr/local/bin/droiddeck-snap-confine" to "usr/local/bin/droiddeck-snap-confine",
+            "usr/local/bin/droiddeck-diversion-stub" to "usr/local/bin/droiddeck-diversion-stub",
             "usr/local/bin/droiddeck-snapctl" to "usr/local/bin/droiddeck-snapctl",
             "usr/local/bin/droiddeck-systemd-run" to "usr/local/bin/systemd-run",
             "usr/local/bin/droiddeck-snap-cli" to "usr/local/bin/snap",
@@ -180,6 +190,8 @@ object SessionFiles {
             "usr/local/bin/droiddeck-flatpak-run" to "usr/local/bin/droiddeck-flatpak-run",
             "usr/local/bin/droiddeck-appimage-run" to "usr/local/bin/droiddeck-appimage-run",
             "usr/local/bin/droiddeck-appimage-exec" to "usr/local/bin/droiddeck-appimage-exec",
+            "usr/local/bin/droiddeck-curseforge" to "usr/local/bin/droiddeck-curseforge",
+            "usr/local/bin/droiddeck-headless" to "usr/local/bin/droiddeck-headless",
             "usr/local/bin/droiddeck-script-run" to "usr/local/bin/droiddeck-script-run",
             "usr/local/bin/droiddeck-open" to "usr/local/bin/droiddeck-open",
             "usr/local/bin/droiddeck-proton-run" to "usr/local/bin/droiddeck-proton-run",
@@ -256,7 +268,9 @@ object SessionFiles {
             "usr/local/share/vkbridge/droidbridge_icd.json" to "usr/local/share/vkbridge/droidbridge_icd.json",
             "usr/local/bin/droiddeck-vkbridge-smoke" to "usr/local/bin/droiddeck-vkbridge-smoke",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
+            "usr/local/lib/droiddeck/dwarfsextract" to "usr/local/lib/droiddeck/dwarfsextract",
             "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
+            "usr/local/share/licenses/dwarfs/LICENSE" to "usr/local/share/licenses/dwarfs/LICENSE",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
         ) + mangoapp + xclipse.map { it to it } + maliCompat + msitools.map { it to it } + vr + gpuLoad + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
@@ -658,6 +672,7 @@ object SessionFiles {
     private const val UI_STATE = "UIStoreLocalSteamUIState"
     private const val SORT_RECENT_OFF = "\\\"bSortedByRecent\\\":false"
     private const val SORT_RECENT_ON = "\\\"bSortedByRecent\\\":true"
+    private const val LIBRARY_BIG_ART = "LibraryHomeBigArt"
     private const val BATTERY_PERCENT_ON = "{\\\"bShowBatteryPercentage\\\":true}"
 
     /**
@@ -707,7 +722,12 @@ object SessionFiles {
             val block = out.substring(web.keyStart, web.close + 1)
             out = out.replaceRange(web.keyStart, web.close + 1, setScalar(block, BATTERY_PREFERENCES, BATTERY_PERCENT_ON, newline))
         }
-        return seedRecentSort(out, newline)
+        out = seedRecentSort(out, newline)
+        val last = findObject(out, "UserLocalConfigStore", 0, out.length) ?: return out
+        if (!hasKey(out.substring(last.open + 1, last.close), LIBRARY_BIG_ART)) {
+            out = insertInto(out, last, listOf("\"$LIBRARY_BIG_ART\"\t\t\"1\""), newline)
+        }
+        return out
     }
 
     // The library sort lives inside a JSON string; Steam writes bSortedByRecent:false until the player picks a sort,
@@ -727,9 +747,11 @@ object SessionFiles {
 
     private fun insertInto(text: String, parent: VdfBlock, lines: List<String>, newline: String): String {
         val lineStart = text.lastIndexOf('\n', parent.close).let { if (it < 0) 0 else it + 1 }
-        val indent = text.substring(lineStart, parent.close).takeWhile { it == '\t' || it == ' ' } + "\t"
+        val before = text.substring(lineStart, parent.close)
+        val indent = before.takeWhile { it == '\t' || it == ' ' } + "\t"
         val section = lines.joinToString(newline) { indent + it } + newline
-        return text.substring(0, lineStart) + section + text.substring(lineStart)
+        if (before.isBlank()) return text.substring(0, lineStart) + section + text.substring(lineStart)
+        return text.substring(0, parent.close) + newline + section + text.substring(parent.close)
     }
 
     private val IDLE_SLEEP_TIMERS = listOf("IdleSuspendBatterySeconds", "IdleSuspendACSeconds")

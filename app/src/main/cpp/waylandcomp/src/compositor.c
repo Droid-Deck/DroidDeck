@@ -237,6 +237,7 @@ struct surface {
     int drawn;
     int64_t next_release_ns;
     int releases_pending;
+    int release_pace_open;
 
     enum surface_role role;
     struct wl_resource *idle_buffer;
@@ -288,6 +289,7 @@ static int g_scene_queues;
 static int g_tick_held;
 static int64_t g_hold_missed_ns;
 #define HOLD_RETRY_NS 1000000000LL
+#define RELEASE_PACE_DEPTH 8
 #define PACE_BUFFERS 32
 static struct {
     unsigned ticks, ticks_late_2ms, renders, commit_renders, null_attaches, reattaches, presented, replaced, undrawn, distinct;
@@ -548,13 +550,25 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
     return 0;
 }
 
+static void describe(const struct surface *s, char *out, size_t size);
+
 static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_t since_ns, struct surface *holder) {
     /* No allocation or immediate-release fallback is allowed for a quarantined
      * DMA-BUF. Existing queued releases stay held; their timer is disarmed. */
     if (buffer_release_blocked(buffer)) return;
     const int limit = g_fps_limit;
     const int64_t interval = limit > 0 ? 1000000000LL / limit : g_refresh_ns;
-    const int paced = !g_release_unpaced && interval > 0 && g_release_timer_fd >= 0;
+    int paced = !g_release_unpaced && interval > 0 && g_release_timer_fd >= 0;
+    if (paced && s->releases_pending >= RELEASE_PACE_DEPTH) {
+        paced = 0;
+        if (!s->release_pace_open) {
+            char name[160];
+            describe(s, name, sizeof(name));
+            droiddeck_log("pace", "%s keeps drawing into new buffers instead of waiting for releases: "
+                       "its releases beyond %d are no longer held for the frame limit", name, RELEASE_PACE_DEPTH);
+            s->release_pace_open = 1;
+        }
+    }
     if (!paced && !holder) { send_buffer_release(buffer); perf_note_release(since_ns); return; }
     int64_t now = now_ns();
     int64_t at = now;
@@ -620,7 +634,8 @@ static void cursor_publish_shown(void) {
 
 static void cursor_publish_hidden(void) {
     pthread_mutex_lock(&g_cursor_lock);
-    if (!g_cursor_hidden) { g_cursor_hidden = 1; g_cursor_serial++; }
+    // A client that hides the cursor before ever showing one (gamescope drawing its own) must still be reported.
+    if (!g_cursor_hidden || g_cursor_serial == 0) { g_cursor_hidden = 1; g_cursor_serial++; }
     pthread_mutex_unlock(&g_cursor_lock);
 }
 
@@ -735,6 +750,11 @@ static void describe(const struct surface *s, char *out, size_t size) {
     if (w->title && *w->title) snprintf(out, size, "\"%s\" (%s)", w->title, prog);
     else if (w->role == ROLE_DESKTOP) snprintf(out, size, "the desktop (%s)", prog);
     else snprintf(out, size, "window %#x (%s)", w->hwnd, prog);
+}
+
+static int is_steam_client_surface(const struct surface *s) {
+    const char *name = client_name(wl_resource_get_client(s->resource));
+    return strcmp(name, "steam") == 0 || strstr(name, "steamwebhelper") != NULL;
 }
 
 static struct surface *toplevel_by_hwnd(uint32_t hwnd) {
@@ -894,6 +914,7 @@ int droiddeck_hud_frame_times(float *out, int len, int64_t *total) {
 static uint64_t g_game_frames;
 extern void droiddeck_on_game_surface(const char *window, const char *gpu);
 extern void droiddeck_on_game_frame(void);
+extern void droiddeck_on_compositor_frame(void);
 extern void droiddeck_on_content_rate(int fps);
 static int64_t g_cadence_ns;
 static int64_t g_cadence_frames;
@@ -949,9 +970,10 @@ static void take_shm(struct surface *s, struct wl_shm_buffer *shm, struct wl_res
             g_hud_shm = s;
             g_hud_shm_ns = now;
             g_hud_new = 1;
-            droiddeck_on_game_frame();
         }
     }
+    if (s == g_hud_shm && (!g_hud_surface || now_ns() - g_hud_last_ns > 1000000000LL))
+        droiddeck_on_compositor_frame();
 }
 
 static void take_pixel(struct surface *s, const uint8_t bgra[4], struct wl_resource *buffer) {
@@ -1025,7 +1047,8 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
             droiddeck_log("error", "could not import GPU frames from %s (%dx%d, modifier %#llx)",
                        name, b->width, b->height, (unsigned long long)b->modifier);
     }
-    if (s != g_hud_surface && (b->img || ahb_swapchain_has_ahb(b)) &&
+    if (s != g_hud_surface && !is_steam_client_surface(s) &&
+        (b->img || ahb_swapchain_has_ahb(b)) &&
         (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL || (!repeat && below_surface(s, g_hud_surface)) ||
          (announced_now && !below_surface(g_hud_surface, s) &&
           (int64_t)b->width * b->height >= (int64_t)g_hud_surface->buf_w * g_hud_surface->buf_h))) {
@@ -1050,9 +1073,12 @@ static void take_dmabuf(struct surface *s, struct dmabuf_buffer *b, struct wl_re
                                : "the compositor's driver could NOT import it (nothing can show it)");
         s->hdr_fmt_logged = b->format;
     }
-    if (s == g_hud_surface) {
+    if (s == g_hud_surface && !is_steam_client_surface(s)) {
         g_hud_alive_ns = now_ns();
         if (!repeat) { g_hud_last_ns = g_hud_alive_ns; g_hud_fresh = 1; g_hud_new = 1; g_game_frames++; note_game_frame_gap(); droiddeck_on_game_frame(); }
+    } else if (is_steam_client_surface(s) && !repeat &&
+               (!g_hud_surface || now_ns() - g_hud_alive_ns > 1000000000LL)) {
+        droiddeck_on_compositor_frame();
     }
 }
 
@@ -1172,6 +1198,14 @@ static uint32_t nominal_refresh_ns(void) {
     return (uint32_t)(1000000000000LL / (int64_t)mhz);
 }
 
+static uint32_t feedback_refresh_ns(void) {
+    const int limit = g_fps_limit;
+    const uint32_t panel = nominal_refresh_ns();
+    if (limit <= 0 || g_release_unpaced) return panel;
+    const uint32_t paced = (uint32_t)(1000000000LL / limit);
+    return paced > panel ? paced : panel;
+}
+
 static int64_t presented_ns(int64_t render_ns) {
     int64_t tick = g_tick_vsync_ns;
     int64_t refresh = (int64_t)nominal_refresh_ns();
@@ -1190,7 +1224,7 @@ static void feedback_present_all(struct wl_list *list, int64_t t) {
     uint32_t nsec = (uint32_t)(t % 1000000000LL);
     wl_resource_for_each_safe(fb, tmp, list) {
         wp_presentation_feedback_send_presented(fb, (uint32_t)(sec >> 32), (uint32_t)sec, nsec,
-                                                nominal_refresh_ns(), 0, 0,
+                                                feedback_refresh_ns(), 0, 0,
                                                 WP_PRESENTATION_FEEDBACK_KIND_VSYNC);
         wl_resource_destroy(fb);
         g_pace.presented++;

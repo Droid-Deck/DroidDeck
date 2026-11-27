@@ -85,6 +85,7 @@ object StoresState {
             do {
                 seen = refreshRequests.get()
                 runCatching { com.droiddeck.launcher.stores.battlenet.BattleNetClient.syncAccount(app) }
+                runCatching { com.droiddeck.launcher.stores.steam.SteamStore.syncAccount(app) }
                 val found = Store.entries.mapNotNull { store -> StoreAccounts.displayName(app, store)?.let { store to it } }
                 val onDisk = StoreInstallRoot.gameFolders(app).mapNotNull { folder ->
                     StoreGameSidecar.read(folder)?.takeIf { it.isInstalled || it.state == StoreGameSidecar.STATE_UPDATING }?.let { InstalledStoreGame(it, folder) }
@@ -260,6 +261,7 @@ object StoresState {
 
     fun requestInstall(context: Context, item: CatalogItem) {
         askForNotifications(context)
+        if (item.store == Store.STEAM) { com.droiddeck.launcher.stores.steam.SteamStore.requestInstall(context, item); return }
         if (item.store == Store.ITCH && item.extra["uploadId"].isNullOrEmpty()) { itchPicking = item; return }
         if (item.store == Store.GAMEJOLT && item.extra["buildId"].isNullOrEmpty()) { gameJoltPicking = item; return }
         if (isUnfinished(item)) { install(context, item); return }
@@ -278,6 +280,7 @@ object StoresState {
 
     fun install(context: Context, item: CatalogItem, root: java.io.File? = null, language: String? = null) {
         val app = context.applicationContext
+        if (item.store == Store.STEAM) { com.droiddeck.launcher.stores.steam.SteamStore.restore(app, item); return }
         val targetRoot = root ?: StoreInstallRoot.defaultTarget(app)?.root ?: StoreInstallRoot.installRoot(app)
         if (item.store == Store.BATTLENET && !com.droiddeck.launcher.stores.battlenet.BattleNetInstall.headless(item)) {
             backends[item.store]?.install(app, item, targetRoot)
@@ -315,7 +318,7 @@ object StoresState {
         val key = "${game.sidecar.store.id}:${game.sidecar.id}"
         uninstalling[key] = 0f
         background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
-            if (!com.droiddeck.launcher.stores.download.DownloadQueue.holdForRemovalWhenFree(key)) {
+            if (!com.droiddeck.launcher.stores.download.DownloadQueue.stopForRemoval(app, key)) {
                 logLine("kept \"${game.sidecar.title}\": its download or update is still running")
                 main.post { uninstalling.remove(key); onDone() }
                 return@background

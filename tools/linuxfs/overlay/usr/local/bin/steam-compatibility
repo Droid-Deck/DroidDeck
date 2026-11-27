@@ -26,6 +26,9 @@ SNIPER_APPID = "1628350"
 SLR4_APPID = "4183110"
 FEX_DEPENDENCIES = (FEX_APPID, SNIPER_APPID, SLR4_APPID)
 REQUIRED_TOOLS = (PROTON_ARM64_APPID,) + FEX_DEPENDENCIES
+# "0" = the app's "Valve Proton only when needed": Valve's ARM64 Proton is fetched only for a title or
+# default set to a tool built from it, or while no own Proton build is installed.
+VALVE_PROTON_ENV = "DD_VALVE_PROTON"
 # Linux builds that bundle an arm64 binary their launcher starts; Steamworks offers no arm64
 # launch-option architecture, so appinfo cannot say so (#1774).
 FEX_DEFAULT_APPS = frozenset({"4385780"})
@@ -76,6 +79,10 @@ dd_store_launch() {
   /usr/local/bin/droiddeck-store-launch "$@"
   rc=$?
   [ $rc -eq 10 ] && DD_STORE_EXIT=1
+  if [ $rc -eq 13 ]; then
+    DD_STORE_EXIT=1
+    DD_STORE_REPLACE="${STEAM_COMPAT_DATA_PATH%/}/droiddeck-ea-steam.bat"
+  fi
   [ $rc -eq 11 ] && exit 0
   [ $rc -eq 12 ] && exit 1
   return 0
@@ -84,6 +91,13 @@ dd_store_launch() {
 dd_run() {
   if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "${verb:-}"; then
     set -- /usr/local/bin/droiddeck-steamvr-game "$@"
+  fi
+  if [ -n "${DD_STORE_REPLACE:-}" ]; then
+    local arg replaced=()
+    for arg in "$@"; do
+      case ${arg,,} in steam2ea://*) replaced+=("$DD_STORE_REPLACE") ;; *) replaced+=("$arg") ;; esac
+    done
+    set -- "${replaced[@]}"
   fi
   if [ -n "${DD_STORE_EXIT:-}" ]; then
     trap : INT TERM HUP
@@ -187,6 +201,9 @@ dd_components() {
     # The selected system PowerVR runtime supplies DXVK at launch. Keep saved selections
     # for a later manual-driver session without rewriting this Proton's bundled files now.
     [ "$comp" = dxvk ] && [ -n "${DROIDDECK_POWERVR_RUNTIME:-}" ] && continue
+    # DroidDeck-Bionic loads only Android-built FEX unix libraries: -bionic packages or its own saved copy.
+    # A row without such a source (a glibc package, or a removal) is skipped and the tool keeps its FEX files.
+    if [ "$comp" = fex ] && [[ "$cm_tool" == DroidDeck-Bionic* ]] && [[ "${src,,}" != *bionic* ]]; then continue; fi
     cm_rows+=("$comp"$'\\t'"$rel"$'\\t'"$sum"$'\\t'"$src")
     [ "$src" != "-" ] && [ -f "$base/$rel" ] && cm_files+=("$base/$rel")
   done <<< "$cm_selected"
@@ -221,6 +238,14 @@ dd_components() {
 
 DD_GAME_CPUS_SETUP = """
 dd_game_cpus() {
+  local live=/root/.config/droiddeck/game-cores cpus rest=
+  if [ -f "$live" ] && { IFS= read -r cpus && ! IFS= read -r rest; } <"$live" 2>/dev/null && [ -z "$rest" ] && [ "$(wc -c <"$live" 2>/dev/null)" = "$((${#cpus} + 1))" ]; then
+    [[ -z $cpus || $cpus =~ ^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$ ]] || cpus=${DD_GAME_CPUS:-}
+    if [ -z "$cpus" ] && [ -n "${DD_CLIENT_CPUS:-}" ]; then
+      cpus=$(nproc --all 2>/dev/null) && cpus=0-$((cpus - 1)) || cpus=
+    fi
+    if [ -n "$cpus" ]; then export DD_GAME_CPUS=$cpus; else unset DD_GAME_CPUS; fi
+  fi
   [ -n "${DD_GAME_CPUS:-}" ] || return 0
   command -v taskset >/dev/null 2>&1 || return 0
   DD_TASKSET="taskset -c $DD_GAME_CPUS"
@@ -288,6 +313,23 @@ dd_vacdiag() {
   esac
   printf '%s\tapp %s\tcondebug %s\t%s\n' "$(date +%s)" "$app" "$added" "${exe##*/}" >> /root/.droiddeck-vac-launches
 }
+"""
+
+# DroidDeck-Bionic runs only without proot. With proot on, a launch Steam sends to a DroidDeck-Bionic tool goes to the
+# newest DroidDeck-Proton's wrapper before anything else runs, as if that Proton had been picked; the picks stay as set.
+DD_BIONIC_PROOT_FALLBACK = """
+if [ -f "$here/bionic/launch.sh" ] && [ -z "${DDNATV_ROOT:-}" ]; then
+  dd_fallback=$(cd "$here/.." 2>/dev/null && for d in DroidDeck-Proton*; do
+    [ -x "$d/droiddeck-proton-wrap" ] && [ ! -e "$d/bionic/launch.sh" ] || continue
+    v=${d#DroidDeck-Proton}; printf '%s\\t%s/%s\\n' "${v#[ -]}" "$PWD" "$d"
+  done | sort -V | tail -n 1 | cut -f 2-)
+  if [ -n "$dd_fallback" ]; then
+    echo "droiddeck-proton: DroidDeck-Bionic needs Run without proot; this launch uses ${dd_fallback##*/}" >&2
+    exec "$dd_fallback/droiddeck-proton-wrap" "$verb" "$@"
+  fi
+  echo "droiddeck-proton: DroidDeck-Bionic needs Run without proot, and no DroidDeck-Proton is installed to run this launch instead; turn on Run without proot or install DroidDeck-Proton" >&2
+  exit 1
+fi
 """
 
 DD_DRIVER_QUERY_SKIP = """
@@ -487,7 +529,7 @@ dd_run ${DD_TASKSET:-} /usr/local/bin/droiddeck-game-env "$DD_STORE_PROTON" "$ve
 def extra_wrapper_sh(entry_point):
     return (EXTRA_WRAPPER_SH % entry_point).replace(
         'here=$(dirname "$0")',
-        'here=$(dirname "$0")\n' + DD_DRIVER_QUERY_SKIP + DD_DESKTOP_GPU_SETUP + DD_DIRECTAUDIO_SETUP + DD_GAME_CPUS_SETUP
+        'here=$(dirname "$0")\n' + DD_BIONIC_PROOT_FALLBACK + DD_DRIVER_QUERY_SKIP + DD_DESKTOP_GPU_SETUP + DD_DIRECTAUDIO_SETUP + DD_GAME_CPUS_SETUP
         + DD_IDTECH3_SETUP + DD_VACDIAG_SETUP + DD_COMPONENTS_SETUP + DD_LIBPATH_SETUP + DD_STORE_SETUP, 1)
 
 
@@ -988,11 +1030,33 @@ def manifest_flags(tokens):
     return 0
 
 
-def tool_downloads(steam_root):
+def valve_proton_on_demand():
+    return os.environ.get(VALVE_PROTON_ENV) == "0"
+
+
+def uses_valve_proton(names):
+    return any(name == TOOL or VALVE_DEPOTS.get(name) == SOURCES[0] for name in names if name)
+
+
+def valve_proton_needed(steam_root, names=None):
+    if not valve_proton_on_demand():
+        return True
+    if not own_builds(tool_catalog(steam_root)):
+        return True
+    if names is None:
+        names = set((read_config_mapping(os.path.join(steam_root, "config", "config.vdf")) or {}).values())
+        names.add(read_json(state_path("state.json")).get("default"))
+    return uses_valve_proton(names)
+
+
+def tool_downloads(steam_root, valve_needed=None):
     wanted = []
     for app in REQUIRED_TOOLS:
         tokens = app_manifest(steam_root, app)
         if tokens is None:
+            if app == PROTON_ARM64_APPID and not (
+                    valve_proton_needed(steam_root) if valve_needed is None else valve_needed):
+                continue
             wanted.append((app, "install"))
         elif not manifest_flags(tokens) & FULLY_INSTALLED or manifest_flags(tokens) & UPDATE_REQUIRED:
             wanted.append((app, "update"))
@@ -1735,6 +1799,8 @@ def x64_repoint(steam_root, tool, live=False):
 
 def main():
     steam_root = sys.argv[1]
+    if "--valve-proton-needed" in sys.argv[2:]:
+        sys.exit(0 if valve_proton_needed(steam_root) else 1)
     if "--x64" in sys.argv[2:]:
         x64_repoint(steam_root, os.environ.get("DD_COMPAT_TOOL"), "--live" in sys.argv[2:])
         return
@@ -1753,6 +1819,7 @@ def main():
         build_tool(os.path.join(tools, name), depot, sources, name)
         print("steam-compatibility: registered %s (%s)" % (
             name, "depot %s present" % os.path.basename(depot) if depot else
+            "no ARM64 Proton depot yet; fetched when a title needs it" if valve_proton_on_demand() else
             "no ARM64 Proton depot yet; the session asks the client to fetch it"))
     build_fex_tool(os.path.join(tools, FEX_TOOL))
     print("steam-compatibility: registered %s" % FEX_TOOL)

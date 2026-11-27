@@ -14,19 +14,21 @@ import java.util.concurrent.atomic.AtomicBoolean
 object GuestCommand {
     fun run(context: Context, argv: List<String>, fakeRoot: Boolean = false, logName: String? = null,
             linkDir: File? = null, extraBinds: List<String>? = null, fastPath: Boolean = false, cancelled: AtomicBoolean? = null,
-            onLine: (String) -> Unit): Int {
+            redact: Regex? = null, onLine: (String) -> Unit): Int {
         val log = logName?.let {
             try {
                 File(File(LinuxRuntime.logDir(context), SessionPaths.TOOLS_DIR).apply { mkdirs() }, "$it.log").printWriter()
             } catch (e: Exception) { null }
         }
-        log?.println("== ${java.util.Date()} ${argv.joinToString(" ")}")
+        log?.println("== ${java.util.Date()} ${redacted(argv.joinToString(" "), redact)}")
         try {
-            return runLogged(context, argv, fakeRoot, linkDir, extraBinds, fastPath, cancelled) { line -> log?.println(line); log?.flush(); onLine(line) }
+            return runLogged(context, argv, fakeRoot, linkDir, extraBinds, fastPath, cancelled) { line -> log?.println(redacted(line, redact)); log?.flush(); onLine(line) }
         } finally {
             log?.close()
         }
     }
+
+    internal fun redacted(text: String, redact: Regex?): String = redact?.replace(text, "<redacted>") ?: text
 
     private fun runLogged(context: Context, argv: List<String>, fakeRoot: Boolean, linkDir: File?, extraBinds: List<String>?,
                           fastPath: Boolean, cancelled: AtomicBoolean?, onLine: (String) -> Unit): Int {

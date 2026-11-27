@@ -78,6 +78,7 @@ class ModeSettings(
     val mic: Boolean?,
     val gameStorage: String? = null,
     val storageOptions: List<com.droiddeck.launcher.session.GameStorage.Option> = emptyList(),
+    val storageFat32: Boolean = false,
     val steamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Entry> = emptyList(),
     val foundSteamLibraries: List<com.droiddeck.launcher.session.SteamLibraries.Found> = emptyList(),
     val allFilesAccessMissing: Boolean = false,
@@ -92,6 +93,7 @@ class ModeSettings(
     val steamClientArch: String? = null,
     val returnAfterGame: Boolean? = null,
     val shaderPrecache: Boolean? = null,
+    val valveProtonOnDemand: Boolean? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
@@ -113,6 +115,9 @@ class ModeSettings(
     val deckyDownloadingBinary: Boolean = false,
     val deckyEnabled: Boolean = false,
     val deckySessionRunning: Boolean = false,
+    val deckyPlugins: List<com.droiddeck.launcher.runtime.DeckyStore.Installed> = emptyList(),
+    val deckyStore: List<com.droiddeck.launcher.runtime.DeckyStore.Plugin>? = null,
+    val deckyStoreFailed: Boolean = false,
 )
 
 class ModeSettingsActions(
@@ -154,6 +159,7 @@ class ModeSettingsActions(
     val onMangoapp: (Boolean) -> Unit = {},
     val onReturnAfterGame: (Boolean) -> Unit = {},
     val onShaderPrecache: (Boolean) -> Unit = {},
+    val onValveProtonOnDemand: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
@@ -171,6 +177,9 @@ class ModeSettingsActions(
     val onDeckyEnabled: (Boolean) -> Unit = {},
     val onDeckyUninstall: () -> Unit = {},
     val onPickDeckyPluginZip: () -> Unit = {},
+    val onDeckyStoreRefresh: () -> Unit = {},
+    val onDeckyStoreInstall: (com.droiddeck.launcher.runtime.DeckyStore.Plugin) -> Unit = {},
+    val onDeckyRemove: (com.droiddeck.launcher.runtime.DeckyStore.Installed) -> Unit = {},
     val onDismiss: () -> Unit,
 )
 
@@ -220,6 +229,8 @@ class SheetExtras(
 fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: SheetExtras = SheetExtras()) {
     val steam = s.mode == SessionService.MODE_STEAM
     val host = rememberMenuHost()
+    if (tab == SheetTab.DECKY) { DeckyGroups(s, a, host); return }
+    if (tab == SheetTab.BOOT_MOVIES) { if (s.bootMovie != null) BootMovieGroup(s, a, host); return }
     Text(
         stringResource(when (s.mode) {
             SessionService.MODE_STEAM -> R.string.sheet_scope_steam
@@ -447,7 +458,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                     ValueChip(options.firstOrNull { it.path == s.gameStorage }?.chip ?: "-", open) { host.open = if (open) null else "storage" }
                     AnchoredMenu(
                         open, onDismiss = { if (host.open == "storage") host.open = null }, title = stringResource(R.string.mode_second_library),
-                        note = stringResource(R.string.mode_storage_note),
+                        note = stringResource(R.string.mode_storage_note).let { if (s.storageFat32) stringResource(R.string.main_storage_fat32) + "\n" + it else it },
                     ) { firstItemFocus ->
                         options.forEachIndexed { index, choice ->
                             MenuItem(choice.label, checked = choice.path == s.gameStorage, focusRequester = if (index == 0) firstItemFocus else null) {
@@ -509,75 +520,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
     }
     if (tab == SheetTab.STEAM && steam) {
         extras.account(host)
-        SettingsGroup(stringResource(R.string.mode_decky)) {
-            val updateAvailable = s.deckyInstalled != null && s.deckyLatestRelease != null &&
-                s.deckyInstalled != s.deckyLatestRelease.tag
-            val status = when {
-                s.deckyStage != null -> s.deckyStage
-                s.deckyChecking -> stringResource(R.string.mode_decky_checking)
-                s.deckyInstalled == null && s.deckyLatestRelease != null -> stringResource(R.string.mode_decky_ready, s.deckyLatestRelease.tag)
-                s.deckyInstalled == null -> stringResource(R.string.mode_decky_none)
-                s.deckyLatestRelease == null -> stringResource(R.string.mode_decky_installed, s.deckyInstalled)
-                updateAvailable -> stringResource(R.string.mode_decky_update, s.deckyLatestRelease.tag)
-                else -> stringResource(R.string.mode_decky_current, s.deckyInstalled)
-            }
-            SettingsRow(stringResource(R.string.mode_decky_loader), status) {
-                val action = when {
-                    s.deckyStage != null -> stringResource(R.string.common_working)
-                    s.deckyChecking -> stringResource(R.string.common_checking)
-                    s.deckyInstalled == null && s.deckyLatestRelease != null -> stringResource(R.string.mode_decky_install_latest)
-                    s.deckyInstalled != null && updateAvailable -> stringResource(R.string.common_update)
-                    else -> stringResource(R.string.common_check)
-                }
-                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
-                    SecondaryButton(
-                        action,
-                        enabled = s.deckyStage == null && !s.deckyChecking && !s.deckySessionRunning,
-                    ) {
-                        if (s.deckyLatestRelease == null || (s.deckyInstalled != null && !updateAvailable)) a.onDeckyCheck()
-                        else s.deckyLatestRelease?.let(a.onDeckyInstall)
-                    }
-                    if (s.deckyInstalled != null) DeckyUninstall(enabled = s.deckyStage == null && !s.deckySessionRunning, onUninstall = a.onDeckyUninstall)
-                }
-            }
-            ChoiceRow(
-                host, "decky-channel", stringResource(R.string.decky_channel),
-                stringResource(R.string.decky_channel_hint),
-                listOf(
-                    DeckyManager.BRANCH_STABLE to stringResource(R.string.decky_channel_stable),
-                    DeckyManager.BRANCH_PRERELEASE to stringResource(R.string.decky_channel_prerelease),
-                ) + if (s.deckyBranch == DeckyManager.BRANCH_TESTING) listOf(
-                    DeckyManager.BRANCH_TESTING to stringResource(R.string.decky_channel_testing),
-                ) else emptyList(),
-                s.deckyBranch,
-                enabled = s.deckyStage == null && !s.deckySessionRunning,
-                onPick = a.onDeckyBranch,
-            )
-            if (s.deckyInstalled != null) ToggleRow(
-                host, "decky-enabled", stringResource(R.string.mode_decky),
-                if (s.deckyEnabled) stringResource(R.string.mode_decky_on)
-                else stringResource(R.string.mode_decky_off),
-                s.deckyEnabled,
-                enabled = !s.deckySessionRunning && s.deckyStage == null,
-                onChange = a.onDeckyEnabled,
-            )
-            SettingsRow(
-                stringResource(R.string.mode_decky_plugins),
-                stringResource(R.string.mode_decky_plugins_hint),
-            ) {
-                SecondaryButton(
-                    if (s.deckyStage != null && s.deckyDownloadingBinary) stringResource(R.string.mode_decky_plugin_downloading) else stringResource(R.string.mode_decky_plugin_install_zip),
-                    enabled = s.deckyInstalled != null && s.deckyStage == null && !s.deckySessionRunning,
-                    onClick = a.onPickDeckyPluginZip,
-                )
-            }
-            if (s.deckyStage != null && s.deckyPercent >= 0) {
-                LinearProgressIndicator(
-                    progress = { s.deckyPercent / 100f },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
-                )
-            }
-        }
         SettingsGroup(stringResource(R.string.mode_client)) {
             ToggleRow(
                 host, "mangoapp", stringResource(R.string.mode_mangoapp),
@@ -594,6 +536,10 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 stringResource(R.string.mode_shader_precache_hint),
                 s.shaderPrecache, onChange = a.onShaderPrecache,
             )
+            if (s.valveProtonOnDemand != null) ToggleRow(
+                host, "valveprotonondemand", stringResource(R.string.mode_valve_proton_on_demand), null,
+                s.valveProtonOnDemand, onChange = a.onValveProtonOnDemand,
+            )
             SettingsRow(
                 stringResource(R.string.mode_steam_repair),
                 stringResource(if (s.steamRepairQueued) R.string.mode_steam_repair_queued else R.string.mode_steam_repair_hint),
@@ -607,7 +553,6 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 onPick = a.onSteamClientArch,
             )
         }
-        if (s.bootMovie != null) BootMovieGroup(s, a, host)
         if (s.integration != null) SteamIntegrationGroup(s.integration,
             onFeature = a.onIntegration, onAppInfo = a.onIntegrationAppInfo, onLocation = a.onIntegrationLocation)
     }
@@ -669,7 +614,7 @@ internal fun DeckyZipWarningDialog(onConfirm: () -> Unit, onCancel: () -> Unit) 
 private const val DECKY_ZIP_WARNING_SECONDS = 5
 
 @Composable
-private fun DeckyUninstall(enabled: Boolean, onUninstall: () -> Unit) {
+internal fun DeckyUninstall(enabled: Boolean, onUninstall: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val label = stringResource(R.string.common_uninstall)
     val title = stringResource(R.string.mode_decky_remove_title)

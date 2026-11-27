@@ -216,6 +216,41 @@ class BattleNetTest {
         assertNull(BattleNet.hostFolder(context, "G:\\etc\\passwd"))
     }
 
+    @Test fun aDriveAtTheAppDataFolderHoldingTheRuntimeListsTheGamesInside() {
+        val root = LinuxRuntime.rootDir(context)
+        val data = context.filesDir.parentFile!!
+        val pfx = File(BattleNet.prefix(context), "pfx")
+        val devices = File(pfx, "dosdevices").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(devices, "d:").toPath(), data.absoluteFile.toPath())
+        java.nio.file.Files.createSymbolicLink(File(devices, "e:").toPath(), java.nio.file.Paths.get("/root/Games/Card"))
+        val wow = File(root, "root/Games/Stores/Battle.net/World of Warcraft").apply { mkdirs() }
+        File(wow, "_forever_").mkdirs()
+        val drive = "D:/" + data.absoluteFile.toPath().relativize(wow.absoluteFile.toPath()).joinToString("/")
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent").mkdirs()
+        File(pfx, "drive_c/ProgramData/Battle.net/Agent/product.db").writeBytes(message(
+            field(1, message(field(1, "wowf"), field(2, "wowf"), field(3, message(field(1, drive))))),
+        ))
+        assertEquals(wow, BattleNet.hostFolder(context, drive))
+        assertEquals(wow, BattleNet.games(context).single().folder)
+        assertEquals(File(root, "root/Games/Card/Battle.net/X"), BattleNet.hostFolder(context, "E:\\Battle.net\\X"))
+        assertNull(BattleNet.hostFolder(context, "D:\\..\\etc"))
+    }
+
+    @Test fun aDriveAtAnAliasOfTheAppDataFolderListsTheGameUnderTheRuntimePath() {
+        val root = LinuxRuntime.rootDir(context)
+        val data = context.filesDir.parentFile!!
+        val alias = File(data.parentFile, "alias-" + data.name)
+        java.nio.file.Files.createSymbolicLink(alias.toPath(), data.absoluteFile.toPath())
+        try {
+            val devices = File(BattleNet.prefix(context), "pfx/dosdevices").apply { mkdirs() }
+            java.nio.file.Files.createSymbolicLink(File(devices, "d:").toPath(), alias.absoluteFile.toPath())
+            val game = File(root, "root/Games/Stores/Battle.net/StarCraft").apply { mkdirs() }
+            val drive = "D:\\" + data.absoluteFile.toPath().relativize(game.absoluteFile.toPath()).joinToString("\\")
+            assertEquals(game.path, BattleNet.hostFolder(context, drive)?.path)
+        } finally {
+            java.nio.file.Files.delete(alias.toPath())
+        }
+    }
 
     @Test fun wowForeverIsListedBesideRetailInTheSharedWorldOfWarcraftFolder() {
         val pfx = File(BattleNet.prefix(context), "pfx").apply { mkdirs() }
@@ -272,6 +307,21 @@ class BattleNetTest {
         assertEquals(mapOf("WoW" to root, "WoWC" to root),
             BattleNet.ownFolders(linkedMapOf("WoW" to (wow to root), "WoWC" to (classic to root)), mapOf("WoW" to null, "WoWC" to null)))
         assertEquals(mapOf("WoWF" to root), BattleNet.ownFolders(mapOf("WoWF" to (forever to root)), mapOf("WoWF" to "/elsewhere")))
+    }
+
+    @Test fun aFolderSavedThroughAnAliasOfTheAppDataFolderIsKept() {
+        val data = context.filesDir.parentFile!!
+        val root = File(context.filesDir, "World of Warcraft").apply { mkdirs() }
+        val foreverDir = File(root, "_forever_").apply { mkdirs() }
+        val forever = BattleNet.title("wow_forever")!!
+        val alias = File(data.parentFile, "alias-" + data.name)
+        java.nio.file.Files.createSymbolicLink(alias.toPath(), data.absoluteFile.toPath())
+        try {
+            val saved = File(alias, data.absoluteFile.toPath().relativize(foreverDir.absoluteFile.toPath()).toString()).path
+            assertEquals(mapOf("WoWF" to foreverDir), BattleNet.ownFolders(mapOf("WoWF" to (forever to root)), mapOf("WoWF" to saved)))
+        } finally {
+            java.nio.file.Files.delete(alias.toPath())
+        }
     }
 
     @Test fun theListedFolderIsRememberedAcrossScans() {
@@ -354,13 +404,15 @@ class BattleNetTest {
         assertEquals(codes.distinct(), codes)
         assertTrue("Fen" in codes && "OSI" in codes && "WTCG" in codes)
         assertFalse(BattleNet.STORE.any { it.uid == "d3cn" || it.uid == "fen" })
-        assertFalse(BattleNet.STORE.any { it.code == "WoWC" || it.code == "WoWF" })
+        assertFalse(BattleNet.STORE.any { it.code == "WoWC" })
+        assertEquals("wow_forever", BattleNet.STORE.first { it.code == "WoWF" }.uid)
         assertEquals("fenris", BattleNet.STORE.first { it.code == "Fen" }.uid)
         assertTrue(BattleNet.STORE.all { it.uid.matches(Regex("[a-z0-9_]{1,32}")) })
         val installed = listOf("fenris", "diablo3_enus", null)
         val offered = BattleNet.STORE.filter { BattleNet.notInstalled(it, installed) }.map { it.code }
         assertFalse("Fen" in offered || "D3" in offered)
-        assertTrue("OSI" in offered)
+        assertTrue("OSI" in offered && "WoWF" in offered)
+        assertFalse("WoWF" in BattleNet.STORE.filter { BattleNet.notInstalled(it, listOf("wow_forever")) }.map { it.code })
     }
 
     @Test fun aBattleNetGameStartsWithoutSteamThroughItsShortcutUntilThatIsSwitchedOff() {

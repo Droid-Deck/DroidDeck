@@ -15,57 +15,73 @@ class OnScreenMouseButtonTest {
     private fun profile(vararg elements: Pair<String, InputAction>, clicks: Map<String, InputAction> = emptyMap(), base: InputProfile = game) =
         base.copy(elements = mapOf(InputRole.PRIMARY to elements.toMap()), clicks = mapOf(InputRole.PRIMARY to clicks))
 
-    @Test fun shownButtonBoundToAMouseButtonIsDetected() {
-        listOf(272, 273, 274).forEach { code ->
-            assertTrue(profile(button.id to InputAction.MouseButton(code)).showsMouseButton(InputRole.PRIMARY, listOf(stick, button), game))
+    @Test fun shownButtonBoundToTheLeftMouseButtonIsDetected() {
+        assertTrue(profile(button.id to InputAction.MouseButton(272)).showsLeftMouseButton(InputRole.PRIMARY, listOf(stick, button), game))
+    }
+
+    @Test fun rightOrMiddleMouseButtonAloneKeepsTapsClicking() {
+        listOf(273, 274, 275, 276).forEach { code ->
+            assertFalse(profile(button.id to InputAction.MouseButton(code)).showsLeftMouseButton(InputRole.PRIMARY, listOf(stick, button), game))
+            val stickClick = profile(stick.id to InputAction.Native(), clicks = mapOf(stick.id to InputAction.MouseButton(code)))
+            assertFalse(stickClick.showsLeftMouseButton(InputRole.PRIMARY, listOf(stick), game))
+            assertFalse(game.withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(code)).showsLeftMouseButton(InputRole.PRIMARY, listOf(legacyA), game))
         }
+    }
+
+    @Test fun rightButtonNextToALeftButtonStillStopsTapClicks() {
+        val right = InputSurfaceElement(InputControl.B, .7f, .6f, .1f, .1f, id = "custom:right")
+        val both = profile(button.id to InputAction.MouseButton(272), right.id to InputAction.MouseButton(273))
+        assertTrue(both.showsLeftMouseButton(InputRole.PRIMARY, listOf(button, right), game))
+        assertFalse(both.showsLeftMouseButton(InputRole.PRIMARY, listOf(right), game))
     }
 
     @Test fun stickClickBoundToAMouseButtonIsDetected() {
         val profile = profile(stick.id to InputAction.Native(), clicks = mapOf(stick.id to InputAction.MouseButton(272)))
-        assertTrue(profile.showsMouseButton(InputRole.PRIMARY, listOf(stick), game))
+        assertTrue(profile.showsLeftMouseButton(InputRole.PRIMARY, listOf(stick), game))
     }
 
     @Test fun legacyButtonUsesItsRoleBinding() {
         val profile = game.withBinding(InputRole.PRIMARY, InputControl.A, InputAction.MouseButton(272))
-        assertTrue(profile.showsMouseButton(InputRole.PRIMARY, listOf(legacyA), game))
-        assertFalse(profile.showsMouseButton(InputRole.SECONDARY, listOf(legacyA), game))
+        assertTrue(profile.showsLeftMouseButton(InputRole.PRIMARY, listOf(legacyA), game))
+        assertFalse(profile.showsLeftMouseButton(InputRole.SECONDARY, listOf(legacyA), game))
     }
 
     @Test fun stockDesktopOverlayKeepsTapsClicking() {
-        assertFalse(desktop.showsMouseButton(InputRole.PRIMARY, overlay, desktop))
+        assertFalse(desktop.showsLeftMouseButton(InputRole.PRIMARY, overlay, desktop))
     }
 
     @Test fun userBoundMouseButtonInDesktopIsDetected() {
         val rebound = desktop.withBinding(InputRole.PRIMARY, InputControl.X, InputAction.MouseButton(272))
-        assertTrue(rebound.showsMouseButton(InputRole.PRIMARY, overlay, desktop))
-        val stickClick = desktop.withBinding(InputRole.PRIMARY, InputControl.L3, InputAction.MouseButton(274))
-        assertTrue(stickClick.showsMouseButton(InputRole.PRIMARY, overlay, desktop))
-        assertTrue(profile(button.id to InputAction.MouseButton(272), base = desktop).showsMouseButton(InputRole.PRIMARY, overlay + button, desktop))
+        assertTrue(rebound.showsLeftMouseButton(InputRole.PRIMARY, overlay, desktop))
+        val stickClick = desktop.withBinding(InputRole.PRIMARY, InputControl.L3, InputAction.MouseButton(272))
+        assertTrue(stickClick.showsLeftMouseButton(InputRole.PRIMARY, overlay, desktop))
+        val middleStickClick = desktop.withBinding(InputRole.PRIMARY, InputControl.L3, InputAction.MouseButton(274))
+        assertFalse(middleStickClick.showsLeftMouseButton(InputRole.PRIMARY, overlay, desktop))
+        assertTrue(profile(button.id to InputAction.MouseButton(272), base = desktop).showsLeftMouseButton(InputRole.PRIMARY, overlay + button, desktop))
     }
 
     @Test fun desktopBindingsOnAGameBaseProfileAreUserPicked() {
         val copied = desktop.copy(id = "custom")
-        assertTrue(copied.showsMouseButton(InputRole.PRIMARY, overlay, game))
+        assertTrue(copied.showsLeftMouseButton(InputRole.PRIMARY, overlay, game))
     }
 
     @Test fun layoutWithoutAMouseButtonKeepsTapsClicking() {
         val profile = profile(button.id to InputAction.Keys(listOf(57)), stick.id to InputAction.Pointer())
-        assertFalse(profile.showsMouseButton(InputRole.PRIMARY, listOf(stick, button), game))
-        assertFalse(game.showsMouseButton(InputRole.PRIMARY, listOf(legacyA, stick) + overlay, game))
+        assertFalse(profile.showsLeftMouseButton(InputRole.PRIMARY, listOf(stick, button), game))
+        assertFalse(game.showsLeftMouseButton(InputRole.PRIMARY, listOf(legacyA, stick) + overlay, game))
     }
 
     @Test fun hiddenMouseButtonDoesNotCount() {
-        assertFalse(profile(button.id to InputAction.MouseButton(272)).showsMouseButton(InputRole.PRIMARY, listOf(stick), game))
-        assertFalse(profile(button.id to InputAction.MouseButton(272)).showsMouseButton(InputRole.PRIMARY, emptyList(), game))
+        assertFalse(profile(button.id to InputAction.MouseButton(272)).showsLeftMouseButton(InputRole.PRIMARY, listOf(stick), game))
+        assertFalse(profile(button.id to InputAction.MouseButton(272)).showsLeftMouseButton(InputRole.PRIMARY, emptyList(), game))
     }
 
     @Test fun physicalMouseBindingsDoNotCount() {
         val profile = game.withBinding(InputRole.PHYSICAL, InputControl.A, InputAction.MouseButton(272))
-        assertFalse(profile.showsMouseButton(InputRole.PRIMARY, listOf(legacyA), game))
+        assertFalse(profile.showsLeftMouseButton(InputRole.PRIMARY, listOf(legacyA), game))
     }
 
     @Test fun invalidMouseCodeDoesNotCount() {
-        assertFalse(profile(button.id to InputAction.MouseButton(1)).showsMouseButton(InputRole.PRIMARY, listOf(button), game))
+        assertFalse(profile(button.id to InputAction.MouseButton(1)).showsLeftMouseButton(InputRole.PRIMARY, listOf(button), game))
     }
 }

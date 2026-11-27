@@ -31,17 +31,20 @@ object OnScreenLayout {
     private const val TOLERANCE = .01f
     private const val KEYBOARD_ID = "builtin:keyboard"
     private val REAR = setOf(InputControl.L4, InputControl.L5, InputControl.R4, InputControl.R5)
+    private val BAR = setOf(InputControl.GUIDE, InputControl.QAM)
 
     fun elements(context: Context, saved: SavedInputLayout?, width: Int, height: Int, safe: Rect,
         buttonsOnly: Boolean = false, dock: Dock? = null, rearButtons: Boolean? = null,
         trackpads: Boolean? = null): List<InputSurfaceElement> {
         if (saved == null) return emptyList()
         if (width <= 0 || height <= 0) return saved.elements
-        val layout = oriented(saved, width, height)
+        val layout = oriented(saved, dock?.portrait ?: (height > width))
         val stored = layout.elements
         val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
         val (reference, matched) = reference(context, layout, width, height)
         if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
+        if (dock?.portrait == true && !dock.grips && !matched && layout.aspect > 0f && layout.aspect < 1f && stored.any(::isGamepad))
+            return scaleDocked(context, cluster(stored.filterNot { it.alwaysShown || isGamepad(it) && (it.id == KEYBOARD_ID || it.control in BAR) }, layout.aspect, width, height, safe), ControllerPrefs.read(context).size / 100f, width, height, safe)
         val generated = matched || PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) &&
             (dock != null || height > width && layout.aspect >= 1f || height <= width && layout.aspect > 0f && layout.aspect < 1f)
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
@@ -54,24 +57,147 @@ object OnScreenLayout {
         val placed = regenerated + gamepad.filter { g -> dock == null && optional(g) && regenerated.none { it.id == g.id } }
         val byId = (placed + others).associateBy { it.id }
         val ordered = stored.mapNotNull { byId[it.id] } + placed.filter { p -> stored.none { it.id == p.id } }
-        val kit = PadKit.forOverlay(context, layout) ?: return ordered
+        val kit = PadKit.forOverlay(context, layout) ?: return if (dock == null) ordered else scaleDocked(context, ordered, ControllerPrefs.read(context).size / 100f, width, height, safe)
+        val controllerScale = layout.scale * ControllerPrefs.read(context).size / 100f
         if (generated &&
             ControllerPrefs.layout(context, reference.first.toInt(), reference.second.toInt()).isEmpty() &&
             ControllerPrefs.layout(context, width, height).isEmpty()) {
             if (dock != null || height > width) {
-                return ControllerPortraitGeometry(width.toFloat(), height.toFloat(), safe, context.resources.displayMetrics.density)
-                    .place(ordered, kit, dock != null, layout.scale, rearButtons == true, trackpads == true)
+                val placed = ControllerPortraitGeometry(width.toFloat(), height.toFloat(), safe, context.resources.displayMetrics.density)
+                    .place(ordered, kit, dock != null, controllerScale, rearButtons == true, trackpads == true)
+                return if (dock != null) {
+                    scaleDocked(context, placed, ControllerPrefs.read(context).size / 100f, width, height, safe)
+                } else placed
             }
-            return ControllerOverlayGeometry(width, height, safe, context.resources.displayMetrics, layout.scale)
+            return ControllerOverlayGeometry(width, height, safe, context.resources.displayMetrics, controllerScale)
                 .place(ordered, kit, rearButtons == true, trackpads == true)
         }
-        if (dock != null || !kit.steam) return ordered
+        if (dock != null || !kit.steam) {
+            if (dock == null) return ordered
+            return scaleDocked(context, ordered, ControllerPrefs.read(context).size / 100f, width, height, safe)
+        }
         return FloatingSteamOverlay(width, height, safe, context.resources.displayMetrics.density)
             .place(ordered, lowerShortcuts = generated, rearButtons = rearButtons, trackpads = trackpads)
     }
 
-    fun oriented(layout: SavedInputLayout, width: Int, height: Int): SavedInputLayout {
-        val portrait = height > width
+    private fun scaleDocked(context: Context, elements: List<InputSurfaceElement>, scale: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {
+        val usableWidth = (width - safe.left - safe.right).coerceAtLeast(1).toFloat() / width
+        val usableHeight = (height - safe.top - safe.bottom).coerceAtLeast(1).toFloat() / height
+        val leftBound = safe.left.toFloat() / width
+        val rightBound = (width - safe.right).toFloat() / width
+        val topBound = safe.top.toFloat() / height
+        val bottomBound = (height - safe.bottom).toFloat() / height
+        val scaled = elements.map { element ->
+            if (!isGamepad(element)) return@map element
+            val w = (element.width * scale).coerceIn(min(.001f, usableWidth), usableWidth)
+            val h = (element.height * scale).coerceIn(min(.001f, usableHeight), usableHeight)
+            val x = (element.x + element.width / 2f - w / 2f)
+                .coerceIn(leftBound, (rightBound - w).coerceAtLeast(leftBound))
+            val y = (element.y + element.height / 2f - h / 2f)
+                .coerceIn(topBound, (bottomBound - h).coerceAtLeast(topBound))
+            element.copy(x = x, y = y, width = w, height = h)
+        }.toMutableList()
+        if (scale > 1f) {
+            val gap = 4f / width
+            fun spacePair(leftControl: InputControl, rightControl: InputControl) {
+                val li = scaled.indexOfFirst { isGamepad(it) && it.control == leftControl }
+                val ri = scaled.indexOfFirst { isGamepad(it) && it.control == rightControl }
+                if (li < 0 || ri < 0) return
+                var left = scaled[li]
+                var right = scaled[ri]
+                val available = (rightBound - leftBound).coerceAtLeast(.001f)
+                var gapSize = gap.coerceAtMost(available / 4f)
+                if (left.width + right.width + gapSize > available) {
+                    val factor = ((available - gapSize).coerceAtLeast(0f) / (left.width + right.width)).coerceAtMost(1f)
+                    left = left.copy(width = left.width * factor)
+                    right = right.copy(width = right.width * factor)
+                }
+                val total = left.width + gapSize + right.width
+                val center = ((left.x + left.width / 2f) + (right.x + right.width / 2f)) / 2f
+                val start = (center - total / 2f).coerceIn(leftBound, (rightBound - total).coerceAtLeast(leftBound))
+                scaled[li] = left.copy(x = start)
+                scaled[ri] = right.copy(x = start + left.width + gapSize)
+            }
+            spacePair(InputControl.LT, InputControl.LB)
+            spacePair(InputControl.RB, InputControl.RT)
+        }
+        if (scale > 1f && ControllerPrefs.layout(context, width, height).isEmpty()) {
+            repeat(scaled.size) {
+                for (i in scaled.indices) {
+                    if (!isGamepad(scaled[i])) continue
+                    for (j in i + 1 until scaled.size) {
+                        if (!isGamepad(scaled[j])) continue
+                        val a = scaled[i]
+                        val b = scaled[j]
+                        val overlapX = min(a.x + a.width, b.x + b.width) - max(a.x, b.x)
+                        val overlapY = min(a.y + a.height, b.y + b.height) - max(a.y, b.y)
+                        if (overlapX <= 0f || overlapY <= 0f) continue
+
+                        val centerAX = a.x + a.width / 2f
+                        val centerBX = b.x + b.width / 2f
+                        val centerAY = a.y + a.height / 2f
+                        val centerBY = b.y + b.height / 2f
+                        if (overlapX / min(a.width, b.width) <= overlapY / min(a.height, b.height)) {
+                            val gapX = 2f / width
+                            val available = (rightBound - leftBound).coerceAtLeast(.001f)
+                            val leftFirst = centerAX <= centerBX
+                            val factor = ((available - gapX).coerceAtLeast(0f) / (a.width + b.width)).coerceIn(0f, 1f)
+                            val aw = a.width * factor
+                            val ah = a.height * factor
+                            val bw = b.width * factor
+                            val bh = b.height * factor
+                            val total = aw + gapX + bw
+                            val center = ((centerAX + centerBX) / 2f).coerceIn(
+                                leftBound + total / 2f,
+                                (rightBound - total / 2f).coerceAtLeast(leftBound + total / 2f))
+                            val firstX = center - total / 2f
+                            val secondX = firstX + (if (leftFirst) aw else bw) + gapX
+                            scaled[i] = if (leftFirst) {
+                                a.copy(x = firstX, y = centerAY - ah / 2f, width = aw, height = ah)
+                            } else {
+                                a.copy(x = secondX, y = centerAY - ah / 2f, width = aw, height = ah)
+                            }
+                            scaled[j] = if (leftFirst) {
+                                b.copy(x = secondX, y = centerBY - bh / 2f, width = bw, height = bh)
+                            } else {
+                                b.copy(x = firstX, y = centerBY - bh / 2f, width = bw, height = bh)
+                            }
+                        } else {
+                            val gapY = 2f / height
+                            val available = (bottomBound - topBound).coerceAtLeast(.001f)
+                            val topFirst = centerAY <= centerBY
+                            val factor = ((available - gapY).coerceAtLeast(0f) / (a.height + b.height)).coerceIn(0f, 1f)
+                            val aw = a.width * factor
+                            val ah = a.height * factor
+                            val bw = b.width * factor
+                            val bh = b.height * factor
+                            val total = ah + gapY + bh
+                            val center = ((centerAY + centerBY) / 2f).coerceIn(
+                                topBound + total / 2f,
+                                (bottomBound - total / 2f).coerceAtLeast(topBound + total / 2f))
+                            val firstY = center - total / 2f
+                            val secondY = firstY + (if (topFirst) ah else bh) + gapY
+                            scaled[i] = if (topFirst) {
+                                a.copy(x = centerAX - aw / 2f, y = firstY, width = aw, height = ah)
+                            } else {
+                                a.copy(x = centerAX - aw / 2f, y = secondY, width = aw, height = ah)
+                            }
+                            scaled[j] = if (topFirst) {
+                                b.copy(x = centerBX - bw / 2f, y = secondY, width = bw, height = bh)
+                            } else {
+                                b.copy(x = centerBX - bw / 2f, y = firstY, width = bw, height = bh)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return scaled
+    }
+
+    fun oriented(layout: SavedInputLayout, width: Int, height: Int): SavedInputLayout = oriented(layout, height > width)
+
+    private fun oriented(layout: SavedInputLayout, portrait: Boolean): SavedInputLayout {
         if (layout.rotated.isEmpty() || layout.aspect <= 0f || (layout.aspect < 1f) == portrait || (layout.rotatedAspect < 1f) != portrait) return layout
         val rotated = layout.rotated.associateBy { it.id }
         return layout.copy(elements = layout.elements.map { e -> rotated[e.id]?.let { e.copy(x = it.x, y = it.y, width = it.width, height = it.height) } ?: e } +
@@ -131,6 +257,23 @@ object OnScreenLayout {
         }
     }
 
+    private fun cluster(elements: List<InputSurfaceElement>, aspect: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {
+        if (elements.isEmpty()) return elements
+        val left = elements.minOf { it.x } * aspect
+        val top = elements.minOf { it.y }
+        val spanX = (elements.maxOf { it.x + it.width } * aspect - left).coerceAtLeast(.0001f)
+        val spanY = (elements.maxOf { it.y + it.height } - top).coerceAtLeast(.0001f)
+        val w = (width - safe.left - safe.right).toFloat().coerceAtLeast(1f)
+        val h = (height - safe.top - safe.bottom).toFloat().coerceAtLeast(1f)
+        val scale = minOf(w / aspect, w / spanX, h / spanY)
+        val originX = safe.left + (w - spanX * scale) / 2f - left * scale
+        val originY = safe.top + (h - spanY * scale) / 2f - top * scale
+        return elements.map { e ->
+            e.copy(x = (originX + e.x * aspect * scale) / width, y = (originY + e.y * scale) / height,
+                width = e.width * aspect * scale / width, height = e.height * scale / height)
+        }
+    }
+
     private fun anchor(start: Float, size: Float, reference: Float, actual: Float, scale: Float): Float {
         val centre = start + size / 2f
         val scaled = size * reference * scale
@@ -160,7 +303,14 @@ object OnScreenLayout {
                 ?.let { (it * height).roundToInt().coerceAtLeast(1) to height }
             for ((w, h) in listOfNotNull(named, width to height, aspectSize, long to short, short to long).distinct()) {
                 val generator = LegacyGamepadLayout(display, w, h, scale = layout.scale)
-                if (matches(gamepad, generator.elements()) || matches(gamepad, generator.elements(previousStickGeometry = true))) return (w.toFloat() to h.toFloat()) to true
+                val sizedGenerator = LegacyGamepadLayout(
+                    display, w, h, scale = layout.scale,
+                    sizeOverride = ControllerPrefs.read(context).size
+                )
+                if (matches(gamepad, generator.elements()) || matches(gamepad, generator.elements(previousStickGeometry = true)) ||
+                    matches(gamepad, sizedGenerator.elements()) || matches(gamepad, sizedGenerator.elements(previousStickGeometry = true))) {
+                    return (w.toFloat() to h.toFloat()) to true
+                }
             }
         }
         val aspect = layout.aspect.takeIf { it > 0f } ?: (long.toFloat() / short)

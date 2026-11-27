@@ -69,6 +69,19 @@ class ExperimentalProtonsTest {
     }
 
     @Test
+    fun bionicBuildsKeepTheirOwnRow() {
+        val tool = ProtonExtras.tools.first { it.id == ProtonExtras.OWN }
+        val releases = JSONArray("""
+            [{"tag_name":"DroidDeck-Proton-11-12.8","prerelease":false,"published_at":"2026-11-14T00:00:00Z","assets":[{"name":"DroidDeck-Proton-11-12.8-aarch64.tar.gz","browser_download_url":"https://example/stable"}]},
+             {"tag_name":"DroidDeck-Bionic-12.8-r37","prerelease":true,"published_at":"2026-11-19T00:00:00Z","assets":[{"name":"DroidDeck-Bionic-12.8-r37-aarch64.tar.xz","browser_download_url":"https://example/bionic"}]},
+             {"tag_name":"DroidDeck-Proton-11-12.9-test1","prerelease":true,"published_at":"2026-11-19T01:00:00Z","assets":[{"name":"DroidDeck-Proton-11-12.9-test1-aarch64.tar.xz","browser_download_url":"https://example/test"}]}]
+        """.trimIndent())
+        val assets = ProtonExtras.assets(tool, releases, true)
+        assertEquals(listOf("DroidDeck-Bionic-12.8-r37", "DroidDeck-Proton-11-12.9-test1"), assets.map { it.tag })
+        assertEquals(listOf("DroidDeck-Proton-11-12.9-test1"), ExperimentalProtons.listed(assets).map { it.tag })
+    }
+
+    @Test
     fun markerRoundTripKeepsReleaseTag() {
         val dir = File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(activity), "root/.local/share/Steam/compatibilitytools.d/Experimental-pre").apply { mkdirs() }
         File(dir, ".droiddeck-experimental.json").writeText(JSONObject().put("label", "Experimental-pre").put("source", "pre").put("releaseTag", "pre").toString())

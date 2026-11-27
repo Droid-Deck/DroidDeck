@@ -66,6 +66,14 @@ ensure_machine_id() {
 } 2>/dev/null
 ensure_machine_id
 
+write_document_store_service() {
+  [ -x /usr/local/bin/droiddeck-documents ] || return 0
+  mkdir -p /usr/local/share/dbus-1/services &&
+    printf '[D-BUS Service]\nName=org.freedesktop.portal.Documents\nExec=/usr/local/bin/droiddeck-documents\n' \
+      > /usr/local/share/dbus-1/services/org.freedesktop.portal.Documents.service
+} 2>/dev/null
+write_document_store_service
+
 write_system_bus_config() {
   mkdir -p /run/dbus /usr/local/share/droiddeck
   cat > /usr/local/share/droiddeck/system-bus.conf <<'BUSCONF'
@@ -540,7 +548,7 @@ if [ -z "${DD_INSIDE:-}" ]; then
   args=(--backend "$backend" --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$nested_h")
   if [ "${game_size:-0}" != 1 ] && { [ "$nested" != "$width" ] || [ "$nested_h" != "$height" ]; }; then
     args+=(-S stretch)
-    export DD_STRETCHED=1
+    export DD_STRETCHED=1 DD_STRETCH_OUTPUT="${width}x${height}" DD_STRETCH_GAME="${nested}x${nested_h}"
   fi
   if [ "${DD_REFRESH:-0}" -gt 0 ]; then
     args+=(-r "$DD_REFRESH")
@@ -592,6 +600,12 @@ dd_xprop_set_all() {
     DISPLAY=$d xprop -root -f "$1" 32c -set "$1" "$2" 2>/dev/null || ok=0
   done
   [ "$ok" = 1 ]
+}
+dd_stretch_game_screen() {
+  local idx w h super
+  IFS=', ' read -r idx w h super <<<"$1"
+  [ "$idx" = 1 ] && [ "${w}x${h}" = "$2" ] && [ "${super:-0}" = 0 ] || return 1
+  xprop -root -f GAMESCOPE_XWAYLAND_MODE_CONTROL 32c -set GAMESCOPE_XWAYLAND_MODE_CONTROL "$idx, ${3%x*}, ${3#*x}, 1" 2>/dev/null
 }
 export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
 reap_orphans() {
@@ -764,7 +778,7 @@ case $mode in
           for _d in /proc/[0-9]*; do
             [ "${_d##*/}" != "$BASHPID" ] || continue
             _args=()
-            while IFS= read -r -d '' _c; do _args+=("$_c"); done 2>/dev/null < "$_d/cmdline" || true
+            mapfile -d '' -t _args 2>/dev/null < "$_d/cmdline" || true
             [ "${#_args[@]}" -gt 0 ] || continue
             _name=${_args[0]} _fex=0
             if [ "${#_args[@]}" -gt 1 ]; then
@@ -1155,7 +1169,10 @@ case $mode in
         "${DD_X64_HOME:-$HOME/.droiddeck-x64}/.local/share/Steam" &&
         echo "$DD_SHADER_PRECACHE" > "$HOME/.dd-shader-precache-applied" || true
     fi
-    if [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ]; then
+    if [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ] &&
+      ! steam-compatibility "$steam_root" --valve-proton-needed; then
+      step "leaving Valve's ARM64 Proton until a title needs it"
+    elif [ "$steam_x64" = 0 ] && [ ! -f "$steam_root/steamapps/appmanifest_4427310.acf" ]; then
       step "asking the client to fetch the ARM64 Proton"
       set -- "$@" steam://install/4427310
       (
@@ -1205,7 +1222,7 @@ case $mode in
       [ "${DD_STRETCHED:-0}" = 1 ] && stretch=1
       [ "${DD_RESTORE_ON_RESUME:-1}" = 1 ] && restore=1
       atoms=(STEAM_TOUCH_CLICK_MODE GAMESCOPE_FOCUSED_APP)
-      [ "$stretch" = 1 ] && atoms+=(GAMESCOPE_NEW_SCALING_SCALER)
+      [ "$stretch" = 1 ] && atoms+=(GAMESCOPE_NEW_SCALING_SCALER GAMESCOPE_XWAYLAND_MODE_CONTROL)
       prop_value() {
         case $1 in *'not found'*|*=) pv=$2; return ;; esac
         pv=${1#*=}
@@ -1272,6 +1289,11 @@ case $mode in
             [ "$pv" = 0 ] || continue
             xprop -root -f GAMESCOPE_NEW_SCALING_SCALER 32c -set GAMESCOPE_NEW_SCALING_SCALER 4 2>/dev/null \
               && echo "== stretch 16:9 to panel: the client's scaler was Auto, set to Stretch"
+            ;;
+          GAMESCOPE_XWAYLAND_MODE_CONTROL*)
+            prop_value "$line" ""
+            dd_stretch_game_screen "$pv" "$DD_STRETCH_OUTPUT" "$DD_STRETCH_GAME" \
+              && echo "== stretch 16:9 to panel: the client sized the game screen to the output ($DD_STRETCH_OUTPUT), set to $DD_STRETCH_GAME"
             ;;
         esac
       done < <(xprop -spy -root "${atoms[@]}" 2>/dev/null)

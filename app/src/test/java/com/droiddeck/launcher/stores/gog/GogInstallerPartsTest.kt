@@ -1,10 +1,12 @@
 package com.droiddeck.launcher.stores.gog
 
+import com.droiddeck.launcher.stores.StoreInstallRoot
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -81,6 +83,42 @@ class GogInstallerPartsTest {
         } finally {
             root.deleteRecursively()
         }
+    }
+
+    private val gib = 1024L * 1024 * 1024
+
+    @Test fun anInstallerThatFitsOnlyBeforeExtractionIsRefusedBeforeItDownloads() {
+        val download = 1_048_576L + 17 * (7 * gib / 2)
+        val installed = 699 * gib / 10
+        val free = 944 * gib / 10
+        assertFalse(StoreInstallRoot.insufficientSpace(download, free))
+        val needed = GogDownloadManager.installerBytesNeeded(download, installed)
+        assertEquals(download + installed, needed)
+        assertTrue(StoreInstallRoot.insufficientSpace(needed, free))
+    }
+
+    @Test fun anInstallerThatFitsWithItsExtractedFilesIsAllowed() {
+        val download = 1_048_576L + 3_786_407_936L
+        assertFalse(StoreInstallRoot.insufficientSpace(GogDownloadManager.installerBytesNeeded(download, 6 * gib), 944 * gib / 10))
+    }
+
+    @Test fun anUnknownInstalledSizeKeepsTheDownloadOnlyCheck() {
+        val download = 1_048_576L + 3_786_407_936L
+        assertEquals(download, GogDownloadManager.installerBytesNeeded(download, 0L))
+        assertEquals(download, GogDownloadManager.installerBytesNeeded(download, -1L))
+        assertEquals(5 * gib, GogDownloadManager.installerBytesNeeded(0L, 5 * gib))
+        assertEquals(0L, GogDownloadManager.installerBytesNeeded(0L, -1L))
+    }
+
+    @Test fun aPartWithoutASizeStillCountsTheKnownBytesOfTheOthers() {
+        val parts = listOf(
+            GogDownloadManager.InstallerPart("u0", "setup.exe", 0L),
+            GogDownloadManager.InstallerPart("u1", "setup-1.bin", 60 * gib),
+        )
+        val needed = GogDownloadManager.installerBytesNeeded(GogDownloadManager.knownPartBytes(parts), 70 * gib)
+        assertEquals(130 * gib, needed)
+        assertTrue(StoreInstallRoot.insufficientSpace(needed, 95 * gib))
+        assertEquals(0L, GogDownloadManager.knownPartBytes(emptyList()))
     }
 
     @Test fun anotherPlatformOrNoDownloadsAddsNothing() {

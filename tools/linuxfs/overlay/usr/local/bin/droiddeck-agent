@@ -432,7 +432,7 @@ class FocusWatcher(threading.Thread):
 
 class WebSocket:
 
-    def __init__(self, url, timeout):
+    def __init__(self, url, timeout, bounded=False):
         target = urllib.parse.urlsplit(url)
         if (target.scheme != "ws" or target.hostname not in ("127.0.0.1", "::1", "localhost")
                 or target.username is not None or target.password is not None or target.fragment):
@@ -442,6 +442,7 @@ class WebSocket:
         if target.query:
             path += "?" + target.query
         host = "127.0.0.1" if target.hostname == "localhost" else target.hostname
+        self.deadline = time.monotonic() + timeout if bounded else None
         self.s = socket.create_connection((host, target.port or 80), timeout=timeout)
         try:
             self._handshake(path, hostport)
@@ -457,6 +458,7 @@ class WebSocket:
         ).encode())
         head = b""
         while b"\r\n\r\n" not in head:
+            self._wait()
             chunk = self.s.recv(4096)
             if not chunk:
                 raise OSError("DevTools closed the connection during the handshake")
@@ -468,8 +470,17 @@ class WebSocket:
             raise OSError("DevTools refused the WebSocket: " + status.decode(errors="replace"))
         self.buffer = head.split(b"\r\n\r\n", 1)[1]
 
+    def _wait(self):
+        if self.deadline is None:
+            return
+        left = self.deadline - time.monotonic()
+        if left <= 0:
+            raise socket.timeout("DevTools did not answer in time")
+        self.s.settimeout(left)
+
     def _read(self, n):
         while len(self.buffer) < n:
+            self._wait()
             chunk = self.s.recv(65536)
             if not chunk:
                 raise OSError("DevTools closed the connection")
@@ -547,22 +558,51 @@ def cdp_targets(agent_dir, timeout=5):
         raise AgentError("DEVTOOLS_UNREACHABLE", "Could not reach the client's DevTools at %s: %s" % (url, e))
 
 
-def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15):
-    targets = [t for t in cdp_targets(agent_dir) if t.get("webSocketDebuggerUrl")]
-    want = target or "SharedJSContext"
-    match = [t for t in targets if want in (t.get("title") or "") or want in (t.get("url") or "")]
-    if not match:
-        names = ", ".join(sorted({t.get("title") or t.get("url") or "?" for t in targets}))
-        raise AgentError("NO_TARGET", "No DevTools target matches '%s' (have: %s)" % (want, names))
-    ws = WebSocket(match[0]["webSocketDebuggerUrl"], timeout)
+INSPECTOR_URL = re.compile(r"ws://127\.0\.0\.1:([0-9]{4,5})/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
+
+def inspector_url(url):
+    found = INSPECTOR_URL.fullmatch(url) if isinstance(url, str) else None
+    if not found or not 1024 <= int(found.group(1)) <= 65535:
+        raise AgentError("INVALID_REQUEST", "inspector must be a ws://127.0.0.1 inspector URL with its session id")
+    return url
+
+
+def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15, inspector=None,
+             command_line_api=False):
+    if inspector is not None:
+        url, name = inspector_url(inspector), "inspector"
+    else:
+        targets = [t for t in cdp_targets(agent_dir) if t.get("webSocketDebuggerUrl")]
+        want = target or "SharedJSContext"
+        match = [t for t in targets if want in (t.get("title") or "") or want in (t.get("url") or "")]
+        if not match:
+            names = ", ".join(sorted({t.get("title") or t.get("url") or "?" for t in targets}))
+            raise AgentError("NO_TARGET", "No DevTools target matches '%s' (have: %s)" % (want, names))
+        url, name = match[0]["webSocketDebuggerUrl"], match[0].get("title")
     try:
-        ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {
-            "expression": expression, "returnByValue": True, "awaitPromise": await_promise,
-            "userGesture": True,
-        }}))
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            message = json.loads(ws.recv())
+        ws = WebSocket(url, timeout, bounded=True)
+    except socket.timeout:
+        raise AgentError("TIMEOUT", "No answer from DevTools in %ss" % timeout)
+    except OSError as e:
+        raise AgentError("DEVTOOLS_UNREACHABLE", "Could not reach DevTools: %s" % e)
+    try:
+        try:
+            ws.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {
+                "expression": expression, "returnByValue": True, "awaitPromise": await_promise,
+                "userGesture": True, "includeCommandLineAPI": command_line_api,
+            }}))
+        except socket.timeout:
+            raise AgentError("TIMEOUT", "No answer from DevTools in %ss" % timeout)
+        except OSError as e:
+            raise AgentError("DEVTOOLS_UNREACHABLE", "DevTools went away: %s" % e)
+        while True:
+            try:
+                message = json.loads(ws.recv())
+            except socket.timeout:
+                raise AgentError("TIMEOUT", "No answer from DevTools in %ss" % timeout)
+            except OSError as e:
+                raise AgentError("DEVTOOLS_UNREACHABLE", "DevTools went away: %s" % e)
             if message.get("id") != 1:
                 continue
             if "error" in message:
@@ -573,9 +613,8 @@ def cdp_eval(agent_dir, expression, target=None, await_promise=True, timeout=15)
                 text = (details.get("exception") or {}).get("description") or details.get("text") or "exception"
                 raise AgentError("JS_EXCEPTION", text)
             value = result.get("result", {})
-            return {"target": match[0].get("title"), "type": value.get("type"),
+            return {"target": name, "type": value.get("type"),
                     "value": value.get("value"), "description": value.get("description")}
-        raise AgentError("TIMEOUT", "No answer from DevTools in %ss" % timeout)
     finally:
         ws.close()
 
@@ -1157,7 +1196,7 @@ def handle(agent_dir, req):
         if not isinstance(expression, str) or not expression:
             raise AgentError("INVALID_REQUEST", "cdp eval needs an expression")
         return cdp_eval(agent_dir, expression, req.get("target"), bool(req.get("awaitPromise", True)),
-                        request_timeout(req, 15))
+                        request_timeout(req, 15), req.get("inspector"), req.get("commandLineApi") is True)
     if kind == "steam-selection":
         return steam_selection(agent_dir, request_timeout(req, 5))
     if kind == "quit":
@@ -1165,6 +1204,15 @@ def handle(agent_dir, req):
     if kind == "vr":
         return steamvr(req)
     raise AgentError("UNKNOWN_REQUEST", "Unknown agent request '%s'" % kind)
+
+
+def reply(agent_dir, req):
+    try:
+        return dict(handle(agent_dir, req), ok=True)
+    except AgentError as e:
+        return {"ok": False, "error": {"code": e.code, "message": str(e)}}
+    except Exception as e:
+        return {"ok": False, "error": {"code": "AGENT_FAILED", "message": "%s: %s" % (type(e).__name__, e)}}
 
 
 def answer(agent_dir, path):
@@ -1186,12 +1234,7 @@ def answer(agent_dir, path):
         except OSError:
             pass
     if req is not None:
-        try:
-            result = dict(handle(agent_dir, req), ok=True)
-        except AgentError as e:
-            result = {"ok": False, "error": {"code": e.code, "message": str(e)}}
-        except Exception as e:
-            result = {"ok": False, "error": {"code": "AGENT_FAILED", "message": "%s: %s" % (type(e).__name__, e)}}
+        result = reply(agent_dir, req)
     write_json(agent_dir / "resp" / (rid + ".json"), result)
 
 
@@ -1218,6 +1261,13 @@ def serve(agent_dir, focus=True, poll=0.1):
 
 
 def main(argv):
+    if argv and argv[0] == "--cdp-inspector":
+        if len(argv) != 4:
+            print("usage: droiddeck-agent --cdp-inspector <inspector url> <seconds> <expression>", file=sys.stderr)
+            return 2
+        print(json.dumps(reply(Path("/"), {"kind": "cdp", "inspector": argv[1], "timeout": argv[2],
+                                            "expression": argv[3], "commandLineApi": True})))
+        return 0
     base = os.environ.get("DD_LAUNCH_DIR")
     if not base:
         print("DD_LAUNCH_DIR is not set", file=sys.stderr)

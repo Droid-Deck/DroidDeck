@@ -54,6 +54,16 @@ class WinComponentDetectorsTest {
         assertEquals(emptyList<String?>(), WinCompSources.steamList(context, game, 409710, "Other", auto = true).map { it.component })
     }
 
+    @Test fun eu4GetsTheNativeShaderCompilerItsMapEffectsNeed() {
+        val steamapps = tmp.newFolder("steamapps")
+        val game = File(steamapps, "common/Europa Universalis IV").apply { mkdirs() }
+        File(steamapps, "appmanifest_236850.acf").writeText("\"AppState\"\n{\n\t\"SharedDepots\"\n\t{\n\t\t\"228983\"\t\t\"228980\"\n\t\t\"228990\"\t\t\"228980\"\n\t}\n}\n")
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val found = WinCompSources.steamList(context, game, 236850, "Europa Universalis IV", auto = true)
+        assertEquals(listOf("vcredist2010_dll", "d3dx9", "d3dcompiler_43"), found.map { it.component })
+        assertTrue(found.all { it.auto && it.origin == WinCompSources.Origin.STEAM })
+    }
+
     @Test fun theGamesInstallScriptRedistsAreInstalledAsSteamWould() {
         val steamapps = tmp.newFolder("steamapps")
         val game = File(steamapps, "common/DiRT 3 Complete Edition").apply { mkdirs() }

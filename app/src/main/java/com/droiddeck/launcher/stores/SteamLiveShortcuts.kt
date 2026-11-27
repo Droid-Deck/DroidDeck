@@ -19,25 +19,33 @@ object SteamLiveShortcuts {
     private const val EVAL_TIMEOUT_MS = 20_000L
     private const val THAW_WAIT_MS = 15_000L
 
-    fun sync(context: Context, games: List<AddedGames.Game>, include: (AddedGames.Game) -> Boolean = { it.source != Library.ADDED }) {
+    fun sync(context: Context, games: List<AddedGames.Game>, include: (AddedGames.Game) -> Boolean = { it.source != Library.ADDED }): Boolean {
         val wanted = games.filter(include)
-        if (wanted.isEmpty() || !clientRunning()) return
+        if (wanted.isEmpty()) return true
+        if (!clientRunning()) return false
         val list = JSONArray()
         for (g in wanted) list.put(JSONObject().put("name", g.name).put("exe", g.guestExe).put("dir", g.guestDir).put("appid", g.appId and 0xFFFFFFFFL).put("launch", g.launchOptions))
         val js = """
             (async () => {
               const want = ${list};
-              let added = 0;
+              let added = 0, missed = 0;
               for (const w of want) {
                 if (await ${KNOWN}(w.appid, w.name, w.exe)) continue;
-                if (await ${ADD}(w.name, w.exe, w.dir, true, ${JSONObject.quote(compatTool(context))}, w.launch)) added++;
+                if (await ${ADD}(w.name, w.exe, w.dir, true, ${JSONObject.quote(compatTool(context))}, w.launch)) added++; else missed++;
               }
-              return added;
+              return JSON.stringify({ added, missed });
             })()
         """.trimIndent()
-        val result = evaluate(context, js) ?: return
-        Log.i(TAG, "live shortcuts: $result added")
-        if (result != "0") StoresState.logLine("Steam: $result shortcut(s) added to the running client")
+        return synced(evaluate(context, js))
+    }
+
+    internal fun synced(result: String?): Boolean {
+        val counts = result?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return false
+        val added = counts.optInt("added")
+        val missed = counts.optInt("missed")
+        Log.i(TAG, "live shortcuts: $added added" + if (missed > 0) ", $missed not added" else "")
+        if (added > 0) StoresState.logLine("Steam: $added shortcut(s) added to the running client")
+        return missed == 0
     }
 
     fun ensure(context: Context, name: String, exe: String, dir: String, compat: Boolean, appId: Long? = null): Long? {
