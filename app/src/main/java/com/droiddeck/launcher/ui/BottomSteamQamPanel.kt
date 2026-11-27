@@ -3,17 +3,22 @@ package com.droiddeck.launcher.ui
 import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AlignHorizontalCenter
-import androidx.compose.material.icons.outlined.AlignHorizontalLeft
-import androidx.compose.material.icons.outlined.AlignHorizontalRight
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -24,17 +29,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -79,16 +89,30 @@ internal object QamLayout {
 }
 
 private const val TICK_MS = 1_000L
+private const val FAST_TICK_MS = 150L
+
+/** The last frame shown, so returning to the panel shows the menu at once while the live stream reconnects. */
+private object QamCache {
+    @Volatile var image: ImageBitmap? = null
+    @Volatile var shape: FloatArray? = null
+}
 
 @Composable
 internal fun SteamQamPanel() {
     val context = LocalContext.current.applicationContext
-    var image by remember { mutableStateOf<ImageBitmap?>(null) }
-    var shape by remember { mutableStateOf<FloatArray?>(null) }
+    var image by remember { mutableStateOf(QamCache.image) }
+    var shape by remember { mutableStateOf(QamCache.shape) }
     var failed by remember { mutableStateOf(false) }
+    var slow by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(2_500)
+        slow = true
+    }
     var align by remember { mutableIntStateOf(SessionPrefs.quickAccessAlign(context)) }
     val holder = remember { arrayOfNulls<CdpPage>(1) }
     val relay = remember { intArrayOf(0) }
+    val live = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    val show = { frame: ImageBitmap -> image = frame; QamCache.image = frame; live.set(true) }
     DisposableEffect(Unit) {
         onDispose {
             val page = holder[0]
@@ -106,7 +130,7 @@ internal fun SteamQamPanel() {
             while (isActive) {
                 // Holding the menu before Steam's first frame keeps gamescope from presenting it.
                 if (SessionState.phase != SessionPhase.READY) {
-                    delay(TICK_MS)
+                    delay(FAST_TICK_MS)
                     continue
                 }
                 val open = SteamQam.hold(context)
@@ -115,13 +139,14 @@ internal fun SteamQamPanel() {
                     var page = holder[0]
                     if (page == null || page.closed) {
                         page?.close()
+                        live.set(false)
                         page = SteamQam.target(context)?.let { t ->
                             relay[0] = t.port
                             runCatching {
                                 CdpPage(t.port, t.path) { method, params ->
                                     if (method == "Page.screencastFrame") {
                                         holder[0]?.send("Page.screencastFrameAck", JSONObject().put("sessionId", params.optInt("sessionId")))
-                                        decodeFrame(params.optString("data"))?.let { image = it }
+                                        decodeFrame(params.optString("data"))?.let(show)
                                     }
                                 }
                             }.onFailure { android.util.Log.w("SteamQam", "devtools connect: $it") }.getOrNull()
@@ -132,19 +157,19 @@ internal fun SteamQamPanel() {
                             .put("maxWidth", 1920).put("maxHeight", 1440))
                     }
                     // The screencast sends frames only when the menu repaints, so a still menu needs one screenshot.
-                    if (image == null) {
+                    if (!live.get()) {
                         page?.call("Page.captureScreenshot", JSONObject().put("format", "jpeg").put("quality", 85))
-                            ?.optJSONObject("result")?.optString("data")?.let(::decodeFrame)?.let { image = it }
+                            ?.optJSONObject("result")?.optString("data")?.let(::decodeFrame)?.let(show)
                     }
                     (page?.evaluate(QamLayout.CONTENT_SCRIPT) as? String)?.let { text ->
                         runCatching {
                             val a = JSONArray(text)
                             val layout = floatArrayOf(a.getDouble(0).toFloat(), a.getDouble(1).toFloat(), a.getDouble(2).toFloat(), a.getDouble(3).toFloat())
-                            if (!layout.contentEquals(shape)) shape = layout
+                            if (!layout.contentEquals(shape)) { shape = layout; QamCache.shape = layout }
                         }
                     }
                 }
-                delay(TICK_MS)
+                delay(if (live.get()) TICK_MS else FAST_TICK_MS)
             }
         }
     }
@@ -154,7 +179,7 @@ internal fun SteamQamPanel() {
         if (img != null && l != null && l[0] > 0f) QamFrame(img, l[0], l[1], l[3].coerceIn(l[0] * 0.25f, l[0])) else null
     }
     if (f == null) {
-        PanelNote(stringResource(if (failed) R.string.bottom_qam_unavailable else R.string.achievements_reading))
+        if (slow) PanelNote(stringResource(if (failed) R.string.bottom_qam_unavailable else R.string.achievements_reading))
         return
     }
     BoxWithConstraints(Modifier.fillMaxSize().background(f.fill)) {
@@ -197,27 +222,36 @@ internal fun SteamQamPanel() {
         }
         val width = f.contentRight * scale
         val gap = with(density) { 64.dp.toPx() }
-        val choose = { a: Int -> align = a; SessionPrefs.setQuickAccessAlign(context, a) }
+        val move = { step: Int -> align = (align + step).coerceIn(-1, 1); SessionPrefs.setQuickAccessAlign(context, align) }
         if (left >= gap) {
-            AlignButtons((-1 until align).toList(), choose, Modifier.align(Alignment.CenterStart).width(with(density) { left.toDp() }))
+            Box(Modifier.align(Alignment.CenterStart).width(with(density) { left.toDp() }), contentAlignment = Alignment.Center) {
+                MoveHandle(stringResource(R.string.bottom_qam_align_left), Icons.Filled.ChevronLeft, Modifier.testTag("qam-move-left")) { move(-1) }
+            }
         }
         if (boxW - left - width >= gap) {
-            AlignButtons((align + 1..1).toList(), choose, Modifier.align(Alignment.CenterEnd).width(with(density) { (boxW - left - width).toDp() }))
+            Box(Modifier.align(Alignment.CenterEnd).width(with(density) { (boxW - left - width).toDp() }), contentAlignment = Alignment.Center) {
+                MoveHandle(stringResource(R.string.bottom_qam_align_right), Icons.Filled.ChevronRight, Modifier.testTag("qam-move-right")) { move(1) }
+            }
         }
     }
 }
 
 @Composable
-private fun AlignButtons(targets: List<Int>, choose: (Int) -> Unit, modifier: Modifier) {
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        for (a in targets) {
-            val (label, icon) = when (a) {
-                -1 -> R.string.bottom_qam_align_left to Icons.Outlined.AlignHorizontalLeft
-                0 -> R.string.bottom_qam_align_center to Icons.Outlined.AlignHorizontalCenter
-                else -> R.string.bottom_qam_align_right to Icons.Outlined.AlignHorizontalRight
-            }
-            BarButton(stringResource(label), Modifier.testTag("qam-align-$a"), vector = icon) { choose(a) }
-        }
+private fun MoveHandle(description: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val pal = LocalPalette.current
+    val src = remember { MutableInteractionSource() }
+    val hot = rememberHot(src)
+    val shape = RoundedCornerShape(22.dp)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier.size(width = 44.dp, height = 112.dp).semantics { contentDescription = description }
+            .clip(shape)
+            .background(if (hot) pal.signal.copy(alpha = 0.14f) else Color.White.copy(alpha = 0.04f))
+            .glideBorder(hot, shape, pal.signal)
+            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick),
+    ) {
+        Icon(icon, contentDescription = null, tint = if (hot) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(28.dp))
     }
 }
 

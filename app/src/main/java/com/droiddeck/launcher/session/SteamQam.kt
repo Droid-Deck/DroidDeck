@@ -67,7 +67,13 @@ object SteamQam {
                 c.EnsureCorrectComposition?.();
                 return;
             }
-            if (m.m_eOpenSideMenu === 0) { m.OpenQuickAccessMenu(g.__ddQamTab ?? undefined); c.EnsureCorrectComposition?.(); }
+            const decky = !!g.DeckyPluginLoader?.tabsHook?.qamBrowserViewPatch;
+            if (m.m_eOpenSideMenu === QAM && decky && !g.__ddQamDecky) m.CloseSideMenus();
+            if (m.m_eOpenSideMenu === 0) {
+                m.OpenQuickAccessMenu(g.__ddQamTab ?? undefined);
+                g.__ddQamDecky = decky;
+                c.EnsureCorrectComposition?.();
+            }
             if (m.m_eOpenSideMenu !== QAM) return;
             if (m.m_eQuickAccessTab != null) g.__ddQamTab = m.m_eQuickAccessTab;
             if (!g.__ddQamOn) { g.__ddQamOn = true; c.EnsureCorrectComposition?.(); }

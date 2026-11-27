@@ -2196,7 +2196,6 @@
     <string name="bottom_companion_radio">Радио</string>
     <string name="bottom_qam_title">Быстрый доступ</string>
     <string name="bottom_qam_align_left">Сдвинуть влево</string>
-    <string name="bottom_qam_align_center">Сдвинуть в центр</string>
     <string name="bottom_qam_align_right">Сдвинуть вправо</string>
     <string name="bottom_qam_unavailable">Меню быстрого доступа Steam пока недоступно.</string>
     <string name="bottom_page_telemetry">Игровая статистика</string>

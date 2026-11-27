@@ -173,10 +173,10 @@ Plugin loaders expose Steam's CEF DevTools so the menu can be viewed in a deskto
 - The menu's browser view is placed just outside the Big Picture window through its own `SetBounds`, so it keeps rendering but never shows on top, including while Steam slides it wider for Friends and chat.
 - A timer inside Steam keeps this state every 250 ms, so the menu comes back, on the tab it was showing, as soon as Steam's main menu or a full-screen page such as Decky's store closes. It runs on a 5 s lease that the panel renews each second: if the app stops, Steam returns to normal by itself.
 - The hold starts only once the session is ready: holding the menu before Steam's first frame kept gamescope from presenting anything.
-- `droiddeck-qam-relay` relays the app to the DevTools port, which only answers clients inside the guest. The panel streams the menu with `Page.startScreencast`, scales its content to the panel and fills the rest with the menu's own background, and forwards touches on the menu with `Input.dispatchTouchEvent`. When the menu is narrower than the panel, buttons in the free space move it left, centre or right; the choice is kept.
+- `droiddeck-qam-relay` relays the app to the DevTools port, which only answers clients inside the guest. The panel streams the menu with `Page.startScreencast`, scales its content to the panel and fills the rest with the menu's own background, and forwards touches on the menu with `Input.dispatchTouchEvent`. When the menu is narrower than the panel, a chevron in the free space on each side steps it left, centre or right; the choice is kept. Returning to the panel shows the last frame at once while the stream reconnects, and the first frame after a cold start takes about 1.4 s.
 - Leaving the panel closes the menu and turns the patches off; the Steam button and the normal Quick Access button then work as before. Opening Steam's main menu replaces the Quick Access menu for as long as it is open, as on a Deck.
 
-Checked with Decky Loader 3.3.1 enabled: its tab renders and takes touch, and its store opens full screen on top with the controller, then returns to the Decky tab below.
+Checked with Decky Loader 3.3.1 enabled: its tab renders and takes touch, and its store opens full screen on top with the controller, then returns to the Decky tab below. Decky hooks the menu after Steam starts, so the panel reopens it once when that happens.
 
 Limits: it relies on Steam's minified UI stores and method names, so a client update can break it; the panel then shows that the menu is not available.
 

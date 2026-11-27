@@ -2161,7 +2161,6 @@
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Accesso rapido</string>
     <string name="bottom_qam_align_left">Sposta a sinistra</string>
-    <string name="bottom_qam_align_center">Sposta al centro</string>
     <string name="bottom_qam_align_right">Sposta a destra</string>
     <string name="bottom_qam_unavailable">Il menu di accesso rapido di Steam non è ancora disponibile.</string>
     <string name="bottom_page_telemetry">Statistiche di gioco</string>

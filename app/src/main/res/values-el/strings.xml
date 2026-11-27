@@ -2145,7 +2145,6 @@
     <string name="bottom_companion_radio">Ραδιόφωνο</string>
     <string name="bottom_qam_title">Γρήγορη πρόσβαση</string>
     <string name="bottom_qam_align_left">Μετακίνηση αριστερά</string>
-    <string name="bottom_qam_align_center">Μετακίνηση στο κέντρο</string>
     <string name="bottom_qam_align_right">Μετακίνηση δεξιά</string>
     <string name="bottom_qam_unavailable">Το μενού γρήγορης πρόσβασης του Steam δεν είναι ακόμη διαθέσιμο.</string>
     <string name="bottom_page_telemetry">Στατιστικά παιχνιδιού</string>

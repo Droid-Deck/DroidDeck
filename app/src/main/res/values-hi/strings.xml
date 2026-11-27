@@ -2145,7 +2145,6 @@
     <string name="bottom_companion_radio">रेडियो</string>
     <string name="bottom_qam_title">क्विक एक्सेस</string>
     <string name="bottom_qam_align_left">बाईं ओर ले जाएँ</string>
-    <string name="bottom_qam_align_center">बीच में ले जाएँ</string>
     <string name="bottom_qam_align_right">दाईं ओर ले जाएँ</string>
     <string name="bottom_qam_unavailable">Steam का क्विक एक्सेस मेनू अभी उपलब्ध नहीं है।</string>
     <string name="bottom_page_telemetry">इन-गेम आंकड़े</string>

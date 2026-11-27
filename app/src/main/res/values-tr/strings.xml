@@ -2137,7 +2137,6 @@
     <string name="bottom_companion_radio">Radyo</string>
     <string name="bottom_qam_title">Hızlı Erişim</string>
     <string name="bottom_qam_align_left">Sola taşı</string>
-    <string name="bottom_qam_align_center">Ortaya taşı</string>
     <string name="bottom_qam_align_right">Sağa taşı</string>
     <string name="bottom_qam_unavailable">Steam Hızlı Erişim menüsü henüz kullanılamıyor.</string>
     <string name="bottom_page_telemetry">Oyun içi istatistikler</string>

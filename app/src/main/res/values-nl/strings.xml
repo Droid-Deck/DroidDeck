@@ -2145,7 +2145,6 @@
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Snelle toegang</string>
     <string name="bottom_qam_align_left">Naar links verplaatsen</string>
-    <string name="bottom_qam_align_center">Naar het midden verplaatsen</string>
     <string name="bottom_qam_align_right">Naar rechts verplaatsen</string>
     <string name="bottom_qam_unavailable">Het menu Snelle toegang van Steam is nog niet beschikbaar.</string>
     <string name="bottom_page_telemetry">In-game statistieken</string>

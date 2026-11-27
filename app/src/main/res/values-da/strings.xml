@@ -2145,7 +2145,6 @@
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Hurtig adgang</string>
     <string name="bottom_qam_align_left">Flyt til venstre</string>
-    <string name="bottom_qam_align_center">Flyt til midten</string>
     <string name="bottom_qam_align_right">Flyt til højre</string>
     <string name="bottom_qam_unavailable">Steams menu til hurtig adgang er ikke tilgængelig endnu.</string>
     <string name="bottom_page_telemetry">Statistik i spillet</string>

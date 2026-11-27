@@ -2428,7 +2428,6 @@
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Quick Access</string>
     <string name="bottom_qam_align_left">Move to the left</string>
-    <string name="bottom_qam_align_center">Move to the center</string>
     <string name="bottom_qam_align_right">Move to the right</string>
     <string name="bottom_qam_unavailable">Steam\'s Quick Access menu is not available yet.</string>
     <string name="bottom_page_telemetry">In-game stats</string>

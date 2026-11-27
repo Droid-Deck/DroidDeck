@@ -2121,7 +2121,6 @@
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Truy cập nhanh</string>
     <string name="bottom_qam_align_left">Chuyển sang trái</string>
-    <string name="bottom_qam_align_center">Chuyển vào giữa</string>
     <string name="bottom_qam_align_right">Chuyển sang phải</string>
     <string name="bottom_qam_unavailable">Menu Truy cập nhanh của Steam chưa sẵn sàng.</string>
     <string name="bottom_page_telemetry">Thông số trong game</string>

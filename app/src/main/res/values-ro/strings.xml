@@ -2170,7 +2170,6 @@
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Acces rapid</string>
     <string name="bottom_qam_align_left">Mută la stânga</string>
-    <string name="bottom_qam_align_center">Mută în centru</string>
     <string name="bottom_qam_align_right">Mută la dreapta</string>
     <string name="bottom_qam_unavailable">Meniul de acces rapid Steam nu este încă disponibil.</string>
     <string name="bottom_page_telemetry">Statistici în joc</string>

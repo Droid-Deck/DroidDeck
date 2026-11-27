@@ -2121,7 +2121,6 @@
     <string name="bottom_companion_radio">라디오</string>
     <string name="bottom_qam_title">빠른 메뉴</string>
     <string name="bottom_qam_align_left">왼쪽으로 이동</string>
-    <string name="bottom_qam_align_center">가운데로 이동</string>
     <string name="bottom_qam_align_right">오른쪽으로 이동</string>
     <string name="bottom_qam_unavailable">Steam 빠른 메뉴를 아직 사용할 수 없습니다.</string>
     <string name="bottom_page_telemetry">게임 내 통계</string>

@@ -2195,7 +2195,6 @@
     <string name="bottom_companion_radio">Rádio</string>
     <string name="bottom_qam_title">Rychlý přístup</string>
     <string name="bottom_qam_align_left">Přesunout doleva</string>
-    <string name="bottom_qam_align_center">Přesunout na střed</string>
     <string name="bottom_qam_align_right">Přesunout doprava</string>
     <string name="bottom_qam_unavailable">Nabídka rychlého přístupu Steamu zatím není k dispozici.</string>
     <string name="bottom_page_telemetry">Statistiky ve hře</string>
