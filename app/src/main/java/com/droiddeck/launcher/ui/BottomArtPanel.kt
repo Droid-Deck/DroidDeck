@@ -79,7 +79,9 @@ internal fun ArtPanel(runningGame: () -> String?) {
         val seen = remember { HashMap<Int, IdleGame>() }
         game?.let { seen[it.appId] = it }
         Crossfade(game?.appId, label = "art") { id ->
-            seen[id]?.let { ArtScene(it, playing) }
+            // Read from state here, so refreshed details for the same game recompose this scene.
+            val shown = game?.takeIf { it.appId == id } ?: seen[id]
+            if (shown != null) ArtScene(shown, playing)
         }
     }
 }
