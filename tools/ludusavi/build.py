@@ -1,4 +1,6 @@
-"""Bundle a CLI-only ludusavi build. Bump VERSION and rebase cli-only.patch on the new upstream tag."""
+"""Bundle a CLI-only ludusavi build. Bump VERSION and rebase cli-only.patch on the new upstream tag.
+
+Set DROIDDECK_LUDUSAVI_TARGET for cross builds; the resulting binary must still be aarch64."""
 
 import hashlib
 import os
