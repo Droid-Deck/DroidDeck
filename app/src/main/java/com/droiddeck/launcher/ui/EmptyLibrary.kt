@@ -15,7 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameMillis
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -99,7 +99,7 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
         var vx = speed * 0.8f
         var vy = -speed * 0.6f
         while (true) {
-            if (clock.page == Size.Zero) { withFrameMillis { }; continue }
+            if (clock.page == Size.Zero) { withFrameNanos { }; continue }
             val f = MarkFrame(clock.page, Offset.Zero)
             if (clock.at == Offset.Unspecified) clock.at = Offset(clock.page.width * 0.64f, clock.page.height * 0.42f)
             if (Motion.scale == 0f) {
@@ -108,7 +108,10 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
                 clock.wall = 0f
                 return@LaunchedEffect
             }
-            withFrameMillis { now ->
+            withFrameNanos { nanos ->
+                val settled = clock.intro >= END && clock.ball >= IMPACT + REVEAL_MS && !clock.poked
+                if (settled && last >= 0 && !IdleFrames.due(nanos)) return@withFrameNanos
+                val now = nanos / 1_000_000L
                 val dt = if (last < 0) 0f else min(50f, (now - last) / Motion.scale)
                 last = now
                 clock.intro += dt
