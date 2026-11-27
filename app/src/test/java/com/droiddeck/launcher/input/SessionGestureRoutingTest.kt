@@ -152,8 +152,7 @@ class SessionGestureRoutingTest {
 
     @Test fun pausingCancelsPendingHoldsInBothTouchModes() {
         for (mode in listOf(SessionPrefs.TOUCH_GESTURES, SessionPrefs.TOUCH_DIRECT)) {
-            prepare(mode, TouchGestureConfig(longPressEnabled = true, longPressAction = "key_E",
-                directHoldBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_CLICK))
+            prepare(mode, TouchGestureConfig(longPressEnabled = true, longPressAction = "key_E"))
             val now = SystemClock.uptimeMillis()
             val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 400f, 300f, 0)
             try { assertTrue(activity.onTouchEvent(event)) } finally { event.recycle() }
@@ -168,8 +167,7 @@ class SessionGestureRoutingTest {
         for (mode in listOf(SessionPrefs.TOUCH_GESTURES, SessionPrefs.TOUCH_DIRECT)) {
             keys.clear()
             directButtons.clear()
-            prepare(mode, TouchGestureConfig(longPressEnabled = true, longPressAction = "key_E",
-                directHoldBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_CLICK))
+            prepare(mode, TouchGestureConfig(longPressEnabled = true, longPressAction = "key_E"))
             val now = SystemClock.uptimeMillis()
             val event = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, 400f, 300f, 0)
             try { assertTrue(activity.onTouchEvent(event)) } finally { event.recycle() }

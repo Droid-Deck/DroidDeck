@@ -23,7 +23,7 @@ class DirectTouchHold(
     private var downY = 0f
     private var downId = 0
     private var delayMs = 0L
-    private var holdBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_NONE
+    private var holdBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_CLICK
     private var forwarded = false
     private var forwardedAt = 0L
     private var held = false
