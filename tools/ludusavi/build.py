@@ -1,5 +1,6 @@
 """Bundle a CLI-only ludusavi build. Bump VERSION and rebase cli-only.patch on the new upstream tag."""
 
+import hashlib
 import os
 import shutil
 import subprocess
@@ -15,6 +16,19 @@ ROOT = Path(__file__).resolve().parents[2]
 PATCH = Path(__file__).resolve().parent / "cli-only.patch"
 OUTPUT = ROOT / "tools/linuxfs/ludusavi/linuxfs/usr/local/lib/droiddeck-ludusavi/ludusavi"
 MARKER = ".droiddeck-cli-only-applied"
+AARCH64_EM = 183
+
+
+def source_identity():
+    return f"{VERSION}\n{hashlib.sha256(PATCH.read_bytes()).hexdigest()}"
+
+
+def assert_aarch64(binary):
+    with binary.open("rb") as stream:
+        header = stream.read(20)
+    if (len(header) < 20 or header[:4] != b"\x7fELF" or header[4] != 2 or header[5] != 1
+            or int.from_bytes(header[18:20], "little") != AARCH64_EM):
+        raise SystemExit(f"{binary} is not an aarch64 ELF; set DROIDDECK_LUDUSAVI_TARGET=aarch64-unknown-linux-gnu")
 
 
 def main():
@@ -24,17 +38,24 @@ def main():
     work.mkdir(parents=True, exist_ok=True)
     if not archive.is_file():
         urllib.request.urlretrieve(URL, archive)
-    if not source.is_dir():
+    marker = source / MARKER
+    identity = source_identity()
+    if not marker.is_file() or marker.read_text() != identity:
+        if source.exists():
+            shutil.rmtree(source)
         with tarfile.open(archive) as tar:
             tar.extractall(work)
-    if not (source / MARKER).is_file():
         subprocess.run(["git", "apply", str(PATCH)], cwd=source, check=True)
-        (source / MARKER).write_text(VERSION)
-    subprocess.run([
-        "cargo", "build", "--release", "--no-default-features", "--features", "cli",
-    ], cwd=source, check=True)
+        marker.write_text(identity)
+    target = os.environ.get("DROIDDECK_LUDUSAVI_TARGET")
+    command = ["cargo", "build", "--release", "--no-default-features", "--features", "cli"]
+    if target:
+        command += ["--target", target]
+    subprocess.run(command, cwd=source, check=True)
+    binary = source / "target" / target / "release/ludusavi" if target else source / "target/release/ludusavi"
+    assert_aarch64(binary)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source / "target/release/ludusavi", OUTPUT)
+    shutil.copyfile(binary, OUTPUT)
     print(f"wrote {OUTPUT}")
 
 

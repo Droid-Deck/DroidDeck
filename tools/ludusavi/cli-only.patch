@@ -118,7 +118,7 @@
 +common-controls-v6 = []
 --- /dev/null
 +++ b/vendor/rfd-stub/src/lib.rs
-@@ -0,0 +1,68 @@
+@@ -0,0 +1,69 @@
 +#[derive(Clone, Copy)]
 +pub enum MessageLevel {
 +    Error,
@@ -184,6 +184,7 @@
 +
 +    pub fn show(&self) -> MessageDialogResult {
 +        let _ = (&self.title, &self.description, self.level, &self.buttons);
-+        MessageDialogResult::Cancel
++        eprintln!("ludusavi GUI prompts are not supported in this build");
++        std::process::exit(2)
 +    }
 +}

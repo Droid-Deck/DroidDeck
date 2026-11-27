@@ -16,10 +16,13 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Sync
@@ -32,11 +35,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -63,9 +66,6 @@ import com.droiddeck.launcher.sync.SyncPendingFolder
 import com.droiddeck.launcher.sync.SyncSnapshot
 import com.droiddeck.launcher.sync.Syncthing
 import com.droiddeck.launcher.sync.SyncthingWebActivity
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
@@ -94,29 +94,20 @@ internal fun SyncPanel(host: MenuHost, runtimeReady: Boolean, onAdvanced: () -> 
 @Composable
 private fun LudusaviSection() {
     val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
     val installed = Ludusavi.installed(ctx)
+    val status by Ludusavi.status.collectAsState()
     var title by rememberSaveable { mutableStateOf("") }
-    var output by rememberSaveable { mutableStateOf("") }
-    var running by remember { mutableStateOf(false) }
 
     fun start(needsTitle: Boolean = true, operation: (Context, (String) -> Unit) -> Int) {
         if (!installed) {
-            output = ctx.getString(R.string.ludusavi_missing)
+            Ludusavi.report(ctx.getString(R.string.ludusavi_missing))
             return
         }
         if (needsTitle && title.isBlank()) {
-            output = ctx.getString(R.string.ludusavi_needs_title)
+            Ludusavi.report(ctx.getString(R.string.ludusavi_needs_title))
             return
         }
-        running = true
-        output = ctx.getString(R.string.ludusavi_running)
-        scope.launch {
-            val lines = mutableListOf<String>()
-            val code = withContext(Dispatchers.IO) { operation(ctx) { lines.add(it) } }
-            output = (lines.takeLast(12) + "Exit: $code").joinToString("\n")
-            running = false
-        }
+        Ludusavi.start(ctx, operation)
     }
 
     SettingsGroup(stringResource(R.string.ludusavi_group)) {
@@ -124,20 +115,21 @@ private fun LudusaviSection() {
             AdbTextField(title, { title = it }, stringResource(R.string.ludusavi_game), KeyboardType.Ascii, ImeAction.Done, compact = true)
         }
         SettingsRow(stringResource(R.string.ludusavi_output), null, stacked = true) {
-            Text(output, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 6, overflow = TextOverflow.Ellipsis)
+            Text(status.output, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.heightIn(max = 120.dp).verticalScroll(rememberScrollState()))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
-            SecondaryButton(stringResource(R.string.ludusavi_preview), enabled = installed && title.isNotBlank() && !running, compact = true) {
+            SecondaryButton(stringResource(R.string.ludusavi_preview), enabled = installed && title.isNotBlank() && !status.running, compact = true) {
                 start { context, onLine -> Ludusavi.preview(context, title, onLine) }
             }
-            SecondaryButton(stringResource(R.string.ludusavi_backup), enabled = installed && title.isNotBlank() && !running, compact = true) {
+            SecondaryButton(stringResource(R.string.ludusavi_backup), enabled = installed && title.isNotBlank() && !status.running, compact = true) {
                 start { context, onLine -> Ludusavi.backup(context, title, onLine) }
             }
-            SecondaryButton(stringResource(R.string.ludusavi_restore), enabled = installed && title.isNotBlank() && !running, compact = true) {
+            SecondaryButton(stringResource(R.string.ludusavi_restore), enabled = installed && title.isNotBlank() && !status.running, compact = true) {
                 start { context, onLine -> Ludusavi.restore(context, title, onLine) }
             }
-            SecondaryButton(stringResource(R.string.ludusavi_manifest), enabled = installed && !running, compact = true) {
+            SecondaryButton(stringResource(R.string.ludusavi_manifest), enabled = installed && !status.running, compact = true) {
                 start(needsTitle = false) { context, onLine -> Ludusavi.updateManifest(context, onLine) }
             }
         }
