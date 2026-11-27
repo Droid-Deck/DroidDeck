@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 
 object Ludusavi {
@@ -39,10 +40,22 @@ object Ludusavi {
         mutableStatus.value = mutableStatus.value.copy(output = message)
     }
 
-    fun start(context: Context, operation: (Context, (String) -> Unit) -> Int) {
+    fun active(): Boolean = starting.get() || mutableStatus.value.running
+
+    fun start(context: Context, operation: (Context, (String) -> Unit) -> Int, blockDuringSession: Boolean = false) {
         val app = context.applicationContext
-        if (!starting.compareAndSet(false, true)) return
-        mutableStatus.value = Status(running = true, output = app.getString(R.string.ludusavi_running))
+        val accepted = synchronized(SessionState.startLock) {
+            if (blockDuringSession && SessionState.running) {
+                mutableStatus.value = mutableStatus.value.copy(output = app.getString(R.string.main_saves_close_session))
+                false
+            } else if (!starting.compareAndSet(false, true)) {
+                false
+            } else {
+                mutableStatus.value = Status(running = true, output = app.getString(R.string.ludusavi_running))
+                true
+            }
+        }
+        if (!accepted) return
         scope.launch {
             val lines = mutableListOf<String>()
             try {
@@ -55,7 +68,7 @@ object Ludusavi {
                 mutableStatus.value = Status(output = result(lines, "Failed: $reason"))
             } finally {
                 mutableStatus.value = mutableStatus.value.copy(running = false)
-                starting.set(false)
+                synchronized(SessionState.startLock) { starting.set(false) }
             }
         }
     }
@@ -70,23 +83,34 @@ object Ludusavi {
             val trimmed = it.trimStart()
             !trimmed.startsWith("#") && trimmed.startsWith("roots:")
         }
-        val entry = listOf("  - store: steam", "    path: $X64_STEAM_ROOT")
         if (roots < 0) {
             val body = config.trimEnd('\n')
-            return if (body.isEmpty()) "roots:\n${entry.joinToString("\n")}\n"
-            else "$body\nroots:\n${entry.joinToString("\n")}\n"
+            return if (body.isEmpty()) "roots:\n  - store: steam\n    path: $X64_STEAM_ROOT\n"
+            else "$body\nroots:\n  - store: steam\n    path: $X64_STEAM_ROOT\n"
         }
         val inline = lines[roots].trimStart().substringAfter("roots:").trim()
-        if (inline == "[]" || inline.startsWith("[] ")) lines[roots] = "roots:"
-        lines.addAll(roots + 1, entry)
-        return lines.joinToString("\n")
+        if (inline.isNotEmpty() && !inline.startsWith("[]")) {
+            throw IOException("unexpected ludusavi roots format")
+        }
+        if (inline.startsWith("[]")) lines[roots] = "roots:"
+        val existing = lines.drop(roots + 1).firstOrNull { it.trimStart().startsWith("- ") }
+        val item = " ".repeat(existing?.takeWhile { it == ' ' }?.length ?: 2)
+        val field = " ".repeat(item.length + 2)
+        lines.addAll(roots + 1, listOf("${item}- store: steam", "${field}path: $X64_STEAM_ROOT"))
+        val joined = lines.joinToString("\n")
+        return if (config.endsWith("\n")) "$joined\n" else joined
     }
 
     private fun ensureX64Root(context: Context) {
+        val lines = mutableListOf<String>()
+        val code = GuestCommand.run(context,
+            listOf(BIN, "--config", CONFIG, "--no-manifest-update", "config", "show"),
+            logName = "ludusavi-config", onLine = { lines.add(it) })
+        if (code != 0) throw IOException("ludusavi config show failed: $code")
+        val config = lines.joinToString("\n")
+        val updated = withX64SteamRoot(config)
+        if (updated == config) return
         val file = File(LinuxRuntime.rootDir(context), "${CONFIG.trimStart('/')}/config.yaml")
-        val current = runCatching { if (file.isFile) file.readText() else "" }.getOrDefault("")
-        val updated = withX64SteamRoot(current)
-        if (updated == current) return
         file.parentFile?.mkdirs()
         file.writeText(updated)
     }

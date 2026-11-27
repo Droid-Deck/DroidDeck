@@ -417,6 +417,7 @@ class SessionService : Service() {
             SessionPrefs.screenEffectsProfileId(SessionState.mode, resolvedGameId, SessionState.program),
         )
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
+        if (synchronized(SessionState.startLock) { Ludusavi.active() }) return START_NOT_STICKY
         val gen = synchronized(SessionState.startLock) {
             synchronized(stopLock) {
                 SessionState.steamClientArch = null
@@ -2800,7 +2801,8 @@ class SessionService : Service() {
 
         fun launchGame(context: Context, gameId: String): Boolean {
             if (!GameLaunchLink.validId(gameId) || !SessionState.running ||
-                SessionState.mode != MODE_STEAM || SessionState.stopRequested) return false
+                SessionState.mode != MODE_STEAM || SessionState.stopRequested ||
+                synchronized(SessionState.startLock) { Ludusavi.active() }) return false
             return runCatching {
                 context.startService(
                     Intent(context, SessionService::class.java)

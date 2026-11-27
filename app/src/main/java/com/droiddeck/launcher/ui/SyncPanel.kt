@@ -99,7 +99,8 @@ private fun LudusaviSection() {
     val status by Ludusavi.status.collectAsState()
     var title by rememberSaveable { mutableStateOf("") }
 
-    fun start(needsTitle: Boolean = true, operation: (Context, (String) -> Unit) -> Int) {
+    fun start(needsTitle: Boolean = true, blockDuringSession: Boolean = false,
+              operation: (Context, (String) -> Unit) -> Int) {
         if (!installed) {
             Ludusavi.report(ctx.getString(R.string.ludusavi_missing))
             return
@@ -108,7 +109,7 @@ private fun LudusaviSection() {
             Ludusavi.report(ctx.getString(R.string.ludusavi_needs_title))
             return
         }
-        Ludusavi.start(ctx, operation)
+        Ludusavi.start(ctx, operation, blockDuringSession)
     }
 
     SettingsGroup(stringResource(R.string.ludusavi_group)) {
@@ -135,7 +136,7 @@ private fun LudusaviSection() {
                     return@SecondaryButton
                 }
                 val game = title
-                start { context, onLine -> Ludusavi.restore(context, game, onLine) }
+                start(blockDuringSession = true) { context, onLine -> Ludusavi.restore(context, game, onLine) }
             }
             SecondaryButton(stringResource(R.string.ludusavi_manifest), enabled = installed && !status.running, compact = true) {
                 start(needsTitle = false) { context, onLine -> Ludusavi.updateManifest(context, onLine) }
