@@ -42,7 +42,8 @@ class PenEmulationTest(unittest.TestCase):
             function(source, 'static struct seat_pointer *pointer_for(struct wl_client *client) {')
             + source[start:source.index('#define for_each_keyboard_of', start)]
             + ''.join(function(source, signature) for signature in (
-                'static void pointer_focus(struct wl_resource *target, wl_fixed_t fx, wl_fixed_t fy) {',
+                'static void pointer_focus_at(struct wl_resource *target, wl_fixed_t fx, wl_fixed_t fy, uint32_t time) {',
+                'static void pointer_input_at(double x, double y, int relative, uint32_t button, int pressed, uint32_t t) {',
                 'static void pointer_input(double x, double y, int relative, uint32_t button, int pressed) {',
                 'static void pointer_event(double x, double y, uint32_t button, int pressed) {',
                 'static void pointer_button(uint32_t button, int pressed) {')))

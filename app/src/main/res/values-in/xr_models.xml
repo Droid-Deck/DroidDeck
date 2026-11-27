@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s model kontroler SteamVR</string>
+    <string name="load_xr_preparing_steamvr">Menyiapkan SteamVR</string>
+    <string name="load_xr_steam_ready">Steam siap</string>
+    <string name="load_xr_models_downloading">Mengunduh</string>
+    <string name="load_xr_models_checking">Memverifikasi</string>
+    <string name="load_xr_models_installing">Menginstal</string>
+    <string name="load_xr_models_ready">Siap</string>
+    <string name="load_xr_models_native">Menggunakan model native</string>
+    <string name="load_xr_models_failed_fallback">Persiapan gagal; menggunakan model default</string>
+</resources>

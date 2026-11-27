@@ -3,7 +3,7 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
-    && apt-get install -y binutils gcc g++ libvulkan-dev python3 zstd unzip \
+    && apt-get install -y binutils gcc g++ libvulkan-dev python3 python3-numpy python3-pil zstd unzip ca-certificates \
     && if [ "$(uname -m)" = aarch64 ]; then \
         for tool in gcc g++ strip readelf objdump ar; do ln -s "$(command -v $tool)" /usr/local/bin/aarch64-linux-gnu-$tool; done; \
     else \

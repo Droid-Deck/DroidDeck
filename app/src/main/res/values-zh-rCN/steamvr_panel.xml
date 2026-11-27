@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="session_task_panel">主界面</string>
+    <string name="session_task_steamvr">SteamVR</string>
+    <string name="steamvr_panel_view">VR 画面</string>
+    <string name="steamvr_panel_session">SteamVR 会话</string>
+    <string name="steamvr_panel_return_vr">返回 VR</string>
+    <string name="steamvr_panel_keep_hint">进入后桌面、菜单和会话控制仍可继续使用。</string>
+</resources>

@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s SteamVR 手柄模型</string>
+    <string name="load_xr_preparing_steamvr">正在准备 SteamVR</string>
+    <string name="load_xr_steam_ready">Steam 已就绪</string>
+    <string name="load_xr_models_downloading">正在下载</string>
+    <string name="load_xr_models_checking">正在校验</string>
+    <string name="load_xr_models_installing">正在安装</string>
+    <string name="load_xr_models_ready">已就绪</string>
+    <string name="load_xr_models_native">使用原生模型</string>
+    <string name="load_xr_models_failed_fallback">准备失败，使用默认模型</string>
+</resources>

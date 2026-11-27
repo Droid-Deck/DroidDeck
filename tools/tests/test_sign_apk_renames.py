@@ -1,5 +1,6 @@
 import re
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
@@ -9,10 +10,15 @@ PACKAGE = 'com.droiddeck.launcher'
 
 class SignApkRenamesTest(unittest.TestCase):
     def test_variants_rename_every_authority_and_task_named_after_the_package(self):
-        manifest = (ROOT / 'app/src/main/AndroidManifest.xml').read_text()
+        application = ET.parse(ROOT / 'app/src/main/AndroidManifest.xml').getroot().find('application')
+        self.assertIsNotNone(application)
         names = set()
         for attribute in ('authorities', 'taskAffinity'):
-            for value in re.findall(r'android:%s="([^"]*)"' % attribute, manifest):
+            key = '{http://schemas.android.com/apk/res/android}' + attribute
+            for element in application.iter():
+                value = element.get(key)
+                if value is None:
+                    continue
                 self.assertNotIn(';', value, 'sign-apk.sh renames whole values, so give each authority its own provider')
                 name = value.strip().replace('${applicationId}', PACKAGE)
                 if name.startswith(PACKAGE + '.'):

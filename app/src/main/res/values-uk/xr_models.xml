@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s моделі контролерів SteamVR</string>
+    <string name="load_xr_preparing_steamvr">Підготовка SteamVR</string>
+    <string name="load_xr_steam_ready">Steam готовий</string>
+    <string name="load_xr_models_downloading">Завантаження</string>
+    <string name="load_xr_models_checking">Перевірка</string>
+    <string name="load_xr_models_installing">Встановлення</string>
+    <string name="load_xr_models_ready">Готово</string>
+    <string name="load_xr_models_native">Використовуються нативні моделі</string>
+    <string name="load_xr_models_failed_fallback">Підготовка не вдалася; використовуються типові моделі</string>
+</resources>

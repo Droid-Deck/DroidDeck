@@ -1,5 +1,6 @@
 #pragma once
 #include "xr_frame.h"
+#include "xr_buffer_size.h"
 #include <atomic>
 #include <cerrno>
 #include <cstring>
@@ -87,8 +88,8 @@ inline bool xr_frame_header(int socket, DroidDeckXrFrameHeader &header, XrFrameD
 }
 
 inline bool xr_frame_shared_pixels(int descriptor, unsigned char *pixels, size_t bytes) {
-    struct stat status{};
-    if (fstat(descriptor, &status) != 0 || status.st_size < static_cast<int64_t>(bytes)) return false;
+    uint64_t allocation{};
+    if (!xr_buffer_allocation_size(descriptor, allocation) || allocation < bytes) return false;
     dma_buf_sync sync{DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ};
     if (ioctl(descriptor, DMA_BUF_IOCTL_SYNC, &sync) != 0) return false;
     void *mapping = mmap(nullptr, bytes, PROT_READ, MAP_SHARED, descriptor, 0);

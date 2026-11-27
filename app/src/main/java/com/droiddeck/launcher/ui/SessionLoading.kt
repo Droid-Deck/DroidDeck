@@ -144,7 +144,7 @@ private fun stageOf(topic: LoadingState.Topic, steam: Boolean): Int = when (topi
 }
 
 @Composable
-fun LoadingOverlay(
+internal fun LoadingOverlay(
     step: String, percent: Int, elapsed: String, hint: String, ended: Boolean,
     topic: LoadingState.Topic, readable: Boolean,
     title: String = stringResource(R.string.load_starting_steam), steam: Boolean = true, onCancel: (() -> Unit)? = null,
@@ -153,6 +153,8 @@ fun LoadingOverlay(
     onRepair: (() -> Unit)? = null,
     onShareLogs: (() -> Unit)? = null,
     onClose: (() -> Unit)? = null,
+    readyDetail: String? = null,
+    modelStatus: com.droiddeck.launcher.session.XrControllerModels.Status? = null,
     flood: Color? = null,
     onFlooded: () -> Unit = {},
 ) {
@@ -206,11 +208,12 @@ fun LoadingOverlay(
                 color = colors.onBackground, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
             )
             Text(
-                if (ended) step else detail, fontSize = 14.sp, lineHeight = 20.sp, color = colors.onSurfaceVariant, textAlign = TextAlign.Center,
+                if (ended) step else readyDetail ?: detail, fontSize = 14.sp, lineHeight = 20.sp, color = colors.onSurfaceVariant, textAlign = TextAlign.Center,
                 maxLines = if (ended) 12 else 2, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 6.dp).widthIn(max = 520.dp),
             )
-            if (!ended) LoadSegments(stages.size, active, percent, Modifier.padding(top = 18.dp))
+            if (!ended && readyDetail == null) LoadSegments(stages.size, active, percent, Modifier.padding(top = 18.dp))
+            if (!ended && modelStatus != null) XrModelStatus(modelStatus, Modifier.padding(top = 12.dp).widthIn(max = 520.dp), centered = true)
             if (ended && endedDetail != null) Text(
                 endedDetail, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant.copy(alpha = 0.8f),
                 textAlign = TextAlign.Center, maxLines = 3, overflow = TextOverflow.Ellipsis,

@@ -1,9 +1,11 @@
 package com.droiddeck.launcher.frontend
 
+import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.SessionPrefs
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -14,13 +16,20 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
 class GameFileSyncTest {
+    @Before fun installProotFixture() {
+        val context = RuntimeEnvironment.getApplication()
+        val directory = AddonPack.PROOT.dir(context).apply { mkdirs() }
+        listOf("libproot.so", "libproot-loader.so").forEach { File(directory, it).writeText("fixture") }
+        File(directory, AddonPack.COMPLETE).writeText(BuildConfig.PACK_PROOT_SHA256)
+        assertTrue(AddonPack.PROOT.installed(context))
+    }
+
     @Test fun syncUsesFreshInstalledManifestsAndStopsWhenDisabled() {
         val context = RuntimeEnvironment.getApplication()
         val root = LinuxRuntime.rootDir(context)
         listOf("usr/bin/gamescope", LinuxRuntime.SESSION_SCRIPT.removePrefix("/")).forEach { path ->
             File(root, path).apply { parentFile!!.mkdirs(); writeText("") }
         }
-        AddonPack.PROOT.file(context, AddonPack.COMPLETE).apply { parentFile!!.mkdirs(); writeText("") }
         SessionPrefs.setGameStorage(context, SessionPrefs.GAME_STORAGE_OFF, "")
         SessionPrefs.setAddedGamesDirs(context, emptyList())
         val steamapps = File(root, "root/.local/share/Steam/steamapps").apply { mkdirs() }
@@ -56,7 +65,6 @@ class GameFileSyncTest {
         listOf("usr/bin/gamescope", LinuxRuntime.SESSION_SCRIPT.removePrefix("/")).forEach { path ->
             File(root, path).apply { parentFile!!.mkdirs(); writeText("") }
         }
-        AddonPack.PROOT.file(context, AddonPack.COMPLETE).apply { parentFile!!.mkdirs(); writeText("") }
         SessionPrefs.setAddedGamesDirs(context, emptyList())
         File(root, "root/.local/share/Steam/steamapps").mkdirs()
         val volume = File(context.filesDir, "card").apply { mkdirs() }
@@ -86,7 +94,6 @@ class GameFileSyncTest {
         listOf("usr/bin/gamescope", LinuxRuntime.SESSION_SCRIPT.removePrefix("/")).forEach { path ->
             File(root, path).apply { parentFile!!.mkdirs(); writeText("") }
         }
-        AddonPack.PROOT.file(context, AddonPack.COMPLETE).apply { parentFile!!.mkdirs(); writeText("") }
         SessionPrefs.setAddedGamesDirs(context, emptyList())
         SessionPrefs.setGameStorage(context, "", "")
         File(root, "root/.local/share/Steam/steamapps").mkdirs()

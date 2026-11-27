@@ -1,0 +1,13 @@
+<resources>
+    <string name="linux_windows_toggle">Linux 多窗口（实验性）</string>
+    <string name="linux_windows_hint">将 Linux 应用移入独立 Android 窗口，内容尺寸与窗口匹配。关闭后恢复到 Linux 桌面。</string>
+    <string name="linux_windows_list">Linux 窗口列表</string>
+    <string name="linux_windows_empty">在 Linux 桌面中打开应用后，窗口将自动加入列表。</string>
+    <string name="linux_windows_unavailable">当前 Android 系统无法显示独立 Linux 窗口，应用将继续在 DroidDeck 桌面运行。</string>
+    <string name="linux_windows_presentation_failed">%1$s 无法显示在独立窗口中，已返回 DroidDeck 桌面。请在桌面中继续操作。</string>
+    <string name="linux_windows_returned">%1$s 已返回到 DroidDeck 桌面继续运行。请打开 DroidDeck 桌面确认关闭、保存更改或继续操作。</string>
+    <string name="linux_windows_background">%1$s 仍在 DroidDeck 桌面的后台或系统托盘运行。请打开 DroidDeck 桌面恢复窗口，或通过程序菜单退出。</string>
+    <string name="linux_windows_close_unsupported">%1$s 未能完成正常关闭，已返回到 DroidDeck 桌面。请打开桌面关闭程序或继续操作。</string>
+    <string name="linux_windows_close_delivery_failed">未能送达 Linux 关闭请求。请打开 DroidDeck 桌面关闭程序。</string>
+    <string name="linux_windows_close_unconfirmed">未能确认 %1$s 的关闭状态。请打开 DroidDeck 桌面查看。</string>
+</resources>

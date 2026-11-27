@@ -1,0 +1,11 @@
+<resources>
+    <string name="load_xr_controller_models">%1$s modelos de mandos de SteamVR</string>
+    <string name="load_xr_preparing_steamvr">Preparando SteamVR</string>
+    <string name="load_xr_steam_ready">Steam está listo</string>
+    <string name="load_xr_models_downloading">Descargando</string>
+    <string name="load_xr_models_checking">Verificando</string>
+    <string name="load_xr_models_installing">Instalando</string>
+    <string name="load_xr_models_ready">Listo</string>
+    <string name="load_xr_models_native">Usando modelos nativos</string>
+    <string name="load_xr_models_failed_fallback">Falló la preparación; se usarán los modelos predeterminados</string>
+</resources>

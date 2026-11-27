@@ -7,5 +7,6 @@ void droiddeck_clock_domain_set_control(const char *path);
 int64_t droiddeck_clock_domain_now_ns(void);
 uint32_t droiddeck_clock_domain_now_ms(void);
 int64_t droiddeck_clock_domain_adjust_ns(int64_t value);
+uint32_t droiddeck_clock_domain_adjust_ms(int64_t value);
 
 #endif

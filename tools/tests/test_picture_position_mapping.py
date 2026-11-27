@@ -35,14 +35,16 @@ static void check(int sw, int sh, int ow, int oh, int alignment) {
     update_map(sw, sh);
     float rect[4];
     assert(vkp_game_picture_rect(rect));
-    double top = alignment == VKP_ALIGN_PICTURE_TOP ? 0 : oh - sh * g_map.ky;
-    near(rect[0], g_map.off_x); near(rect[1], top);
+    near(rect[0], g_map.off_x); near(rect[1], g_map.off_y);
     near(rect[2], g_map.off_x + sw * g_map.kx);
-    near(rect[3], top + sh * g_map.ky);
-    near(g_map.off_y, top);
+    near(rect[3], g_map.off_y + sh * g_map.ky);
+    if (alignment == VKP_ALIGN_PICTURE_TOP) near(rect[1], 0);
+    if (alignment == VKP_ALIGN_PICTURE_BOTTOM) near(rect[3], oh);
+    if (alignment == VKP_ALIGN_PICTURE_LEFT) near(rect[0], 0);
+    if (alignment == VKP_ALIGN_PICTURE_RIGHT) near(rect[2], ow);
     double sx, sy;
-    assert(vkp_output_to_scene(g_map.off_x + sw * g_map.kx / 2,
-                              top + sh * g_map.ky / 2, &sx, &sy));
+    assert(vkp_output_to_scene((rect[0] + rect[2]) / 2,
+                              (rect[1] + rect[3]) / 2, &sx, &sy));
     near(sx, sw / 2.0); near(sy, sh / 2.0);
     near(g_map.kx, g_map.ky);
     assert(sh * g_map.ky <= oh + 0.01);
@@ -51,7 +53,7 @@ static void check(int sw, int sh, int ow, int oh, int alignment) {
     near(g_map.off_y, (int)((oh - sh * g_map.ky) * 0.5));
 }
 int main(void) {
-    for (int alignment = VKP_ALIGN_PICTURE_TOP; alignment <= VKP_ALIGN_PICTURE_BOTTOM; alignment++) {
+    for (int alignment = VKP_ALIGN_PICTURE_TOP; alignment <= VKP_ALIGN_PICTURE_RIGHT; alignment++) {
         check(1240, 1100, 2480, 2200, alignment);
         check(1280, 720, 2480, 2200, alignment);
         check(1024, 768, 2480, 2200, alignment);
@@ -60,6 +62,23 @@ int main(void) {
     }
     g_align = VKP_ALIGN_TOP; update_map(1280, 720);
     assert(g_map.rh == 697 && g_map.ry == 0);
+    g_extent.width = 1600; g_extent.height = 900;
+    g_align = VKP_ALIGN_PICTURE_RIGHT;
+    vkp_set_scene_viewport(100, 50, 800, 600);
+    update_map(1600, 900);
+    double sx, sy;
+    assert(vkp_output_to_scene(200, 0, &sx, &sy));
+    near(sx, 100); near(sy, 50);
+    assert(vkp_output_to_scene(1400, 900, &sx, &sy));
+    near(sx, 900); near(sy, 650);
+    vkp_set_scene_viewport(200, 80, 800, 600);
+    update_map(1600, 900);
+    assert(vkp_output_to_scene(200, 0, &sx, &sy));
+    near(sx, 200); near(sy, 80);
+    vkp_set_scene_viewport(0, 0, 0, 0);
+    update_map(1600, 900);
+    assert(vkp_output_to_scene(0, 0, &sx, &sy));
+    near(sx, 0); near(sy, 0);
     puts("PASS");
 }
 '''

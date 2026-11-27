@@ -82,6 +82,7 @@ def buildBranch = providers.environmentVariable('GITHUB_HEAD_REF').getOrNull()?.
     ?: gitValue(['branch', '--show-current']) ?: ''
 def escapeJava = { String value -> value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', ' ').replace('\r', ' ') }
 def ciBuild = providers.environmentVariable('GITHUB_ACTIONS').getOrNull() == 'true'
+def xrModelTesting = !ciBuild && project.findProperty('xrModelTesting')?.toString() == 'true'
 def releaseSigner = rootProject.file('keystore/release-signer.sha256').text.trim()
 def commitTime = (gitValue(['show', '-s', '--format=%ct', '--end-of-options', sourceCommit]) ?: '0').with { it.isLong() ? it : '0' }
 def desktopKde = rootProject.file('tools/desktop-kde/release.env').readLines()
@@ -93,7 +94,7 @@ def trackingPack = rootProject.file('tools/packs/tracking/release.env').readLine
 def prootPackPin = rootProject.file('tools/packs/proot/release.env').readLines()
     .findAll { it.contains('=') && !it.startsWith('#') }
     .collectEntries { def kv = it.split('=', 2); [(kv[0].trim()): kv[1].trim()] }
-def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt', 'epic'].collectEntries { name ->
+def addonPacks = ['proot', 'directaudio', 'tracking', 'xbox', 'comet', 'butler', 'powervr', 'ubisoft', 'rockstar', 'dirt', 'epic', 'pico-neo3-controllers', 'pico-4-controllers', 'pico-4u-controllers'].collectEntries { name ->
     def pack = file("build/packs/${name}.tar.zst")
     if (!pack.isFile()) {
         if (ciBuild) throw new GradleException("Add-on pack ${pack} is missing: run tools/packs/build.sh app/build/packs")
@@ -140,6 +141,7 @@ android {
         buildConfigField "String", "PR_TITLE", "\"${escapeJava(prTitle)}\""
         buildConfigField "String", "BUILD_BRANCH", "\"${escapeJava(buildBranch)}\""
         buildConfigField "boolean", "CI_BUILD", "${ciBuild}"
+        buildConfigField "boolean", "XR_MODEL_TESTING", "${xrModelTesting}"
         buildConfigField "String", "RELEASE_SIGNER", "\"${releaseSigner}\""
         buildConfigField "long", "COMMIT_TIME", "${commitTime}L * 1000L"
         buildConfigField "String", "UPDATE_CATALOG_BRANCH", "\"${(System.getenv("DROIDDECK_UPDATE_CATALOG_BRANCH") ?: "main").with { it ==~ /[A-Za-z0-9._-]+/ ? it : "main" }}\""
@@ -150,8 +152,8 @@ android {
         buildConfigField "String", "DESKTOP_KDE_SHA256", "\"${desktopKde.DESKTOP_KDE_SHA256}\""
         buildConfigField "long", "DESKTOP_KDE_SIZE", "${desktopKde.DESKTOP_KDE_SIZE}L"
         addonPacks.each { name, pack ->
-            buildConfigField "String", "PACK_${name.toUpperCase()}_SHA256", "\"${pack.sha256}\""
-            buildConfigField "long", "PACK_${name.toUpperCase()}_SIZE", "${pack.size}L"
+            buildConfigField "String", "PACK_${name.toUpperCase().replace('-', '_')}_SHA256", "\"${pack.sha256}\""
+            buildConfigField "long", "PACK_${name.toUpperCase().replace('-', '_')}_SIZE", "${pack.size}L"
         }
 
         ndk {
@@ -274,13 +276,17 @@ tasks.named('preBuild').configure { dependsOn(stageSessionScripts) }
 def runtimeAssetsDir = layout.buildDirectory.dir('runtimeAssets')
 def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     dependsOn(stageSessionScripts)
-    from(layout.projectDirectory.dir('src/main/assets')) { exclude 'pulseaudio.tzst' }
+    from(layout.projectDirectory.dir('src/main/assets')) {
+        exclude 'pulseaudio.tzst', 'linuxfs/usr/local/bin/droiddeck-innoextract',
+            'linuxfs/usr/local/lib/droiddeck-inno/**', 'linuxfs/usr/local/share/licenses/droiddeck-inno/**',
+            '**/rendermodels/droiddeck_pico_*/**'
+    }
     from(rootProject.file('tools/linuxfs/innoextract'))
     from(rootProject.file('tools')) { include 'droiddeckctl', 'droiddeck-scenario', 'adb_device.py', 'proot_profile.py'; into('agent/ctl') }
     from(rootProject.file('tools/agent/AGENTS.md')) { into('agent/ctl') }
     from(rootProject.file('docs/agent-control.md')) { into('agent/ctl') }
     from(rootProject.file('tools/agent/skills')) { into('agent/skills') }
-    from(layout.buildDirectory.dir('prepared-assets'))
+    from(layout.buildDirectory.dir('prepared-assets')) { exclude '**/rendermodels/droiddeck_pico_*/**' }
     into(runtimeAssetsDir)
 }
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
@@ -320,7 +326,7 @@ tasks.named('preBuild').configure { dependsOn(stageGogNotices) }
 
 if (!ciBuild) {
     def stageLocalPacks = tasks.register('stageLocalPacks', Sync) {
-        from(layout.buildDirectory.dir('packs')) { include '*.tar.zst' }
+        from(layout.buildDirectory.dir('packs')) { include '*.tar.zst'; exclude 'pico-*.tar.zst' }
         into(layout.buildDirectory.dir('localPackAssets/packs'))
     }
     android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('localPackAssets'))
@@ -387,7 +393,7 @@ tasks.named('preBuild').configure { dependsOn(buildVkBridgeServer) }
 
 dependencies {
     implementation "org.opencv:opencv:${trackingPack.OPENCV_VERSION}"
-    implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.49'
+    implementation 'org.khronos.openxr:openxr_loader_for_android:1.1.61'
     implementation 'com.github.luben:zstd-jni:1.5.7-4@aar'
     implementation 'org.apache.commons:commons-compress:1.27.1'
     implementation 'org.tukaani:xz:1.10'
