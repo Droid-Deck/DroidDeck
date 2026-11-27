@@ -97,20 +97,27 @@ object HostProcess {
             listOf("/system/bin/sh", "-c", WORKER_CD, "sh", dir.path) + assignments + listOf("--") + argv
         } else argv
         val workerEnv = if (dir != null) listOf("PATH=/system/bin") else assignments
-        val input = ParcelFileDescriptor.open(File("/dev/null"), ParcelFileDescriptor.MODE_READ_ONLY)
+        var input: ParcelFileDescriptor? = null
         var reader: ParcelFileDescriptor? = null
-        val output = when {
-            onLine != null -> ParcelFileDescriptor.createPipe().let { reader = it[0]; it[1] }
-            outputFile != null -> ParcelFileDescriptor.open(outputFile,
-                ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_APPEND)
-            else -> ParcelFileDescriptor.open(File("/dev/null"), ParcelFileDescriptor.MODE_WRITE_ONLY)
+        var output: ParcelFileDescriptor? = null
+        val pid = try {
+            input = ParcelFileDescriptor.open(File("/dev/null"), ParcelFileDescriptor.MODE_READ_ONLY)
+            output = when {
+                onLine != null -> ParcelFileDescriptor.createPipe().let { reader = it[0]; it[1] }
+                outputFile != null -> ParcelFileDescriptor.open(outputFile,
+                    ParcelFileDescriptor.MODE_WRITE_ONLY or ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_APPEND)
+                else -> ParcelFileDescriptor.open(File("/dev/null"), ParcelFileDescriptor.MODE_WRITE_ONLY)
+            }
+            com.droiddeck.launcher.runtime.GuestWorkers.start(context, launch, workerEnv, listOf(input, output, output)) { status ->
+                onExit?.accept(if (status < 0) -1 else if (status and 0x7f == 0) (status shr 8) and 0xff else 128 + (status and 0x7f))
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "no worker for ${argv.first()}", e)
+            -1
+        } finally {
+            runCatching { input?.close() }
+            runCatching { output?.close() }
         }
-        val pid = com.droiddeck.launcher.runtime.GuestWorkers.start(context, launch, workerEnv,
-            listOf(input, output, output)) { status ->
-            onExit?.accept(if (status < 0) -1 else if (status and 0x7f == 0) (status shr 8) and 0xff else 128 + (status and 0x7f))
-        }
-        input.close()
-        output.close()
         if (pid <= 0) {
             reader?.close()
             return start(command, env, dir, onExit, onLine, outputFile, onOutputComplete)

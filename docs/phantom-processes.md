@@ -374,6 +374,28 @@ Quitting the game (also from Steam), stopping the session (no worker is left) an
 again all work. Started from the front end with the limit on, Setup shows "Child-process limit
 handled by DroidDeck" and Steam starts.
 
+### Cost
+
+Measured on the Thor, Bully under Proton, the handoff on (`childProcessHandoff`) against off, two
+sessions each:
+
+| | off | on, first | on, now |
+|---|---|---|---|
+| one program started, `fork`+`exec` of `/usr/bin/true` | 37–39 ms | 197 ms | 80 ms |
+| `start steam` to READY | 14.0–14.2 s | 20.0–20.2 s | 18.2–18.5 s |
+| `launch` to the game's focus | 10.1 s | 14.7–14.8 s | 11.6–11.7 s |
+| in game: frames, CPU of the app's uid, `system_server` | 29.9 fps, 1.02–1.05 s/s, 21 ms/s | 29.8 fps, 1.11 s/s, 21–27 ms/s | 29.8–29.9 fps, 1.10–1.11 s/s, 22 ms/s |
+| memory of the app's processes (RSS) | 3.57–3.62 GB | 3.42–3.50 GB | 3.49–3.66 GB |
+
+Running costs nothing measurable; starting things does. A handed-off program costs a worker: a
+zygote fork, its runtime (40–50 ms of CPU) and the bind, and the worker waited 100 ms before its
+exec so as not to cut off its reply. Now the app closes a pipe once it has the reply and the worker
+execs then, and two workers are kept bound ahead of need while a session runs (12 MB of PSS each);
+four did no better. Starting a session takes about 10 more CPU-seconds (51 s against 41 s for the
+app's uid), and the last 4 s come from the session script's own steps running beside the
+handed-off daemons. With only the hook's handoffs off (`DD_SPAWN_DAEMONS=0`), READY came at
+14.1 s: the app's own workers (the session root, PulseAudio, logcat) cost nothing there.
+
 **In the app:** `PhantomProcessStatus.UNCOUNTED` is reported when the limit is on but the session
 runs in workers (`GuestWorkers.enabled`: the native userland, Android 11+, and the
 `childProcessHandoff` session preference, on by default). It does not block Steam. Turning the

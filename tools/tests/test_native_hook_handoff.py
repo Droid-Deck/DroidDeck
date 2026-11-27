@@ -87,13 +87,11 @@ class FakeSpawner(threading.Thread):
                 conn, _ = self.sock.accept()
             except OSError:
                 return
-            header = b""
-            while len(header) < 4:
-                header += conn.recv(4 - len(header))
-            length = struct.unpack(">I", header)[0]
-            payload = b""
-            while len(payload) < length:
-                payload += conn.recv(length - len(payload))
+            header = self.read(conn, 4)
+            payload = self.read(conn, struct.unpack(">I", header)[0]) if header else b""
+            if not payload:
+                conn.close()
+                continue
             request = json.loads(payload)
             fds = []
             while len(fds) < len(request["fds"]) + 1:
@@ -109,6 +107,16 @@ class FakeSpawner(threading.Thread):
                 if fd != table:
                     os.close(fd)
             threading.Thread(target=self.report, args=(proc, table, request), daemon=True).start()
+
+    @staticmethod
+    def read(conn, size):
+        data = b""
+        while len(data) < size:
+            more = conn.recv(size - len(data))
+            if not more:
+                return b""  # the client went away
+            data += more
+        return data
 
     @staticmethod
     def report(proc, table, request):

@@ -18,6 +18,7 @@ import android.os.Process
 import android.system.ErrnoException
 import android.system.Os
 import android.system.OsConstants
+import android.system.StructPollfd
 import android.util.Log
 import org.json.JSONObject
 import java.io.DataInputStream
@@ -41,8 +42,18 @@ open class GuestWorker : Service() {
             val env = data.createStringArray() ?: return false
             val fds = List(data.readInt()) { data.readFileDescriptor() }
             val targets = data.createIntArray() ?: IntArray(fds.size) { it }
+            val go = data.readFileDescriptor()
             reply?.writeInt(Process.myPid())
-            Handler(Looper.getMainLooper()).postDelayed({ exec(argv, env, fds, targets) }, EXEC_DELAY_MS)
+            Handler(Looper.getMainLooper()).post {
+                // The app closes its end once it has the reply: an exec before then would end
+                // this process with the reply undelivered.
+                runCatching {
+                    val poll = StructPollfd().apply { fd = go.fileDescriptor; events = OsConstants.POLLIN.toShort() }
+                    Os.poll(arrayOf(poll), GO_TIMEOUT_MS)
+                }
+                go.close()
+                exec(argv, env, fds, targets)
+            }
             return true
         }
     }
@@ -67,8 +78,11 @@ open class GuestWorker : Service() {
             runCatching { Os.setsid() }
             // The native hook closes the binder fds in every other process (hook/handoff.c).
             val fill = { arg: String -> arg.replace(BINDER_FD_TOKEN, binderFd.toString()) }
+            // This thread blocks SIGQUIT, SIGUSR1 and SIGPIPE (Android's runtime), and an exec keeps
+            // that: the program's hook sets DDH_SIGMASK instead (none blocked, unless the request says).
+            val mask = if (env.any { it.startsWith("DDH_SIGMASK=") }) emptyList() else listOf("DDH_SIGMASK=0")
             Os.execve(argv[0], argv.map(fill).toTypedArray(),
-                env.filterNot { it.startsWith("DDH_WORKER_PID=") }.map(fill).toTypedArray() +
+                env.filterNot { it.startsWith("DDH_WORKER_PID=") }.map(fill).toTypedArray() + mask +
                     "DDH_WORKER_PID=${Process.myPid()}")
         } catch (e: ErrnoException) {
             Log.e(TAG, "could not exec ${argv.firstOrNull()}", e)
@@ -86,7 +100,7 @@ open class GuestWorker : Service() {
         var binder = -1
         File("/proc/self/fd").listFiles()?.forEach { link ->
             val target = runCatching { Os.readlink(link.path) }.getOrNull() ?: return@forEach
-            if (!target.contains("binder")) return@forEach
+            if (target !in BINDER_DEVICES && !target.startsWith("/dev/binderfs/")) return@forEach
             // A copy, not adoptFd(): some of these fds are owned (fdsan) by a ParcelFileDescriptor.
             val copy = runCatching { ParcelFileDescriptor.fromFd(link.name.toIntOrNull() ?: return@forEach) }.getOrNull()
                 ?: return@forEach
@@ -102,7 +116,8 @@ open class GuestWorker : Service() {
         const val RUN = IBinder.FIRST_CALL_TRANSACTION
         /** In a program's arguments or environment, replaced by the number of its kept binder fd. */
         const val BINDER_FD_TOKEN = "@DDH_WORKER_BINDER_FD@"
-        private const val EXEC_DELAY_MS = 100L
+        private const val GO_TIMEOUT_MS = 2000
+        private val BINDER_DEVICES = setOf("/dev/binder", "/dev/hwbinder", "/dev/vndbinder")
         private const val BINDER_FDS = 900
         private const val MOVED_FDS = 1200
         private const val TAG = "GuestWorker"
@@ -207,11 +222,29 @@ object GuestWorkers {
         GuestWorker63::class.java,
     )
 
-    private class Slot(val index: Int, val connection: ServiceConnection, val guest: Boolean) {
+    private class Slot(val index: Int) {
+        lateinit var connection: ServiceConnection
+        val connected = CountDownLatch(1)
+        @Volatile var service: IBinder? = null
         @Volatile var pid = -1
+        @Volatile var guest = false
+        /** The session it runs a program for ([serve]'s number). */
+        @Volatile var session = 0
+        @Volatile var onExit: ((Int) -> Unit)? = null
+        /** Set once its program was handed over: only then does its end count as the program's. */
+        @Volatile var started = false
     }
 
     private val slots = arrayOfNulls<Slot>(classes.size)
+    // Workers bound ahead of need while a session runs: a zygote fork and the bind take about
+    // 60-100 ms, which every program the session starts would otherwise wait for.
+    private val warm = ArrayDeque<Slot>()
+    @Volatile private var warmTarget = 0
+    // Numbers the sessions: an old session's teardown can still be running when the next one starts.
+    @Volatile private var session = 0
+    private val warming = java.util.concurrent.atomic.AtomicBoolean(false)
+    private const val WARM_WORKERS = 2
+    private val connections = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "guest-worker-binder").apply { isDaemon = true } }
     @Volatile private var server: Thread? = null
 
     /** The app, once [attach] or [serve] ran in its main process; null before. */
@@ -241,61 +274,124 @@ object GuestWorkers {
     private fun start(context: Context, argv: List<String>, env: List<String>, fds: List<ParcelFileDescriptor>, targets: IntArray,
                       guest: Boolean, onExit: (Int) -> Unit): Int {
         val app = context.applicationContext
-        val connected = CountDownLatch(1)
-        var service: IBinder? = null
-        val slot: Slot
-        synchronized(slots) {
-            val index = slots.indexOfFirst { it == null }
-            if (index < 0) {
-                Log.w(TAG, "all ${slots.size} workers are busy")
-                return -1
-            }
-            val connection = object : ServiceConnection {
-                override fun onServiceConnected(name: ComponentName, binder: IBinder) {
-                    service = binder
-                    connected.countDown()
-                }
-
-                override fun onServiceDisconnected(name: ComponentName) = release(app, index, onExit)
-
-                override fun onBindingDied(name: ComponentName) = release(app, index, onExit)
-            }
-            slot = Slot(index, connection, guest)
-            slots[index] = slot
-        }
-        val intent = Intent(app, classes[slot.index])
-        if (!app.bindService(intent, slot.connection, Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT) ||
-            !connected.await(10, TimeUnit.SECONDS)) {
-            Log.w(TAG, "worker ${slot.index} did not start")
-            release(app, slot.index, null)
+        val slot = takeWarm() ?: bind(app)?.takeIf { fresh ->
+            fresh.connected.await(10, TimeUnit.SECONDS).also { if (!it) release(app, fresh) }
+        } ?: run {
+            Log.w(TAG, "no worker started for ${argv.firstOrNull()}")
             return -1
         }
+        slot.guest = guest
+        slot.session = session
+        slot.onExit = onExit
+        refill(app)
+        // The worker execs once this pipe closes: after the reply has reached us, so that its exec
+        // does not cut the reply off, and after the slot is marked started.
+        var go: Array<ParcelFileDescriptor>? = null
         val data = Parcel.obtain()
         val reply = Parcel.obtain()
         try {
+            go = ParcelFileDescriptor.createPipe()
             data.writeStringArray(argv.toTypedArray())
             data.writeStringArray(env.toTypedArray())
             data.writeInt(fds.size)
             fds.forEach { data.writeFileDescriptor(it.fileDescriptor) }
             data.writeIntArray(targets)
-            service!!.transact(GuestWorker.RUN, data, reply, 0)
-            slot.pid = reply.readInt()
+            data.writeFileDescriptor(go[0].fileDescriptor)
+            slot.service!!.transact(GuestWorker.RUN, data, reply, 0)
+            val pid = reply.readInt()
+            val live = synchronized(slots) {
+                (slots[slot.index] === slot).also { if (it) { slot.pid = pid; slot.started = true } }
+            }
+            if (!live) {
+                Log.w(TAG, "worker ${slot.index} ended before running ${argv.firstOrNull()}")
+                return -1
+            }
         } catch (e: Exception) {
             Log.w(TAG, "worker ${slot.index} refused ${argv.firstOrNull()}", e)
-            release(app, slot.index, null)
+            release(app, slot)
             return -1
         } finally {
             data.recycle()
             reply.recycle()
+            go?.forEach { runCatching { it.close() } }
         }
         Log.i(TAG, "worker ${slot.index} (pid ${slot.pid}) runs ${argv.lastOrNull { !it.startsWith("-") }}")
         return slot.pid
     }
 
-    private fun release(app: Context, index: Int, onExit: ((Int) -> Unit)?) {
-        val slot = synchronized(slots) { slots[index]?.also { slots[index] = null } } ?: return
+    /** Binds a free worker; its [Slot.connected] opens once it is up. Null when all are in use. */
+    private fun bind(app: Context): Slot? {
+        val slot = synchronized(slots) {
+            val index = slots.indexOfFirst { it == null }
+            if (index < 0) {
+                Log.w(TAG, "all ${slots.size} workers are busy")
+                return null
+            }
+            Slot(index).also { slots[index] = it }
+        }
+        slot.connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+                slot.service = binder
+                slot.connected.countDown()
+            }
+
+            override fun onServiceDisconnected(name: ComponentName) = release(app, slot)
+
+            override fun onBindingDied(name: ComponentName) = release(app, slot)
+        }
+        // Callbacks off the main thread: start() waits for onServiceConnected, and a caller holding a
+        // lock the main thread is waiting for (PulseAudio's launch) would otherwise wait out the timeout.
+        if (!app.bindService(Intent(app, classes[slot.index]), Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT,
+                connections, slot.connection)) {
+            release(app, slot)
+            return null
+        }
+        return slot
+    }
+
+    private fun takeWarm(): Slot? = synchronized(slots) {
+        while (warm.isNotEmpty()) {
+            val slot = warm.removeFirst()
+            if (slots[slot.index] === slot && slot.service?.isBinderAlive == true) return slot
+        }
+        null
+    }
+
+    /** Brings the warm workers back up to [warmTarget], one at a time, off the caller's thread. */
+    private fun refill(app: Context) {
+        if (warmTarget == 0 || !warming.compareAndSet(false, true)) return
+        Thread({
+            try {
+                while (true) {
+                    val missing = warmTarget - synchronized(slots) { warm.size }
+                    if (missing <= 0) break
+                    // all at once: the zygote forks them in parallel
+                    val fresh = (1..missing).mapNotNull { bind(app) }
+                    if (fresh.isEmpty()) break
+                    for (slot in fresh) {
+                        if (!slot.connected.await(10, TimeUnit.SECONDS)) {
+                            release(app, slot)
+                            continue
+                        }
+                        synchronized(slots) { if (slots[slot.index] === slot && warmTarget > 0) warm.addLast(slot) }
+                        if (warmTarget == 0) release(app, slot)
+                    }
+                }
+            } finally {
+                warming.set(false)
+            }
+        }, "guest-worker-warm").apply { isDaemon = true; start() }
+    }
+
+    private fun release(app: Context, slot: Slot) {
+        val removed = synchronized(slots) {
+            warm.remove(slot)
+            (slots[slot.index] === slot).also { if (it) slots[slot.index] = null }
+        }
+        if (!removed) return
         runCatching { app.unbindService(slot.connection) }
-        if (onExit != null) Thread({ onExit(exitStatus(app, slot.pid)) }, "guest-worker-exit").start()
+        val onExit = slot.onExit
+        if (slot.started && onExit != null) Thread({ onExit(exitStatus(app, slot.pid)) }, "guest-worker-exit").start()
     }
 
     /** The worker's exit as a wait status (exit code << 8, or the signal), -1 when unknown. */
@@ -304,7 +400,9 @@ object GuestWorkers {
         val am = app.getSystemService(ActivityManager::class.java)
         repeat(20) {
             am.getHistoricalProcessExitReasons(app.packageName, pid, 1).firstOrNull()?.let {
-                return if (it.reason == android.app.ApplicationExitInfo.REASON_SIGNALED) it.status and 0x7f
+                // an exit code only when the process exited itself; a signal number otherwise (a native crash)
+                return if (it.reason == android.app.ApplicationExitInfo.REASON_EXIT_SELF) (it.status and 0xff) shl 8
+                else if (it.status in 1..64) it.status and 0x7f
                 else (it.status and 0xff) shl 8
             }
             Thread.sleep(50)
@@ -312,12 +410,17 @@ object GuestWorkers {
         return -1
     }
 
-    /** The pids of the session's guest programs running in workers. */
-    fun guestPids(): List<Int> = synchronized(slots) { slots.mapNotNull { s -> s?.takeIf { it.guest }?.pid?.takeIf { it > 0 } } }
+    /** The pids of session [of]'s guest programs running in workers. */
+    fun guestPids(of: Int = session): List<Int> =
+        synchronized(slots) { slots.mapNotNull { s -> s?.takeIf { it.guest && it.session == of }?.pid?.takeIf { it > 0 } } }
 
-    /** Ends the session's guest programs that are still running; for session teardown. */
-    fun stopGuests() {
-        val pids = guestPids()
+    /** Ends session [of]'s guest programs that are still running, and, for the latest session, the warm workers. */
+    fun stopGuests(of: Int = session) {
+        if (of == session) {
+            warmTarget = 0
+            context?.let { app -> synchronized(slots) { warm.toList().also { warm.clear() } }.forEach { release(app, it) } }
+        }
+        val pids = guestPids(of)
         if (pids.isEmpty()) return
         pids.forEach { Process.sendSignal(it, OsConstants.SIGTERM) }
         Thread.sleep(500)
@@ -329,20 +432,29 @@ object GuestWorkers {
         this.context = context.applicationContext
     }
 
-    fun serve(context: Context) {
+    /** Starts a session's use of the workers (and the spawn socket, once); returns its number. */
+    fun serve(context: Context): Int {
         val app = context.applicationContext
         this.context = app
+        val number = ++session
+        warmTarget = WARM_WORKERS
+        refill(app)
         synchronized(this) {
-            if (server != null) return
+            if (server != null) return number
             server = Thread({
                 val socket = try {
                     LocalServerSocket(socketName(app))
                 } catch (e: Exception) {
                     Log.e(TAG, "no spawn socket", e)
+                    synchronized(this) { server = null }
                     return@Thread
                 }
                 while (true) {
-                    val client = runCatching { socket.accept() }.getOrNull() ?: continue
+                    val client = runCatching { socket.accept() }.getOrNull()
+                    if (client == null) {
+                        Thread.sleep(100)  // out of fds, for one: do not spin
+                        continue
+                    }
                     Thread({
                         try {
                             handle(app, client)
@@ -353,6 +465,7 @@ object GuestWorkers {
                 }
             }, "guest-spawn-server").apply { isDaemon = true; start() }
         }
+        return number
     }
 
     private fun handle(app: Context, client: LocalSocket) {
@@ -427,13 +540,17 @@ object GuestWorkers {
             if (request.has("umask")) env["DDH_UMASK"] = request.getLong("umask").toString()
             if (request.has("pgid")) env["DDH_PGID"] = request.getLong("pgid").toString()
             if (request.has("anchor")) env["DDH_ANCHOR"] = request.getLong("anchor").toString()
+            env["DDH_SIGMASK"] = request.optLong("sigmask", 0L).toString()
+            val child = request.optInt("child", -1)
             val exited = CountDownLatch(1)
             var status = -1
+            var worker = -1
             val pid = start(app, command, env.map { (k, v) -> "$k=$v" }, programFds, targets, true) { code ->
                 status = code
-                if (table != null && slot >= 0) reportExit(table, slot, code, parent)
+                if (table != null && slot >= 0) reportExit(table, slot, code, parent, child, worker)
                 exited.countDown()
             }
+            worker = pid
             programFds.filter { it !== table }.forEach { runCatching { it.close() } }
             if (pid <= 0) table?.let { runCatching { it.close() } }
             out.write(if (pid > 0) "pid $pid\n".toByteArray() else "error no worker\n".toByteArray())
@@ -448,13 +565,18 @@ object GuestWorkers {
 
     // Layout of the hook's table (tools/nativeguest/hook/handoff.c): a 64-byte header, then 32-byte
     // entries of int32 child, real, parent, state, status, ...
-    private fun reportExit(table: ParcelFileDescriptor, slot: Int, status: Int, parent: Int) {
+    // Written only while the entry is still this program's (state CLAIMED or HANDED, its child, parent
+    // and worker): the parent may have reaped it and a later handoff taken the entry over meanwhile.
+    private fun reportExit(table: ParcelFileDescriptor, slot: Int, status: Int, parent: Int, child: Int, worker: Int) {
         runCatching {
             val entry = 64L + slot * 32L
+            val head = java.nio.ByteBuffer.allocate(16).order(java.nio.ByteOrder.nativeOrder())
+            Os.pread(table.fileDescriptor, head, entry)
+            val real = head.getInt(4)
+            val state = head.getInt(12)
+            if (head.getInt(0) != child || head.getInt(8) != parent || (real != 0 && real != worker) || (state != 1 && state != 3))
+                return@runCatching
             val word = java.nio.ByteBuffer.allocate(4).order(java.nio.ByteOrder.nativeOrder())
-            Os.pread(table.fileDescriptor, word, entry + 12)
-            if (word.getInt(0) == 2) return@runCatching  // the program wrote its own status
-            word.clear()
             // An exit Android has no record of is reported as a failure, not as a signal.
             Os.pwrite(table.fileDescriptor, word.putInt(0, if (status < 0) 1 shl 8 else status).also { it.rewind() }, entry + 16)
             Os.pwrite(table.fileDescriptor, word.putInt(0, 2).also { it.rewind() }, entry + 12)

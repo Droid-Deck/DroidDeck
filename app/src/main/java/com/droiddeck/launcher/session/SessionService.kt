@@ -702,7 +702,7 @@ class SessionService : Service() {
         }
         guest.add("DD_LAUNCH_DIR=" + sessionRoot.path)
         if (com.droiddeck.launcher.runtime.GuestWorkers.enabled(this)) {
-            com.droiddeck.launcher.runtime.GuestWorkers.serve(this)
+            guestWorkerSession = com.droiddeck.launcher.runtime.GuestWorkers.serve(this)
             guest.add("DD_SPAWN=" + com.droiddeck.launcher.runtime.GuestWorkers.socketName(this))
         }
         // Proton builds up to 11.12 report X11 text fields under this name.
@@ -881,7 +881,8 @@ class SessionService : Service() {
                 syncWatcher = null
             }
             abandonStart(gen, sessionDir, started)
-            if (pid > 1) Thread({ teardown(pid) }, "session-teardown").start()
+            val workers = guestWorkerSession
+            if (pid > 1) Thread({ teardown(pid, workerSession = workers) }, "session-teardown").start()
             return
         }
         sessionPid = pid
@@ -1523,11 +1524,14 @@ class SessionService : Service() {
         return binds
     }
 
-    private fun teardown(prootPid: Int, expectedStartTime: Long? = null) {
+    // The workers' session number of the session running now (GuestWorkers.serve)
+    @Volatile private var guestWorkerSession = 0
+
+    private fun teardown(prootPid: Int, expectedStartTime: Long? = null, workerSession: Int = guestWorkerSession) {
         fun stillSameProcess(): Boolean = expectedStartTime == null || readStat(prootPid)?.second == expectedStartTime
         if (!stillSameProcess()) return
         // The session's programs that run in worker processes are not descendants of its root.
-        val workers = if (expectedStartTime == null) com.droiddeck.launcher.runtime.GuestWorkers.guestPids() else emptyList()
+        val workers = if (expectedStartTime == null) com.droiddeck.launcher.runtime.GuestWorkers.guestPids(workerSession) else emptyList()
         val tree = descendants(prootPid) + workers.flatMap { pid -> listOfNotNull(readStat(pid)?.let { Pair(pid, it.second) }) + descendants(pid) }
         if (!stillSameProcess()) return
         saveWineRegistries(tree)
@@ -1545,7 +1549,7 @@ class SessionService : Service() {
             killed++
         }
         if (killed > 0) Log.i(TAG, "swept $killed process(es) proot left behind")
-        if (expectedStartTime == null) com.droiddeck.launcher.runtime.GuestWorkers.stopGuests()
+        if (expectedStartTime == null) com.droiddeck.launcher.runtime.GuestWorkers.stopGuests(workerSession)
     }
 
     private fun clearCachedApps() {
@@ -2386,13 +2390,14 @@ class SessionService : Service() {
         FakeInputWriter.releaseAllRingSlots()
         com.droiddeck.launcher.input.SteamTouchDevice.release()
         val steamClientMayRun = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
+        val workers = guestWorkerSession
         val finishAfterTeardown: () -> Unit = {
             if (prootPid > 1 || auxiliary.isNotEmpty()) {
                 Thread({
                     if (prootPid > 1 && steamClientMayRun) askSteamToExit(prootPid)
                     com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
                     auxiliary.forEach { (pid, started) -> teardown(pid, started) }
-                    if (prootPid > 1) teardown(prootPid)
+                    if (prootPid > 1) teardown(prootPid, workerSession = workers)
                     killGuestLeftovers()
                     pruneSystemVulkanRuntime()
                     finishSessionStop(status, stoppedGen, collectEnded)

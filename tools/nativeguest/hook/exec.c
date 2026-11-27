@@ -374,7 +374,7 @@ static int ddnatv_execve(const char *filename, char *const argv[], char *const e
         errno = ENOSYS;
         return -1;
     }
-    if (depth == 0) ddh_try(filename, argv, envp);
+    if (depth == 0 && !in_exec_rehearsal()) ddh_try(filename, argv, envp);
 
     // Scripts get the path exactly as the caller wrote it ("./x.sh" stays "./x.sh" in $0),
     // like the kernel would pass it; routing below uses the absolute form.
