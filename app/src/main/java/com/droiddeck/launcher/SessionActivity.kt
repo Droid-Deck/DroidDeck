@@ -6963,6 +6963,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
             if (::touchpad.isInitialized) touchpad.cancel()
             if (::scrollTouch.isInitialized) scrollTouch.cancel()
+            if (::directTouchHold.isInitialized) directTouchHold.cancel()
             releaseHeldGuestInput()
         }
         if (hasFocus && !pipUi) {
