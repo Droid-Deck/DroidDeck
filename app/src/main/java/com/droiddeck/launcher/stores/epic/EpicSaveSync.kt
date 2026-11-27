@@ -23,9 +23,23 @@ object EpicSaveSync {
         }
     }
 
+    /**
+     * Asks the store engine to mirror the newest cloud manifest (and its files) into [cacheDir] and
+     * report it: `{mode, manifest, files:[{name, size, sha1}]}`. Throws when the engine is
+     * unavailable or the cloud request fails, keeping the engine's error text.
+     */
+    fun snapshot(token: String, accountId: String, appName: String, cacheDir: String): JSONObject {
+        val answer = EpicNative.call("cloud.snapshot", base(token, accountId, appName).put("cacheDir", cacheDir))
+            ?: throw IOException("Epic cloud is unavailable")
+        if (answer.has("error")) throw IOException(answer.optString("error"))
+        return answer
+    }
+
     fun read(file: CloudFile): Pair<ByteArray, Long> {
         val link = file.readLink ?: throw IOException("no download link for ${file.name}")
-        val bytes = EpicNative.fetch("cloud.read", JSONObject().put("url", link)) ?: throw IOException("Epic cloud download failed")
+        if (!EpicNative.ready()) throw IOException("Epic cloud is unavailable: the store engine is not loaded")
+        val bytes = EpicNative.fetch("cloud.read", JSONObject().put("url", link))
+            ?: throw IOException("Epic cloud download failed for ${file.name}: the cloud request returned no data")
         return bytes to file.modifiedMs
     }
 

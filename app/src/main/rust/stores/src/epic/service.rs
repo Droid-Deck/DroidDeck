@@ -87,9 +87,22 @@ fn dispatch(op: &str, req: &Value) -> Value {
             None => error("unreachable"),
         },
         "cloud.list" => match savesync::list(token, str_of(req, "accountId"), str_of(req, "appName")) {
-            Ok(files) => json!({ "files": files }),
+            Ok(files) => {
+                let mode = savesync::cloud_mode(&files);
+                let plain: Vec<Value> = files
+                    .into_iter()
+                    .filter(|f| !savesync::is_mechanical(str_of(f, "name")))
+                    .collect();
+                json!({ "mode": mode, "files": plain })
+            }
             Err(e) => error(e),
         },
+        "cloud.snapshot" => {
+            match savesync::snapshot(token, str_of(req, "accountId"), str_of(req, "appName"), str_of(req, "cacheDir")) {
+                Ok(answer) => answer,
+                Err(e) => error(e),
+            }
+        }
         "cloud.writeLinks" => {
             let names: Vec<String> = req
                 .get("names")

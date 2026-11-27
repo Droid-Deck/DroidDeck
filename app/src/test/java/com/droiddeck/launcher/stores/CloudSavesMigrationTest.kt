@@ -1,16 +1,30 @@
 package com.droiddeck.launcher.stores
 
+import com.droiddeck.launcher.stores.epic.EpicPrefs
 import java.io.File
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33], application = android.app.Application::class)
 class CloudSavesMigrationTest {
     private val dir = Files.createTempDirectory("cloud-migrate").toFile()
     private fun entry(bytes: ByteArray) = CloudPlan.Entry(CloudSaves.md5(bytes), null, 1000L)
+    private val app get() = RuntimeEnvironment.getApplication()
+    private fun stubCloud() = object : CloudTransport {
+        override fun list() = emptyList<CloudFile>()
+        override fun get(file: CloudFile): Pair<ByteArray, Long> = throw java.io.IOException("unused in this test")
+        override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>) = emptyMap<String, Long>()
+    }
 
     private fun nested(name: String, path: String, text: String): File =
         File(dir, "$name/$path").apply { parentFile?.mkdirs(); writeText(text) }
@@ -72,5 +86,44 @@ class CloudSavesMigrationTest {
         assertNull(CloudSaves.migrateNested(dir, "../saves", emptyMap()))
         assertNull(CloudSaves.migrateNested(dir, "..", emptyMap()))
         assertNull(CloudSaves.migrateNested(dir, "saves/..", emptyMap()))
+    }
+
+    private fun epicBaseline(vararg keys: Pair<String, String>): Map<String, CloudPlan.Entry> =
+        keys.associate { (k, v) -> k to entry(v.toByteArray()) }
+
+    @Test fun anEpicManifestLayoutIsDeletedFromTheSaveFolderAndTheBaseline() {
+        val gameId = "g${System.nanoTime()}"
+        nested("manifests", "a.manifest", "m")
+        nested("ChunksV4", "ab/c0.chunk", "c")
+        File(dir, "slot0.sav").writeText("save")
+        val base = epicBaseline("manifests/a.manifest" to "m", "ChunksV4/ab/c0.chunk" to "c", "slot0.sav" to "save")
+        EpicPrefs.get(app).edit().putString("cloud_baseline_$gameId", CloudPlan.toJson(base)).apply()
+        CloudSaves.migrateEpicManifest(app, Store.EPIC, gameId, dir, stubCloud())
+        assertFalse(File(dir, "manifests").exists())
+        assertFalse(File(dir, "ChunksV4").exists())
+        assertTrue(File(dir, "slot0.sav").isFile)
+        val after = CloudSaves.baseline(app, Store.EPIC, gameId)!!
+        assertEquals(setOf("slot0.sav"), after.keys)
+        assertEquals(entry("save".toByteArray()), after.getValue("slot0.sav"))
+        assertEquals(1, EpicPrefs.get(app).getInt("cloud_epic_layout_$gameId", 0))
+    }
+
+    @Test fun aFolderThatCannotBeDeletedLeavesTheEpicMigrationForTheNextTry() {
+        val gameId = "g${System.nanoTime()}"
+        nested("manifests", "a.manifest", "m")
+        nested("ChunksV4", "ab/c0.chunk", "c")
+        val chunks = File(dir, "ChunksV4")
+        val base = epicBaseline("ChunksV4/ab/c0.chunk" to "c", "keep.sav" to "k")
+        EpicPrefs.get(app).edit().putString("cloud_baseline_$gameId", CloudPlan.toJson(base)).apply()
+        chunks.setWritable(false)
+        Assume.assumeFalse(chunks.canWrite())
+        try {
+            CloudSaves.migrateEpicManifest(app, Store.EPIC, gameId, dir, stubCloud())
+            assertEquals(0, EpicPrefs.get(app).getInt("cloud_epic_layout_$gameId", 0))
+            assertEquals(base, CloudSaves.baseline(app, Store.EPIC, gameId))
+            assertTrue(chunks.isDirectory)
+        } finally {
+            chunks.setWritable(true)
+        }
     }
 }

@@ -375,6 +375,10 @@ object StoresState {
             runCatching { CloudSaves.uploadAllDirty(app, "recovery") }
                 .onFailure { Log.w(TAG, "cloud save recovery failed", it) }
         }, "cloud-recovery").start()
+        // init runs in the main and :xcloudnative processes; the per-game sync locks are per-process,
+        // so prefetching the mirror from both would race on cacheDir/epic-saves. Main process only.
+        val mainProcess = if (android.os.Build.VERSION.SDK_INT >= 28) android.app.Application.getProcessName() == app.packageName else true
+        if (mainProcess) background("epic-cloud-prefetch") { CloudSaves.prefetchEpic(app) }
     }
 
     internal fun post(block: () -> Unit) = main.post(block)

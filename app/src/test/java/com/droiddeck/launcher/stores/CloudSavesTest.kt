@@ -1,13 +1,17 @@
 package com.droiddeck.launcher.stores
 
+import com.droiddeck.launcher.stores.epic.EpicSaveRules
 import com.droiddeck.launcher.stores.ubisoft.MemorySlots
 import com.droiddeck.launcher.stores.ubisoft.UbisoftCloud
 import com.droiddeck.launcher.stores.ubisoft.UbisoftCloudTransport
 import java.io.File
 import java.util.concurrent.Executor
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -342,5 +346,100 @@ class CloudSavesTest {
         StoreGameSidecar(Store.GOG, "1207664643", "ELDERBORN", "ELDERBORN.exe").write(folder)
         assertEquals("deferred", CloudSaves.downloadOrDefer(app, Store.GOG, "1207664643", Executor { deferred += it }).result)
         assertEquals(1, deferred.size)
+    }
+
+    /** A Memory transport whose [CloudTransport.wants] mirrors [EpicCloud]'s mechanical + rules filter. */
+    private class EpicMemory(rules: EpicSaveRules, cacheDir: File) : CloudTransport {
+        private val backing = Memory()
+        val epic = EpicCloud("acc", "app", "tok", cacheDir, rules)
+        val files get() = backing.files
+        val puts get() = backing.puts
+        override fun wants(name: String) = epic.wants(name)
+        override fun deleted(file: CloudFile) = backing.deleted(file)
+        override fun list() = backing.list()
+        override fun get(file: CloudFile) = backing.get(file)
+        override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>) = backing.put(files, modifiedMs)
+    }
+
+    @Test fun mechanicalEpicFilesNeverEnterDownOrUp() {
+        val game = id; val dir = dir()
+        val cloud = EpicMemory(EpicSaveRules("*.json", ""), File(app.cacheDir, "epic-wants-$game"))
+        assertTrue(cloud.epic.wants("Config.json"))
+        assertFalse(cloud.epic.wants("manifests/a.manifest"))
+        assertFalse(cloud.epic.wants("ChunksV4/ab/c0.chunk"))
+        assertFalse(cloud.epic.wants("CHUNKS/odd/one.CHUNK"))
+        assertFalse(cloud.epic.wants("notes.txt"))
+        cloud.files["Config.json"] = "keep".toByteArray() to 1000L
+        cloud.files["manifests/a.manifest"] = "m".toByteArray() to 1000L
+        cloud.files["ChunksV4/ab/c0.chunk"] = "c".toByteArray() to 1000L
+        cloud.files["notes.txt"] = "n".toByteArray() to 1000L
+        val down = CloudSaves.downWith(app, Store.EPIC, game, dir, cloud, force = true)
+        assertEquals("ok", down.result); assertEquals(1, down.files)
+        assertEquals(listOf("Config.json"), dir.walkTopDown().filter { it.isFile }.map { it.relativeTo(dir).path }.sorted().toList())
+        File(dir, "ChunksV2").apply { mkdirs() }
+        File(dir, "ChunksV2/leftover.chunk").writeText("c2")
+        File(dir, "Config.json").writeText("played")
+        val up = CloudSaves.upWith(app, Store.EPIC, game, dir, cloud, force = false)
+        assertEquals("ok", up.result); assertEquals(1, up.files)
+        assertEquals(listOf("Config.json"), cloud.puts)
+    }
+
+    @Test fun anEpicManifestSnapshotBlocksUploadWithoutTouchingTheCloud() {
+        val game = id; val dir = dir()
+        File(dir, "slot0.sav").writeText("local")
+        val cache = File(app.cacheDir, "epic-manifest-$game").apply { mkdirs() }
+        File(cache, "manifest.json").writeText(
+            JSONObject()
+                .put("mode", "manifest").put("manifest", "m1")
+                .put("files", JSONArray().put(JSONObject().put("name", "slot0.sav").put("md5", CloudSaves.md5("cloud".toByteArray())).put("modified", 1000L)))
+                .toString()
+        )
+        val cloud = EpicCloud("acc", game, "tok", cache, EpicSaveRules("", ""))
+        assertTrue(cloud.manifestMode)
+        val r = CloudSaves.upWith(app, Store.EPIC, game, dir, cloud, force = true)
+        assertEquals("skipped", r.result); assertEquals("upload-unavailable", r.reason)
+        assertEquals(0, cloud.listCalls)
+        assertNull(CloudSaves.baseline(app, Store.EPIC, game))
+    }
+
+    @Test fun aCachedManifestMirrorServesDownloadsWhenTheCloudIsUnreachable() {
+        val game = id; val dir = dir()
+        val cache = File(app.cacheDir, "epic-mirror-$game")
+        File(cache, "files/Saves").mkdirs()
+        File(cache, "files/Saves/slot0.sav").writeText("cloud save")
+        File(cache, "manifest.json").writeText(
+            JSONObject()
+                .put("mode", "manifest").put("manifest", "m1")
+                .put("files", JSONArray().put(JSONObject().put("name", "Saves/slot0.sav").put("md5", CloudSaves.md5("cloud save".toByteArray())).put("modified", 1000L)))
+                .toString()
+        )
+        val cloud = EpicCloud("acc", game, "tok", cache, EpicSaveRules("*.sav", ""))
+        val r = CloudSaves.downWith(app, Store.EPIC, game, dir, cloud, force = true)
+        assertEquals("ok", r.result); assertEquals(1, r.files)
+        assertEquals("cloud save", File(dir, "Saves/slot0.sav").readText())
+        val base = CloudSaves.baseline(app, Store.EPIC, game)!!
+        assertEquals(CloudSaves.md5(File(dir, "Saves/slot0.sav")), base.getValue("Saves/slot0.sav").localMd5)
+        assertEquals(CloudSaves.md5("cloud save".toByteArray()), base.getValue("Saves/slot0.sav").cloudMd5)
+        assertTrue(cloud.manifestMode)
+    }
+
+    @Test fun aSyncWhileAnotherSyncHoldsThePerGameLockIsBusy() {
+        val game = id
+        val lock = CloudSaves.syncLock(Store.GOG, game)
+        val locked = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        Thread({
+            lock.lock()
+            try {
+                locked.countDown()
+                release.await()
+            } finally {
+                lock.unlock()
+            }
+        }, "lock-holder").apply { isDaemon = true; start() }
+        assertTrue(locked.await(5, java.util.concurrent.TimeUnit.SECONDS))
+        val r = CloudSaves.download(app, Store.GOG, game)
+        assertEquals("skipped", r.result); assertEquals("busy", r.reason)
+        release.countDown()
     }
 }

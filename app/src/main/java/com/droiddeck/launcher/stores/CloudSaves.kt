@@ -13,6 +13,7 @@ import com.droiddeck.launcher.stores.ea.EaSaveRules
 import com.droiddeck.launcher.stores.epic.EpicApiClient
 import com.droiddeck.launcher.stores.epic.EpicCredentialStore
 import com.droiddeck.launcher.stores.epic.EpicPrefs
+import com.droiddeck.launcher.stores.epic.EpicSaveRules
 import com.droiddeck.launcher.stores.gog.GogAuth
 import com.droiddeck.launcher.stores.gog.GogPrefs
 import com.droiddeck.launcher.stores.ubisoft.UbisoftAuth
@@ -23,9 +24,11 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
 import org.json.JSONObject
 
 object CloudSaves {
@@ -33,6 +36,10 @@ object CloudSaves {
     private const val BACKUPS = 3
     private const val PARALLEL = 6
     private const val CLOUD_LAYOUT = 2
+    private const val EPIC_MANIFEST_LAYOUT = 1
+
+    /** EGL's manifest/chunk bookkeeping directories that old builds downloaded into the save folder. */
+    private val EPIC_MECHANICAL_DIRS = listOf("manifests", "Chunks", "ChunksV2", "ChunksV3", "ChunksV4", "ChunksV5")
 
     class Result(val result: String, val files: Int, val bytes: Long, val reason: String, val conflicts: Int = 0, val detail: String = "") {
         val ok: Boolean get() = result != "failed"
@@ -92,7 +99,12 @@ object CloudSaves {
             if (cached == TEMPLATE_NONE) {
                 if (noneTemplateIsCurrent(p.getLong("cloud_template_at_$id", 0L), System.currentTimeMillis())) return ""
                 retryNone = true
-            } else if (cached.isNotEmpty()) return cached
+            } else if (cached.isNotEmpty()) {
+                // Games synced before the filter lists existed carry only the template: top the lists up
+                // or the include/exclude rules stay empty forever for them.
+                if (store == Store.EPIC) refreshEpicFilters(context, p, id, sidecar)
+                return cached
+            }
         }
         var gogLocation = ""
         val fetched = when (store) {
@@ -109,7 +121,9 @@ object CloudSaves {
                 val token = EpicCredentialStore.getValidAccessToken(context) ?: return null
                 val ns = sidecar.extra["namespace"].orEmpty()
                 val item = sidecar.extra["catalogItemId"].orEmpty()
-                if (ns.isEmpty() || item.isEmpty()) "" else EpicApiClient.getCustomAttribute(token, ns, item, "CloudSaveFolder")
+                val folder = (if (ns.isEmpty() || item.isEmpty()) "" else EpicApiClient.getCustomAttribute(token, ns, item, "CloudSaveFolder")) ?: ""
+                if (folder.isNotEmpty()) cacheEpicFilters(context, p, token, ns, item, id)
+                folder
             }
             Store.UBISOFT -> UBISOFT_TEMPLATE
             Store.EA -> eaRules(context, id) ?: return null
@@ -125,6 +139,28 @@ object CloudSaves {
             .apply()
         Log.i(TAG, "cloud ${store.id} $id template ${if (fetched.isEmpty()) "none" else "found"}")
         return fetched
+    }
+
+    /** Caches EGL's include/exclude lists alongside the template; a missing attribute stores "". */
+    private fun cacheEpicFilters(context: Context, p: SharedPreferences, token: String, ns: String, item: String, id: String) {
+        val include = runCatching { EpicApiClient.getCustomAttribute(token, ns, item, "CloudIncludeList") }.getOrNull()
+        val exclude = runCatching { EpicApiClient.getCustomAttribute(token, ns, item, "CloudExcludeList") }.getOrNull()
+        // null means the lookup itself failed (transient): leave the key unwritten so the next sync
+        // retries; "" means the catalog genuinely lacks the attribute and is cached as such.
+        p.edit().apply {
+            include?.let { putString("cloud_include_$id", it) }
+            exclude?.let { putString("cloud_exclude_$id", it) }
+        }.apply()
+        Log.i(TAG, "cloud epic $id filters ${include.orEmpty()} / ${exclude.orEmpty()}")
+    }
+
+    /** Top-up path for games whose template was cached before the filter lists were stored. */
+    private fun refreshEpicFilters(context: Context, p: SharedPreferences, id: String, sidecar: StoreGameSidecar) {
+        if (p.contains("cloud_include_$id") && p.contains("cloud_exclude_$id")) return
+        val token = EpicCredentialStore.getValidAccessToken(context) ?: return
+        val ns = sidecar.extra["namespace"].orEmpty()
+        val item = sidecar.extra["catalogItemId"].orEmpty()
+        if (ns.isNotEmpty() && item.isNotEmpty()) cacheEpicFilters(context, p, token, ns, item, id)
     }
 
     private fun gogClientId(context: Context, id: String, folder: File): String? =
@@ -204,7 +240,11 @@ object CloudSaves {
         Store.EPIC -> {
             val token = EpicCredentialStore.getValidAccessToken(context)
             val account = EpicCredentialStore.load(context)?.accountId.orEmpty()
-            if (token == null || account.isEmpty()) null else EpicCloud(account, id, token)
+            if (token == null || account.isEmpty()) null else {
+                val p = prefs(context, store)
+                val rules = EpicSaveRules(p.getString("cloud_include_$id", "").orEmpty(), p.getString("cloud_exclude_$id", "").orEmpty())
+                EpicCloud(account, id, token, File(context.cacheDir, "epic-saves/$id"), rules)
+            }
         }
         Store.UBISOFT -> {
             val session = UbisoftAuth.current(context)
@@ -321,6 +361,42 @@ object CloudSaves {
         if (result == null || result.failed == 0) p.edit().putInt("cloud_layout_$id", CLOUD_LAYOUT).apply()
     }
 
+    /**
+     * Phase 1 of the Epic manifest layout: old builds downloaded EGL's manifest and chunk
+     * bookkeeping into the save folder and baselined it. Deletes those directories (backed up
+     * first), drops their baseline entries, and marks the migration done only once every delete
+     * succeeded. A directory the baseline never tracked is game-owned (some games keep their own
+     * Chunks/manifests folders) and is left alone, as are all other game-owned files.
+     */
+    internal fun migrateEpicManifest(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport?) {
+        val p = prefs(context, store)
+        if (p.getInt("cloud_epic_layout_$id", 0) >= EPIC_MANIFEST_LAYOUT) return
+        if (cloud == null) return
+        val base = baseline(context, store, id).orEmpty()
+        val present = EPIC_MECHANICAL_DIRS.mapNotNull { name ->
+            File(dir, name).takeIf { it.isDirectory && base.keys.any { key -> key.startsWith("$name/") } }
+        }
+        if (present.isEmpty()) {
+            p.edit().putInt("cloud_epic_layout_$id", EPIC_MANIFEST_LAYOUT).apply()
+            return
+        }
+        val backedUp = backupReplaced(context, store, id, dir, present.flatMap { d -> d.walkTopDown().filter(File::isFile).toList() })
+        if (!backedUp) {
+            StoresState.logLine("cloud epic $id migrate result=failed reason=backup-failed")
+            return
+        }
+        for (d in present) {
+            if (!d.deleteRecursively()) {
+                StoresState.logLine("cloud epic $id migrate result=failed reason=delete-failed dir=${d.name}")
+                return
+            }
+        }
+        val next = base.filterKeys { key -> EPIC_MECHANICAL_DIRS.none { key.startsWith("$it/") } }
+        if (next.size != base.size) saveBaseline(context, store, id, next)
+        p.edit().putInt("cloud_epic_layout_$id", EPIC_MANIFEST_LAYOUT).apply()
+        StoresState.logLine("cloud epic $id migrate result=ok removed=${present.joinToString(",") { it.name }}")
+    }
+
     fun conflicts(context: Context, store: Store, id: String, dir: File? = null): List<String> =
         if (store == Store.UBISOFT && dir == null) emptyList() else savedConflicts(context, store, dir?.let { scope(store, id, it) } ?: id)
 
@@ -369,7 +445,14 @@ object CloudSaves {
 
     private const val PREFIX_WAIT_MS = 60_000L
 
+    private val syncLocks = ConcurrentHashMap<String, ReentrantLock>()
+
+    /** Per-game in-process sync lock keyed "store:id": a download and an upload must not race on one baseline. */
+    internal fun syncLock(store: Store, id: String): ReentrantLock = syncLocks.computeIfAbsent("${store.id}:$id") { ReentrantLock() }
+
     private fun sync(context: Context, store: Store, id: String, way: String, body: (File, CloudTransport) -> Result): Result {
+        val lock = syncLock(store, id)
+        if (!lock.tryLock()) return done(store, id, way, Result("skipped", 0, 0, "busy"))
         val result = try {
             val g = game(context, store, id)
             when {
@@ -377,8 +460,9 @@ object CloudSaves {
                 !g.second.cloud -> Result("skipped", 0, 0, "off")
                 else -> {
                     val (dir, reason) = saveFolder(context, store, id)
-                    if (dir != null && store == Store.GOG) migrateGogNested(context, id, g.first, dir)
                     val cloud = if (dir != null) transport(context, store, id, g.first) else null
+                    if (dir != null && store == Store.GOG) migrateGogNested(context, id, g.first, dir)
+                    if (dir != null && store == Store.EPIC) migrateEpicManifest(context, store, id, dir, cloud)
                     when {
                         cloud is UbisoftCloudTransport && dir?.parentFile?.name != cloud.user -> Result("skipped", 0, 0, "account-changed")
                         dir == null -> Result("skipped", 0, 0, reason)
@@ -386,7 +470,7 @@ object CloudSaves {
                         cloud == null -> Result("skipped", 0, 0, "not-signed-in")
                         cloud is EaCloud && cloud.localDir?.canonicalPath != dir.canonicalPath -> Result("skipped", 0, 0, "rules-changed")
                         cloud is EaCloud && caseCollision(localFiles(dir).keys, cloud::wants) -> Result("failed", 0, 0, "case-collision")
-                        else -> body(dir, cloud).also { if (it.result == "ok") markSynced(context, store, id) }
+                        else -> body(dir, cloud).also { if (it.result == "ok" && it.reason != "kept-local") markSynced(context, store, id) }
                     }
                 }
             }
@@ -395,6 +479,8 @@ object CloudSaves {
             Result("skipped", 0, 0, "no-cloud-saves")
         } catch (e: Exception) {
             Result("failed", 0, 0, e.javaClass.simpleName, detail = cloudFailureDetail(e))
+        } finally {
+            lock.unlock()
         }
         return done(store, id, way, result)
     }
@@ -443,7 +529,7 @@ object CloudSaves {
 
     internal fun downWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean, claim: () -> Boolean = { true }): Result {
         val files = localFiles(dir).filterKeys(cloud::wants)
-        val remote = remote(cloud) { it in files }.live
+        val remote = remote(cloud) { it in files }.live.filterKeys(cloud::wants)
         val local = files.mapValues { CloudPlan.Local(md5(it.value)) }
         val key = scope(store, id, dir)
         val base = baseline(context, store, key)
@@ -497,6 +583,8 @@ object CloudSaves {
     }
 
     internal fun upWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
+        // Phase 1 stops pollution at the source: manifest-mode saves never upload anything.
+        if (cloud is EpicCloud && cloud.manifestMode) return Result("skipped", 0, 0, "upload-unavailable")
         val key = scope(store, id, dir)
         val base = baseline(context, store, key) ?: return Result("skipped", 0, 0, "no-baseline")
         val files = localFiles(dir).filterKeys(cloud::wants).let { all -> if (cloud is UbisoftCloudTransport) all.filterValues(::markUbisoftSave) else all }
@@ -570,6 +658,81 @@ object CloudSaves {
             if (raced.isEmpty()) "" else raced.joinToString(prefix = "changed in the cloud: "))
     }
 
+    /** True when the Epic game's last cloud snapshot was a manifest mirror (phase 1: uploads off). */
+    fun epicManifestMode(context: Context, store: Store, id: String): Boolean {
+        if (store != Store.EPIC) return false
+        val marker = File(context.cacheDir, "epic-saves/$id/manifest.json")
+        if (!marker.isFile) return false
+        return runCatching { JSONObject(marker.readText()).optString("mode") == "manifest" }.getOrDefault(false)
+    }
+
+    /**
+     * Manifest-mode "keep local": re-baselines the wanted local files the phone actually changed
+     * without uploading, which clears conflicts in favor of the phone. For those entries
+     * cloudMd5/cloudModified come from the mirrored snapshot, so an unchanged cloud file still
+     * reads as "same" on the next sync. Files that only changed in the cloud keep their true
+     * baseline, so the next sync still downloads them instead of reading as already aligned.
+     */
+    internal fun keepLocal(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport): Result {
+        val epic = cloud as? EpicCloud ?: return Result("skipped", 0, 0, "not-manifest")
+        if (!epic.manifestMode) return Result("skipped", 0, 0, "not-manifest")
+        val remote = epic.list().associateBy { it.name }
+        val files = localFiles(dir).filterKeys(epic::wants)
+        if (files.isEmpty()) return Result("skipped", 0, 0, "nothing-local")
+        val key = scope(store, id, dir)
+        val base = baseline(context, store, key).orEmpty()
+        val next = HashMap(base)
+        for ((name, f) in files) {
+            val local = md5(f)
+            val old = base[name]
+            if (old == null || !local.equals(old.localMd5, ignoreCase = true)) {
+                val r = remote[name]
+                next[name] = CloudPlan.Entry(local, r?.md5, r?.modifiedMs ?: -1L)
+            }
+        }
+        saveBaseline(context, store, key, next)
+        saveConflicts(context, store, key, emptyList())
+        return Result("ok", files.size, files.values.sumOf { it.length() }, "kept-local")
+    }
+
+    /** High-level manifest-mode keep-local for the detail page's conflict row. */
+    fun keepLocal(context: Context, store: Store, id: String): Result =
+        sync(context, store, id, "keep") { dir, cloud -> keepLocal(context, store, id, dir, cloud) }
+
+    /**
+     * Warms the Epic manifest snapshot for every installed Epic game with cloud saves on so the
+     * first launch does not wait for the mirror. Failures only log. The mirror is shared with every
+     * sync of the game, so the prefetch takes the same per-game lock and skips when a sync holds it.
+     */
+    fun prefetchEpic(context: Context) {
+        val app = context.applicationContext
+        val games = StoreInstallRoot.gameFolders(app).mapNotNull { f ->
+            StoreGameSidecar.read(f)?.takeIf { it.store == Store.EPIC && it.cloud && it.isInstalled }?.let { f to it }
+        }
+        for ((folder, sidecar) in games) {
+            val id = sidecar.id
+            runCatching {
+                val (dir, reason) = saveFolder(app, Store.EPIC, id)
+                if (dir == null) {
+                    Log.i(TAG, "cloud epic $id prefetch skipped reason=$reason")
+                    return@runCatching
+                }
+                val cloud = transport(app, Store.EPIC, id, folder) ?: return@runCatching
+                val lock = syncLock(Store.EPIC, id)
+                if (!lock.tryLock()) {
+                    Log.i(TAG, "cloud epic $id prefetch skipped reason=busy")
+                    return@runCatching
+                }
+                try {
+                    cloud.list()
+                    Log.i(TAG, "cloud epic $id prefetch ok")
+                } finally {
+                    lock.unlock()
+                }
+            }.onFailure { Log.w(TAG, "cloud epic $id prefetch failed", it) }
+        }
+    }
+
 
     private fun marks(context: Context) = context.applicationContext.getSharedPreferences("stores.cloud", Context.MODE_PRIVATE)
 
@@ -584,7 +747,10 @@ object CloudSaves {
 
     private val markLock = Any()
 
-    private val FINAL_SKIPS = setOf("off", "no-cloud-saves", "no-baseline", "not-installed", "nothing-local")
+    /** Skips that mean the upload will never go through, so the dirty mark can go. "busy" is not
+     * one: the lock holder is a transient sync (e.g. the launch download), so the mark stays for
+     * the next exit / session-end / recovery upload. */
+    private val FINAL_SKIPS = setOf("off", "no-cloud-saves", "no-baseline", "not-installed", "nothing-local", "upload-unavailable")
 
     fun uploadDirty(context: Context, store: Store, id: String, trigger: String): Result? = synchronized(markLock) {
         val key = "dirty:${store.id}:$id"

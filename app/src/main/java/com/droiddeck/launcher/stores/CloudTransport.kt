@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.stores
 
+import android.util.Log
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -394,11 +395,149 @@ class GogCloud(
     }
 }
 
-class EpicCloud(private val accountId: String, private val appName: String, private val token: String) : CloudTransport {
-    override fun list(): List<CloudFile> = com.droiddeck.launcher.stores.epic.EpicSaveSync.list(token, accountId, appName)
+/**
+ * Epic cloud saves. Phase 1 asks the store engine to mirror the newest EGL cloud manifest into
+ * [cacheDir] and serves downloads from that mirror; uploads stay disabled in this mode, so EGL's
+ * mechanical bookkeeping (manifests/, ChunksV2..V5, *.chunk) is never written back to the cloud.
+ * When the engine cannot reach the cloud but a mirror exists, downloads keep working from it.
+ */
+class EpicCloud(
+    private val accountId: String,
+    private val appName: String,
+    private val token: String,
+    private val cacheDir: File,
+    private val rules: com.droiddeck.launcher.stores.epic.EpicSaveRules =
+        com.droiddeck.launcher.stores.epic.EpicSaveRules(emptyList(), emptyList()),
+) : CloudTransport {
+    private val tag = "EpicCloud"
 
-    override fun get(file: CloudFile): Pair<ByteArray, Long> = com.droiddeck.launcher.stores.epic.EpicSaveSync.read(file)
+    @Volatile private var manifestModeCache: Boolean? = null
 
-    override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>): Map<String, Long> =
-        com.droiddeck.launcher.stores.epic.EpicSaveSync.write(token, accountId, appName, files)
+    /** True once a manifest snapshot has been mirrored into [cacheDir]; backed by cacheDir/manifest.json. */
+    var manifestMode: Boolean
+        get() {
+            manifestModeCache?.let { return it }
+            val fromMarker = marker()?.optString("mode") == MODE_MANIFEST
+            manifestModeCache = fromMarker
+            return fromMarker
+        }
+        internal set(value) { manifestModeCache = value }
+
+    /** Cloud requests issued for listings; kept so tests can assert uploads stayed silent. */
+    internal var listCalls = 0
+        private set
+
+    override fun wants(name: String): Boolean = !mechanical(name) && rules.allows(name)
+
+    override fun list(): List<CloudFile> {
+        listCalls++
+        try {
+            val snapshot = com.droiddeck.launcher.stores.epic.EpicSaveSync.snapshot(token, accountId, appName, cacheDir.absolutePath)
+            if (snapshot.optString("mode") == MODE_MANIFEST) return adopt(snapshot)
+            // The cloud went back to plain files: drop the manifest marker too, or every later
+            // EpicCloud would read the stale one and keep refusing uploads ("upload-unavailable").
+            manifestMode = false
+            runCatching { File(cacheDir, MARKER).delete() }
+            return com.droiddeck.launcher.stores.epic.EpicSaveSync.list(token, accountId, appName)
+        } catch (e: java.io.IOException) {
+            marker()?.let { cached ->
+                manifestMode = true
+                Log.w(tag, "Epic cloud $appName: snapshot failed, serving the cached manifest: ${e.message}")
+                return fromMarker(cached)
+            }
+            throw e
+        }
+    }
+
+    override fun get(file: CloudFile): Pair<ByteArray, Long> {
+        if (!manifestMode) return com.droiddeck.launcher.stores.epic.EpicSaveSync.read(file)
+        val cached = localSnapshot(file.name)?.takeIf { it.isFile } ?: run {
+            // The mirror lost the file (cleared cache, newer manifest): re-mirror once, then give up.
+            try {
+                adopt(com.droiddeck.launcher.stores.epic.EpicSaveSync.snapshot(token, accountId, appName, cacheDir.absolutePath))
+            } catch (e: java.io.IOException) {
+                throw java.io.IOException("Epic cloud snapshot refresh failed for ${file.name}", e)
+            }
+            localSnapshot(file.name)?.takeIf { it.isFile }
+        } ?: throw java.io.IOException("Epic cloud snapshot is missing ${file.name}")
+        return cached.readBytes() to (if (file.modifiedMs > 0) file.modifiedMs else cached.lastModified())
+    }
+
+    override fun put(files: Map<String, ByteArray>, modifiedMs: Map<String, Long>): Map<String, Long> {
+        if (manifestMode) throw java.io.IOException("upload unavailable in manifest mode")
+        return com.droiddeck.launcher.stores.epic.EpicSaveSync.write(token, accountId, appName, files)
+    }
+
+    /** Adopts a fresh snapshot: inventories the mirrored files and records them in the marker. */
+    private fun adopt(snapshot: org.json.JSONObject): List<CloudFile> {
+        val root = File(cacheDir, FILES_DIR)
+        val files = ArrayList<CloudFile>()
+        root.walkTopDown().filter { it.isFile }.forEach { f ->
+            val rel = runCatching { f.relativeTo(root).path.replace(File.separatorChar, '/') }.getOrNull() ?: return@forEach
+            files += CloudFile(rel, f.lastModified(), md5Of(f))
+        }
+        if (files.isEmpty()) {
+            // The engine reported a manifest but nothing landed in the mirror: keep the names visible.
+            val listed = snapshot.optJSONArray("files") ?: org.json.JSONArray()
+            for (i in 0 until listed.length()) listed.optJSONObject(i)?.let { f ->
+                val name = f.optString("name")
+                if (name.isNotEmpty()) files += CloudFile(name, -1L, null)
+            }
+        }
+        manifestMode = true
+        writeMarker(snapshot.optString("manifest"), files)
+        return files
+    }
+
+    private fun marker(): org.json.JSONObject? = runCatching {
+        File(cacheDir, MARKER).takeIf { it.isFile }?.let { org.json.JSONObject(it.readText()) }
+    }.getOrNull()
+
+    private fun writeMarker(manifest: String, files: List<CloudFile>) {
+        runCatching {
+            cacheDir.mkdirs()
+            val listed = org.json.JSONArray()
+            for (f in files) listed.put(org.json.JSONObject().put("name", f.name).put("md5", f.md5.orEmpty()).put("modified", f.modifiedMs))
+            // Write a twin first and swap it in atomically: a concurrent reader must never see a half-written marker.
+            val tmp = File(cacheDir, "$MARKER.tmp")
+            tmp.writeText(org.json.JSONObject().put("mode", MODE_MANIFEST).put("manifest", manifest).put("files", listed).toString())
+            java.nio.file.Files.move(
+                tmp.toPath(), File(cacheDir, MARKER).toPath(),
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING
+            )
+        }.onFailure { Log.w(tag, "Epic cloud $appName: manifest marker: ${it.message}") }
+    }
+
+    private fun fromMarker(marker: org.json.JSONObject): List<CloudFile> {
+        val listed = marker.optJSONArray("files") ?: return emptyList()
+        return (0 until listed.length()).mapNotNull { listed.optJSONObject(it) }.mapNotNull { f ->
+            val name = f.optString("name")
+            if (name.isEmpty()) null else CloudFile(name, f.optLong("modified", -1L), f.optString("md5").ifEmpty { null })
+        }
+    }
+
+    private fun localSnapshot(name: String): File? {
+        val root = File(cacheDir, FILES_DIR)
+        val f = File(root, name)
+        val inside = runCatching { f.canonicalPath.startsWith(root.canonicalPath + File.separator) }.getOrDefault(false)
+        return if (inside) f else null
+    }
+
+    private fun md5Of(f: File): String? = runCatching {
+        java.security.MessageDigest.getInstance("MD5").digest(f.readBytes()).joinToString("") { "%02x".format(it) }
+    }.getOrNull()
+
+    companion object {
+        private const val MARKER = "manifest.json"
+        private const val FILES_DIR = "files"
+        private const val MODE_MANIFEST = "manifest"
+
+        private val MECHANICAL_DIR = Regex("^(manifests|chunks(v[2-5])?)/")
+
+        /** EGL's own bookkeeping inside the save root: manifest metadata and chunk bodies. */
+        fun mechanical(name: String): Boolean {
+            val n = name.replace('\\', '/').lowercase()
+            return MECHANICAL_DIR.containsMatchIn(n) || n.endsWith(".chunk")
+        }
+    }
 }

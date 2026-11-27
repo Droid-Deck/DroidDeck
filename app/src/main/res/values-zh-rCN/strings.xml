@@ -2717,6 +2717,9 @@
     <string name="cloud_up_to_date">已是最新</string>
     <string name="cloud_signed_out">登录商店以同步存档</string>
     <string name="cloud_not_synced">存档未同步</string>
+    <string name="cloud_upload_unavailable">该游戏的云存档为清单(manifest)形态，此版本暂只支持从云端下载</string>
+    <string name="cloud_kept_local">已保留本地存档，未上传到云端</string>
+    <string name="cloud_busy">上一次同步仍在进行，请稍后再试</string>
     <string name="stores_eyebrow_installed">已安装</string>
     <string name="stores_eyebrow_library">在你的库中</string>
     <string name="stores_eyebrow_store">商店</string>

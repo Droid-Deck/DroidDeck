@@ -1235,8 +1235,13 @@ private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
     var busy by remember(g.gameId) { mutableStateOf<String?>(null) }
     var tick by remember(g.gameId) { mutableStateOf(0) }
     var refreshing by remember(g.gameId) { mutableStateOf(false) }
+    var manifest by remember(g.gameId) { mutableStateOf(false) }
     val status by produceState<CloudSaves.Status?>(null, g.gameId, tick) {
-        value = withContext(Dispatchers.IO) { runCatching { CloudSaves.status(context, store, id) }.getOrNull() }
+        value = withContext(Dispatchers.IO) {
+            val st = runCatching { CloudSaves.status(context, store, id) }.getOrNull()
+            manifest = CloudSaves.epicManifestMode(context, store, id)
+            st
+        }
         refreshing = false
     }
     val folder = g.gameFiles
@@ -1248,7 +1253,12 @@ private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
         if (busy != null) return
         busy = if (up) "up" else "down"
         Thread({
-            val r = if (up) CloudSaves.upload(context, store, id, force) else CloudSaves.download(context, store, id, force)
+            val r = when {
+                // Epic manifest mode never uploads; "keep local" just re-baselines the phone's files.
+                up && CloudSaves.epicManifestMode(context, store, id) -> CloudSaves.keepLocal(context, store, id)
+                up -> CloudSaves.upload(context, store, id, force)
+                else -> CloudSaves.download(context, store, id, force)
+            }
             StoresState.post { refreshing = true; busy = null; tick++; onSynced(); android.widget.Toast.makeText(context, cloudMessage(context, r), android.widget.Toast.LENGTH_SHORT).show() }
         }, "cloud-manual").start()
     }
@@ -1272,7 +1282,13 @@ private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
         st.lastSync > 0 -> stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString())
         else -> stringResource(R.string.cloud_never)
     }
-    MenuItem(stringResource(if (conflict) R.string.cloud_keep_local else R.string.cloud_upload), checked = false, enabled = ready, detail = summary) { sync(up = true, force = conflict) }
+    if (manifest) Text(
+        stringResource(R.string.cloud_upload_unavailable), fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.fillMaxWidth().padding(start = 10.dp, top = 2.dp).readable(),
+    )
+    MenuItem(stringResource(if (conflict) R.string.cloud_keep_local else R.string.cloud_upload), checked = false,
+        enabled = ready && (!manifest || conflict), detail = summary) { sync(up = true, force = conflict) }
     MenuItem(stringResource(if (conflict) R.string.cloud_keep_cloud else R.string.cloud_download), checked = false, enabled = ready, detail = if (st == null || busy != null) pending else null) { sync(up = false, force = conflict) }
 }
 
