@@ -58,12 +58,12 @@ class GameEnvironmentStoreTest {
         val last = com.droiddeck.launcher.core.CpuCores.all.last()
         assertTrue(File(dir, "game-environment.json.new").mkdirs())
 
-        SessionPrefs.setGameCpus(context, last.toString())
+        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().putString("gameCpus", last.toString()).commit()
 
+        assertTrue(runCatching { GameEnvironmentStore.publish(context) }.isFailure)
         assertEquals("$last\n", File(dir, "game-cores").readText())
     }
 
-    @Config(sdk = [34])
     @Test fun gameCoresThatCannotBeWrittenLeaveNoOlderValueForTheGuest() {
         val dir = File(LinuxRuntime.rootDir(context), "root/.config/droiddeck")
         val all = com.droiddeck.launcher.core.CpuCores.all

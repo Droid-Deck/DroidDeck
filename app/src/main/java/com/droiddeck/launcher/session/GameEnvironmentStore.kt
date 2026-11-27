@@ -109,11 +109,12 @@ object GameEnvironmentStore {
     @Synchronized
     fun publish(
         context: Context,
-        config: GameEnvironment.Config = read(context),
+        config: GameEnvironment.Config? = null,
         gameDebugLogsOverride: Boolean? = null,
     ) {
         publishGameCores(context)
-        val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared)
+        val stored = config ?: read(context)
+        val resolved = stored.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + stored.shared)
         val json = encode(resolved)
         val dxvk = TextureFiltering.dxvkOptions(
             SessionPrefs.textureAnisotropy(context), SessionPrefs.textureLodBias(context),
@@ -142,13 +143,23 @@ object GameEnvironmentStore {
         write(File(LinuxRuntime.rootDir(context), GUEST_FILE), json.toString())
     }
 
-    private fun publishGameCores(context: Context) {
+    @Synchronized
+    fun publishGameCores(context: Context) {
         val file = File(LinuxRuntime.rootDir(context), GAME_CORES_FILE)
+        val pending = File(file.path + ".new")
         try {
-            write(file, com.droiddeck.launcher.core.CpuCores.restrictionOrEmpty(SessionPrefs.gameCpus(context)) + "\n")
+            check(file.parentFile!!.isDirectory || file.parentFile!!.mkdirs())
+            java.io.FileOutputStream(pending).use {
+                it.write((com.droiddeck.launcher.core.CpuCores.restrictionOrEmpty(SessionPrefs.gameCpus(context)) + "\n").toByteArray(Charsets.UTF_8))
+                it.fd.sync()
+            }
+            java.nio.file.Files.move(
+                pending.toPath(), file.toPath(),
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+            )
         } catch (error: Exception) {
-            file.delete()
-            throw error
+            Log.e(TAG, "Could not update game cores", error)
+            if (!file.delete() && file.exists()) Log.e(TAG, "Could not remove outdated game cores")
         }
     }
 

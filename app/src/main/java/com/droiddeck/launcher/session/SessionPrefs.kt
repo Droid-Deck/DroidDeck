@@ -959,8 +959,7 @@ object SessionPrefs {
 
     fun setGameCpus(context: Context, list: String) {
         prefs(context).edit().putString("gameCpus", list).apply()
-        runCatching { GameEnvironmentStore.publish(context) }
-            .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
+        GameEnvironmentStore.publishGameCores(context)
     }
 
     fun noXalia(context: Context): Boolean = prefs(context).getBoolean("noXalia", true)
