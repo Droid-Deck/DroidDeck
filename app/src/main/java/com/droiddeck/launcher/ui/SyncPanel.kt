@@ -121,13 +121,16 @@ private fun LudusaviSection() {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
             SecondaryButton(stringResource(R.string.ludusavi_preview), enabled = installed && title.isNotBlank() && !status.running, compact = true) {
-                start { context, onLine -> Ludusavi.preview(context, title, onLine) }
+                val game = title
+                start { context, onLine -> Ludusavi.preview(context, game, onLine) }
             }
             SecondaryButton(stringResource(R.string.ludusavi_backup), enabled = installed && title.isNotBlank() && !status.running, compact = true) {
-                start { context, onLine -> Ludusavi.backup(context, title, onLine) }
+                val game = title
+                start { context, onLine -> Ludusavi.backup(context, game, onLine) }
             }
             SecondaryButton(stringResource(R.string.ludusavi_restore), enabled = installed && title.isNotBlank() && !status.running, compact = true) {
-                start { context, onLine -> Ludusavi.restore(context, title, onLine) }
+                val game = title
+                start { context, onLine -> Ludusavi.restore(context, game, onLine) }
             }
             SecondaryButton(stringResource(R.string.ludusavi_manifest), enabled = installed && !status.running, compact = true) {
                 start(needsTitle = false) { context, onLine -> Ludusavi.updateManifest(context, onLine) }

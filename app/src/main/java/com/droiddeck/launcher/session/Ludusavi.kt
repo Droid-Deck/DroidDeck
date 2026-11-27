@@ -60,7 +60,7 @@ object Ludusavi {
     }
 
     private fun result(lines: List<String>, headline: String): String =
-        (listOf(headline) + lines.takeLast(11)).joinToString("\n")
+        (listOf(headline) + lines).joinToString("\n")
 
     fun run(context: Context, args: List<String>, onLine: (String) -> Unit): Int {
         runCatching { backupDir().mkdirs() }
