@@ -1396,6 +1396,9 @@ fn itch_list(key: &str) -> Result<Vec<Game>, String> {
             .map_err(|e| format!("itch.io rechazó la biblioteca: {e}"))?
             .json()
             .map_err(|_| "itch.io devolvió una biblioteca ilegible".to_owned())?;
+        if itch_response_has_errors(&body) {
+            return Err("itch.io informó un error al leer la biblioteca".into());
+        }
         let rows = body
             .get("owned_keys")
             .and_then(Value::as_array)
@@ -1444,6 +1447,17 @@ fn itch_list(key: &str) -> Result<Vec<Game>, String> {
     Ok(model::merge_games(out))
 }
 
+fn itch_response_has_errors(body: &Value) -> bool {
+    body.get("errors").is_some_and(|errors| match errors {
+        Value::Null => false,
+        Value::Array(values) => !values.is_empty(),
+        Value::Object(values) => !values.is_empty(),
+        Value::String(value) => !value.is_empty(),
+        Value::Bool(value) => *value,
+        _ => true,
+    })
+}
+
 fn itch_sync(secret: &str) -> Result<ConnectedStore, String> {
     let saved: Value = serde_json::from_str(secret)
         .map_err(|_| "La sesión de itch.io no se puede leer".to_owned())?;
@@ -1461,6 +1475,25 @@ fn itch_sync(secret: &str) -> Result<ConnectedStore, String> {
         account: account("itch", display, saved)?,
         games,
     })
+}
+
+#[cfg(test)]
+mod itch_response_tests {
+    use super::itch_response_has_errors;
+    use serde_json::json;
+
+    #[test]
+    fn itch_error_bodies_are_rejected_but_empty_error_collections_are_not_errors() {
+        assert!(itch_response_has_errors(
+            &json!({"errors": ["unavailable"]})
+        ));
+        assert!(itch_response_has_errors(
+            &json!({"errors": {"message": "unavailable"}})
+        ));
+        assert!(!itch_response_has_errors(&json!({"owned_keys": []})));
+        assert!(!itch_response_has_errors(&json!({"errors": []})));
+        assert!(!itch_response_has_errors(&json!({"errors": null})));
+    }
 }
 
 fn rockstar_connect(raw_url: &str, extra: &str, data: Value) -> Result<ConnectedStore, String> {

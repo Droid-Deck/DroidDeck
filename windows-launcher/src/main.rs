@@ -716,9 +716,7 @@ impl Launcher {
         match accounts::remove(store) {
             Ok(()) => {
                 self.notice = None;
-                self.games.retain(|game| {
-                    !(game.store == store && game.imported_from == "connected-store")
-                });
+                model::disconnect_store(&mut self.games, store);
                 self.games =
                     scanner::merge_local(model::merge_games(std::mem::take(&mut self.games)));
                 self.accounts = accounts::list();
@@ -766,10 +764,14 @@ impl Launcher {
                         ));
                         continue;
                     }
+                    let mut refreshed_games = connected.games;
+                    if store == "steam" {
+                        model::preserve_steam_metadata(&mut refreshed_games, &self.games);
+                    }
                     self.games.retain(|game| {
                         !(game.store == store && game.imported_from == "connected-store")
                     });
-                    self.games.extend(connected.games);
+                    self.games.extend(refreshed_games);
                     self.games =
                         scanner::merge_local(model::merge_games(std::mem::take(&mut self.games)));
                     self.accounts = accounts::list();

@@ -311,8 +311,12 @@ fn bridge_script(store: &str, extra: &str) -> String {
       const games = []; let total = 0;
       for (let page = 1; page <= 20; page++) {{
         const path = "/site-api/web/library/games/owned/@" + encodeURIComponent(username) + (page > 1 ? "?page=" + page : "");
-        const library = await fetch(path, {{ credentials: "include" }}).then(r => r.json());
-        const batch = library.payload?.games || []; games.push(...batch); total = library.payload?.totalGamesCount || total;
+        const response = await fetch(path, {{ credentials: "include" }});
+        if (!response.ok) throw new Error("No se pudo leer una página de Game Jolt. Revisá la conexión e intentá otra vez.");
+        const library = await response.json();
+        const batch = library.payload?.games;
+        if (!Array.isArray(batch)) throw new Error("Game Jolt devolvió una página de biblioteca inválida.");
+        games.push(...batch); total = library.payload?.totalGamesCount || total;
         if (batch.length === 0 || (total > 0 && games.length >= total)) break;
       }}
       payload.data = {{ user, games }};

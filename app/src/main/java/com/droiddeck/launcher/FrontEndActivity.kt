@@ -2431,7 +2431,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             val resume = Intent(this, SessionActivity::class.java).setAction(SessionService.ACTION_RESUME)
                 .putExtra(com.droiddeck.launcher.stores.steam.SteamClientSignIn.EXTRA_STORE_SIGN_IN, true)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            return launchSessionActivity(resume) != SessionLaunchDisposition.REFUSED
+            return when (launchSessionActivity(resume)) {
+                SessionLaunchDisposition.DISPATCHED, SessionLaunchDisposition.DEFERRED -> true
+                SessionLaunchDisposition.NONE, SessionLaunchDisposition.REFUSED -> false
+            }
         }
         if (SessionState.phase !in SESSION_ENDED) {
             android.widget.Toast.makeText(this, R.string.game_link_session_busy, android.widget.Toast.LENGTH_LONG).show()
@@ -3688,7 +3691,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }
         val warn = installed == null && !com.droiddeck.launcher.core.DeviceSupport.canDraw(this)
         if (warn && available != null) { showNonAdreno = available; return false }
-        return launchSessionActivity(intent) != SessionLaunchDisposition.REFUSED
+        return when (launchSessionActivity(intent)) {
+            SessionLaunchDisposition.DISPATCHED, SessionLaunchDisposition.DEFERRED -> true
+            SessionLaunchDisposition.NONE, SessionLaunchDisposition.REFUSED -> false
+        }
     }
 
     private fun launchSessionActivity(intent: Intent): SessionLaunchDisposition {

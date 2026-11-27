@@ -77,7 +77,10 @@ fn scan_steam(issues: &mut Vec<String>) -> Vec<Game> {
         let entries = match fs::read_dir(&dir) {
             Ok(entries) => entries,
             Err(error) => {
-                record_scan_error("Steam manifests", &dir, &error, issues);
+                issues.push(format!(
+                    "No se pudo leer Steam manifests {}: {error}",
+                    dir.display()
+                ));
                 continue;
             }
         };
@@ -348,7 +351,10 @@ fn scan_directory(path: &Path, label: &str, issues: &mut Vec<String>) -> bool {
             false
         }
         Err(error) => {
-            record_scan_error(label, path, &error, issues);
+            issues.push(format!(
+                "No se pudo acceder a {label} {}: {error}",
+                path.display()
+            ));
             false
         }
     }
@@ -421,7 +427,8 @@ fn encode(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::steam_state_is_playable;
+    use super::{scan_directory, steam_state_is_playable};
+    use std::{fs, path::PathBuf};
 
     #[test]
     fn steam_installation_requires_the_fully_installed_flag() {
@@ -429,5 +436,23 @@ mod tests {
         assert!(!steam_state_is_playable(2));
         assert!(steam_state_is_playable(4));
         assert!(steam_state_is_playable(6));
+    }
+
+    #[test]
+    fn missing_configured_steam_library_is_an_incomplete_scan() {
+        let path = std::env::temp_dir().join(format!(
+            "droiddeck-missing-steam-library-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&path);
+        let mut issues = Vec::new();
+
+        assert!(!scan_directory(
+            &PathBuf::from(&path),
+            "Steam library",
+            &mut issues
+        ));
+        assert_eq!(1, issues.len());
+        assert!(issues[0].contains(path.to_string_lossy().as_ref()));
     }
 }
