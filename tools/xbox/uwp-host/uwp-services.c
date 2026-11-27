@@ -8914,6 +8914,37 @@ static void xbl_sda_rewrite_addresses(void)
             break;
         }
     }
+
+    {
+        /* One line per process recording what peers will be told. Read back from
+           the snapshot rather than from the detection buffers, so the trace shows
+           the bytes that were actually handed out. */
+        static LONG traced;
+        if (InterlockedCompareExchange(&traced, 1, 0) == 0) {
+            UINT32 at = 18, j;
+            for (j = 0; j < count && at < len; j++) {
+                unsigned char tag = d[at++];
+                if (tag == 0x01 && at + 4 <= len) {
+                    svc_tracef("xbl_devaddr sda ipv4=%u.%u.%u.%u",
+                               (unsigned)d[at], (unsigned)d[at + 1],
+                               (unsigned)d[at + 2], (unsigned)d[at + 3]);
+                    at += 4;
+                } else if (tag == 0x02 && at + 16 <= len) {
+                    svc_tracef("xbl_devaddr sda ipv6=%02x%02x:%02x%02x:%02x%02x:%02x%02x:"
+                               "%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+                               (unsigned)d[at], (unsigned)d[at + 1], (unsigned)d[at + 2],
+                               (unsigned)d[at + 3], (unsigned)d[at + 4], (unsigned)d[at + 5],
+                               (unsigned)d[at + 6], (unsigned)d[at + 7], (unsigned)d[at + 8],
+                               (unsigned)d[at + 9], (unsigned)d[at + 10], (unsigned)d[at + 11],
+                               (unsigned)d[at + 12], (unsigned)d[at + 13], (unsigned)d[at + 14],
+                               (unsigned)d[at + 15]);
+                    at += 16;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
 }
 
 typedef struct {
