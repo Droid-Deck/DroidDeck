@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <jni.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -33,12 +34,17 @@ JNIEXPORT jint JNICALL Java_com_droiddeck_phantomlab_Native_spawn(JNIEnv *env, j
     return made;
 }
 
-static void keep_binder_fds(void) {
+struct kept_fd {
+    int fd, flags;
+};
+
+static int keep_binder_fds(struct kept_fd *kept, int max) {
     DIR *d = opendir("/proc/self/fd");
-    if (!d) return;
+    if (!d) return 0;
+    int count = 0;
     struct dirent *e;
     char path[64], target[256];
-    while ((e = readdir(d)) != NULL) {
+    while ((e = readdir(d)) != NULL && count < max) {
         int fd = atoi(e->d_name);
         if (fd <= 2) continue;
         snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
@@ -46,11 +52,16 @@ static void keep_binder_fds(void) {
         if (len <= 0) continue;
         target[len] = 0;
         if (strstr(target, "binder")) {
-            fcntl(fd, F_SETFD, 0);
+            int flags = fcntl(fd, F_GETFD);
+            if (flags < 0 || fcntl(fd, F_SETFD, flags & ~FD_CLOEXEC) != 0) continue;
+            kept[count].fd = fd;
+            kept[count].flags = flags;
+            count++;
             __android_log_print(ANDROID_LOG_INFO, TAG, "keeping fd %d (%s) across exec", fd, target);
         }
     }
     closedir(d);
+    return count;
 }
 
 JNIEXPORT void JNICALL Java_com_droiddeck_phantomlab_Native_execInPlace(JNIEnv *env, jclass cls, jobjectArray jargv, jboolean keep) {
@@ -61,9 +72,11 @@ JNIEXPORT void JNICALL Java_com_droiddeck_phantomlab_Native_execInPlace(JNIEnv *
         const char *c = (*env)->GetStringUTFChars(env, s, NULL);
         argv[i] = strdup(c);
     }
-    if (keep) keep_binder_fds();
+    struct kept_fd kept[16];
+    int kept_count = keep ? keep_binder_fds(kept, 16) : 0;
     execv(argv[0], argv);
     __android_log_print(ANDROID_LOG_ERROR, TAG, "execv %s failed: %s", argv[0], strerror(errno));
+    for (int i = 0; i < kept_count; i++) fcntl(kept[i].fd, F_SETFD, kept[i].flags);
 }
 
 static char *report;
@@ -134,6 +147,10 @@ static void probe_anon_exec(void) {
 
 static int run_child(char *const argv[], int execfd) {
     pid_t pid = fork();
+    if (pid < 0) {
+        out("fork: %s", strerror(errno));
+        return -1;
+    }
     if (pid == 0) {
         if (execfd >= 0) syscall(SYS_execveat, execfd, "", argv, environ, AT_EMPTY_PATH);
         else execv(argv[0], argv);
@@ -144,10 +161,59 @@ static int run_child(char *const argv[], int execfd) {
     return WIFEXITED(status) ? WEXITSTATUS(status) : 1000 + WTERMSIG(status);
 }
 
+static const char *exec_result(int st, const char *ran) {
+    if (st < 0) return "not run";
+    return st >= 100 && st < 1000 ? strerror(st - 100) : ran;
+}
+
+static int wait_fd(int fd, short events) {
+    struct pollfd p = {.fd = fd, .events = events};
+    int r = poll(&p, 1, 2000);
+    if (r == 0) errno = ETIMEDOUT;
+    return r > 0 ? 0 : -1;
+}
+
+static void probe_tcp(int i, int fd) {
+    struct sockaddr_in a = {.sin_family = AF_INET, .sin_port = htons(80)};
+    inet_pton(AF_INET, "1.1.1.1", &a.sin_addr);
+    int fl = fcntl(fd, F_GETFL);
+    if (fl < 0 || fcntl(fd, F_SETFL, fl | O_NONBLOCK) != 0) {
+        out("fd%d tcp: fcntl %s", i, strerror(errno));
+        return;
+    }
+    int r = connect(fd, (struct sockaddr *)&a, sizeof(a));
+    if (r != 0 && errno == EINPROGRESS) {
+        int err = 0;
+        socklen_t el = sizeof(err);
+        if (wait_fd(fd, POLLOUT) == 0 && getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &el) == 0) {
+            r = err ? -1 : 0;
+            errno = err;
+        } else {
+            r = -1;
+        }
+    }
+    if (r != 0) {
+        out("fd%d tcp: connect %s", i, strerror(errno));
+    } else {
+        const char *req = "HEAD / HTTP/1.0\r\nHost: 1.1.1.1\r\n\r\n";
+        if (wait_fd(fd, POLLOUT) != 0 || write(fd, req, strlen(req)) < 0) {
+            out("fd%d tcp: connected, write %s", i, strerror(errno));
+        } else {
+            char resp[64] = "";
+            ssize_t n = wait_fd(fd, POLLIN) == 0 ? read(fd, resp, sizeof(resp) - 1) : -1;
+            if (n > 0) resp[n] = 0;
+            char *nl = strchr(resp, '\r');
+            if (nl) *nl = 0;
+            out("fd%d tcp: connected, got \"%s\"", i, n > 0 ? resp : strerror(errno));
+        }
+    }
+    fcntl(fd, F_SETFL, fl);
+}
+
 static void probe_exec(void) {
     char *argv[] = {"/system/bin/true", NULL};
     int st = run_child(argv, -1);
-    out("execve /system/bin/true: %s", st == 0 ? "ok" : (st >= 100 && st < 1000 ? strerror(st - 100) : "status"));
+    out("execve /system/bin/true: %s", exec_result(st, st == 0 ? "ok" : "status"));
     int src = open("/system/bin/toybox", O_RDONLY);
     int mfd = syscall(SYS_memfd_create, "toybox", 0);
     char buf[65536];
@@ -156,7 +222,7 @@ static void probe_exec(void) {
     if (src >= 0) close(src);
     char *targv[] = {"true", NULL};
     st = run_child(targv, mfd);
-    out("execveat memfd(toybox true): %s", st == 0 ? "ok" : (st >= 100 && st < 1000 ? strerror(st - 100) : "status"));
+    out("execveat memfd(toybox true): %s", exec_result(st, st == 0 ? "ok" : "status"));
     close(mfd);
 }
 
@@ -180,20 +246,7 @@ static void probe_fd(int i, int fd) {
         getsockname(fd, (struct sockaddr *)&ss, &al);
         family = ss.ss_family;
         if (family == AF_INET && type == SOCK_STREAM) {
-            struct sockaddr_in a = {.sin_family = AF_INET, .sin_port = htons(80)};
-            inet_pton(AF_INET, "1.1.1.1", &a.sin_addr);
-            if (connect(fd, (struct sockaddr *)&a, sizeof(a)) != 0) {
-                out("fd%d tcp: connect %s", i, strerror(errno));
-                return;
-            }
-            const char *req = "HEAD / HTTP/1.0\r\nHost: 1.1.1.1\r\n\r\n";
-            write(fd, req, strlen(req));
-            char resp[64] = "";
-            ssize_t r = read(fd, resp, sizeof(resp) - 1);
-            if (r > 0) resp[r] = 0;
-            char *nl = strchr(resp, '\r');
-            if (nl) *nl = 0;
-            out("fd%d tcp: connected, got \"%s\"", i, r > 0 ? resp : strerror(errno));
+            probe_tcp(i, fd);
         } else if (family == AF_INET && type == SOCK_DGRAM) {
             struct sockaddr_in a = {.sin_family = AF_INET, .sin_port = htons(53)};
             inet_pton(AF_INET, "1.1.1.1", &a.sin_addr);
@@ -201,7 +254,7 @@ static void probe_fd(int i, int fd) {
             out("fd%d udp: connect %s", i, r == 0 ? "ok" : strerror(errno));
         } else {
             char buf[64] = "";
-            ssize_t r = read(fd, buf, sizeof(buf) - 1);
+            ssize_t r = wait_fd(fd, POLLIN) == 0 ? read(fd, buf, sizeof(buf) - 1) : -1;
             if (r > 0) buf[r - 1] = 0;
             out("fd%d unix(family %d): read %s", i, family, r > 0 ? buf : strerror(errno));
         }
@@ -225,7 +278,7 @@ static void probe_fd(int i, int fd) {
     if (p != MAP_FAILED) munmap(p, 4096);
     char *argv[] = {"x", NULL};
     int st2 = run_child(argv, fd);
-    out("fd%d execveat: %s", i, st2 >= 100 && st2 < 1000 ? strerror(st2 - 100) : "ran");
+    out("fd%d execveat: %s", i, exec_result(st2, "ran"));
 }
 
 static void probe_self(void) {
@@ -314,8 +367,17 @@ static void probe_escape(void) {
 // Runs path with fd as its fd 3 and its stderr captured.
 static void probe_libexec(const char *path, int fd) {
     int pipefd[2];
-    pipe(pipefd);
+    if (pipe(pipefd) != 0) {
+        out("exec %s: pipe %s", path, strerror(errno));
+        return;
+    }
     pid_t pid = fork();
+    if (pid < 0) {
+        out("exec %s: fork %s", path, strerror(errno));
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return;
+    }
     if (pid == 0) {
         dup2(pipefd[1], 2);
         if (fd >= 0) dup2(fd, 3);

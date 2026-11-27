@@ -17,12 +17,22 @@ import struct
 import sys
 
 
+# Exit status when the program started but its pid could not be reported: the caller must not
+# start it again.
+STARTED_UNREPORTED = 3
+
+
 def report(pid, pid_file):
-    if pid_file:
-        with open(pid_file, "w") as f:
-            f.write("%s\n" % pid)
-    else:
-        print(pid, flush=True)
+    try:
+        if pid_file:
+            with open(pid_file, "w") as f:
+                f.write("%s\n" % pid)
+        else:
+            print(pid, flush=True)
+        return True
+    except OSError as e:
+        print("droiddeck-spawn: started pid %s but could not report it: %s" % (pid, e), file=sys.stderr)
+        return False
 
 
 def fallback(argv, wait, pid_file):
@@ -33,10 +43,10 @@ def fallback(argv, wait, pid_file):
         except OSError as e:
             print("droiddeck-spawn: %s: %s" % (argv[0], e.strerror), file=sys.stderr)
             os._exit(127)
-    report(pid, pid_file)
+    reported = report(pid, pid_file)
     if wait:
         return os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
-    return 0
+    return 0 if reported else STARTED_UNREPORTED
 
 
 def main():
@@ -74,9 +84,9 @@ def main():
         print("droiddeck-spawn: %s; starting %s as a child" % (" ".join(first[1:]) or "no answer", args[0]),
               file=sys.stderr)
         return fallback(args, wait, pid_file)
-    report(first[1], pid_file)
+    reported = report(first[1], pid_file)
     if not wait:
-        return 0
+        return 0 if reported else STARTED_UNREPORTED
     done = reply.readline().split()
     status = int(done[1]) if len(done) == 2 and done[0] == "exit" else 1
     return status if 0 <= status < 256 else 128 + (status & 0x7f)

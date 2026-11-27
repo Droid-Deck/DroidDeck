@@ -42,6 +42,7 @@ open class GuestWorker : Service() {
             val env = data.createStringArray() ?: return false
             val fds = List(data.readInt()) { data.readFileDescriptor() }
             val targets = data.createIntArray() ?: IntArray(fds.size) { it }
+            val fillBinderFd = data.readInt() != 0
             val go = data.readFileDescriptor()
             reply?.writeInt(Process.myPid())
             Handler(Looper.getMainLooper()).post {
@@ -59,7 +60,7 @@ open class GuestWorker : Service() {
                     got == 1
                 }.getOrElse { why = it.toString(); false }
                 go.close()
-                if (committed) exec(argv, env, fds, targets)
+                if (committed) exec(argv, env, fds, targets, fillBinderFd)
                 else {
                     Log.w(TAG, "launch not committed ($why): not running ${argv.firstOrNull()}")
                     Process.killProcess(Process.myPid())
@@ -71,7 +72,7 @@ open class GuestWorker : Service() {
 
     override fun onBind(intent: Intent): IBinder = binder
 
-    private fun exec(argv: Array<String>, env: Array<String>, fds: List<ParcelFileDescriptor?>, targets: IntArray) {
+    private fun exec(argv: Array<String>, env: Array<String>, fds: List<ParcelFileDescriptor?>, targets: IntArray, fillBinderFd: Boolean) {
         try {
             val top = targets.maxOrNull() ?: 2
             val (binderTop, binderFd) = keepBinderOpen(maxOf(BINDER_FDS, top + 1))
@@ -87,8 +88,14 @@ open class GuestWorker : Service() {
             // A session of its own: in zygote's process group, a program signalling its group
             // (kill(0, sig)) would reach every process of the app.
             runCatching { Os.setsid() }
-            // The native hook closes the binder fds in every other process (hook/handoff.c).
-            val fill = { arg: String -> arg.replace(BINDER_FD_TOKEN, binderFd.toString()) }
+            // The native hook closes the binder fds in every other process (hook/handoff.c). Only an
+            // app launch asks for the number (a whole argument or variable value), never a guest's.
+            val fill = { arg: String ->
+                if (!fillBinderFd) arg
+                else if (arg == BINDER_FD_TOKEN) binderFd.toString()
+                else if (arg.endsWith("=$BINDER_FD_TOKEN")) arg.removeSuffix(BINDER_FD_TOKEN) + binderFd
+                else arg
+            }
             // This thread blocks SIGQUIT, SIGUSR1 and SIGPIPE (Android's runtime), and an exec keeps
             // that: the program's hook sets DDH_SIGMASK instead (none blocked, unless the request says).
             val mask = if (env.any { it.startsWith("DDH_SIGMASK=") }) emptyList() else listOf("DDH_SIGMASK=0")
@@ -125,7 +132,7 @@ open class GuestWorker : Service() {
 
     companion object {
         const val RUN = IBinder.FIRST_CALL_TRANSACTION
-        /** In a program's arguments or environment, replaced by the number of its kept binder fd. */
+        /** An argument, or a variable's whole value, in an app launch: replaced by the number of its kept binder fd. */
         const val BINDER_FD_TOKEN = "@DDH_WORKER_BINDER_FD@"
         private const val GO_TIMEOUT_MS = 2000
         private val BINDER_DEVICES = setOf("/dev/binder", "/dev/hwbinder", "/dev/vndbinder")
@@ -253,8 +260,11 @@ object GuestWorkers {
     @Volatile private var warmTarget = 0
     // Numbers the sessions: an old session's teardown can still be running when the next one starts.
     @Volatile private var session = 0
+    // The latest session whose teardown has begun
+    @Volatile private var stopped = 0
     private val warming = java.util.concurrent.atomic.AtomicBoolean(false)
     private const val WARM_WORKERS = 2
+    private const val ACK_TIMEOUT_MS = 5000
     private val connections = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "guest-worker-binder").apply { isDaemon = true } }
     @Volatile private var server: Thread? = null
 
@@ -266,6 +276,20 @@ object GuestWorkers {
     fun enabled(context: Context): Boolean =
         android.os.Build.VERSION.SDK_INT >= 30 && com.droiddeck.launcher.session.SessionPrefs.childProcessHandoff(context) &&
             NativeGuest.enabled(context)
+
+    /** How the running session's root was started: in a worker (true) or counted (false); null with none running. */
+    @Volatile var sessionRootUncounted: Boolean? = null
+
+    /**
+     * Whether Android's child-process limit is out of the session's way: as the running session
+     * started (a proot session, or one whose root fell back to a counted start, is not), else as
+     * the next one would start.
+     */
+    fun limitHandled(context: Context): Boolean =
+        sessionRootUncounted ?: (NativeGuest.sessionMode != false && enabled(context))
+
+    /** Whether pid is a program running in one of the workers. */
+    fun runsInWorker(pid: Int): Boolean = pid > 0 && synchronized(slots) { slots.any { it != null && it.started && it.pid == pid } }
 
     fun socketName(context: Context): String = "droiddeck-spawn." + context.packageName + "." + Process.myUid()
 
@@ -281,12 +305,19 @@ object GuestWorkers {
     fun start(context: Context, argv: List<String>, env: List<String>, fds: List<ParcelFileDescriptor>, targets: IntArray,
               onExit: (Int) -> Unit): Int = start(context, argv, env, fds, targets, false, onExit)
 
-    /** [guest]: one of the session's guest programs, which [guestPids] lists and [stopGuests] ends. */
+    /**
+     * [guest]: one of the session's guest programs, which [guestPids] lists and [stopGuests] ends.
+     * [commit] runs with the pid before the worker may run the program; false, and it does not.
+     */
     private fun start(context: Context, argv: List<String>, env: List<String>, fds: List<ParcelFileDescriptor>, targets: IntArray,
-                      guest: Boolean, onExit: (Int) -> Unit): Int {
+                      guest: Boolean, onExit: (Int) -> Unit, commit: (Int) -> Boolean = { true }): Int {
         val app = context.applicationContext
         // The session asking: a cold bind can take long enough for it to stop and another to start
         val owner = session
+        if (guest && owner <= stopped) {
+            Log.w(TAG, "session $owner is stopping: not starting ${argv.firstOrNull()}")
+            return -1
+        }
         val slot = takeWarm() ?: bind(app)?.takeIf { fresh ->
             fresh.connected.await(10, TimeUnit.SECONDS).also { if (!it) release(app, fresh) }
         } ?: run {
@@ -310,14 +341,24 @@ object GuestWorkers {
             data.writeInt(fds.size)
             fds.forEach { data.writeFileDescriptor(it.fileDescriptor) }
             data.writeIntArray(targets)
+            data.writeInt(if (guest) 0 else 1)
             data.writeFileDescriptor(go[0].fileDescriptor)
             slot.service!!.transact(GuestWorker.RUN, data, reply, 0)
             val pid = reply.readInt()
+            // Once a session's teardown has begun (stopGuests), none of its programs may start: it
+            // would not find them.
+            val stopping = { guest && owner <= stopped }
+            if (stopping() || !commit(pid)) {
+                Log.w(TAG, "worker ${slot.index}: ${argv.firstOrNull()} was not taken on")
+                release(app, slot)
+                return -1
+            }
             val live = synchronized(slots) {
-                (slots[slot.index] === slot).also { if (it) { slot.pid = pid; slot.started = true } }
+                (slots[slot.index] === slot && !stopping()).also { if (it) { slot.pid = pid; slot.started = true } }
             }
             if (!live) {
-                Log.w(TAG, "worker ${slot.index} ended before running ${argv.firstOrNull()}")
+                Log.w(TAG, "worker ${slot.index} ended, or its session is stopping, before running ${argv.firstOrNull()}")
+                release(app, slot)
                 return -1
             }
             Os.write(go[1].fileDescriptor, byteArrayOf(1), 0, 1)
@@ -439,6 +480,7 @@ object GuestWorkers {
     fun stopGuests(of: Int = session) {
         // the check and the reset together: a new session's serve() may be under way
         val drained = synchronized(slots) {
+            stopped = maxOf(stopped, of)
             if (of != session) emptyList() else { warmTarget = 0; warm.toList().also { warm.clear() } }
         }
         context?.let { app -> drained.forEach { release(app, it) } }
@@ -544,7 +586,7 @@ object GuestWorkers {
                 val tableFd = (numbers.maxOrNull() ?: 2) + 1
                 programFds = programFds + table
                 targets = numbers + tableFd
-                env["DDH_TABLE"] = "$tableFd:$slot:$parent"
+                env["DDH_TABLE"] = "$tableFd:$slot:$parent:${request.optInt("child", -1)}"
             }
             val root = env["DDNATV_ROOT"]?.let(::File)
             val out = client.outputStream
@@ -554,10 +596,10 @@ object GuestWorkers {
             }
             val shell = listOf("/usr/bin/bash", "/bin/bash").first { File(root, it.removePrefix("/")).isFile }
             val args = if (file.isNotEmpty()) {
-                listOf("-c", "cd -- \"\$1\" 2>/dev/null; a=\$2; f=\$3; shift 3; exec -a \"\$a\" \"\$f\" \"\$@\"",
+                listOf("-c", "unset DDH_WRAPPER; cd -- \"\$1\" 2>/dev/null; a=\$2; f=\$3; shift 3; exec -a \"\$a\" \"\$f\" \"\$@\"",
                     "droiddeck-spawn", cwd, argv[0], file) + argv.drop(1)
             } else {
-                listOf("-c", "cd -- \"\$1\" 2>/dev/null; shift; exec \"\$@\"", "droiddeck-spawn", cwd) + argv
+                listOf("-c", "unset DDH_WRAPPER; cd -- \"\$1\" 2>/dev/null; shift; exec \"\$@\"", "droiddeck-spawn", cwd) + argv
             }
             val command = NativeGuest.command(root, shell, args)
             env["DDNATV_REAL_EXE"] = File(root, shell.removePrefix("/")).path
@@ -570,21 +612,45 @@ object GuestWorkers {
             if (request.has("pstart")) env["DDH_PSTART"] = request.getLong("pstart").toString()
             if (request.has("astart")) env["DDH_ASTART"] = request.getLong("astart").toString()
             env["DDH_SIGMASK"] = request.optLong("sigmask", 0L).toString()
+            // The shell above: the hook restores nothing there (bash changes its own signal mask),
+            // only in the program it execs, which no longer has this.
+            env["DDH_WRAPPER"] = "1"
             val child = request.optInt("child", -1)
             val exited = CountDownLatch(1)
             var status = -1
             var worker = -1
-            val pid = start(app, command, env.map { (k, v) -> "$k=$v" }, programFds, targets, true) { code ->
+            // The hook answers the pid with "go" (ack): without it (it died, or gave up and runs the
+            // program itself) the worker must not run it too.
+            val ack = request.optBoolean("ack", false)
+            var answered = false
+            val pid = start(app, command, env.map { (k, v) -> "$k=$v" }, programFds, targets, true, { code ->
                 status = code
                 if (table != null && slot >= 0) reportExit(table, slot, code, parent, child, worker)
                 exited.countDown()
+            }) { started ->
+                worker = started
+                if (!ack) return@start true
+                runCatching {
+                    out.write("pid $started\n".toByteArray())
+                    out.flush()
+                    answered = true
+                    client.soTimeout = ACK_TIMEOUT_MS
+                    val line = StringBuilder()
+                    while (true) {
+                        val c = input.read()
+                        if (c < 0 || c == '\n'.code) break
+                        line.append(c.toChar())
+                    }
+                    line.toString() == "go"
+                }.getOrDefault(false)
             }
-            worker = pid
             handedOver = true
             programFds.filter { it !== table }.forEach { runCatching { it.close() } }
             if (pid <= 0) table?.let { runCatching { it.close() } }
-            out.write(if (pid > 0) "pid $pid\n".toByteArray() else "error no worker\n".toByteArray())
-            out.flush()
+            if (!answered) {
+                out.write(if (pid > 0) "pid $pid\n".toByteArray() else "error no worker\n".toByteArray())
+                out.flush()
+            }
             if (pid > 0 && wait) {
                 exited.await()
                 // droiddeck-spawn exits with this: an exit code, or 128 plus the signal

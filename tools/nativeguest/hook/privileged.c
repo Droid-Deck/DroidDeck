@@ -13,9 +13,10 @@
 #define DDNATV_MAX_KEPT_FDS 12
 static int g_kept_fds[DDNATV_MAX_KEPT_FDS]; // ascending
 static int g_kept_fd_count = 0;
-// Also kept from close-on-exec: a worker process's binder fds (hook/handoff.c), which must outlive
-// the program's own execs.
-static int g_kept_from_cloexec = 0;
+// Of those, the ones also kept from close-on-exec: a worker process's binder fds (hook/handoff.c),
+// which must outlive the program's own execs.
+static int g_cloexec_kept_fds[8]; // ascending
+static int g_cloexec_kept_count = 0;
 
 static int is_kept_fd(int fd) {
     for (int i = 0; i < g_kept_fd_count; i++) {
@@ -451,7 +452,10 @@ static int close_range_part(unsigned int first, unsigned int last, void *flags) 
 int close_range(unsigned int first, unsigned int last, int flags) {
     if (!(flags & CLOSE_RANGE_CLOEXEC)) forget_proc_root_range(first, last);
     // Close-on-exec only (CLOSE_RANGE_CLOEXEC) leaves the translator's files open
-    if (g_kept_fd_count > 0 && (!(flags & CLOSE_RANGE_CLOEXEC) || g_kept_from_cloexec)) {
+    if (flags & CLOSE_RANGE_CLOEXEC) {
+        if (g_cloexec_kept_count > 0)
+            return for_each_range_without(first, last, g_cloexec_kept_fds, g_cloexec_kept_count, close_range_part, &flags);
+    } else if (g_kept_fd_count > 0) {
         return for_each_range_without(first, last, g_kept_fds, g_kept_fd_count, close_range_part, &flags);
     }
     return close_range_all(first, last, flags);

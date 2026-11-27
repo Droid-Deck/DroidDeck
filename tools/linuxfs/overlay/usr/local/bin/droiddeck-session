@@ -16,19 +16,29 @@ shift || true
 step() { echo "== STEP $(date -u +%H:%M:%S.%3N) $*"; }
 # Starts a long-lived program in its own Android process, which Android does not count against
 # the session's child processes (docs/phantom-processes.md); a normal background job otherwise.
-# Its pid is in $dd_spawned either way.
+# Its pid is in $dd_spawned either way, and the ones not started as jobs in $dd_daemons, which
+# the session stops as it ends.
+dd_daemons=
 dd_spawn() {
   dd_spawned=
   if [ "${DD_SPAWN_DAEMONS:-1}" = 1 ] && [ -n "${DD_SPAWN:-}" ] && [ -x /usr/local/bin/droiddeck-spawn ]; then
-    local f=${XDG_RUNTIME_DIR:-/tmp}/.dd-spawn.$$
-    if /usr/local/bin/droiddeck-spawn --pid-file "$f" -- "$@"; then
-      dd_spawned=$(cat "$f" 2>/dev/null)
-      rm -f "$f"
-      [ -n "$dd_spawned" ] && return 0
+    local f=${XDG_RUNTIME_DIR:-/tmp}/.dd-spawn.$$ rc=0
+    /usr/local/bin/droiddeck-spawn --pid-file "$f" -- "$@" || rc=$?
+    dd_spawned=$(cat "$f" 2>/dev/null)
+    rm -f "$f"
+    if [ "$rc" = 0 ] && [ -n "$dd_spawned" ]; then
+      dd_daemons="$dd_daemons $dd_spawned"
+      return 0
     fi
+    # started, but its pid is unknown: not a second time
+    [ "$rc" = 3 ] && { dd_spawned=; return 0; }
   fi
   "$@" &
   dd_spawned=$!
+}
+dd_stop_daemons() {
+  [ -n "$dd_daemons" ] && kill $dd_daemons 2>/dev/null
+  dd_daemons=
 }
 dd_session_pid=$$
 # Runs function $1 (with its arguments) in the background in a new bash that first loads this shell's
@@ -2069,6 +2079,7 @@ case $mode in
         wait "$decky_supervisor" 2>/dev/null || true
         echo "== Decky: session supervisor stopped"
       fi
+      dd_stop_daemons
       _dd_jobs=$(jobs -p)
       [ -n "$_dd_jobs" ] && kill $_dd_jobs 2>/dev/null
       echo "== steam: the client on the desktop has exited"
@@ -2078,6 +2089,7 @@ case $mode in
         wait "$decky_supervisor" 2>/dev/null || true
         echo "== Decky: session supervisor stopped"
       fi
+      dd_stop_daemons
       _dd_jobs=$(jobs -p)
       [ -n "$_dd_jobs" ] && kill $_dd_jobs 2>/dev/null
       reap_orphans

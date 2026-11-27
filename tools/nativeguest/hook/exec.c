@@ -660,7 +660,7 @@ pid_t fork(void) {
         int n = __atomic_add_fetch(&forks, 1, __ATOMIC_RELAXED);
         if (n == 1 || n >= DDNATV_FORKS_BEFORE_REHEARSAL) prepare_exec_in_parent(n >= DDNATV_FORKS_BEFORE_REHEARSAL ? 2 : 1);
     }
-    ddh_prepare(1);
+    ddh_prepare();
     pid_t pid = orig_fork();
     if (pid == 0) ddh_drop_worker_binder();
     // A child forked from a signal handler that interrupted a rehearsal is not rehearsing: its

@@ -81,7 +81,9 @@ object HostProcess {
                        outputFile: File? = null, onOutputComplete: Runnable? = null): Int {
         val context = com.droiddeck.launcher.runtime.GuestWorkers.context
         val argv = split(command)
-        if (context == null || argv.isEmpty() || !com.droiddeck.launcher.runtime.GuestWorkers.enabled(context)) {
+        // A missing working directory fails the launch (start() returns -1 for it), not the program
+        if (context == null || argv.isEmpty() || !com.droiddeck.launcher.runtime.GuestWorkers.enabled(context) ||
+            (dir != null && !dir.isDirectory)) {
             return start(command, env, dir, onExit, onLine, outputFile, onOutputComplete)
         }
         val environment = LinkedHashMap(System.getenv())

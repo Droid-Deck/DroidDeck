@@ -17,8 +17,12 @@ bat=""
 rm -rf "$work/classes" "$work/dex" "$work/lib" "$work/unsigned.apk"
 mkdir -p "$work/classes" "$work/dex"
 
-javac -nowarn --release 8 -cp "$platform/android.jar" -d "$work/classes" $(find "$here/src" -name '*.java') 2>&1 | grep -v "^warning\|^Note:" || true
-"$bt/d8$bat" --min-api 29 --lib "$platform/android.jar" --output "$work/dex" $(find "$work/classes" -name '*.class')
+sources=()
+while IFS= read -r -d '' f; do sources+=("$f"); done < <(find "$here/src" -name '*.java' -print0)
+javac -nowarn --release 8 -cp "$platform/android.jar" -d "$work/classes" "${sources[@]}" 2>&1 | { grep -v "^warning\|^Note:" || true; }
+classes=()
+while IFS= read -r -d '' f; do classes+=("$f"); done < <(find "$work/classes" -name '*.class' -print0)
+"$bt/d8$bat" --min-api 29 --lib "$platform/android.jar" --output "$work/dex" "${classes[@]}"
 
 host=$(ls -d "$ndk"/toolchains/llvm/prebuilt/* | head -1)
 for abi in arm64-v8a x86_64; do

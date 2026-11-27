@@ -60,7 +60,7 @@ object PhantomProcessLimit {
     fun read(context: Context, sdk: Int = Build.VERSION.SDK_INT): PhantomProcessStatus {
         if (sdk < Build.VERSION_CODES.S) return PhantomProcessStatus.NOT_APPLICABLE
         val status = readSetting(context, sdk)
-        return if (status != PhantomProcessStatus.DISABLED && com.droiddeck.launcher.runtime.GuestWorkers.enabled(context))
+        return if (status != PhantomProcessStatus.DISABLED && com.droiddeck.launcher.runtime.GuestWorkers.limitHandled(context))
             PhantomProcessStatus.UNCOUNTED else status
     }
 
@@ -143,6 +143,6 @@ object PhantomProcessLimit {
         PhantomProcessStatus.UNSET -> "not set (ROM default applies; DroidDeck requires an explicit disabled value)"
         PhantomProcessStatus.UNREADABLE -> "unreadable (DroidDeck could not verify the setting)"
         PhantomProcessStatus.NOT_APPLICABLE -> "not applicable before Android 12"
-        PhantomProcessStatus.UNCOUNTED -> "on, not needed (the session's programs run in uncounted worker processes)"
+        PhantomProcessStatus.UNCOUNTED -> "on, not needed (most of the session's programs run in uncounted worker processes)"
     }
 }

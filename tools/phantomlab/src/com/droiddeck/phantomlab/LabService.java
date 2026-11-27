@@ -11,6 +11,8 @@ import android.os.ParcelFileDescriptor;
 import android.os.Process;
 import android.util.Log;
 
+import java.io.IOException;
+
 public class LabService extends Service {
     static final int SPAWN = 1;
     static final int PROBE = 2;
@@ -31,8 +33,14 @@ public class LabService extends Service {
                 case PROBE: {
                     String what = data.readString().replace("libexec",
                             "libexec=" + getApplicationInfo().nativeLibraryDir + "/libplabexe.so");
-                    int[] fds = readFds(data);
-                    reply.writeString(Native.probe(what, fds));
+                    ParcelFileDescriptor[] pfds = readFds(data);
+                    try {
+                        int[] fds = new int[pfds.length];
+                        for (int i = 0; i < fds.length; i++) fds[i] = pfds[i] == null ? -1 : pfds[i].getFd();
+                        reply.writeString(Native.probe(what, fds));
+                    } finally {
+                        closeAll(pfds);
+                    }
                     return true;
                 }
                 case EXEC: {
@@ -53,14 +61,26 @@ public class LabService extends Service {
         }
     };
 
-    private static int[] readFds(Parcel data) {
-        int n = data.readInt();
-        int[] fds = new int[n];
-        for (int i = 0; i < n; i++) {
-            ParcelFileDescriptor pfd = data.readFileDescriptor();
-            fds[i] = pfd == null ? -1 : pfd.detachFd();
+    private static ParcelFileDescriptor[] readFds(Parcel data) {
+        ParcelFileDescriptor[] pfds = new ParcelFileDescriptor[data.readInt()];
+        try {
+            for (int i = 0; i < pfds.length; i++) pfds[i] = data.readFileDescriptor();
+        } catch (RuntimeException e) {
+            closeAll(pfds);
+            throw e;
         }
-        return fds;
+        return pfds;
+    }
+
+    private static void closeAll(ParcelFileDescriptor[] pfds) {
+        for (ParcelFileDescriptor pfd : pfds) {
+            if (pfd == null) continue;
+            try {
+                pfd.close();
+            } catch (IOException e) {
+                Log.w(Main.TAG, "close fd failed " + e);
+            }
+        }
     }
 
     @Override

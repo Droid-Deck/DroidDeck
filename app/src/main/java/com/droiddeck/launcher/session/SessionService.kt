@@ -890,6 +890,7 @@ class SessionService : Service() {
             return
         }
         sessionPid = pid
+        com.droiddeck.launcher.runtime.GuestWorkers.sessionRootUncounted = com.droiddeck.launcher.runtime.GuestWorkers.runsInWorker(pid)
         if (pid > 1) {
             raiseTracer(pid, gen)
             SessionEvents.guestStarted(pid)
@@ -2340,6 +2341,7 @@ class SessionService : Service() {
             gameExitWatchToken++
             // also when startup stopped before the guest ran
             com.droiddeck.launcher.runtime.NativeGuest.sessionMode = null
+            com.droiddeck.launcher.runtime.GuestWorkers.sessionRootUncounted = null
             if (!SessionState.running) return
             if (relaunch) SessionState.confirmRelaunchStop()
             SessionEvents.record("guest.exited", mapOf("status" to status))

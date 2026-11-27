@@ -16,6 +16,7 @@ HOOK_BUILD = Path(__file__).resolve().parents[1] / "nativeguest/build.sh"
 
 PARENT = r"""
 #define _GNU_SOURCE
+#include <fcntl.h>
 #include <signal.h>
 #include <spawn.h>
 #include <stdio.h>
@@ -38,18 +39,31 @@ int main(int argc, char **argv) {
     printf("spawned\t%d\n", err);
     if (err) return 0;
   } else if ((pid = fork()) == 0) {
-    // as Python's subprocess does before exec
-    if (strcmp(argv[1], "closefds") == 0) syscall(SYS_close_range, 3, ~0U, 0);
+    if (strcmp(argv[1], "closefds") == 0) {
+      // as Python's subprocess does before exec; an ordinary fd shows that it closed them
+      int probe = open("/dev/null", O_RDONLY);
+      printf("closerange\t%ld\n", (long)syscall(SYS_close_range, 3, ~0U, 0));
+      printf("closed\t%d\n", probe >= 3 && fcntl(probe, F_GETFD) < 0);
+      fflush(stdout);
+    }
+    if (strcmp(argv[1], "group") == 0) setpgid(0, 0);
     execl("/bin/target", "target", argv[2], (char *)NULL);
     _exit(127);
   }
   int status = 0;
+  int group = strcmp(argv[1], "group") == 0;
+  if (group) {
+    setpgid(pid, pid);
+    usleep(300000);
+    // the child is in a group of its own: not ours
+    printf("ours\t%d\n", (int)waitpid(0, &status, WNOHANG));
+  }
   if (strcmp(argv[1], "kill") == 0) {
     printf("nohang\t%d\n", (int)waitpid(pid, &status, WNOHANG));
     usleep(300000);
     printf("kill\t%d\n", kill(pid, SIGTERM));
   }
-  pid_t r = waitpid(pid, &status, 0);
+  pid_t r = waitpid(group ? -pid : pid, &status, 0);
   printf("same\t%d\n", r == pid);
   if (WIFEXITED(status)) printf("exit\t%d\n", WEXITSTATUS(status));
   if (WIFSIGNALED(status)) printf("signal\t%d\n", WTERMSIG(status));
@@ -96,17 +110,31 @@ class FakeSpawner(threading.Thread):
             request = json.loads(payload)
             fds = []
             while len(fds) < len(request["fds"]) + 1:
-                _, chunk, _, _ = socket.recv_fds(conn, 1, request["fdchunks"])
+                data, chunk, _, _ = socket.recv_fds(conn, 1, request["fdchunks"])
                 fds.extend(chunk)
+                if not data:
+                    break  # the client went away between chunks
+            if len(fds) < len(request["fds"]) + 1:
+                for fd in fds:
+                    os.close(fd)
+                conn.close()
+                continue
             self.requests.append(request)
             table = fds[request["table"]]
             program = str(self.root) + request["file"]
             proc = subprocess.Popen(list(self.prefix) + [program] + request["argv"][1:])
             conn.sendall(b"pid %d\n" % proc.pid)
+            # the hook takes the program on with "go"; without it the program must not run
+            went = not request.get("ack") or self.read(conn, 3) == b"go\n"
             conn.close()
             for fd in fds:
                 if fd != table:
                     os.close(fd)
+            if not went:
+                proc.kill()
+                proc.wait()
+                os.close(table)
+                continue
             threading.Thread(target=self.report, args=(proc, table, request), daemon=True).start()
 
     @staticmethod
@@ -152,13 +180,14 @@ class NativeHookHandoffTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_parent(self, *argv, handoff="target"):
-        name = "dd-handoff-test-%d-%s-%s" % (os.getpid(), self.id().rsplit(".", 1)[-1], handoff)
+    def run_parent(self, *argv, handoff="target", hook=True):
+        name = "dd-handoff-test-%d-%s-%s-%d" % (os.getpid(), self.id().rsplit(".", 1)[-1], handoff, hook)
         spawner = FakeSpawner(name, self.prefix or [], self.root)
         spawner.start()
         self.addCleanup(spawner.sock.close)
-        hook_env = {"DDNATV_ROOT": str(self.root), "LD_PRELOAD": str(self.hook), "DD_SPAWN": name,
-                    "DD_HANDOFF": handoff}
+        hook_env = {"DDNATV_ROOT": str(self.root), "DD_SPAWN": name, "DD_HANDOFF": handoff}
+        if hook:
+            hook_env["LD_PRELOAD"] = str(self.hook)
         env = {k: v for k, v in os.environ.items() if k not in hook_env}
         if self.prefix:
             cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
@@ -180,6 +209,9 @@ class NativeHookHandoffTest(unittest.TestCase):
 
     def test_a_child_that_closed_its_inherited_fds_is_handed_off(self):
         result, requests, out = self.run_parent("closefds", "5")
+        if result.get("closerange") != "0":
+            self.skipTest("close_range does not work here: %s" % result.get("closerange"))
+        self.assertEqual("1", result.get("closed"), out.stdout)
         self.assertEqual(1, len(requests), out.stderr)
         self.assertEqual("1", result.get("same"), out.stdout)
         self.assertEqual("5", result.get("exit"), out.stdout)
@@ -194,9 +226,35 @@ class NativeHookHandoffTest(unittest.TestCase):
 
     def test_a_posix_spawn_of_a_missing_program_fails_as_it_would(self):
         # posix_spawn() returns the exec's error, even with closefrom(3) among the file actions
-        result, requests, out = self.run_parent("spawn", "6", "/bin/missing")
+        result, requests, out = self.run_parent("spawn", "6", "/bin/missing", handoff="missing")
         self.assertEqual([], requests)
         self.assertEqual(str(errno.ENOENT), result.get("spawned"), out.stdout)
+        self.assertNotIn("exit", result, out.stdout)
+        self.assertNotIn("signal", result, out.stdout)
+
+    def test_a_posix_spawn_of_a_missing_program_not_listed_is_unchanged(self):
+        # As without the hook: ENOENT natively; qemu-user, which runs glibc's vfork-style spawn child
+        # as a separate process, gets 0 and an exit status of 127.
+        result, requests, out = self.run_parent("spawn", "6", "/bin/missing", handoff="other")
+        plain, _, plain_out = self.run_parent("spawn", "6", "/bin/missing", handoff="other", hook=False)
+        self.assertEqual([], requests)
+        self.assertEqual(plain.get("spawned"), result.get("spawned"), out.stdout + plain_out.stdout)
+        self.assertEqual(plain.get("exit"), result.get("exit"), out.stdout + plain_out.stdout)
+
+    def test_a_posix_spawn_of_a_script_without_its_interpreter_fails_as_it_would(self):
+        script = self.root / "bin/orphan"
+        script.write_text("#!/bin/no-such-interpreter\n")
+        script.chmod(0o755)
+        result, requests, out = self.run_parent("spawn", "6", "/bin/orphan", handoff="orphan")
+        self.assertEqual([], requests)
+        self.assertEqual(str(errno.ENOENT), result.get("spawned"), out.stdout)
+
+    def test_a_wait_for_a_group_takes_only_that_groups_children(self):
+        result, requests, out = self.run_parent("group", "4")
+        self.assertEqual(1, len(requests), out.stderr)
+        self.assertEqual("-1", result.get("ours"), out.stdout)
+        self.assertEqual("1", result.get("same"), out.stdout)
+        self.assertEqual("4", result.get("exit"), out.stdout)
 
     def test_kill_reaches_the_program_and_its_signal_is_reported(self):
         result, requests, out = self.run_parent("kill", "sleep")
