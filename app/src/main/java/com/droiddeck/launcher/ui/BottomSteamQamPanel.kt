@@ -208,8 +208,15 @@ internal fun SteamQamPanel() {
                         else -> FAST_TICK_MS
                     }
                     val used = QamFit.current(context)
-                    withTimeoutOrNull(wait) {
-                        snapshotFlow { QamFit.current(context) }.first { it != used }
+                    // A long backoff is waited out in ticks that renew the lease, so the held menu never lapses.
+                    var left = wait
+                    while (left > 0 && isActive) {
+                        val changed = withTimeoutOrNull(minOf(left, TICK_MS)) {
+                            snapshotFlow { QamFit.current(context) }.first { it != used }
+                        }
+                        if (changed != null) break
+                        left -= TICK_MS
+                        if (left > 0) SteamQam.hold(context, aspect[0])
                     }
                 }
             } finally {
