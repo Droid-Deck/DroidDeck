@@ -925,6 +925,7 @@
     <string name="setup_reset_settings_session_running">Detén la sesión antes de restablecer los ajustes.</string>
     <string name="setup_reset_settings_partial">Los ajustes se restablecieron, pero algunas partes no se pudieron restablecer. Los registros tienen los detalles.</string>
     <string name="setup_offline">Modo sin conexión</string>
+    <string name="setup_offline_auto">Modo sin conexión automático</string>
     <string name="setup_sign_in_first">Inicia sesión en Steam primero</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Idioma</string>
@@ -4120,4 +4121,7 @@
     <string name="theme_custom_error">Error</string>
     <string name="hud_only_during_game">Mostrar el HUD solo durante una partida</string>
     <string name="hud_only_during_game_hint">Ocultar el HUD cuando no se detecten fotogramas del juego.</string>
+    <string name="steam_store_close_steam">Cierra Steam primero</string>
+    <string name="steam_store_session_wait">Pausa primero la descarga de Steam</string>
+    <string name="steam_store_linux_build">Este juego instala su versión para Linux. Instálalo desde Steam.</string>
 </resources>

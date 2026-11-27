@@ -1,8 +1,12 @@
 package com.droiddeck.launcher.ui
 
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.runtime.AppImageManager
@@ -302,12 +306,19 @@ class CurseLinkTabTest {
         onSetPhantomProcessLimit = { _, _ -> },
     )
 
-    private fun row(update: Boolean?, wowi: Boolean) {
+    private fun row(update: Boolean?, wowi: Boolean, progress: MutableMap<String, Int> = mutableMapOf()) {
         val target = WowAddons.Target("_retail_", temp.newFolder("AddOns"))
         val item = WowAddons.Installed("Leatrix_Maps", "1.60.35", null)
         val newer = WowAddonCatalog.Addon("1", "Leatrix Maps", "Leatrix", "1.60.36", 0, 0, null).takeIf { wowi }
         val curse = update?.let { CurseForgeApp.Project("298842", "m", listOf("Leatrix_Maps"), it) to CurseLink(app) }
-        compose.setContent { DroidDeckTheme { AddonRow(item, newer, target, actions, curse) } }
+        compose.setContent { DroidDeckTheme { AddonRow(item, newer, target, actions, progress, curse) } }
+    }
+
+    @Test
+    fun aRowUpdatedByUpdateAllShowsItsProgressAndCannotStartASecondUpdate() {
+        row(update = true, wowi = false, progress = mutableStateMapOf("Leatrix_Maps" to 0))
+        compose.onAllNodesWithText(RuntimeEnvironment.getApplication().getString(R.string.ctrl_percent, 0)).assertCountEquals(1)
+        compose.onNodeWithContentDescription(text(R.string.common_update)).assertIsNotEnabled()
     }
 
     @Test

@@ -922,6 +922,7 @@
     <string name="setup_reset_settings_session_running">Σταμάτησε τη συνεδρία πριν κάνεις επαναφορά ρυθμίσεων.</string>
     <string name="setup_reset_settings_partial">Οι ρυθμίσεις επαναφέρθηκαν, αλλά όχι όλες. Οι λεπτομέρειες είναι στα αρχεία καταγραφής.</string>
     <string name="setup_offline">Λειτουργία εκτός σύνδεσης</string>
+    <string name="setup_offline_auto">Αυτόματη λειτουργία εκτός σύνδεσης</string>
     <string name="setup_sign_in_first">Συνδεθείτε πρώτα στο Steam</string>
     <string name="setup_launcher">Εκκινητής</string>
     <string name="setup_language">Γλώσσα</string>
@@ -4080,4 +4081,7 @@
     <string name="theme_custom_error">Σφάλμα</string>
     <string name="hud_only_during_game">Εμφάνιση HUD μόνο κατά τη διάρκεια παιχνιδιού</string>
     <string name="hud_only_during_game_hint">Απόκρυψη HUD όταν δεν ανιχνεύονται καρέ παιχνιδιού.</string>
+    <string name="steam_store_close_steam">Κλείστε πρώτα το Steam</string>
+    <string name="steam_store_session_wait">Θέστε πρώτα σε παύση τη λήψη του Steam</string>
+    <string name="steam_store_linux_build">Αυτό το παιχνίδι εγκαθιστά την έκδοσή του για Linux. Εγκαταστήστε το από το Steam.</string>
 </resources>

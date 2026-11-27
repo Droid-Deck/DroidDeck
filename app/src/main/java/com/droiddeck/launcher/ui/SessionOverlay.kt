@@ -315,6 +315,7 @@ class DrawerActions(
     val onOsc: (String) -> Unit,
     val onEditSteamTouch: (() -> Unit)? = null,
     val controller: com.droiddeck.launcher.input.ControllerPrefs.Settings? = null,
+    val onControllerSize: (Int) -> Unit = {},
     val onRumble: (Boolean) -> Unit = {},
     val onSuspendPolicy: (String) -> Unit,
     val onSteamDownloadsInBackground: (Boolean) -> Unit = {},
@@ -763,9 +764,11 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         type, chipModifier = focus.track(page, "pad-type"), onPick = a.onPadType)
                                 }
                                 a.controller?.let { c ->
+                                    SliderRow(stringResource(R.string.ctrl_size), null, c.size, 80..125, step = 5,
+                                        format = { "$it%" }, modifier = focus.track(page, "controller-size"),
+                                        onChange = a.onControllerSize)
                                     ToggleRow(host, "rumble", stringResource(R.string.ctrl_rumble), null, c.rumble,
                                         chipModifier = focus.track(page, "rumble"), onChange = a.onRumble)
-
                                 }
                             }
                             SettingsGroup(stringResource(R.string.input_touchscreen)) {

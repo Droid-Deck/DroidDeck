@@ -917,6 +917,7 @@
     <string name="setup_log_export_failed">Impossibile salvare i log di sessione.</string>
     <string name="setup_log_delete_failed">Impossibile eliminare i log di sessione.</string>
     <string name="setup_offline">Modalità offline</string>
+    <string name="setup_offline_auto">Modalità offline automatica</string>
     <string name="setup_sign_in_first">Accedi prima a Steam</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Lingua</string>
@@ -4119,4 +4120,7 @@
     <string name="theme_custom_error">Errore</string>
     <string name="hud_only_during_game">Mostra l’HUD solo durante il gioco</string>
     <string name="hud_only_during_game_hint">Nascondi l’HUD quando non vengono rilevati fotogrammi del gioco.</string>
+    <string name="steam_store_close_steam">Chiudi prima Steam</string>
+    <string name="steam_store_session_wait">Metti prima in pausa il download di Steam</string>
+    <string name="steam_store_linux_build">Questo gioco installa la sua versione Linux. Installalo da Steam.</string>
 </resources>

@@ -150,6 +150,28 @@ class CompatLibrariesTest(unittest.TestCase):
 
 
 class DesktopGamesTest(unittest.TestCase):
+    def test_library_links_that_cannot_be_walked_are_made_again(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            steam, home = root / "Steam", root / "home"
+            (steam / "steamapps/common/Game").mkdir(parents=True)
+            home.mkdir()
+            common = str(steam / "steamapps/common")
+            stale, kept = home / "Steam Games", home / "SD Games"
+            os.symlink(str(root / "elsewhere"), stale)
+            card = root / "card/steamapps/common"
+            card.mkdir(parents=True)
+            os.symlink(str(card), kept)
+            before = os.lstat(kept).st_ino
+            real = os.readlink
+            with patch.object(desktop, "HOME", str(home)), \
+                 patch.object(desktop, "LIBRARIES", ((str(steam), "Steam Games"), (str(root / "card"), "SD Games"))), \
+                 patch.object(desktop.os, "readlink", lambda p: common if p == str(stale) else real(p)):
+                desktop.link_libraries()
+            self.assertEqual(common, os.readlink(stale))
+            self.assertTrue((stale / "Game").is_dir())
+            self.assertEqual(before, os.lstat(kept).st_ino)
+
     def test_games_in_registered_libraries_get_entries(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

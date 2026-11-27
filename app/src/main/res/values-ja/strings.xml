@@ -919,6 +919,7 @@
     <string name="setup_reset_settings_session_running">設定をリセットする前にセッションを停止してください。</string>
     <string name="setup_reset_settings_partial">設定はリセットされましたが、一部をリセットできませんでした。詳細はログを確認してください。</string>
     <string name="setup_offline">オフラインモード</string>
+    <string name="setup_offline_auto">自動オフラインモード</string>
     <string name="setup_sign_in_first">先にSteamにログインしてください</string>
     <string name="setup_launcher">ランチャー</string>
     <string name="setup_language">言語</string>
@@ -4050,4 +4051,7 @@
     <string name="theme_custom_error">エラー</string>
     <string name="hud_only_during_game">ゲーム中のみHUDを表示</string>
     <string name="hud_only_during_game_hint">ゲームのフレームが検出されないときはHUDを非表示にする。</string>
+    <string name="steam_store_close_steam">先に Steam を閉じてください</string>
+    <string name="steam_store_session_wait">先に Steam のダウンロードを一時停止してください</string>
+    <string name="steam_store_linux_build">このゲームは Linux 版をインストールします。Steam からインストールしてください。</string>
 </resources>

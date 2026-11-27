@@ -928,6 +928,7 @@
     <string name="setup_reset_settings_session_running">Před obnovením nastavení zastav relaci.</string>
     <string name="setup_reset_settings_partial">Nastavení byla obnovena, ale ne všechna. Podrobnosti jsou v logech.</string>
     <string name="setup_offline">Režim offline</string>
+    <string name="setup_offline_auto">Automatický režim offline</string>
     <string name="setup_sign_in_first">Nejprve se přihlaste ke Steamu</string>
     <string name="setup_launcher">Spouštěč</string>
     <string name="setup_language">Jazyk</string>
@@ -4160,4 +4161,7 @@
     <string name="theme_custom_error">Chyba</string>
     <string name="hud_only_during_game">Zobrazovat HUD pouze během hry</string>
     <string name="hud_only_during_game_hint">Skrýt HUD, když nejsou detekovány snímky hry.</string>
+    <string name="steam_store_close_steam">Nejprve zavřete Steam</string>
+    <string name="steam_store_session_wait">Nejprve pozastavte stahování ze Steamu</string>
+    <string name="steam_store_linux_build">Tato hra instaluje svou verzi pro Linux. Nainstalujte ji ze Steamu.</string>
 </resources>

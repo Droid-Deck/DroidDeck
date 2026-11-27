@@ -1,4 +1,5 @@
 import contextlib
+import fcntl
 import hashlib
 import io
 import json
@@ -7,9 +8,11 @@ import shutil
 from pathlib import Path
 import runpy
 import shlex
+import struct
 import subprocess
 import sys
 import tempfile
+import threading
 from unittest import mock
 import unittest
 from unittest.mock import patch
@@ -2196,6 +2199,53 @@ class GameEnvironmentTest(unittest.TestCase):
             named = game_logs(command, on, None, now=0)
             self.assertTrue(Path(named["PROTON_LOG_DIR"]).name.endswith("-Hades"))
 
+    def test_graphics_logs_trace_wine_only_when_asked(self):
+        game_logs = MODULE["game_logs"]
+        command = ["/proton", "waitforexitandrun", "/games/Hades/Hades.exe"]
+        with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen"):
+            on = {"DD_GAME_LOGS": "1", "DD_DEBUG_DIR": tmp}
+            for given in ({}, {"PROTON_LOG": "0"}, {"PROTON_LOG": ""}):
+                with self.subTest(given=given):
+                    result = game_logs(command, {**on, **given}, "42", now=0)
+                    self.assertEqual(result["PROTON_LOG"], "1")
+                    self.assertEqual(result["WINEDEBUG"], "-all,err+all")
+            own = game_logs(command, {**on, "WINEDEBUG": "+relay"}, "42", now=0)
+            self.assertEqual(own["WINEDEBUG"], "+relay")
+            for value in ("1", "+relay"):
+                with self.subTest(proton_log=value):
+                    user = game_logs(command, {**on, "PROTON_LOG": value}, "42", now=0)
+                    self.assertEqual(user["PROTON_LOG"], value)
+                    self.assertNotIn("WINEDEBUG", user)
+            config = {"version": 1, "gameDebugLogs": True}
+            debug = game_logs(command, MODULE["apply_game_debug_logs"](on, config, tmp), "42", now=0)
+            self.assertEqual(debug["PROTON_LOG"], "1")
+            self.assertEqual(debug["WINEDEBUG"], MODULE["game_debug_channels"]())
+
+    def test_game_debug_switch_controls_wine_traces_with_graphics_logs_on(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            config_path = home / ".config/droiddeck/game-environment.json"
+            config_path.parent.mkdir(parents=True)
+            probe = home / "proton"
+            probe.write_text("#!" + sys.executable + "\nimport json, os\n"
+                             "print(json.dumps({k: os.environ.get(k) for k in ('PROTON_LOG', 'WINEDEBUG')}))\n")
+            probe.chmod(0o755)
+            env = {**os.environ, "HOME": tmp, "STEAM_COMPAT_DATA_PATH": str(home / "compatdata/599140"),
+                   "DD_DEBUG_DIR": tmp, "DD_GAME_LOGS": "1"}
+            for name in ("PROTON_LOG", "WINEDEBUG"):
+                env.pop(name, None)
+            for enabled in (True, False, True):
+                with self.subTest(enabled=enabled):
+                    config_path.write_text(json.dumps({"version": 1, "gameDebugLogs": enabled}))
+                    result = json.loads(subprocess.run(
+                        [sys.executable, str(BIN / "droiddeck-game-env"), str(probe), "waitforexitandrun", "game.exe"],
+                        env=env, text=True, capture_output=True, check=True).stdout)
+                    self.assertEqual(result["PROTON_LOG"], "1")
+                    if enabled:
+                        self.assertIn("+seh", result["WINEDEBUG"].split(","))
+                    else:
+                        self.assertEqual(result["WINEDEBUG"], "-all,err+all")
+
     def test_rapid_game_launches_keep_separate_diagnostics(self):
         with tempfile.TemporaryDirectory() as tmp, mock.patch("subprocess.Popen"):
             env = {"DD_GAME_LOGS": "1", "DD_DEBUG_DIR": tmp}
@@ -3725,6 +3775,161 @@ class ForeignSystemDllTest(unittest.TestCase):
             self.assertEqual([], self.run_repair(compat, proton))
             self.assertEqual(0x8664, MODULE["pe_machine"](windows / "system32/ucrtbase.dll"))
             self.assertEqual([], self.run_repair(Path(tmp) / "missing", proton))
+
+
+class SharedDataHealTest(unittest.TestCase):
+    CURRENT = (21, 0x1234abcd, 0x5678ef01, os.getuid(), 1000)
+    STALE = (21, 0x0badf00d, 0x0ddba11, 10122, 1000)
+
+    def setUp(self):
+        self.globals = MODULE["heal_shared_data"].__globals__
+        self.old_machine_id = self.globals["MACHINE_ID"]
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.cleanup)
+        machine_id = Path(self.tmp.name) / "machine-id"
+        machine_id.write_text("1234abcd5678ef01%s\n" % ("0" * 16))
+        self.globals["MACHINE_ID"] = str(machine_id)
+        self.compat = Path(self.tmp.name) / "compat"
+        self.root = self.compat / "pfx/drive_c/ProgramData"
+        self.root.mkdir(parents=True)
+        probe = self.root / "probe"
+        probe.write_text("")
+        try:
+            os.setxattr(probe, "user.wine.sd", b"x")
+        except OSError:
+            self.skipTest("needs user xattrs")
+        probe.unlink()
+
+    def cleanup(self):
+        self.globals["MACHINE_ID"] = self.old_machine_id
+        for folder, dirs, files in os.walk(self.tmp.name):
+            for name in dirs + files:
+                path = os.path.join(folder, name)
+                if not os.path.islink(path):
+                    os.chmod(path, 0o700)
+        self.tmp.cleanup()
+
+    def own(self, path, subs, authority=5):
+        sid = bytes([1, len(subs)]) + authority.to_bytes(6, "big") + struct.pack("<%dI" % len(subs), *subs)
+        header = struct.pack("<BBHIIII", 1, 0, 0x8004, len(sid), 0, 0, 0)
+        os.setxattr(path, "user.wine.sd", b"\x01\x00" + header + sid, follow_symlinks=False)
+
+    def heal(self):
+        return MODULE["heal_shared_data"](str(self.compat))
+
+    def mode(self, path):
+        return path.stat().st_mode & 0o777
+
+    def test_entries_a_stale_owner_locked_are_unlocked_and_every_stale_owner_is_cleared(self):
+        agent = self.root / "Vendor/Agent"
+        (agent / "Logs").mkdir(parents=True)
+        (agent / "Agent.dat").write_text("1")
+        (agent / "Tools.exe").write_text("x")
+        (agent / "Icons").mkdir()
+        for path in (agent.parent, agent, agent / "Logs", agent / "Agent.dat", agent / "Tools.exe", agent / "Icons"):
+            self.own(path, self.STALE)
+        (agent / "Tools.exe").chmod(0o550)
+        (agent / "Icons").chmod(0o500)
+        (agent / "Agent.dat").chmod(0)
+        (agent / "Logs").chmod(0)
+        agent.chmod(0)
+        self.assertEqual((["Vendor/Agent", "Vendor/Agent/Agent.dat", "Vendor/Agent/Logs"],
+                          ["Vendor", "Vendor/Agent", "Vendor/Agent/Agent.dat", "Vendor/Agent/Icons",
+                           "Vendor/Agent/Logs", "Vendor/Agent/Tools.exe"]), self.heal())
+        self.assertEqual(0o500, self.mode(agent / "Icons"))
+        self.assertEqual(0o700, self.mode(agent))
+        self.assertEqual(0o700, self.mode(agent / "Logs"))
+        self.assertEqual(0o600, self.mode(agent / "Agent.dat"))
+        self.assertEqual(0o550, self.mode(agent / "Tools.exe"))
+        self.assertEqual("1", (agent / "Agent.dat").read_text())
+        (agent / "Logs/new").mkdir()
+        for path in (agent.parent, agent, agent / "Logs", agent / "Agent.dat", agent / "Tools.exe", agent / "Icons"):
+            self.assertNotIn("user.wine.sd", os.listxattr(path))
+        self.assertEqual(([], []), self.heal())
+
+    def test_current_and_well_known_owners_untagged_entries_and_links_are_left_alone(self):
+        mine = self.root / "Mine"
+        mine.mkdir(mode=0o755)
+        self.own(mine, self.CURRENT)
+        (mine / "settings.ini").write_text("x")
+        self.own(mine / "settings.ini", self.CURRENT)
+        (mine / "settings.ini").chmod(0o444)
+        denied = self.root / "Denied"
+        denied.mkdir()
+        self.own(denied, self.CURRENT)
+        denied.chmod(0)
+        admins = self.root / "Admins"
+        admins.mkdir()
+        self.own(admins, (32, 544))
+        admins.chmod(0o500)
+        plain = self.root / "Plain"
+        plain.mkdir()
+        plain.chmod(0)
+        outside = Path(self.tmp.name) / "outside"
+        outside.mkdir()
+        self.own(outside, self.STALE)
+        outside.chmod(0o500)
+        (self.root / "Link").symlink_to(outside)
+        self.assertEqual(([], []), self.heal())
+        self.assertEqual(0o755, self.mode(mine))
+        self.assertEqual(0o444, self.mode(mine / "settings.ini"))
+        self.assertEqual(0, self.mode(denied))
+        self.assertEqual(0o500, self.mode(admins))
+        self.assertEqual(0, self.mode(plain))
+        self.assertEqual(0o500, self.mode(outside))
+        for path in (mine, mine / "settings.ini", admins, outside):
+            self.assertIn("user.wine.sd", os.listxattr(path))
+
+    def test_a_locked_program_data_folder_is_healed_before_its_entries(self):
+        (self.root / "Vendor").mkdir()
+        self.own(self.root / "Vendor", self.STALE)
+        (self.root / "Vendor").chmod(0)
+        self.own(self.root, self.STALE)
+        self.root.chmod(0)
+        self.assertEqual(([".", "Vendor"], [".", "Vendor"]), self.heal())
+        self.assertEqual(0o700, self.mode(self.root))
+        self.assertEqual(0o700, self.mode(self.root / "Vendor"))
+
+    def test_a_heal_waits_while_another_launch_heals_the_same_prefix(self):
+        (self.root / "Vendor").mkdir()
+        self.own(self.root / "Vendor", self.STALE)
+        (self.root / "Vendor").chmod(0)
+        results = []
+        lock = os.open(self.compat / "pfx", os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            worker = threading.Thread(target=lambda: results.append(self.heal()))
+            worker.start()
+            worker.join(0.3)
+            self.assertTrue(worker.is_alive())
+            self.assertEqual(0, self.mode(self.root / "Vendor"))
+        finally:
+            os.close(lock)
+        worker.join(10)
+        self.assertEqual([(["Vendor"], ["Vendor"])], results)
+
+    def test_user_sid_follows_wine_for_a_missing_or_short_machine_id(self):
+        sid = MODULE["wine_user_sid"]
+        self.assertEqual(self.CURRENT, sid())
+        self.globals["MACHINE_ID"] = str(Path(self.tmp.name) / "missing")
+        self.assertEqual((21, 0, 0, 0, 1000), sid())
+        short = Path(self.tmp.name) / "short"
+        short.write_text("1234\n")
+        self.globals["MACHINE_ID"] = str(short)
+        self.assertEqual((21, 0, 0, 0, 1000), sid())
+        binary = Path(self.tmp.name) / "binary"
+        binary.write_bytes(b"\xff\xfe" + b"0" * 15)
+        self.globals["MACHINE_ID"] = str(binary)
+        self.assertEqual((21, 0, 0, os.getuid(), 1000), sid())
+        signed = Path(self.tmp.name) / "signed"
+        signed.write_text("+234abcd5678ef01\n")
+        self.globals["MACHINE_ID"] = str(signed)
+        self.assertEqual((21, 0x234abcd, 0x5678ef01, os.getuid(), 1000), sid())
+        signed.write_text("-000000000000001\n")
+        self.assertEqual((21, 0xffffffff, 0xffffffff, os.getuid(), 1000), sid())
+
+    def test_prefix_without_shared_data_is_skipped(self):
+        self.assertEqual(([], []), MODULE["heal_shared_data"](str(Path(self.tmp.name) / "missing")))
 
 
 if __name__ == "__main__":

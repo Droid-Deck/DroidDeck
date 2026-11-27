@@ -141,7 +141,8 @@ internal class LibraryEntry(
     val game: Library.SteamGame?, val item: CatalogItem?, val installed: Boolean,
 ) {
     val storeKey: String? get() = item?.key ?: game?.storeId?.let { "${game.source}:$it" }
-    val favoriteKey: String get() = storeKey ?: key
+    /** A Steam game keeps the key it has once the Steam client lists it, so favoriting it before the install carries over. */
+    val favoriteKey: String get() = if (item?.store == Store.STEAM) "app:${item.id}" else storeKey ?: key
 }
 
 internal fun libraryEntries(
@@ -151,6 +152,7 @@ internal fun libraryEntries(
     val out = ArrayList<LibraryEntry>()
     for (g in games.sortedBy { it.library == Library.XBOX_CLOUD }) {
         if (g.library == Library.EPIC_LAUNCHER) continue
+        if (Library.fromSteamClient(g)) claimed.add("${Store.STEAM.id}:${g.appId}")
         val storeKey = g.storeId?.let { "${g.source}:$it" }
         val item = storeKey?.let { k -> Store.byId(g.source)?.let { st -> owned[st]?.firstOrNull { it.key == k } } }
         if (storeKey != null) {
@@ -162,7 +164,7 @@ internal fun libraryEntries(
     }
     for (store in Store.entries) for (item in owned[store].orEmpty()) {
         if (!claimed.add(item.key)) continue
-        out += LibraryEntry(GameRef.key(item), store.id, item.title, null, item, installed = item.key in installedStore)
+        out += LibraryEntry(GameRef.key(item), store.librarySource, item.title, null, item, installed = item.key in installedStore)
     }
     return out.distinctBy { it.key }
 }
@@ -299,7 +301,7 @@ internal object LibraryView {
     fun showOwned(context: android.content.Context, store: Store) {
         SessionPrefs.setLibraryShowUninstalled(context, true)
         ownedRequest++
-        source = store.id
+        source = store.librarySource
         query = ""
         focusFirst = true
     }
@@ -374,7 +376,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         .map { it.store.id }.toSet()
     val sources = librarySources(
         all, storeTabs.map { it.store.id },
-        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.ADDED.takeIf { stores }).toSet() + signInChips,
+        listOfNotNull(Store.ITCH.id.takeIf { itchSignedIn && !soundMode }, Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode }, Library.ADDED.takeIf { stores }, Store.BATTLENET.id.takeIf { stores }).toSet() + signInChips,
         favorites, concealed,
         offStores = if (soundMode) emptySet() else storeTabs.filterNot { it.shown }.map { it.store.id }.toSet(),
         places = if (soundMode) DEFAULT_LIBRARY_PLACES else StoreTabsState.libraryPlaces,
@@ -632,7 +634,8 @@ private fun LibraryGrid(
     // A search that matches nothing keeps the toolbar, so the search can still be cleared.
     val customEmpty = !soundMode && source == Library.ADDED && visible.isEmpty() && hiddenUninstalled == 0 && LibraryView.query.isBlank()
     val splash = !soundMode && (signInStore != null || customEmpty)
-    val headerItems = (if (splash) 1 else 2) + (if (sizesPending) 1 else 0) + syncing.size
+    val showHeader = !splash || source == Store.BATTLENET.id
+    val headerItems = (if (showHeader) 2 else 1) + (if (sizesPending) 1 else 0) + syncing.size
     val expanded = showUninstalled == true
     val notInstalled = if (expanded) visible.count { !it.installed } else hiddenUninstalled
     val toggleAt = when {
@@ -766,7 +769,7 @@ private fun LibraryGrid(
             Box(Modifier.onSizeChanged { chipsH = it.height }) { Rise(0) { if (soundMode) header() else filters() } }
         }
         val splashHeight = with(density) { (gridH - chipsH).toDp() - 28.dp }.coerceAtLeast(300.dp)
-        if (!splash) item(key = if (soundMode) "filters" else "header", span = { GridItemSpan(maxLineSpan) }) { Rise(1) { if (soundMode) filters() else header() } }
+        if (showHeader) item(key = if (soundMode) "filters" else "header", span = { GridItemSpan(maxLineSpan) }) { Rise(1) { if (soundMode) filters() else header() } }
         for ((store, line) in syncing) item(key = "sync-${store.id}", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 Text(store.shortLabel + " · " + line, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -882,6 +885,12 @@ private fun LibraryHeader(
         clearSearchFocus = searchCleared, inlineWhenStacked = true,
         lead = soundLead,
     ) {
+        if (!soundMode && !s.shortcutPicker && source == Store.BATTLENET.id) {
+            SecondaryButton(
+                stringResource(R.string.bnet_open), enabled = !s.busy && DevPreview.library == LibraryPreview.OFF,
+                compact = true, modifier = Modifier.testTag("library-battlenet-open"), onClick = a.onBattleNet,
+            )
+        }
         if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onClick = onCollections)
         if (!soundMode && DeveloperTools.on && DevPreview.shortcuts) LibraryPreviewButton()
         DisplayButton()

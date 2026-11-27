@@ -75,7 +75,7 @@ int vkp_effects_upscaling(void) { return 0; }
 int vkp_effects_sharpening(void) { return 0; }
 int vkp_effects_postprocessing(void) { return 0; }
 VkFilter vkp_effects_blit_filter(void) { return VK_FILTER_NEAREST; }
-void vkp_effects_set_formats(VkFormat a, VkFormat b) {}
+void vkp_effects_set_formats(VkFormat a, VkFormat b, int scene_is_pq) {}
 VkImage vkp_effects_run(VkCommandBuffer c, VkImage i, int w, int h, int ow, int oh, int *rw, int *rh) {
     *rw = w; *rh = h; return i;
 }

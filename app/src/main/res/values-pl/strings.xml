@@ -928,6 +928,7 @@
     <string name="setup_reset_settings_session_running">Zatrzymaj sesję, zanim zresetujesz ustawienia.</string>
     <string name="setup_reset_settings_partial">Ustawienia zostały zresetowane, ale nie wszystkie. Szczegóły są w logach.</string>
     <string name="setup_offline">Tryb offline</string>
+    <string name="setup_offline_auto">Automatyczny tryb offline</string>
     <string name="setup_sign_in_first">Najpierw zaloguj się do Steam</string>
     <string name="setup_launcher">Aplikacja</string>
     <string name="setup_language">Język</string>
@@ -4160,4 +4161,7 @@
     <string name="theme_custom_error">Błąd</string>
     <string name="hud_only_during_game">Pokazuj HUD tylko podczas gry</string>
     <string name="hud_only_during_game_hint">Ukryj HUD, gdy nie wykryto klatek gry.</string>
+    <string name="steam_store_close_steam">Najpierw zamknij Steam</string>
+    <string name="steam_store_session_wait">Najpierw wstrzymaj pobieranie ze Steam</string>
+    <string name="steam_store_linux_build">Ta gra instaluje swoją wersję dla Linuksa. Zainstaluj ją ze Steama.</string>
 </resources>

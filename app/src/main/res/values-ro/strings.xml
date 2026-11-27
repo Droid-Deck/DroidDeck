@@ -925,6 +925,7 @@
     <string name="setup_reset_settings_session_running">Oprește sesiunea înainte de a reseta setările.</string>
     <string name="setup_reset_settings_partial">Setările au fost resetate, dar nu toate. Detaliile sunt în jurnale.</string>
     <string name="setup_offline">Mod offline</string>
+    <string name="setup_offline_auto">Mod offline automat</string>
     <string name="setup_sign_in_first">Autentifică-te mai întâi în Steam</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Limbă</string>
@@ -4120,4 +4121,7 @@
     <string name="theme_custom_error">Eroare</string>
     <string name="hud_only_during_game">Afișează HUD-ul doar în timpul jocului</string>
     <string name="hud_only_during_game_hint">Ascunde HUD-ul când nu sunt detectate cadre ale jocului.</string>
+    <string name="steam_store_close_steam">Închide mai întâi Steam</string>
+    <string name="steam_store_session_wait">Pune mai întâi pe pauză descărcarea Steam</string>
+    <string name="steam_store_linux_build">Acest joc își instalează versiunea pentru Linux. Instalează-l din Steam.</string>
 </resources>

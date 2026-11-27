@@ -15,7 +15,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33])
 class StoresTabOrderTest {
     private val app get() = RuntimeEnvironment.getApplication()
-    private val defaults = Store.entries.map { it.id }
+    private val defaults = Store.tabbed.map { it.id }
     private fun shown() = arrangeStoreTabs(SessionPrefs.storesTabOrder(app), emptySet()).map { it.store.id }
 
     @Test

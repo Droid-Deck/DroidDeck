@@ -918,6 +918,7 @@
     <string name="setup_reset_settings_session_running">請先停止工作階段再重設設定。</string>
     <string name="setup_reset_settings_partial">設定已重設，但部分項目無法重設。詳細資訊請查看日誌。</string>
     <string name="setup_offline">離線模式</string>
+    <string name="setup_offline_auto">自動離線模式</string>
     <string name="setup_sign_in_first">請先登入 Steam</string>
     <string name="setup_launcher">啟動器</string>
     <string name="setup_language">語言</string>
@@ -4050,4 +4051,7 @@
     <string name="theme_custom_error">錯誤</string>
     <string name="hud_only_during_game">僅在遊戲期間顯示 HUD</string>
     <string name="hud_only_during_game_hint">未偵測到遊戲畫面時隱藏 HUD。</string>
+    <string name="steam_store_close_steam">請先關閉 Steam</string>
+    <string name="steam_store_session_wait">請先暫停 Steam 下載</string>
+    <string name="steam_store_linux_build">此遊戲會安裝其 Linux 版本。請透過 Steam 安裝。</string>
 </resources>

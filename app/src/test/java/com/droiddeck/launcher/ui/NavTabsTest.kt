@@ -40,24 +40,39 @@ class NavTabsTest {
     }
 
     @Test fun aFreshInstallShowsTheDefaultBarMoreAndHiddenTabs() {
-        assertEquals(listOf("steam", "desktop", "games", "downloads", "setup", "updates", "stores", NavTabs.MORE), navigationKeys(state()))
-        assertEquals(listOf("soundtracks", "components", "storage", "sync", "decky", "boot-movies"), NavTabs.more(state()))
+        assertEquals(listOf("steam", "desktop", "games", "downloads", "setup", "updates", NavTabs.MORE), navigationKeys(state()))
+        assertEquals(listOf("stores", "soundtracks", "components", "storage", "sync", "decky", "boot-movies"), NavTabs.more(state()))
         assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "android-apps"))
         assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "agent"))
         assertFalse(com.droiddeck.launcher.agent.AgentTab.shown)
         assertTrue(NavTabs.isDefault())
     }
 
+    @Test fun appsFollowsTheHomeAppOnEachChangeAndOtherwiseKeepsTheUsersChoice() {
+        NavTabs.syncHomeApps(ctx, false)
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "android-apps"))
+        NavTabs.syncHomeApps(ctx, true)
+        assertEquals(TabPlace.BAR, NavTabs.place(state(), "android-apps"))
+        NavTabs.setHidden(ctx, "android-apps", true)
+        NavTabs.syncHomeApps(ctx, true)
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "android-apps"))
+        NavTabs.syncHomeApps(ctx, false)
+        NavTabs.syncHomeApps(ctx, true)
+        assertEquals(TabPlace.BAR, NavTabs.place(state(), "android-apps"))
+        NavTabs.syncHomeApps(ctx, false)
+        assertEquals(TabPlace.HIDDEN, NavTabs.place(state(), "android-apps"))
+    }
+
     @Test fun showingMusicOnceKeepsItShownAfterReload() {
         place("soundtracks", TabPlace.BAR)
         NavTabs.load(ctx)
-        assertEquals(listOf("steam", "desktop", "games", "downloads", "setup", "updates", "stores", "soundtracks", NavTabs.MORE), navigationKeys(state()))
+        assertEquals(listOf("steam", "desktop", "games", "downloads", "setup", "updates", "soundtracks", NavTabs.MORE), navigationKeys(state()))
     }
 
     @Test fun shelvedTabsLeaveTheBarAndAddMoreAtTheEnd() {
         place("desktop", TabPlace.MORE)
         val s = state()
-        assertEquals(listOf("desktop", "soundtracks", "components", "storage", "sync", "decky", "boot-movies"), NavTabs.more(s))
+        assertEquals(listOf("desktop", "stores", "soundtracks", "components", "storage", "sync", "decky", "boot-movies"), NavTabs.more(s))
         assertEquals(NavTabs.MORE, navigationKeys(s).last())
         assertFalse("desktop" in navigationKeys(s))
     }
@@ -70,14 +85,14 @@ class NavTabsTest {
     }
 
     @Test fun resettingPutsBackTheDefaultLayout() {
-        place("stores", TabPlace.MORE)
+        place("stores", TabPlace.BAR)
         place("updates", TabPlace.HIDDEN)
         moveTab("downloads", -1)
         assertFalse(NavTabs.isDefault())
         NavTabs.reset(ctx)
         NavTabs.load(ctx)
         assertTrue(NavTabs.isDefault())
-        assertEquals(listOf("steam", "desktop", "games", "downloads", "setup", "updates", "stores", NavTabs.MORE), navigationKeys(state()))
+        assertEquals(listOf("steam", "desktop", "games", "downloads", "setup", "updates", NavTabs.MORE), navigationKeys(state()))
     }
 
     @Test fun anOldLayoutKeepsWhatItsSwitchesShowed() {
@@ -219,12 +234,12 @@ class NavTabsTest {
                 }
             }
         }
-        val last = navigationKeys(state()).last { it != NavTabs.MORE }
+        val last = NavTabs.listed(state()).last { it !in NavTabs.shelved }
         compose.onNodeWithTag("tab-row-$last").requestFocus()
         compose.onNodeWithTag("tab-row-$last").performKeyPress(pad(android.view.KeyEvent.KEYCODE_BUTTON_Y))
         compose.onNodeWithTag("tab-row-$last").performKeyPress(pad(android.view.KeyEvent.KEYCODE_DPAD_DOWN))
         compose.onNodeWithTag("tab-row-$last").performKeyPress(pad(android.view.KeyEvent.KEYCODE_BUTTON_Y))
-        compose.runOnIdle { assertEquals(last, NavTabs.more(state()).first()) }
+        compose.runOnIdle { assertTrue(last in NavTabs.shelved) }
         compose.onNodeWithTag("tab-shown-desktop").performClick()
         compose.runOnIdle { assertFalse("desktop" in navigationKeys(state())) }
         compose.onNodeWithTag("tab-shown-setup").performClick()
