@@ -128,6 +128,12 @@ What it does, per feature:
   - Pipelines and `vkCmdSetColorBlendEquationEXT` both.
   - Why alpha: output 0's color is the paint, its alpha is the usual coverage. Per-channel coverage collapses to one value; blending stays plain alpha blending, not tinted by the paint.
 
+What it changes on every device it looks after, though nothing is missing:
+- Render passes without attachments get at most 4096×4096 and one layer (`draw.c`).
+  - DXVK begins them at the largest framebuffer size: 32768×32768 with 256 layers on a Mali-G610.
+  - The tiler sets up for all of it. In Skyrim the render server grew by 1.1 GB within one to two seconds, until the kernel ended the context (`Not allocating new chunk for heap`) and the device was lost.
+  - Such a pass only has side effects (occlusion queries, storage writes). Draws outside 4096×4096 lose them.
+
 The SPIR-V version the driver gets:
 - The phone's own driver compiles the guest's SPIR-V, and its compiler is old: on the MT6897
   Mali-G615 (r44p1, "Vulkan 1.3.247") it dies with a null read in `cmpbe_v2_compile_multiple_shaders`

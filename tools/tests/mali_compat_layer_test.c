@@ -337,6 +337,16 @@ static void VKAPI_CALL mock_set_blend_equation(VkCommandBuffer cmd, uint32_t fir
         driver_equation_count = first + count;
 }
 
+static const VkRenderingInfo *caller_rendering_info;
+static bool driver_got_caller_info;
+static VkRenderingInfo driver_rendering;
+
+static void VKAPI_CALL mock_begin_rendering(VkCommandBuffer cmd, const VkRenderingInfo *info)
+{
+    driver_got_caller_info = info == caller_rendering_info;
+    driver_rendering = *info;
+}
+
 #define MOCK(name, function) if (!strcmp(requested, name)) return (PFN_vkVoidFunction)function
 static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL mock_gipa(VkInstance instance, const char *requested)
 {
@@ -360,6 +370,8 @@ static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL mock_gdpa(VkDevice device, const
     MOCK("vkCreateShaderModule", mock_create_shader_module);
     MOCK("vkDestroyShaderModule", mock_destroy_shader_module);
     MOCK("vkCreateGraphicsPipelines", mock_create_graphics_pipelines);
+    MOCK("vkCmdBeginRendering", mock_begin_rendering);
+    MOCK("vkCmdBeginRenderingKHR", mock_begin_rendering);
     MOCK("vkCmdSetColorBlendEquationEXT", mock_set_blend_equation);
     MOCK("vkBeginCommandBuffer", mock_begin_command_buffer);
     MOCK("vkCmdSetDepthTestEnable", mock_set_depth_test);
@@ -414,6 +426,61 @@ static void create_pipeline(VkDevice device, VkPipelineColorBlendAttachmentState
 static bool same_attachment(const VkPipelineColorBlendAttachmentState *a, const VkPipelineColorBlendAttachmentState *b)
 {
     return !memcmp(a, b, sizeof(*a));
+}
+
+static void begin_rendering(PFN_vkCmdBeginRendering begin, VkCommandBuffer cmd, const VkRenderingInfo *info)
+{
+    caller_rendering_info = info;
+    begin(cmd, info);
+}
+
+static void test_empty_render_pass(void)
+{
+    VkDevice device;
+    VkPhysicalDeviceFeatures enabled = {.dualSrcBlend = VK_TRUE};
+    assert(create_device((VkPhysicalDevice)&mock_lacking, NULL, &enabled, &device) == VK_SUCCESS);
+    PFN_vkCmdBeginRendering begin = (PFN_vkCmdBeginRendering)layer_gdpa(device, "vkCmdBeginRendering");
+    PFN_vkCmdBeginRendering begin_khr = (PFN_vkCmdBeginRendering)layer_gdpa(device, "vkCmdBeginRenderingKHR");
+    assert((PFN_vkVoidFunction)begin != (PFN_vkVoidFunction)mock_begin_rendering);
+    assert((PFN_vkVoidFunction)begin_khr != (PFN_vkVoidFunction)mock_begin_rendering);
+    VkCommandBuffer cmd = (VkCommandBuffer)&mock_command_buffer;
+
+    VkRenderingInfo empty = {.sType = VK_STRUCTURE_TYPE_RENDERING_INFO, .renderArea = {{0, 0}, {32768, 32768}},
+                             .layerCount = 256};
+    begin_rendering(begin, cmd, &empty);
+    assert(!driver_got_caller_info && driver_rendering.layerCount == 1);
+    assert(driver_rendering.renderArea.extent.width == 4096 && driver_rendering.renderArea.extent.height == 4096);
+    assert(empty.renderArea.extent.width == 32768 && empty.layerCount == 256);
+
+    VkRenderingAttachmentInfo color = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+                                       .imageView = (VkImageView)0x3000};
+    VkRenderingInfo drawn = empty;
+    drawn.colorAttachmentCount = 1;
+    drawn.pColorAttachments = &color;
+    begin_rendering(begin_khr, cmd, &drawn);
+    assert(driver_got_caller_info);
+
+    VkRenderingAttachmentInfo unused = {.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+    drawn.pColorAttachments = &unused;
+    drawn.pDepthAttachment = &unused;
+    drawn.pStencilAttachment = &unused;
+    begin_rendering(begin_khr, cmd, &drawn);
+    assert(!driver_got_caller_info && driver_rendering.renderArea.extent.width == 4096);
+
+    VkRenderingInfo screen = {.sType = VK_STRUCTURE_TYPE_RENDERING_INFO, .renderArea = {{0, 0}, {1602, 720}},
+                              .layerCount = 1};
+    begin_rendering(begin, cmd, &screen);
+    assert(driver_got_caller_info);
+
+    VkRenderingInfo multiview = empty;
+    multiview.viewMask = 3;
+    begin_rendering(begin, cmd, &multiview);
+    assert(driver_rendering.renderArea.extent.height == 4096 && driver_rendering.viewMask == 3);
+    assert(driver_rendering.layerCount == 256);
+    multiview.renderArea.extent = screen.renderArea.extent;
+    begin_rendering(begin, cmd, &multiview);
+    assert(driver_got_caller_info);
+    destroy_device(device);
 }
 
 static void test_lacking_device(void)
@@ -588,6 +655,7 @@ int main(int argc, char **argv)
     assert(create_instance(&info, NULL, &instance) == VK_SUCCESS);
 
     test_lacking_device();
+    test_empty_render_pass();
     test_capable_device();
     test_depth_compare_op();
 
