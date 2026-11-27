@@ -8591,9 +8591,16 @@ static HRESULT __stdcall xbl_devaddr_GetLocal(svc_object *self, void **out)
     (void)self;
     if (!out) return E_POINTER;
     xbl_detect_local_ipv4_once();
-    /* Update the primary local IPv4 TLV entry inside the 72-byte Windows 10 SDA snapshot. */
-    if (xbl_devaddr_local.snapshot_len >= 67 && xbl_devaddr_local.snapshot[62] == 0x01) {
-        memcpy(xbl_devaddr_local.snapshot + 63, g_xbl_local_ipv4, 4);
+    /* Put the host's real address in both IPv4 records of the 72-byte Windows 10
+       SDA snapshot. Native Windows repeats the addresses it actually owns, so a
+       peer that reads the second record is given a routable address instead of
+       the 10.0.2.15 this snapshot shipped with -- an address nothing on either
+       network can reach. */
+    if (xbl_devaddr_local.snapshot_len >= 72) {
+        if (xbl_devaddr_local.snapshot[62] == 0x01)
+            memcpy(xbl_devaddr_local.snapshot + 63, g_xbl_local_ipv4, 4);
+        if (xbl_devaddr_local.snapshot[67] == 0x01)
+            memcpy(xbl_devaddr_local.snapshot + 68, g_xbl_local_ipv4, 4);
     }
     svc_trace("xbl_devaddr GetLocal");
     svc_AddRef(&xbl_devaddr_local.base);
@@ -9507,11 +9514,14 @@ static HRESULT __stdcall xbl_ept_get_InitiatorLower(xbl_ept_object *self, UINT16
 {
     UINT16 value;
     if (!out) return E_POINTER;
-    /* The manifest range opens at 1, but this host is an unprivileged app uid
-       and the kernel starts unprivileged binds at 1024. A title that takes this
-       bound as the port it may bind is then handed a port it cannot have, and
-       the QoS pass it was opening dies before it sends anything. Report the
-       lowest port the range and this host agree on. */
+    /* Report the manifest range raised to the lowest port this host can bind.
+       The manifest opens at 1 because on Windows the Xbox Live service owns the
+       range and is privileged. Here the title binds ports itself as an
+       unprivileged app uid, which the kernel starts at 1024. Reporting the raw
+       value was tried: the runs that did so ended with the guest gone and no
+       pause list reached, and no run with this raised value has failed that way.
+       The raw value is therefore not usable here, and this is the value the
+       title can actually act on. */
     value = self->init_lower;
     if (value < 1024 && self->init_upper >= 1024) value = 1024;
     *out = value;
