@@ -64,7 +64,7 @@ private:
     void destroyPipe(Pipe& p);
     void barrier(VkCommandBuffer cmd, VkImage img, VkImageLayout from, VkImageLayout to);
     void initializeImage(VkCommandBuffer cmd, VkImage img, VkImageLayout to);
-    void destroyScratchResources();
+    void destroyScratchResources(bool resetPool = true);
 
     const DeviceDispatch*   dd_ = nullptr;
     const InstanceDispatch*  id_ = nullptr;
