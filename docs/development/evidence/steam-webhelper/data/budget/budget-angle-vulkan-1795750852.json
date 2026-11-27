@@ -1,0 +1,63 @@
+{
+ "variant": "angle-vulkan",
+ "renderer": "age_dma_buf_import EGL_EXT_image_dma_buf_import_modifiers EGL_KHR_reusable_sync EGL_EXT_buffer_age EGL_ANGLE_create_surface_swap_interval EGL_ANGLE_vulkan_image EGL_KHR_partial_update EGL_ANGLE_global_fence_sync \",\n  \"glWsVendor\": \"Google Inc. (Qualcomm)\",\n  \"glWsVersion\": \"1.5 (ANGLE 2.1.23105 git\n",
+ "flags_seen": [
+  "--use-gl=angle",
+  "--use-angle=vulkan"
+ ],
+ "home": {
+  "mib": 33.3,
+  "n": 55,
+  "two_mib": 2
+ },
+ "grid": {
+  "mib": 33.3,
+  "n": 55,
+  "two_mib": 2
+ },
+ "scroll": {
+  "frames": 71,
+  "fps": 5.8,
+  "p50": 166.9,
+  "p95": 333.7,
+  "p99": 392.1,
+  "max": 392.1,
+  "over_25ms": 61,
+  "over_50ms": 61,
+  "time_over_25ms": 11.97,
+  "loaf": 69,
+  "loaf_ms": 12138,
+  "loaf_blocking_ms": 90,
+  "images": 125
+ },
+ "after_scroll": {
+  "mib": 33.3,
+  "n": 55,
+  "two_mib": 2
+ },
+ "pad": {
+  "frames": 139,
+  "fps": 9.7,
+  "p50": 8.4,
+  "p95": 333.7,
+  "p99": 475.6,
+  "max": 517.2,
+  "over_25ms": 67,
+  "over_50ms": 67,
+  "time_over_25ms": 13.59,
+  "loaf": 71,
+  "loaf_ms": 13558,
+  "loaf_blocking_ms": 11,
+  "images": 80
+ },
+ "after_pad": {
+  "mib": 37.0,
+  "n": 56,
+  "two_mib": 2
+ },
+ "idle_20s": {
+  "mib": 37.0,
+  "n": 56,
+  "two_mib": 2
+ }
+}

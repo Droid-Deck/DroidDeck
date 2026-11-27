@@ -1,0 +1,73 @@
+{
+ "5285:Service: network.mojom.NetworkService": {
+  "malloc": 2.8,
+  "malloc/allocated_objects": 2.8,
+  "shared_memory": 2.5
+ },
+ "5576:Renderer": {
+  "cc": 201.6,
+  "cc/image_memory": 181.7,
+  "cc/image_memory/cache_0x79F80281E0": 181.7,
+  "v8": 67.4,
+  "v8/main": 65.6,
+  "v8/main/heap": 64.1,
+  "blink_gc": 54.3,
+  "blink_gc/main": 53.6,
+  "blink_gc/main/heap": 53.6,
+  "malloc": 47.8,
+  "malloc/allocated_objects": 47.8,
+  "malloc/allocated_objects/<unspecified>": 40.9,
+  "shared_memory": 36.1,
+  "partition_alloc": 26.4,
+  "partition_alloc/partitions": 26.4,
+  "media": 25.7,
+  "cc/tile_memory": 19.9,
+  "cc/tile_memory/provider_1": 19.9,
+  "partition_alloc/partitions/buffer": 19.9,
+  "partition_alloc/allocated_objects": 17.9,
+  "web_cache": 14.6,
+  "media/video_frame_memory_1": 10.5,
+  "media/video_frame_memory_2": 10.5,
+  "discardable": 8.0,
+  "partition_alloc/allocated_objects/<unspecified>": 7.9
+ },
+ "5188:?": {
+  "global": 403.1,
+  "global/5abf55af73a7e248": 4.0,
+  "global/edec2299e66d6cb6": 4.0,
+  "global/4caa60f1c1dbff6a": 3.9,
+  "global/a1a4d2d33c33e445": 3.9,
+  "global/10d58c66bab4e10d": 2.6,
+  "global/222959da13852462": 2.6,
+  "global/23e2db50d954a4ae": 2.6,
+  "global/29269b4228099f82": 2.6,
+  "global/42193ae5c4fc3682": 2.6,
+  "global/6d4bf2be096f70b1": 2.6,
+  "global/7bb85aeec4f01526": 2.6,
+  "global/7c11e3a6a74ac0e0": 2.6,
+  "global/88f9984a5a14768e": 2.6,
+  "global/967c25e872198a86": 2.6,
+  "global/adcc660f2307c749": 2.6,
+  "global/c4f3719037dcfa2b": 2.6,
+  "global/ce5f3fc1a2452463": 2.6,
+  "global/d1b6ac4d7153d0ce": 2.6,
+  "global/df7026730765b77e": 2.6,
+  "global/f6d662954dd78420": 2.6,
+  "global/9ceb9e2b9bcef249": 1.5,
+  "global/10b7304d848ca16": 1.3,
+  "global/198e74e3f66fd005": 1.3,
+  "global/1cac7270b829f8f6": 1.3
+ },
+ "7188:Service: tracing.mojom.TracingService": {
+  "shared_memory": 3.8,
+  "malloc": 1.5,
+  "malloc/allocated_objects": 1.5
+ },
+ "5287:Service: storage.mojom.StorageService": {
+  "malloc": 2.2,
+  "malloc/allocated_objects": 2.2,
+  "malloc/allocated_objects/<unspecified>": 2.2,
+  "shared_memory": 1.6
+ }
+}
+

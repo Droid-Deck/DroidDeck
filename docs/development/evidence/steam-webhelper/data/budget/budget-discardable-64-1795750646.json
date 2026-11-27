@@ -1,0 +1,61 @@
+{
+ "variant": "discardable-64",
+ "flags_seen": [
+  "--force-gpu-mem-discardable-limit-mb=64"
+ ],
+ "home": {
+  "mib": 250.0,
+  "n": 222,
+  "two_mib": 74
+ },
+ "grid": {
+  "mib": 280.8,
+  "n": 239,
+  "two_mib": 89
+ },
+ "scroll": {
+  "frames": 550,
+  "fps": 45.6,
+  "p50": 16.7,
+  "p95": 58.6,
+  "p99": 73.9,
+  "max": 132.9,
+  "over_25ms": 155,
+  "over_50ms": 70,
+  "time_over_25ms": 6.99,
+  "loaf": 78,
+  "loaf_ms": 4705,
+  "loaf_blocking_ms": 0,
+  "images": 113
+ },
+ "after_scroll": {
+  "mib": 368.1,
+  "n": 275,
+  "two_mib": 138
+ },
+ "pad": {
+  "frames": 639,
+  "fps": 45.6,
+  "p50": 16.6,
+  "p95": 69.1,
+  "p99": 134.3,
+  "max": 517.3,
+  "over_25ms": 139,
+  "over_50ms": 50,
+  "time_over_25ms": 7.65,
+  "loaf": 50,
+  "loaf_ms": 4872,
+  "loaf_blocking_ms": 99,
+  "images": 80
+ },
+ "after_pad": {
+  "mib": 888.8,
+  "n": 543,
+  "two_mib": 373
+ },
+ "idle_20s": {
+  "mib": 873.2,
+  "n": 538,
+  "two_mib": 371
+ }
+}

@@ -1,0 +1,71 @@
+{
+ "5285:Service: network.mojom.NetworkService": {
+  "shared_memory": 6.0,
+  "shared_memory/1C0F8B5201978DF9C224784A2088747A": 4.0,
+  "malloc": 2.8,
+  "malloc/allocated_objects": 2.8
+ },
+ "7188:Service: tracing.mojom.TracingService": {
+  "shared_memory": 21.2,
+  "shared_memory/1C0F8B5201978DF9C224784A2088747A": 4.0,
+  "shared_memory/40776B154D5DED5BB2A873323F978368": 4.0,
+  "shared_memory/644578340E7265C558CD264EE9265D5C": 4.0,
+  "shared_memory/7EFC5EA5635C26DA1B26092B9998AC7C": 4.0,
+  "shared_memory/BD6C7B0B75DCB06C8FCDF60C231C5093": 4.0,
+  "malloc": 1.7,
+  "malloc/allocated_objects": 1.7
+ },
+ "5287:Service: storage.mojom.StorageService": {
+  "shared_memory": 5.1,
+  "shared_memory/7EFC5EA5635C26DA1B26092B9998AC7C": 4.0,
+  "malloc": 2.2,
+  "malloc/allocated_objects": 2.2,
+  "malloc/allocated_objects/<unspecified>": 2.2
+ },
+ "5188:?": {
+  "global": 176.8
+ },
+ "5576:Renderer": {
+  "v8": 79.1,
+  "v8/main": 77.4,
+  "v8/main/heap": 75.8,
+  "blink_gc": 55.6,
+  "blink_gc/main": 54.9,
+  "blink_gc/main/heap": 54.9,
+  "malloc": 47.7,
+  "malloc/allocated_objects": 47.7,
+  "malloc/allocated_objects/<unspecified>": 40.8,
+  "shared_memory": 35.6,
+  "partition_alloc": 31.8,
+  "partition_alloc/partitions": 31.8,
+  "media": 25.7,
+  "partition_alloc/partitions/buffer": 25.4,
+  "partition_alloc/allocated_objects": 23.3,
+  "cc": 20.0,
+  "cc/tile_memory": 20.0,
+  "cc/tile_memory/provider_1": 20.0,
+  "web_cache": 14.6,
+  "media/video_frame_memory_1": 10.5,
+  "media/video_frame_memory_2": 10.5,
+  "partition_alloc/allocated_objects/<unspecified>": 8.0,
+  "web_cache/CSS stylesheet_resources": 7.1,
+  "partition_alloc/partitions/fast_malloc": 6.1,
+  "partition_alloc/allocated_objects/__94caf9bd65bad71": 5.3,
+  "web_cache/CSS stylesheet_resources/9": 5.3,
+  "parkable_strings": 5.2,
+  "parkable_strings/<unspecified>": 5.2,
+  "partition_alloc/allocated_objects/__e4d1f75e853370": 5.2,
+  "media/webmediaplayer": 4.7,
+  "web_cache/Image_resources": 4.2,
+  "discardable": 4.0,
+  "discardable/segment_1": 4.0,
+  "shared_memory/0C3B7BEE5B68BBBD37AFE02CFDA647A0": 4.0,
+  "shared_memory/BD6C7B0B75DCB06C8FCDF60C231C5093": 4.0,
+  "discardable/segment_1/<unspecified>": 3.9,
+  "web_cache/Script_resources": 2.7,
+  "media/webmediaplayer/video": 2.6,
+  "media/webmediaplayer/data_source": 1.9,
+  "partition_alloc/allocated_objects/__751ddc2670bd23d7": 1.7
+ }
+}
+
