@@ -46,10 +46,12 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
@@ -142,6 +144,13 @@ internal fun SteamQamPanel() {
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             var misses = 0
+            // The lease is renewed on its own, so slow discovery or a retry backoff never lets the held menu lapse.
+            val renew = launch {
+                while (isActive) {
+                    if (SessionState.phase == SessionPhase.READY && aspect[0] > 0f) SteamQam.hold(context, aspect[0])
+                    delay(TICK_MS)
+                }
+            }
             try {
                 while (isActive) {
                     // Holding the menu before Steam's first frame keeps gamescope from presenting it.
@@ -208,19 +217,13 @@ internal fun SteamQamPanel() {
                         else -> FAST_TICK_MS
                     }
                     val used = QamFit.current(context)
-                    // A long backoff is waited out in ticks that renew the lease, so the held menu never lapses.
-                    var left = wait
-                    while (left > 0 && isActive) {
-                        val changed = withTimeoutOrNull(minOf(left, TICK_MS)) {
-                            snapshotFlow { QamFit.current(context) }.first { it != used }
-                        }
-                        if (changed != null) break
-                        left -= TICK_MS
-                        if (left > 0) SteamQam.hold(context, aspect[0])
+                    withTimeoutOrNull(wait) {
+                        snapshotFlow { QamFit.current(context) }.first { it != used }
                     }
                 }
             } finally {
                 withContext(NonCancellable) {
+                    renew.cancelAndJoin()
                     val page = holder[0]
                     holder[0] = null
                     runCatching { page?.send("Page.stopScreencast") }
