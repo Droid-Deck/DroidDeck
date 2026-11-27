@@ -36,8 +36,8 @@ class SteamQamTest {
     }
 
     @Test fun holdingIsALeaseAndReleasingEndsIt() {
-        assertTrue(SteamQam.script(true).contains("g.__ddQamUntil = Date.now() + ${SteamQam.LEASE_MS};"))
-        assertTrue(SteamQam.script(false).contains("g.__ddQamUntil = 0;"))
+        assertTrue(SteamQam.script(true, owner = "a").contains("""g.__ddQamOwner = "a"; g.__ddQamUntil = Date.now() + ${SteamQam.LEASE_MS};"""))
+        assertTrue(SteamQam.script(false, owner = "a").contains("""if (g.__ddQamOwner === "a") g.__ddQamUntil = 0;"""))
     }
 
     @Test fun readsWhetherTheMenuIsShownOnTheTopScreen() {

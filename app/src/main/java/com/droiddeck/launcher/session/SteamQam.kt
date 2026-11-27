@@ -18,7 +18,8 @@ object SteamQam {
     private const val EVAL_MS = 6_000L
 
     /** [aspect] is the panel's width over height: the menu is laid out at that shape so every tab shows at one scale. */
-    internal fun script(on: Boolean, aspect: Float = 0f): String = """(() => {
+    /** [owner] names the panel holding the menu, so a panel being torn down cannot end its replacement's lease. */
+    internal fun script(on: Boolean, aspect: Float = 0f, owner: String = ""): String = """(() => {
         const g = globalThis, QAM = 2;
         const W = SteamUIStore.WindowStore.SteamUIWindows[0];
         const m = W.MenuStore, c = W.m_CompositionStateStore;
@@ -133,7 +134,8 @@ object SteamQam {
             if (main && nav.m_LastActiveNavTree?.m_ID?.startsWith("QuickAccess")) nav.SetActiveNavTree(main);
             backdrop(true);
         };
-        g.__ddQamUntil = ${if (on) "Date.now() + $LEASE_MS" else "0"};
+        ${if (on) "g.__ddQamOwner = ${JSONObject.quote(owner)}; g.__ddQamUntil = Date.now() + $LEASE_MS;"
+            else "if (g.__ddQamOwner === ${JSONObject.quote(owner)}) g.__ddQamUntil = 0;"}
         ${if (on && aspect > 0f) "g.__ddQamAspect = $aspect;" else ""}
         keep();
         if (held() && !g.__ddQamTimer) {
@@ -148,15 +150,15 @@ object SteamQam {
     /** [open] is Steam's open side menu; [top] is true while the menu is shown on the top screen. */
     data class Hold(val open: Int, val top: Boolean)
 
-    fun hold(context: Context, aspect: Float): Hold? = eval(context, script(true, aspect))?.let(::parseHold)
+    fun hold(context: Context, aspect: Float, owner: String): Hold? = eval(context, script(true, aspect, owner))?.let(::parseHold)
 
     internal fun parseHold(text: String): Hold? = runCatching {
         val a = JSONArray(text)
         Hold(a.getInt(0), a.getInt(1) == 1)
     }.getOrNull()
 
-    fun release(context: Context, relayPort: Int) {
-        eval(context, script(false))
+    fun release(context: Context, relayPort: Int, owner: String) {
+        eval(context, script(false, owner = owner))
         stopRelay(context, relayPort)
     }
 

@@ -136,6 +136,7 @@ internal fun SteamQamPanel() {
     }
     val fit = QamFit.current(context)
     val holder = remember { arrayOfNulls<CdpPage>(1) }
+    val owner = remember { java.util.UUID.randomUUID().toString() }
     val relay = remember { intArrayOf(0) }
     val live = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     val aspect = remember { floatArrayOf(0f) }
@@ -147,7 +148,7 @@ internal fun SteamQamPanel() {
             // The lease is renewed on its own, so slow discovery or a retry backoff never lets the held menu lapse.
             val renew = launch {
                 while (isActive) {
-                    if (SessionState.phase == SessionPhase.READY && aspect[0] > 0f) SteamQam.hold(context, aspect[0])
+                    if (SessionState.phase == SessionPhase.READY && aspect[0] > 0f) SteamQam.hold(context, aspect[0], owner)
                     delay(TICK_MS)
                 }
             }
@@ -162,7 +163,7 @@ internal fun SteamQamPanel() {
                         delay(FAST_TICK_MS)
                         continue
                     }
-                    val held = SteamQam.hold(context, aspect[0])
+                    val held = SteamQam.hold(context, aspect[0], owner)
                     ensureActive()
                     var reached = held != null
                     if (held?.open == SteamQam.QUICK_ACCESS) {
@@ -230,7 +231,7 @@ internal fun SteamQamPanel() {
                     // The page outlives this connection, so the widened layout would otherwise stay on the top screen.
                     runCatching { page?.evaluate(QamLayout.contentScript(wide = false)) }
                     page?.close()
-                    SteamQam.release(context, relay[0])
+                    SteamQam.release(context, relay[0], owner)
                 }
             }
         }
