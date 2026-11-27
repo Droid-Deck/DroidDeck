@@ -68,6 +68,40 @@ DOTNET_FEX = {
 }
 
 
+STORE_LAUNCHER = ".droiddeck-launch.bat"
+STORE_SIDECAR = ".droiddeck-store.json"
+
+
+def store_game_exe(exe):
+    if os.path.basename(exe).lower() != STORE_LAUNCHER:
+        return exe
+    folder = os.path.dirname(exe)
+    try:
+        with open(os.path.join(folder, STORE_SIDECAR), encoding="utf-8") as source:
+            sidecar = json.load(source)
+    except (OSError, ValueError):
+        return exe
+    target = sidecar.get("exe") if isinstance(sidecar, dict) else None
+    if not isinstance(target, str) or not target.strip() or "\0" in target:
+        return exe
+    normalized = target.replace("\\", "/")
+    if ":" in normalized or normalized.startswith("/") or ".." in normalized.split("/"):
+        return exe
+    relative = os.path.normpath(normalized)
+    if os.path.isabs(relative) or relative in (".", "..") or relative.startswith(".." + os.sep):
+        return exe
+    candidate = os.path.join(folder, relative)
+    if not os.path.isfile(candidate):
+        return exe
+    root = os.path.realpath(folder)
+    try:
+        if os.path.commonpath((root, os.path.realpath(candidate))) != root:
+            return exe
+    except ValueError:
+        return exe
+    return candidate
+
+
 def game_files(exe):
     names = set()
     folder = os.path.dirname(exe)
@@ -89,6 +123,7 @@ def game_files(exe):
 class Game:
 
     def __init__(self, exe, args, app_id=""):
+        exe = store_game_exe(exe)
         self.exe = exe
         self.args = args
         self.app_id = app_id
@@ -273,7 +308,7 @@ def with_system_settings(text, settings):
 
 # The game ignores -ini: overrides and deletes a writable Engine.ini after reading it, so this runs at every launch.
 def dragon_quest_monsters_4_mesh_detail(exe, env):
-    project = Path(exe).stem.split("-", 1)[0]
+    project = Path(store_game_exe(exe)).stem.split("-", 1)[0]
     if not project.lower().startswith("dragonquestmonsters4"):
         return
     prefix = Path(env.get("STEAM_COMPAT_DATA_PATH", "/nonexistent")) / "pfx"
@@ -398,7 +433,7 @@ def zomboid_rewrite(node):
 def project_zomboid_jvm(command):
     if len(command) <= 2:
         return
-    exe = Path(command[2])
+    exe = Path(store_game_exe(command[2]))
     if not exe.stem.lower().startswith("projectzomboid"):
         return
     settings = exe.with_suffix(".json")
@@ -721,12 +756,15 @@ def apply_config(env, config, app_id, fixes=None):
 
 
 def render_path_defaults(command, env):
-    if len(command) < 3 or command[1] != "waitforexitandrun" or Path(command[2]).name.lower() != "spintires.exe":
+    if len(command) < 3 or command[1] != "waitforexitandrun":
+        return None
+    exe = Path(store_game_exe(command[2]))
+    if exe.name.lower() != "spintires.exe":
         return None
     own = env.get("DXVK_CONFIG", "")
     if re.search(r"(?:^|;)\s*dxvk\.tilerMode\s*=", own) or env.get("DXVK_CONFIG_FILE"):
         return None
-    if Path("dxvk.conf").is_file() or Path(command[2]).with_name("dxvk.conf").is_file():
+    if Path("dxvk.conf").is_file() or exe.with_name("dxvk.conf").is_file():
         return None
     driver = env.get("VK_DRIVER_FILES", env.get("VK_ICD_FILENAMES", ""))
     if Path(driver).parent.name != "DD-Turnip_v0.4.0":
@@ -1290,7 +1328,7 @@ def dirt_ws2_wanted(command, env):
     prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
     if len(command) < 3 or not prefix or not os.path.isfile(DIRT_WS2):
         return None
-    game = DIRT_GAMES.get(os.path.splitext(os.path.basename(command[2]))[0].lower())
+    game = DIRT_GAMES.get(os.path.splitext(os.path.basename(store_game_exe(command[2])))[0].lower())
     if not game or not dirt_telemetry_on(prefix, game) or proton_has_dirt_fix(command[0]):
         return None
     return prefix if os.path.lexists(prefix_ws2(prefix)) else None
@@ -1347,7 +1385,7 @@ def ego_core_plan(command, env):
     count = windows_core_count(env)
     if not count or len(command) < 3:
         return None
-    folder = Path(command[2]).parent
+    folder = Path(store_game_exe(command[2])).parent
     path = folder / EGO_RESTRICTIONS
     try:
         raw = path.read_bytes()
