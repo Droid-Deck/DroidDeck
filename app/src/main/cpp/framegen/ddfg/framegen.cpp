@@ -3,6 +3,7 @@
 #include "log.hpp"
 #include <cmath>
 #include <cstdio>
+#include <array>
 
 namespace ddfg {
 
