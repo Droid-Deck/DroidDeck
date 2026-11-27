@@ -480,6 +480,12 @@ def wine(argv, source_env=None, package=None):
     if len(command) < 3 or command[1] != 'waitforexitandrun' or len(argv) != 1:
         raise ValueError('Invalid Xbox Proton invocation')
     env = dict(source_env)
+    # A marker file beside the runtime turns on the ws2_32 datagram trace for the
+    # next launch, so a session can be diagnosed on the device without rebuilding
+    # the runtime. The patched ws2_32 writes the lines to stderr, so WINEDEBUG=-all
+    # does not hide them.
+    if (RUNTIME / 'sock-trace').exists():
+        env['DROIDDECK_SOCK_TRACE'] = '1'
     for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
         env.pop(name, None)
     env.pop('DROIDDECK_XBOX_COMMAND_FILE', None)
