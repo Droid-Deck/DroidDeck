@@ -142,7 +142,8 @@ internal class LibraryEntry(
     val game: Library.SteamGame?, val item: CatalogItem?, val installed: Boolean,
 ) {
     val storeKey: String? get() = item?.key ?: game?.storeId?.let { "${game.source}:$it" }
-    val favoriteKey: String get() = storeKey ?: key
+    /** A Steam game keeps the key it has once the Steam client lists it, so favoriting it before the install carries over. */
+    val favoriteKey: String get() = if (item?.store == Store.STEAM) "app:${item.id}" else storeKey ?: key
 }
 
 internal fun libraryEntries(
@@ -152,6 +153,7 @@ internal fun libraryEntries(
     val out = ArrayList<LibraryEntry>()
     for (g in games.sortedBy { it.library == Library.XBOX_CLOUD }) {
         if (g.library == Library.EPIC_LAUNCHER) continue
+        if (Library.fromSteamClient(g)) claimed.add("${Store.STEAM.id}:${g.appId}")
         val storeKey = g.storeId?.let { "${g.source}:$it" }
         val item = storeKey?.let { k -> Store.byId(g.source)?.let { st -> owned[st]?.firstOrNull { it.key == k } } }
         if (storeKey != null) {
@@ -163,7 +165,7 @@ internal fun libraryEntries(
     }
     for (store in Store.entries) for (item in owned[store].orEmpty()) {
         if (!claimed.add(item.key)) continue
-        out += LibraryEntry(GameRef.key(item), store.id, item.title, null, item, installed = item.key in installedStore)
+        out += LibraryEntry(GameRef.key(item), store.librarySource, item.title, null, item, installed = item.key in installedStore)
     }
     return out.distinctBy { it.key }
 }
@@ -307,7 +309,7 @@ internal object LibraryView {
     fun showOwned(context: android.content.Context, store: Store) {
         SessionPrefs.setLibraryShowUninstalled(context, true)
         ownedRequest++
-        source = store.id
+        source = store.librarySource
         query = ""
         focusFirst = true
     }

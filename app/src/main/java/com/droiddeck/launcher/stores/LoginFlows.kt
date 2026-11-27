@@ -17,7 +17,7 @@ internal object LoginFlows {
         Store.UBISOFT -> ubisoftFlow(browserUserAgent)
         Store.EA -> eaFlow(browserUserAgent)
         Store.ROCKSTAR -> rockstarFlow(browserUserAgent)
-        Store.ITCH, Store.XBOX, Store.BATTLENET -> null
+        Store.ITCH, Store.XBOX, Store.BATTLENET, Store.STEAM -> null
     }
 
     @Volatile var epicFlow: () -> StoreLoginActivity.Flow? = { null }

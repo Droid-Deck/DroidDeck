@@ -11,6 +11,10 @@ object GameLaunchIntent {
 
     fun accepts(action: String?): Boolean = action == Intent.ACTION_VIEW || action == ACTION || action == GAMENATIVE_ACTION
 
+    fun replayed(intent: Intent, restored: Boolean, savedProcess: String?, process: String): Boolean =
+        !(intent.data?.scheme == "droiddeck" && intent.data?.host == "settings") &&
+            (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0 || restored && savedProcess != process)
+
     fun read(context: Context, intent: Intent): GameRequest? = when (intent.action) {
         Intent.ACTION_VIEW -> GameFiles.readIntent(context, intent)
         ACTION, GAMENATIVE_ACTION -> readExtras(intent)

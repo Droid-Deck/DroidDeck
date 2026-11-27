@@ -4081,4 +4081,7 @@
     <string name="theme_custom_error">Hiba</string>
     <string name="hud_only_during_game">HUD megjelenítése csak játék közben</string>
     <string name="hud_only_during_game_hint">HUD elrejtése, ha nem észlelhetők játék képkockái.</string>
+    <string name="steam_store_close_steam">Előbb zárd be a Steamet</string>
+    <string name="steam_store_session_wait">Előbb szüneteltesd a Steam-letöltést</string>
+    <string name="steam_store_linux_build">Ez a játék a Linux-verzióját telepíti. Telepítsd a Steamből.</string>
 </resources>

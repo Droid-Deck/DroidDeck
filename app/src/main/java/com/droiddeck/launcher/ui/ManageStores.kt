@@ -79,7 +79,7 @@ internal object StoreTabsState {
         private set
 
     fun load(context: android.content.Context) {
-        SessionPrefs.settleStoresTabOrder(context, Store.entries.map { it.id })
+        SessionPrefs.settleStoresTabOrder(context, Store.tabbed.map { it.id })
         tabs = arrangeStoreTabs(SessionPrefs.storesTabOrder(context), SessionPrefs.storesTabHidden(context))
         libraryPlaces = SessionPrefs.libraryTabPlaces(context)?.let(::migrateSteamLibraryTabPlaces) ?: DEFAULT_LIBRARY_PLACES
         libraryHidden = SessionPrefs.libraryTabsHidden(context) + listOfNotNull(LIBRARY_HIDDEN.takeUnless { SessionPrefs.libraryShowHidden(context) })
