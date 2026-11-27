@@ -1,12 +1,46 @@
 Subject: zink: reclaim freed slab entries and cached buffers while the client is idle
 
 zink only reclaims slab entries and expired cached buffers during its next
-allocation. A client that frees a lot and then goes idle keeps all of it
-allocated: Steam's web helper held 500-700 MiB of KGSL memory behind a
+allocation, and pb_slabs_reclaim stops at the first entries still in use. A
+client that frees a lot and then goes idle keeps all of it allocated: Steam's web helper held 500-700 MiB of KGSL memory behind a
 fullscreen game after scrolling its library, and released it the moment the
 overlay drew a frame. A thread now reclaims once a second after a second
 without allocations.
 
+--- a/src/util/pb_slab.h
++++ b/src/util/pb_slab.h
+@@ -145,6 +145,9 @@
+ unsigned
+ pb_slabs_reclaim(struct pb_slabs *slabs);
+ 
++unsigned
++pb_slabs_reclaim_all(struct pb_slabs *slabs);
++
+ bool
+ pb_slabs_init(struct pb_slabs *slabs,
+               unsigned min_order, unsigned max_order,
+--- a/src/util/pb_slab.c
++++ b/src/util/pb_slab.c
+@@ -231,6 +231,19 @@
+    return num_reclaims;
+ }
+ 
++/* Like pb_slabs_reclaim, but skips entries that are still in use instead of
++ * stopping at the first ones, so entries freed behind them are reclaimed too.
++ */
++unsigned
++pb_slabs_reclaim_all(struct pb_slabs *slabs)
++{
++   unsigned num_reclaims;
++   simple_mtx_lock(&slabs->mutex);
++   num_reclaims = pb_slabs_reclaim_all_locked(slabs);
++   simple_mtx_unlock(&slabs->mutex);
++   return num_reclaims;
++}
++
+ /* Initialize the slabs manager.
+  *
+  * The minimum and maximum size of slab entries are 2^min_order and
 --- a/src/gallium/drivers/zink/zink_types.h
 +++ b/src/gallium/drivers/zink/zink_types.h
 @@ -1427,6 +1427,12 @@
@@ -67,7 +101,7 @@ without allocations.
 +      uint32_t serial = p_atomic_read(&screen->pb.alloc_serial);
 +      if (serial == seen) {
 +         for (unsigned i = 0; i < NUM_SLAB_ALLOCATORS; i++)
-+            pb_slabs_reclaim(&screen->pb.bo_slabs[i]);
++            pb_slabs_reclaim_all(&screen->pb.bo_slabs[i]);
 +         pb_cache_release_all_buffers(&screen->pb.bo_cache);
 +      }
 +      seen = serial;
