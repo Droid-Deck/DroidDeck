@@ -9452,7 +9452,12 @@ static WORD xbl_ep_pick_local_port(WORD lower, WORD upper)
         else fn_close(s);
     }
 
-    /* The stack's choice fell outside a narrow range, so walk the range. */
+    /* The stack's choice fell outside a narrow range, so walk the range. Start at
+       the lowest port this process may actually bind: below 1024 the kernel refuses
+       an unprivileged bind, so walking there only burns attempts and would let the
+       fallback hand back a port no socket could hold. This is about which port we
+       bind, not about what range we report. */
+    if (lower < 1024) lower = 1024;
     for (tries = 0; tries < 512 && lower + tries <= upper; tries++) {
         port = lower + tries;
         s = fn_sock(2, 2, 17);
@@ -9557,14 +9562,14 @@ static HRESULT __stdcall xbl_ept_get_InitiatorLower(xbl_ept_object *self, UINT16
 {
     UINT16 value;
     if (!out) return E_POINTER;
-    /* Report the manifest range raised to the lowest port this host can bind.
+    /* Report the manifest range raised to the lowest port this host may bind.
        The manifest opens at 1 because on Windows the Xbox Live service owns the
-       range and is privileged. Here the title binds ports itself as an
-       unprivileged app uid, which the kernel starts at 1024. Reporting the raw
-       value was tried: the runs that did so ended with the guest gone and no
-       pause list reached, and no run with this raised value has failed that way.
-       The raw value is therefore not usable here, and this is the value the
-       title can actually act on. */
+       range and is privileged. Reporting the raw value was tested twice and both
+       times the title never reached an interactive pause menu: once in the original
+       investigation, and again after the driver was fixed enough to reach the title
+       and welcome reliably (10 start presses, no pause list, session FAILED). What
+       we bind is decided separately by xbl_ep_pick_local_port, which asks the stack
+       for an ephemeral port first; this value is what the title reads and acts on. */
     value = self->init_lower;
     if (value < 1024 && self->init_upper >= 1024) value = 1024;
     *out = value;
