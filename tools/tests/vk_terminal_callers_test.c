@@ -169,6 +169,8 @@ static void setup(int extra) {
     g_surface_checked_ns = INT64_MAX; /* no simulated geometry change */
     g_scene.img = (VkImage)(uintptr_t)5; g_scene.mem = (VkDeviceMemory)(uintptr_t)6;
     g_scene.w = g_scene.h = 64;
+    g_rnds = calloc(MAX_PRESENTS, sizeof(*g_rnds)); assert(g_rnds);
+    g_rnd_count = MAX_PRESENTS;
     for (int k = 0; k < MAX_PRESENTS; ++k) {
         g_cmds[k] = (VkCommandBuffer)(uintptr_t)(10 + k);
         g_acqs[k] = (VkSemaphore)(uintptr_t)(20 + k);
