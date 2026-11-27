@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -682,12 +683,267 @@ static void finish(struct handle *h) {
   give(&lock);
 }
 
+#define PREFETCH_SLOW_NS 20000000LL
+#define PREFETCH_THREADS 3
+#define PREFETCH_QUEUE 512
+#define PREFETCH_BATCH 128
+#define PREFETCH_SCANS 16
+#define PREFETCH_SEEN 1024
+#define EXFAT_MAGIC 0x2011BAB0
+#define MSDOS_MAGIC 0x4d44
+#define NTFS3_MAGIC 0x7366746e
+#define SDCARDFS_MAGIC 0x5dca2df5
+
+struct scan { char *path; char *names[PREFETCH_BATCH]; int n; };
+
+static pthread_mutex_t qlock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t qwake = PTHREAD_COND_INITIALIZER;
+static char *queue[PREFETCH_QUEUE];
+static int qtop, qcount;
+static int workers;
+static struct scan *scans[PREFETCH_SCANS];
+static DIR *scan_keys[PREFETCH_SCANS];
+static struct { dev_t dev; ino_t ino; } seen[PREFETCH_SEEN];
+static int nseen, seen_at;
+
+static int prefetching(void) {
+  static int on = -1;
+  if (on < 0) {
+    const char *off = getenv("DD_NO_DIR_PREFETCH");
+    on = !(off && strcmp(off, "1") == 0);
+  }
+  return on;
+}
+
+static void prefetch_fork(void) {
+  pthread_mutex_init(&qlock, NULL);
+  pthread_cond_init(&qwake, NULL);
+  for (int i = 0; i < PREFETCH_QUEUE; i++) queue[i] = NULL;
+  qtop = qcount = workers = 0;
+  for (int i = 0; i < PREFETCH_SCANS; i++) {
+    scans[i] = NULL;
+    scan_keys[i] = NULL;
+  }
+  nseen = seen_at = 0;
+}
+
+__attribute__((constructor)) static void prefetch_init(void) {
+  pthread_atfork(NULL, NULL, prefetch_fork);
+}
+
+static long long precise_ns(void) {
+  struct timespec t;
+  clock_gettime(CLOCK_MONOTONIC, &t);
+  return (long long)t.tv_sec * 1000000000LL + t.tv_nsec;
+}
+
+static int slow_storage(int fd) {
+  struct statfs fs;
+  if (fstatfs(fd, &fs) != 0) return 0;
+  unsigned long type = (unsigned long)fs.f_type;
+  return type == FUSE_MAGIC || type == EXFAT_MAGIC || type == MSDOS_MAGIC || type == NTFS3_MAGIC ||
+         type == SDCARDFS_MAGIC;
+}
+
+static int threaded(void) {
+  char buf[1024];
+  int fd = open("/proc/self/stat", O_RDONLY | O_CLOEXEC);
+  if (fd < 0) return 0;
+  ssize_t n = read(fd, buf, sizeof(buf) - 1);
+  close(fd);
+  if (n <= 0) return 0;
+  buf[n] = 0;
+  char *at = strrchr(buf, ')');
+  long count = 0;
+  if (at == NULL || sscanf(at + 2, "%*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %*u %*u %*d %*d %*d %*d %ld", &count) != 1)
+    return 0;
+  return count > 1;
+}
+
+static int was_seen(dev_t dev, ino_t ino) {
+  for (int i = 0; i < nseen; i++)
+    if (seen[i].ino == ino && seen[i].dev == dev) return 1;
+  return 0;
+}
+
+static void *prefetcher(void *arg) {
+  (void)arg;
+  pthread_setname_np(pthread_self(), "dd-prefetch");
+  NEXT(opendir);
+  NEXT(readdir64);
+  NEXT(closedir);
+  NEXT(dirfd);
+  for (;;) {
+    pthread_mutex_lock(&qlock);
+    while (qcount == 0) pthread_cond_wait(&qwake, &qlock);
+    qtop = (qtop + PREFETCH_QUEUE - 1) % PREFETCH_QUEUE;
+    char *path = queue[qtop];
+    queue[qtop] = NULL;
+    qcount--;
+    pthread_mutex_unlock(&qlock);
+    DIR *d = next_opendir(path);
+    free(path);
+    if (d == NULL) continue;
+    struct stat st;
+    if (fstat(next_dirfd(d), &st) == 0) {
+      pthread_mutex_lock(&qlock);
+      if (!was_seen(st.st_dev, st.st_ino)) {
+        seen[seen_at].dev = st.st_dev;
+        seen[seen_at].ino = st.st_ino;
+        seen_at = (seen_at + 1) % PREFETCH_SEEN;
+        if (nseen < PREFETCH_SEEN) __atomic_store_n(&nseen, nseen + 1, __ATOMIC_RELEASE);
+      }
+      pthread_mutex_unlock(&qlock);
+    }
+    while (next_readdir64(d)) {}
+    next_closedir(d);
+  }
+  return NULL;
+}
+
+static void start_prefetchers(void) {
+  pthread_attr_t attr;
+  sigset_t all, old;
+  if (pthread_attr_init(&attr) != 0) return;
+  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+  pthread_attr_setstacksize(&attr, 256 * 1024);
+  sigfillset(&all);
+  pthread_sigmask(SIG_SETMASK, &all, &old);
+  while (workers < PREFETCH_THREADS) {
+    pthread_t t;
+    if (pthread_create(&t, &attr, prefetcher, NULL) != 0) break;
+    workers++;
+  }
+  pthread_sigmask(SIG_SETMASK, &old, NULL);
+  pthread_attr_destroy(&attr);
+}
+
+static void flush_scan(struct scan *s) {
+  size_t base = strlen(s->path);
+  pthread_mutex_lock(&qlock);
+  for (int i = s->n - 1; i >= 0; i--) {
+    size_t n = strlen(s->names[i]);
+    char *child = base + n + 2 <= PATH_MAX ? malloc(base + n + 2) : NULL;
+    if (child) {
+      memcpy(child, s->path, base);
+      child[base] = '/';
+      memcpy(child + base + 1, s->names[i], n + 1);
+      if (qcount == PREFETCH_QUEUE) free(queue[qtop]);
+      else qcount++;
+      queue[qtop] = child;
+      qtop = (qtop + 1) % PREFETCH_QUEUE;
+    }
+    free(s->names[i]);
+  }
+  s->n = 0;
+  if (qcount > 0) {
+    if (workers < PREFETCH_THREADS) start_prefetchers();
+    pthread_cond_broadcast(&qwake);
+  }
+  pthread_mutex_unlock(&qlock);
+}
+
+static int scan_slot(DIR *key) {
+  for (int i = 0; i < PREFETCH_SCANS; i++) {
+    if (__atomic_load_n(&scan_keys[i], __ATOMIC_ACQUIRE) == key) return i;
+  }
+  return -1;
+}
+
+static void end_scan(DIR *key) {
+  int i = scan_slot(key);
+  if (i < 0) return;
+  struct scan *s = scans[i];
+  scans[i] = NULL;
+  __atomic_store_n(&scan_keys[i], NULL, __ATOMIC_RELEASE);
+  flush_scan(s);
+  free(s->path);
+  free(s);
+}
+
+static void begin_scan(DIR *key, int fd) {
+  char link[64], path[PATH_MAX];
+  snprintf(link, sizeof(link), "/proc/self/fd/%d", fd);
+  ssize_t n = readlink(link, path, sizeof(path) - 1);
+  if (n <= 0 || path[0] != '/') return;
+  path[n] = 0;
+  struct scan *s = calloc(1, sizeof(*s));
+  if (s == NULL || (s->path = strdup(path)) == NULL) {
+    free(s);
+    return;
+  }
+  pthread_mutex_lock(&qlock);
+  for (int i = 0; i < PREFETCH_SCANS; i++) {
+    if (__atomic_load_n(&scan_keys[i], __ATOMIC_ACQUIRE) == NULL) {
+      scans[i] = s;
+      __atomic_store_n(&scan_keys[i], key, __ATOMIC_RELEASE);
+      s = NULL;
+      break;
+    }
+  }
+  pthread_mutex_unlock(&qlock);
+  if (s) {
+    free(s->path);
+    free(s);
+  }
+}
+
+static int continues_walk(DIR *real, int fd) {
+  if (__atomic_load_n(&nseen, __ATOMIC_ACQUIRE) == 0 || next_telldir(real) != 0) return 0;
+  struct stat st;
+  if (fstat(fd, &st) != 0) return 0;
+  pthread_mutex_lock(&qlock);
+  int found = was_seen(st.st_dev, st.st_ino);
+  pthread_mutex_unlock(&qlock);
+  return found;
+}
+
+static void note(struct scan *s, const struct dirent64 *r) {
+  if (r->d_type != DT_DIR || strcmp(r->d_name, ".") == 0 || strcmp(r->d_name, "..") == 0 || s->n >= PREFETCH_BATCH)
+    return;
+  if ((s->names[s->n] = strdup(r->d_name)) != NULL) s->n++;
+}
+
+static struct dirent64 *pull(DIR *key, DIR *real, struct dirent64 *(*next)(DIR *)) {
+  if (holding || !prefetching()) return next(real);
+  NEXT(telldir);
+  NEXT(dirfd);
+  int i = scan_slot(key);
+  if (i < 0) {
+    int saved = errno;
+    int fd = next_dirfd(real);
+    int walk = continues_walk(real, fd);
+    errno = saved;
+    long long start = walk ? 0 : precise_ns();
+    struct dirent64 *r = next(real);
+    if (r == NULL) return r;
+    saved = errno;
+    if (walk || (precise_ns() - start >= PREFETCH_SLOW_NS && slow_storage(fd) &&
+                 (__atomic_load_n(&workers, __ATOMIC_ACQUIRE) > 0 || threaded())))
+      begin_scan(key, fd);
+    i = scan_slot(key);
+    errno = saved;
+    if (i < 0) return r;
+    note(scans[i], r);
+    return r;
+  }
+  struct dirent64 *r = next(real);
+  int saved = errno;
+  if (r == NULL) {
+    end_scan(key);
+  } else {
+    note(scans[i], r);
+  }
+  errno = saved;
+  return r;
+}
+
 static struct dirent64 *entry(struct handle *h) {
   NEXT(readdir64);
   if (h->real) {
     int saved = errno;
     errno = 0;
-    struct dirent64 *r = next_readdir64(h->real);
+    struct dirent64 *r = pull((DIR *)h, h->real, next_readdir64);
     int error = errno;
     if (h->fill) {
       if (r) {
@@ -711,13 +967,13 @@ static struct dirent64 *entry(struct handle *h) {
 struct dirent64 *readdir64(DIR *d) {
   NEXT(readdir64);
   struct handle *h = lookup(d);
-  return h ? entry(h) : next_readdir64(d);
+  return h ? entry(h) : pull(d, d, next_readdir64);
 }
 
 struct dirent *readdir(DIR *d) {
   NEXT(readdir);
   struct handle *h = lookup(d);
-  return h ? (struct dirent *)entry(h) : next_readdir(d);
+  return h ? (struct dirent *)entry(h) : (struct dirent *)pull(d, d, (struct dirent64 * (*)(DIR *))next_readdir);
 }
 
 #pragma GCC diagnostic push
@@ -747,6 +1003,7 @@ int readdir_r(DIR *d, struct dirent *out, struct dirent **result) {
 int closedir(DIR *d) {
   NEXT(closedir);
   if (holding && registered(d) < 0) return next_closedir(d);
+  end_scan(d);
   take(&lock);
   int i = registered(d);
   struct handle *h = i >= 0 ? handles[i] : NULL;

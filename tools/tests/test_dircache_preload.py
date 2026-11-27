@@ -20,9 +20,40 @@ FAKE = r"""
 #include <sys/stat.h>
 #include <sys/statfs.h>
 #include <sys/inotify.h>
+#include <sys/prctl.h>
 #include <unistd.h>
 
 int real_opendirs;
+
+static int prefetcher(void) {
+  char name[16] = "";
+  prctl(PR_GET_NAME, name);
+  return strcmp(name, "dd-prefetch") == 0;
+}
+
+static void cold(DIR *d) {
+  const char *slow = getenv("SLOW");
+  char link[64], path[4096];
+  if (!slow || prefetcher()) return;
+  snprintf(link, sizeof(link), "/proc/self/fd/%d", dirfd(d));
+  ssize_t n = readlink(link, path, sizeof(path) - 1);
+  path[n > 0 ? n : 0] = 0;
+  if (n > 5 && !strcmp(path + n - 5, "/cold")) usleep(atoi(slow) * 1000);
+}
+
+struct dirent *readdir(DIR *d) {
+  static struct dirent *(*next)(DIR *);
+  if (!next) next = dlsym(RTLD_NEXT, "readdir");
+  cold(d);
+  return next(d);
+}
+
+struct dirent64 *readdir64(DIR *d) {
+  static struct dirent64 *(*next)(DIR *);
+  if (!next) next = dlsym(RTLD_NEXT, "readdir64");
+  cold(d);
+  return next(d);
+}
 int real_accesses;
 int real_stats;
 
@@ -130,9 +161,30 @@ int statfs(const char *path, struct statfs *out) {
   return r;
 }
 
+int closedir(DIR *d) {
+  static int (*next)(DIR *);
+  if (!next) next = dlsym(RTLD_NEXT, "closedir");
+  const char *log = prefetcher() ? getenv("PREFETCH_DONE") : NULL;
+  FILE *f = log ? fopen(log, "a") : NULL;
+  if (f) {
+    fprintf(f, "done\n");
+    fclose(f);
+  }
+  return next(d);
+}
+
 DIR *opendir(const char *path) {
   static DIR *(*next)(const char *);
   if (!next) next = dlsym(RTLD_NEXT, "opendir");
+  if (prefetcher()) {
+    const char *log = getenv("PREFETCH_LOG");
+    FILE *f = log ? fopen(log, "a") : NULL;
+    if (f) {
+      fprintf(f, "%s\n", path);
+      fclose(f);
+    }
+    return next(path);
+  }
   if (getenv("FASTPATH")) {
     int fd = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NONBLOCK);
     DIR *d = fd < 0 ? NULL : fdopendir(fd);
@@ -205,6 +257,12 @@ static void raw(const char *dir) {
   }
   close(fd);
   print(names, n);
+}
+
+static void *idle(void *arg) {
+  (void)arg;
+  pause();
+  return NULL;
 }
 
 static const char *stress_dir;
@@ -350,6 +408,29 @@ int main(int argc, char **argv) {
       if (d) closedir(d);
       i += 2;
     }
+    else if (!strcmp(op, "sleep")) { usleep(atoi(a) * 1000); i++; }
+    else if (!strcmp(op, "await")) {
+      const char *log = getenv("PREFETCH_DONE");
+      int lines = 0;
+      for (int tries = 0; tries < 2000 && lines < atoi(a); tries++) {
+        FILE *f = log ? fopen(log, "r") : NULL;
+        int c;
+        lines = 0;
+        while (f && (c = fgetc(f)) != EOF) lines += c == '\n';
+        if (f) fclose(f);
+        if (lines < atoi(a)) usleep(5000);
+      }
+      if (lines < atoi(a)) return 3;
+      i++;
+    }
+    else if (!strcmp(op, "threads")) {
+      FILE *f = fopen("/proc/self/status", "r");
+      char line[256];
+      while (f && fgets(line, sizeof(line), f))
+        if (!strncmp(line, "Threads:", 8)) printf("%d\n", atoi(line + 8));
+      if (f) fclose(f);
+    }
+    else if (!strcmp(op, "thread")) { pthread_t t; pthread_create(&t, NULL, idle, NULL); }
     else if (!strcmp(op, "stats")) printf("%d\n", stats ? *stats : -1);
     else if (!strcmp(op, "accesses")) printf("%d\n", accesses ? *accesses : -1);
     else if (!strcmp(op, "opens")) printf("%d\n", opens ? *opens : -1);
@@ -896,6 +977,56 @@ class DirCachePreloadTest(unittest.TestCase):
     def test_can_be_turned_off(self):
         out = self.run_program("list", self.staging, "list", self.staging, "opens", env={"DD_NO_DIR_CACHE": "1"})
         self.assertEqual("2", out[-1])
+
+    def cold_tree(self, root):
+        top = root / "cold"
+        for sub in ("a/deep/leaf", "b", "c"):
+            (top / sub).mkdir(parents=True)
+        (top / "f.txt").touch()
+        return top.resolve()
+
+    def prefetched(self, *args, program=None, env=None):
+        logs = Path(tempfile.mkdtemp(dir=self.dir))
+        log = logs / "prefetch.log"
+        out = self.run_program("thread", *args, program=program,
+                               env=dict({"SLOW": "40", "PREFETCH_LOG": str(log),
+                                         "PREFETCH_DONE": str(logs / "done.log")}, **(env or {})))
+        return out, sorted(log.read_text().splitlines()) if log.exists() else []
+
+    def test_slow_listings_on_slow_storage_prefetch_the_walk_ahead(self):
+        for program, root in ((self.other, self.lib.parent), (self.steam, self.lib)):
+            top = self.cold_tree(root)
+            out, fetched = self.prefetched("list", top, "await", 3, "list", top / "a", "await", 4, program=program)
+            self.assertEqual(["a,b,c,f.txt", "deep"], out)
+            self.assertEqual(sorted(str(top / d) for d in ("a", "a/deep", "b", "c")), fetched)
+
+    def test_only_slow_listings_on_slow_storage_are_prefetched(self):
+        internal = self.cold_tree(Path(tempfile.mkdtemp(dir=self.dir)) / "ext4")
+        warm = self.lib.parent / "warm"
+        (warm / "child").mkdir(parents=True)
+        top = self.cold_tree(self.lib.parent)
+        out, fetched = self.prefetched("list", internal, "list", warm, "list", top, "await", 3, program=self.other)
+        self.assertEqual(["a,b,c,f.txt", "child", "a,b,c,f.txt"], out)
+        self.assertEqual(sorted(str(top / d) for d in ("a", "b", "c")), fetched)
+
+    def test_single_threaded_programs_stay_single_threaded(self):
+        top = self.cold_tree(self.lib.parent)
+        logs = Path(tempfile.mkdtemp(dir=self.dir))
+        log = logs / "prefetch.log"
+        env = {"SLOW": "40", "PREFETCH_LOG": str(log), "PREFETCH_DONE": str(logs / "done.log")}
+        out = self.run_program("list", top, "threads", program=self.other, env=env)
+        self.assertEqual(["a,b,c,f.txt", "1"], out)
+        self.assertFalse(log.exists())
+        self.run_program("thread", "list", top, "await", 3, program=self.other, env=env)
+        self.assertEqual(sorted(str(top / d) for d in ("a", "b", "c")), sorted(log.read_text().splitlines()))
+
+    def test_prefetching_can_be_turned_off(self):
+        top = self.cold_tree(self.lib.parent)
+        out, off = self.prefetched("list", top, "threads", program=self.other, env={"DD_NO_DIR_PREFETCH": "1"})
+        _, on = self.prefetched("list", top, "await", 3, program=self.other)
+        self.assertEqual(["a,b,c,f.txt", "2"], out)
+        self.assertEqual([], off)
+        self.assertEqual(sorted(str(top / d) for d in ("a", "b", "c")), on)
 
 
 if __name__ == "__main__":

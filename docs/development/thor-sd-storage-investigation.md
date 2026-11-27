@@ -517,3 +517,30 @@ A program started from the card was traced the same way. Three things were measu
 
 The rest of that launch was the program's own launcher and CPU-bound start-up, which did
 not wait on the card in these traces.
+
+## Cold listings in native sessions (2026-11-25)
+
+A Wine program on the card lists each directory with `opendir(".")` after `fchdir`, so
+the Steam client's listing cache (absolute `/steamapps` paths, client process only) never
+applies to it. Tracing a Battle.net launch showed the repeat listings were already cheap
+(0.5 to 1 ms each, 0.27 s in all); the cost was the first, cold read of each directory
+(about 78 ms each, 22 s for 290 directories).
+
+`dircache.c` now times each `readdir` call in every program. When a call takes 20 ms or
+more on FUSE, exFAT, FAT, NTFS3 or sdcardfs, and the program already runs more than one
+thread, the subfolders that listing returns are read ahead by three background threads.
+A program listing a folder that was read ahead has that folder's subfolders read ahead in
+turn, so the read-ahead follows the program's own walk. The threads only read
+directories, so nothing the program sees can be stale. `DD_NO_DIR_PREFETCH=1` turns it
+off.
+
+Paired cold runs on the FIT, both halves of the WoW AddOns tree after the same memory
+eviction, with the halves swapped between runs:
+
+| Tree | Off | On |
+| --- | --- | --- |
+| Deep tree, 125 directories | 13.6, 14.0, 13.8 s | 10.0, 11.2, 12.6 s |
+| Shallow tree, 136 directories | 11.3, 9.3, 12.6 s | 10.2, 12.2, 12.0 s |
+
+The gain is limited because cold directory reads on the card do not overlap: more reader
+threads only hide the card's latency behind the program's own work between listings.
