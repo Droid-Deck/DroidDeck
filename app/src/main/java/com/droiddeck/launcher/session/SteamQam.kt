@@ -71,7 +71,8 @@ object SteamQam {
                 return;
             }
             const decky = !!g.DeckyPluginLoader?.tabsHook?.qamBrowserViewPatch;
-            if (m.m_eOpenSideMenu === QAM && decky && !g.__ddQamDecky) m.CloseSideMenus();
+            // Decky hooks the menu after Steam starts; the menu has to unmount for its tab to appear, so reopen on the next tick.
+            if (m.m_eOpenSideMenu === QAM && decky && !g.__ddQamDecky) { g.__ddQamDecky = true; m.CloseSideMenus(); return; }
             if (m.m_eOpenSideMenu === 0) {
                 m.OpenQuickAccessMenu(g.__ddQamTab ?? undefined);
                 g.__ddQamDecky = decky;

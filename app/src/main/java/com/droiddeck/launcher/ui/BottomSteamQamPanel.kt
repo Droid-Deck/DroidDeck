@@ -84,8 +84,14 @@ internal object QamLayout {
 
     fun toCss(x: Float, y: Float, scale: Float, left: Float): Pair<Float, Float> = (x - left) / scale to y / scale
 
-    const val CONTENT_SCRIPT = "(() => { const w = innerWidth; let right = 0; for (const e of document.body.querySelectorAll('*')) { " +
-        "const r = e.getBoundingClientRect(); if (r.width > 0 && r.height > 0 && r.width < w * 0.75 && r.right > right) right = r.right; } " +
+    /** Makes the menu follow the panel-shaped view (Steam sizes it once, on open) and lifts each tab's 300 px cap, then measures where the content ends. */
+    const val CONTENT_SCRIPT = "(() => { let s = document.getElementById('dd-qam-wide'); " +
+        "if (!s) { s = document.createElement('style'); s.id = 'dd-qam-wide'; document.head.appendChild(s); } " +
+        "const css = 'div.BasicUI { width: 100% !important; } div[class*=\"tab_\"] { max-width: none !important; }'; " +
+        "if (s.textContent !== css) s.textContent = css; if (document.scrollingElement.scrollLeft) document.scrollingElement.scrollLeft = 0; " +
+        "const w = innerWidth; let right = 0; for (const e of document.body.querySelectorAll('*')) { " +
+        "const r = e.getBoundingClientRect(); const tab = /(^| )tab_/.test(String(e.className)); " +
+        "if (r.width > 0 && r.height > 0 && (tab || r.width < w * 0.75) && r.right > right) right = r.right; } " +
         "return JSON.stringify([w, innerHeight, devicePixelRatio, right]); })()"
 }
 
