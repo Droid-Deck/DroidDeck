@@ -30,6 +30,7 @@
     <string name="input_element_trigger">Ravasz</string>
     <string name="input_editor_done">Kész</string>
     <string name="input_editor_undo">Visszavonás</string>
+    <string name="input_editor_redo">Újra</string>
     <string name="input_editor_add">+ Hozzáadás</string>
     <string name="input_editor_hint">Húzza az áthelyezéshez. Húzza a sarkát az átméretezéshez. Koppintson a Tulajdonságokra művelet hozzárendeléséhez.</string>
     <string name="input_editor_remote">Szerkesztés a másodlagos képernyőn</string>
@@ -51,7 +52,7 @@
     <string name="input_delete_profile_detail">Törli: %1$s? A használó módok visszatérnek beépített alapértelmezett profiljukhoz. A mentett elrendezések és megosztott beállítások elérhetők maradnak.</string>
     <string name="input_screen_visibility">Láthatóság</string>
     <string name="input_visibility_shared">Minden profilra érvényes. Az Auto a fő képernyő vezérlőit mutatja, ha játékmódban nincs vezérlő csatlakoztatva.</string>
-    <string name="input_edit_layout">Szerkesztés a képernyőn</string>
+    <string name="input_edit_layout">Elrendezés szerkesztése</string>
     <string name="input_saved_layouts">Mentett elrendezések…</string>
     <string name="input_saved_layouts_hint">Válasszon elrendezést, vagy hozzon létre sajátot</string>
     <string name="input_second_screen_enable">Válassza a Profil vezérlőit a másodlagos képernyő munkamenet-menüjében. A vezérlő menüjében a Profil és a Másodlagos képernyő választó dönti el, mely vezérlők jelenjenek meg.</string>
@@ -128,4 +129,22 @@
     <string name="input_diagonal_neighbors">Szomszédos irányok</string>
     <string name="input_imported_keys_hint">A régi képernyőgombok lent importált profilként vannak mentve. Válasszon egyet használathoz vagy szerkesztéshez. A jelenlegi profilválasztások megmaradtak.</string>
     <string name="input_import_failed">A régi képernyőgombokat nem sikerült automatikusan importálni. Az eredeti beállítások megmaradtak.</string>
+    <string name="input_editor_open_menu">Menü megnyitása</string>
+    <string name="input_editor_hide_menu">Menü elrejtése</string>
+    <string name="input_editor_save">Mentés</string>
+    <string name="input_editor_layout_size">Elrendezés mérete</string>
+    <string name="input_editor_tap_hint">Koppintson egy vezérlőelemre a szerkesztéséhez. Húzza az áthelyezéshez.</string>
+    <string name="input_editor_saved">Elrendezés mentve</string>
+    <string name="input_editor_deleted">%1$s törölve</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d vezérlőelem</item>
+        <item quantity="other">%1$d vezérlőelem</item>
+    </plurals>
+    <string name="input_editor_discard_title">Elveti a módosításokat?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Az elrendezésnek %d nem mentett módosítása van.</item>
+        <item quantity="other">Az elrendezésnek %d nem mentett módosítása van.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Az elrendezésnek nem mentett módosításai vannak.</string>
+    <string name="input_editor_discard_confirm">Elvetés</string>
 </resources>

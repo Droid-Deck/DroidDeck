@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">حذف %1$s؟ ستعود الأوضاع التي تستخدمه إلى ملف التعريف الافتراضي المدمج. ستبقى التخطيطات المحفوظة والإعدادات المشتركة متاحة.</string>
     <string name="input_screen_visibility">الظهور</string>
     <string name="input_visibility_shared">ينطبق على جميع ملفات التعريف. يعرض Auto عناصر تحكم الشاشة الرئيسية عند عدم توصيل وحدة تحكم في وضع اللعب.</string>
-    <string name="input_edit_layout">التحرير على الشاشة</string>
+    <string name="input_edit_layout">تعديل التخطيط</string>
     <string name="input_saved_layouts">التخطيطات المحفوظة…</string>
     <string name="input_saved_layouts_hint">اختر تخطيطًا أو أنشئ تخطيطك</string>
     <string name="input_second_screen_enable">اختر عناصر تحكم ملف التعريف في قائمة جلسة الشاشة الثانوية. يحدد محددا ملف التعريف والشاشة الثانوية في قائمة وحدة التحكم عناصر التحكم المعروضة.</string>
@@ -63,6 +63,7 @@
     <string name="input_element_trigger">زناد</string>
     <string name="input_editor_done">تم</string>
     <string name="input_editor_undo">تراجع</string>
+    <string name="input_editor_redo">إعادة</string>
     <string name="input_editor_add">+ إضافة</string>
     <string name="input_editor_hint">اسحب للتحريك. اسحب زاوية لتغيير الحجم. اضغط على الخصائص لتعيين إجراء.</string>
     <string name="input_editor_remote">التحرير على الشاشة الثانوية</string>
@@ -128,4 +129,30 @@
     <string name="input_diagonal_neighbors">الاتجاهات المجاورة</string>
     <string name="input_imported_keys_hint">تم حفظ مفاتيح الشاشة القديمة كملفات تعريف مستوردة أدناه. اختر واحدًا لاستخدامه أو تحريره. تم الاحتفاظ بتحديدات ملف التعريف الحالية.</string>
     <string name="input_import_failed">لم نتمكن من استيراد مفاتيح الشاشة القديمة تلقائيًا. تم الاحتفاظ بالإعدادات الأصلية.</string>
+    <string name="input_editor_open_menu">فتح القائمة</string>
+    <string name="input_editor_hide_menu">إخفاء القائمة</string>
+    <string name="input_editor_save">حفظ</string>
+    <string name="input_editor_layout_size">حجم التخطيط</string>
+    <string name="input_editor_tap_hint">اضغط على عنصر تحكم لتعديله. اسحب للتحريك.</string>
+    <string name="input_editor_saved">تم حفظ التخطيط</string>
+    <string name="input_editor_deleted">تم حذف %1$s</string>
+    <plurals name="input_editor_controls">
+        <item quantity="zero">لا عناصر تحكم</item>
+        <item quantity="one">عنصر تحكم واحد</item>
+        <item quantity="two">عنصرا تحكم</item>
+        <item quantity="few">%1$d عناصر تحكم</item>
+        <item quantity="many">%1$d عنصر تحكم</item>
+        <item quantity="other">%1$d عنصر تحكم</item>
+    </plurals>
+    <string name="input_editor_discard_title">تجاهل التغييرات؟</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="zero">لا توجد لديك تغييرات غير محفوظة في هذا التخطيط.</item>
+        <item quantity="one">لديك تغيير واحد غير محفوظ في هذا التخطيط.</item>
+        <item quantity="two">لديك تغييران غير محفوظين في هذا التخطيط.</item>
+        <item quantity="few">لديك %d تغييرات غير محفوظة في هذا التخطيط.</item>
+        <item quantity="many">لديك %d تغييرًا غير محفوظ في هذا التخطيط.</item>
+        <item quantity="other">لديك %d تغيير غير محفوظ في هذا التخطيط.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">لديك تغييرات غير محفوظة في هذا التخطيط.</string>
+    <string name="input_editor_discard_confirm">تجاهل</string>
 </resources>

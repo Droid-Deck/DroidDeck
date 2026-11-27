@@ -650,7 +650,7 @@ fun ValueSlider(
             }
             .semantics {
                 stateDescription = text
-                progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), range.first.toFloat()..range.last.toFloat())
+                progressBarRangeInfo = ProgressBarRangeInfo(value.toFloat(), range.first.toFloat()..range.last.toFloat(), (span / step - 1).coerceAtLeast(0))
                 if (label != null) contentDescription = label
                 if (!enabled) disabled()
                 setProgress { next ->
@@ -868,7 +868,7 @@ fun <T> SegmentedTabs(options: List<Pair<T, String>>, selected: T?, modifier: Mo
                             .selectable(selected = chosen, role = Role.Tab, interactionSource = src, indication = LocalIndication.current, onClick = pick)
                             .controllerConfirm(onClick = pick),
                     ) {
-                        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ink, maxLines = 1, softWrap = false)
+                        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = ink, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }

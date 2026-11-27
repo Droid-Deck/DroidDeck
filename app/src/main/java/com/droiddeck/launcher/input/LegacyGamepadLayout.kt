@@ -200,17 +200,19 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
     fun rescale(stored: List<InputSurfaceElement>, from: LegacyGamepadLayout): List<InputSurfaceElement> =
         rescaleBetween(stored, from.elements(), elements())
 
-    fun buttonsOnly(stored: List<InputSurfaceElement>): List<InputSurfaceElement> {
+    fun buttonsOnly(stored: List<InputSurfaceElement>, removed: Set<String> = emptySet()): List<InputSurfaceElement> {
+        val visible = stored.filterNot { it.id in removed }
         val inset = dp(BUTTONS_ONLY_INSET_DP)
         val bottom = height - safe.bottom - inset
         val radius = dp(BUTTONS_ONLY_RADIUS_DP)
-        fun pick(control: InputControl, shown: Boolean) = stored.firstOrNull { it.id == "legacy:${control.id}" }
-            ?: stored.firstOrNull { it.control == control && it.kind == InputElementKind.BUTTON }
-            ?: InputSurfaceElement(control, 0f, 0f, 0f, 0f, buttonShape = InputButtonShape.CIRCLE).takeIf { shown }
+        fun pick(control: InputControl, shown: Boolean) = visible.firstOrNull { it.id == "legacy:${control.id}" }
+            ?: visible.firstOrNull { it.control == control && it.kind == InputElementKind.BUTTON }
+            ?: InputSurfaceElement(control, 0f, 0f, 0f, 0f, buttonShape = InputButtonShape.CIRCLE)
+                .takeIf { shown && "legacy:${control.id}" !in removed }
         return listOfNotNull(
             pick(InputControl.GUIDE, settings.steamButton)?.let { circle(it, safe.left + inset, bottom, radius) },
             pick(InputControl.QAM, settings.qamButton)?.let { circle(it, width - safe.right - inset, bottom, radius) },
-            stored.firstOrNull { it.id == KEYBOARD_ID }?.let { circle(it, width / 2f, bottom, dp(KEYBOARD_RADIUS_DP)) },
+            visible.firstOrNull { it.id == KEYBOARD_ID }?.let { circle(it, width / 2f, bottom, dp(KEYBOARD_RADIUS_DP)) },
         )
     }
 
@@ -349,13 +351,14 @@ internal class LegacyGamepadLayout(private val context: Context, private val wid
     }
 }
 
+/** Moves [stored] the way the stock controls move from [from] to [to], sized the way [sizeFrom] grows to [sizeTo]. A group that grows past an edge slides back as a whole, so its buttons keep their arrangement. */
 internal fun rescaleBetween(stored: List<InputSurfaceElement>, from: List<InputSurfaceElement>, to: List<InputSurfaceElement>,
     sizeFrom: List<InputSurfaceElement> = from, sizeTo: List<InputSurfaceElement> = to): List<InputSurfaceElement> {
     val before = from.associateBy { it.id }
     val after = to.associateBy { it.id }
     val smaller = sizeFrom.associateBy { it.id }
     val larger = sizeTo.associateBy { it.id }
-    return stored.map { e ->
+    val moved = stored.map { e ->
         val b = before[e.id] ?: return@map e
         val a = after[e.id] ?: return@map e
         val sb = smaller[e.id] ?: b
@@ -364,6 +367,16 @@ internal fun rescaleBetween(stored: List<InputSurfaceElement>, from: List<InputS
         val h = (sa.height * e.height / sb.height).coerceIn(.03f, 1f)
         val cx = a.x + a.width / 2 + (e.x + e.width / 2 - b.x - b.width / 2)
         val cy = a.y + a.height / 2 + (e.y + e.height / 2 - b.y - b.height / 2)
-        e.copy(x = (cx - w / 2).coerceIn(0f, 1f - w), y = (cy - h / 2).coerceIn(0f, 1f - h), width = w, height = h).bounded()
+        e.copy(x = cx - w / 2, y = cy - h / 2, width = w, height = h)
+    }
+    fun back(low: Float, high: Float) = if (low < 0f) -low else if (high > 1f) max(1f - high, -low) else 0f
+    val shift = moved.filter { it.id in after }.groupBy { it.groupKey() ?: it.id }.values.flatMap { members ->
+        val dx = back(members.minOf { it.x }, members.maxOf { it.x + it.width })
+        val dy = back(members.minOf { it.y }, members.maxOf { it.y + it.height })
+        members.map { it.id to (dx to dy) }
+    }.toMap()
+    return moved.map { e ->
+        val (dx, dy) = shift[e.id] ?: return@map e
+        e.copy(x = (e.x + dx).coerceIn(0f, 1f - e.width), y = (e.y + dy).coerceIn(0f, 1f - e.height)).bounded()
     }
 }

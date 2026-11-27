@@ -1345,6 +1345,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         )
         homeChoiceOpen = saved?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
         gameSpaceOffered = saved?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
+        showMapping = saved?.getBoolean(STATE_MAPPING) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
         val shortcutsFilter = android.content.IntentFilter(SteamIntegration.SHORTCUTS_STATUS)
         if (android.os.Build.VERSION.SDK_INT >= 33) registerReceiver(shortcutsInstallStatus, shortcutsFilter, RECEIVER_NOT_EXPORTED)
@@ -2318,6 +2319,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         outState.putString(STATE_PROCESS, PROCESS)
         outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
         outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
+        outState.putBoolean(STATE_MAPPING, showMapping)
         pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
         queuedLaunch.launch?.let {
             outState.putParcelable(STATE_PENDING_GATE_LAUNCH, it)
@@ -3697,6 +3699,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         private const val STATE_PENDING_GATE_LAUNCH_AT = "pending_gate_launch_at"
         private const val GATE_LAUNCH_MS = 15 * 60_000L
         private const val GATE_LAUNCH_RETRY_MS = 2_000L
+        private const val STATE_MAPPING = "mapping_open"
         private const val KEY_PENDING_SESSION_LOG_EXPORT = "pending_session_log_export"
         private const val STATE_GAME_SPACE_OFFERED = "game_space_offered"
         private const val TAG = "MainActivity"

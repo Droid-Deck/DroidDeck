@@ -11,6 +11,7 @@ import java.io.File
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -22,6 +23,7 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE, shadows = [JoyConPadTest.RecordingWriter::class])
 class InputSurfaceTouchTest {
+    @get:Rule val looper = MainLooperDrain()
     private val context: Context get() = RuntimeEnvironment.getApplication()
     private val bridge = PadBridge(File(context.cacheDir, "surface-touch"))
     private val events = mutableListOf<String>()
@@ -246,6 +248,50 @@ class InputSurfaceTouchTest {
         show(left.copy(hideWhenIdle = false), right.copy(hideWhenIdle = false))
         assertFalse(view.takesTouchAt(10f, 300f))
         assertFalse(view.takesTouchAt(815f, 300f))
+    }
+
+    private fun added(key: String): Pair<InputSurfaceElement, Map<String, InputAction>> {
+        val draft = SurfaceDraft(SavedInputLayout("touch", "Touch"), SavedInputBindings("touch", "Touch", false, "touch"))
+        draft.add(inputAddChoices(context, trackpads = false).first { it.key == key }, 1000f / 600f)
+        return draft.elements.single() to draft.actions
+    }
+
+    @Test fun anAddedRightStickCapturesLikeTheStockRightStickAndDrivesIt() {
+        val (stick, actions) = added("control-rs")
+        bridge.setInputProfile(InputProfile("touch", elements = mapOf(InputRole.PRIMARY to actions)))
+        show(stick.copy(x = .6f, y = .3f, floating = true, hideWhenIdle = true))
+        val (cx, cy) = (.6f + stick.width / 2f) * 1000 to (.3f + stick.height / 2f) * 600
+        assertTrue(view.takesTouchAt(cx, cy))
+        assertFalse(view.takesTouchAt(10f, cy))
+        assertFalse(view.takesTouchAt(cx - stick.width * 1000, cy))
+        touch(MotionEvent.ACTION_DOWN, 1 to (cx to cy))
+        touch(MotionEvent.ACTION_MOVE, 1 to (cx + 100f to cy))
+        assertTrue(state().rightX > .9f)
+        assertEquals(0f, state().leftX, 0f)
+        touch(MotionEvent.ACTION_UP, 1 to (cx + 100f to cy))
+    }
+
+    @Test fun anAddedTriggerFollowsTheStockTriggerRemappedToAButton() {
+        bridge.setInputProfile(InputProfile("touch", elements = mapOf(InputRole.PRIMARY to mapOf("legacy:lt" to InputAction.Native(InputControl.A)))))
+        show(InputSurfaceElement(InputControl.LT, .4f, .4f, .2f, .1f, copyId("legacy:lt"), buttonShape = InputButtonShape.PILL))
+        touch(MotionEvent.ACTION_DOWN, 1 to (500f to 270f))
+        assertTrue(state().isDown(PadState.A))
+        touch(MotionEvent.ACTION_UP, 1 to (500f to 270f))
+        assertFalse(state().isDown(PadState.A))
+    }
+
+    @Test fun anAddedStickTravelsLikeTheStockStick() {
+        val (stick, actions) = added("control-ls")
+        bridge.setInputProfile(InputProfile("touch", elements = mapOf(InputRole.PRIMARY to actions)))
+        show(stick.copy(x = .1f, y = .3f, floating = false))
+        val half = stick.width * 1000 / 2f
+        val (cx, cy) = (100f + half) to (.3f + stick.height / 2f) * 600
+        touch(MotionEvent.ACTION_DOWN, 1 to (cx to cy))
+        touch(MotionEvent.ACTION_MOVE, 1 to (cx + half / 2f to cy))
+        assertEquals(.5f, state().leftX, .01f)
+        touch(MotionEvent.ACTION_MOVE, 1 to (cx + half to cy))
+        assertEquals(1f, state().leftX, .01f)
+        touch(MotionEvent.ACTION_UP, 1 to (cx + half to cy))
     }
 
     private fun element(root: View, id: String): View = descendants(root).first { (it.tag as? InputSurfaceElement)?.id == id }

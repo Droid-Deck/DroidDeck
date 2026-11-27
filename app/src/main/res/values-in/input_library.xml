@@ -30,6 +30,7 @@
     <string name="input_element_trigger">Pemicu</string>
     <string name="input_editor_done">Selesai</string>
     <string name="input_editor_undo">Urungkan</string>
+    <string name="input_editor_redo">Ulangi</string>
     <string name="input_editor_add">+ Tambah</string>
     <string name="input_editor_hint">Seret untuk memindahkan. Seret sudut untuk mengubah ukuran. Ketuk Properti untuk menetapkan tindakan.</string>
     <string name="input_editor_remote">Mengedit di layar sekunder</string>
@@ -51,7 +52,7 @@
     <string name="input_delete_profile_detail">Hapus %1$s? Mode yang memakainya akan kembali ke profil bawaan bawaannya. Tata letak tersimpan dan setelan bersama tetap tersedia.</string>
     <string name="input_screen_visibility">Visibilitas</string>
     <string name="input_visibility_shared">Berlaku untuk semua profil. Auto menampilkan kontrol layar utama saat tidak ada pengontrol terhubung di mode game.</string>
-    <string name="input_edit_layout">Edit di layar</string>
+    <string name="input_edit_layout">Edit tata letak</string>
     <string name="input_saved_layouts">Tata letak tersimpan…</string>
     <string name="input_saved_layouts_hint">Pilih tata letak atau buat sendiri</string>
     <string name="input_second_screen_enable">Pilih Kontrol profil di menu sesi layar sekunder. Pemilih Profil dan Layar sekunder di menu pengontrol menentukan kontrol yang ditampilkan.</string>
@@ -128,4 +129,20 @@
     <string name="input_diagonal_neighbors">Arah tetangga</string>
     <string name="input_imported_keys_hint">Tombol layar lama Anda disimpan sebagai profil impor di bawah. Pilih satu untuk dipakai atau diedit. Pilihan profil Anda saat ini dipertahankan.</string>
     <string name="input_import_failed">Tombol layar lama tidak dapat diimpor otomatis. Setelan asli dipertahankan.</string>
+    <string name="input_editor_open_menu">Buka menu</string>
+    <string name="input_editor_hide_menu">Sembunyikan menu</string>
+    <string name="input_editor_save">Simpan</string>
+    <string name="input_editor_layout_size">Ukuran tata letak</string>
+    <string name="input_editor_tap_hint">Ketuk kontrol untuk mengeditnya. Seret untuk memindahkan.</string>
+    <string name="input_editor_saved">Tata letak disimpan</string>
+    <string name="input_editor_deleted">%1$s dihapus</string>
+    <plurals name="input_editor_controls">
+        <item quantity="other">%1$d kontrol</item>
+    </plurals>
+    <string name="input_editor_discard_title">Buang perubahan?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="other">Ada %d perubahan yang belum disimpan pada tata letak ini.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Ada perubahan yang belum disimpan pada tata letak ini.</string>
+    <string name="input_editor_discard_confirm">Buang</string>
 </resources>

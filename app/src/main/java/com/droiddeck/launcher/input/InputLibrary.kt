@@ -9,9 +9,9 @@ enum class InputLayoutScreen { MAIN, SECONDARY, BOTH;
         if (role == InputRole.PRIMARY) this == MAIN else this == SECONDARY)
 }
 
-data class InputSurfaceStyle(val tint: Int? = ControllerPrefs.STEAM_BLUE, val opacity: Int = 100, val hidden: Set<InputCommand> = emptySet()) {
-    fun hides(element: InputSurfaceElement) = element.quickButton?.let { it in hidden } == true
-    fun shown(elements: List<InputSurfaceElement>) = if (hidden.isEmpty()) elements else elements.filterNot(::hides)
+data class InputSurfaceStyle(val tint: Int? = ControllerPrefs.STEAM_BLUE, val opacity: Int = 100, val removed: Set<String> = emptySet()) {
+    fun hides(element: InputSurfaceElement) = element.id in removed
+    fun shown(elements: List<InputSurfaceElement>) = if (removed.isEmpty()) elements else elements.filterNot(::hides)
 }
 
 data class SavedInputLayout(
@@ -27,10 +27,9 @@ data class SavedInputLayout(
     val rotatedScale: Float = 1f,
 ) {
     val editable get() = template == InputLayoutTemplate.CUSTOM
+    /** Every control in either orientation's frame; a binding may belong to one that only the portrait frame holds. */
+    val anyFrame get() = elements + rotated.filter { r -> elements.none { it.id == r.id } }
     val overlay get() = (origin ?: id).let { it == InputLibraries.OVERLAY || it.startsWith("migrated.layout.") }
-    val quickButtons get() = QUICK_BUTTONS.filter { button -> elements.any { it.quickButton == button } }
-    fun withQuickButton(button: InputCommand, shown: Boolean) =
-        copy(style = style.copy(hidden = if (shown) style.hidden - button else style.hidden + button))
     fun derived(id: String, name: String) = copy(id = id, name = name, origin = origin ?: this.id)
     val adaptiveSticks get() = elements.filter { it.kind == InputElementKind.STICK }.takeIf { editable && it.isNotEmpty() }?.all { it.floating && it.hideWhenIdle }
     fun supports(role: InputRole) = screen.supports(role) && when (template) {
@@ -51,11 +50,14 @@ data class SavedInputBindings(
     fun compatible(layout: SavedInputLayout?) = if (physical) layout == null
         else layout != null && if (layout.editable) layoutId == layout.id else layoutId == null
 
-    fun action(element: InputSurfaceElement) = elements[element.id]
-        ?: if (element.id == "legacy:${element.control.id}") controls[element.control] ?: InputAction.Native()
-        else InputAction.Disabled
+    fun action(element: InputSurfaceElement): InputAction = elements[element.id] ?: when {
+        element.id == "legacy:${element.control.id}" -> controls[element.control] ?: InputAction.Native()
+        element.id == KEYBOARD_BUTTON -> InputAction.Command(InputCommand.KEYBOARD)
+        else -> copiedStock(element.id)?.let { action(element.copy(id = it)).forCopy(element.control) } ?: InputAction.Disabled
+    }
 
-    fun clickAction(element: InputSurfaceElement) = clicks[element.id]
+    fun clickAction(element: InputSurfaceElement): InputAction = clicks[element.id]
+        ?: copiedStock(element.id)?.takeIf { element.id !in elements }?.let { clickAction(element.copy(id = it)) }
         ?: defaultElementClick(element, action(element)) { controls[it] ?: InputAction.Native() }
 }
 
@@ -74,6 +76,7 @@ data class InputLibrary(
     val selected: String = InputProfiles.AUTO,
     val steam: String = InputProfile.GAME, val desktop: String = InputProfile.DESKTOP,
     val selections: Map<String, InputSelection> = emptyMap(),
+    val games: Map<String, String> = emptyMap(),
 ) {
     fun profile(id: String) = profiles.first { it.id == id }
     fun preset(id: String) = bindings.first { it.id == id }
@@ -81,8 +84,10 @@ data class InputLibrary(
         ?.let { id -> layouts.firstOrNull { it.id == id } }
     private fun mode(isDesktop: Boolean) = if (isDesktop) InputProfile.DESKTOP else InputProfile.GAME
     fun selection(isDesktop: Boolean) = selections[mode(isDesktop)] ?: InputSelection(selected)
-    fun activeId(isDesktop: Boolean): String {
-        val id = selection(isDesktop).profile
+    fun gameProfile(isDesktop: Boolean, game: String?) = game?.takeUnless { isDesktop }?.let(games::get)?.takeIf { id -> profiles.any { it.id == id } }
+    private fun selection(isDesktop: Boolean, game: String?) = gameProfile(isDesktop, game)?.let { InputSelection(it, profileSelected = true) } ?: selection(isDesktop)
+    fun activeId(isDesktop: Boolean, game: String? = null): String {
+        val id = selection(isDesktop, game).profile
         return if (id == InputProfiles.AUTO) { if (isDesktop) desktop else steam } else id
     }
     fun selectProfile(isDesktop: Boolean, id: String) = copy(selections = selections + (mode(isDesktop) to InputSelection(id, profileSelected = true)))
@@ -90,27 +95,40 @@ data class InputLibrary(
         val previous = selection(isDesktop)
         return copy(selections = selections + (mode(isDesktop) to previous.copy(parts = previous.parts + (role to bindingsId))))
     }
-    fun activePart(isDesktop: Boolean, role: InputRole): InputPart {
-        val binding = selection(isDesktop).parts[role]?.let(::preset)
-        return if (binding != null) InputPart(binding.id, binding.layoutId) else profile(activeId(isDesktop)).parts.getValue(role)
+    fun activePart(isDesktop: Boolean, role: InputRole, game: String? = null): InputPart {
+        val binding = selection(isDesktop, game).parts[role]?.let(::preset)
+        return if (binding != null) InputPart(binding.id, binding.layoutId) else profile(activeId(isDesktop, game)).parts.getValue(role)
     }
-    fun activeLayout(isDesktop: Boolean, role: InputRole) = activePart(isDesktop, role).layout?.let { id -> layouts.first { it.id == id } }
-    fun panelPart(isDesktop: Boolean, panel: String?): InputPart =
-        panel?.let { id -> bindings.firstOrNull { it.id == id } }?.let { InputPart(it.id, it.layoutId) } ?: activePart(isDesktop, InputRole.SECONDARY)
-    fun panelLayout(isDesktop: Boolean, panel: String?) = panelPart(isDesktop, panel).layout?.let { id -> layouts.firstOrNull { it.id == id } }
-    fun compileActive(isDesktop: Boolean, panel: String? = null): InputProfile = compileParts(activeId(isDesktop), InputRole.entries.associateWith {
-        preset(if (it == InputRole.SECONDARY) panelPart(isDesktop, panel).bindings else activePart(isDesktop, it).bindings)
+    fun activeLayout(isDesktop: Boolean, role: InputRole, game: String? = null) = activePart(isDesktop, role, game).layout?.let { id -> layouts.first { it.id == id } }
+    fun panelPart(isDesktop: Boolean, panel: String?, game: String? = null): InputPart =
+        panel?.let { id -> bindings.firstOrNull { it.id == id } }?.let { InputPart(it.id, it.layoutId) } ?: activePart(isDesktop, InputRole.SECONDARY, game)
+    fun panelLayout(isDesktop: Boolean, panel: String?, game: String? = null) = panelPart(isDesktop, panel, game).layout?.let { id -> layouts.firstOrNull { it.id == id } }
+    fun compileActive(isDesktop: Boolean, panel: String? = null, game: String? = null): InputProfile = compileParts(activeId(isDesktop, game), InputRole.entries.associateWith {
+        preset(if (it == InputRole.SECONDARY) panelPart(isDesktop, panel, game).bindings else activePart(isDesktop, it, game).bindings)
     })
-    fun compileStock(isDesktop: Boolean, panel: String? = null): InputProfile {
-        val defaults = InputProfile.defaults(profile(activeId(isDesktop)).base)
+    fun compileStock(isDesktop: Boolean, panel: String? = null, game: String? = null): InputProfile {
+        val defaults = InputProfile.defaults(profile(activeId(isDesktop, game)).base)
         val stock = InputStockLayouts.presets(InputStockLayouts.layouts())
         return compileParts(defaults.id, InputRole.entries.associateWith { role ->
-            val part = if (role == InputRole.SECONDARY) panelPart(isDesktop, panel) else activePart(isDesktop, role)
+            val part = if (role == InputRole.SECONDARY) panelPart(isDesktop, panel, game) else activePart(isDesktop, role, game)
             val origin = layouts.firstOrNull { it.id == part.layout }?.origin ?: part.layout
             stock.firstOrNull { it.id == part.bindings || (origin != null && it.layoutId == origin) }
                 ?: SavedInputBindings(part.bindings, "", role == InputRole.PHYSICAL, part.layout, defaults.bindings[role].orEmpty())
         })
     }
+
+    fun withGameProfile(game: String, name: String): InputLibrary {
+        val id = gameProfileId(game)
+        if (profiles.any { it.id == id }) return copy(games = games + (game to id))
+        require(profiles.size < 64)
+        val current = profile(activeId(false))
+        var result = withProfile(SavedInputProfile(id, inputName(name), current.base, InputRole.entries.associateWith { activePart(false, it) }))
+        require(bindings.size + InputRole.entries.size <= 512) { "No room for the game's bindings" }
+        require(layouts.size + InputRole.entries.count { result.layout(id, it)?.editable == true } <= 256) { "No room for the game's layouts" }
+        for (role in InputRole.entries) result = result.usePart(id, role, id, shared = false)
+        return result.copy(games = games + (game to id))
+    }
+    fun withoutGameProfile(game: String) = copy(games = games - game)
 
     fun saveSelection(isDesktop: Boolean, name: String, id: String = newInputId()): InputLibrary {
         val current = profile(activeId(isDesktop))
@@ -140,8 +158,8 @@ data class InputLibrary(
     fun withPreset(value: SavedInputBindings) = copy(bindings = bindings.filterNot { it.id == value.id } + value)
     fun withLayout(value: SavedInputLayout) = copy(layouts = layouts.filterNot { it.id == value.id } + value,
         bindings = bindings.map { preset -> if (preset.layoutId != value.id) preset else preset.copy(
-            elements = preset.elements.filter { (id, action) -> value.elements.any { it.id == id && action.validFor(it) } },
-            clicks = preset.clicks.filter { (id, action) -> value.elements.any { it.id == id && it.hasClick && action.validForClick() } }) })
+            elements = preset.elements.filter { (id, action) -> value.anyFrame.any { it.id == id && action.validFor(it) } },
+            clicks = preset.clicks.filter { (id, action) -> value.anyFrame.any { it.id == id && it.hasClick && action.validForClick() } }) })
 
     fun duplicateProfile(id: String, name: String, newId: String = newInputId(), sharePhysical: Boolean = false): InputLibrary {
         require(profiles.size < 64)
@@ -212,7 +230,8 @@ data class InputLibrary(
         require(id != InputProfile.GAME && id != InputProfile.DESKTOP)
         return copy(profiles = profiles.filterNot { it.id == id }, selected = selected.takeUnless { it == id } ?: InputProfiles.AUTO,
             steam = steam.takeUnless { it == id } ?: InputProfile.GAME, desktop = desktop.takeUnless { it == id } ?: InputProfile.DESKTOP,
-            selections = selections.mapValues { (_, selection) -> if (selection.profile == id) selection.copy(profile = InputProfiles.AUTO) else selection })
+            selections = selections.mapValues { (_, selection) -> if (selection.profile == id) selection.copy(profile = InputProfiles.AUTO) else selection },
+            games = games.filterValues { it != id })
     }
 
     fun removeLayout(id: String): InputLibrary {
@@ -251,12 +270,12 @@ data class InputLibrary(
         require(selected == InputProfiles.AUTO || profiles.any { it.id == selected })
         require(profiles.any { it.id == steam } && profiles.any { it.id == desktop })
         for (layout in layouts) {
-            require(layout.style.opacity in 1..100 && layout.style.hidden.all { it in QUICK_BUTTONS })
+            require(layout.style.opacity in 1..100 && layout.style.removed.size <= 64 && layout.style.removed.all { it.isNotBlank() && it.length <= 128 })
             require(layout.aspect == 0f || layout.aspect.isFinite() && layout.aspect in .05f..20f)
             require(layout.rotated.isEmpty() || layout.rotatedAspect.isFinite() && layout.rotatedAspect in .05f..20f && layout.rotatedScale.isFinite() && layout.rotatedScale in .5f..2f)
-            require(layout.rotated.size <= 64 && layout.rotated.all { r -> listOf(r.x, r.y, r.width, r.height).all { it.isFinite() } })
+            require(layout.rotated.size <= 128 && layout.rotated.all { r -> listOf(r.x, r.y, r.width, r.height).all { it.isFinite() } })
             require(layout.scale.isFinite() && layout.scale in .5f..2f)
-            inputName(layout.name); require(layout.elements.size <= 64); unique(layout.elements.map { it.id })
+            inputName(layout.name); require(layout.elements.count { it.id !in layout.style.removed } <= 64 && layout.elements.size <= 128); unique(layout.elements.map { it.id })
             for (e in layout.elements) {
                 inputName(e.name)
                 require(e.icon == 0 || InputButtonIcons.has(e.icon))
@@ -266,23 +285,24 @@ data class InputLibrary(
                 require(listOf(e.x, e.y, e.width, e.height).all { it.isFinite() })
                 require(e == e.bounded())
                 require(if (e.id.startsWith("legacy:")) e.id == "legacy:${e.control.id}" && e.kind == InputElementKind.from(e.control)
-                    else e.control == e.kind.control)
+                    else e.control == e.kind.control || InputElementKind.from(e.control) == e.kind)
             }
         }
         for (preset in bindings) {
             inputName(preset.name)
             require(preset.controls.all { (c, a) -> a.validFor(c) })
-            require(preset.elements.size <= 64 && preset.keys.size <= 64 && preset.clicks.size <= 64)
+            require(preset.elements.size <= 128 && preset.keys.size <= 64 && preset.clicks.size <= 128)
             require(preset.keys.map { Triple(it.key.device, it.key.keyCode, it.key.scanCode) }.distinct().size == preset.keys.size)
             require(preset.physical || preset.keys.isEmpty())
             val layout = preset.layoutId?.let { id -> layouts.first { it.id == id } }
             require(!preset.physical || layout == null && preset.elements.isEmpty() && preset.clicks.isEmpty())
-            require(preset.elements.all { (id, action) -> layout?.elements?.firstOrNull { it.id == id }?.let { action.validFor(it) } == true })
-            require(preset.clicks.all { (id, action) -> layout?.elements?.any { it.id == id && it.hasClick } == true && action.validForClick() })
+            require(preset.elements.all { (id, action) -> layout?.anyFrame?.firstOrNull { it.id == id }?.let { action.validFor(it) } == true })
+            require(preset.clicks.all { (id, action) -> layout?.anyFrame?.any { it.id == id && it.hasClick } == true && action.validForClick() })
             require(preset.keys.all { it.key.device.isNotBlank() && it.key.keyCode >= 0 && it.key.scanCode >= 0 &&
                 it.action.validFor(InputControl.A) && (it.action !is InputAction.Native || it.action.target == null) })
         }
         require(selections.keys.all { it == InputProfile.GAME || it == InputProfile.DESKTOP })
+        require(games.size <= 64 && games.all { (game, id) -> game.isNotBlank() && game.length <= 64 && profiles.any { it.id == id } })
         for (selection in selections.values) {
             require(selection.profile == InputProfiles.AUTO || profiles.any { it.id == selection.profile })
             for ((role, id) in selection.parts) {
@@ -305,12 +325,14 @@ data class InputLibrary(
     }
 }
 
+fun gameProfileId(game: String) = "game:$game"
+
 internal fun inputName(value: String): String = value.trim().also { require(it.isNotEmpty() && it.length <= 80) }
 fun newInputId(): String = UUID.randomUUID().toString()
 
 internal fun InputAction.validFor(element: InputSurfaceElement): Boolean = when {
     this !is InputAction.Native -> validFor(element.control)
-    element.id.startsWith("legacy:") -> validFor(element.control)
+    element.id.startsWith("legacy:") || copiedStock(element.id)?.startsWith("legacy:") == true -> validFor(element.control)
     element.kind == InputElementKind.DPAD -> target == null
     target == null -> false
     element.kind == InputElementKind.TRACKPAD -> target.isTrackpad

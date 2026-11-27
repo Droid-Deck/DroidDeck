@@ -51,7 +51,7 @@
     <string name="input_delete_profile_detail">%1$s silinsin mi? Onu kullanan modlar yerleşik varsayılan profillerine döner. Kaydedilen düzenler ve paylaşılan ayarlar kullanılabilir kalır.</string>
     <string name="input_screen_visibility">Görünürlük</string>
     <string name="input_visibility_shared">Tüm profillere uygulanır. Auto, oyun modunda denetleyici bağlı değilken ana ekran kontrollerini gösterir.</string>
-    <string name="input_edit_layout">Ekranda düzenle</string>
+    <string name="input_edit_layout">Düzeni düzenle</string>
     <string name="input_saved_layouts">Kaydedilen düzenler…</string>
     <string name="input_saved_layouts_hint">Bir düzen seçin veya kendinizinkini oluşturun</string>
     <string name="input_second_screen_enable">İkincil ekran oturum menüsünde Profil kontrollerini seçin. Denetleyici menüsündeki Profil ve İkincil ekran seçicileri hangi kontrollerin gösterileceğini belirler.</string>
@@ -128,4 +128,23 @@
     <string name="input_diagonal_neighbors">Komşu yönler</string>
     <string name="input_imported_keys_hint">Eski ekran tuşlarınız aşağıda içe aktarılmış profiller olarak kaydedildi. Kullanmak veya düzenlemek için birini seçin. Geçerli profil seçimleriniz korundu.</string>
     <string name="input_import_failed">Eski ekran tuşları otomatik olarak içe aktarılamadı. Özgün ayarlar korundu.</string>
+    <string name="input_editor_redo">Yinele</string>
+    <string name="input_editor_open_menu">Menüyü aç</string>
+    <string name="input_editor_hide_menu">Menüyü gizle</string>
+    <string name="input_editor_save">Kaydet</string>
+    <string name="input_editor_layout_size">Düzen boyutu</string>
+    <string name="input_editor_tap_hint">Düzenlemek için bir denetime dokunun. Taşımak için sürükleyin.</string>
+    <string name="input_editor_saved">Düzen kaydedildi</string>
+    <string name="input_editor_deleted">%1$s silindi</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d denetim</item>
+        <item quantity="other">%1$d denetim</item>
+    </plurals>
+    <string name="input_editor_discard_title">Değişiklikler atılsın mı?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">Bu düzende kaydedilmemiş %d değişiklik var.</item>
+        <item quantity="other">Bu düzende kaydedilmemiş %d değişiklik var.</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">Bu düzende kaydedilmemiş değişiklikler var.</string>
+    <string name="input_editor_discard_confirm">At</string>
 </resources>

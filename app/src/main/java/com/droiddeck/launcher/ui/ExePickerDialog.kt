@@ -7,6 +7,7 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -172,34 +173,41 @@ internal fun ExePickerDialog(
 }
 
 @Composable
-internal fun DialogTitleRow(title: String, onClose: () -> Unit, leading: (@Composable () -> Unit)? = null) {
+internal fun DialogTitleRow(title: String, onClose: () -> Unit, closeModifier: Modifier = Modifier, closeTouchSize: Dp = 32.dp,
+    leading: (@Composable () -> Unit)? = null) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
         leading?.invoke()
         Text(title, fontSize = 15.sp, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = MaterialTheme.colorScheme.error, onClick = onClose)
+        SmallIconButton(Icons.Filled.Close, stringResource(R.string.common_close), tint = MaterialTheme.colorScheme.error, closeModifier,
+            touchSize = closeTouchSize, onClick = onClose)
     }
 }
 
 @Composable
-internal fun SmallIconButton(icon: ImageVector, description: String, tint: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+internal fun SmallIconButton(icon: ImageVector, description: String, tint: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier,
+    touchSize: Dp = 32.dp, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
     val hot = rememberHot(src)
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.size(32.dp).clip(Shape12)
-            .background(if (hot) tint.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Transparent)
-            .glideBorder(hot, Shape12, tint)
-            .hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
+        modifier = modifier.size(touchSize)
+            .hoverable(src).clickable(interactionSource = src, indication = null, role = Role.Button, onClick = onClick)
             .controllerConfirm(onClick = onClick)
             .semantics { contentDescription = description },
     ) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp))
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(32.dp).clip(Shape12)
+                .background(if (hot) tint.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Transparent)
+                .glideBorder(hot, Shape12, tint)
+                .indication(src, LocalIndication.current),
+        ) { Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp)) }
     }
 }
 
 @Composable
 internal fun ListRow(
-    enabled: Boolean = true, accent: Boolean = false, tall: Boolean = false, focus: FocusRequester? = null,
+    enabled: Boolean = true, accent: Boolean = false, tall: Boolean = false, focus: FocusRequester? = null, modifier: Modifier = Modifier,
     onClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.RowScope.(hot: Boolean) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -208,14 +216,12 @@ internal fun ListRow(
     val hot = rememberHot(src) && enabled
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.fillMaxWidth().then(if (focus != null) Modifier.focusRequester(focus) else Modifier).clip(Shape12)
+        modifier = modifier.fillMaxWidth().then(if (focus != null) Modifier.focusRequester(focus) else Modifier).clip(Shape12)
             .alpha(if (enabled) 1f else 0.4f)
             .background(if (hot) pal.signal.copy(alpha = 0.14f) else colors.surface.copy(alpha = 0.6f))
             .glideBorder(hot, Shape12, pal.signal, if (accent) pal.signal else pal.line)
-            .then(
-                if (enabled) Modifier.hoverable(src).clickable(interactionSource = src, indication = LocalIndication.current, role = Role.Button, onClick = onClick)
-                    .controllerConfirm(onClick = onClick) else Modifier,
-            )
+            .hoverable(src, enabled).clickable(interactionSource = src, indication = LocalIndication.current, enabled = enabled, role = Role.Button, onClick = onClick)
+            .controllerConfirm(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = if (tall) 11.dp else 9.dp),
     ) { content(hot) }
 }
@@ -227,7 +233,7 @@ internal fun PickerRow(
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
-    ListRow(enabled, accent, tall, focus, onClick) { hot ->
+    ListRow(enabled, accent, tall, focus, onClick = onClick) { hot ->
         if (icon != null) Icon(icon, null, tint = if (hot || file || accent) pal.signal else colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
         Text(name, fontSize = 14.sp, fontWeight = if (tall) FontWeight.SemiBold else FontWeight.Normal, color = colors.onBackground,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))

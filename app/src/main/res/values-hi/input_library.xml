@@ -30,6 +30,7 @@
     <string name="input_element_trigger">ट्रिगर</string>
     <string name="input_editor_done">हो गया</string>
     <string name="input_editor_undo">पूर्ववत करें</string>
+    <string name="input_editor_redo">फिर से करें</string>
     <string name="input_editor_add">+ जोड़ें</string>
     <string name="input_editor_hint">खींचकर ले जाएँ। कोने से खींचकर आकार बदलें। क्रिया असाइन करने के लिए गुण पर टैप करें।</string>
     <string name="input_editor_remote">दूसरी स्क्रीन पर संपादन</string>
@@ -51,7 +52,7 @@
     <string name="input_delete_profile_detail">%1$s हटाएँ? इसका उपयोग करने वाले मोड अपने अंतर्निहित डिफ़ॉल्ट प्रोफ़ाइल पर लौटेंगे। सहेजे गए लेआउट और साझा सेटिंग्स उपलब्ध रहेंगी।</string>
     <string name="input_screen_visibility">दृश्यता</string>
     <string name="input_visibility_shared">सभी प्रोफ़ाइल पर लागू। गेम मोड में कंट्रोलर कनेक्ट न होने पर Auto मुख्य स्क्रीन के नियंत्रण दिखाता है।</string>
-    <string name="input_edit_layout">स्क्रीन पर संपादित करें</string>
+    <string name="input_edit_layout">लेआउट संपादित करें</string>
     <string name="input_saved_layouts">सहेजे गए लेआउट…</string>
     <string name="input_saved_layouts_hint">लेआउट चुनें या अपना बनाएँ</string>
     <string name="input_second_screen_enable">दूसरी स्क्रीन के सत्र मेनू में प्रोफ़ाइल नियंत्रण चुनें। कंट्रोलर मेनू में प्रोफ़ाइल और दूसरी स्क्रीन चयनकर्ता तय करते हैं कि कौन से नियंत्रण दिखें।</string>
@@ -128,4 +129,22 @@
     <string name="input_diagonal_neighbors">पड़ोसी दिशाएँ</string>
     <string name="input_imported_keys_hint">आपकी पुरानी स्क्रीन कुंजियाँ नीचे आयातित प्रोफ़ाइल के रूप में सहेजी गई हैं। उपयोग या संपादन के लिए एक चुनें। आपके वर्तमान प्रोफ़ाइल चयन रखे गए हैं।</string>
     <string name="input_import_failed">पुरानी स्क्रीन कुंजियाँ स्वचालित रूप से आयात नहीं हो सकीं। मूल सेटिंग्स रखी गई हैं।</string>
+    <string name="input_editor_open_menu">मेनू खोलें</string>
+    <string name="input_editor_hide_menu">मेनू छिपाएँ</string>
+    <string name="input_editor_save">सहेजें</string>
+    <string name="input_editor_layout_size">लेआउट का आकार</string>
+    <string name="input_editor_tap_hint">संपादित करने के लिए किसी नियंत्रण पर टैप करें। ले जाने के लिए खींचें।</string>
+    <string name="input_editor_saved">लेआउट सहेजा गया</string>
+    <string name="input_editor_deleted">%1$s हटाया गया</string>
+    <plurals name="input_editor_controls">
+        <item quantity="one">%1$d नियंत्रण</item>
+        <item quantity="other">%1$d नियंत्रण</item>
+    </plurals>
+    <string name="input_editor_discard_title">बदलाव छोड़ें?</string>
+    <plurals name="input_editor_discard_count">
+        <item quantity="one">इस लेआउट में आपका %d बदलाव सहेजा नहीं गया है।</item>
+        <item quantity="other">इस लेआउट में आपके %d बदलाव सहेजे नहीं गए हैं।</item>
+    </plurals>
+    <string name="input_editor_discard_unsaved">इस लेआउट में आपके बदलाव सहेजे नहीं गए हैं।</string>
+    <string name="input_editor_discard_confirm">छोड़ें</string>
 </resources>

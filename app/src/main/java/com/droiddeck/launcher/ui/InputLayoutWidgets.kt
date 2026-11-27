@@ -27,7 +27,7 @@ internal fun InputLayoutRow(layout: SavedInputLayout, role: InputRole, detail: S
             InputLayoutThumbnail(layout, role)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(layout.name, style = MaterialTheme.typography.titleMedium)
-                Text(detail ?: stringResource(R.string.input_layout_count, layout.elements.size),
+                Text(detail ?: stringResource(R.string.input_layout_count, layout.style.shown(layout.elements).size),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }

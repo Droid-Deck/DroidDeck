@@ -18,7 +18,7 @@
     <string name="input_delete_profile_detail">¿Eliminar %1$s? Los modos que lo usan volverán a su perfil predeterminado integrado. Los diseños guardados y los ajustes compartidos seguirán disponibles.</string>
     <string name="input_screen_visibility">Visibilidad</string>
     <string name="input_visibility_shared">Se aplica a todos los perfiles. Auto muestra los controles de la pantalla principal cuando no hay control conectado en el modo juego.</string>
-    <string name="input_edit_layout">Editar en pantalla</string>
+    <string name="input_edit_layout">Editar diseño</string>
     <string name="input_saved_layouts">Diseños guardados…</string>
     <string name="input_saved_layouts_hint">Elige un diseño o crea el tuyo</string>
     <string name="input_second_screen_enable">Elige Controles de perfil en el menú de sesión de la pantalla secundaria. Los selectores de Perfil y Pantalla secundaria del menú del control eligen los controles que se muestran.</string>

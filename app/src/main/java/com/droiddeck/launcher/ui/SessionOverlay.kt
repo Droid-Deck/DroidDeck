@@ -330,6 +330,10 @@ class DrawerActions(
     val onDirectCursor: (Boolean) -> Unit = {},
     val onTouch: (String) -> Unit,
     val onInputSettings: () -> Unit = {},
+    val onEditOnScreen: (() -> Unit)? = null,
+    val gameControls: Boolean? = null,
+    val gameProfile: String? = null,
+    val onGameControls: (Boolean) -> Unit = {},
     val onInputSelection: (com.droiddeck.launcher.input.InputRole?) -> Unit = {},
     val onGestureSettings: () -> Unit = {},
     val touchActive: String = "",
@@ -367,13 +371,12 @@ class DrawerActions(
     val unfoldedControls: Boolean? = null,
     val adaptiveSticks: Boolean? = null,
     val onAdaptiveSticks: (Boolean) -> Unit = {},
+    val onEditButtons: (() -> Unit)? = null,
     val showFloatingSteamControls: Boolean = false,
     val oscRearButtons: Boolean = false,
     val oscTrackpads: Boolean = false,
     val onOscRearButtons: (Boolean) -> Unit = {},
     val onOscTrackpads: (Boolean) -> Unit = {},
-    val quickButtons: Map<com.droiddeck.launcher.input.InputCommand, Boolean> = emptyMap(),
-    val onQuickButton: (com.droiddeck.launcher.input.InputCommand, Boolean) -> Unit = { _, _ -> },
     val onUnfoldedControls: (Boolean) -> Unit = {},
     val unfoldedControlsWithController: Boolean = false,
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
@@ -489,7 +492,8 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
         if (open && !controllerActive) focusManager.clearFocus(force = true)
     }
     var focusedPage by remember { mutableStateOf(page) }
-    LaunchedEffect(open, page, glassesTab, controllerActive, host.open, appToChooseDisplay, confirmStop) {
+    val gameOnlyControls = page == SessionDrawerPage.CONTROLLER && a.gameProfile != null
+    LaunchedEffect(open, page, glassesTab, controllerActive, host.open, appToChooseDisplay, confirmStop, gameOnlyControls) {
         if (!open) {
             host.open = null
             confirmStop = false
@@ -501,10 +505,12 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
             val first = when {
                 page == SessionDrawerPage.GLASSES -> "glasses-tab-$glassesTab"
                 page == SessionDrawerPage.SESSION && a.isHomeApp -> "apps"
+                gameOnlyControls -> "input-settings"
                 else -> page.firstControl
             }
             if (turned) focus.forget(page)
-            val target = focus.target(page) ?: first
+            // A game's own controls replace the profile and part pickers.
+            val target = focus.target(page)?.takeUnless { gameOnlyControls && (it == "input-profile" || it.startsWith("input-part-")) } ?: first
             repeat(24) {
                 androidx.compose.runtime.withFrameNanos { }
                 focus.request(target)
@@ -737,7 +743,15 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         }
                         SessionDrawerPage.CONTROLLER -> {
                             SettingsGroup(stringResource(R.string.drawer_page_controller)) {
-                                InputQuickSettings(host, desktop = a.desktop, onChanged = a.onInputSelection, onEdit = a.onInputSettings) { key -> focus.track(page, key) }
+                                a.onEditOnScreen?.let { edit ->
+                                    ActionRow(stringResource(R.string.input_edit_on_screen), stringResource(R.string.input_edit_on_screen_hint),
+                                        stringResource(R.string.ctrl_edit), edit, modifier = focus.track(page, "edit-on-screen"))
+                                }
+                                a.gameControls?.let { on ->
+                                    ToggleRow(host, "game-controls", stringResource(R.string.input_game_controls), stringResource(R.string.input_game_controls_hint), on,
+                                        chipModifier = focus.track(page, "game-controls"), onChange = a.onGameControls)
+                                }
+                                InputQuickSettings(host, desktop = a.desktop, onChanged = a.onInputSelection, onEdit = a.onInputSettings, gameProfile = a.gameProfile) { key -> focus.track(page, key) }
                             }
                             SettingsGroup(stringResource(R.string.input_device_settings)) {
                                 a.padType?.let { type ->
@@ -796,10 +810,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     ToggleRow(host, "trackpads", stringResource(R.string.osc_trackpads), null, a.oscTrackpads,
                                         chipModifier = focus.track(page, "trackpads"), onChange = a.onOscTrackpads)
                                 }
-                                for ((button, shown) in a.quickButtons) {
-                                    val key = "quick-${button.name.lowercase()}"
-                                    ToggleRow(host, key, stringResource(quickButtonLabel(button)), null, shown,
-                                        chipModifier = focus.track(page, key)) { a.onQuickButton(button, it) }
+                                a.onEditButtons?.let { edit ->
+                                    ActionRow(stringResource(R.string.input_edit_buttons), stringResource(R.string.input_edit_buttons_hint),
+                                        stringResource(R.string.ctrl_edit), edit, modifier = focus.track(page, "edit-buttons").testTag("drawer-edit-buttons"))
                                 }
                                 a.onEditSteamTouch?.let { edit ->
                                     ActionRow(stringResource(R.string.osc_steam_layout), stringResource(R.string.osc_steam_layout_hint), stringResource(R.string.ctrl_edit), edit)

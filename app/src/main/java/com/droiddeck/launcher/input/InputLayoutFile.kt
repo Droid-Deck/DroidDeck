@@ -34,7 +34,7 @@ internal object InputLayoutFile {
     fun export(layout: SavedInputLayout, bindings: SavedInputBindings?, width: Int, height: Int): String? {
         val snap = width.coerceAtLeast(1) / 100f
         val elements = JSONArray()
-        for (e in layout.elements) {
+        for (e in layout.style.shown(layout.elements)) {
             val action = bindings?.action(e) ?: InputAction.Disabled
             val directional = e.kind == InputElementKind.DPAD || e.kind == InputElementKind.STICK
             val codes = when {
