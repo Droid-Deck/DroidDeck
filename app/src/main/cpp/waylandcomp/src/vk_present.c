@@ -780,6 +780,8 @@ static void suspend_client_images(void) {
     for (struct vkp_image *img = g_client_images; img; img = img->next) {
         if (img->source_type == VKP_IMAGE_SOURCE_SHM && img->map && img->w > 0 && img->h > 0) {
             const size_t row_bytes = (size_t)img->w * 4;
+            free(img->recovery_pixels);
+            img->recovery_pixels = NULL;
             if ((size_t)img->h <= SIZE_MAX / row_bytes) {
                 const size_t bytes = row_bytes * (size_t)img->h;
                 img->recovery_pixels = malloc(bytes);
