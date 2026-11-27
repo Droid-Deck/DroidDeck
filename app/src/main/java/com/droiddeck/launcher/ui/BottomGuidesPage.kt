@@ -536,7 +536,7 @@ internal object MapMarkers {
 
     fun sampleSize(width: Int, height: Int, longest: Int): Int {
         var sample = 1
-        while (maxOf(width, height) / (sample * 2) >= longest) sample *= 2
+        while (maxOf(width, height) / sample > longest) sample *= 2
         return sample
     }
 }

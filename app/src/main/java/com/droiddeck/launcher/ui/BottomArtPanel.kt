@@ -68,7 +68,8 @@ internal fun ArtPanel(runningGame: () -> String?) {
                 scanned = System.currentTimeMillis()
             }
             // Reloaded every poll so stats that failed to load once still arrive; the crossfade is keyed by app id.
-            withContext(Dispatchers.IO) { IdleHome.load(context, games, shown) }?.takeIf { it != game }?.let { game = it }
+            val loaded = withContext(Dispatchers.IO) { IdleHome.load(context, games, shown) }
+            if (loaded == null) { if (shown != null) game = null } else if (loaded != game) game = loaded
             playing = running != null && running == game?.appId?.toLong()
             delay(ART_POLL_MS)
         }

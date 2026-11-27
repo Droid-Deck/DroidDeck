@@ -38,7 +38,9 @@ object GameLinks {
             }
         }
         fun first(key: String) = values[key]?.firstOrNull()
-        val fandom = values["fandom"]?.let { all -> all.firstOrNull { '.' !in it } ?: all.firstOrNull() }
+        // Wikidata is editable by anyone, and this id becomes a URL host.
+        val fandomId = Regex("[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)?")
+        val fandom = values["fandom"]?.filter(fandomId::matches)?.let { all -> all.firstOrNull { '.' !in it } ?: all.firstOrNull() }
         return listOfNotNull(
             fandom?.let { id -> if ('.' in id) id.split('.', limit = 2).let { (lang, wiki) -> "https://$wiki.fandom.com/$lang/" } else "https://$id.fandom.com/" }
                 ?.let { Link(Kind.WIKI, it) },
@@ -217,13 +219,31 @@ object GuideLibrary {
         runCatching { File(map.path + ".markers.json").writeText(JSONArray(markers.map { JSONArray(listOf(it.first.toDouble(), it.second.toDouble())) }).toString()) }
     }
 
+    /** Follows redirects itself so the page's cookies reach only the host they were read for. */
+    private const val MAX_REDIRECTS = 5
+
+    private fun openMap(url: String, cookies: String?): HttpURLConnection? {
+        val home = URL(url).host
+        var target = URL(url)
+        repeat(MAX_REDIRECTS + 1) {
+            val c = target.openConnection() as HttpURLConnection
+            c.instanceFollowRedirects = false
+            c.connectTimeout = 10_000
+            c.readTimeout = 30_000
+            c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) DroidDeck")
+            if (target.host.equals(home, ignoreCase = true)) cookies?.takeIf { it.isNotEmpty() }?.let { c.setRequestProperty("Cookie", it) }
+            if (c.responseCode !in 300..399) return c
+            val next = c.getHeaderField("Location")?.let { runCatching { URL(target, it) }.getOrNull() }
+            c.disconnect()
+            if (next == null || (next.protocol != "https" && next.protocol != "http")) return null
+            target = next
+        }
+        return null
+    }
+
     fun pin(context: Context, game: String, url: String, cookies: String?): File? = runCatching {
         if (!url.startsWith("https://") && !url.startsWith("http://")) return null
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 10_000
-        c.readTimeout = 30_000
-        c.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android) DroidDeck")
-        cookies?.takeIf { it.isNotEmpty() }?.let { c.setRequestProperty("Cookie", it) }
+        val c = openMap(url, cookies) ?: return null
         try {
             if (c.responseCode != 200) return null
             val ext = IMAGE_TYPES[c.contentType?.substringBefore(';')?.trim()?.lowercase()] ?: return null

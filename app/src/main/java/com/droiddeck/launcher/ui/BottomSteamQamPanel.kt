@@ -174,8 +174,13 @@ internal fun SteamQamPanel() {
                             holder[0] = page
                             ensureActive()
                             page?.send("Page.enable")
-                            page?.send("Page.startScreencast", JSONObject().put("format", "jpeg").put("quality", 85)
+                            val started = page?.call("Page.startScreencast", JSONObject().put("format", "jpeg").put("quality", 85)
                                 .put("maxWidth", 1920).put("maxHeight", 1440))
+                            if (page != null && (started == null || started.has("error") || !started.has("result"))) {
+                                page.close()
+                                page = null
+                                holder[0] = null
+                            }
                         }
                         // The screencast sends frames only when the menu repaints, so a still menu needs one screenshot.
                         if (!live.get()) {
@@ -230,7 +235,7 @@ internal fun SteamQamPanel() {
         Canvas(
             Modifier.fillMaxSize().pointerInput(f.cssWidth, f.contentRight, boxW, boxH, fit) {
                 var touching = false
-                val touched = holder[0]
+                var target: CdpPage? = null
                 try {
                     awaitPointerEventScope {
                         while (true) {
@@ -243,15 +248,17 @@ internal fun SteamQamPanel() {
                                 PointerEventType.Release -> "touchEnd"
                                 else -> null
                             }?.takeIf { it == "touchStart" || touching } ?: continue
+                            if (type == "touchStart") target = holder[0]
                             touching = type != "touchEnd"
                             val points = if (type == "touchEnd") JSONArray()
                                 else JSONArray().put(JSONObject().put("x", x.toDouble()).put("y", y.toDouble()))
-                            holder[0]?.send("Input.dispatchTouchEvent", JSONObject().put("type", type).put("touchPoints", points))
+                            target?.send("Input.dispatchTouchEvent", JSONObject().put("type", type).put("touchPoints", points))
+                            if (!touching) target = null
                             change.consume()
                         }
                     }
                 } finally {
-                    if (touching) (touched ?: holder[0])?.send("Input.dispatchTouchEvent",
+                    if (touching) target?.send("Input.dispatchTouchEvent",
                         JSONObject().put("type", "touchCancel").put("touchPoints", JSONArray()))
                 }
             },

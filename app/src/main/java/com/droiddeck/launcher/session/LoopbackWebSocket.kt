@@ -63,7 +63,10 @@ class LoopbackWebSocket(port: Int, path: String = "/", connectTimeoutMs: Int = 1
             val data = ByteArray(length.toInt()).also(input::readFully)
             if (mask != null) for (i in data.indices) data[i] = (data[i].toInt() xor mask[i % 4].toInt()).toByte()
             when (b0 and 0x0F) {
-                0x8 -> return null
+                0x8 -> {
+                    sendClose(data.copyOf(minOf(2, data.size)))
+                    return null
+                }
                 0x9 -> synchronized(this) { frame(0xA, data) }
                 0x0, 0x1, 0x2 -> {
                     message.write(data)
@@ -107,8 +110,18 @@ class LoopbackWebSocket(port: Int, path: String = "/", connectTimeoutMs: Int = 1
         }
     }
 
+    private var closeSent = false
+
+    private fun sendClose(payload: ByteArray) {
+        synchronized(this) {
+            if (closeSent) return
+            closeSent = true
+            runCatching { frame(0x8, payload) }
+        }
+    }
+
     override fun close() {
-        runCatching { synchronized(this) { frame(0x8, ByteArray(0)) } }
+        sendClose(ByteArray(0))
         runCatching { socket.close() }
     }
 

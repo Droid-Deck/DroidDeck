@@ -72,12 +72,13 @@ object SteamQam {
                 };
             }
             if (!held()) {
+                const parked = !g.__ddQamTop;
                 g.__ddQamTop = false;
                 g.__ddQamPress = undefined;
                 if (!g.__ddQamOn) return;
                 g.__ddQamOn = false;
                 backdrop(false);
-                if (m.m_eOpenSideMenu === QAM) m.CloseSideMenus();
+                if (parked && m.m_eOpenSideMenu === QAM) m.CloseSideMenus();
                 c.EnsureCorrectComposition?.();
                 return;
             }

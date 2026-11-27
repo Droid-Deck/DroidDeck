@@ -26,8 +26,7 @@ class CdpPage(port: Int, path: String, private val onEvent: (String, JSONObject)
                 }
             } catch (_: Exception) {
             }
-            closed = true
-            pending.values.forEach { it.complete(JSONObject()) }
+            close()
         }
     }
 
@@ -53,8 +52,12 @@ class CdpPage(port: Int, path: String, private val onEvent: (String, JSONObject)
         call("Runtime.evaluate", JSONObject().put("expression", expression).put("returnByValue", true))
             ?.optJSONObject("result")?.optJSONObject("result")?.opt("value")
 
+    private val tornDown = java.util.concurrent.atomic.AtomicBoolean(false)
+
     override fun close() {
         closed = true
+        if (!tornDown.compareAndSet(false, true)) return
+        pending.values.forEach { it.complete(JSONObject()) }
         sender.shutdown()
         runCatching { ws.close() }
     }

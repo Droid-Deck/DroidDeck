@@ -11,10 +11,11 @@ import kotlin.concurrent.thread
 class LoopbackWebSocketTest {
     @Test
     fun talksToALoopbackWebSocketServer() {
-        val server = ServerSocket(0)
+        val server = ServerSocket(0).apply { soTimeout = 5_000 }
         var received: String? = null
         val worker = thread {
             server.accept().use { client ->
+                client.soTimeout = 5_000
                 val input = DataInputStream(client.getInputStream())
                 val out = client.getOutputStream()
                 out.write(upgrade(handshakeKey(input)).toByteArray())
@@ -33,13 +34,16 @@ class LoopbackWebSocketTest {
                 if (b0 == 0x81) received = String(payload)
             }
         }
-        LoopbackWebSocket(server.localPort).use { ws ->
-            assertEquals("""{"id":1}""", ws.receive())
-            assertEquals(300, ws.receive()!!.length)
-            ws.send("""{"id":2}""")
+        try {
+            LoopbackWebSocket(server.localPort, readTimeoutMs = 5_000).use { ws ->
+                assertEquals("""{"id":1}""", ws.receive())
+                assertEquals(300, ws.receive()!!.length)
+                ws.send("""{"id":2}""")
+            }
+            worker.join(5_000)
+        } finally {
+            server.close()
         }
-        worker.join(5_000)
-        server.close()
         assertEquals("""{"id":2}""", received)
     }
 

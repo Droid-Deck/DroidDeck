@@ -218,6 +218,7 @@ class SecondScreenPresentation(
             menuView?.let { frame.removeView(it); it.disposeComposition() }
             menuView = null
             root.visibility = View.VISIBLE
+            scheduleDim()
         }
     }
 
@@ -330,7 +331,7 @@ class SecondScreenPresentation(
 
     private fun scheduleDim() {
         frame.removeCallbacks(dim)
-        if (BottomScreenLight.autoDims(currentMode) && SessionPrefs.bottomAutoDim(context)) frame.postDelayed(dim, BottomScreenLight.DIM_AFTER_MS)
+        if (!menuShown && BottomScreenLight.autoDims(currentMode) && SessionPrefs.bottomAutoDim(context)) frame.postDelayed(dim, BottomScreenLight.DIM_AFTER_MS)
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {

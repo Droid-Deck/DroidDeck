@@ -37,8 +37,11 @@ class BottomGuidesPageTest {
     @Test
     fun bigMapsAreDecodedAtAManageableSize() {
         assertEquals(1, MapMarkers.sampleSize(4000, 3000, 4096))
-        assertEquals(2, MapMarkers.sampleSize(9000, 6000, 4096))
-        assertEquals(4, MapMarkers.sampleSize(20000, 12000, 4096))
+        assertEquals(1, MapMarkers.sampleSize(4096, 2000, 4096))
+        assertEquals(2, MapMarkers.sampleSize(6000, 6000, 4096))
+        assertEquals(2, MapMarkers.sampleSize(8192, 8192, 4096))
+        assertEquals(4, MapMarkers.sampleSize(9000, 6000, 4096))
+        assertEquals(8, MapMarkers.sampleSize(20000, 12000, 4096))
     }
 
     @Test

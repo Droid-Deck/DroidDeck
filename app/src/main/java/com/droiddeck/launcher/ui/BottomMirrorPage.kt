@@ -84,7 +84,7 @@ internal object MirrorRegion {
         return normalize(v[0], v[1], v[2], v[3])
     }
 
-    fun format(r: RectF): String = "%.4f,%.4f,%.4f,%.4f".format(java.util.Locale.US, r.left, r.top, r.right, r.bottom)
+    fun format(r: RectF): String = listOf(r.left, r.top, r.right, r.bottom).joinToString(",") { it.toString() }
 
     fun normalize(x0: Float, y0: Float, x1: Float, y1: Float): RectF? {
         val r = RectF(min(x0, x1).coerceIn(0f, 1f), min(y0, y1).coerceIn(0f, 1f), max(x0, x1).coerceIn(0f, 1f), max(y0, y1).coerceIn(0f, 1f))
@@ -233,7 +233,8 @@ private fun MirrorEditor(
             val image = still
             if (image == null) {
                 if (failed) Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    MirrorNote(stringResource(R.string.bottom_mirror_no_frame))
+                    Text(stringResource(R.string.bottom_mirror_no_frame), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center, modifier = Modifier.padding(24.dp))
                     SecondaryButton(stringResource(R.string.agent_retry), compact = true) { failed = false; attempt++ }
                 }
                 return@BoxWithConstraints

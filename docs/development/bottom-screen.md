@@ -102,7 +102,7 @@ Ordered by value for effort. Each is independent unless noted.
 
 **Status:** built as its own panel, Game art (Steam sessions), after a first version as a row on the dashboard was removed. The bottom screen shows the hero art of the running game, or the one selected in Big Picture, or the most recently played, with a slow pan and zoom, its logo, and play time; it cross-fades when the selection changes and starts with the bar hidden. Checked on a Retroid Pocket Duo Lite Plus. Code: [`ui/BottomArtPanel.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomArtPanel.kt), selection in [`ui/BottomIdleHome.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomIdleHome.kt).
 
-![](evidence/bottom-screen-art-2026-11-27.png)
+![Game art panel: a game's hero art with its logo and play time](evidence/bottom-screen-art-2026-11-27.png)
 
 When no game is focused, replace the Steam-client FPS card with a page about the game highlighted in Steam: art, play time, last played, achievement progress, and Play / Stream buttons. Add downloads in progress and friends online.
 
@@ -147,7 +147,7 @@ Rearrangeable tiles on the dashboard: FPS limit, 60/120 Hz, per-screen brightnes
 
 | Brightness | Bar hidden |
 | --- | --- |
-| ![](evidence/bottom-screen-brightness-2026-11-27.png) | ![](evidence/bottom-screen-bar-hidden-2026-11-27.png) |
+| ![Brightness slider dropped down under the bottom bar, with the screen-off button at its end](evidence/bottom-screen-brightness-2026-11-27.png) | ![Bottom bar hidden, with the pull tab at the top edge](evidence/bottom-screen-bar-hidden-2026-11-27.png) |
 
 ### 6. Region mirror from our compositor
 
@@ -191,17 +191,17 @@ Limits: it relies on Steam's minified UI stores and method names, so a client up
 
 | Big Picture, friends | In game, performance | In game, quick settings |
 | --- | --- | --- |
-| ![](evidence/bottom-screen-qam-friends-2026-11-27.png) | ![](evidence/bottom-screen-qam-performance-ingame-2026-11-27.png) | ![](evidence/bottom-screen-qam-settings-2026-11-27.png) |
+| ![Quick Access Friends tab on the bottom screen](evidence/bottom-screen-qam-friends-2026-11-27.png) | ![Quick Access Performance tab on the bottom screen during a game](evidence/bottom-screen-qam-performance-ingame-2026-11-27.png) | ![Quick Access Quick Settings tab on the bottom screen](evidence/bottom-screen-qam-settings-2026-11-27.png) |
 
 | Decky | Performance |
 | --- | --- |
-| ![](evidence/bottom-screen-qam-decky-2026-11-27.png) | ![](evidence/bottom-screen-qam-performance-2026-11-27.png) |
+| ![Decky Loader's tab in Quick Access on the bottom screen](evidence/bottom-screen-qam-decky-2026-11-27.png) | ![Quick Access Performance tab in the full-width layout](evidence/bottom-screen-qam-performance-2026-11-27.png) |
 
 | Layout: Center | Layout: Right |
 | --- | --- |
-| ![](evidence/bottom-screen-qam-center-2026-11-27.png) | ![](evidence/bottom-screen-qam-right-2026-11-27.png) |
+| ![Quick Access in the centred layout](evidence/bottom-screen-qam-center-2026-11-27.png) | ![Quick Access in the right-aligned layout](evidence/bottom-screen-qam-right-2026-11-27.png) |
 
-The top screen during that game, with the menu open on the bottom: ![](evidence/bottom-screen-qam-top-ingame-2026-11-27.png)
+The top screen during that game, with the menu open on the bottom: ![Top screen during the game, with nothing drawn over it](evidence/bottom-screen-qam-top-ingame-2026-11-27.png)
 
 ## Related fixes
 

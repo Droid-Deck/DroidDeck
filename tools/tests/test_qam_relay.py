@@ -36,7 +36,11 @@ class QamRelayTest(unittest.TestCase):
         def echo():
             conn, _ = upstream.accept()
             with conn:
-                conn.sendall(b"answer:" + conn.recv(100))
+                conn.settimeout(2)
+                head = b""
+                while not head.endswith(b"\r\n\r\n"):
+                    head += conn.recv(100)
+                conn.sendall(b"answer:" + head)
 
         threading.Thread(target=echo, daemon=True).start()
         server = socket.socket()
@@ -49,7 +53,14 @@ class QamRelayTest(unittest.TestCase):
         with socket.create_connection(("127.0.0.1", port), 2) as client:
             client.sendall(b"GET /s3cret/json HTTP/1.1\r\nHost: x\r\n\r\n")
             client.settimeout(2)
-            self.assertEqual(b"answer:GET /json HTTP/1.1\r\nHost: x\r\n\r\n", client.recv(100))
+            expected = b"answer:GET /json HTTP/1.1\r\nHost: x\r\n\r\n"
+            got = b""
+            while len(got) < len(expected):
+                data = client.recv(100)
+                if not data:
+                    break
+                got += data
+            self.assertEqual(expected, got)
         with mock.patch.object(self.relay.sys, "argv", ["x", "stop", str(port + 1)]):
             self.assertEqual(0, self.relay.main())
         serving.join(0.3)
