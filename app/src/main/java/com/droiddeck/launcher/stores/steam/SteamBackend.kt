@@ -21,7 +21,6 @@ object SteamBackend : StoreBackend {
 
     override fun signOut(context: Context) {
         val app = context.applicationContext
-        SteamAccount.clear(app)
         SteamOwnedLibrary.clear(app)
         StoreLibraryCache.clear(app, store)
         StoresState.library.remove(store)
@@ -44,7 +43,8 @@ object SteamBackend : StoreBackend {
     override fun syncLibrary(context: Context, force: Boolean) {
         val app = context.applicationContext
         StoresState.post { StoresState.status[store] = app.getString(R.string.stores_sync_library) }
-        SteamOwnedLibrary.syncAsync(app, force) { games ->
+        SteamOwnedLibrary.syncAsync(app, force) { steamId, games ->
+            if (steamId == null) return@syncAsync
             StoresState.status.remove(store)
             StoresState.problems.remove(store)
             StoresState.library[store] = games.map { game ->

@@ -538,6 +538,7 @@ internal fun GameActions(
                 if (rest) SecondaryButton(stringResource(R.string.stores_view_on, ctx.getString(R.string.source_steam))) {
                     a.onSteamUrl("https://store.steampowered.com/app/${game.appId}/")
                 }
+                if (rest) HideButton(hideKey(game), game)
             }
             !cloud && (game != null || installed != null) -> {
                 val gone = storeKey?.let { StoresState.uninstalling[it] }

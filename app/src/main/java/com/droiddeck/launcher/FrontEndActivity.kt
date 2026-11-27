@@ -1365,6 +1365,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         drivers.loadTpUbwcMode()
         val handoff = if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_RESTARTED, false)) LauncherHandoff.take() else null
         val saved = savedInstanceState ?: handoff
+        steamStoreSignInActionHandled = saved?.getBoolean(STATE_STEAM_STORE_SIGN_IN_HANDLED) == true
         pendingSessionLogExport = saved?.getString(KEY_PENDING_SESSION_LOG_EXPORT)?.let(::File)
         queuedLaunch.restore(
             saved?.let { androidx.core.os.BundleCompat.getParcelable(it, STATE_PENDING_GATE_LAUNCH, Intent::class.java) },
@@ -1537,8 +1538,8 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                             } else startSessionOrWait(next)
                         },
                         onSteamLibraryRefresh = {
-                            SteamOwnedLibrary.syncAsync(this, force = true) { games ->
-                                if (!shortcutPicker) steamOwnedGames = games
+                            SteamOwnedLibrary.syncAsync(this, force = true) { steamId, games ->
+                                if (!shortcutPicker && steamId != null) steamOwnedGames = games
                             }
                         },
                         onExportLibrary = { exportDroidDeckLibrary() },
@@ -2421,6 +2422,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     }
 
     private fun saveLauncherState(outState: Bundle) {
+        outState.putBoolean(STATE_STEAM_STORE_SIGN_IN_HANDLED, steamStoreSignInActionHandled)
         outState.putBoolean(STATE_HOME_CHOICE_OPEN, homeChoiceOpen)
         outState.putBoolean(STATE_GAME_SPACE_OFFERED, gameSpaceOffered)
         pendingSessionLogExport?.let { outState.putString(KEY_PENDING_SESSION_LOG_EXPORT, it.absolutePath) }
@@ -3427,7 +3429,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun refresh() {
         if (shortcutPicker) steamOwnedGames = emptyList()
         else if (ready || com.droiddeck.launcher.stores.StoreAccounts.signedInAs(this, com.droiddeck.launcher.stores.Store.STEAM) != null) {
-            SteamOwnedLibrary.syncAsync(this) { games -> if (!shortcutPicker) steamOwnedGames = games }
+            SteamOwnedLibrary.syncAsync(this) { steamId, games ->
+                if (!shortcutPicker && steamId != null) steamOwnedGames = games
+            }
         }
         val listX64 = SessionPrefs.activeSteamClientArch(this) == "x86_64"
         if (listX64 != steamGamesX64) {
@@ -3790,6 +3794,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     companion object {
         private const val REQUEST_NOTIFICATIONS = 7103
         private const val EXTRA_RESTARTED = "com.droiddeck.launcher.extra.RESTARTED"
+        private const val STATE_STEAM_STORE_SIGN_IN_HANDLED = "steam_store_sign_in_handled"
         private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
         private const val STATE_PENDING_GATE_LAUNCH = "pending_gate_launch"
         private const val STATE_PENDING_GATE_LAUNCH_AT = "pending_gate_launch_at"

@@ -148,7 +148,9 @@ impl Game {
     }
 
     pub fn manual(title: &str, target: &str) -> Self {
+        let normalized_path = normalize_windows_path(target);
         Self {
+            key: stable_key("other", &normalized_path, title),
             title: title.to_owned(),
             store: "other".into(),
             store_name: "PC".into(),
@@ -191,6 +193,10 @@ pub fn normalize_title(value: &str) -> String {
         .flat_map(char::to_lowercase)
         .filter(|c| c.is_alphanumeric())
         .collect()
+}
+
+fn normalize_windows_path(value: &str) -> String {
+    value.trim().replace('/', "\\").to_lowercase()
 }
 
 pub fn merge_games(rows: Vec<Game>) -> Vec<Game> {
@@ -243,5 +249,21 @@ fn https_only(value: &str) -> String {
         value.to_owned()
     } else {
         String::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Game, merge_games};
+
+    #[test]
+    fn manual_games_are_keyed_by_normalized_path() {
+        let first = Game::manual("Play", "C:/A/Play.exe");
+        let same = Game::manual("Play", "c:\\a\\PLAY.exe");
+        let second = Game::manual("Play", "C:/B/Play.exe");
+
+        assert_eq!(first.key, same.key);
+        assert_ne!(first.key, second.key);
+        assert_eq!(2, merge_games(vec![first, same, second]).len());
     }
 }

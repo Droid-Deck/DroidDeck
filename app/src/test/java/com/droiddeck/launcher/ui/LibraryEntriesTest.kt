@@ -98,6 +98,14 @@ class LibraryEntriesTest {
         assertEquals(listOf("xbox", "epic", "gog", Store.STEAM.id, "added"), librarySources(entries, order, places = listOf("favorites" to "epic", "steam" to "favorites", "added" to "nope")))
     }
 
+    @Test fun legacyCustomTabPlacementStillFollowsTheSteamStoreTab() {
+        val migrated = migrateSteamLibraryTabPlaces(listOf("added" to Library.SOURCE_STEAM))
+        val arranged = placeLibraryTabs(listOf(Store.STEAM.id), migrated)
+
+        assertEquals(listOf("added" to Store.STEAM.id), migrated)
+        assertEquals(arranged.indexOf(Store.STEAM.id) + 1, arranged.indexOf("added"))
+    }
+
     @Test fun hidingTheTabALibraryTabFollowsKeepsItInPlace() {
         val entries = listOf("added", "gog", "epic", "xbox").map { LibraryEntry(it, it, it, null, null, true) }
         assertEquals(listOf("xbox", "added", "gog"), librarySources(entries, listOf("xbox", "epic", "gog"), places = listOf("added" to "epic"), offStores = setOf("epic")))

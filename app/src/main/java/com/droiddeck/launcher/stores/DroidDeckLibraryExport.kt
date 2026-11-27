@@ -26,10 +26,11 @@ object DroidDeckLibraryExport {
         }
         for (store in Store.entries) for (item in StoresState.library[store].orEmpty()) {
             if (!item.accessible) continue
-            val key = "${store.id}:${item.id}"
+            val exportStoreId = if (store == Store.STEAM) Library.SOURCE_STEAM else store.id
+            val key = "$exportStoreId:${item.id}"
             if (!seen.add(key)) continue
             games.put(JSONObject()
-                .put("store", store.id)
+                .put("store", exportStoreId)
                 .put("storeName", store.label)
                 .put("storeId", item.id)
                 .put("title", item.title)

@@ -5,14 +5,15 @@ import android.os.Handler
 import android.os.Looper
 import android.util.AtomicFile
 import android.util.Log
-import com.droiddeck.launcher.runtime.LinuxRuntime
-import com.droiddeck.launcher.session.SessionState
-import com.droiddeck.launcher.session.SessionPrefs
-import com.droiddeck.launcher.session.SteamWebLogin
-import com.droiddeck.launcher.stores.steam.SteamAccount
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.runtime.LinuxRuntime
+import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.SteamWebLogin
+import com.droiddeck.launcher.stores.steam.SteamAccount
+import com.droiddeck.launcher.stores.StoresState
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -24,102 +25,197 @@ object SteamOwnedLibrary {
     private const val CACHE = "steam-owned-library.json"
     private const val REFRESH_MS = 15 * 60 * 1000L
     private const val OWNED_URL = "https://store.steampowered.com/dynamicstore/userdata/?v=1"
-    private val asyncRunning = java.util.concurrent.atomic.AtomicBoolean()
+    private val stateLock = Any()
+    private var generation = 0L
+    private val syncLock = Any()
     private val callbacksLock = Any()
-    private val callbacks = mutableListOf<(List<Library.SteamGame>) -> Unit>()
+    private val activeCallbacks = mutableListOf<PendingCallback>()
+    private val forcedCallbacks = mutableListOf<PendingCallback>()
+    private var asyncRunning = false
+    private var forceAfterActive = false
     private val main = Handler(Looper.getMainLooper())
 
     var games by mutableStateOf<List<Library.SteamGame>>(emptyList())
         private set
 
     private data class Saved(val steamId: String, val syncedAt: Long, val games: List<Pair<Int, String>>)
+    private data class Session(val steamId: String, val cookie: String)
+    private data class SyncResult(val generation: Long, val steamId: String?, val games: List<Library.SteamGame>)
+    private data class PendingCallback(
+        val generation: Long,
+        val callback: (steamId: String?, games: List<Library.SteamGame>) -> Unit,
+    )
 
-    fun syncAsync(context: Context, force: Boolean = false, onResult: (List<Library.SteamGame>) -> Unit = {}) {
+    fun syncAsync(
+        context: Context,
+        force: Boolean = false,
+        onResult: (steamId: String?, games: List<Library.SteamGame>) -> Unit = { _, _ -> },
+    ) {
+        val pending = PendingCallback(currentGeneration(), onResult)
+        var start = false
         synchronized(callbacksLock) {
-            callbacks += onResult
-            if (!asyncRunning.compareAndSet(false, true)) return
+            if (!asyncRunning) {
+                asyncRunning = true
+                activeCallbacks += pending
+                start = true
+            } else if (force) {
+                forcedCallbacks += pending
+                forceAfterActive = true
+            } else {
+                activeCallbacks += pending
+            }
         }
+        if (!start) return
+
         val app = context.applicationContext
         Thread({
-            val fresh = runCatching { sync(app, force) }.getOrElse {
-                Log.w(TAG, "Steam library sync failed (${it.javaClass.simpleName})")
-                emptyList()
-            }
-            main.post {
-                games = fresh
-                val completed = synchronized(callbacksLock) {
-                    asyncRunning.set(false)
-                    callbacks.toList().also { callbacks.clear() }
+            var forcePass = force
+            while (true) {
+                val result = runCatching { syncForCurrentAccount(app, forcePass) }.getOrElse {
+                    Log.w(TAG, "Steam library sync failed (${it.javaClass.simpleName})")
+                    SyncResult(currentGeneration(), null, emptyList())
                 }
-                completed.forEach { callback -> runCatching { callback(fresh) } }
+                val (completed, runForcedPass) = synchronized(callbacksLock) {
+                    val done = activeCallbacks.toList()
+                    activeCallbacks.clear()
+                    if (forceAfterActive) {
+                        activeCallbacks += forcedCallbacks
+                        forcedCallbacks.clear()
+                        forceAfterActive = false
+                        true
+                    } else {
+                        asyncRunning = false
+                        false
+                    }.let { done to it }
+                }
+                publish(app, result, completed)
+                if (!runForcedPass) break
+                forcePass = true
             }
         }, "steam-owned-library").start()
     }
 
-    fun sync(context: Context, force: Boolean = false): List<Library.SteamGame> = synchronized(this) {
-        val app = context.applicationContext
+    fun sync(context: Context, force: Boolean = false): List<Library.SteamGame> =
+        syncForCurrentAccount(context.applicationContext, force).games
+
+    private fun syncForCurrentAccount(app: Context, force: Boolean): SyncResult = synchronized(syncLock) {
+        val runGeneration = currentGeneration()
         val accountSession = SteamAccount.read(app)?.let { Session(it.steamId, it.cookieHeader) }
-        val clientWebSession = if (!LinuxRuntime.isInstalled(app)) null else runCatching {
-            readClientSession(app)
-        }.getOrElse {
-            Log.w(TAG, "Steam web session is unavailable (${it.javaClass.simpleName})")
-            null
-        }
+        val clientWebSession = readClientSessionOrNull(app)
         val clientSession = clientWebSession?.let { Session(it.steamId, it.cookieHeader) }
-        val session = clientSession ?: accountSession ?: return emptyList()
-        val useClientSession = clientSession != null
-        if (clientSession != null && (
-                accountSession?.steamId != clientSession.steamId || accountSession?.cookie != clientSession.cookie
-            )
-        ) {
-            clientWebSession?.let { SteamAccount.save(app, it) }
-            com.droiddeck.launcher.stores.StoresState.refresh(app)
-        }
+        val session = clientSession ?: accountSession
+            ?: return@synchronized SyncResult(runGeneration, null, emptyList())
         val saved = readSaved(app)
-        if (!force && saved?.steamId == session.steamId && System.currentTimeMillis() - saved.syncedAt < REFRESH_MS) {
-            return saved.games.toSteamGames()
+        val cacheIsFresh = !force && saved?.steamId == session.steamId &&
+            System.currentTimeMillis() - saved.syncedAt < REFRESH_MS
+        val clientNeedsAuthentication = clientSession != null && accountSession?.cookie != clientSession.cookie
+        if (cacheIsFresh && !clientNeedsAuthentication && isCurrent(app, runGeneration, session.steamId)) {
+            return@synchronized SyncResult(runGeneration, session.steamId, saved!!.games.toSteamGames())
         }
 
-        var usedClientSession = useClientSession
+        var authenticatedClient = false
         val ids = try {
-            ownedApps(session.cookie)
+            ownedApps(session.cookie).also { authenticatedClient = clientSession != null }
         } catch (primaryError: Exception) {
-            val fallback = accountSession?.takeIf { it.steamId == session.steamId && it.cookie != session.cookie }
+            val fallback = accountSession?.takeIf {
+                it.steamId == session.steamId && it.cookie != session.cookie
+            }
             if (fallback == null) {
                 Log.w(TAG, "Steam library refresh failed (${primaryError.javaClass.simpleName})")
-                return saved?.takeIf { it.steamId == session.steamId }?.games.toSteamGames()
+                val cached = saved?.takeIf { it.steamId == session.steamId }?.games.toSteamGames()
+                return@synchronized SyncResult(runGeneration, session.steamId.takeIf { isCurrent(app, runGeneration, it) }, cached)
             }
-            usedClientSession = false
             try {
                 ownedApps(fallback.cookie)
             } catch (fallbackError: Exception) {
                 Log.w(TAG, "Steam library refresh failed (${fallbackError.javaClass.simpleName})")
-                return saved?.takeIf { it.steamId == session.steamId }?.games.toSteamGames()
+                val cached = saved?.takeIf { it.steamId == session.steamId }?.games.toSteamGames()
+                return@synchronized SyncResult(runGeneration, session.steamId.takeIf { isCurrent(app, runGeneration, it) }, cached)
             }
         }
-        if (usedClientSession) clientWebSession?.let { SteamAccount.save(app, it) }
+
+        if (authenticatedClient && clientWebSession != null) {
+            val savedClientSession = synchronized(stateLock) {
+                if (generation != runGeneration || currentSteamId(app) != session.steamId) false else {
+                    SteamAccount.save(app, clientWebSession)
+                    StoresState.refresh(app)
+                    true
+                }
+            }
+            if (!savedClientSession) {
+                return@synchronized SyncResult(runGeneration, null, emptyList())
+            }
+        }
+
         SteamAppInfo.lookup(app, ids.toList())
-        val games = ids.sorted().mapNotNull { id ->
+        val freshGames = ids.sorted().mapNotNull { id ->
             val info = runCatching { SteamAppInfo.info(app, id) }.getOrNull() ?: return@mapNotNull null
             if (!info.type.equals("game", ignoreCase = true) || info.name.isBlank()) return@mapNotNull null
             id to info.name
         }
-        writeSaved(app, Saved(session.steamId, System.currentTimeMillis(), games))
-        games.toSteamGames()
+        val stillCurrent = synchronized(stateLock) {
+            if (generation != runGeneration || currentSteamId(app) != session.steamId) {
+                false
+            } else {
+                writeSaved(app, Saved(session.steamId, System.currentTimeMillis(), freshGames))
+                true
+            }
+        }
+        SyncResult(runGeneration, session.steamId.takeIf { stillCurrent }, if (stillCurrent) freshGames.toSteamGames() else emptyList())
     }
 
     fun clear(context: Context) {
-        File(context.applicationContext.filesDir, CACHE).delete()
-        main.post { games = emptyList() }
+        val app = context.applicationContext
+        val clearedGeneration = synchronized(stateLock) {
+            generation += 1
+            SteamAccount.clear(app)
+            File(app.filesDir, CACHE).delete()
+            generation
+        }
+        main.post {
+            synchronized(stateLock) {
+                if (generation == clearedGeneration) games = emptyList()
+            }
+        }
     }
 
-    private data class Session(val steamId: String, val cookie: String)
+    private fun publish(context: Context, result: SyncResult, callbacks: List<PendingCallback>) {
+        main.post {
+            synchronized(stateLock) {
+                val current = generation == result.generation && result.steamId != null &&
+                    currentSteamId(context) == result.steamId
+                if (current) games = result.games
+                else if (generation == result.generation && result.steamId == null) games = emptyList()
+                callbacks.forEach { pending ->
+                    val callbackAccount = result.steamId.takeIf { current && pending.generation == generation }
+                    runCatching { pending.callback(callbackAccount, if (callbackAccount != null) result.games else emptyList()) }
+                }
+            }
+        }
+    }
+
+    private fun currentGeneration(): Long = synchronized(stateLock) { generation }
+
+    private fun isCurrent(context: Context, expectedGeneration: Long, steamId: String): Boolean =
+        synchronized(stateLock) {
+            generation == expectedGeneration && currentSteamId(context) == steamId
+        }
+
+    private fun currentSteamId(context: Context): String? =
+        readClientSessionOrNull(context)?.steamId ?: SteamAccount.read(context)?.steamId
+
+    private fun readClientSessionOrNull(context: Context): com.droiddeck.launcher.stores.steam.SteamWebSession? {
+        if (!LinuxRuntime.isInstalled(context)) return null
+        return runCatching { readClientSession(context) }.getOrElse {
+            Log.w(TAG, "Steam web session is unavailable (${it.javaClass.simpleName})")
+            null
+        }
+    }
 
     private fun readClientSession(context: Context): com.droiddeck.launcher.stores.steam.SteamWebSession? {
-        val app = context.applicationContext
         val cookies = SteamWebLogin.read(
-            LinuxRuntime.rootDir(app), SessionState.steamClientArch,
-            File(app.cacheDir, "steam-owned-library-cookies"),
+            LinuxRuntime.rootDir(context), SessionState.steamClientArch,
+            File(context.cacheDir, "steam-owned-library-cookies"),
             SteamWebLogin.HOSTS + SteamWebLogin.STORE_HOSTS,
         )
         return SteamAccount.fromWebCookies(cookies)

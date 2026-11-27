@@ -81,7 +81,7 @@ internal object StoreTabsState {
     fun load(context: android.content.Context) {
         SessionPrefs.settleStoresTabOrder(context, Store.entries.map { it.id })
         tabs = arrangeStoreTabs(SessionPrefs.storesTabOrder(context), SessionPrefs.storesTabHidden(context))
-        libraryPlaces = SessionPrefs.libraryTabPlaces(context) ?: DEFAULT_LIBRARY_PLACES
+        libraryPlaces = SessionPrefs.libraryTabPlaces(context)?.let(::migrateSteamLibraryTabPlaces) ?: DEFAULT_LIBRARY_PLACES
         libraryHidden = SessionPrefs.libraryTabsHidden(context) + listOfNotNull(LIBRARY_HIDDEN.takeUnless { SessionPrefs.libraryShowHidden(context) })
     }
 
@@ -147,6 +147,9 @@ internal fun placeLibraryTabs(stores: List<String>, places: List<Pair<String, St
 /** The places that rebuild [order] with [placeLibraryTabs]. */
 internal fun libraryPlacesOf(order: List<String>): List<Pair<String, String>> =
     order.mapIndexedNotNull { i, id -> if (id in LIBRARY_OWN_TABS) id to (order.getOrNull(i - 1) ?: "") else null }
+
+internal fun migrateSteamLibraryTabPlaces(places: List<Pair<String, String>>): List<Pair<String, String>> =
+    places.map { (id, after) -> id to (if (after == Library.SOURCE_STEAM) Store.STEAM.id else after) }
 
 internal object ManageStores {
     var open by mutableStateOf(false)

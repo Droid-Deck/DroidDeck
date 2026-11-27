@@ -200,6 +200,9 @@ internal fun librarySources(
 internal fun librarySourceMatches(source: String, entry: LibraryEntry): Boolean =
     entry.source == source || (source == Store.STEAM.id && entry.source == Library.SOURCE_STEAM)
 
+internal fun librarySourceMatches(source: String, game: Library.SteamGame): Boolean =
+    game.source == source || (source == Store.STEAM.id && game.source == Library.SOURCE_STEAM)
+
 internal object LibraryDisplay {
     const val DEFAULT_LEVEL = 2
     val scales = listOf(0.75f, 0.875f, 1f, 1.2f, 1.45f)
@@ -436,13 +439,13 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         kotlinx.coroutines.delay(150)
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             SoundtrackIndex.build(ctx, s.soundtracks)
-                .filter { (source == LIBRARY_ALL || it.game.source == source) && SoundtrackTracks.matches(q, it.ref.title, it.ref.artist, it.ref.album) }
+                .filter { (source == LIBRARY_ALL || librarySourceMatches(source, it.game)) && SoundtrackTracks.matches(q, it.ref.title, it.ref.artist, it.ref.album) }
                 .distinctBy { it.ref.path }
                 .sortedWith(compareBy({ SoundtrackTracks.rank(q, it.ref.title) }, { it.ref.title.lowercase() }))
                 .take(100)
         }
     }
-    val shownHits = trackHits.filter { source == LIBRARY_ALL || it.game.source == source }
+    val shownHits = trackHits.filter { source == LIBRARY_ALL || librarySourceMatches(source, it.game) }
     val hitScope = rememberCoroutineScope()
     val playHit: (SoundtrackIndex.Hit) -> Unit = { hit ->
         val dir = hit.game.gameFiles

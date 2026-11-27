@@ -453,9 +453,12 @@ struct Launcher {
     textures: HashMap<String, TextureHandle>,
     logo_texture: Option<TextureHandle>,
     requested_covers: HashSet<String>,
+    cover_retry_after: HashMap<String, f64>,
     cover_tx: Sender<(String, Option<egui::ColorImage>)>,
     cover_rx: Receiver<(String, Option<egui::ColorImage>)>,
     workers: ThreadPool,
+    cover_workers: ThreadPool,
+    catalog_blocked: Option<String>,
     toast: Option<(String, f64)>,
     notice: Option<String>,
     page: Page,
@@ -485,12 +488,21 @@ impl Launcher {
             )
         });
         let paths = Paths::new();
-        let games =
-            scanner::merge_local(read_database(&paths.db).unwrap_or_else(load_legacy_database));
+        let (loaded, catalog_blocked) = match load_database(&paths.db) {
+            Ok(games) => (Some(games), None),
+            Err(error) => (None, Some(error)),
+        };
+        let scan = loaded
+            .map(scanner::merge_local_with_report)
+            .unwrap_or_default();
+        let startup_notice = catalog_blocked
+            .as_ref()
+            .map(|error| format!("No se pudo cargar tu biblioteca. La sincronización automática está pausada: {error}"))
+            .or_else(|| scan.issues.first().map(|issue| format!("La exploración local fue parcial: {issue}")));
         let (cover_tx, cover_rx) = mpsc::channel();
         let (account_tx, account_rx) = mpsc::channel();
         Self {
-            games,
+            games: scan.games,
             query: String::new(),
             filter: LibraryFilter::All,
             store_filter: "all".to_owned(),
@@ -498,11 +510,14 @@ impl Launcher {
             textures: HashMap::new(),
             logo_texture,
             requested_covers: HashSet::new(),
+            cover_retry_after: HashMap::new(),
             cover_tx,
             cover_rx,
             workers: ThreadPool::new(4),
+            cover_workers: ThreadPool::new(4),
+            catalog_blocked,
             toast: None,
-            notice: None,
+            notice: startup_notice,
             page: Page::Library,
             accounts: accounts::list(),
             account_tx,
@@ -513,14 +528,50 @@ impl Launcher {
     }
 
     fn refresh(&mut self) {
-        let saved = read_database(&self.paths.db).unwrap_or_else(load_legacy_database);
-        self.games = scanner::merge_local(saved);
+        self.cover_retry_after.clear();
+        let saved = match load_database(&self.paths.db) {
+            Ok(saved) => saved,
+            Err(error) => {
+                self.catalog_blocked = Some(error.clone());
+                self.notice = Some(format!(
+                    "No se pudo leer la biblioteca; no se importaron juegos: {error}"
+                ));
+                return;
+            }
+        };
+        let scan = scanner::merge_local_with_report(saved);
+        self.games = scan.games;
+        self.catalog_blocked = None;
+        if let Err(error) = self.persist() {
+            self.catalog_blocked = Some(error.clone());
+            self.notice = Some(format!(
+                "No se pudo guardar la biblioteca; la sincronización está pausada: {error}"
+            ));
+            return;
+        }
         self.sync_connected();
-        self.notice = Some("Buscando cambios en las tiendas conectadas…".into());
-        self.persist();
+        self.notice = scan
+            .issues
+            .first()
+            .map(|issue| format!("La exploración local fue parcial: {issue}"))
+            .or_else(|| Some("Buscando cambios en las tiendas conectadas…".into()));
+    }
+
+    fn catalog_available(&mut self) -> bool {
+        if let Some(error) = &self.catalog_blocked {
+            self.notice = Some(format!(
+                "La biblioteca no está disponible para cambios: {error}. Usá Actualizar para reintentar."
+            ));
+            false
+        } else {
+            true
+        }
     }
 
     fn connect_store(&mut self, store: &str) {
+        if !self.catalog_available() {
+            return;
+        }
         if self.account_busy.contains(store) {
             return;
         }
@@ -595,6 +646,9 @@ impl Launcher {
     }
 
     fn sync_store(&mut self, store: &str) {
+        if !self.catalog_available() {
+            return;
+        }
         if self.account_busy.contains(store) {
             return;
         }
@@ -624,6 +678,9 @@ impl Launcher {
     }
 
     fn sync_connected(&mut self) {
+        if !self.catalog_available() {
+            return;
+        }
         let stores: Vec<String> = self
             .accounts
             .iter()
@@ -636,6 +693,9 @@ impl Launcher {
     }
 
     fn sync_noninteractive_connected(&mut self) {
+        if !self.catalog_available() {
+            return;
+        }
         let stores: Vec<String> = self
             .accounts
             .iter()
@@ -659,7 +719,12 @@ impl Launcher {
                 self.games =
                     scanner::merge_local(model::merge_games(std::mem::take(&mut self.games)));
                 self.accounts = accounts::list();
-                self.persist();
+                if let Err(error) = self.persist() {
+                    self.catalog_blocked = Some(error.clone());
+                    self.notice = Some(format!(
+                        "Se desconectó la cuenta, pero no se pudo guardar la biblioteca: {error}"
+                    ));
+                }
                 #[cfg(windows)]
                 if let Err(error) = store_login::clear_webview_profile(store) {
                     self.notice = Some(error);
@@ -672,6 +737,19 @@ impl Launcher {
         }
     }
 
+    #[cfg(windows)]
+    fn retry_webview_cleanup(&mut self, store: &str) {
+        match store_login::clear_webview_profile(store) {
+            Ok(()) => {
+                self.notice = Some(format!(
+                    "Se limpió la sesión web de {}.",
+                    model::store_label(store)
+                ))
+            }
+            Err(error) => self.notice = Some(error),
+        }
+    }
+
     fn poll_accounts(&mut self, ctx: &egui::Context) {
         while let Ok((store, result)) = self.account_rx.try_recv() {
             self.account_busy.remove(&store);
@@ -679,7 +757,12 @@ impl Launcher {
                 Ok(connected) => {
                     let count = connected.games.len();
                     let display = connected.account.display_name.clone();
-                    let save_result = accounts::save(&connected.account);
+                    if let Err(error) = accounts::save(&connected.account) {
+                        self.notice = Some(format!(
+                            "Se leyó la biblioteca, pero no se pudo guardar la cuenta: {error}"
+                        ));
+                        continue;
+                    }
                     self.games.retain(|game| {
                         !(game.store == store && game.imported_from == "connected-store")
                     });
@@ -687,8 +770,8 @@ impl Launcher {
                     self.games =
                         scanner::merge_local(model::merge_games(std::mem::take(&mut self.games)));
                     self.accounts = accounts::list();
-                    self.persist();
-                    self.notice = Some(match save_result {
+                    let persisted = self.persist();
+                    self.notice = Some(match persisted {
                         Ok(()) if display.is_empty() => format!(
                             "{}: {count} juegos sincronizados.",
                             model::store_label(&store)
@@ -697,9 +780,12 @@ impl Launcher {
                             "{} conectado como {display}: {count} juegos sincronizados.",
                             model::store_label(&store)
                         ),
-                        Err(error) => format!(
-                            "Se leyó la biblioteca ({count} juegos), pero no se pudo guardar la cuenta: {error}"
-                        ),
+                        Err(error) => {
+                            self.catalog_blocked = Some(error.clone());
+                            format!(
+                                "La cuenta quedó guardada, pero no se pudo persistir la biblioteca: {error}"
+                            )
+                        }
                     });
                 }
                 Err(error) => self.notice = Some(error),
@@ -710,20 +796,28 @@ impl Launcher {
         }
     }
 
-    fn persist(&self) {
-        let _ = fs::create_dir_all(self.paths.db.parent().unwrap_or(&self.paths.db));
+    fn persist(&self) -> Result<(), String> {
+        let parent = self.paths.db.parent().unwrap_or(&self.paths.db);
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("No se pudo preparar la carpeta de la biblioteca: {error}"))?;
         let temp = self.paths.db.with_extension("json.tmp");
-        if let Ok(contents) = serde_json::to_vec_pretty(&model::Catalog {
+        let contents = serde_json::to_vec_pretty(&model::Catalog {
             schema_version: 1,
             games: self.games.clone(),
-        }) {
-            if fs::write(&temp, contents).is_ok() {
-                let _ = fs::rename(temp, &self.paths.db);
-            }
-        }
+        })
+        .map_err(|error| format!("No se pudo serializar la biblioteca: {error}"))?;
+        fs::write(&temp, contents)
+            .map_err(|error| format!("No se pudo guardar la biblioteca temporal: {error}"))?;
+        fs::rename(&temp, &self.paths.db).map_err(|error| {
+            let _ = fs::remove_file(&temp);
+            format!("No se pudo reemplazar el archivo de biblioteca: {error}")
+        })
     }
 
     fn add_game(&mut self) {
+        if !self.catalog_available() {
+            return;
+        }
         let Some(path) = rfd::FileDialog::new()
             .set_title("Elegir juego")
             .add_filter(
@@ -744,8 +838,15 @@ impl Launcher {
         self.games.push(game);
         self.games
             .sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
-        self.persist();
-        self.notice = Some("Juego agregado".into());
+        match self.persist() {
+            Ok(()) => self.notice = Some("Juego agregado".into()),
+            Err(error) => {
+                self.catalog_blocked = Some(error.clone());
+                self.notice = Some(format!(
+                    "El juego quedó en la biblioteca actual, pero no se pudo guardar: {error}"
+                ));
+            }
+        }
     }
 
     fn visible_games(&self) -> Vec<Game> {
@@ -776,6 +877,13 @@ impl Launcher {
     }
 
     fn queue_cover(&mut self, game: &Game, ctx: &egui::Context) {
+        let now = ctx.input(|input| input.time);
+        if let Some(retry_at) = self.cover_retry_after.get(&game.key).copied() {
+            if retry_at > now {
+                ctx.request_repaint_after(Duration::from_secs_f64(retry_at - now));
+                return;
+            }
+        }
         if game.cover_url.is_empty()
             || self.textures.contains_key(&game.key)
             || !self.requested_covers.insert(game.key.clone())
@@ -790,8 +898,11 @@ impl Launcher {
             .join(format!("{}.img", safe_cache_name(&key)));
         let tx = self.cover_tx.clone();
         let ctx = ctx.clone();
-        self.workers.execute(move || {
-            let bytes = fs::read(&cache).ok().or_else(|| {
+        self.cover_workers.execute(move || {
+            let cached = fs::read(&cache)
+                .ok()
+                .and_then(|bytes| image::load_from_memory(&bytes).ok());
+            let decoded = cached.or_else(|| {
                 let response = reqwest::blocking::Client::builder()
                     .timeout(Duration::from_secs(12))
                     .build()
@@ -803,18 +914,17 @@ impl Launcher {
                     .error_for_status()
                     .ok()?;
                 let data = response.bytes().ok()?.to_vec();
+                let decoded = image::load_from_memory(&data).ok()?;
                 let _ = fs::write(cache, &data);
-                Some(data)
+                Some(decoded)
             });
-            let image = bytes
-                .and_then(|data| image::load_from_memory(&data).ok())
-                .map(|decoded| {
-                    let rgba = decoded.to_rgba8();
-                    egui::ColorImage::from_rgba_unmultiplied(
-                        [rgba.width() as usize, rgba.height() as usize],
-                        rgba.as_raw(),
-                    )
-                });
+            let image = decoded.map(|decoded| {
+                let rgba = decoded.to_rgba8();
+                egui::ColorImage::from_rgba_unmultiplied(
+                    [rgba.width() as usize, rgba.height() as usize],
+                    rgba.as_raw(),
+                )
+            });
             let _ = tx.send((key, image));
             ctx.request_repaint();
         });
@@ -822,12 +932,18 @@ impl Launcher {
 
     fn poll_covers(&mut self, ctx: &egui::Context) {
         for (key, image) in self.cover_rx.try_iter() {
+            self.requested_covers.remove(&key);
             if let Some(image) = image {
+                self.cover_retry_after.remove(&key);
                 self.textures.insert(
                     key.clone(),
                     ctx.load_texture(key, image, TextureOptions::LINEAR),
                 );
                 ctx.request_repaint();
+            } else {
+                let retry_at = ctx.input(|input| input.time) + 60.0;
+                self.cover_retry_after.insert(key, retry_at);
+                ctx.request_repaint_after(Duration::from_secs(60));
             }
         }
     }
@@ -1281,6 +1397,10 @@ impl Launcher {
                 | "gamejolt"
         );
         let busy = self.account_busy.contains(id);
+        #[cfg(windows)]
+        let cleanup_pending = store_login::webview_cleanup_pending(id);
+        #[cfg(not(windows))]
+        let cleanup_pending = false;
         Frame::new()
             .fill(CARD)
             .stroke(Stroke::new(1.0, LINE))
@@ -1411,13 +1531,33 @@ impl Launcher {
                         );
                     }
                 });
+                if cleanup_pending {
+                    ui.add_space(8.0);
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new("La sesión web anterior no se pudo borrar.")
+                                .size(10.0)
+                                .color(MUTED),
+                        );
+                        if ui.button("Reintentar limpieza").clicked() {
+                            #[cfg(windows)]
+                            self.retry_webview_cleanup(id);
+                        }
+                    });
+                }
             });
     }
 
     fn draw_card(&mut self, ui: &mut egui::Ui, game: &Game) {
         let ctx = ui.ctx().clone();
-        self.queue_cover(game, &ctx);
         let (rect, response) = ui.allocate_exact_size(Vec2::new(CARD_W, CARD_H), Sense::hover());
+        let cover_rect = egui::Rect::from_min_size(
+            rect.left_top() + Vec2::splat(1.0),
+            Vec2::new(CARD_W - 2.0, 204.0),
+        );
+        if ui.clip_rect().intersects(cover_rect) {
+            self.queue_cover(game, &ctx);
+        }
         ui.painter().rect_filled(
             rect,
             15.0,
@@ -2036,29 +2176,64 @@ fn set_theme(ctx: &egui::Context) {
     });
 }
 
-fn read_database(path: &PathBuf) -> Option<Vec<Game>> {
-    let data = fs::read_to_string(path).ok()?;
-    let catalog: model::Catalog = serde_json::from_str(&data).ok()?;
-    Some(catalog.games)
+fn read_database(path: &std::path::Path) -> Result<Option<Vec<Game>>, String> {
+    let data = match fs::read_to_string(path) {
+        Ok(data) => data,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("No se pudo leer {}: {error}", path.display())),
+    };
+    let catalog: model::Catalog = serde_json::from_str(&data).map_err(|error| {
+        format!(
+            "La biblioteca {} no contiene JSON válido: {error}",
+            path.display()
+        )
+    })?;
+    Ok(Some(catalog.games))
 }
 
-fn load_legacy_database() -> Vec<Game> {
+fn load_database(path: &std::path::Path) -> Result<Vec<Game>, String> {
+    match read_database(path)? {
+        Some(games) => Ok(games),
+        None => load_legacy_database(),
+    }
+}
+
+fn load_legacy_database() -> Result<Vec<Game>, String> {
     let Some(appdata) = std::env::var_os("APPDATA").map(PathBuf::from) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let candidates = [
         appdata.join("droideck-windows-launcher/library.json"),
         appdata.join("DroidDeck Launcher/library.json"),
         appdata.join("DroidDeckLauncher/library.json"),
     ];
-    candidates
-        .iter()
-        .find_map(read_database)
-        .unwrap_or_default()
+    for candidate in &candidates {
+        if let Some(games) = read_database(candidate)? {
+            return Ok(games);
+        }
+    }
+    Ok(Vec::new())
 }
 
 fn safe_cache_name(key: &str) -> String {
-    key.chars()
+    let safe: String = key
+        .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect()
+        .take(120)
+        .collect();
+    let hash = key.bytes().fold(0xcbf29ce484222325u64, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+    });
+    format!("{safe}_{hash:016x}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::safe_cache_name;
+
+    #[test]
+    fn cache_names_distinguish_keys_with_same_sanitized_form() {
+        assert_ne!(safe_cache_name("epic:a-b"), safe_cache_name("epic:a_b"));
+        assert_eq!(safe_cache_name("epic:a-b"), safe_cache_name("epic:a-b"));
+    }
 }

@@ -5,7 +5,11 @@ use crate::{
 use reqwest::blocking::Client;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::{collections::HashSet, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::mpsc,
+    time::{Duration, Instant},
+};
 
 const AGENT: &str = "DroidDeckLauncher/0.3";
 
@@ -133,70 +137,132 @@ fn steam_connect(data: Value) -> Result<ConnectedStore, String> {
     })
 }
 
+enum SteamDetail {
+    Game(Game),
+    Excluded,
+    Failed,
+}
+
 fn steam_games(ids: Vec<String>) -> Vec<Game> {
-    let ids: Vec<String> = ids
+    let mut ids: Vec<String> = ids
         .into_iter()
         .collect::<HashSet<_>>()
         .into_iter()
         .collect();
+    ids.sort();
+    let mut games: HashMap<String, Game> = ids
+        .iter()
+        .map(|id| {
+            (
+                id.clone(),
+                game(
+                    "steam",
+                    id,
+                    &format!("Steam game {id}"),
+                    &format!("https://store.steampowered.com/app/{id}/"),
+                    &format!(
+                        "https://cdn.cloudflare.steamstatic.com/steam/apps/{id}/library_600x900.jpg"
+                    ),
+                    &format!(
+                        "https://cdn.cloudflare.steamstatic.com/steam/apps/{id}/library_hero.jpg"
+                    ),
+                ),
+            )
+        })
+        .collect();
     let pool = threadpool::ThreadPool::new(8);
-    let (tx, rx) = std::sync::mpsc::channel();
-    for id in &ids {
-        let id = id.clone();
-        let tx = tx.clone();
+    let (tx, rx) = mpsc::channel();
+    let job_tx = tx.clone();
+    let mut pending = ids.into_iter();
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let mut in_flight = 0;
+    let schedule = |id: String, tx: mpsc::Sender<(String, SteamDetail)>| {
         pool.execute(move || {
-            let _ = tx.send(steam_detail(&id));
+            let result = steam_detail(&id);
+            let _ = tx.send((id, result));
         });
+    };
+    for _ in 0..8 {
+        if let Some(id) = pending.next() {
+            in_flight += 1;
+            schedule(id, job_tx.clone());
+        }
     }
     drop(tx);
-    let mut games = Vec::new();
-    for _ in 0..ids.len() {
-        if let Ok(Some(item)) = rx.recv() {
-            games.push(item);
+    while in_flight > 0 {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        let Ok((id, result)) = rx.recv_timeout(remaining) else {
+            break;
+        };
+        in_flight -= 1;
+        match result {
+            SteamDetail::Game(item) => {
+                games.insert(id, item);
+            }
+            SteamDetail::Excluded => {
+                games.remove(&id);
+            }
+            SteamDetail::Failed => {}
+        }
+        if Instant::now() < deadline {
+            if let Some(id) = pending.next() {
+                in_flight += 1;
+                schedule(id, job_tx.clone());
+            }
         }
     }
     pool.join();
-    for id in ids {
-        if !games.iter().any(|g| g.store_id == id) {
-            games.push(game(
-                "steam",
-                &id,
-                &format!("Steam game {id}"),
-                &format!("https://store.steampowered.com/app/{id}/"),
-                &format!(
-                    "https://cdn.cloudflare.steamstatic.com/steam/apps/{id}/library_600x900.jpg"
-                ),
-                &format!("https://cdn.cloudflare.steamstatic.com/steam/apps/{id}/library_hero.jpg"),
-            ));
-        }
-    }
+    let mut games: Vec<Game> = games.into_values().collect();
     games.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
     games
 }
 
-fn steam_detail(id: &str) -> Option<Game> {
-    let response = client()
-        .ok()?
+fn steam_detail(id: &str) -> SteamDetail {
+    let Ok(http) = Client::builder()
+        .user_agent(AGENT)
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(10))
+        .build()
+    else {
+        return SteamDetail::Failed;
+    };
+    let Ok(response) = http
         .get("https://store.steampowered.com/api/appdetails")
         .query(&[("appids", id), ("cc", "us"), ("l", "english")])
         .send()
-        .ok()?;
-    let data: Value = response.json().ok()?;
-    let details = data.get(id)?.get("data")?;
-    let title = details.get("name")?.as_str()?.trim();
-    if title.is_empty()
-        || details
-            .get("type")
-            .and_then(Value::as_str)
-            .is_some_and(|kind| kind != "game")
+    else {
+        return SteamDetail::Failed;
+    };
+    if !response.status().is_success() {
+        return SteamDetail::Failed;
+    }
+    let Ok(data) = response.json::<Value>() else {
+        return SteamDetail::Failed;
+    };
+    let Some(details) = data.get(id).and_then(|entry| entry.get("data")) else {
+        return SteamDetail::Failed;
+    };
+    let Some(title) = details.get("name").and_then(Value::as_str).map(str::trim) else {
+        return SteamDetail::Failed;
+    };
+    if title.is_empty() {
+        return SteamDetail::Failed;
+    }
+    if details
+        .get("type")
+        .and_then(Value::as_str)
+        .is_some_and(|kind| kind != "game")
     {
-        return None;
+        return SteamDetail::Excluded;
     }
     let cover = details
         .get("header_image")
         .and_then(Value::as_str)
         .unwrap_or("");
-    Some(
+    SteamDetail::Game(
         game(
             "steam",
             id,
@@ -360,7 +426,7 @@ fn epic_list(token: &str) -> Result<Vec<Game>, String> {
             }
         }
         cursor = body
-            .pointer("responseMetadata.nextCursor")
+            .pointer("/responseMetadata/nextCursor")
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_owned();
@@ -499,7 +565,9 @@ fn gog_from_secret(mut secret: Value) -> Result<ConnectedStore, String> {
         .to_owned();
     secret["user_id"] = json!(user_id);
     secret["display_name"] = json!(display);
-    secret["expires_at"] = json!(now_ms() + 3600_000);
+    if secret.get("expires_at").and_then(Value::as_i64).is_none() {
+        secret["expires_at"] = json!(now_ms() + 3600_000);
+    }
     let games = gog_list(
         secret
             .get("access_token")
@@ -612,7 +680,7 @@ fn gog_sync(secret: &str) -> Result<ConnectedStore, String> {
             ])
             .header("User-Agent", "GOG Galaxy")
             .send()
-            .map_err(|e| format!("No se pudo renovar GOG: {e}"))?;
+            .map_err(|e| format!("No se pudo renovar GOG: {}", e.without_url()))?;
         if !response.status().is_success() {
             return Err("GOG necesita que vuelvas a iniciar sesión".into());
         }
@@ -837,14 +905,16 @@ fn ea_from_secret(mut secret: Value) -> Result<ConnectedStore, String> {
         .unwrap_or("EA")
         .to_owned();
     secret["display_name"] = json!(display);
-    secret["expires_at"] = json!(
-        now_ms()
-            + secret
-                .get("expires_in")
-                .and_then(Value::as_i64)
-                .unwrap_or(3600)
-                * 1000
-    );
+    if secret.get("expires_at").and_then(Value::as_i64).is_none() {
+        secret["expires_at"] = json!(
+            now_ms()
+                + secret
+                    .get("expires_in")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(3600)
+                    * 1000
+        );
+    }
     let games = ea_list(&access)?;
     Ok(ConnectedStore {
         account: account("ea", display, secret)?,
@@ -863,7 +933,7 @@ fn ea_profile(token: &str) -> Option<Value> {
         .ok()?
         .json()
         .ok()?;
-    response.pointer("data.me.player").cloned()
+    response.pointer("/data/me/player").cloned()
 }
 
 fn ea_list(token: &str) -> Result<Vec<Game>, String> {
@@ -887,9 +957,10 @@ fn ea_list(token: &str) -> Result<Vec<Game>, String> {
             .map_err(|e| format!("EA rechazó la biblioteca: {e}"))?
             .json()
             .map_err(|_| "EA devolvió una biblioteca ilegible".to_owned())?;
-        if let Some(items) = body
-            .pointer("data.me.ownedGameProducts.items")
+        let items = body
+            .pointer("/data/me/ownedGameProducts/items")
             .and_then(Value::as_array)
+            .ok_or("EA devolvió una respuesta de biblioteca inválida")?;
         {
             for item in items {
                 let product = item.get("product").unwrap_or(&Value::Null);
@@ -905,7 +976,12 @@ fn ea_list(token: &str) -> Result<Vec<Game>, String> {
                     .or_else(|| product.get("name").and_then(Value::as_str))
                     .unwrap_or("")
                     .trim();
-                if id.is_empty() || title.is_empty() || product.get("trialDetails").is_some() {
+                if id.is_empty()
+                    || title.is_empty()
+                    || product
+                        .get("trialDetails")
+                        .is_some_and(|value| !value.is_null())
+                {
                     continue;
                 }
                 let slug = product
@@ -921,7 +997,7 @@ fn ea_list(token: &str) -> Result<Vec<Game>, String> {
             }
         }
         let owned = body
-            .pointer("data.me.ownedGameProducts")
+            .pointer("/data/me/ownedGameProducts")
             .unwrap_or(&Value::Null);
         let following = owned.get("next").and_then(Value::as_str).unwrap_or("");
         if following.is_empty() || following == next {
@@ -1094,11 +1170,10 @@ fn ubisoft_list(secret: &Value) -> Result<Vec<Game>, String> {
             .json()
             .map_err(|_| "Ubisoft devolvió una biblioteca ilegible".to_owned())?;
         let games = body
-            .pointer("data.viewer.games")
-            .and_then(|v| v.get("nodes"))
+            .pointer("/data/viewer/games/nodes")
             .and_then(Value::as_array)
             .cloned()
-            .unwrap_or_default();
+            .ok_or("Ubisoft devolvió una página de biblioteca inválida")?;
         if games.is_empty() {
             break;
         }
@@ -1133,7 +1208,7 @@ fn ubisoft_list(secret: &Value) -> Result<Vec<Game>, String> {
             ));
         }
         if body
-            .pointer("data.viewer.games.totalCount")
+            .pointer("/data/viewer/games/totalCount")
             .and_then(Value::as_u64)
             .is_some_and(|n| offset as u64 + 50 >= n)
         {
@@ -1203,12 +1278,12 @@ fn gamejolt_games(rows: Vec<Value>) -> Vec<Game> {
             }
             let slug = row.get("slug").and_then(Value::as_str).unwrap_or("game");
             let cover = row
-                .pointer("thumbnail_media_item.img_url")
+                .pointer("/thumbnail_media_item/img_url")
                 .and_then(Value::as_str)
                 .or_else(|| row.get("img_thumbnail").and_then(Value::as_str))
                 .unwrap_or("");
             let hero = row
-                .pointer("header_media_item.img_url")
+                .pointer("/header_media_item/img_url")
                 .and_then(Value::as_str)
                 .unwrap_or(cover);
             Some(game(
@@ -1667,10 +1742,7 @@ pub mod amazon {
         ));
     }
     pub mod auth {
-        include!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/src/amazon_auth.rs"
-        ));
+        include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/amazon_auth.rs"));
     }
     pub mod distribution {
         include!(concat!(

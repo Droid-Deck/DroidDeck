@@ -50,13 +50,17 @@ impl ApplicationHandler for LoginApp {
         let tx_for_ipc = self.tx.clone();
         let tx_for_nav = self.tx.clone();
         let store = self.store.clone();
+        let ipc_store = self.store.clone();
         let script = bridge_script(&self.store, &self.extra);
         let builder = WebViewBuilder::new()
             .with_url(&self.start_url)
             .with_initialization_script_for_main_only(script, true)
             .with_ipc_handler(move |request| {
                 let body = request.body().to_owned();
-                if serde_json::from_str::<Value>(&body).is_ok() {
+                let sender = request.uri().to_string();
+                if store_ipc_origin_allowed(&ipc_store, &sender)
+                    && serde_json::from_str::<Value>(&body).is_ok()
+                {
                     let _ = tx_for_ipc.send(body);
                 }
             })
@@ -105,10 +109,9 @@ impl ApplicationHandler for LoginApp {
 
 pub fn run(store: &str) -> Result<(), String> {
     let (start_url, extra) = start_url(store)?;
-    if let Some(path) = webview_data_dir(store) {
-        unsafe {
-            std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", path);
-        }
+    let profile = prepare_webview_profile(store)?;
+    unsafe {
+        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", profile);
     }
     let (tx, rx) = mpsc::channel();
     let mut app = LoginApp {
@@ -148,12 +151,14 @@ pub fn clear_webview_profile(store: &str) -> Result<(), String> {
     ) {
         return Ok(());
     }
-    let Some(local) = dirs::data_local_dir() else {
-        return Ok(());
-    };
-    let root = local.join("DroidDeckLauncher").join("webview2");
-    let target = root.join(store);
+    let (root, target, marker) = profile_paths(store)?;
+    std::fs::create_dir_all(&root)
+        .map_err(|e| format!("No se pudo preparar la limpieza del perfil web: {e}"))?;
+    std::fs::write(&marker, b"pending")
+        .map_err(|e| format!("No se pudo registrar la limpieza pendiente del perfil web: {e}"))?;
     if !target.exists() {
+        std::fs::remove_file(marker)
+            .map_err(|e| format!("No se pudo cerrar la limpieza del perfil web: {e}"))?;
         return Ok(());
     }
     let root = root
@@ -168,7 +173,35 @@ pub fn clear_webview_profile(store: &str) -> Result<(), String> {
         );
     }
     std::fs::remove_dir_all(target)
-        .map_err(|e| format!("No se pudo borrar la sesión web de {store}: {e}"))
+        .map_err(|e| format!("No se pudo borrar la sesión web de {store}: {e}"))?;
+    std::fs::remove_file(marker)
+        .map_err(|e| format!("No se pudo confirmar la limpieza del perfil web: {e}"))
+}
+
+pub fn webview_cleanup_pending(store: &str) -> bool {
+    profile_paths(store).is_ok_and(|(_, _, marker)| marker.exists())
+}
+
+fn profile_paths(
+    store: &str,
+) -> Result<(std::path::PathBuf, std::path::PathBuf, std::path::PathBuf), String> {
+    let local = dirs::data_local_dir().ok_or("No se encontró la carpeta de datos de Windows")?;
+    let root = local.join("DroidDeckLauncher").join("webview2");
+    let target = root.join(store);
+    let marker = root.join(format!(".{store}.cleanup-pending"));
+    Ok((root, target, marker))
+}
+
+fn prepare_webview_profile(store: &str) -> Result<std::path::PathBuf, String> {
+    let (root, target, marker) = profile_paths(store)?;
+    std::fs::create_dir_all(&root)
+        .map_err(|e| format!("No se pudo preparar el perfil aislado de {store}: {e}"))?;
+    if marker.exists() {
+        clear_webview_profile(store)?;
+    }
+    std::fs::create_dir_all(&target)
+        .map_err(|e| format!("No se pudo crear el perfil aislado de {store}: {e}"))?;
+    Ok(target)
 }
 
 fn start_url(store: &str) -> Result<(String, String), String> {
@@ -208,7 +241,13 @@ fn start_url(store: &str) -> Result<(String, String), String> {
 fn callback_for(store: &str, url: &str) -> bool {
     match store {
         "gog" => url.starts_with("https://embed.gog.com/on_login_success"),
-        "amazon" => url.contains("openid.oa2.authorization_code="),
+        "amazon" => url::Url::parse(url).is_ok_and(|parsed| {
+            parsed.scheme() == "https"
+                && parsed.host_str() == Some("www.amazon.com")
+                && parsed.query_pairs().any(|(key, value)| {
+                    key == crate::store_api::amazon::auth::CODE_PARAMETER && !value.is_empty()
+                })
+        }),
         "ea" => {
             url.starts_with("qrc:///html/login_successful.html")
                 || url.starts_with("qrc:/html/login_successful.html")
@@ -218,13 +257,28 @@ fn callback_for(store: &str, url: &str) -> bool {
     }
 }
 
-fn webview_data_dir(store: &str) -> Option<std::path::PathBuf> {
-    let path = dirs::data_local_dir()?
-        .join("DroidDeckLauncher")
-        .join("webview2")
-        .join(store);
-    std::fs::create_dir_all(&path).ok()?;
-    Some(path)
+fn store_ipc_origin_allowed(store: &str, sender: &str) -> bool {
+    let Ok(uri) = url::Url::parse(sender) else {
+        return false;
+    };
+    if uri.scheme() != "https" {
+        return false;
+    }
+    let Some(host) = uri.host_str() else {
+        return false;
+    };
+    let allowed: &[&str] = match store {
+        "steam" => &["store.steampowered.com"],
+        "epic" => &["www.epicgames.com", "accounts.epicgames.com"],
+        "ea" => &["signin.ea.com", "accounts.ea.com", "www.ea.com"],
+        "gog" => &["auth.gog.com", "embed.gog.com"],
+        "ubisoft" => &["connect.ubisoft.com", "signin.ubisoft.com"],
+        "amazon" => &["www.amazon.com"],
+        "rockstar" => &["signin.rockstargames.com", "rgl.rockstargames.com"],
+        "gamejolt" => &["gamejolt.com", "www.gamejolt.com"],
+        _ => &[],
+    };
+    allowed.contains(&host)
 }
 
 fn bridge_script(store: &str, extra: &str) -> String {
@@ -267,6 +321,7 @@ fn bridge_script(store: &str, extra: &str) -> String {
   const buttonId = "droiddeck-store-connect";
   const add = () => {{
     if (!document.body || window.top !== window.self || document.getElementById(buttonId)) return;
+    if (store === "amazon") return;
     const button = document.createElement("button");
     button.id = buttonId;
     const actionLabel = store === "steam" || store === "gamejolt" ? "Sincronizar biblioteca con DroidDeck" : "Ya inicié sesión · Conectar";
@@ -369,7 +424,7 @@ fn rockstar_bridge_script(extra: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::bridge_script;
+    use super::{bridge_script, callback_for, store_ipc_origin_allowed};
 
     #[test]
     fn steam_bridge_mounts_after_dom_ready_and_explains_qr_login() {
@@ -380,5 +435,50 @@ mod tests {
         assert!(script.contains("droiddeck-store-connect"));
         assert!(script.contains("Sincronizar biblioteca con DroidDeck"));
         assert!(script.contains("escaneá el QR de la página"));
+    }
+
+    #[test]
+    fn amazon_callback_requires_amazon_https_and_a_nonempty_code() {
+        assert!(callback_for(
+            "amazon",
+            "https://www.amazon.com/?openid.oa2.authorization_code=abc"
+        ));
+        assert!(!callback_for(
+            "amazon",
+            "http://www.amazon.com/?openid.oa2.authorization_code=abc"
+        ));
+        assert!(!callback_for(
+            "amazon",
+            "https://attacker.example/?next=https://www.amazon.com/?openid.oa2.authorization_code=abc"
+        ));
+        assert!(!callback_for(
+            "amazon",
+            "https://www.amazon.com/?openid.oa2.authorization_code="
+        ));
+    }
+
+    #[test]
+    fn store_ipc_accepts_only_the_expected_https_origin() {
+        assert!(store_ipc_origin_allowed(
+            "steam",
+            "https://store.steampowered.com/login/"
+        ));
+        assert!(!store_ipc_origin_allowed(
+            "steam",
+            "https://store.steampowered.com.attacker.example/"
+        ));
+        assert!(!store_ipc_origin_allowed(
+            "steam",
+            "http://store.steampowered.com/"
+        ));
+        assert!(!store_ipc_origin_allowed(
+            "epic",
+            "https://store.steampowered.com/"
+        ));
+    }
+
+    #[test]
+    fn amazon_login_has_no_manual_capture_button() {
+        assert!(bridge_script("amazon", "").contains("if (store === \"amazon\") return;"));
     }
 }
