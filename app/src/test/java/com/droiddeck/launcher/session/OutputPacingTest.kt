@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class OutputPacingTest {
@@ -29,5 +30,20 @@ class OutputPacingTest {
 
     @Test fun mirroringKeepsTheGlassesRate() {
         assertEquals(60, SessionPrefs.compositorFpsLimit(60))
+    }
+
+    @Test fun nonSteamLimitHoldsTheGameInGamescope() {
+        assertEquals(60, SessionPrefs.gamescopeFrameLimit(true, 60))
+        assertEquals(45, SessionPrefs.gamescopeFrameLimit(true, 45))
+    }
+
+    @Test fun nonSteamSessionWithoutALimitClearsGamescopesLimit() {
+        assertEquals(0, SessionPrefs.gamescopeFrameLimit(true, 0))
+        assertEquals(0, SessionPrefs.gamescopeFrameLimit(true, SessionPrefs.FPS_UNPACED))
+    }
+
+    @Test fun steamSessionsLeaveGamescopesLimitToSteam() {
+        assertNull(SessionPrefs.gamescopeFrameLimit(false, 60))
+        assertNull(SessionPrefs.gamescopeFrameLimit(false, 0))
     }
 }
