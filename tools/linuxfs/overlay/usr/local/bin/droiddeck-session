@@ -229,9 +229,9 @@ dd_webhelper_layout() {
   elif [ -z "${DD_VKBRIDGE_CEF_ANGLE:-}" ]; then
     echo stock
   elif [ "$DD_VKBRIDGE_CEF_ANGLE" = vulkan ] && [ "${DD_VKBRIDGE_CEF_VULKAN:-1}" != 0 ]; then
-    echo "--use-gl=angle --use-angle=vulkan +Vulkan +VulkanFromANGLE +DefaultANGLEVulkan"
+    echo "--no-zygote --use-gl=angle --use-angle=vulkan +Vulkan +VulkanFromANGLE +DefaultANGLEVulkan"
   else
-    echo "--use-gl=angle --use-angle=$DD_VKBRIDGE_CEF_ANGLE"
+    echo "--no-zygote --use-gl=angle --use-angle=$DD_VKBRIDGE_CEF_ANGLE"
   fi
 }
 dd_now_ms() {

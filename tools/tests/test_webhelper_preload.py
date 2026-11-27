@@ -170,6 +170,15 @@ class WebhelperPreloadTest(unittest.TestCase):
                                "--enable-features=PlatformHEVCDecoderSupport,V4L2VideoDecode,"
                                "Vulkan,VulkanFromANGLE,DefaultANGLEVulkan"])
 
+    def test_bridge_layout_drops_the_zygote_and_keeps_the_gpu_process_out_of_process(self):
+        out = self.argv(WEBHELPER, "--no-sandbox", "--enable-features=A",
+                        spec="--no-zygote --use-gl=angle --use-angle=vulkan")
+        self.assertEqual(out, [WEBHELPER, "--no-sandbox", "--no-zygote", "--use-gl=angle", "--use-angle=vulkan",
+                               "--enable-features=A"])
+        self.assertNotIn("--in-process-gpu", out)
+        child = [WEBHELPER, "--type=gpu-process", "--no-sandbox"]
+        self.assertEqual(self.argv(*child, spec="--no-zygote --use-gl=angle --use-angle=vulkan"), child)
+
     def test_an_empty_setting_means_the_default(self):
         self.assertIn("--no-zygote", self.argv(WEBHELPER, spec=""))
 
