@@ -610,10 +610,14 @@ object AddedGames {
         val text = json.append(']').toString()
         synchronized(listing) {
             val partial = File(file.parentFile, file.name + ".part")
-            partial.writeText(text)
-            if (!partial.renameTo(file)) {
-                file.writeText(text)
+            try {
+                partial.writeText(text)
+                java.nio.file.Files.move(partial.toPath(), file.toPath(),
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            } catch (e: java.io.IOException) {
+                Log.w(TAG, "games: listing not replaced: ${e.message}")
                 partial.delete()
+                if (!file.isFile) file.writeText(text)
             }
         }
         return file

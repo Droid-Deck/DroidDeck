@@ -100,6 +100,16 @@ class AddedGamesSessionListingTest {
         assertFalse(File(listing.parentFile, listing.name + ".part").exists())
     }
 
+    @Test fun aListingThatCannotBeReplacedKeepsTheOldOne() {
+        val listing = AddedGames.listingFile(app).apply { parentFile?.mkdirs() }
+        listing.writeText("[]")
+        val blocked = File(listing.parentFile, listing.name + ".part").apply { mkdirs() }
+        gamesFolder("Alpha")
+        AddedGames.writeListing(app, AddedGames.scan(app))
+        assertEquals("[]", listing.readText())
+        assertFalse(blocked.exists())
+    }
+
     @Test fun anUnreadableListingIsRescannedBeforeStarting() {
         gamesFolder("Alpha")
         AddedGamesPublisher.now = false
