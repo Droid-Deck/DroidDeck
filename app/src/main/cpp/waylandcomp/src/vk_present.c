@@ -17,6 +17,8 @@
 #include <math.h>
 #include <string.h>
 #include <sys/system_properties.h>
+#include <sys/ioctl.h>
+#include <linux/dma-buf.h>
 #include <unistd.h>
 #include <errno.h>
 #include <poll.h>
@@ -47,6 +49,7 @@ struct vkp_image {
     VkBuffer linear_buf;
     VkDeviceMemory linear_mem;
     VkBufferImageCopy linear_copy;
+    int client_fd, has_client_fd, client_stalled;
 };
 
 static ANativeWindow *g_window;
@@ -1120,6 +1123,55 @@ static void release_external_client_draws(VkCommandBuffer cmd, const struct vkp_
     }
 }
 
+/* Clients commit a dma-buf as soon as their GPU work is queued, and nothing here offers explicit sync, so
+ * reads of a client's buffer first wait for the write fences the client's driver attached to it. The wait
+ * runs on the CPU before anything is recorded: a write still running at the deadline skips the frame, and
+ * the fences stay on the buffer for the next attempt. Until that write finishes, its image is only checked,
+ * so fallback paths and retries do not block again. */
+#define CLIENT_WRITE_WAIT_NS 100000000LL
+static unsigned g_client_write_deferrals;
+
+static int wait_client_writes(struct vkp_image *img, int64_t deadline) {
+    if (!img || !img->has_client_fd) return 1;
+    const int stalled = img->client_stalled;
+    struct dma_buf_export_sync_file exp = {.flags = DMA_BUF_SYNC_READ, .fd = -1};
+    const int exported = ioctl(img->client_fd, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &exp) == 0 && exp.fd >= 0;
+    struct pollfd p = {.fd = exported ? exp.fd : img->client_fd, .events = POLLIN};
+    int r, waited = 0;
+    for (;;) {
+        const int64_t left = deadline - perf_now();
+        r = poll(&p, 1, waited && left > 0 ? (int)((left + 999999) / 1000000) : 0);
+        if (r < 0 && errno == EINTR) continue;
+        if (r != 0 || waited || stalled || left <= 0) break;
+        waited = 1;
+        g_perf.client_write_waits++;
+    }
+    if (exported) close(exp.fd);
+    img->client_stalled = r <= 0;
+    if (r <= 0) g_client_write_deferrals++;
+    return r > 0;
+}
+
+int vkp_draws_client_writes_done(const struct vkp_draw *draws, int n) {
+    const int64_t deadline = perf_now() + CLIENT_WRITE_WAIT_NS;
+    for (int i = 0; i < n; i++)
+        if (!wait_client_writes(draws[i].img, deadline)) return 0;
+    return 1;
+}
+
+int vkp_image_client_writes_done(struct vkp_image *img) {
+    return wait_client_writes(img, perf_now() + CLIENT_WRITE_WAIT_NS);
+}
+
+unsigned vkp_client_write_deferrals(void) { return g_client_write_deferrals; }
+void vkp_note_client_write_deferral(void) { g_client_write_deferrals++; }
+
+void vkp_image_track_client_writes(struct vkp_image *img, int dmabuf_fd) {
+    if (!img || img->has_client_fd || dmabuf_fd < 0) return;
+    img->client_fd = dmabuf_fd;
+    img->has_client_fd = 1;
+}
+
 static void stage_linear_dmabuf(VkCommandBuffer cmd, const struct vkp_image *img) {
     if (!img || !img->linear_buf) return;
     const VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
@@ -2163,6 +2215,7 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
     check_surface_changed();
     if (g_dev_state == -2) return -1;
     if (dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
+    if (!vkp_draws_client_writes_done(draws, n)) return -1;
 
     if (g_swapchain && vkp_framegen_extra_images() != g_swap_extra) {
         droiddeck_log("gpu", "frame generation now wants %d present%s per frame: rebuilding the swapchain",
@@ -2647,7 +2700,7 @@ static struct vkp_image *g_rb;
 
 int vkp_image_readback(struct vkp_image *src, uint32_t *out, int max_px) {
     if (!src || src->blit_dst || !out || src->w <= 0 || src->h <= 0 || src->w * src->h > max_px ||
-        g_dev_state == -2 || dev_init() != 0)
+        g_dev_state == -2 || dev_init() != 0 || !vkp_image_client_writes_done(src))
         return -1;
     if (g_rb && (g_rb->w != src->w || g_rb->h != src->h)) { vkp_image_destroy(g_rb); g_rb = NULL; }
     if (!g_rb) {
@@ -2781,6 +2834,7 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
     if (g_pass.active) vkp_pass_abort();
     g_pass.ngen = 0;
     if (vkp_update_map(scene_w, scene_h) != 0) return -1;
+    if (!vkp_draws_client_writes_done(draws, n)) return -1;
     int input_w = scene_w, input_h = scene_h;
     int pass_n = n, overlay_start = n;
     struct vkp_draw source_draw;

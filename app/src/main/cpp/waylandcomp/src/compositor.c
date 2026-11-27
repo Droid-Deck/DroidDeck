@@ -726,8 +726,10 @@ const struct wl_buffer_interface dbuf_buffer_impl = {
 static struct vkp_image *import_dmabuf(struct dmabuf_buffer *b) {
     AHardwareBuffer *ahb = ahb_swapchain_display_buffer(b);
     struct vkp_image *img = ahb ? vkp_image_from_ahb(ahb) : NULL;
-    return img ? img : vkp_image_from_dmabuf(b->fd[0], b->format, b->modifier, b->width, b->height, b->stride[0],
-                                             b->offset[0]);
+    if (!img) img = vkp_image_from_dmabuf(b->fd[0], b->format, b->modifier, b->width, b->height, b->stride[0],
+                                          b->offset[0]);
+    vkp_image_track_client_writes(img, b->fd[0]);
+    return img;
 }
 
 static struct dmabuf_buffer *get_dmabuf(struct wl_resource *buffer) {
@@ -1281,7 +1283,7 @@ static void surface_set_input(struct wl_client *c, struct wl_resource *r,
 
 static void send_toplevel_configure(struct surface *s);
 
-static void cursor_publish_buffer(struct surface *s, struct wl_resource *buffer) {
+static int cursor_publish_buffer(struct surface *s, struct wl_resource *buffer) {
     struct dmabuf_buffer *db = get_dmabuf(buffer);
     struct wl_shm_buffer *shm = db ? NULL : wl_shm_buffer_get(buffer);
     if (shm) {
@@ -1292,18 +1294,18 @@ static void cursor_publish_buffer(struct surface *s, struct wl_resource *buffer)
             db->img = import_dmabuf(db);
             if (!db->img) db->import_failed = 1;
         }
-        if (!db->img) return;
-        struct pollfd p = {.fd = db->fd[0], .events = POLLIN};
-        int r;
-        do { r = poll(&p, 1, 100); } while (r < 0 && errno == EINTR);
-        if (vkp_image_readback(db->img, g_cursor_rb, CURSOR_MAX_PX) != 0) return;
+        if (!db->img) return 0;
+        const unsigned deferrals = vkp_client_write_deferrals();
+        if (vkp_image_readback(db->img, g_cursor_rb, CURSOR_MAX_PX) != 0)
+            return vkp_client_write_deferrals() != deferrals;
         const int row = vkp_image_width(db->img);
         cursor_publish_pixels((const uint8_t *)g_cursor_rb, db->width, db->height,
                               (size_t)(row > db->width ? row : db->width) * 4, g_cursor_hx, g_cursor_hy);
     } else {
-        return;
+        return 0;
     }
     g_cursor_shown = s;
+    return 0;
 }
 
 static void surface_forget_idle_px(struct surface *s) {
@@ -1361,6 +1363,28 @@ static void surface_drop_idle(struct surface *s) {
     if (buffer) send_buffer_release(buffer);
 }
 
+static struct wl_event_source *g_cursor_retry;
+static int on_cursor_retry(void *data);
+
+/* A cursor buffer whose client write is unfinished is held rather than released, and read again later. */
+static void cursor_publish_or_hold(struct surface *s, struct wl_resource *buffer) {
+    if (!cursor_publish_buffer(s, buffer)) { send_buffer_release(buffer); return; }
+    if (!g_cursor_retry)
+        g_cursor_retry = wl_event_loop_add_timer(wl_display_get_event_loop(g_display), on_cursor_retry, NULL);
+    if (!g_cursor_retry) { send_buffer_release(buffer); return; }
+    surface_hold_idle(s, buffer);
+    wl_event_source_timer_update(g_cursor_retry, 16);
+}
+
+static int on_cursor_retry(void *data) {
+    struct surface *s = g_cursor_surface;
+    struct wl_resource *buffer = s && s->role == ROLE_CURSOR ? surface_take_idle(s) : NULL;
+    if (!buffer) return 0;
+    cursor_publish_or_hold(s, buffer);
+    if (s->idle_buffer != buffer && atomic_load(&g_cursor_composite)) schedule_render();
+    return 0;
+}
+
 static void surface_commit(struct wl_client *c, struct wl_resource *r) {
     struct surface *s = wl_resource_get_user_data(r);
     struct surface *child;
@@ -1411,8 +1435,7 @@ static void surface_commit(struct wl_client *c, struct wl_resource *r) {
             if (!buffer) {
                 cursor_publish_hidden();
             } else {
-                cursor_publish_buffer(s, buffer);
-                send_buffer_release(buffer);
+                cursor_publish_or_hold(s, buffer);
             }
         } else if (s->role == ROLE_NONE) {
             if (buffer) surface_hold_idle(s, buffer);
@@ -2498,6 +2521,9 @@ static int64_t scene_next_due(int64_t now, int64_t due, int limit) {
     return due > 0 && now - due < interval ? due + interval : now + interval;
 }
 
+/* A copy that would wait for an unfinished client write keeps the layers on screen. */
+static int copy_ready(const struct draw_list *dl) { return vkp_draws_client_writes_done(dl->d, dl->n); }
+
 static void render_scene(void) {
     g_scene_due_ns = scene_next_due(now_ns(), g_scene_due_ns, g_fps_limit);
     if (atomic_load(&g_stream_on)) { g_dirty_since_ns = 0; render_stream(); return; }
@@ -2574,10 +2600,10 @@ static void render_scene(void) {
     } else {
         cursor_hdr_said = 0;
     }
+    const unsigned deferrals = vkp_client_write_deferrals();
     if (hdr_route == 1) {
         static int fell_back;
         vkp_apply_window_request();
-        sc_layer_hide_overlay();
         const int generated = framegen ? sc_layer_present_generated(dl.d, dl.n, &hs.hf, w, h, 1, hs.color) : 0;
         if (framegen) g_framegen_layer = generated >= 0;
         if (generated > 0 && g_framegen_layer_said != 3) {
@@ -2585,9 +2611,10 @@ static void render_scene(void) {
             droiddeck_log("framegen", "generated frames and the composed HDR picture go on the game's display layer");
         }
         if (framegen ? generated >= 0 : sc_layer_present_hdr_scene(dl.d, dl.n, &hs.hf, w, h, hs.color) == 0) {
+            sc_layer_hide_overlay();
             rendered = vkp_base_black(w, h) == 0;
             if (fell_back) { fell_back = 0; droiddeck_log("color", "the composed picture is on the game's display layer again"); }
-        } else {
+        } else if (vkp_client_write_deferrals() == deferrals) {
             hdr_route = 2;
             if (!fell_back) {
                 fell_back = 1;
@@ -2598,8 +2625,10 @@ static void render_scene(void) {
     }
     if (hdr_route == 2) {
         int how = 0;
-        sc_layer_hide();
-        rendered = vkp_render_hdr(w, h, dl.d, dl.n, &hs.hf, &how) == 0;
+        if (copy_ready(&dl)) {
+            sc_layer_hide();
+            rendered = vkp_render_hdr(w, h, dl.d, dl.n, &hs.hf, &how) == 0;
+        }
         copy = 1;
         if (rendered && how == 1) droiddeck_color_frame_shown(hs.color, DROIDDECK_HDR_SWAPCHAIN, 0);
         else if (rendered && how == 2) droiddeck_color_frame_shown(hs.color, DROIDDECK_HDR_TONEMAPPED, 0);
@@ -2669,7 +2698,7 @@ static void render_scene(void) {
             r = generated >= 0 ? 0 : -1;
         else if (generated >= 0 && !(fx_on && li >= 0) && ls && ls->dmabuf_buf && ahb_swapchain_has_ahb(ls->dmabuf_buf))
             r = ahb_swapchain_present(ls->dmabuf_buf, ls, w, h, ld);
-        if (!fg_pass && generated >= 0 && r != 0 && li >= 0)
+        if (!fg_pass && generated >= 0 && r != 0 && li >= 0 && vkp_client_write_deferrals() == deferrals)
             r = fx_on ? sc_layer_present_pass(&dl.d[li], 1, w, h)
                       : sc_layer_present(dl.d[li].img, w, h, ld, ls ? droiddeck_surface_color(ls) : NULL);
         if (r == 0) {
@@ -2677,25 +2706,28 @@ static void render_scene(void) {
             int go[8], ov = 0;
             if (over == 1 && li >= 0 && vkp_map_draw(&dl.d[li + 1], go))
                 ov = sc_layer_present_overlay(dl.d[li + 1].img, go, dl.d[li + 1].blend) == 0 ? 1 : -1;
-            if (ov <= 0) sc_layer_hide_overlay();
-            if (ov < 0) {
+            const int held = ov < 0 && (vkp_client_write_deferrals() != deferrals || !copy_ready(&dl));
+            if (ov <= 0 && !held) sc_layer_hide_overlay();
+            if (ov < 0 && !held) {
                 sc_layer_hide();
                 rendered = vkp_render(w, h, dl.d, dl.n) == 0;
                 copy = 1;
                 hdr_copy = "the overlay layer refused the window above it";
-            } else {
+            } else if (!held) {
                 rendered = vkp_base_black(w, h) == 0;
                 g_scene_queues = sc_layer_queues();
             }
-        } else {
+        } else if (vkp_client_write_deferrals() == deferrals && copy_ready(&dl)) {
             sc_layer_hide();
             rendered = vkp_render(w, h, dl.d, dl.n) == 0;
             copy = 1;
             hdr_copy = "its display layer was unavailable this frame";
         }
     } else {
-        sc_layer_hide();
-        rendered = vkp_render(w, h, dl.d, dl.n) == 0;
+        if (copy_ready(&dl)) {
+            sc_layer_hide();
+            rendered = vkp_render(w, h, dl.d, dl.n) == 0;
+        }
         copy = 1;
         hdr_copy = ov_blocks ? "a window is above it and this display cannot compose a second layer in hardware"
                  : fx_blocks ? "a window is above it and screen effects need the whole scene"
@@ -2904,8 +2936,7 @@ static void pointer_set_cursor(struct wl_client *c, struct wl_resource *r, uint3
     pthread_mutex_unlock(&g_cursor_lock);
     struct wl_resource *buffer = surface_take_idle(s);
     if (buffer) {
-        cursor_publish_buffer(s, buffer);
-        send_buffer_release(buffer);
+        cursor_publish_or_hold(s, buffer);
     } else if (g_cursor_shown == s) {
         cursor_publish_shown();
     } else if (s->idle_px) {
@@ -4236,7 +4267,7 @@ static int on_stats_timer(void *data) {
         if (g_perf.scenes || vp.presents || g_perf.releases || drops)
             droiddeck_log("perf", "last 10 s: %u ticks, %u scenes, %u on screen (copy %u, zero-copy %u, layer copy %u) | "
                        "render_scene %.2f/%.2f ms | base %u black kept, %u presented | acquire %.2f/%.2f ms | "
-                       "present %.2f/%.2f ms (%u) | fence wait %.2f/%.2f ms (%u, %u GPU release waits) | "
+                       "present %.2f/%.2f ms (%u) | fence wait %.2f/%.2f ms (%u, %u GPU release waits, %u client write waits) | "
                        "release %.2f/%.2f ms (%u, %u held) | %u pool drops | layer frames timed for the next refresh %u, "
                        "the one after %u, held to an even step %u",
                        g_perf.ticks, g_perf.scenes, g_stat_frames, g_perf.copy_scenes, zero_copy, layer_frames,
@@ -4245,6 +4276,7 @@ static int on_stats_timer(void *data) {
                        PERF_MS(vp.acquire_ns, vp.acquires), (double)vp.acquire_max_ns / 1e6,
                        PERF_MS(vp.present_ns, vp.presents), (double)vp.present_max_ns / 1e6, vp.presents,
                        PERF_MS(vp.wait_ns, vp.waits), (double)vp.wait_max_ns / 1e6, vp.waits, vp.gpu_release_waits,
+                       vp.client_write_waits,
                        PERF_MS(g_perf.release_ns, g_perf.releases), (double)g_perf.release_max_ns / 1e6,
                        g_perf.releases, g_perf.releases_held, drops, aimed_next, aimed_later, aimed_even);
 #undef PERF_MS

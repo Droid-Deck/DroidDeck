@@ -33,6 +33,7 @@ HARNESS = r'''
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <unistd.h>
 typedef int VkResult;
 typedef uintptr_t VkFence;
 #define VK_TRUE 1
@@ -69,7 +70,7 @@ static struct {
 typedef struct AHardwareBuffer AHardwareBuffer;
 static int released_buffers;
 static void AHardwareBuffer_release(AHardwareBuffer *b) { (void)b; ++released_buffers; }
-struct vkp_image { uintptr_t image, mem; void *map; AHardwareBuffer *android_buffer; uintptr_t linear_buf, linear_mem; int staged, in_general; };
+struct vkp_image { uintptr_t image, mem; void *map; AHardwareBuffer *android_buffer; uintptr_t linear_buf, linear_mem; int staged, in_general; int client_fd, has_client_fd, client_stalled; };
 static void blendp_forget_image(uintptr_t image) { (void)image; ++forgotten; }
 /* PRODUCTION_FUNCTIONS */
 static struct vkp_image *image(void) {

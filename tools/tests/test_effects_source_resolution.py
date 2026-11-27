@@ -197,6 +197,7 @@ static int g_colorspace_ext, g_swap_hdr_unavailable, g_swap_is_hdr, g_swap_hdr_w
 static int g_plain_frame, g_first_frame_done, g_base_black;
 static int g_qfam, g_queue, g_dev, g_fence, g_swap_fmt = SCENE_FMT;
 static int g_cmds[3], g_acqs[3], g_rnds[3], images[1] = {2}, *g_images = images;
+static int vkp_draws_client_writes_done(const struct vkp_draw *draws, int n) { (void)draws; (void)n; return 1; }
 static uint32_t g_swap_md_identity;
 static VkExtent2D g_extent = {1920, 1080};
 static struct { float kx, ky, off_x, off_y; int rx, ry, rw, rh; } g_map;
