@@ -147,6 +147,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-login1" to "usr/local/bin/droiddeck-login1",
             "usr/local/bin/droiddeck-documents" to "usr/local/bin/droiddeck-documents",
             "usr/local/bin/droiddeck-steam-launch" to "usr/local/bin/droiddeck-steam-launch",
+            "usr/local/bin/droiddeck-qam-relay" to "usr/local/bin/droiddeck-qam-relay",
             "usr/local/bin/droiddeck-desktop-games" to "usr/local/bin/droiddeck-desktop-games",
             "usr/local/bin/droiddeck-desktop-programs" to "usr/local/bin/droiddeck-desktop-programs",
             "usr/local/bin/droiddeck-desktop-bookmarks" to "usr/local/bin/droiddeck-desktop-bookmarks",

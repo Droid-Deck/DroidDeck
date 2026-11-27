@@ -9,6 +9,7 @@ pub mod epic;
 pub mod fetch_core;
 pub mod fetch_tuning;
 pub mod gog;
+pub mod grow_write;
 pub mod md5_small;
 pub mod priority;
 pub mod steam;

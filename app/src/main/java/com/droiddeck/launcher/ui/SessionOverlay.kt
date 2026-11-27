@@ -1433,10 +1433,13 @@ private fun SteamVrRow(a: DrawerActions) {
     }
 }
 
-internal fun secondScreenModes(none: Boolean, deckPad: Boolean, dashboard: Boolean, desktop: Boolean): List<SecondScreenMode> =
+internal fun secondScreenModes(none: Boolean, deckPad: Boolean, dashboard: Boolean, desktop: Boolean,
+    steam: Boolean = com.droiddeck.launcher.session.SessionState.mode == com.droiddeck.launcher.session.SessionService.MODE_STEAM): List<SecondScreenMode> =
     (if (none) listOf(SecondScreenMode.NONE) else emptyList()) + listOf(SecondScreenMode.KEYBOARD_TRACKPAD, SecondScreenMode.TERMINAL) +
         (if (deckPad) listOf(SecondScreenMode.DECK_CONTROLS) else emptyList()) + listOf(SecondScreenMode.CUSTOM_CONTROLS) +
         (if (dashboard) listOf(SecondScreenMode.DASHBOARD) else emptyList()) +
+        (if (dashboard && steam) listOf(SecondScreenMode.STEAM_QAM, SecondScreenMode.ART) else emptyList()) +
+        (if (dashboard) listOf(SecondScreenMode.GUIDES, SecondScreenMode.MIRROR) else emptyList()) +
         (if (desktop) listOf(SecondScreenMode.DESKTOP) else emptyList())
 
 private val DRAWER_MIN_WIDTH = 300.dp

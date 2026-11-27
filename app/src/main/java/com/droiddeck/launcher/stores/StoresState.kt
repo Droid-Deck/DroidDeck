@@ -318,7 +318,7 @@ object StoresState {
         val key = "${game.sidecar.store.id}:${game.sidecar.id}"
         uninstalling[key] = 0f
         background("stores-uninstall", onFailure = { main.post { uninstalling.remove(key); onDone() } }) {
-            if (!com.droiddeck.launcher.stores.download.DownloadQueue.holdForRemovalWhenFree(key)) {
+            if (!com.droiddeck.launcher.stores.download.DownloadQueue.stopForRemoval(app, key)) {
                 logLine("kept \"${game.sidecar.title}\": its download or update is still running")
                 main.post { uninstalling.remove(key); onDone() }
                 return@background

@@ -227,6 +227,14 @@ dd_components() {
 
 DD_GAME_CPUS_SETUP = """
 dd_game_cpus() {
+  local live=/root/.config/droiddeck/game-cores cpus rest=
+  if [ -f "$live" ] && { IFS= read -r cpus && ! IFS= read -r rest; } <"$live" 2>/dev/null && [ -z "$rest" ] && [ "$(wc -c <"$live" 2>/dev/null)" = "$((${#cpus} + 1))" ]; then
+    [[ -z $cpus || $cpus =~ ^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$ ]] || cpus=${DD_GAME_CPUS:-}
+    if [ -z "$cpus" ] && [ -n "${DD_CLIENT_CPUS:-}" ]; then
+      cpus=$(nproc --all 2>/dev/null) && cpus=0-$((cpus - 1)) || cpus=
+    fi
+    if [ -n "$cpus" ]; then export DD_GAME_CPUS=$cpus; else unset DD_GAME_CPUS; fi
+  fi
   [ -n "${DD_GAME_CPUS:-}" ] || return 0
   command -v taskset >/dev/null 2>&1 || return 0
   DD_TASKSET="taskset -c $DD_GAME_CPUS"

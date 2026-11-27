@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 object DownloadQueue {
     private const val TAG = "StoreDownloads"
+    private const val REMOVAL_WAIT_MS = 30_000L
 
     interface DownloadJob {
         fun run(handle: JobHandle): String?
@@ -120,16 +121,23 @@ object DownloadQueue {
 
     fun releaseRemoval(key: String) { synchronized(lock) { removing.remove(key); (lock as Object).notifyAll() } }
 
-    fun holdForRemovalWhenFree(key: String): Boolean = synchronized(lock) {
-        while (true) {
-            val item = items[key]
-            if (item?.entry?.isActive == true || item?.job != null) return@synchronized false
-            if (key !in cleaningUp && key !in removing) break
-            (lock as Object).wait()
+    fun stopForRemoval(context: Context, key: String): Boolean {
+        if (synchronized(lock) { busyLocked(key) }) cancel(context, key)
+        val deadline = android.os.SystemClock.uptimeMillis() + REMOVAL_WAIT_MS
+        return synchronized(lock) {
+            while (true) {
+                val busy = busyLocked(key)
+                if (!busy && key !in cleaningUp && key !in removing) break
+                val left = deadline - android.os.SystemClock.uptimeMillis()
+                if (busy && left <= 0) return@synchronized false
+                (lock as Object).wait(if (busy) left else 0L)
+            }
+            removing.add(key)
+            true
         }
-        removing.add(key)
-        true
     }
+
+    private fun busyLocked(key: String): Boolean = items[key].let { it?.entry?.isActive == true || it?.job != null }
 
     private fun beginCleanup(key: String): Boolean = synchronized(lock) {
         if (key in removing) return@synchronized false
@@ -412,6 +420,7 @@ object DownloadQueue {
             }
             item.job = null
             publishLocked()
+            (lock as Object).notifyAll()
         }
         when (item.entry.state) {
             DownloadState.INSTALLED -> {

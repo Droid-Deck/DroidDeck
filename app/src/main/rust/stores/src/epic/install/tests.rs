@@ -21,7 +21,14 @@ fn rejects_third_party_managed_install_before_manifest_parsing() {
     }
 }
 
-fn serve(files: HashMap<String, Vec<u8>>, hits: Arc<AtomicUsize>) -> String {
+#[derive(Default)]
+struct Misses {
+    seen: AtomicUsize,
+    cancel_at: usize,
+    cancel: Arc<AtomicBool>,
+}
+
+fn serve(files: HashMap<String, Vec<u8>>, hits: Arc<AtomicUsize>, misses: Arc<Misses>) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let files = Arc::new(files);
@@ -30,13 +37,14 @@ fn serve(files: HashMap<String, Vec<u8>>, hits: Arc<AtomicUsize>) -> String {
             let Ok(stream) = stream else { continue };
             let files = Arc::clone(&files);
             let hits = Arc::clone(&hits);
-            std::thread::spawn(move || answer(stream, &files, &hits));
+            let misses = Arc::clone(&misses);
+            std::thread::spawn(move || answer(stream, &files, &hits, &misses));
         }
     });
     format!("http://{addr}")
 }
 
-fn answer(mut stream: TcpStream, files: &HashMap<String, Vec<u8>>, hits: &AtomicUsize) {
+fn answer(mut stream: TcpStream, files: &HashMap<String, Vec<u8>>, hits: &AtomicUsize, misses: &Misses) {
     let mut reader = BufReader::new(stream.try_clone().unwrap());
     let mut first = String::new();
     if reader.read_line(&mut first).is_err() {
@@ -54,7 +62,13 @@ fn answer(mut stream: TcpStream, files: &HashMap<String, Vec<u8>>, hits: &Atomic
     hits.fetch_add(1, Ordering::Relaxed);
     let (status, body) = match files.get(&path) {
         Some(b) => ("200 OK", b.clone()),
-        None => ("404 Not Found", Vec::new()),
+        None => {
+            if misses.seen.fetch_add(1, Ordering::SeqCst) + 1 == misses.cancel_at {
+                std::thread::sleep(std::time::Duration::from_millis(300));
+                misses.cancel.store(true, Ordering::SeqCst);
+            }
+            ("404 Not Found", Vec::new())
+        }
     };
     let head = format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
     let _ = stream.write_all(head.as_bytes());
@@ -106,6 +120,10 @@ fn pattern(seed: u8, len: usize) -> Vec<u8> {
 }
 
 fn fixture() -> Fixture {
+    fixture_missing(false, Arc::new(Misses::default()))
+}
+
+fn fixture_missing(last_chunk: bool, misses: Arc<Misses>) -> Fixture {
     let mut c1 = chunk(1, 4096);
     let mut c2 = chunk(2, 2048);
     let mut c3 = chunk(3, 1000);
@@ -168,10 +186,13 @@ fn fixture() -> Fixture {
     let mut served = HashMap::new();
     served.insert("/Builds/x/test.manifest".to_string(), manifest_bytes);
     for (info, data) in [(&c1, &d1), (&c2, &d2), (&c3, &d3)] {
+        if last_chunk && info.guid == c3.guid {
+            continue;
+        }
         served.insert(format!("/Builds/x/{}", parsed.chunk_path(info)), encode(data, true));
     }
     let hits = Arc::new(AtomicUsize::new(0));
-    let base = serve(served, Arc::clone(&hits));
+    let base = serve(served, Arc::clone(&hits), misses);
     Fixture {
         base,
         hits,
@@ -270,6 +291,40 @@ fn a_cancelled_run_reports_cancel() {
     let cancel = AtomicBool::new(true);
     let events = Recorder::default();
     assert_eq!(run(&request(&fx, &game), &cancel, &events).unwrap_err(), Stop::Cancelled);
+    let _ = fs::remove_dir_all(&game);
+}
+
+fn kept_c(fx: &Fixture, game: &Path) -> bool {
+    let c = &fx.expected[1].1;
+    let partial = game.join(staging::DIR_NAME).join(staging::partial_name("b/c.bin", c.len() as u64, Some(Sha1::digest(c).into())));
+    partial.is_file() && staging::list_path(&partial).is_file()
+}
+
+#[test]
+fn a_chunk_that_cannot_be_fetched_fails_and_keeps_written_parts() {
+    let misses = Arc::new(Misses::default());
+    let fx = fixture_missing(true, Arc::clone(&misses));
+    let game = temp_game("fetch-fail");
+    let cancel = AtomicBool::new(false);
+    let err = run(&request(&fx, &game), &cancel, &Recorder::default()).unwrap_err();
+    assert!(matches!(&err, Stop::Failed(m) if m.starts_with("Download failed: ")), "{err:?}");
+    assert_eq!(misses.seen.load(Ordering::SeqCst), crate::fetch_core::MAX_ITEM_ATTEMPTS as usize);
+    assert!(kept_c(&fx, &game));
+    let _ = fs::remove_dir_all(&game);
+}
+
+#[test]
+fn a_cancel_during_the_last_fetch_attempt_reports_cancel_and_keeps_written_parts() {
+    let cancel = Arc::new(AtomicBool::new(false));
+    let last = crate::fetch_core::MAX_ITEM_ATTEMPTS as usize;
+    let misses = Arc::new(Misses { seen: AtomicUsize::new(0), cancel_at: last, cancel: Arc::clone(&cancel) });
+    let fx = fixture_missing(true, Arc::clone(&misses));
+    let game = temp_game("fetch-cancel");
+    let events = Recorder::default();
+    assert_eq!(run(&request(&fx, &game), &cancel, &events).unwrap_err(), Stop::Cancelled);
+    assert_eq!(misses.seen.load(Ordering::SeqCst), last);
+    assert!(events.logs.lock().unwrap().iter().any(|l| l.contains(&format!("failed after {last} attempts"))));
+    assert!(kept_c(&fx, &game));
     let _ = fs::remove_dir_all(&game);
 }
 
