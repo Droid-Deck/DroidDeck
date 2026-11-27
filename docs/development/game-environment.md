@@ -135,7 +135,7 @@ settings on the next launch. It does not change Steam probes or native Linux
 programs, whose ordinary output remains in the session log.
 
 Proton's log is held to its first 64 MiB, whichever setting turned it on: a
-watcher checks `steam-<appid>.log` and `steam-proton.log` every 2 s while the game runs and
+watcher checks `steam-<appid>.log` and `steam-proton.log` every second while the game runs and
 cuts them back, and later output continues after the cut. A game stuck in an exception loop
 otherwise writes gigabytes per run.
 

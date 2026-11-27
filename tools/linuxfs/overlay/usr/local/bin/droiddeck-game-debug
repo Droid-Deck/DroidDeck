@@ -79,7 +79,7 @@ def apply_game_debug_logs(env, config=None, debug_dir=None):
 # exception wrote 3 GB per run. Truncating keeps the first part and frees the rest, and Proton's
 # appends continue from the new end.
 PROTON_LOG_CAP = 64 * 1024 * 1024
-PROTON_LOG_CHECK_S = 2
+PROTON_LOG_CHECK_S = 1
 CAP_WATCH = r"""
 import os, stat, sys, time
 pid, limit, every, paths = int(sys.argv[1]), int(sys.argv[2]), float(sys.argv[3]), sys.argv[4:]
