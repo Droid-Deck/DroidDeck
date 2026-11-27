@@ -176,8 +176,8 @@ static void destroyScratch(const DeviceDispatch* dd, VkDevice dev, VkDescriptorP
     S = ScratchState{};
 }
 
-void FrameGen::destroyScratchResources() {
-    destroyScratch(dd_, device_, descPool_);
+void FrameGen::destroyScratchResources(bool resetPool) {
+    destroyScratch(dd_, device_, descPool_, resetPool);
 }
 
 void FrameGen::configure(const Config& c) {
