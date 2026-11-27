@@ -6,6 +6,7 @@
 #include <sched.h>
 #include <signal.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/prctl.h>
@@ -23,6 +24,7 @@
 #ifndef ZR_CTL
 #define ZR_CTL "/tmp/.dd-zram"
 #endif
+#define ZR_PATH 256
 #define ZR_SWAPPED (1ULL << 62)
 #define ZR_PRESENT (1ULL << 63)
 #define ZR_BATCH 512
@@ -213,6 +215,9 @@ static char *zr_find(char *text, char c, size_t n) {
   return NULL;
 }
 
+static char zr_ctl[ZR_PATH] = ZR_CTL;
+static char zr_hold[ZR_PATH + sizeof(".hold")];
+
 static int zr_open(const char *path) {
   return (int)zr_sys(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC, 0);
 }
@@ -220,13 +225,13 @@ static int zr_open(const char *path) {
 static int zr_mode(unsigned long *want) {
   char text[24];
   long n = 0;
-  int fd = zr_open(ZR_CTL ".hold");
+  int fd = zr_open(zr_hold);
   if (fd >= 0) {
     n = zr_sys(SYS_read, fd, text, sizeof(text));
     zr_sys(SYS_close, fd);
   }
   if (n < 1) {
-    fd = zr_open(ZR_CTL);
+    fd = zr_open(zr_ctl);
     if (fd < 0) return -1;
     n = zr_sys(SYS_read, fd, text, sizeof(text));
     zr_sys(SYS_close, fd);
@@ -413,10 +418,10 @@ static unsigned long zr_walk(int mode, unsigned long want, unsigned long lo, uns
 
 static void zr_ack(long value, int trim) {
   const char *suffix = trim ? ".trim." : ".ack.";
-  char path[sizeof(ZR_CTL) + sizeof(".trim.") + 20];
+  char path[sizeof(zr_ctl) + sizeof(".trim.") + 20];
   char digits[20];
   size_t n = 0, d = 0;
-  for (const char *p = ZR_CTL; *p; p++) path[n++] = *p;
+  for (const char *p = zr_ctl; *p; p++) path[n++] = *p;
   for (const char *p = suffix; *p; p++) path[n++] = *p;
   long pid = zr_sys(SYS_getpid);
   do digits[d++] = (char)('0' + pid % 10); while ((pid /= 10) > 0);
@@ -547,8 +552,23 @@ static void zr_child(void) {
   __atomic_store_n(&zr_stack_busy, 0, __ATOMIC_RELEASE);
 }
 
+// The native userland hook maps guest paths in libc only; these raw calls see the host's paths.
+static void zr_paths(void) {
+  const char *root = getenv("DDNATV_ROOT");
+  size_t r = root && root[0] == '/' ? strlen(root) : 0, c = sizeof(ZR_CTL) - 1;
+  while (r > 1 && root[r - 1] == '/') r--;
+  if (r > 1 && ZR_CTL[0] == '/' && r + c < sizeof(zr_ctl)) {
+    memcpy(zr_ctl, root, r);
+    memcpy(zr_ctl + r, ZR_CTL, c + 1);
+  }
+  size_t n = strlen(zr_ctl);
+  memcpy(zr_hold, zr_ctl, n);
+  memcpy(zr_hold + n, ".hold", sizeof(".hold"));
+}
+
 __attribute__((constructor)) static void zr_init(void) {
-  int fd = zr_open(ZR_CTL);
+  zr_paths();
+  int fd = zr_open(zr_ctl);
   if (fd < 0) return;
   zr_sys(SYS_close, fd);
   long page = sysconf(_SC_PAGESIZE);
