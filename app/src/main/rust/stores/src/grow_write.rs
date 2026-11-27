@@ -12,16 +12,11 @@ static PROBE_SEQ: AtomicU64 = AtomicU64::new(0);
 
 const PROBE_PREFIX: &str = ".droiddeck-hole-probe-";
 
+pub fn is_cancel(err: &io::Error) -> bool {
+    err.kind() == io::ErrorKind::Interrupted
+}
+
 pub fn holes_supported(dir: &Path) -> bool {
-    if let Ok(entries) = fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let stale = entry.file_name().to_string_lossy().starts_with(PROBE_PREFIX)
-                && entry.file_type().map(|t| t.is_file()).unwrap_or(false);
-            if stale {
-                let _ = fs::remove_file(entry.path());
-            }
-        }
-    }
     let probe = dir.join(format!(
         "{PROBE_PREFIX}{}-{}",
         std::process::id(),
@@ -287,8 +282,12 @@ mod tests {
     #[test]
     fn probe_leaves_nothing_behind() {
         let dir = temp_dir("probe");
+        let other = dir.join(format!("{PROBE_PREFIX}game-file"));
+        fs::write(&other, b"kept").unwrap();
         let _ = holes_supported(&dir);
-        assert_eq!(fs::read_dir(&dir).unwrap().count(), 0);
+        assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
+        assert_eq!(fs::read(&other).unwrap(), b"kept");
+        fs::remove_file(&other).unwrap();
         fs::remove_dir(&dir).unwrap();
     }
 }

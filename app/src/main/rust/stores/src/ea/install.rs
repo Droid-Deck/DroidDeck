@@ -17,7 +17,7 @@ use super::net;
 use super::zip::{self, Entry};
 use crate::amazon::install::check::{free_bytes, space_problem};
 use crate::amazon::install::{Events, ReplaceGate, Stop};
-use crate::grow_write::{holes_supported, GrowFront};
+use crate::grow_write::{holes_supported, is_cancel, GrowFront};
 use crate::fetch_core::{distinct_host_count, run_fetch, FetchItem, FetchOptions, FetchSink, SinkError};
 
 pub const LEDGER: &str = ".droiddeck-ea-files";
@@ -487,7 +487,13 @@ impl Placer<'_> {
         split
             .front
             .write_all_at(handle, start + offset, data, self.stop)
-            .map_err(|e| SinkError::Fatal(self.fail(format!("Could not write {}: {e}", job.path))))?;
+            .map_err(|e| {
+                if is_cancel(&e) {
+                    SinkError::Retry(format!("{}: cancelled", job.path))
+                } else {
+                    SinkError::Fatal(self.fail(format!("Could not write {}: {e}", job.path)))
+                }
+            })?;
         drop(file);
         split.received[part].fetch_add(data.len() as u64, Ordering::Relaxed);
         self.in_flight.fetch_add(data.len() as u64, Ordering::Relaxed);

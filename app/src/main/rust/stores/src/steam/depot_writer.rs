@@ -421,6 +421,12 @@ fn prepare(
             && files.slots[idx].remaining.load(Ordering::Relaxed) == 0
         {
             if let Err(err) = files.finalize_untouched(idx, cancel) {
+                if cancel.load(Ordering::Relaxed) {
+                    return Err(DepotWriteOutcome {
+                        cancelled: true,
+                        ..Default::default()
+                    });
+                }
                 return Err(DepotWriteOutcome::fail(err));
             }
         }

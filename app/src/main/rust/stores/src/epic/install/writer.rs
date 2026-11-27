@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use sha1::{Digest, Sha1};
 
 use super::cache;
-use crate::grow_write::{holes_supported, GrowFront};
+use crate::grow_write::{holes_supported, is_cancel, GrowFront};
 use super::schedule::{PlanPart, Schedule, NONE};
 use super::{staging, Events, Stop};
 use crate::epic::chunk;
@@ -97,6 +97,17 @@ struct Engine<'a> {
     total_bytes: u64,
 }
 
+enum Halt {
+    Cancelled,
+    Failed(String),
+}
+
+impl From<String> for Halt {
+    fn from(message: String) -> Self {
+        Halt::Failed(message)
+    }
+}
+
 enum Source<'d> {
     Memory(&'d [u8]),
     Cache(PathBuf),
@@ -112,6 +123,13 @@ impl<'a> Engine<'a> {
         self.stop.store(true, Ordering::SeqCst);
         self.wake.notify_all();
         message
+    }
+
+    fn sink_error(&self, halt: Halt) -> SinkError {
+        match halt {
+            Halt::Cancelled => SinkError::Retry("cancelled".into()),
+            Halt::Failed(message) => SinkError::Fatal(self.fail(message)),
+        }
     }
 
     fn cache_path(&self, producer: usize) -> PathBuf {
@@ -160,7 +178,7 @@ impl<'a> Engine<'a> {
         self.input.schedule.producers[fetch[at] as usize].anchor as usize + 1
     }
 
-    fn write_use(&self, u: usize, source: &Source<'_>) -> Result<(), String> {
+    fn write_use(&self, u: usize, source: &Source<'_>) -> Result<(), Halt> {
         let schedule = &self.input.schedule;
         let f = schedule.use_file[u] as usize;
         let j = u - schedule.file_start[f] as usize;
@@ -177,16 +195,22 @@ impl<'a> Engine<'a> {
         let start = part.chunk_offset as usize;
         let end = start + part.size as usize;
         if end > data.len() {
-            return Err(format!("A chunk is too short for {}", file.path));
+            return Err(format!("A chunk is too short for {}", file.path).into());
         }
         let piece = &data[start..end];
         let handle = self.slots[f].lock().expect("slot lock").file.clone();
         let Some(handle) = handle else {
-            return Err(format!("internal: {} is not open", file.path));
+            return Err(format!("internal: {} is not open", file.path).into());
         };
         self.fronts[f]
             .write_all_at(&handle, part.file_offset, piece, self.stop)
-            .map_err(|e| format!("Could not assemble or atomically replace {}: {e}", file.path))?;
+            .map_err(|e| {
+                if is_cancel(&e) {
+                    Halt::Cancelled
+                } else {
+                    Halt::Failed(format!("Could not assemble or atomically replace {}: {e}", file.path))
+                }
+            })?;
         self.written.fetch_add(piece.len() as u64, Ordering::Relaxed);
 
         let complete = {
@@ -345,14 +369,18 @@ impl<'a> Engine<'a> {
                 }
             };
             let Some(f) = candidate else { continue };
-            if let Err(e) = self.admit(f) {
-                self.fail(e);
-                return;
+            match self.admit(f) {
+                Ok(()) => {}
+                Err(Halt::Cancelled) => return,
+                Err(Halt::Failed(e)) => {
+                    self.fail(e);
+                    return;
+                }
             }
         }
     }
 
-    fn admit(&self, f: usize) -> Result<(), String> {
+    fn admit(&self, f: usize) -> Result<(), Halt> {
         self.open_stage(f)?;
         let schedule = &self.input.schedule;
         let file = &self.input.files[f];
@@ -417,7 +445,7 @@ impl<'a> Engine<'a> {
             out
         };
         for u in claims {
-            self.write_use(u, &Source::Memory(&data)).map_err(|e| SinkError::Fatal(self.fail(e)))?;
+            self.write_use(u, &Source::Memory(&data)).map_err(|h| self.sink_error(h))?;
         }
         Ok(0)
     }
