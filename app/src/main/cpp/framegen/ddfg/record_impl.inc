@@ -211,8 +211,19 @@ void FrameGen::configure(const Config& c) {
         return;
     }
 
-    // The device is already idle. Prevent onResize from issuing a second wait
-    // and from exposing old images with the new flow level if rebuilding fails.
+    // The device is idle, so reset motion history before rebuilding. This
+    // also leaves the predictor reset if onResize fails.
+    for (int i = 0; i < 6; ++i) gmRun_[i] = 0.0;
+    for (int s = 0; s < kGmSlots; ++s) {
+        gmSlotValid_[s] = false;
+        for (int i = 0; i < 6; ++i) gmLinAt_[s][i] = 0.0;
+    }
+    gmHaveEst_ = false;
+    gmEngaged_ = false;
+    gmStableCount_ = 0;
+    gmLastTransPx_ = 0.0f;
+
+    // Prevent onResize from issuing a second wait.
     destroyScratch(dd_, device_, descPool_);
     cfg_ = nextCfg;
     flowFinest_ = want;
@@ -223,16 +234,6 @@ void FrameGen::configure(const Config& c) {
                   extent_.width, extent_.height);
         return;
     }
-
-    for (int i = 0; i < 6; ++i) gmRun_[i] = 0.0;
-    for (int s = 0; s < kGmSlots; ++s) {
-        gmSlotValid_[s] = false;
-        for (int i = 0; i < 6; ++i) gmLinAt_[s][i] = 0.0;
-    }
-    gmHaveEst_ = false;
-    gmEngaged_ = false;
-    gmStableCount_ = 0;
-    gmLastTransPx_ = 0.0f;
     DDFG_LOGI("perf-preset live rebuild DONE (kFlowFinest=%d, flow predictor reset)", flowFinest_);
 }
 
