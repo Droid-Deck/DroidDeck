@@ -1134,6 +1134,9 @@ static int ddh_spawn_child_setup(const posix_spawn_file_actions_t *fa, const pos
             break;
         case DDH_DO_OPEN: {
             const char *real = rewrite_path(a[i].action.open_action.path, path, sizeof(path));
+            // as glibc: the target goes first, so a full fd table still has room for the open
+            if (!is_kept_fd(a[i].action.open_action.fd))
+                call_orig_syscall(SYS_close, (unsigned long)a[i].action.open_action.fd, 0, 0, 0, 0, 0);
             long fd = call_orig_syscall(SYS_openat, (unsigned long)AT_FDCWD, (unsigned long)real,
                                         (unsigned long)a[i].action.open_action.oflag, a[i].action.open_action.mode, 0, 0);
             if (fd < 0) return errno;
@@ -1202,12 +1205,20 @@ static int ddh_spawn_forked(pid_t *pid, const char *path, const posix_spawn_file
     }
     if (child == 0) {
         call_orig_syscall(SYS_close, (unsigned long)report[0], 0, 0, 0, 0, 0);
+        // Out of the file actions' way: high, and one of the fds they leave open (closefrom(3) is common)
+        int to_parent = (int)call_orig_syscall(SYS_fcntl, (unsigned long)report[1], F_DUPFD_CLOEXEC, 1000, 0, 0, 0);
+        if (to_parent >= 0) {
+            call_orig_syscall(SYS_close, (unsigned long)report[1], 0, 0, 0, 0, 0);
+            ddh_keep(to_parent);
+        } else {
+            to_parent = report[1];
+        }
         int err = ddh_spawn_child_setup(fa, attr);
         if (!err) {
             execve(path, argv, envp);
             err = errno;
         }
-        syscall(SYS_write, report[1], &err, sizeof(err));
+        syscall(SYS_write, to_parent, &err, sizeof(err));
         _exit(127);
     }
     close(report[1]);

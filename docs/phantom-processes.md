@@ -45,8 +45,9 @@ Source: `frameworks/base/services/core/java/com/android/server/am/PhantomProcess
    at `PROCESS_STATE_HOME` or below (backgrounded, no foreground service) and a phantom used
    "excessive" CPU, `killPhantomProcessGroupLocked` kills every phantom of that app **and the app**.
 
-Both are switched off only by `settings_enable_monitor_phantom_procs=false` (the developer option)
-or by raising `max_phantom_processes` through `device_config` (shell only).
+`settings_enable_monitor_phantom_procs=false` (the developer option) switches off both. Raising
+`max_phantom_processes` through `device_config` (shell only) avoids only the first: the
+excessive-CPU check still runs while monitoring is on.
 
 Today an idle Steam session is about 30 processes and a session with a game about 45 (#566, #575).
 
@@ -438,6 +439,16 @@ the old behavior and the old requirement.
 forks sleepers from the main process, a plain isolated service, an app-zygote isolated service and
 eight `:wN` workers, execs in place, and probes what a process may do.
 
+The limit of 4 below is device-wide: a trim while it is set can kill other apps' child processes,
+which restoring the setting does not bring back. Use a test device or an emulator with nothing else
+running, and note the current values first, to put them back afterwards:
+
+```
+adb shell settings get global settings_enable_monitor_phantom_procs
+adb shell device_config get activity_manager max_phantom_processes
+adb shell device_config get_sync_disabled_for_tests
+```
+
 ```
 tools/phantomlab/build.sh                          # build/phantomlab.apk, debug-signed
 adb install -r tools/phantomlab/build/phantomlab.apk
@@ -452,6 +463,7 @@ adb logcat -s PLAB ActivityManager | grep -i 'PLAB\|Trimming'
 
 Targets: `main`, `proc` (`:proc`), `isoplain`, `iso:<name>` (one app-zygote instance per name),
 `w0`…`w7`. Android scans only on CPU-stat refreshes, so switch apps a few times (5 s apart) before
-reading the phantom list. Restore afterwards with
-`device_config delete activity_manager max_phantom_processes` and
-`device_config set_sync_disabled_for_tests none`.
+reading the phantom list. Restore the noted values afterwards: `adb shell device_config put
+activity_manager max_phantom_processes <value>` (or `adb shell device_config delete activity_manager
+max_phantom_processes` if it was null), `adb shell device_config set_sync_disabled_for_tests <mode>`
+and `adb shell settings put global settings_enable_monitor_phantom_procs <value>`.

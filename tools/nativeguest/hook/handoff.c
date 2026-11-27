@@ -477,7 +477,7 @@ struct ddh_buf {
 };
 
 static void ddh_put(struct ddh_buf *b, const char *s, size_t n) {
-    if (b->p && b->len + n <= b->cap) memcpy(b->p + b->len, s, n);
+    if (b->p && b->len < b->cap) memcpy(b->p + b->len, s, n < b->cap - b->len ? n : b->cap - b->len);
     b->len += n;
 }
 
@@ -574,8 +574,15 @@ static int ddh_open_fds(int *fds, int max) {
 // thread of the parent may have held at fork().
 static const char *ddh_interpreter(const char *path, char *buf, size_t size) {
     char real[PATH_MAX];
-    int fd = (int)call_orig_syscall(SYS_openat, (unsigned long)AT_FDCWD, (unsigned long)rewrite_path(path, real, sizeof(real)), O_RDONLY | O_CLOEXEC, 0, 0, 0);
+    // non-blocking, and only a regular file: the path could name a FIFO
+    int fd = (int)call_orig_syscall(SYS_openat, (unsigned long)AT_FDCWD, (unsigned long)rewrite_path(path, real, sizeof(real)),
+                                    O_RDONLY | O_CLOEXEC | O_NONBLOCK, 0, 0, 0);
     if (fd < 0) return NULL;
+    struct stat st;
+    if (call_orig_syscall(SYS_fstat, (unsigned long)fd, (unsigned long)&st, 0, 0, 0, 0) != 0 || !S_ISREG(st.st_mode)) {
+        syscall(SYS_close, fd);
+        return NULL;
+    }
     long n = call_orig_syscall(SYS_read, (unsigned long)fd, (unsigned long)buf, size - 1, 0, 0, 0);
     syscall(SYS_close, fd);
     if (n < 3 || buf[0] != '#' || buf[1] != '!') return NULL;
@@ -977,7 +984,9 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
         errno = ENOSYS;
         return -1;
     }
-    if (!g_ddh || !(options & WEXITED) || (idtype != P_PID && idtype != P_ALL) || !ddh_any_live())
+    // An ordinary child asked for by pid: the real call, with all its options (stops, WNOWAIT).
+    if (!g_ddh || !(options & WEXITED) || (idtype != P_PID && idtype != P_ALL) || !ddh_any_live() ||
+        (idtype == P_PID && !ddh_find((pid_t)id)))
         return real(idtype, id, info, options);
     // Only exits are asked for here: answer through ddh_wait and describe the result as waitid does.
     int status = 0;
@@ -1055,7 +1064,7 @@ static void ddh_register_group(void) {
     int dir = ddh_open_groups(1);
     if (dir < 0) return;
     long start = ddh_start_time(getpid());
-    char name[96], text[48];
+    char name[96], text[96];
     const char *group = getenv("DDH_PGID");
     if (group) {
         snprintf(name, sizeof(name), "%d.%d.%ld", atoi(group), (int)getpid(), start);
@@ -1067,9 +1076,11 @@ static void ddh_register_group(void) {
     }
     if (g_ddh_report_parent > 0) {
         snprintf(name, sizeof(name), "P%d", (int)getpid());
-        const char *anchor = getenv("DDH_ANCHOR");
-        int len = snprintf(text, sizeof(text), "%ld %d %d\n", start, (int)g_ddh_report_parent,
-                           anchor ? atoi(anchor) : (int)g_ddh_report_parent);
+        // with their start times: a pid followed later may have been reused by then
+        const char *anchor_env = getenv("DDH_ANCHOR");
+        pid_t anchor = anchor_env ? (pid_t)atoi(anchor_env) : g_ddh_report_parent;
+        int len = snprintf(text, sizeof(text), "%ld %d %d %ld %ld\n", start, (int)g_ddh_report_parent, (int)anchor,
+                           ddh_start_time(g_ddh_report_parent), ddh_start_time(anchor));
         int fd = (int)call_orig_syscall(SYS_openat, (unsigned long)dir, (unsigned long)name,
                                         O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644, 0, 0);
         if (fd >= 0) {
@@ -1099,7 +1110,7 @@ static void ddh_unregister_group(void) {
 // The process that forked pid's child (or, gone, the worker's program it descended from), when pid
 // is a handed-off program; else 0.
 static pid_t ddh_logical_parent(pid_t pid) {
-    char path[PATH_MAX], text[48];
+    char path[PATH_MAX], text[96];
     const char *real_dir = rewrite_path(DDH_GROUPS, path, sizeof(path));
     if (real_dir != path) snprintf(path, sizeof(path), "%s", real_dir);
     size_t used = strlen(path);
@@ -1111,10 +1122,15 @@ static pid_t ddh_logical_parent(pid_t pid) {
     syscall(SYS_close, fd);
     if (n <= 0) return 0;
     text[n] = 0;
-    long start = 0;
+    long start = 0, parent_start = -1, anchor_start = -1;
     int parent = 0, anchor = 0;
-    if (sscanf(text, "%ld %d %d", &start, &parent, &anchor) < 2 || parent <= 1 || ddh_start_time(pid) != start) return 0;
-    return (pid_t)(ddh_start_time(parent) < 0 && anchor > 1 ? anchor : parent);
+    if (sscanf(text, "%ld %d %d %ld %ld", &start, &parent, &anchor, &parent_start, &anchor_start) < 5 ||
+        ddh_start_time(pid) != start)
+        return 0;
+    // -1: it was gone already when the program started (Wine forks through one that exits at once)
+    if (parent > 1 && parent_start >= 0 && ddh_start_time(parent) == parent_start) return (pid_t)parent;
+    if (anchor > 1 && anchor_start >= 0 && ddh_start_time(anchor) == anchor_start) return (pid_t)anchor;
+    return 0;
 }
 
 // Signals the groups of the programs standing for group; returns how many took it.
@@ -1152,10 +1168,13 @@ static int ddh_signal_stand_ins(pid_t group, int sig, pid_t done) {
 static int ddh_kill_group(pid_t pid, int sig) {
     pid_t group = pid == 0 ? ddh_logical_pgrp() : -pid;
     pid_t own = pid == 0 ? getpgrp() : -pid;
-    long ret = syscall(SYS_kill, pid, sig);
-    int err = errno;
+    // The caller's own group last: the signal may end the caller.
+    long ret = -1;
+    int err = ESRCH;
     if (group != own && !ddh_app_group(group) && syscall(SYS_kill, -group, sig) == 0) ret = 0;
     if (ddh_signal_stand_ins(group, sig, own) > 0) ret = 0;
+    if (syscall(SYS_kill, pid, sig) == 0) ret = 0;
+    else err = errno;
     if (ret != 0) errno = err;
     return (int)ret;
 }

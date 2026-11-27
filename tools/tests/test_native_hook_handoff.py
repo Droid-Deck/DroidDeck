@@ -1,3 +1,4 @@
+import errno
 import json
 import os
 import signal
@@ -192,10 +193,10 @@ class NativeHookHandoffTest(unittest.TestCase):
         self.assertEqual("6", result.get("exit"), out.stdout)
 
     def test_a_posix_spawn_of_a_missing_program_fails_as_it_would(self):
-        listed, requests, out = self.run_parent("spawn", "6", "/bin/missing")
-        unlisted, _, _ = self.run_parent("spawn", "6", "/bin/missing", handoff="other")
+        # posix_spawn() returns the exec's error, even with closefrom(3) among the file actions
+        result, requests, out = self.run_parent("spawn", "6", "/bin/missing")
         self.assertEqual([], requests)
-        self.assertEqual((unlisted.get("spawned"), unlisted.get("exit")), (listed.get("spawned"), listed.get("exit")), out.stdout)
+        self.assertEqual(str(errno.ENOENT), result.get("spawned"), out.stdout)
 
     def test_kill_reaches_the_program_and_its_signal_is_reported(self):
         result, requests, out = self.run_parent("kill", "sleep")

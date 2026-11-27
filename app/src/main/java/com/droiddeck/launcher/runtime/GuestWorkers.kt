@@ -490,6 +490,9 @@ object GuestWorkers {
             } else {
                 take()
             }
+            // Until start() has them: closed on every way out before that
+            var handedOver = false
+            try {
             val argv = request.getJSONArray("argv").let { a -> List(a.length()) { a.getString(it) } }
             val env = LinkedHashMap<String, String>()
             request.optJSONObject("env")?.let { o -> o.keys().forEach { env[it] = o.getString(it) } }
@@ -500,7 +503,8 @@ object GuestWorkers {
             env.keys.removeAll { it.startsWith("DDH_") }
             val cwd = request.optString("cwd", "/")
             val wait = request.optBoolean("wait", false)
-            val file = request.optString("file", "")
+            // A path without a slash names a file in the cwd, as execve() takes it, not one on PATH
+            val file = request.optString("file", "").let { if (it.isNotEmpty() && '/' !in it) "./$it" else it }
             // The handoff table (the hook's) comes last among the fds; the rest go to these numbers.
             val tableIndex = request.optInt("table", -1)
             val numbers = request.optJSONArray("fds")?.let { a -> IntArray(a.length()) { a.getInt(it) } } ?: IntArray(3) { it }
@@ -522,7 +526,6 @@ object GuestWorkers {
             val out = client.outputStream
             if (root == null || argv.isEmpty()) {
                 out.write("error no guest root or program\n".toByteArray())
-                fds.forEach { runCatching { it.close() } }
                 return
             }
             val shell = listOf("/usr/bin/bash", "/bin/bash").first { File(root, it.removePrefix("/")).isFile }
@@ -551,14 +554,20 @@ object GuestWorkers {
                 exited.countDown()
             }
             worker = pid
+            handedOver = true
             programFds.filter { it !== table }.forEach { runCatching { it.close() } }
             if (pid <= 0) table?.let { runCatching { it.close() } }
             out.write(if (pid > 0) "pid $pid\n".toByteArray() else "error no worker\n".toByteArray())
             out.flush()
             if (pid > 0 && wait) {
                 exited.await()
-                out.write("exit $status\n".toByteArray())
+                // droiddeck-spawn exits with this: an exit code, or 128 plus the signal
+                val code = if (status < 0) 1 else if (status and 0x7f == 0) (status shr 8) and 0xff else 128 + (status and 0x7f)
+                out.write("exit $code\n".toByteArray())
                 out.flush()
+            }
+            } finally {
+                if (!handedOver) fds.forEach { runCatching { it.close() } }
             }
         }
     }
