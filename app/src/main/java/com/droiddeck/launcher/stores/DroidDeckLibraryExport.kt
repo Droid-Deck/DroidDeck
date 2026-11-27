@@ -5,10 +5,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 object DroidDeckLibraryExport {
-    fun json(steamGames: List<Library.SteamGame>, ownedSteamGames: List<Library.SteamGame>): String {
+    fun json(steamGames: List<Library.SteamGame>, confirmedOwnedSteamIds: Set<Int>): String {
         val games = JSONArray()
         val seen = HashSet<String>()
-        val ownedSteamIds = ownedSteamGames.mapTo(HashSet()) { it.appId }
         for (game in steamGames) {
             if (game.source != Library.SOURCE_STEAM || game.appId <= 0) continue
             val key = "steam:${game.appId}"
@@ -18,13 +17,13 @@ object DroidDeckLibraryExport {
                 .put("storeName", "Steam")
                 .put("storeId", game.appId.toString())
                 .put("title", game.name)
-                .put("owned", game.appId in ownedSteamIds)
+                .put("owned", game.appId in confirmedOwnedSteamIds)
                 .put("subscription", false)
                 .put("storeUrl", "https://store.steampowered.com/app/${game.appId}/")
                 .put("coverUrl", game.remoteArt.orEmpty())
                 .put("heroUrl", game.remoteHero.orEmpty()))
         }
-        for (store in Store.entries) for (item in StoresState.library[store].orEmpty()) {
+        for (store in Store.entries.filter { it != Store.STEAM }) for (item in StoresState.library[store].orEmpty()) {
             if (!item.accessible) continue
             val exportStoreId = if (store == Store.STEAM) Library.SOURCE_STEAM else store.id
             val key = "$exportStoreId:${item.id}"

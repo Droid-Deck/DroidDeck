@@ -159,6 +159,16 @@ internal class GameRef(val appId: Int?, val store: Store?, val storeId: String?)
     }
 }
 
+internal fun resolveGameStore(ref: GameRef, game: Library.SteamGame?, remembered: Pair<Store, String>?): Pair<Store?, String?> {
+    val resolvedStore = ref.store ?: when {
+        game?.source == Library.SOURCE_STEAM -> Store.STEAM
+        else -> Store.byId(game?.source)
+    } ?: remembered?.first
+    val resolvedId = ref.storeId ?: game?.let { if (resolvedStore == Store.STEAM) it.appId.toString() else it.storeId }
+        ?: remembered?.second
+    return resolvedStore to resolvedId
+}
+
 internal enum class GameTab { ABOUT, ACHIEVEMENTS, LAUNCH, SAVES, ADDONS, INSTALL }
 
 @Composable
@@ -171,8 +181,7 @@ internal fun GameDetail(
     val games = s.steamGames + (if (s.shortcutPicker) emptyList() else SteamOwnedLibrary.games) + rememberXboxCloudRows(s) + if (s.soundtracksEnabled) emptyList() else s.soundtracks
     val found = ref.game(games)
     val known = remember(key) { arrayOfNulls<Pair<Store, String>>(1) }
-    val store = ref.store ?: Store.byId(found?.source) ?: known[0]?.first
-    val id = ref.storeId ?: found?.storeId ?: known[0]?.second
+    val (store, id) = resolveGameStore(ref, found, known[0])
     SideEffect { if (store != null && id != null) known[0] = store to id }
     val game = found ?: if (store != null && id != null) s.steamGames.firstOrNull { it.source == store.id && it.storeId == id } else null
     val item = if (store != null && id != null) StoresState.detailItem(store, id) else null
@@ -553,7 +562,7 @@ internal fun GameActions(
                 }
                 if (rest) HideButton(hideKey(game), game)
             }
-            !cloud && (game != null || installed != null) -> {
+            !cloud && (game?.installed == true || installed != null) -> {
                 val gone = storeKey?.let { StoresState.uninstalling[it] }
                 val xboxBusy = store == Store.XBOX && id != null && XboxContent.busy(id)
                 val preparing = (game?.launchKey ?: storeKey)?.let { it in s.preparingGames } == true

@@ -174,6 +174,12 @@ class LibraryEntriesTest {
         GameRef.parse("app:nope:1").let { assertNull(it.store); assertNull(it.appId) }
     }
 
+    @Test fun steamLibraryLinksResolveTheDownloadStoreAndAppId() {
+        val game = Library.SteamGame(620, "Portal 2", null, Library.NOT_INSTALLED, installed = false)
+        assertEquals(Store.STEAM to "620", resolveGameStore(GameRef.parse("app:620"), game, null))
+        assertEquals(Store.STEAM to "620", resolveGameStore(GameRef.parse("steamstore:620"), null, Store.GOG to "old"))
+    }
+
     @Test fun aCollectionKeepsItsInstalledGamesAndListsTheRestAsNotInstalled() {
         val games = listOf(
             Library.SteamGame(440, "Team Fortress 2", null, "Steam library"),

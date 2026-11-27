@@ -70,10 +70,6 @@ internal object SteamEngine {
     fun forget() {
         synchronized(lock) {
             failed = null
-            if (!signedIn) {
-                signedInSteamId = null
-                return
-            }
             signedIn = false
             signedInSteamId = null
             try {

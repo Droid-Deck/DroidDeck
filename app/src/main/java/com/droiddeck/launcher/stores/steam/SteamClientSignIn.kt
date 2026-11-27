@@ -20,6 +20,7 @@ internal object SteamClientSignIn {
     private const val TAG = "SteamClientSignIn"
     private const val PREFS = "stores"
     private const val PENDING = "steam_client_sign_in_pending"
+    private const val DISPATCHED = "steam_client_sign_in_dispatched"
     private const val BASELINE_SESSION = "steam_client_sign_in_baseline"
     private const val TARGET_SESSION = "steam_client_sign_in_target"
     private val ended = setOf(SessionPhase.IDLE, SessionPhase.FAILED)
@@ -48,13 +49,20 @@ internal object SteamClientSignIn {
     fun arm(context: Context, baselineSessionId: String? = null, targetSessionId: String? = null): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean(PENDING, true)
+            .putBoolean(DISPATCHED, false)
             .putString(BASELINE_SESSION, baselineSessionId)
             .putString(TARGET_SESSION, targetSessionId)
             .commit()
 
+    fun markDispatched(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(PENDING, false)) prefs.edit().putBoolean(DISPATCHED, true).commit()
+    }
+
     fun clear(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .remove(PENDING)
+            .remove(DISPATCHED)
             .remove(BASELINE_SESSION)
             .remove(TARGET_SESSION)
             .apply()
@@ -62,7 +70,10 @@ internal object SteamClientSignIn {
 
     fun finishIfSessionEnded(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        if (!readyToFinish(prefs.getBoolean(PENDING, false), SessionState.running, SessionState.phase)) return false
+        if (!readyToFinish(
+                prefs.getBoolean(PENDING, false), prefs.getBoolean(DISPATCHED, false),
+                SessionState.running, SessionState.phase,
+            )) return false
 
         val shouldSync = shouldSync(
             baselineSessionId = prefs.getString(BASELINE_SESSION, null),
@@ -84,6 +95,6 @@ internal object SteamClientSignIn {
         currentSessionId != baselineSessionId
     }
 
-    internal fun readyToFinish(pending: Boolean, running: Boolean, phase: SessionPhase): Boolean =
-        pending && !running && phase in ended
+    internal fun readyToFinish(pending: Boolean, dispatched: Boolean, running: Boolean, phase: SessionPhase): Boolean =
+        pending && dispatched && !running && phase in ended
 }

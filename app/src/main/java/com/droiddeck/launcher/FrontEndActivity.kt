@@ -76,6 +76,7 @@ import com.droiddeck.launcher.ui.FrontEndActions
 import com.droiddeck.launcher.frontend.CoverArt
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.frontend.SteamOwnedLibrary
+import com.droiddeck.launcher.frontend.ownedLibraryCompleteForExport
 import com.droiddeck.launcher.frontend.GameFiles
 import com.droiddeck.launcher.frontend.GameFileSync
 import com.droiddeck.launcher.frontend.GameLaunchIntent
@@ -367,9 +368,9 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             val result = runCatching { SteamOwnedLibrary.syncResult(this) }.getOrNull()
             val contents = runCatching {
                 val available = result?.takeIf {
-                    it.available && SteamOwnedLibrary.belongsToCurrentAccount(this, it)
+                    ownedLibraryCompleteForExport(it) && SteamOwnedLibrary.belongsToCurrentAccount(this, it)
                 } ?: error("Steam ownership is unavailable for the current account")
-                DroidDeckLibraryExport.json(installedGames + available.games, available.games)
+                DroidDeckLibraryExport.json(installedGames + available.games, available.confirmedOwnedIds)
             }
             ui.post {
                 if (isFinishing || isDestroyed) {
@@ -1457,6 +1458,17 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             saved?.let { androidx.core.os.BundleCompat.getParcelable(it, STATE_PENDING_GATE_LAUNCH, Intent::class.java) },
             saved?.getLong(STATE_PENDING_GATE_LAUNCH_AT, 0L) ?: 0L, System.currentTimeMillis(),
         )
+        if (savedInstanceState != null) {
+            savedIntent(savedInstanceState, STATE_PENDING_FLOOD_INTENT)?.let { pending ->
+                flood = PendingFlood(androidx.compose.ui.geometry.Rect(
+                    savedInstanceState.getFloat(STATE_PENDING_FLOOD_LEFT),
+                    savedInstanceState.getFloat(STATE_PENDING_FLOOD_TOP),
+                    savedInstanceState.getFloat(STATE_PENDING_FLOOD_RIGHT),
+                    savedInstanceState.getFloat(STATE_PENDING_FLOOD_BOTTOM),
+                ), pending)
+                floodProgress = savedInstanceState.getFloat(STATE_PENDING_FLOOD_PROGRESS)
+            }
+        }
         homeChoiceOpen = saved?.getBoolean(STATE_HOME_CHOICE_OPEN) == true
         gameSpaceOffered = saved?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
@@ -1614,7 +1626,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         },
                         onPlaySteamVr = { playSteamVr() },
                         onSteamUrl = { url ->
-                            if (SessionState.running) {
+                            if (url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true) || SessionState.running) {
                                 val opened = runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.isSuccess
                                 if (!opened) android.widget.Toast.makeText(this, R.string.game_link_failed, android.widget.Toast.LENGTH_LONG).show()
                             } else startSession(
@@ -2525,6 +2537,14 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             outState.putParcelable(STATE_PENDING_GATE_LAUNCH, it)
             outState.putLong(STATE_PENDING_GATE_LAUNCH_AT, queuedLaunch.queuedAt)
         }
+        flood?.let {
+            outState.putParcelable(STATE_PENDING_FLOOD_INTENT, it.intent)
+            outState.putFloat(STATE_PENDING_FLOOD_LEFT, it.from.left)
+            outState.putFloat(STATE_PENDING_FLOOD_TOP, it.from.top)
+            outState.putFloat(STATE_PENDING_FLOOD_RIGHT, it.from.right)
+            outState.putFloat(STATE_PENDING_FLOOD_BOTTOM, it.from.bottom)
+            outState.putFloat(STATE_PENDING_FLOOD_PROGRESS, floodProgress)
+        }
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
         saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
@@ -2564,7 +2584,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         queuedLaunchRunner.destroy()
         triggerKeys.cancel()
         launchCoordinator.cancelAll()
-        cancelCompatLaunch()
+        if (isChangingConfigurations) {
+            compatLaunchPoll?.let(ui::removeCallbacks)
+            compatLaunchPoll = null
+        } else {
+            cancelCompatLaunch()
+        }
         updates.unregister()
         runCatching { unregisterReceiver(shortcutsInstallStatus) }
         super.onDestroy()
@@ -2590,11 +2615,13 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         getSystemService(android.hardware.input.InputManager::class.java)?.unregisterInputDeviceListener(secondScreenTouchListener)
         launcherStarted = false
         com.droiddeck.launcher.ui.DualScreenPanel.hide(taskId)
-        flood?.let { cancelSteamStoreSignIn(it.intent) }
-        flood = null
-        returning = null
-        floodProgress = 0f
-        com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+        if (!isChangingConfigurations) {
+            flood?.let { cancelSteamStoreSignIn(it.intent) }
+            flood = null
+            floodProgress = 0f
+            returning = null
+            com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+        }
         super.onStop()
     }
 
@@ -3725,6 +3752,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private fun allowSteamStoreSignIn(intent: Intent?) {
         if (intent?.getBooleanExtra(com.droiddeck.launcher.stores.steam.SteamClientSignIn.EXTRA_STORE_SIGN_IN, false) == true) {
+            com.droiddeck.launcher.stores.steam.SteamClientSignIn.markDispatched(this)
             SteamOwnedLibrary.allowClientSessionImport(this)
         }
     }
@@ -3932,6 +3960,12 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         private const val STATE_HOME_CHOICE_OPEN = "home_choice_open"
         private const val STATE_PENDING_GATE_LAUNCH = "pending_gate_launch"
         private const val STATE_PENDING_GATE_LAUNCH_AT = "pending_gate_launch_at"
+        private const val STATE_PENDING_FLOOD_INTENT = "pending_flood_intent"
+        private const val STATE_PENDING_FLOOD_LEFT = "pending_flood_left"
+        private const val STATE_PENDING_FLOOD_TOP = "pending_flood_top"
+        private const val STATE_PENDING_FLOOD_RIGHT = "pending_flood_right"
+        private const val STATE_PENDING_FLOOD_BOTTOM = "pending_flood_bottom"
+        private const val STATE_PENDING_FLOOD_PROGRESS = "pending_flood_progress"
         private const val GATE_LAUNCH_MS = 15 * 60_000L
         private const val GATE_LAUNCH_RETRY_MS = 2_000L
         private const val KEY_PENDING_SESSION_LOG_EXPORT = "pending_session_log_export"

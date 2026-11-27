@@ -23,9 +23,14 @@ class SteamClientSignInTest {
     }
 
     @Test fun waitsUntilTheRequestedSessionHasEnded() {
-        assertFalse(SteamClientSignIn.readyToFinish(true, true, SessionPhase.READY))
-        assertFalse(SteamClientSignIn.readyToFinish(true, false, SessionPhase.STOPPING))
-        assertTrue(SteamClientSignIn.readyToFinish(true, false, SessionPhase.IDLE))
-        assertFalse(SteamClientSignIn.readyToFinish(false, false, SessionPhase.IDLE))
+        assertFalse(SteamClientSignIn.readyToFinish(true, true, true, SessionPhase.READY))
+        assertFalse(SteamClientSignIn.readyToFinish(true, true, false, SessionPhase.STOPPING))
+        assertTrue(SteamClientSignIn.readyToFinish(true, true, false, SessionPhase.IDLE))
+        assertFalse(SteamClientSignIn.readyToFinish(false, true, false, SessionPhase.IDLE))
+    }
+
+    @Test fun queuedButUndispatchedSignInSurvivesAnIdleLauncherResume() {
+        assertFalse(SteamClientSignIn.readyToFinish(true, false, false, SessionPhase.IDLE))
+        assertTrue(SteamClientSignIn.readyToFinish(true, true, false, SessionPhase.IDLE))
     }
 }

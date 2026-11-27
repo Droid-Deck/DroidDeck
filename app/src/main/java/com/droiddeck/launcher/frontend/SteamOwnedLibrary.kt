@@ -51,6 +51,8 @@ object SteamOwnedLibrary {
         val steamId: String?,
         val games: List<Library.SteamGame>,
         val available: Boolean,
+        val confirmedOwnedIds: Set<Int> = games.mapTo(HashSet()) { it.appId },
+        val metadataComplete: Boolean = true,
     )
     private data class PendingCallback(
         val generation: Long,
@@ -136,7 +138,7 @@ object SteamOwnedLibrary {
         return if (result.steamId == null || accountStillCurrent(app, result.generation, result.steamId)) {
             result
         } else {
-            result.copy(steamId = null, games = emptyList(), available = false)
+            result.copy(steamId = null, games = emptyList(), available = false, confirmedOwnedIds = emptySet(), metadataComplete = false)
         }
     }
 
@@ -238,11 +240,14 @@ object SteamOwnedLibrary {
                 true
             }
         }
+        val visibleGames = if (metadataIncomplete) saved?.takeIf { it.steamId == session.steamId }?.games.toSteamGames() else freshGames.toSteamGames()
         SyncResult(
             runGeneration,
             session.steamId.takeIf { stillCurrent },
-            if (stillCurrent) freshGames.toSteamGames() else emptyList(),
+            if (stillCurrent) visibleGames else emptyList(),
             stillCurrent && ownedLibraryAvailable(session.steamId, fetched = true, cachedSteamId = saved?.steamId),
+            if (stillCurrent) ids.toSet() else emptySet(),
+            !metadataIncomplete,
         )
     }
 
@@ -296,11 +301,15 @@ object SteamOwnedLibrary {
                 val current = generation == result.generation && accountId == result.steamId
                 if (current) games = result.games
                 callbacks.forEach { pending ->
-                    val accepted = current && pending.generation == generation && pending.steamId == accountId
+                    val accepted = current && steamSyncCallbackMatches(
+                        pending.generation, pending.steamId, result.generation, result.steamId, generation, accountId,
+                    )
                     val callbackResult = if (accepted) result else result.copy(
                         steamId = null,
                         games = emptyList(),
                         available = false,
+                        confirmedOwnedIds = emptySet(),
+                        metadataComplete = false,
                     )
                     runCatching { pending.callback(callbackResult) }
                 }
@@ -503,6 +512,9 @@ internal fun ownedGamesBelongToAccount(
     currentSteamId: String?,
 ): Boolean = result.available && result.generation == currentGeneration &&
     result.steamId != null && result.steamId == currentSteamId
+
+internal fun ownedLibraryCompleteForExport(result: SteamOwnedLibrary.SyncResult): Boolean =
+    result.available && result.metadataComplete
 
 internal fun steamSyncCallbackMatches(
     pendingGeneration: Long,

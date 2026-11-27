@@ -47,6 +47,13 @@ class SteamBackendCatalogTest {
         assertEquals(false, steamLibraryBelongsToAccount("76561198000000001", null))
     }
 
+    @Test fun nativeLibraryRequestsRequireTheStillStoredSteamAccount() {
+        assertEquals(true, steamClientLibraryRequestAuthorized("account-a", "account-a"))
+        assertEquals(false, steamClientLibraryRequestAuthorized("account-a", "account-b"))
+        assertEquals(false, steamClientLibraryRequestAuthorized("account-a", null))
+        assertEquals(false, steamClientLibraryRequestAuthorized(null, "account-a"))
+    }
+
     @Test fun updatingTheClientDisplayNameKeepsTheTransferredWebCookie() {
         val saved = JSONObject().apply {
             put("steam_id", "76561198000000001")

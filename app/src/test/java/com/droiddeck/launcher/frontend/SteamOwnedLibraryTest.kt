@@ -97,6 +97,15 @@ class SteamOwnedLibraryTest {
         assertFalse(ownedGamesBelongToAccount(result.copy(available = false), 3, "account-a"))
     }
 
+    @Test fun exportRejectsSuccessfulOwnershipFetchesWithMissingGameMetadata() {
+        val completeEmpty = SteamOwnedLibrary.SyncResult(3, "account-a", emptyList(), available = true)
+        val incomplete = completeEmpty.copy(confirmedOwnedIds = setOf(620), metadataComplete = false)
+
+        assertTrue(ownedLibraryCompleteForExport(completeEmpty))
+        assertFalse(ownedLibraryCompleteForExport(incomplete))
+        assertEquals(setOf(620), incomplete.confirmedOwnedIds)
+    }
+
     @Test fun initialAccountBindingKeepsItsCallbackCurrentWithoutTreatingAccountChangesAsCurrent() {
         assertTrue(steamSyncCallbackMatches(4, null, 5, "account-a", 5, "account-a"))
         assertFalse(steamSyncCallbackMatches(4, "account-a", 5, "account-b", 5, "account-b"))
