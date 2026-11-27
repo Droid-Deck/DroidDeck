@@ -414,5 +414,29 @@
                 android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
                 tools:node="remove" />
         </service>
+        <service android:name=".runtime.GuestWorker0" android:exported="false" android:process=":g0" />
+        <service android:name=".runtime.GuestWorker1" android:exported="false" android:process=":g1" />
+        <service android:name=".runtime.GuestWorker2" android:exported="false" android:process=":g2" />
+        <service android:name=".runtime.GuestWorker3" android:exported="false" android:process=":g3" />
+        <service android:name=".runtime.GuestWorker4" android:exported="false" android:process=":g4" />
+        <service android:name=".runtime.GuestWorker5" android:exported="false" android:process=":g5" />
+        <service android:name=".runtime.GuestWorker6" android:exported="false" android:process=":g6" />
+        <service android:name=".runtime.GuestWorker7" android:exported="false" android:process=":g7" />
+        <service android:name=".runtime.GuestWorker8" android:exported="false" android:process=":g8" />
+        <service android:name=".runtime.GuestWorker9" android:exported="false" android:process=":g9" />
+        <service android:name=".runtime.GuestWorker10" android:exported="false" android:process=":g10" />
+        <service android:name=".runtime.GuestWorker11" android:exported="false" android:process=":g11" />
+        <service android:name=".runtime.GuestWorker12" android:exported="false" android:process=":g12" />
+        <service android:name=".runtime.GuestWorker13" android:exported="false" android:process=":g13" />
+        <service android:name=".runtime.GuestWorker14" android:exported="false" android:process=":g14" />
+        <service android:name=".runtime.GuestWorker15" android:exported="false" android:process=":g15" />
+        <service android:name=".runtime.GuestWorker16" android:exported="false" android:process=":g16" />
+        <service android:name=".runtime.GuestWorker17" android:exported="false" android:process=":g17" />
+        <service android:name=".runtime.GuestWorker18" android:exported="false" android:process=":g18" />
+        <service android:name=".runtime.GuestWorker19" android:exported="false" android:process=":g19" />
+        <service android:name=".runtime.GuestWorker20" android:exported="false" android:process=":g20" />
+        <service android:name=".runtime.GuestWorker21" android:exported="false" android:process=":g21" />
+        <service android:name=".runtime.GuestWorker22" android:exported="false" android:process=":g22" />
+        <service android:name=".runtime.GuestWorker23" android:exported="false" android:process=":g23" />
     </application>
 </manifest>

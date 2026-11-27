@@ -33,10 +33,11 @@ Source: `frameworks/base/services/core/java/com/android/server/am/PhantomProcess
    `setProcessGroupForPhantomProcessOfApp` when an app changes scheduling group. A new phantom
    schedules `trimPhantomProcessesIfNecessary`.
 4. **The kill.** When the device-wide total exceeds `max_phantom_processes` (32), phantoms are
-   sorted by their app's oom adj (least important first), then youngest first, and the surplus is
-   killed (`SIGKILL` and `killProcessGroup`). As the foreground app, other apps' phantoms go first,
-   so the practical budget is our own 32. The newest process (often the game just launched) is the
-   first of ours to go.
+   sorted by their app's oom adj (most important first), then youngest first, and the surplus is
+   killed from the end of that list (`SIGKILL` and `killProcessGroup`): the least important app's
+   oldest processes go first. As the foreground app, other apps' phantoms go first, so the
+   practical budget is our own 32, and of ours the **oldest** die first: the session's PipeWire,
+   D-Bus and Steam itself, not the game that pushed the count over.
 5. **The second killer.** `ActivityManagerService.updatePhantomProcessCpuTimeLPr`: when the app is
    at `PROCESS_STATE_HOME` or below (backgrounded, no foreground service) and a phantom used
    "excessive" CPU, `killPhantomProcessGroupLocked` kills every phantom of that app **and the app**.
@@ -179,6 +180,32 @@ main process of one worker (Gap 2): full app privileges, direct GPU, normal sign
   `SIGCHLD`. All app processes share zygote's session (sid 0, pgid of zygote), so `setpgid` and
   process-group signals across workers are possible.
 - Relies on AMS never pinging a process; today it only sends oneway calls that fail harmlessly.
+
+### Measured on the Thor: a real session
+
+An idle Steam session (Big Picture at the library, Decky on, 0.7.11 / main `b08d8e8e1`) holds
+**48 counted processes** in the app's cgroup, well past 32 before any game starts:
+9 bash, 6 python3, 5 dbus-daemon (with the portals and at-spi under the session bus), 4 Decky
+PluginLoader, 4 steamwebhelper, 2 Xwayland, gamescope and its reaper, PipeWire and WirePlumber,
+Steam, the clipboard bridge, and the app's own logcat, PulseAudio and audio relay.
+
+Prototype of B on this branch (`runtime/GuestWorkers.kt`, `droiddeck-spawn`, `dd_spawn` in the
+session script; `DD_SPAWN_DAEMONS=0` turns it off): 24 `:gN` worker services, a spawn socket in the
+app, and the session script starting the clipboard bridge, the system bus, login1 and the session
+bus through it. Result:
+
+- Each of the four runs as its own app process (`/sys/fs/cgroup/uid_<app>/pid_<worker>` with one
+  process). login1's sleep handshake, NetworkManager (state 70, full connectivity) and the Steam
+  library all work.
+- Counted processes: **45** instead of 48. The session bus took its 9 activated children with it, so
+  they are still counted, under its worker.
+
+So starting top-level daemons in workers is not enough. What is left is the processes other
+programs start. Of the 47 counted processes in that session, **40 are exec'd programs** and only 7
+are forks without an exec (the session script's `( … ) &` subshells). A handoff inside the native
+hook, at `execve()` in a forked child, could move all 40, leaving about 7 counted at idle. That needs
+the pid translation described in B (the parent keeps the forked pid; `wait4`, `kill`, `SIGCHLD` and
+`/proc/<pid>` go to the worker's process).
 
 ### C. Plan
 

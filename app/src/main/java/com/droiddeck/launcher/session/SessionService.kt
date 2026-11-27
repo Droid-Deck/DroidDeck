@@ -701,6 +701,10 @@ class SessionService : Service() {
             if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
         guest.add("DD_LAUNCH_DIR=" + sessionRoot.path)
+        if (com.droiddeck.launcher.runtime.NativeGuest.enabled(this)) {
+            com.droiddeck.launcher.runtime.GuestWorkers.serve(this)
+            guest.add("DD_SPAWN=" + com.droiddeck.launcher.runtime.GuestWorkers.socketName(this))
+        }
         // Proton builds up to 11.12 report X11 text fields under this name.
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
         GameStorage.effective(this)?.let { guest.add("DD_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
@@ -1522,6 +1526,7 @@ class SessionService : Service() {
     private fun teardown(prootPid: Int, expectedStartTime: Long? = null) {
         fun stillSameProcess(): Boolean = expectedStartTime == null || readStat(prootPid)?.second == expectedStartTime
         if (!stillSameProcess()) return
+        if (expectedStartTime == null) com.droiddeck.launcher.runtime.GuestWorkers.stopAll()
         val tree = descendants(prootPid)
         if (!stillSameProcess()) return
         saveWineRegistries(tree)

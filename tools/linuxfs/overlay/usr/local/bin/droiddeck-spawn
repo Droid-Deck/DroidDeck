@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+"""Starts a program as the main process of its own Android process, outside the session's cgroup.
+
+usage: droiddeck-spawn [--wait] [--pid-file FILE] [--] PROGRAM [ARGS...]
+
+Android counts the session's processes against its child-process limit; a program started this
+way is not counted (its own children are). It gets this process's environment, working directory
+and stdin/stdout/stderr, and is not a child of the caller: the pid printed on stdout (or written to
+FILE) is the one to signal. Without --wait this returns once the program has started; with --wait
+it waits for it and exits with its status. Where the app offers no spawner, the program is started as a normal child.
+"""
+import array
+import json
+import os
+import socket
+import struct
+import sys
+
+
+def report(pid, pid_file):
+    if pid_file:
+        with open(pid_file, "w") as f:
+            f.write("%s\n" % pid)
+    else:
+        print(pid, flush=True)
+
+
+def fallback(argv, wait, pid_file):
+    pid = os.fork()
+    if pid == 0:
+        try:
+            os.execvp(argv[0], argv)
+        except OSError as e:
+            print("droiddeck-spawn: %s: %s" % (argv[0], e.strerror), file=sys.stderr)
+            os._exit(127)
+    report(pid, pid_file)
+    if wait:
+        return os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
+    return 0
+
+
+def main():
+    args = sys.argv[1:]
+    wait = False
+    pid_file = None
+    while args and args[0].startswith("--"):
+        flag = args.pop(0)
+        if flag == "--":
+            break
+        if flag == "--wait":
+            wait = True
+        elif flag == "--pid-file" and args:
+            pid_file = args.pop(0)
+        else:
+            print(__doc__.strip(), file=sys.stderr)
+            return 2
+    if not args:
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    name = os.environ.get("DD_SPAWN")
+    if not name:
+        return fallback(args, wait, pid_file)
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        s.connect("\0" + name)
+    except OSError:
+        return fallback(args, wait, pid_file)
+    payload = json.dumps({"argv": args, "env": dict(os.environ), "cwd": os.getcwd(), "wait": wait}).encode()
+    s.sendmsg([struct.pack(">I", len(payload)), payload],
+              [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [0, 1, 2]))])
+    reply = s.makefile("r")
+    first = reply.readline().split()
+    if len(first) != 2 or first[0] != "pid":
+        print("droiddeck-spawn: %s; starting %s as a child" % (" ".join(first[1:]) or "no answer", args[0]),
+              file=sys.stderr)
+        return fallback(args, wait, pid_file)
+    report(first[1], pid_file)
+    if not wait:
+        return 0
+    done = reply.readline().split()
+    status = int(done[1]) if len(done) == 2 and done[0] == "exit" else 1
+    return status if 0 <= status < 256 else 128 + (status & 0x7f)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -14,6 +14,22 @@ export HOME=${HOME:-/root}
 mode=${1:-desktop}
 shift || true
 step() { echo "== STEP $(date -u +%H:%M:%S.%3N) $*"; }
+# Starts a long-lived program in its own Android process, which Android does not count against
+# the session's child processes (docs/phantom-processes.md); a normal background job otherwise.
+# Its pid is in $dd_spawned either way.
+dd_spawn() {
+  dd_spawned=
+  if [ "${DD_SPAWN_DAEMONS:-1}" = 1 ] && [ -n "${DD_SPAWN:-}" ] && [ -x /usr/local/bin/droiddeck-spawn ]; then
+    local f=${XDG_RUNTIME_DIR:-/tmp}/.dd-spawn.$$
+    if /usr/local/bin/droiddeck-spawn --pid-file "$f" -- "$@"; then
+      dd_spawned=$(cat "$f" 2>/dev/null)
+      rm -f "$f"
+      [ -n "$dd_spawned" ] && return 0
+    fi
+  fi
+  "$@" &
+  dd_spawned=$!
+}
 steam_setup_failed() {
   echo "== steam: the Steam client could not be set up (status $1)"
   [ -z "${DD_STEAM_EXIT_FILE:-}" ] || printf '%s\n' "$1" > "$DD_STEAM_EXIT_FILE"
@@ -628,7 +644,7 @@ reap_orphans() {
 }
 
 if [ "${DD_DESKTOP:-}" != 1 ] && [ -n "${DD_ANDROID_CLIPBOARD:-}" ] && [ -x /usr/local/bin/droiddeck-clipboard ]; then
-  /usr/local/bin/droiddeck-clipboard "$DD_ANDROID_CLIPBOARD" &
+  dd_spawn /usr/local/bin/droiddeck-clipboard "$DD_ANDROID_CLIPBOARD"
 fi
 
 [ "${DD_DESKTOP:-}" = 1 ] || start_agent
@@ -1384,8 +1400,8 @@ case $mode in
     fi
     if command -v dbus-daemon >/dev/null 2>&1 && command -v droiddeck-netmanager >/dev/null 2>&1; then
       write_system_bus_config
-      dbus-daemon --config-file=/usr/local/share/droiddeck/system-bus.conf --nofork --nopidfile &
-      system_bus=$!
+      dd_spawn dbus-daemon --config-file=/usr/local/share/droiddeck/system-bus.conf --nofork --nopidfile
+      system_bus=$dd_spawned
       for _ in $(seq 1 50); do
         [ -S /run/dbus/system_bus_socket ] && break
         sleep 0.1
@@ -1393,8 +1409,8 @@ case $mode in
       if [ -S /run/dbus/system_bus_socket ]; then
         echo "== network: system bus up, NetworkManager stand-in running"
         rm -f "$DD_LAUNCH_DIR/steam-sleep-ready"
-        droiddeck-login1 --with-netmanager &
-        login_manager=$!
+        dd_spawn droiddeck-login1 --with-netmanager
+        login_manager=$dd_spawned
         for ((_i = 0; _i < 50; _i++)); do
           [ -f "$DD_LAUNCH_DIR/steam-sleep-ready" ] && break
           kill -0 "$login_manager" 2>/dev/null || break
@@ -1418,7 +1434,7 @@ case $mode in
     if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
       _dd_bus=${XDG_RUNTIME_DIR:-/run/droiddeck}/bus
       rm -f "$_dd_bus"
-      dbus-daemon --session --address="unix:path=$_dd_bus" --nofork --nopidfile &
+      dd_spawn dbus-daemon --session --address="unix:path=$_dd_bus" --nofork --nopidfile
       for _ in $(seq 1 50); do
         [ -S "$_dd_bus" ] && break
         nap 0.1
