@@ -2431,7 +2431,9 @@
     <string name="phantom_title_not_required">Limit für untergeordnete Prozesse nicht erforderlich</string>
     <string name="phantom_instructions_fix">%1$s Falls das nicht möglich ist, verbinde dieses Gerät per ADB mit einem Computer und führe den Befehl unten aus. Kehre dann hierher zurück und prüfe erneut.</string>
     <string name="phantom_instructions_off">Steam-Sitzungen können starten.</string>
-    <string name="phantom_instructions_not_applicable">Diese Android-Version nutzt dieses Limit nicht.</string>
+    <string name="phantom_instructions_not_applicable">Diese Android-Version nutzt dieses Limit nicht.</string>
+    <string name="phantom_title_uncounted">Limit für untergeordnete Prozesse übernimmt DroidDeck</string>
+    <string name="phantom_instructions_uncounted">DroidDeck führt die Programme der Sitzung in Prozessen aus, die Android nicht mitzählt, daher können die Entwickleroptionen ausgeschaltet bleiben.</string>
     <string name="phantom_fix_toggle">Aktiviere „Beschränkungen für Unterprozesse deaktivieren“ in den Entwickleroptionen und lass die Entwickleroptionen danach aktiviert.</string>
     <string name="phantom_fix_no_toggle">Diese Android-Version hat dafür keinen Schalter. Nutze Debugging über WLAN, um es auf diesem Gerät zu ändern.</string>
     <string name="upd_block_no_apk">Dieser Build hat keinen Download für diese DroidDeck-Installation.</string>

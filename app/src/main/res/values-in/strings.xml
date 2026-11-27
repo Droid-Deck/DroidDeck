@@ -2414,7 +2414,9 @@
     <string name="phantom_title_not_required">Batas proses turunan tidak diperlukan</string>
     <string name="phantom_instructions_fix">%1$s Jika itu tidak memungkinkan, sambungkan perangkat ini ke komputer dengan ADB dan jalankan perintah di bawah. Kembali ke sini dan periksa lagi.</string>
     <string name="phantom_instructions_off">Sesi Steam dapat dimulai.</string>
-    <string name="phantom_instructions_not_applicable">Versi Android ini tidak menggunakan batas ini.</string>
+    <string name="phantom_instructions_not_applicable">Versi Android ini tidak menggunakan batas ini.</string>
+    <string name="phantom_title_uncounted">Batas proses anak ditangani DroidDeck</string>
+    <string name="phantom_instructions_uncounted">DroidDeck menjalankan program sesi dalam proses yang tidak dihitung Android, jadi Opsi developer bisa tetap nonaktif.</string>
     <string name="phantom_fix_toggle">Aktifkan “Nonaktifkan batasan proses turunan” di Opsi developer, dan biarkan Opsi developer tetap aktif setelahnya.</string>
     <string name="phantom_fix_no_toggle">Versi Android ini tidak memiliki sakelar untuk itu. Gunakan Debugging nirkabel untuk mengubahnya dari perangkat ini.</string>
     <string name="upd_block_no_apk">Build ini tidak memiliki unduhan untuk salinan DroidDeck ini.</string>

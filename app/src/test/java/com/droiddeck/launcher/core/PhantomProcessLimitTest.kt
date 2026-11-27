@@ -81,4 +81,10 @@ class PhantomProcessLimitTest {
         assertFalse(PhantomProcessLimit.hasDeveloperToggle(33))
         assertTrue(PhantomProcessLimit.hasDeveloperToggle(34))
     }
+
+    @Test
+    fun theLimitOnDoesNotBlockSteamWhenTheSessionStaysOutOfItsCount() {
+        assertFalse(PhantomProcessLimit.blocksSteam(PhantomProcessStatus.UNCOUNTED))
+        assertTrue(PhantomProcessLimit.blocksSteam(PhantomProcessStatus.ENABLED))
+    }
 }

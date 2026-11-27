@@ -2414,7 +2414,9 @@
     <string name="phantom_title_not_required">Had proses anak tidak diperlukan</string>
     <string name="phantom_instructions_fix">%1$s Jika itu tidak boleh, sambungkan peranti ini ke komputer dengan ADB dan jalankan arahan di bawah. Kembali ke sini dan semak semula.</string>
     <string name="phantom_instructions_off">Sesi Steam boleh dimulakan.</string>
-    <string name="phantom_instructions_not_applicable">Versi Android ini tidak menggunakan had ini.</string>
+    <string name="phantom_instructions_not_applicable">Versi Android ini tidak menggunakan had ini.</string>
+    <string name="phantom_title_uncounted">Had proses anak dikendalikan oleh DroidDeck</string>
+    <string name="phantom_instructions_uncounted">DroidDeck menjalankan program sesi dalam proses yang tidak dikira oleh Android, jadi Pilihan pembangun boleh kekal dimatikan.</string>
     <string name="phantom_fix_toggle">Hidupkan “Lumpuhkan sekatan proses anak” dalam Pilihan pembangun, dan biarkan Pilihan pembangun hidup selepas itu.</string>
     <string name="phantom_fix_no_toggle">Versi Android ini tidak mempunyai suis untuknya. Gunakan Debugging Wayarles untuk menukarnya daripada peranti ini.</string>
     <string name="upd_block_no_apk">Binaan ini tidak mempunyai muat turun untuk salinan DroidDeck ini.</string>

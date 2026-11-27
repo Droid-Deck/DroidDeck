@@ -81,7 +81,9 @@ object HostProcess {
                        outputFile: File? = null, onOutputComplete: Runnable? = null): Int {
         val context = com.droiddeck.launcher.runtime.GuestWorkers.context
         val argv = split(command)
-        if (context == null || argv.isEmpty()) return start(command, env, dir, onExit, onLine, outputFile, onOutputComplete)
+        if (context == null || argv.isEmpty() || !com.droiddeck.launcher.runtime.GuestWorkers.enabled(context)) {
+            return start(command, env, dir, onExit, onLine, outputFile, onOutputComplete)
+        }
         val environment = LinkedHashMap(System.getenv())
         env?.forEach { line ->
             val eq = line.indexOf('=')

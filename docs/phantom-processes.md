@@ -5,9 +5,12 @@ Research log for removing DroidDeck's requirement to turn off "Restrict child pr
 Android must not kill a Steam session for having too many Linux processes, and the user must not
 need developer options.
 
-Status: **two gaps in Android's process counting are confirmed on the AYN Thor (Android 13,
-kernel 5.15) and the Android 15 emulator**; both are in identical code on Android 12 through 16.
-A DroidDeck prototype is next. The experiments are in `tools/phantomlab` (see the end).
+Status: **working on the AYN Thor (Android 13).** With Android's limit on and no developer option,
+a Steam session with a game running keeps 14 processes in the app's counted cgroup (63 without
+this work), and Android killed nothing in 3 minutes of forced scans. DroidDeck's Setup reports the
+limit as handled and no longer blocks Steam. Both counting gaps below are in identical code on
+Android 12 through 16; a stock Android 14+ phone is still to be tested. The experiments are in
+`tools/phantomlab` (see the end).
 
 ## How Android counts and kills
 
@@ -252,31 +255,84 @@ too, irregularly):
 | no handoff (`DD_SPAWN_DAEMONS=0`, same build) | 63 | **33**, oldest first: the session's bash, Python daemons, D-Bus, Xwayland, Steam, PipeWire, gamescope's reaper | FAILED |
 | handoff | 27–29 (device-wide) | **0** in 9 scans | game running throughout |
 
-Still counted with a game running: the session script's 9 bash subshells, gamescope with its two
-Xwayland servers, its reaper and an autolaunched D-Bus, Steam with its web helper browser and two
-utility processes, Steam's launch chain (`sh`, `pw-audio-namespace`, `reaper`), and the app's own
-logcat, PulseAudio and audio relay. The app's three can use `GuestWorkers.start` directly, and the
-autolaunched bus goes away once gamescope sees the session bus address.
+### Taken further: the session itself in workers
+
+A second round moved most of what was still counted:
+
+- **The app's own processes:** `HostProcess.startUncounted` runs a host command in a worker with the
+  same contract as `HostProcess.start` (output lines, exit code, working directory). The session
+  root, the app log's logcat and the DirectAudio relay use it. A worker cannot `chdir` before its
+  exec, so Android's `sh` does it from an environment of its own and exports the program's
+  (`env -i` cannot be used: the APK's library path contains `==`). PulseAudio stays a normal child:
+  it was SIGKILLed right after start in a worker, for a reason not yet found.
+- **The script's long-lived subshells:** `dd_job FUNCTION` runs a function in a new `bash` that first
+  loads the shell's variables, functions and options from a state file, so it is an exec'd program
+  the hook can hand off (`bash+dd-job`). `$!`, `kill` and `wait` keep working. The zRAM scanner,
+  the property watcher, Decky's supervisor and the request/timer loop use it.
+- **The log pipeline** is `droiddeck-log-writer`, a script of its own instead of a `{ gnudd; cat; }`
+  subshell.
+- **gamescope, its reaper and the inner `droiddeck-session steam`** are handed off. Steam, its web
+  helper's browser process and its utility processes still are not (see above).
+
+Things this needed, found the hard way:
+
+- **The binder fd is the worker's life.** It sits above every fd number the program gets; programs
+  that close all inherited fds (gamescope) are kept from closing it (the hook's kept fds, also
+  against `CLOSE_RANGE_CLOEXEC`); children never send it along with a handoff; and the hook closes
+  copies in every other process (`DDH_WORKER_PID`), so a worker's exit is seen when its program
+  exits. A worker that lost its binder fd was killed by Android within milliseconds.
+- **A session of its own (`setsid`) for every worker.** All app processes are in zygote's process
+  group, so a program signalling its group reached the app itself (the hook also refuses
+  `kill(0)`/`kill(-pgid)` into zygote's group, and `kill(-1)`). `reap_orphans` in the session
+  script stands down when its parent is zygote.
+- **Nested handoffs** (a program in a worker handing off its own child): inherited `DDH_*`
+  variables are dropped from each request.
+- **Requests carry up to 240 fds,** in chunks of 60 (`LocalSocket` reads at most 64 per read), after
+  the request itself; the spawn server catches everything per connection (an uncaught exception there
+  took the whole app down once).
+- **The table is made at a process's first fork,** not only when `DD_SPAWN` is in its environment at
+  start: a shell that exports it has no sign of it in its own environment.
+- **Exit status:** the program's hook records it with `on_exit` into the parent's table; the app's
+  `ApplicationExitInfo` is only the fallback (signals, `_exit`). A program inherits its forked
+  parent's ignored signals, open-files limit and umask (`DDH_SIGIGN`, `DDH_NOFILE`, `DDH_UMASK`).
+
+Measured on the Thor, Bully under Proton, Android's limit on (default 32), a scan forced every 20 s:
+
+| | counted, idle | counted, in game | killed in 3 min |
+|---|---|---|---|
+| main (no handoff) | 48 | 63 | 33, session failed |
+| first round | 26 | 29 | 0 |
+| **second round** | **9** | **14** | **0** |
+
+Still counted at idle: PulseAudio, `run_gamescope`'s subshell, Steam, its web helper's browser and
+two utility processes, the session bus's activation babysitter and Decky's sound-effects worker
+(forks without an exec). Quitting the game, stopping the session (no worker is left) and starting
+again all work. Started from the front end with the limit on, Setup shows "Child-process limit
+handled by DroidDeck" and Steam starts.
+
+**In the app:** `PhantomProcessStatus.UNCOUNTED` is reported when the limit is on but the session
+runs in workers (`GuestWorkers.enabled`: the native userland, Android 11+, and the
+`childProcessHandoff` session preference, on by default). It does not block Steam. Turning the
+preference off (`droiddeckctl prefs set session childProcessHandoff false --type bool`) brings back
+the old behavior and the old requirement.
 
 ### C. Plan
 
-1. ~~Verify both gaps on the Thor (Android 13, 5.15)~~ done; still to do on one stock Android 14+
-   phone with an enforcing `isolated_app`.
-2. ~~B for the processes DroidDeck and the session script start themselves~~ done (45 of 48).
-3. ~~B inside the hook, with pid translation~~ prototype done: 26 idle, 29 with a game, no kills
-   with Android's limit on.
-4. To finish B:
-   - the app's own logcat, PulseAudio and audio relay through `GuestWorkers.start`;
-   - fewer session-script subshells, or start them with `dd_spawn bash -c`;
-   - the autolaunched D-Bus under gamescope;
-   - Xwayland, if gamescope keeps working without them as its children;
-   - `/proc/<pid>/stat` showing the virtual parent, so Steam, its web helper and the launch chain
-     can be handed off too;
-   - a pre-started worker or two, so a handoff costs no zygote fork.
-5. Then the session can stop requiring the developer option where the in-game count stays well
-   under 32. Keep the check as a warning and fall back to counted processes if a worker cannot
-   start.
-6. A (the isolated tier) only if B stops working on a future Android; it needs a file and socket
+1. ~~Verify both gaps on the Thor~~ done; still to do on a stock Android 14+ phone (enforcing
+   SELinux, unlike the Thor) and on a Mali device.
+2. ~~B for the processes DroidDeck and the session script start themselves~~ done.
+3. ~~B inside the hook, with pid translation~~ done.
+4. ~~The session root, its jobs, the log pipeline, the gamescope chain~~ done: 9 idle, 14 in game.
+5. ~~Setup no longer requires the developer option while the session runs in workers~~ done.
+6. Open:
+   - PulseAudio in a worker (SIGKILLed at start there);
+   - `/proc/<pid>/stat` showing the virtual parent, so that Steam and its web helper can be handed
+     off too;
+   - pre-started workers, so that a handoff costs no zygote fork (about 100 ms now);
+   - more games (Wine-heavy launchers, anti-cheat), the desktop mode and proot sessions (which keep
+     the old behavior);
+   - a settings switch for `childProcessHandoff`.
+7. A (the isolated tier) only if B stops working on a future Android; it needs a file and socket
    broker and keeps the GPU outside.
 
 ## Robustness

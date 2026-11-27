@@ -210,6 +210,11 @@ object GuestWorkers {
     @Volatile var context: Context? = null
         private set
 
+    /** Whether the session runs its programs in workers: the native userland, and not turned off. */
+    fun enabled(context: Context): Boolean =
+        android.os.Build.VERSION.SDK_INT >= 30 && com.droiddeck.launcher.session.SessionPrefs.childProcessHandoff(context) &&
+            NativeGuest.enabled(context)
+
     fun socketName(context: Context): String = "droiddeck-spawn." + context.packageName + "." + Process.myUid()
 
     /**

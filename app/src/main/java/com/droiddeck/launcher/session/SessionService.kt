@@ -701,7 +701,7 @@ class SessionService : Service() {
             if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
         guest.add("DD_LAUNCH_DIR=" + sessionRoot.path)
-        if (com.droiddeck.launcher.runtime.NativeGuest.enabled(this)) {
+        if (com.droiddeck.launcher.runtime.GuestWorkers.enabled(this)) {
             com.droiddeck.launcher.runtime.GuestWorkers.serve(this)
             guest.add("DD_SPAWN=" + com.droiddeck.launcher.runtime.GuestWorkers.socketName(this))
         }

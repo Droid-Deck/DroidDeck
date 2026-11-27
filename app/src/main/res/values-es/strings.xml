@@ -2465,7 +2465,9 @@
     <string name="phantom_title_not_required">El límite de procesos secundarios no es necesario</string>
     <string name="phantom_instructions_fix">%1$s Si no es posible, conecta este dispositivo a un ordenador con ADB y ejecuta el comando de abajo. Después vuelve aquí y comprueba de nuevo.</string>
     <string name="phantom_instructions_off">Ya se pueden iniciar sesiones de Steam.</string>
-    <string name="phantom_instructions_not_applicable">Esta versión de Android no usa este límite.</string>
+    <string name="phantom_instructions_not_applicable">Esta versión de Android no usa este límite.</string>
+    <string name="phantom_title_uncounted">DroidDeck gestiona el límite de procesos secundarios</string>
+    <string name="phantom_instructions_uncounted">DroidDeck ejecuta los programas de la sesión en procesos que Android no cuenta, así que las Opciones para desarrolladores pueden seguir desactivadas.</string>
     <string name="phantom_fix_toggle">Activa “Inhabilitar restricciones de procesos secundarios” en Opciones de desarrollador y deja activadas las Opciones de desarrollador después.</string>
     <string name="phantom_fix_no_toggle">Esta versión de Android no tiene un interruptor para ello. Usa la Depuración inalámbrica para cambiarlo desde este dispositivo.</string>
     <string name="upd_block_no_apk">Esta versión no tiene descarga para esta copia de DroidDeck.</string>

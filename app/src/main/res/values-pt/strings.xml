@@ -2478,7 +2478,9 @@
     <string name="phantom_title_not_required">O limite de processos filhos não é necessário</string>
     <string name="phantom_instructions_fix">%1$s Se não for possível, conecte este dispositivo a um computador com ADB e execute o comando abaixo. Depois volte aqui e verifique de novo.</string>
     <string name="phantom_instructions_off">As sessões do Steam podem ser iniciadas.</string>
-    <string name="phantom_instructions_not_applicable">Esta versão do Android não usa esse limite.</string>
+    <string name="phantom_instructions_not_applicable">Esta versão do Android não usa esse limite.</string>
+    <string name="phantom_title_uncounted">Limite de processos filhos gerenciado pelo DroidDeck</string>
+    <string name="phantom_instructions_uncounted">O DroidDeck executa os programas da sessão em processos que o Android não conta, então as Opções do desenvolvedor podem continuar desativadas.</string>
     <string name="phantom_fix_toggle">Ative “Desativar restrições de processos filhos” nas Opções do desenvolvedor e mantenha as Opções do desenvolvedor ativadas depois.</string>
     <string name="phantom_fix_no_toggle">Esta versão do Android não tem uma chave para isso. Use a depuração por Wi-Fi para alterar pelo próprio dispositivo.</string>
     <string name="upd_block_no_apk">Esta versão não tem download para esta cópia do DroidDeck.</string>

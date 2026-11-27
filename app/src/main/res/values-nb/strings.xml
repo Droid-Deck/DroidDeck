@@ -2439,7 +2439,9 @@
     <string name="phantom_title_not_required">Grensen for underprosesser ikke nødvendig</string>
     <string name="phantom_instructions_fix">%1$s Hvis det ikke er mulig, koble denne enheten til en datamaskin med ADB og kjør kommandoen under. Kom tilbake hit og kontroller igjen.</string>
     <string name="phantom_instructions_off">Steam-sesjoner kan starte.</string>
-    <string name="phantom_instructions_not_applicable">Denne Android-versjonen bruker ikke denne grensen.</string>
+    <string name="phantom_instructions_not_applicable">Denne Android-versjonen bruker ikke denne grensen.</string>
+    <string name="phantom_title_uncounted">DroidDeck håndterer grensen for underprosesser</string>
+    <string name="phantom_instructions_uncounted">DroidDeck kjører programmene i økten i prosesser som Android ikke teller med, så utvikleralternativer kan forbli av.</string>
     <string name="phantom_fix_toggle">Slå på «Slå av begrensninger for underordnede prosesser» i Utvikleralternativer, og la Utvikleralternativer stå på etterpå.</string>
     <string name="phantom_fix_no_toggle">Denne Android-versjonen har ingen bryter for det. Bruk trådløs feilsøking for å endre det fra denne enheten.</string>
     <string name="upd_block_no_apk">Denne builden har ingen nedlasting for denne kopien av DroidDeck.</string>

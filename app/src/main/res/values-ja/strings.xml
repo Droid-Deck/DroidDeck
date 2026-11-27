@@ -2414,7 +2414,9 @@
     <string name="phantom_title_not_required">子プロセス制限の変更は不要です</string>
     <string name="phantom_instructions_fix">%1$s それができない場合は、このデバイスをADBが使えるPCに接続し、以下のコマンドを実行してください。その後ここに戻って再確認してください。</string>
     <string name="phantom_instructions_off">Steamセッションを開始できます。</string>
-    <string name="phantom_instructions_not_applicable">このAndroidバージョンではこの制限は使用されません。</string>
+    <string name="phantom_instructions_not_applicable">このAndroidバージョンではこの制限は使用されません。</string>
+    <string name="phantom_title_uncounted">子プロセスの制限は DroidDeck が対処します</string>
+    <string name="phantom_instructions_uncounted">DroidDeck はセッションのプログラムを Android が数えないプロセスで実行するため、開発者向けオプションはオフのままでかまいません。</string>
     <string name="phantom_fix_toggle">開発者向けオプションで「子プロセスの制限を無効化」をオンにし、その後も開発者向けオプションをオンのままにしてください。</string>
     <string name="phantom_fix_no_toggle">このAndroidバージョンにはこのスイッチがありません。ワイヤレスデバッグを使って、このデバイスから変更してください。</string>
     <string name="upd_block_no_apk">このビルドには、このDroidDeckコピー用のダウンロードがありません。</string>

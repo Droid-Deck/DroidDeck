@@ -7,6 +7,8 @@ import com.droiddeck.launcher.R
 
 enum class PhantomProcessStatus {
     NOT_APPLICABLE,
+    /** The limit is on, but the session keeps its programs out of Android's count (GuestWorkers). */
+    UNCOUNTED,
     DISABLED,
     ENABLED,
     UNSET,
@@ -57,6 +59,12 @@ object PhantomProcessLimit {
 
     fun read(context: Context, sdk: Int = Build.VERSION.SDK_INT): PhantomProcessStatus {
         if (sdk < Build.VERSION_CODES.S) return PhantomProcessStatus.NOT_APPLICABLE
+        val status = readSetting(context, sdk)
+        return if (status != PhantomProcessStatus.DISABLED && com.droiddeck.launcher.runtime.GuestWorkers.enabled(context))
+            PhantomProcessStatus.UNCOUNTED else status
+    }
+
+    private fun readSetting(context: Context, sdk: Int): PhantomProcessStatus {
         if (usesDeviceConfig(sdk)) {
             val off = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(PREF_ANDROID_12_OFF, false)
             val global = try {
@@ -101,7 +109,8 @@ object PhantomProcessLimit {
     fun hasDeveloperToggle(sdk: Int = Build.VERSION.SDK_INT): Boolean = sdk >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
 
     fun blocksSteam(status: PhantomProcessStatus): Boolean =
-        status != PhantomProcessStatus.NOT_APPLICABLE && status != PhantomProcessStatus.DISABLED
+        status != PhantomProcessStatus.NOT_APPLICABLE && status != PhantomProcessStatus.DISABLED &&
+            status != PhantomProcessStatus.UNCOUNTED
 
     fun title(context: Context, status: PhantomProcessStatus): String = context.getString(when (status) {
         PhantomProcessStatus.ENABLED -> R.string.phantom_title_on
@@ -109,6 +118,7 @@ object PhantomProcessLimit {
         PhantomProcessStatus.UNREADABLE -> R.string.phantom_title_unreadable
         PhantomProcessStatus.DISABLED -> R.string.phantom_title_off
         PhantomProcessStatus.NOT_APPLICABLE -> R.string.phantom_title_not_required
+        PhantomProcessStatus.UNCOUNTED -> R.string.phantom_title_uncounted
     })
 
     fun instructions(context: Context, status: PhantomProcessStatus): String = when (status) {
@@ -116,6 +126,7 @@ object PhantomProcessLimit {
             context.getString(R.string.phantom_instructions_fix, fixSentence(context))
         PhantomProcessStatus.DISABLED -> context.getString(R.string.phantom_instructions_off)
         PhantomProcessStatus.NOT_APPLICABLE -> context.getString(R.string.phantom_instructions_not_applicable)
+        PhantomProcessStatus.UNCOUNTED -> context.getString(R.string.phantom_instructions_uncounted)
     }
 
     fun gateInstructions(context: Context, status: PhantomProcessStatus): String = when (status) {
@@ -132,5 +143,6 @@ object PhantomProcessLimit {
         PhantomProcessStatus.UNSET -> "not set (ROM default applies; DroidDeck requires an explicit disabled value)"
         PhantomProcessStatus.UNREADABLE -> "unreadable (DroidDeck could not verify the setting)"
         PhantomProcessStatus.NOT_APPLICABLE -> "not applicable before Android 12"
+        PhantomProcessStatus.UNCOUNTED -> "on, not needed (the session's programs run in uncounted worker processes)"
     }
 }

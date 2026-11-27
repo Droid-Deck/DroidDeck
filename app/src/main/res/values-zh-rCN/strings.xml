@@ -2491,7 +2491,9 @@
     <string name="phantom_title_not_required">无需更改子进程限制</string>
     <string name="phantom_instructions_fix">%1$s 如果无法做到，请将此设备连接到装有 ADB 的电脑并运行下方命令，然后返回此处重新检查。</string>
     <string name="phantom_instructions_off">可以启动 Steam 会话了。</string>
-    <string name="phantom_instructions_not_applicable">此 Android 版本不使用该限制。</string>
+    <string name="phantom_instructions_not_applicable">此 Android 版本不使用该限制。</string>
+    <string name="phantom_title_uncounted">子进程限制由 DroidDeck 处理</string>
+    <string name="phantom_instructions_uncounted">DroidDeck 在 Android 不计数的进程中运行会话程序，因此开发者选项可以保持关闭。</string>
     <string name="phantom_fix_toggle">在开发者选项中打开“停止限制子进程”，之后请保持开发者选项开启。</string>
     <string name="phantom_fix_no_toggle">此 Android 版本没有该开关。请使用无线调试在此设备上更改。</string>
     <string name="upd_block_no_apk">此构建没有适用于此 DroidDeck 副本的下载。</string>

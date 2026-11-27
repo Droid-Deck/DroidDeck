@@ -2543,7 +2543,9 @@
     <string name="phantom_title_not_required">حدّ العمليات الفرعية غير مطلوب</string>
     <string name="phantom_instructions_fix">%1$s إذا لم يكن ذلك ممكنًا، وصِّل هذا الجهاز بكمبيوتر يستخدم ADB ونفِّذ الأمر أدناه. عُد إلى هنا وتحقَّق مرة أخرى.</string>
     <string name="phantom_instructions_off">يمكن بدء جلسات Steam.</string>
-    <string name="phantom_instructions_not_applicable">لا يستخدم إصدار Android هذا هذا الحدّ.</string>
+    <string name="phantom_instructions_not_applicable">لا يستخدم إصدار Android هذا هذا الحدّ.</string>
+    <string name="phantom_title_uncounted">يتولى DroidDeck حد العمليات الفرعية</string>
+    <string name="phantom_instructions_uncounted">يشغّل DroidDeck برامج الجلسة في عمليات لا يحتسبها Android، لذا يمكن إبقاء خيارات المطوّرين متوقفة.</string>
     <string name="phantom_fix_toggle">فعِّل «إيقاف القيود المفروضة على العمليات الثانوية» في خيارات المطوّرين، واترك خيارات المطوّرين مفعَّلة بعد ذلك.</string>
     <string name="phantom_fix_no_toggle">لا يحتوي إصدار Android هذا على مفتاح لذلك. استخدِم تصحيح الأخطاء اللاسلكي لتغييره من هذا الجهاز.</string>
     <string name="upd_block_no_apk">لا يتوفّر تنزيل لهذا الإصدار الخاص بهذه النسخة من DroidDeck.</string>

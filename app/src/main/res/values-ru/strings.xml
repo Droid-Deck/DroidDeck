@@ -2492,7 +2492,9 @@
     <string name="phantom_title_not_required">Отключать ограничение дочерних процессов не нужно</string>
     <string name="phantom_instructions_fix">%1$s Если это невозможно, подключите устройство к компьютеру с ADB и выполните команду ниже. Затем вернитесь сюда и проверьте снова.</string>
     <string name="phantom_instructions_off">Сессии Steam могут запускаться.</string>
-    <string name="phantom_instructions_not_applicable">Эта версия Android не использует это ограничение.</string>
+    <string name="phantom_instructions_not_applicable">Эта версия Android не использует это ограничение.</string>
+    <string name="phantom_title_uncounted">Ограничение дочерних процессов обходит DroidDeck</string>
+    <string name="phantom_instructions_uncounted">DroidDeck запускает программы сеанса в процессах, которые Android не учитывает, поэтому параметры разработчика можно не включать.</string>
     <string name="phantom_fix_toggle">Включите «Отключить ограничения для дочерних процессов» в разделе «Для разработчиков» и оставьте этот раздел включенным.</string>
     <string name="phantom_fix_no_toggle">В этой версии Android нет такого переключателя. Измените настройку с этого устройства через отладку по Wi-Fi.</string>
     <string name="upd_block_no_apk">В этой сборке нет загрузки для этой копии DroidDeck.</string>
