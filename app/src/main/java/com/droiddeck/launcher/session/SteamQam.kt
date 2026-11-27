@@ -24,10 +24,11 @@ object SteamQam {
 
     /**
      * Takes or renews the lease for [owner], or releases it. A live lease held by a newer panel is never taken back by an
-     * older one, so a late request from a panel being torn down cannot end its replacement's lease.
+     * older one, so a late request from a panel being torn down cannot end its replacement's lease or change its layout.
      */
-    internal fun leaseScript(on: Boolean, owner: Long): String =
-        if (on) "if (!(g.__ddQamUntil > Date.now()) || !(g.__ddQamOwner > $owner)) { g.__ddQamOwner = $owner; g.__ddQamUntil = Date.now() + $LEASE_MS; }"
+    internal fun leaseScript(on: Boolean, owner: Long, aspect: Float = 0f): String =
+        if (on) "if (!(g.__ddQamUntil > Date.now()) || !(g.__ddQamOwner > $owner)) { g.__ddQamOwner = $owner; g.__ddQamUntil = Date.now() + $LEASE_MS;" +
+            (if (aspect > 0f) " g.__ddQamAspect = $aspect;" else "") + " }"
         else "if (g.__ddQamOwner === $owner) g.__ddQamUntil = 0;"
 
     /** [aspect] is the panel's width over height: the menu is laid out at that shape so every tab shows at one scale. */
@@ -146,8 +147,7 @@ object SteamQam {
             if (main && nav.m_LastActiveNavTree?.m_ID?.startsWith("QuickAccess")) nav.SetActiveNavTree(main);
             backdrop(true);
         };
-        ${leaseScript(on, owner)}
-        ${if (on && aspect > 0f) "g.__ddQamAspect = $aspect;" else ""}
+        ${leaseScript(on, owner, aspect)}
         keep();
         if (held() && !g.__ddQamTimer) {
             g.__ddQamTimer = setInterval(() => {

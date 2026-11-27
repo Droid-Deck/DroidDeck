@@ -42,15 +42,24 @@ class SteamQamTest {
     }
 
     /** Runs the lease steps in Node, in order, and returns which owner holds a live lease afterwards (0 for none). */
-    private fun leaseAfter(vararg steps: Pair<Boolean, Long>): Long? {
+    private fun leaseAfter(vararg steps: Pair<Boolean, Long>): Long? = runLease(steps.toList(), "g.__ddQamUntil > Date.now() ? g.__ddQamOwner : 0")?.toLongOrNull()
+
+    /** Runs lease steps (on, owner, aspect) in Node and returns [result], a JS expression over `g`. */
+    private fun runLease(steps: List<Any>, result: String): String? {
         val node = runCatching { ProcessBuilder("node", "--version").start().waitFor() == 0 }.getOrDefault(false)
         org.junit.Assume.assumeTrue("node is not installed", node)
-        val program = "const g = {};\n" + steps.joinToString("\n") { (on, owner) -> if (owner == EXPIRE) "g.__ddQamUntil = Date.now() - 1;" else SteamQam.leaseScript(on, owner) } +
-            "\nprocess.stdout.write(String(g.__ddQamUntil > Date.now() ? g.__ddQamOwner : 0));"
+        val program = "const g = {};\n" + steps.joinToString("\n") { step ->
+            when (step) {
+                is Triple<*, *, *> -> SteamQam.leaseScript(step.first as Boolean, step.second as Long, step.third as Float)
+                is Pair<*, *> -> if (step.second == EXPIRE) "g.__ddQamUntil = Date.now() - 1;" else SteamQam.leaseScript(step.first as Boolean, step.second as Long)
+                else -> error("unknown step $step")
+            }
+        } +
+            "\nprocess.stdout.write(String($result));"
         val p = ProcessBuilder("node", "-e", program).redirectErrorStream(true).start()
         val out = p.inputStream.bufferedReader().readText().trim()
         assertEquals(out, 0, p.waitFor())
-        return out.toLongOrNull()
+        return out
     }
 
     @Test fun aLateRequestFromAnOldPanelLeavesItsReplacementsLease() {
@@ -63,6 +72,9 @@ class SteamQamTest {
         // With no live lease, any panel can take it: after a release, or once a newer panel's lease has run out.
         assertEquals(1L, leaseAfter(true to 2L, false to 2L, true to 1L))
         assertEquals(1L, leaseAfter(true to 2L, false to EXPIRE, true to 1L))
+        // A rejected hold from an older panel leaves the newer panel's layout alone.
+        assertEquals("1.5", runLease(listOf(Triple(true, 2L, 1.5f), Triple(true, 1L, 0.75f)), "g.__ddQamAspect"))
+        assertEquals("0.75", runLease(listOf(Triple(true, 2L, 1.5f), Triple(false, 2L, 0f), Triple(true, 1L, 0.75f)), "g.__ddQamAspect"))
     }
 
     @Test fun readsWhetherTheMenuIsShownOnTheTopScreen() {
@@ -80,7 +92,7 @@ class SteamQamTest {
     }
 
     @Test fun theMenuIsLaidOutAtThePanelsShapeOnlyWhileHeld() {
-        assertTrue(SteamQam.script(true, 1.5f).contains("g.__ddQamAspect = 1.5;"))
+        assertTrue(SteamQam.script(true, 1.5f, owner = 3).contains("g.__ddQamOwner = 3; g.__ddQamUntil = Date.now() + ${SteamQam.LEASE_MS}; g.__ddQamAspect = 1.5; }"))
         assertFalse(SteamQam.script(true).contains("g.__ddQamAspect ="))
         assertFalse(SteamQam.script(false, 1.5f).contains("g.__ddQamAspect ="))
     }
