@@ -40,6 +40,7 @@ class DdfgFlowLevelsTest(unittest.TestCase):
             "-Wno-missing-field-initializers", "-Wno-misleading-indentation",
             "-I" + str(work / "include"), "-I" + str(CHAIN),
             str(ROOT / "tools/tests/ddfg_flow_levels_harness.cpp"), str(CHAIN / "framegen.cpp"),
+            str(CHAIN / "ddfg_engine.cpp"),
             "-o", str(cls.binary),
         ], capture_output=True, text=True, timeout=120)
         if build.returncode:
@@ -96,6 +97,38 @@ class DdfgFlowLevelsTest(unittest.TestCase):
         for model in (3, 4):
             with self.subTest(model=model):
                 self.run_case("preset", model=model, generations=3, repeats=4)
+
+    def test_many_resizes_do_not_accumulate_scratch_resources(self):
+        for model in (3, 4):
+            for preset in range(3):
+                with self.subTest(model=model, preset=preset):
+                    self.run_case("resize", model=model, preset=preset, generations=3, repeats=16)
+
+    def test_same_size_engine_restarts_use_fresh_scratch(self):
+        self.run_case("restart", generations=3, repeats=8)
+
+    def test_instances_do_not_share_or_destroy_each_others_scratch(self):
+        self.run_case("instances", generations=3, repeats=3)
+
+    def test_engine_teardown_waits_before_destroying_its_input_ring(self):
+        self.run_case("engine", generations=3)
+
+    def test_failed_gpu_wait_stops_recording_and_retains_resources(self):
+        for mode in ("idle-failure", "destroy-failure", "engine-failure"):
+            with self.subTest(mode=mode):
+                self.run_case(mode, generations=3)
+
+    def test_descriptor_pool_reset_failure_does_not_free_live_scratch(self):
+        self.run_case("reset-failure", generations=3)
+
+    def test_partial_resize_allocation_is_cleaned_up(self):
+        self.run_case("partial", generations=3)
+
+    def test_steady_frames_and_same_size_prepare_add_no_gpu_waits(self):
+        self.run_case("steady", generations=3, repeats=10)
+
+    def test_scope_exit_releases_resources_without_an_explicit_destroy(self):
+        self.run_case("automatic", generations=3, repeats=3)
 
 
 if __name__ == "__main__":
