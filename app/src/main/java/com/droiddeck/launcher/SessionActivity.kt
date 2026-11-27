@@ -349,7 +349,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var gestureSettingsOpen by mutableStateOf(false)
     private var steamImportAsk by mutableStateOf<com.droiddeck.launcher.session.SteamImportPrompt.Ask?>(null)
     private var steamImportAnswered: String? = null
-    private var directHoldBehavior by mutableStateOf(com.droiddeck.launcher.input.TouchGestureConfig.MOUSE_BEHAVIOR_CLICK)
+    private var directHoldBehavior by mutableStateOf(com.droiddeck.launcher.input.TouchGestureConfig.MOUSE_BEHAVIOR_NONE)
     private var relativeMouseMode by mutableIntStateOf(0)
     @Volatile private var appliedRelativeMouseMode: Int? = null
     private val agentReadyListener: () -> Unit = {
