@@ -367,6 +367,7 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
         dd_->CmdDispatch(cmd, (e.width + 15) / 16, (e.height + 15) / 16, 1);
     };
     auto bar = [&](FrameGen::Img& i){ barrier(cmd, i.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL); };
+    const bool frEngaged = (cfg_.frMode != 2) && (cfg_.frIters > 0);
 
     if (!reuseFlow) {
         // Batch fresh-image transitions that share the same stage and access masks.
@@ -387,8 +388,10 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
         for (int l = flowFinest_; l < kLevels; ++l) addInitBarrier(pyrAs_[l].image);
         addInitBarrier(flowExpA_.image);
         addInitBarrier(flowExpB_.image);
-        addInitBarrier(flowRegA_.image);
-        addInitBarrier(flowRegB_.image);
+        if (frEngaged) {
+            addInitBarrier(flowRegA_.image);
+            addInitBarrier(flowRegB_.image);
+        }
         // The final flow level is cleared through TRANSFER_DST_OPTIMAL below;
         // the other levels can use the common initialization barrier.
         for (int l = flowFinest_; l < kLevels - 1; ++l) addInitBarrier(flowLvl_[l].image);
@@ -446,7 +449,6 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
             bar(flowLvl_[l]);
         }
 
-        const bool frEngaged = (cfg_.frMode != 2) && (cfg_.frIters > 0);
         if (frEngaged) {
             const int F = flowFinest_;
             const VkExtent2D fe = levelExtent(extent_, F);
