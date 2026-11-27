@@ -584,16 +584,13 @@ pub fn run(input: &EngineInput<'_>, stop: &AtomicBool, events: &dyn Events) -> R
             let mut c = engine.coord.lock().expect("coord lock");
             c.fetch_done = true;
         }
-        let cancelled = stop.load(Ordering::SeqCst);
-        if outcome.as_ref().is_some_and(|o| !o.ok()) {
-            stop.store(true, Ordering::SeqCst);
-        }
+        let cancelled = settle(outcome.as_ref().is_some_and(|o| !o.ok()), stop);
         engine.wake.notify_all();
         (outcome, cancelled)
     });
 
     let failure = engine.failure.lock().expect("failure lock").take().filter(|m| !m.is_empty());
-    let fetch_error = outcome.as_ref().and_then(|o| o.error.clone()).filter(|_| !cancelled);
+    let fetch_error = outcome.as_ref().and_then(|o| o.error.clone());
     let complete = failure.is_none() && engine.files_done.load(Ordering::Relaxed) == input.files.len();
 
     if !complete {
@@ -626,16 +623,35 @@ fetches={} refetches={} peak_cache_mib={} hosts={}",
         hosts.join(","),
     ));
 
+    ending(failure, complete, fetch_error, cancelled, stop.load(Ordering::SeqCst))?;
+    Ok(Stats { bytes_written: written, files_written: input.files.len() })
+}
+
+fn settle(fetch_failed: bool, stop: &AtomicBool) -> bool {
+    let cancelled = stop.load(Ordering::SeqCst);
+    if fetch_failed {
+        stop.store(true, Ordering::SeqCst);
+    }
+    cancelled
+}
+
+fn ending(
+    failure: Option<String>,
+    complete: bool,
+    fetch_error: Option<String>,
+    cancelled: bool,
+    stopped: bool,
+) -> Result<(), Stop> {
     if let Some(message) = failure {
         return Err(Stop::Failed(message));
     }
     if complete {
-        return Ok(Stats { bytes_written: written, files_written: input.files.len() });
+        return Ok(());
     }
-    if let Some(message) = fetch_error {
+    if let Some(message) = fetch_error.filter(|_| !cancelled) {
         return Err(Stop::Failed(format!("Download failed: {}", tidy_fetch_error(&message))));
     }
-    if stop.load(Ordering::SeqCst) {
+    if stopped {
         return Err(Stop::Cancelled);
     }
     Err(Stop::Failed("The download ended before every file was written".into()))
@@ -736,5 +752,38 @@ mod tests {
         assert!(keep_partial(&resumed, &[false], &kept, &dir));
         assert_eq!(fs::read_to_string(staging::list_path(&kept)).unwrap(), "10\n20\n");
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    fn end(fetch_error: Option<&str>, stop: &AtomicBool) -> Result<(), Stop> {
+        let cancelled = settle(fetch_error.is_some(), stop);
+        ending(None, false, fetch_error.map(str::to_string), cancelled, stop.load(Ordering::SeqCst))
+    }
+
+    #[test]
+    fn a_cancel_during_the_last_fetch_attempt_ends_as_cancelled() {
+        let stop = AtomicBool::new(true);
+        assert!(matches!(end(Some("timed out"), &stop), Err(Stop::Cancelled)));
+        assert!(matches!(end(None, &stop), Err(Stop::Cancelled)));
+    }
+
+    #[test]
+    fn a_fetch_failure_without_a_cancel_ends_as_failed() {
+        let stop = AtomicBool::new(false);
+        match end(Some("timed out"), &stop) {
+            Err(Stop::Failed(message)) => assert!(message.starts_with("Download failed: ")),
+            _ => panic!("a fetch failure must be reported"),
+        }
+        assert!(stop.load(Ordering::SeqCst));
+        let idle = AtomicBool::new(false);
+        assert!(matches!(end(None, &idle), Err(Stop::Failed(_))));
+    }
+
+    #[test]
+    fn a_write_failure_or_a_finished_install_wins_over_a_cancel() {
+        assert!(matches!(
+            ending(Some("disk full".into()), false, None, true, true),
+            Err(Stop::Failed(message)) if message == "disk full"
+        ));
+        assert!(ending(None, true, Some("late".into()), true, true).is_ok());
     }
 }
