@@ -113,6 +113,7 @@ internal object QamLayout {
 
 private const val TICK_MS = 1_000L
 private const val FAST_TICK_MS = 150L
+private const val MAX_RETRY_MS = 4_000L
 
 /** The last frame shown, so returning to the panel shows the menu at once while the live stream reconnects. */
 private object QamCache {
@@ -140,6 +141,7 @@ internal fun SteamQamPanel() {
     val show = { frame: ImageBitmap -> image = frame; QamCache.image = frame; live.set(true) }
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
+            var misses = 0
             try {
                 while (isActive) {
                     // Holding the menu before Steam's first frame keeps gamescope from presenting it.
@@ -198,8 +200,15 @@ internal fun SteamQamPanel() {
                         }
                     }
                     failed = !reached
+                    // With no menu page to reach, retries slow down instead of starting guest processes several times a second.
+                    misses = if (reached) 0 else misses + 1
+                    val wait = when {
+                        !reached -> minOf(TICK_MS shl minOf(misses - 1, 2), MAX_RETRY_MS)
+                        live.get() -> TICK_MS
+                        else -> FAST_TICK_MS
+                    }
                     val used = QamFit.current(context)
-                    withTimeoutOrNull(if (live.get()) TICK_MS else FAST_TICK_MS) {
+                    withTimeoutOrNull(wait) {
                         snapshotFlow { QamFit.current(context) }.first { it != used }
                     }
                 }

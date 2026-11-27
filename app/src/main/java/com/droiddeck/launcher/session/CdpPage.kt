@@ -15,6 +15,7 @@ class CdpPage(port: Int, path: String, private val onEvent: (String, JSONObject)
     private val sender = Executors.newSingleThreadExecutor { r -> Thread(r, "cdp-send").apply { isDaemon = true } }
     @Volatile var closed = false
         private set
+    private val tornDown = java.util.concurrent.atomic.AtomicBoolean(false)
 
     init {
         thread(name = "cdp-read", isDaemon = true) {
@@ -51,8 +52,6 @@ class CdpPage(port: Int, path: String, private val onEvent: (String, JSONObject)
     fun evaluate(expression: String): Any? =
         call("Runtime.evaluate", JSONObject().put("expression", expression).put("returnByValue", true))
             ?.optJSONObject("result")?.optJSONObject("result")?.opt("value")
-
-    private val tornDown = java.util.concurrent.atomic.AtomicBoolean(false)
 
     override fun close() {
         closed = true

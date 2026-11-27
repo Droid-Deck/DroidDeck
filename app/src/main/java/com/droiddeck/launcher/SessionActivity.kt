@@ -4430,9 +4430,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (secondScreenMode == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad) selectSecondScreenMode(secondScreenMode)
     }
 
-    private fun openingPanel() = SecondScreenMode.opening(
-        bottomGameKey()?.let { SessionPrefs.gameSecondScreenPanel(this, it) } ?: SessionPrefs.secondScreenPanel(this, desktopSession), SessionState.deckPad,
-        bottomPages().isNotEmpty(), com.droiddeck.launcher.session.BottomDesktop.available(), SessionState.mode == SessionService.MODE_STEAM)
+    private fun openingPanel(): SecondScreenMode {
+        val saved = bottomGameKey()?.let { SessionPrefs.gameSecondScreenPanel(this, it) }
+        // A game's own panel counts as applied, so the next game without one returns to the global choice.
+        if (saved != null) gamePanelApplied = true
+        return SecondScreenMode.opening(saved ?: SessionPrefs.secondScreenPanel(this, desktopSession), SessionState.deckPad,
+            bottomPages().isNotEmpty(), com.droiddeck.launcher.session.BottomDesktop.available(), SessionState.mode == SessionService.MODE_STEAM)
+    }
 
     private fun openingSurface() = openingPanel().takeIf { it != SecondScreenMode.MENU } ?: SecondScreenMode.KEYBOARD_TRACKPAD
 
