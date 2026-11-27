@@ -362,14 +362,17 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun exportDroidDeckLibrary() {
         if (libraryExportInProgress) return
         libraryExportInProgress = true
+        val installedGames = steamGames.toList()
         Thread({
-            val owned = runCatching { SteamOwnedLibrary.sync(this) }.getOrDefault(emptyList())
+            val result = runCatching { SteamOwnedLibrary.syncResult(this) }.getOrNull()
+            val owned = result?.takeIf { SteamOwnedLibrary.belongsToCurrentAccount(this, it) }?.games.orEmpty()
+            val contents = runCatching { DroidDeckLibraryExport.json(installedGames + owned, owned) }
             ui.post {
                 if (isFinishing || isDestroyed) {
                     libraryExportInProgress = false
                     return@post
                 }
-                val contents = runCatching { DroidDeckLibraryExport.json(steamGames + owned, owned) }.getOrElse {
+                val export = contents.getOrElse {
                     libraryExportInProgress = false
                     android.widget.Toast.makeText(this, R.string.stores_library_export_failed, android.widget.Toast.LENGTH_LONG).show()
                     Log.w(TAG, "could not prepare the DroidDeck library export (${it.javaClass.simpleName})")
@@ -378,7 +381,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 Thread({
                     val file = runCatching {
                         File.createTempFile("droiddeck-library-", ".json", cacheDir).apply {
-                            writeText(contents, Charsets.UTF_8)
+                            writeText(export, Charsets.UTF_8)
                         }
                     }.getOrElse {
                         ui.post {

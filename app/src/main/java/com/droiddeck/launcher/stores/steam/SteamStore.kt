@@ -172,7 +172,12 @@ internal object SteamStore {
         return mode != SessionService.MODE_RUN && (downloading() || StoresState.uninstalling.keys.any { it.startsWith("${Store.STEAM.id}:") })
     }
 
-    internal fun syncLibrary(context: Context, force: Boolean, onResult: (List<CatalogItem>?, String?) -> Unit) {
+    internal fun syncLibrary(
+        context: Context,
+        force: Boolean,
+        expectedSteamId: String?,
+        onResult: (List<CatalogItem>?, String?) -> Unit,
+    ) {
         val app = context.applicationContext
         val generation = syncGeneration.get()
         if (force) plans.clear()
@@ -183,6 +188,11 @@ internal object SteamStore {
                 val error = answer.optString("error")
                 if (isSignInError(error)) signInFailed(app, error)
                 onResult(null, errorText(app, answer))
+                return@execute
+            }
+            val answerSteamId = answer.optString("steamId").takeIf { it.isNotBlank() }
+            if (!steamLibraryBelongsToAccount(expectedSteamId, answerSteamId)) {
+                onResult(null, "Steam account changed while its library was loading")
                 return@execute
             }
             val art = runCatching { Library.steamLibraryArt(app).toMap() }.getOrDefault(emptyMap())
@@ -444,7 +454,7 @@ internal object SteamBackend : StoreBackend {
                 if (syncSequence.get() == request) StoresState.status[store] = app.getString(R.string.stores_sync_library)
             }
         }
-        SteamStore.syncLibrary(app, force) { items, error ->
+        SteamStore.syncLibrary(app, force, clientSteamId) { items, error ->
             if (items != null) updateClientCatalog(request, clientSteamId, items)
             else if (error != null) StoresState.post {
                 synchronized(catalogLock) {
@@ -453,9 +463,9 @@ internal object SteamBackend : StoreBackend {
             }
             finishSync(request, pending)
         }
-        SteamOwnedLibrary.syncAsync(app, force) { steamId, games ->
-            if (steamId != null) {
-                val items = games.map { game ->
+        SteamOwnedLibrary.syncAsyncResult(app, force) { result ->
+            if (result.available && result.steamId != null) {
+                val items = result.games.map { game ->
                     CatalogItem(
                         store = store,
                         id = game.appId.toString(),
@@ -466,7 +476,7 @@ internal object SteamBackend : StoreBackend {
                         owned = true,
                     )
                 }
-                updateOwnedCatalog(request, steamId, items)
+                updateOwnedCatalog(request, result.steamId, items)
             }
             finishSync(request, pending)
         }
@@ -577,7 +587,10 @@ internal object SteamBackend : StoreBackend {
 }
 
 internal fun combineSteamCatalog(owned: List<CatalogItem>, client: List<CatalogItem>): List<CatalogItem> =
-    (owned + client).distinctBy { it.id }.sortedBy { it.title.lowercase() }
+    (client + owned).distinctBy { it.id }.sortedBy { it.title.lowercase() }
+
+internal fun steamLibraryBelongsToAccount(expectedSteamId: String?, answerSteamId: String?): Boolean =
+    expectedSteamId != null && expectedSteamId == answerSteamId
 
 internal fun updateSteamClientAccount(stored: JSONObject?, displayName: String, steamId: String): JSONObject {
     val updated = stored?.let { JSONObject(it.toString()) } ?: JSONObject()

@@ -160,6 +160,8 @@ internal object ManageStores {
 
 internal enum class StoreAccount { SIGNED_IN, SIGNED_OUT, EXPIRED, NEEDS_KEY }
 
+internal fun canRefreshSteamLibrary(preview: LibraryPreview): Boolean = preview == LibraryPreview.OFF
+
 internal fun librarySignInSources(
     tabs: List<StoreTab>, availableBackends: Set<Store>, preview: LibraryPreview, accounts: Map<Store, StoreAccount>,
 ): Set<String> = if (preview == LibraryPreview.SAMPLE) emptySet() else tabs.asSequence()
@@ -167,11 +169,11 @@ internal fun librarySignInSources(
     .mapTo(linkedSetOf()) { it.store.id }
 
 internal fun shouldShowStoreSignInCard(
-    source: String, signInSources: Set<String>, preview: LibraryPreview, account: StoreAccount, hasCachedGames: Boolean,
+    source: String, signInSources: Set<String>, preview: LibraryPreview, account: StoreAccount, hasGames: Boolean,
 ): Boolean = source in signInSources && when {
     preview == LibraryPreview.SIGNED_OUT -> true
-    account == StoreAccount.SIGNED_OUT || account == StoreAccount.NEEDS_KEY -> true
-    account == StoreAccount.EXPIRED -> !hasCachedGames
+    account == StoreAccount.SIGNED_OUT || account == StoreAccount.NEEDS_KEY -> !hasGames
+    account == StoreAccount.EXPIRED -> !hasGames
     else -> false
 }
 

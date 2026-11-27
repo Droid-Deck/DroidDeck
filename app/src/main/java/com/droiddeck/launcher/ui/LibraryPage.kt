@@ -936,7 +936,7 @@ private fun LibraryHeader(
         }
         if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onClick = onCollections)
         if (!soundMode && DeveloperTools.on && DevPreview.shortcuts) LibraryPreviewButton()
-        if (!soundMode && !s.shortcutPicker && source in setOf(LIBRARY_ALL, Store.STEAM.id)) {
+        if (!soundMode && !s.shortcutPicker && canRefreshSteamLibrary(DevPreview.library) && source in setOf(LIBRARY_ALL, Store.STEAM.id)) {
             HeaderIconButton(stringResource(R.string.stores_refresh), Icons.Filled.Refresh, "steam-library-refresh") { a.onSteamLibraryRefresh() }
         }
         if (!soundMode && !s.shortcutPicker && source == LIBRARY_ALL) {

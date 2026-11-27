@@ -27,7 +27,14 @@ class SteamBackendCatalogTest {
         val combined = combineSteamCatalog(listOf(owned), listOf(installed, anotherInstalled))
 
         assertEquals(listOf("620", "440"), combined.map { it.id })
-        assertSame(owned, combined.first())
+        assertSame(installed, combined.first())
+    }
+
+    @Test fun steamClientResultsMustMatchTheAccountRequestedByTheSync() {
+        assertEquals(true, steamLibraryBelongsToAccount("76561198000000001", "76561198000000001"))
+        assertEquals(false, steamLibraryBelongsToAccount("76561198000000001", "76561198000000002"))
+        assertEquals(false, steamLibraryBelongsToAccount(null, "76561198000000001"))
+        assertEquals(false, steamLibraryBelongsToAccount("76561198000000001", null))
     }
 
     @Test fun updatingTheClientDisplayNameKeepsTheTransferredWebCookie() {

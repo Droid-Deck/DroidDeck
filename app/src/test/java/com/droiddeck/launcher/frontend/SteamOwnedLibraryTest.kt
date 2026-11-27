@@ -56,4 +56,44 @@ class SteamOwnedLibraryTest {
             parseSteamOwnedApps(JSONObject().put("rgOwnedApps", "unavailable"))
         }
     }
+
+    @Test fun ownedCatalogIsAvailableOnlyAfterAFetchOrAnAccountMatchingCacheRead() {
+        assertTrue(ownedLibraryAvailable("account-a", fetched = true, cachedSteamId = null))
+        assertTrue(ownedLibraryAvailable("account-a", fetched = false, cachedSteamId = "account-a"))
+        assertFalse(ownedLibraryAvailable("account-a", fetched = false, cachedSteamId = "account-b"))
+        assertFalse(ownedLibraryAvailable(null, fetched = true, cachedSteamId = null))
+    }
+
+    @Test fun lateAccountObservationCannotUndoANewerAccountTransition() {
+        val stale = observeSteamAccount(
+            expectedGeneration = 4,
+            currentGeneration = 5,
+            currentAccountId = "account-c",
+            expectedSteamId = "account-a",
+            latestSteamId = "account-b",
+        )
+        assertEquals(5, stale.generation)
+        assertEquals("account-c", stale.accountId)
+        assertFalse(stale.isExpectedAccount)
+
+        val current = observeSteamAccount(
+            expectedGeneration = 4,
+            currentGeneration = 4,
+            currentAccountId = "account-a",
+            expectedSteamId = "account-a",
+            latestSteamId = "account-b",
+        )
+        assertEquals(5, current.generation)
+        assertEquals("account-b", current.accountId)
+        assertFalse(current.isExpectedAccount)
+    }
+
+    @Test fun exportRequiresTheAccountAndGenerationThatProducedTheOwnedGames() {
+        val result = SteamOwnedLibrary.SyncResult(3, "account-a", emptyList(), available = true)
+
+        assertTrue(ownedGamesBelongToAccount(result, 3, "account-a"))
+        assertFalse(ownedGamesBelongToAccount(result, 4, "account-a"))
+        assertFalse(ownedGamesBelongToAccount(result, 3, "account-b"))
+        assertFalse(ownedGamesBelongToAccount(result.copy(available = false), 3, "account-a"))
+    }
 }

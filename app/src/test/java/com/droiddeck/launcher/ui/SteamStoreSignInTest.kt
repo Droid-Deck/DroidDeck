@@ -30,6 +30,7 @@ class SteamStoreSignInTest {
             librarySignInSources(steamTab, steamBackend, LibraryPreview.OFF, mapOf(Store.STEAM to StoreAccount.SIGNED_OUT)),
         )
         assertTrue(shouldShowStoreSignInCard(Store.STEAM.id, setOf(Store.STEAM.id), LibraryPreview.OFF, StoreAccount.SIGNED_OUT, false))
+        assertFalse(shouldShowStoreSignInCard(Store.STEAM.id, setOf(Store.STEAM.id), LibraryPreview.OFF, StoreAccount.SIGNED_OUT, true))
         assertFalse(shouldShowStoreSignInCard(Store.STEAM.id, setOf(Store.STEAM.id), LibraryPreview.OFF, StoreAccount.EXPIRED, true))
         assertTrue(shouldShowStoreSignInCard(Store.STEAM.id, setOf(Store.STEAM.id), LibraryPreview.OFF, StoreAccount.EXPIRED, false))
     }
@@ -37,5 +38,11 @@ class SteamStoreSignInTest {
     @Test fun hiddenSteamTabHasNoSignInChip() {
         val hidden = listOf(StoreTab(Store.STEAM, shown = false))
         assertTrue(librarySignInSources(hidden, steamBackend, LibraryPreview.OFF, emptyMap()).isEmpty())
+    }
+
+    @Test fun steamRefreshIsDisabledForLibraryPreviews() {
+        assertTrue(canRefreshSteamLibrary(LibraryPreview.OFF))
+        assertFalse(canRefreshSteamLibrary(LibraryPreview.SAMPLE))
+        assertFalse(canRefreshSteamLibrary(LibraryPreview.SIGNED_OUT))
     }
 }
