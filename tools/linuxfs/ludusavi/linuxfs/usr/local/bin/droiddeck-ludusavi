@@ -1,0 +1,3 @@
+#!/bin/sh
+mkdir -p /root/.config/droiddeck-ludusavi
+exec /usr/local/lib/droiddeck-ludusavi/ludusavi "$@"

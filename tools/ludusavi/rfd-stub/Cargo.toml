@@ -1,0 +1,9 @@
+[package]
+name = "rfd"
+version = "0.15.0"
+edition = "2021"
+
+[features]
+default = []
+gtk3 = []
+common-controls-v6 = []
