@@ -135,6 +135,9 @@ function job(text) {
   return /"state"\s*:\s*\d+/.test(bare) || /"download_current"\s*:/.test(bare);
 }
 
+var CHINA = {osi: "osic", s2: "s2_cn", anbs: "anbs_cn", diablo3: "d3cn"};
+var CHINA_PRODUCT = {osi: "osic", s2: "s2c", diablo3: "d3cn"};
+
 function install() {
   // Blizzard's China repository moved to cn.patch.battlenet.com.cn; cn.patch.battle.net only redirects away from it.
   var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";
@@ -193,6 +196,17 @@ try {
   token = field(agent, "authorization");
   zone = field(agent, "region") || "us";
   if (!token) throw new Error("no authorization from the agent");
+  // The China client installs these under uids of its own. s2_cn is served from s2c; anbs_cn shares anbs.
+  if (zone == "cn" && action == "install") {
+    country = "CHN";
+    region = "CN";
+    if (CHINA[uid]) {
+      product = CHINA_PRODUCT[uid] || product;
+      uid = CHINA[uid];
+    }
+  }
+  // The app cancels an install by the uid the Agent really used; report the remapped one.
+  save(".uid", uid);
   if (action == "install") install(); else if (action == "update") update(); else uninstall();
 } catch (e) {
   save(".error", e.message || "the agent stopped answering");
@@ -1501,6 +1515,17 @@ def read_status(path):
     return None
 
 
+def read_text(path):
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return None
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return data.decode("utf-16", "replace").strip()
+    return data.decode("utf-8", "replace").strip()
+
+
 def summary(status):
     out = {key: status[key] for key in REPORTED if key in status}
     for key in ("download_current", "download_total"):
@@ -1553,7 +1578,7 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
         emit("STATE", "starting")
         base = os.path.join(CACHE, "agent-%s" % uid)
         os.makedirs(CACHE, exist_ok=True)
-        for suffix in (".json", ".game", ".form", ".error"):
+        for suffix in (".json", ".game", ".form", ".error", ".uid"):
             try:
                 os.unlink(base + suffix)
             except OSError:
@@ -1571,10 +1596,15 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
             return 1
         seen = None
         mark = None
+        effective = None
         moved = time.monotonic()
         stalled = False
         while True:
             done = child.poll() is not None
+            if effective is None:
+                effective = read_text(base + ".uid")
+                if effective:
+                    emit("UID", effective)
             status = read_status(base + ".json")
             if status is not None and action != "uninstall":
                 brief = summary(status)
@@ -1620,8 +1650,13 @@ def agent_job(root, action, uid, product="", folder="", locale="enUS", country="
         if reason is None and action != "uninstall" and game.get("installed") is True \
                 and (game.get("playable") is True or status.get("state") == DONE_STATE):
             binary = ((game.get("binaries") or {}).get("game") or {}).get("relative_path", "")
-            emit("DONE", json.dumps({"install_dir": game.get("install_dir", windows), "exe": binary,
-                                     "version": game.get("local_version", "")}, sort_keys=True))
+            if effective is None:
+                effective = read_text(base + ".uid")
+            result = {"install_dir": game.get("install_dir", windows), "exe": binary,
+                      "version": game.get("local_version", "")}
+            if effective:
+                result["uid"] = effective
+            emit("DONE", json.dumps(result, sort_keys=True))
             say("%s %s in %s" % (uid, "updated" if action == "update" else "installed", game.get("install_dir", windows)))
             return 0
         if reason is None and action == "uninstall" and (game.get("installed") is False or answer == {}):
