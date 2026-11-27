@@ -6960,11 +6960,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (!hasFocus && ::padMouse.isInitialized) padMouse.reset()
         if (runtimeRemovalBlocked) return
         if (!hasFocus) {
-            if (::touchscreenGestures.isInitialized) touchscreenGestures.cancel()
-            if (::touchpad.isInitialized) touchpad.cancel()
-            if (::scrollTouch.isInitialized) scrollTouch.cancel()
-            if (::directTouchHold.isInitialized) directTouchHold.cancel()
-            if (::twoFingerGestures.isInitialized) twoFingerGestures.cancel()
+            cancelTouchGestures()
             releaseHeldGuestInput()
         }
         if (hasFocus && !pipUi) {
