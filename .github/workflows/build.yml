@@ -491,6 +491,27 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Make the Gradle home writable before the cache restores
+        run: |
+          # setup-gradle restores its cache into the Gradle user home. From the
+          # workspace that path is ../../../.gradle, and a cancelled container build
+          # can leave it owned by root; the restore then fails with
+          # "tar: ../../../.gradle: Cannot mkdir: Permission denied". The cache is
+          # skipped from that point on, so every run re-downloads the whole
+          # dependency set -- and those downloads are what earn the Maven Central
+          # 429 that shows up much later as a confusing unit-test failure. Taking
+          # the directory back is far cheaper than the download storm it prevents.
+          gh="${GRADLE_USER_HOME:-$HOME/.gradle}"
+          if [ -e "$gh" ] && [ ! -w "$gh" ]; then
+            echo "taking back $gh (not writable, likely left by a root build)"
+            sudo chown -R "$(id -u):$(id -g)" "$gh" || true
+          fi
+          mkdir -p "$gh"
+          if [ ! -w "$gh" ]; then
+            echo "::error::$gh is not writable; the Gradle cache cannot restore"
+            exit 1
+          fi
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
