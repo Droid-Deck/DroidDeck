@@ -21,6 +21,8 @@
     <string name="input_command_keyboard">Show keyboard</string>
     <string name="input_command_steam">Open Steam menu</string>
     <string name="input_command_qam">Open Steam quick access</string>
+    <string name="input_command_zoom_in">Increase game zoom</string>
+    <string name="input_command_zoom_out">Decrease game zoom</string>
     <string name="input_remove_element">Remove control</string>
     <string name="input_add_element">Add control</string>
     <string name="input_extra_keys">Device-specific buttons</string>
