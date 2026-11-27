@@ -22,6 +22,7 @@ object Ludusavi {
 
     private const val BIN = "/usr/local/bin/droiddeck-ludusavi"
     private const val CONFIG = "/root/.config/droiddeck-ludusavi"
+    private const val X64_STEAM_ROOT = "/root/.droiddeck-x64/.local/share/Steam"
     private const val REL_BACKUPS = "DroidDeck/Saves/ludusavi"
 
     private val mutableStatus = MutableStateFlow(Status())
@@ -62,20 +63,49 @@ object Ludusavi {
     private fun result(lines: List<String>, headline: String): String =
         (listOf(headline) + lines).joinToString("\n")
 
+    internal fun withX64SteamRoot(config: String): String {
+        if (config.lines().any { it.trim() == "path: $X64_STEAM_ROOT" }) return config
+        val lines = config.lines().toMutableList()
+        val roots = lines.indexOfFirst {
+            val trimmed = it.trimStart()
+            !trimmed.startsWith("#") && trimmed.startsWith("roots:")
+        }
+        val entry = listOf("  - store: steam", "    path: $X64_STEAM_ROOT")
+        if (roots < 0) {
+            val body = config.trimEnd('\n')
+            return if (body.isEmpty()) "roots:\n${entry.joinToString("\n")}\n"
+            else "$body\nroots:\n${entry.joinToString("\n")}\n"
+        }
+        val inline = lines[roots].trimStart().substringAfter("roots:").trim()
+        if (inline == "[]" || inline.startsWith("[] ")) lines[roots] = "roots:"
+        lines.addAll(roots + 1, entry)
+        return lines.joinToString("\n")
+    }
+
+    private fun ensureX64Root(context: Context) {
+        val file = File(LinuxRuntime.rootDir(context), "${CONFIG.trimStart('/')}/config.yaml")
+        val current = runCatching { if (file.isFile) file.readText() else "" }.getOrDefault("")
+        val updated = withX64SteamRoot(current)
+        if (updated == current) return
+        file.parentFile?.mkdirs()
+        file.writeText(updated)
+    }
+
     fun run(context: Context, args: List<String>, onLine: (String) -> Unit): Int {
         runCatching { backupDir().mkdirs() }
+        ensureX64Root(context)
         val base = listOf(BIN, "--config", CONFIG, "--no-manifest-update")
         return GuestCommand.run(context, base + args, logName = "ludusavi", onLine = onLine)
     }
 
     fun backup(context: Context, title: String, onLine: (String) -> Unit): Int = run(
-        context, listOf("backup", "--api", "--force", "--path", backupDir().path, title), onLine)
+        context, listOf("backup", "--api", "--force", "--path", backupDir().path, "--", title), onLine)
 
     fun preview(context: Context, title: String, onLine: (String) -> Unit): Int = run(
-        context, listOf("backup", "--api", "--preview", "--path", backupDir().path, title), onLine)
+        context, listOf("backup", "--api", "--preview", "--path", backupDir().path, "--", title), onLine)
 
     fun restore(context: Context, title: String, onLine: (String) -> Unit): Int = run(
-        context, listOf("restore", "--api", "--force", "--path", backupDir().path, title), onLine)
+        context, listOf("restore", "--api", "--force", "--path", backupDir().path, "--", title), onLine)
 
     fun updateManifest(context: Context, onLine: (String) -> Unit): Int =
         run(context, listOf("manifest", "update"), onLine)

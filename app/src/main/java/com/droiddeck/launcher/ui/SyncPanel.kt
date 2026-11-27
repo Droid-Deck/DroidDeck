@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.session.Ludusavi
+import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.sync.SyncDevice
 import com.droiddeck.launcher.sync.SyncFolder
 import com.droiddeck.launcher.sync.SyncPendingFolder
@@ -129,6 +130,10 @@ private fun LudusaviSection() {
                 start { context, onLine -> Ludusavi.backup(context, game, onLine) }
             }
             SecondaryButton(stringResource(R.string.ludusavi_restore), enabled = installed && title.isNotBlank() && !status.running, compact = true) {
+                if (SessionState.running) {
+                    Ludusavi.report(ctx.getString(R.string.main_saves_close_session))
+                    return@SecondaryButton
+                }
                 val game = title
                 start { context, onLine -> Ludusavi.restore(context, game, onLine) }
             }
