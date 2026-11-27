@@ -275,7 +275,9 @@ def steady_runs(device_dir: Path) -> list[dict]:
         run = json.loads(path.read_text())
         game = run.get("game") or {}
         opens = [o for o in run.get("overlay_open_s") or [] if o is not None]
-        rows.append({"profile": "stock" if run["level"] == "stock" else run["level"], "run": path.parent.name,
+        pace = run.get("pacing") or {}
+        rows.append({"profile": run["level"], "run": path.parent.name,
+                     "fps": pace.get("fps"), "p99": pace.get("p99"), "off": pace.get("off_cadence_pct"),
                      "resident": game.get("pss"), "swapped": game.get("swappss"),
                      "footprint": (game.get("pss") or 0) + (game.get("swappss") or 0) if game else None,
                      "renderer": game.get("renderer"), "gpu": game.get("gpu"), "avail": game.get("avail"),
@@ -289,7 +291,7 @@ def chart_steady(device: str, device_dir: Path, out: Path) -> list[Path]:
     rows = steady_runs(device_dir)
     if not rows:
         return []
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4.5))
+    fig, axes = plt.subplots(1, 4, figsize=(19, 4.5))
     grouped(axes[0], rows, ["resident", "footprint", "renderer"],
             ["resident PSS", "resident + SwapPss", "renderer PSS"], "MiB")
     axes[0].set_title("Steam tree with the game in front (+80 s)", fontsize=9)
@@ -297,7 +299,16 @@ def chart_steady(device: str, device_dir: Path, out: Path) -> list[Path]:
     axes[1].set_title("GPU memory and MemAvailable in game", fontsize=9)
     grouped(axes[2], rows, ["cpu", "overlay"], ["web helper CPU (% of one core)", "overlay open (s, tool-bound)"], "")
     axes[2].set_title("hidden UI CPU and overlay latency", fontsize=9)
-    fig.suptitle("%s: Bully in front, one fresh session per run (bars = median, dots = runs)" % device, fontsize=10)
+    paced = [r for r in rows if r.get("fps") is not None]
+    if paced:
+        grouped(axes[3], paced, ["fps", "p99", "off"], ["on-screen FPS", "p99 frame interval (ms)",
+                                                       "frames off cadence (%)"], "")
+        axes[3].set_title("game frame pacing (SurfaceFlinger, 20 s)", fontsize=9)
+    else:
+        axes[3].set_axis_off()
+    apps = sorted({str(json.loads(p.read_text()).get("app")) for p in device_dir.glob("steady/*/run.json")})
+    fig.suptitle("%s: app %s in front, one fresh session per run (bars = median, dots = runs)"
+                 % (device, ", ".join(apps)), fontsize=10)
     fig.tight_layout()
     target = out / ("%s-steady.svg" % device)
     fig.savefig(target)
@@ -354,16 +365,18 @@ def more_tables(device: str, device_dir: Path) -> str:
     out = []
     rows = steady_runs(device_dir)
     if rows:
-        out.append("**%s: Bully in front, steady state** (one fresh session per run; game +80 s; MiB unless noted)\n"
-                   % device)
+        apps = sorted({str(json.loads(p.read_text()).get("app")) for p in device_dir.glob("steady/*/run.json")})
+        out.append("**%s: app %s in front, steady state** (one fresh session per run; game +80 s; MiB unless noted)\n"
+                   % (device, ", ".join(apps)))
         out.append("| Run | Resident PSS | SwapPss | Renderer | KGSL | MemAvailable | Web helper CPU % | "
-                   "Overlay open s (median, tool-bound) | Supervisor pass |")
-        out.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+                   "FPS | p99 ms | Off cadence % | Overlay open s (median, tool-bound) | Supervisor pass |")
+        out.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
         for r in rows:
-            passes = "; ".join(", ".join(sorted(k for k in o if k != "ms")) for o in r["passes"]) or "none (stock)"
-            out.append("| %s | %s | %s | %s | %s | %s | %s | %s | %s |" % (
+            passes = "; ".join(p for p in (", ".join(sorted(k for k in o if k != "ms")) for o in r["passes"]) if p) or "none"
+            out.append("| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |" % (
                 r["run"], r["resident"], r["swapped"], r["renderer"], r["gpu"], r["avail"], r["cpu"],
-                r["overlay"], passes))
+                "n/a" if r["fps"] is None else r["fps"], "n/a" if r["p99"] is None else r["p99"],
+                "n/a" if r["off"] is None else r["off"], r["overlay"], passes))
         out.append("")
     rows = library_runs(device_dir)
     if rows:

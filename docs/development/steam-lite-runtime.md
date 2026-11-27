@@ -17,6 +17,8 @@ branch, Run without proot, the native arm64 Steam client (build 1793740892, CEF 
   storage services ~70 MiB), plus **190–260 MiB of KGSL GPU memory** in the browser process (the GPU
   runs in-process). KGSL is unswappable and not in PSS. Some sessions held 650–1080 MiB of it
   until the overlay was opened once; that state was not reproducible on demand.
+- **No profile touched game frame pacing:** Sonic Mania stayed at 58.5–59.4 fps with a 16 ms p95
+  under stock, L1, L2 and soft compositing on the Duo.
 - **The one large, safe saving is compositing the web helper in software**
   (`DD_STEAM_SOFT_COMPOSITING=1`, already used for the open driver pair): KGSL 239 → 26 MiB in the
   library, for +0.9 points of one core and +25 MiB of PSS, about 190 MiB net, and the UI looks the
@@ -44,12 +46,11 @@ branch, Run without proot, the native arm64 Steam client (build 1793740892, CEF 
 | L1 conservative | 875–889 MiB resident: no lasting saving | 2.2–2.6 % | overlay unchanged (tool-bound 4.0–4.1 s) | none | low: public `HeapProfiler`/`Memory` | one 0.3–0.45 s pass; supervisor 18 MiB PSS, ~0.15 % CPU | do not promote |
 | L2 balanced | 674 MiB resident when it paged out (447 MB); skipped twice because the monitor had already paged 123–353 MB | 2.4–2.8 % | overlay unchanged; read-back on return | none | low: DroidDeck's own preload protocol | 3.5 s pass, off the UI thread | keep as an experiment; only useful with #3293, and then mostly redundant with the monitor |
 | L3 aggressive | not measured beyond the ablation: critical pressure freed ~0, no outside pages existed to freeze | — | — | none | medium: `Page.setWebLifecycleState` on store pages | — | do not promote |
-| Soft compositing | KGSL −213 to −218 MiB, PSS +23 to +31 MiB (library) | +0.9 points (library idle) | scrolling smoothness not measured | none seen | low: existing DroidDeck switch | none | best candidate to promote for ≤8 GB devices, after a smoothness check on a scrolling library |
+| Soft compositing | KGSL −213 to −218 MiB, PSS +23 to +31 MiB (library); +176 MiB `MemAvailable` in game on the Duo (median of 3) | +0.9 points (library idle); one in-game run 11.4 % | game frame pacing unchanged; scrolling smoothness not measured | none seen | low: existing DroidDeck switch | none | best candidate to promote for ≤8 GB devices, after a smoothness check on a scrolling library |
 
 Not run: a 3–4 GB device (none available), a Mali/vkbridge device, the x86_64 client, frame
-pacing of a game under each profile (the Tomb Raider cycles on the Duo were abandoned when its
-session left Steam on every game exit), scroll smoothness, suspend/resume, downloads, store pages and
-friends/chat under each level. Durability against future Steam builds is unknown.
+pacing of a heavy game under each profile (measured with Sonic Mania only), scroll smoothness,
+suspend/resume, downloads, store pages and friends/chat under each level. Durability against future Steam builds is unknown.
 
 ## Turning it on
 
@@ -203,6 +204,32 @@ a delay the tool could see. The overlay looked the same in every profile
 [L2](evidence/steam-lite/overlay-l2.jpg)), and controller input, notifications and Resume game kept
 working.
 
+### Frame pacing with a light game (Duo, Sonic Mania)
+
+![steady state, Duo](evidence/steam-lite/duo-steady.svg)
+
+Ten fresh sessions on the rooted Duo with #3293 in the build, Sonic Mania (584400) on its animated
+title in front, a 20 s SurfaceFlinger capture 60 s after it took focus:
+
+| Profile | Runs | FPS | p95 / p99 (ms) | Frames off cadence | MemAvailable in game (MiB) | KGSL (MiB) | Web helper CPU (% of a core) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| stock | 3 | 59.4, 59.4, 59.2 | 16 / 16–25 | 1.2–1.6 % | 3058, 3241, 3197 | 193–233 | 1.8–2.5 |
+| L1 | 2 | 59.1, 58.7 | 16 / 25 | 1.6–3.5 % | 3176, 3288 | 224–225 | 1.8–2.1 |
+| L2 | 2 | 59.2, 58.5 | 16 / 25 | 1.7–5.2 % | 2587 (KGSL 936), 3169 | 239–936 | 2.0–3.6 |
+| soft compositing | 3 | 59.3, 59.2, 59.2 | 16 / 25 | 1.8–3.0 % | 3435, 3373, 3367 | 26 | 1.7–2.9, once 11.4 |
+
+No profile changed the game's frame rate or p95; the off-cadence spread is run-to-run noise (in all
+four L1 and L2 runs the supervisor did nothing, because the monitor had already put 165–404 MB of the
+client in zRAM before the game took focus). Soft compositing left the most memory available
+(median 3373 against 3197 MiB for stock). One soft-compositing run spent 11.4 % of a core in the web
+helper while the renderer grew 43 MiB: some UI work ran while hidden, and drawing in software makes
+that cost CPU instead of GPU; the other two runs used 1.7 and 2.9 %.
+
+With root, KGSL's per-process `memtype` showed all of the web helper's GPU memory as untyped Vulkan
+allocations (`any(0)`, ANGLE on Vulkan), 942 MB in the session that held the high state. Marking the
+process `background` in `/sys/class/kgsl/kgsl/proc/<pid>/state`, which Qualcomm's process reclaim
+uses, reclaimed nothing in 15 s (`gpumem_reclaimed` stayed 0).
+
 ### Web helper variants (session restarts)
 
 ![flag variants](evidence/steam-lite/duo-flags.svg)
@@ -261,6 +288,7 @@ with it every client process answered (690 MB paged out in one request, all read
 | V8 small-heap flags | renderer +160 MiB (median of 5 against 5) | larger, not smaller; not investigated further |
 | GPU memory budget flags | renderer +200 MiB, KGSL unchanged (2 runs) | larger, not smaller |
 | GC after the monitor paged the client out | read ~200 MiB back in | the supervisor skips reclaim when >32 MiB of the client is swapped |
+| KGSL process reclaim (root: `state` = `background`) | 0 bytes reclaimed in 15 s | the Vulkan allocations are not reclaimable this way, and it needs root |
 
 ## Failure modes and rollback
 

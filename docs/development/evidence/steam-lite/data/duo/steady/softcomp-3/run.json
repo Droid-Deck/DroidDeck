@@ -1,0 +1,97 @@
+{
+ "level": "softcomp",
+ "app": "584400",
+ "idle": {
+  "label": "library idle",
+  "t": 1795740163.3790708,
+  "mono": 33512.786654765,
+  "tck": 100,
+  "pss": 1103,
+  "renderer": 556,
+  "swappss": 0,
+  "gpu": 26,
+  "avail": 3687,
+  "ticks": {
+   "13825": 3204,
+   "14003": 1318
+  },
+  "lite_ticks": 0
+ },
+ "launch_ok": true,
+ "launch_s": 27.0,
+ "pacing": {
+  "fps": 59.2,
+  "p50": 16,
+  "p95": 16,
+  "p99": 25,
+  "off_cadence_pct": 3.0,
+  "hist": {
+   "16": 1152,
+   "25": 26,
+   "33": 1,
+   "8": 9
+  },
+  "error": null
+ },
+ "game": {
+  "label": "game +80s",
+  "t": 1795740272.3522303,
+  "mono": 33621.759816025,
+  "tck": 100,
+  "pss": 736,
+  "renderer": 376,
+  "swappss": 139,
+  "gpu": 26,
+  "avail": 3367,
+  "ticks": {
+   "13825": 4825,
+   "14003": 2777
+  },
+  "lite_ticks": 0
+ },
+ "web_cpu_pct": 1.7,
+ "lite_cpu_pct": 0.0,
+ "status": null,
+ "overlay_open_s": [
+  4.24,
+  4.28,
+  4.09
+ ],
+ "overlay_close_s": [
+  4.19,
+  4.18,
+  3.76
+ ],
+ "after_overlay": {
+  "label": "after overlay",
+  "t": 1795740314.708155,
+  "mono": 33664.115738926,
+  "tck": 100,
+  "pss": 815,
+  "renderer": 426,
+  "swappss": 123,
+  "gpu": 26,
+  "avail": 3286,
+  "ticks": {
+   "13825": 5765,
+   "14003": 3732
+  },
+  "lite_ticks": 0
+ },
+ "back": {
+  "label": "library after quit",
+  "t": 1795740332.5258274,
+  "mono": 33681.933411627,
+  "tck": 100,
+  "pss": 981,
+  "renderer": 444,
+  "swappss": 0,
+  "gpu": 26,
+  "avail": 3738,
+  "ticks": {
+   "13825": 6137,
+   "14003": 4134
+  },
+  "lite_ticks": 0
+ }
+}

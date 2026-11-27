@@ -506,10 +506,27 @@ def wait_app(dev: Device, want: int, limit: float) -> float | None:
     return None
 
 
+def pacing_summary(pace: dict) -> dict:
+    hist = {int(k): v for k, v in (pace.get("presentToPresentMs") or {}).items()}
+    total = sum(hist.values())
+    out = {"fps": pace.get("fpsOnScreen"), "off_cadence_pct": pace.get("offCadencePercent"),
+           "hist": pace.get("presentToPresentMs"), "error": pace.get("error")}
+    for q in (50, 95, 99):
+        seen = 0
+        for ms, count in sorted(hist.items()):
+            seen += count
+            if total and seen >= total * q / 100:
+                out["p%d" % q] = ms
+                break
+    return out
+
+
 def steady(dev: Device, level: str, app: str, out: Path) -> dict:
     """One fresh session at one level: library, a game in front for 80 s, three overlay round trips, library."""
     out.mkdir(parents=True, exist_ok=True)
-    run = {"level": level, "app": app, "started": fresh_session(dev, {"DD_STEAM_LITE": level})}
+    soft = level == "softcomp"
+    run = {"level": level, "app": app, "started": fresh_session(dev, {
+        "DD_STEAM_LITE": "stock" if soft else level, "DD_STEAM_SOFT_COMPOSITING": "1" if soft else "0"})}
     if not run["started"]:
         raise RuntimeError("Steam did not start for level %s" % level)
     time.sleep(30)
@@ -522,7 +539,7 @@ def steady(dev: Device, level: str, app: str, out: Path) -> dict:
         raise RuntimeError("app %s did not take focus" % app)
     time.sleep(60)
     a = snapshot(dev, "game +60s")
-    time.sleep(20)
+    run["pacing"] = pacing_summary(dev.ctl("pacing", "--seconds", "20", timeout=60))
     run["game"] = snapshot(dev, "game +80s")
     run["web_cpu_pct"] = web_cpu(a, run["game"])
     run["status"] = dev.status()
@@ -727,8 +744,8 @@ def main(argv=None) -> int:
     p_flags.add_argument("--out", type=Path, required=True)
     p_steady = sub.add_parser("steady")
     p_steady.add_argument("--app", required=True)
-    p_steady.add_argument("--levels", default="stock,1,2,stock,1,2,stock,1,2",
-                          help="one fresh session per entry, in this order")
+    p_steady.add_argument("--levels", default="stock,1,2,softcomp,stock,1,2,softcomp,stock,1,2,softcomp",
+                          help="one fresh session per entry, in this order (softcomp: stock with software compositing)")
     p_steady.add_argument("--out", type=Path, required=True)
     p_library = sub.add_parser("library")
     p_library.add_argument("--order", default="1,0,1,0", help="DD_STEAM_SOFT_COMPOSITING per fresh session")
@@ -745,7 +762,7 @@ def main(argv=None) -> int:
         counts: dict[str, int] = {}
         for level in args.levels.split(","):
             counts[level] = counts.get(level, 0) + 1
-            name = "%s-%d" % ("stock" if level == "stock" else "l" + level, counts[level])
+            name = "%s-%d" % (level if level in ("stock", "softcomp") else "l" + level, counts[level])
             print("== steady", name, flush=True)
             try:
                 steady(dev, level, args.app, args.out / name)

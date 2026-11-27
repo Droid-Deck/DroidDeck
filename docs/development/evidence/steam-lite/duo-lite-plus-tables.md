@@ -60,19 +60,19 @@
 | critical | 3s | -2.0 | -2.0 | +0.0 |
 | critical | 20s | +23.3 | +23.1 | +0.0 |
 
-**duo-lite-plus: Bully in front, steady state** (one fresh session per run; game +80 s; MiB unless noted)
+**duo-lite-plus: app 12200 in front, steady state** (one fresh session per run; game +80 s; MiB unless noted)
 
-| Run | Resident PSS | SwapPss | Renderer | KGSL | MemAvailable | Web helper CPU % | Overlay open s (median, tool-bound) | Supervisor pass |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| l1-1 | 883 | 0 | 310 | 186 | 3198 | 2.2 | 4.11 | gc, moderate |
-| l1-2 | 875 | 0 | 297 | 157 | 3111 | 2.6 | 4.06 | gc, moderate |
-| l1-3 | 889 | 0 | 305 | 164 | 3229 | 2.6 | 4.07 | gc, moderate |
-| l2-1 | 785 | 172 | 283 | 691 | 2841 | 2.4 | 4.09 | skipped-reclaim; pause |
-| l2-2 | 796 | 216 | 283 | 676 | 2863 | 2.7 | 4.07 | skipped-reclaim; pause |
-| l2-3 | 674 | 226 | 235 | 166 | 3360 | 2.8 | 4.04 | gc, moderate, pageout, pause |
-| stock-1 | 849 | 139 | 297 | 664 | 2935 | 2.8 | 4.1 | none (stock) |
-| stock-2 | 723 | 231 | 270 | 166 | 3286 | 2.9 | 4.06 | none (stock) |
-| stock-3 | 902 | 0 | 305 | 187 | 3224 | 2.1 | 4.04 | none (stock) |
+| Run | Resident PSS | SwapPss | Renderer | KGSL | MemAvailable | Web helper CPU % | FPS | p99 ms | Off cadence % | Overlay open s (median, tool-bound) | Supervisor pass |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| l1-1 | 883 | 0 | 310 | 186 | 3198 | 2.2 | n/a | n/a | n/a | 4.11 | gc, moderate |
+| l1-2 | 875 | 0 | 297 | 157 | 3111 | 2.6 | n/a | n/a | n/a | 4.06 | gc, moderate |
+| l1-3 | 889 | 0 | 305 | 164 | 3229 | 2.6 | n/a | n/a | n/a | 4.07 | gc, moderate |
+| l2-1 | 785 | 172 | 283 | 691 | 2841 | 2.4 | n/a | n/a | n/a | 4.09 | skipped-reclaim; pause |
+| l2-2 | 796 | 216 | 283 | 676 | 2863 | 2.7 | n/a | n/a | n/a | 4.07 | skipped-reclaim; pause |
+| l2-3 | 674 | 226 | 235 | 166 | 3360 | 2.8 | n/a | n/a | n/a | 4.04 | gc, moderate, pageout, pause |
+| stock-1 | 849 | 139 | 297 | 664 | 2935 | 2.8 | n/a | n/a | n/a | 4.1 | none |
+| stock-2 | 723 | 231 | 270 | 166 | 3286 | 2.9 | n/a | n/a | n/a | 4.06 | none |
+| stock-3 | 902 | 0 | 305 | 187 | 3224 | 2.1 | n/a | n/a | n/a | 4.04 | none |
 
 **duo-lite-plus: settled library (+90 to +110 s after start)**
 

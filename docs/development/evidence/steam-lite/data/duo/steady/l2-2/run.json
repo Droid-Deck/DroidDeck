@@ -1,0 +1,129 @@
+{
+ "level": "2",
+ "app": "584400",
+ "idle": {
+  "label": "library idle",
+  "t": 1795739438.1522818,
+  "mono": 32787.55986952,
+  "tck": 100,
+  "pss": 825,
+  "renderer": 338,
+  "swappss": 198,
+  "gpu": 237,
+  "avail": 3749,
+  "ticks": {
+   "31722": 2262,
+   "31902": 2102
+  },
+  "lite_ticks": 18
+ },
+ "launch_ok": true,
+ "launch_s": 22.6,
+ "pacing": {
+  "fps": 58.5,
+  "p50": 16,
+  "p95": 16,
+  "p99": 25,
+  "off_cadence_pct": 5.2,
+  "hist": {
+   "118": 1,
+   "16": 1113,
+   "25": 47,
+   "33": 1,
+   "8": 12
+  },
+  "error": null
+ },
+ "game": {
+  "label": "game +80s",
+  "t": 1795739542.7397144,
+  "mono": 32892.147297814,
+  "tck": 100,
+  "pss": 781,
+  "renderer": 313,
+  "swappss": 113,
+  "gpu": 239,
+  "avail": 3169,
+  "ticks": {
+   "31722": 3347,
+   "31902": 3546
+  },
+  "lite_ticks": 35
+ },
+ "web_cpu_pct": 3.6,
+ "lite_cpu_pct": 0.05,
+ "status": {
+  "state": "game",
+  "app": 584400,
+  "level": null,
+  "interventions": [
+   "gc",
+   "moderate",
+   "pageout"
+  ],
+  "passes": 1,
+  "history": [
+   {
+    "t": 1795739465.157,
+    "state": "game",
+    "app": 584400,
+    "why": "enter",
+    "outcome": {
+     "skipped-reclaim": "208 MB of the client is already in zRAM"
+    }
+   },
+   {
+    "t": 1795739465.159,
+    "state": "game",
+    "app": 584400,
+    "why": "enter",
+    "outcome": {
+     "ms": 125
+    }
+   }
+  ],
+  "unsupported": []
+ },
+ "overlay_open_s": [
+  4.14,
+  4.09,
+  4.06
+ ],
+ "overlay_close_s": [
+  4.13,
+  4.21,
+  4.12
+ ],
+ "after_overlay": {
+  "label": "after overlay",
+  "t": 1795739585.1763783,
+  "mono": 32934.583961808,
+  "tck": 100,
+  "pss": 783,
+  "renderer": 326,
+  "swappss": 104,
+  "gpu": 119,
+  "avail": 3317,
+  "ticks": {
+   "31722": 4026,
+   "31902": 4512
+  },
+  "lite_ticks": 38
+ },
+ "back": {
+  "label": "library after quit",
+  "t": 1795739602.986981,
+  "mono": 32952.394564874,
+  "tck": 100,
+  "pss": 906,
+  "renderer": 350,
+  "swappss": 0,
+  "gpu": 158,
+  "avail": 3725,
+  "ticks": {
+   "31722": 4276,
+   "31902": 4866
+  },
+  "lite_ticks": 38
+ }
+}
