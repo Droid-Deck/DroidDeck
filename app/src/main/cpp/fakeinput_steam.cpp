@@ -4114,7 +4114,9 @@ static ssize_t read_input(int fd, void *buf, size_t count) {
     const FakeInputRingHeader *ring = fake.ring;
     uint64_t seen = fake.read_seq;
     guard.unlock();
+#ifdef __GLIBC__
     pthread_testcancel();
+#endif
     struct timespec sleep_time = {0, backoff_ns};
     int result = idle ? ring_wait(ring, seen, backoff_ns) : nanosleep(&sleep_time, nullptr);
     guard.lock();
