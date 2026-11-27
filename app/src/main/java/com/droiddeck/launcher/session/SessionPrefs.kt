@@ -1008,6 +1008,7 @@ object SessionPrefs {
 
     fun setGameCpus(context: Context, list: String) {
         prefs(context).edit().putString("gameCpus", list).apply()
+        GameEnvironmentStore.publishGameCores(context)
     }
 
     fun noXalia(context: Context): Boolean = prefs(context).getBoolean("noXalia", true)
