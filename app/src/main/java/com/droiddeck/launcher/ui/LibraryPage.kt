@@ -1194,8 +1194,22 @@ internal fun LibraryMarker(e: LibraryEntry, download: DownloadEntry?, showDownlo
     }
 }
 
-private fun libraryUpdateAvailable(e: LibraryEntry): Boolean = e.storeKey?.let { it in ItchUpdates.available || it in GameJoltUpdates.available || it in com.droiddeck.launcher.stores.ea.EaUpdates.available } == true ||
-    e.source == Store.GOG.id && (e.item?.id ?: e.game?.storeId)?.let { GogMaintenance.checks[it]?.state } == GogMaintenance.State.AVAILABLE
+private fun libraryUpdateAvailable(e: LibraryEntry): Boolean {
+    val installed = e.storeKey?.let { key ->
+        val store = Store.byId(e.source)
+        val id = e.item?.id ?: e.game?.storeId
+        if (store != null && id != null) StoresState.installedGame(store, id, e.game?.gameFiles)
+        else StoresState.installed.firstOrNull { it.key == key }
+    }
+    val battleNet = installed?.let {
+        com.droiddeck.launcher.stores.battlenet.BattleNetInstall.updates[
+            com.droiddeck.launcher.stores.battlenet.BattleNetInstall.updateKey(it.sidecar.id, it.folder)
+        ] == true
+    } == true
+    return battleNet ||
+        e.storeKey?.let { it in ItchUpdates.available || it in GameJoltUpdates.available || it in com.droiddeck.launcher.stores.ea.EaUpdates.available } == true ||
+        e.source == Store.GOG.id && (e.item?.id ?: e.game?.storeId)?.let { GogMaintenance.checks[it]?.state } == GogMaintenance.State.AVAILABLE
+}
 
 @Composable
 private fun LibraryRow(e: LibraryEntry, first: Boolean, navigation: Modifier, choose: (() -> Unit)?, onOpen: (String) -> Unit) {
