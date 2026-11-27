@@ -284,6 +284,12 @@ def stageRuntimeAssets = tasks.register('stageRuntimeAssets', Sync) {
     into(runtimeAssetsDir)
 }
 android.sourceSets.main.assets.setSrcDirs([runtimeAssetsDir])
+def stageGraphicsNotices = tasks.register('stageGraphicsNotices', Copy) {
+    from(layout.projectDirectory.file('src/main/cpp/shaders/THIRD_PARTY_NOTICES.txt'))
+    into(layout.buildDirectory.dir('graphicsNotices/licenses/graphics'))
+}
+android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('graphicsNotices'))
+tasks.named('preBuild').configure { dependsOn(stageGraphicsNotices) }
 if (vitureSdkDir) android.sourceSets.main.assets.srcDir(layout.buildDirectory.dir('vitureAssets'))
 if (uvcDir) {
     def stageUvcNotices = tasks.register('stageUvcNotices', Copy) {

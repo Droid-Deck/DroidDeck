@@ -65,6 +65,14 @@ class ToolArguments(unittest.TestCase):
     def test_wine_keeps_the_guest_root(self):
         self.assertIn('DROIDDECK_GUEST_ROOT) ;;', LAUNCH.read_text())
 
+    def test_directaudio_settings_reach_the_built_in_driver(self):
+        text = LAUNCH.read_text()
+        block = text[text.index('KEEP="'):text.index('export PATH=/system/bin')]
+        script = block + 'env | grep -E "AUDIO_DIRECT_|^OTHER=" | sort\n'
+        env = {'PATH': os.environ['PATH'], 'DROIDDECK_BIONIC_KEEP': 'PATH', 'AUDIO_DIRECT_MIC': '1', 'AUDIO_DIRECT_MS': '60', 'OTHER': 'x'}
+        result = subprocess.run(['sh', '-c', script], env=env, text=True, capture_output=True, check=True)
+        self.assertEqual(['BANNER_AUDIO_DIRECT_MIC=1', 'BANNER_AUDIO_DIRECT_MS=60'], result.stdout.split())
+
 
 class SessionLogs(unittest.TestCase):
     SESSION = '/data/user/0/com.droiddeck.launcher/files/logs/2026-11-22-09-steam'

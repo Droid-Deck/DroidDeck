@@ -199,6 +199,7 @@ public final class LinuxRuntime {
     }
 
     public static List<String> prootPrefix(Context context, File root, String cwd, boolean fakeRoot) {
+        NativeGuest.relinkAfterProot(root);
         List<String> cmd = new ArrayList<>();
         cmd.addAll(com.droiddeck.launcher.core.HostProcess.dataExecutable(prootBinary(context).getPath()));
         cmd.add("--kill-on-exit");
@@ -511,7 +512,7 @@ public final class LinuxRuntime {
     public static List<File> cpuTempZones() {
         java.util.Map<String, String> replaced = replacedZoneTypes();
         List<File> zones = new ArrayList<>();
-        for (java.util.Map.Entry<String, File> zone : new java.util.TreeMap<>(thermalZones()).entrySet()) {
+        for (java.util.Map.Entry<String, File> zone : thermalZones().entrySet()) {
             String type = zone.getKey();
             if (type.contains("cpu") && !type.contains("gpu") && !replaced.containsKey(zone.getValue().getName())) {
                 zones.add(zone.getValue());
@@ -554,23 +555,31 @@ public final class LinuxRuntime {
     private static String thermalZone(String sensor) {
         java.util.Map<String, File> zones = thermalZones();
         File zone = zones.get(sensor);
-        for (java.util.Map.Entry<String, File> e : new java.util.TreeMap<>(zones).entrySet()) {
+        for (java.util.Map.Entry<String, File> e : zones.entrySet()) {
             if (zone == null && e.getKey().contains(sensor)) zone = e.getValue();
         }
         return zone != null ? new File(zone, "temp").getPath() : null;
     }
 
-    private static java.util.Map<String, File> thermalZones() {
+    private static volatile java.util.SortedMap<String, File> thermalZoneTypes;
+
+    private static java.util.SortedMap<String, File> thermalZones() {
+        java.util.SortedMap<String, File> known = thermalZoneTypes;
+        if (known != null) return known;
         java.util.Map<String, File> byType = new java.util.HashMap<>();
         File[] zones = new File("/sys/class/thermal").listFiles((dir, n) -> n.startsWith("thermal_zone"));
-        if (zones == null) return byType;
+        if (zones == null) return java.util.Collections.emptySortedMap();
+        boolean complete = true;
         for (File zone : zones) {
             try (java.io.BufferedReader r = new java.io.BufferedReader(new java.io.FileReader(new File(zone, "type")))) {
                 byType.putIfAbsent(String.valueOf(r.readLine()).trim().toLowerCase(java.util.Locale.ROOT), zone);
-            } catch (IOException ignored) {
+            } catch (IOException e) {
+                complete = false;
             }
         }
-        return byType;
+        java.util.SortedMap<String, File> sorted = java.util.Collections.unmodifiableSortedMap(new java.util.TreeMap<>(byType));
+        if (complete && !sorted.isEmpty()) thermalZoneTypes = sorted;
+        return sorted;
     }
 
     private static void bindSystemFonts(List<String> cmd, File root) {

@@ -113,7 +113,7 @@ object CloudSaves {
             }
             Store.UBISOFT -> UBISOFT_TEMPLATE
             Store.EA -> eaRules(context, id) ?: return null
-            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.ROCKSTAR -> ""
+            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.ROCKSTAR, Store.STEAM -> ""
         } ?: return null
         p.edit()
             .putString("cloud_template_$id", fetched.ifEmpty { TEMPLATE_NONE })
@@ -181,7 +181,7 @@ object CloudSaves {
             Store.EPIC -> CloudSavePaths.epic(template, pfx, folder, EpicCredentialStore.load(context)?.accountId.orEmpty(), id)
             Store.EA -> if (sidecar.extra["masterTitleId"].isNullOrEmpty()) null
                 else EaSaveRules.parse(template)?.base()?.let(EaSaveRules::template)?.let { CloudSavePaths.gog(it, pfx, folder) }
-            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR -> null
+            Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.UBISOFT, Store.ROCKSTAR, Store.STEAM -> null
         }
         return dir to (if (dir == null) "unresolved" else "ok")
     }
@@ -221,7 +221,7 @@ object CloudSaves {
             if (rules == null || base == null || token == null || uid.isEmpty() || master.isEmpty()) null
             else EaCloud(token, uid, EaCloud.keys(master, sidecar?.extra?.get("multiplayerId").orEmpty()), base, rules, saveFolder(context, store, id).first)
         }
-        Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.ROCKSTAR -> null
+        Store.AMAZON, Store.ITCH, Store.GAMEJOLT, Store.XBOX, Store.BATTLENET, Store.ROCKSTAR, Store.STEAM -> null
     }
 
     private fun signedIn(context: Context, store: Store): Boolean = when (store) {

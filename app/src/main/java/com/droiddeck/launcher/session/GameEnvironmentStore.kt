@@ -13,6 +13,7 @@ object GameEnvironmentStore {
     private const val TAG = "GameEnvironmentStore"
     private const val SETTINGS = "game-environment.json"
     private const val GUEST_FILE = "root/.config/droiddeck/game-environment.json"
+    private const val GAME_CORES_FILE = "root/.config/droiddeck/game-cores"
     const val DXVK_CONFIG = "dxvkConfig"
     const val DXVK_CONFIG_GAMES = "dxvkConfigGames"
     const val GAME_DEBUG_LOGS = "gameDebugLogs"
@@ -108,10 +109,12 @@ object GameEnvironmentStore {
     @Synchronized
     fun publish(
         context: Context,
-        config: GameEnvironment.Config = read(context),
+        config: GameEnvironment.Config? = null,
         gameDebugLogsOverride: Boolean? = null,
     ) {
-        val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared)
+        publishGameCores(context)
+        val stored = config ?: read(context)
+        val resolved = stored.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + stored.shared)
         val json = encode(resolved)
         val dxvk = TextureFiltering.dxvkOptions(
             SessionPrefs.textureAnisotropy(context), SessionPrefs.textureLodBias(context),
@@ -138,6 +141,26 @@ object GameEnvironmentStore {
             gameDebugLogsOverride ?: SessionPrefs.gameDebugLogsEffective(context),
         )
         write(File(LinuxRuntime.rootDir(context), GUEST_FILE), json.toString())
+    }
+
+    @Synchronized
+    fun publishGameCores(context: Context) {
+        val file = File(LinuxRuntime.rootDir(context), GAME_CORES_FILE)
+        val pending = File(file.path + ".new")
+        try {
+            check(file.parentFile!!.isDirectory || file.parentFile!!.mkdirs())
+            java.io.FileOutputStream(pending).use {
+                it.write((com.droiddeck.launcher.core.CpuCores.restrictionOrEmpty(SessionPrefs.gameCpus(context)) + "\n").toByteArray(Charsets.UTF_8))
+                it.fd.sync()
+            }
+            java.nio.file.Files.move(
+                pending.toPath(), file.toPath(),
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+            )
+        } catch (error: Exception) {
+            Log.e(TAG, "Could not update game cores", error)
+            if (!file.delete() && file.exists()) Log.e(TAG, "Could not remove outdated game cores")
+        }
     }
 
     private fun write(file: File, text: String) {

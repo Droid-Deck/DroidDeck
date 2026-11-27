@@ -36,7 +36,7 @@ static void init_ddnatv_hook(void) {
             }
         }
     }
-    ddnatv_load_binds(getenv("DDNATV_BINDS"));
+    ddnatv_load_binds(getenv("DDNATV_BINDS"), getenv("DDNATV_BINDS_KERNEL"));
     const char *mount_table = getenv("DDNATV_MOUNTINFO");
     if (mount_table && mount_table[0] == '/' && strlen(mount_table) < sizeof(g_mount_table))
         ddnatv_copy_cstr(g_mount_table, sizeof(g_mount_table), mount_table);
@@ -228,6 +228,7 @@ static void adopt_forwarded_fds(void) {
 
 __attribute__((constructor(103))) static void init_ddnatv_hook_early(int argc, char **argv) {
     adopt_forwarded_fds();
+    ddnatv_resolve_libc();
     init_ddnatv_hook();
     compact_loader_args(argc, argv);
     // The kernel names the process after what it executed, the rootfs ld.so: process monitors, and

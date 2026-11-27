@@ -142,6 +142,55 @@ object SessionPrefs {
 
     private fun secondScreenPanelKey(desktop: Boolean) = if (desktop) "secondScreenPanel.desktop" else "secondScreenPanel.game"
 
+    fun gameSecondScreenPanel(context: Context, game: String): String? = prefs(context).getString("secondScreenPanel.app.$game", null)
+
+    fun setGameSecondScreenPanel(context: Context, game: String, mode: String) {
+        prefs(context).edit().putString("secondScreenPanel.app.$game", mode).apply()
+    }
+
+    fun gameBottomPage(context: Context, game: String): String? = prefs(context).getString("bottomPage.app.$game", null)
+
+    fun setGameBottomPage(context: Context, game: String, page: String) {
+        prefs(context).edit().putString("bottomPage.app.$game", page).apply()
+    }
+
+    /** The bottom screen's brightness in percent, or null to follow the system. */
+    fun bottomBrightness(context: Context): Int? = prefs(context).getInt("bottomBrightness", -1).takeIf { it >= 0 }
+
+    fun setBottomBrightness(context: Context, percent: Int) {
+        prefs(context).edit().putInt("bottomBrightness", percent).apply()
+    }
+
+    fun bottomAutoDim(context: Context): Boolean = prefs(context).getBoolean("bottomAutoDim", true)
+
+    fun setBottomAutoDim(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bottomAutoDim", on).apply()
+    }
+
+    fun mirrorRegion(context: Context, game: String): String? = prefs(context).getString("mirrorRegion.app.$game", null)
+
+    fun setMirrorRegion(context: Context, game: String, region: String) {
+        prefs(context).edit().putString("mirrorRegion.app.$game", region).apply()
+    }
+
+    fun mirrorHide(context: Context, game: String): String = prefs(context).getString("mirrorHide.app.$game", null) ?: "off"
+
+    fun setMirrorHide(context: Context, game: String, mode: String) {
+        prefs(context).edit().putString("mirrorHide.app.$game", mode).apply()
+    }
+
+    /** How Steam's Quick Access menu sits on the bottom screen: full, left, center or right. */
+    fun quickAccessLayout(context: Context): String? = prefs(context).getString("bottomQamLayout", null)
+
+    fun setQuickAccessLayout(context: Context, id: String) {
+        prefs(context).edit().putString("bottomQamLayout", id).apply()
+    }
+
+    fun clearGameBottomScreen(context: Context, game: String) {
+        prefs(context).edit().remove("secondScreenPanel.app.$game").remove("bottomPage.app.$game").remove("mirrorRegion.app.$game")
+            .remove("mirrorHide.app.$game").apply()
+    }
+
     /** The bottom-screen desktop takes touch as a trackpad unless the user switched it to direct touch. */
     fun bottomDesktopDirectTouch(context: Context): Boolean = prefs(context).getBoolean("bottomDesktopDirectTouch", false)
 
@@ -959,6 +1008,7 @@ object SessionPrefs {
 
     fun setGameCpus(context: Context, list: String) {
         prefs(context).edit().putString("gameCpus", list).apply()
+        GameEnvironmentStore.publishGameCores(context)
     }
 
     fun noXalia(context: Context): Boolean = prefs(context).getBoolean("noXalia", true)
@@ -1228,7 +1278,7 @@ object SessionPrefs {
             oldValue = logsEnabled(context),
             newValue = on,
             newEffective = gameDebugLogsEffective(context, on, gameDebugLogsEnabled(context)),
-        )
+        ).also { if (it) BuildWatermarkSetting.notifyChanged(context) }
     }
 
     fun gameDebugLogsEnabled(context: Context): Boolean =
@@ -1241,7 +1291,13 @@ object SessionPrefs {
             oldValue = gameDebugLogsEnabled(context),
             newValue = on,
             newEffective = gameDebugLogsEffective(context, logsEnabled(context), on),
-        )
+        ).also { if (it) BuildWatermarkSetting.notifyChanged(context) }
+    }
+
+    /** The setting lasts for the session that started with it on; the next session's start republishes the environment. */
+    internal fun expireGameDebugLogs(context: Context) {
+        prefs(context).edit().putBoolean("gameDebugLogsEnabled", false).apply()
+        runCatching { BuildWatermarkSetting.notifyChanged(context) }
     }
 
     private fun setLogPreference(

@@ -5,6 +5,7 @@ import com.droiddeck.launcher.ui.focusGlide
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.media.AudioAttributes
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
@@ -75,6 +76,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
     @Volatile private var connectedOnce = false
     @Volatile private var endedInBackground = false
     private var backgroundEnd: Runnable? = null
+    private lateinit var art: XboxLaunchArt
     private var notice: androidx.compose.ui.platform.ComposeView? = null
     @Volatile private var regionNames = emptyList<String>()
     @Volatile private var serverName: String? = null
@@ -103,7 +105,10 @@ class XboxNativePlayerActivity : ComponentActivity() {
         root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         surfaceView = SurfaceView(this)
         root.addView(surfaceView, FrameLayout.LayoutParams(-1, -1))
-        status = TextView(this).apply { setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER }
+        art = XboxLaunchArt(this) { log(it) }
+        root.addView(art.view(intent.getStringExtra("title").orEmpty()) { cancelLaunch() }, FrameLayout.LayoutParams(-1, -1))
+        art.load(intent.getStringExtra("product").orEmpty())
+        status = TextView(this).apply { setTextColor(Color.WHITE); textSize = 16f; gravity = Gravity.CENTER; setShadowLayer(10f, 0f, 0f, Color.BLACK) }
         root.addView(status, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { bottomMargin = 120 })
         overlay = TextView(this).apply {
             setTextColor(Color.WHITE); textSize = 12f; typeface = android.graphics.Typeface.MONOSPACE
@@ -118,6 +123,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
 
         val egl = EglBase.create().also { eglBase = it }
         val nativeVideo = XboxNativeVideo(this, egl) { log(it) }.also { video = it }
+        nativeVideo.onFirstFrame = { hideArt() }
         surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {}
             override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -137,9 +143,12 @@ class XboxNativePlayerActivity : ComponentActivity() {
 
     private fun log(text: String) = com.droiddeck.launcher.stores.StoresState.logLine("Xbox: native player: ${text.take(240)}")
     private fun show(text: String) = runOnUiThread { status.text = text; status.visibility = if (text.isEmpty()) android.view.View.GONE else android.view.View.VISIBLE }
+    private fun hideArt() { if (art.shown) { art.hide(); show("") } }
+    private fun cancelLaunch() { if (!isFinishing) { log("launch cancelled"); finish() } }
 
     private fun fail(stage: String, detail: String) {
         log("failed at $stage: $detail")
+        art.hide()
         if (closed) return
         if (connectedOnce) showNotice("The connection to the cloud console was lost",
             "The stream stopped reaching this device ($detail). Restart the stream to play again: the game starts over, " +
@@ -232,12 +241,14 @@ class XboxNativePlayerActivity : ComponentActivity() {
         val active = (shared ?: XboxCloudSession.get(applicationContext, account)).forStream(settings.region, settings.osName)
         regionNames = active.regionList.map { it.name }
         serverName = active.regionList.firstOrNull { it.baseUri == active.baseUri }?.name
-        val title = XboxCloudSession.titles(active)[product] ?: error("This game can't be streamed with this account here.")
+        val title = XboxCloudSession.titleFor(active, product, cached?.title ?: intent.getStringExtra("title").orEmpty()) { log(it) }
+            ?: error("This game can't be streamed with this account here.")
         val signals = XboxCloudSignalling(active, title, settings).also { signalling = it }
         log("$product -> $title, region ${java.net.URI(active.baseUri).host}, frame gen ${settings.frameGen}")
 
         show("Starting the game on Xbox Cloud Gaming…")
         expect("start", signals.start())
+        if (closed) { runCatching { signals.stop() }.onSuccess { log("cancelled: session closed ${it?.status}") }; return }
         var connected = false
         var waited = 0
         while (!closed) {
@@ -270,7 +281,15 @@ class XboxNativePlayerActivity : ComponentActivity() {
         log("latency: instant input ${settings.instantInput}, small buffer ${settings.smallBuffer}, fast decoder ${settings.fastDecoder}, " +
             "zero-copy ${zeroSurface != null}")
         val f = PeerConnectionFactory.builder()
-            .setAudioDeviceModule(JavaAudioDeviceModule.builder(applicationContext).createAudioDeviceModule())
+            // WebRTC defaults to voice-call audio (mono, speaker/earpiece only); game audio follows
+            // the normal output (HDMI, USB, Bluetooth) and keeps the stream's stereo.
+            .setAudioDeviceModule(JavaAudioDeviceModule.builder(applicationContext)
+                .setAudioAttributes(AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_GAME)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+                    .build())
+                .setUseStereoOutput(true)
+                .createAudioDeviceModule())
             .setVideoDecoderFactory(org.webrtc.DroidDeckLowLatencyDecoderFactory(egl.eglBaseContext, settings.fastDecoder, zeroSurface) { zeroCopyFrames++ }
                 .also { decoders = it })
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(egl.eglBaseContext, true, true))
@@ -365,7 +384,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
             when (state) {
                 PeerConnection.PeerConnectionState.CONNECTED -> {
                     connectedOnce = true
-                    show("")
+                    if (art.shown) root.postDelayed({ hideArt() }, 6000) else show("")
                     video?.setFpsTarget(settings.fpsTarget)
                     video?.setFrameGeneration(effectiveFrameGen())
                 }
@@ -426,6 +445,10 @@ class XboxNativePlayerActivity : ComponentActivity() {
                 return true
             }
             return super.dispatchKeyEvent(event)
+        }
+        if (art.shown && (event.keyCode == KeyEvent.KEYCODE_BUTTON_B || event.keyCode == KeyEvent.KEYCODE_BACK)) {
+            if (event.action == KeyEvent.ACTION_UP) cancelLaunch()
+            return true
         }
         if (isGuide(event)) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
