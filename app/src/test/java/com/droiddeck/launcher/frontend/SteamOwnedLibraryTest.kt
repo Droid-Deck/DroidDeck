@@ -41,9 +41,11 @@ class SteamOwnedLibraryTest {
         SteamOwnedLibrary.blockClientSessionImport(app, null)
 
         assertTrue(SteamOwnedLibrary.isClientSessionBlocked(app, "steamLoginSecure=unknown"))
+        assertTrue(SteamOwnedLibrary.clientSessionImportBlocked(app))
 
         SteamOwnedLibrary.allowClientSessionImport(app)
         assertFalse(SteamOwnedLibrary.isClientSessionBlocked(app, "steamLoginSecure=unknown"))
+        assertFalse(SteamOwnedLibrary.clientSessionImportBlocked(app))
     }
 
     @Test fun ownedLibraryAcceptsOnlyArrayOrObjectPayloads() {

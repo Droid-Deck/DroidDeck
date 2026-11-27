@@ -112,7 +112,7 @@ internal object SteamStore {
 
     /** Mirrors the client's saved sign-in into the store account; reads storage. A new name for the same account only relabels it. */
     fun syncAccount(context: Context): Boolean {
-        val saved = savedAccount(context)
+        val saved = savedAccount(context).takeUnless { SteamOwnedLibrary.clientSessionImportBlocked(context) }
         val stored = StoreAccounts.read(context, Store.STEAM)
         val storedId = stored?.optString("steam_id").orEmpty()
         if (saved != null && saved.id == storedId) {

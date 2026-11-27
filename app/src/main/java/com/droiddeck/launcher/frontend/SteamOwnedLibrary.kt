@@ -282,11 +282,23 @@ object SteamOwnedLibrary {
         }?.takeUnless { isClientSessionBlocked(context, it.cookieHeader) }
     }
 
-    internal fun isClientSessionBlocked(context: Context, cookieHeader: String): Boolean {
+    internal fun clientSessionImportBlocked(context: Context): Boolean {
+        val app = context.applicationContext
+        val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(CLIENT_IMPORT_BLOCKED, false)) return false
+        val clientSession = if (LinuxRuntime.isInstalled(app)) {
+            runCatching { readClientSession(app) }.getOrNull()
+        } else {
+            null
+        }
+        return isClientSessionBlocked(app, clientSession?.cookieHeader)
+    }
+
+    internal fun isClientSessionBlocked(context: Context, cookieHeader: String?): Boolean {
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (!prefs.getBoolean(CLIENT_IMPORT_BLOCKED, false)) return false
         val blockedFingerprint = prefs.getString(BLOCKED_COOKIE_FINGERPRINT, null)
-        if (blockedFingerprint == null || blockedFingerprint == cookieFingerprint(cookieHeader)) return true
+        if (blockedFingerprint == null || cookieHeader == null || blockedFingerprint == cookieFingerprint(cookieHeader)) return true
         prefs.edit().remove(CLIENT_IMPORT_BLOCKED).remove(BLOCKED_COOKIE_FINGERPRINT).apply()
         return false
     }
