@@ -27,8 +27,9 @@ class BottomPageActions(
     val takeScreenshot: ((onDone: (Boolean) -> Unit) -> Unit)? = null,
     val fps: () -> Float? = { null },
     val runningGame: () -> String? = { null },
-    val screenOff: (() -> Unit)? = null,
+    val gameKey: () -> String? = runningGame,
     val copyRegion: ((android.graphics.RectF?, Int, Int, (android.graphics.Bitmap?) -> Unit) -> Unit)? = null,
+    val sourceAspect: () -> Float = { 16f / 9f },
     val holdComposed: (Boolean) -> Unit = {},
     val maskRegion: (android.graphics.RectF?, Boolean) -> Unit = { _, _ -> },
 )

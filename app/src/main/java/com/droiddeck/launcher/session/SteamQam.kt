@@ -29,12 +29,21 @@ object SteamQam {
         const width = (h) => g.__ddQamAspect > 0 ? Math.round(h * g.__ddQamAspect) : 0;
         if (!c.__ddQam) {
             c.__ddQam = c.ComputeOverallMinimumRequestedComposition;
-            c.ComputeOverallMinimumRequestedComposition = function (...a) {
-                const v = c.__ddQam.apply(this, a);
-                return v === 2 && ours() ? 1 : v;
-            };
             m.__ddQam = m.OnMenuDeactivated;
             m.OnMenuDeactivated = function (d) { if (d === QAM && held() && !g.__ddQamTop) return; return m.__ddQam.call(this, d); };
+        }
+        if (c.__ddQamV !== 2) {
+            c.__ddQamV = 2;
+            // Only the menu's own overlay request is lowered: a dialog over the game still needs Steam to take input.
+            c.ComputeOverallMinimumRequestedComposition = function (...a) {
+                const v = c.__ddQam.apply(this, a);
+                if (v !== 2 || !ours()) return v;
+                m.IsSideMenuVisible = () => false;
+                m.IsSideMenuInteractable = () => false;
+                let without;
+                try { without = c.__ddQam.apply(this, a); } finally { delete m.IsSideMenuVisible; delete m.IsSideMenuInteractable; }
+                return without >= 2 ? v : 1;
+            };
         }
         const views = () => popup?.m_rgChildBrowserViews || [];
         const backdrop = (hide) => {
@@ -64,11 +73,20 @@ object SteamQam {
             }
             if (!held()) {
                 g.__ddQamTop = false;
+                g.__ddQamPress = undefined;
                 if (!g.__ddQamOn) return;
                 g.__ddQamOn = false;
                 backdrop(false);
                 if (m.m_eOpenSideMenu === QAM) m.CloseSideMenus();
                 c.EnsureCorrectComposition?.();
+                return;
+            }
+            // Steam sends the pad to an open side menu, so a dialog over the game would get no input: step aside until it closes.
+            const dialog = nav?.m_rgGamepadNavigationTrees?.some(t => t.m_ID?.startsWith("ModalDialogOverlay") && t.m_Root?.m_element?.isConnected);
+            if (dialog && !g.__ddQamTop) {
+                g.__ddQamPress = W.m_flLastQuickAccessPressMS || 0;
+                if (m.m_eOpenSideMenu === QAM) m.CloseSideMenus();
+                if (g.__ddQamOn) { g.__ddQamOn = false; backdrop(false); c.EnsureCorrectComposition?.(); }
                 return;
             }
             // The Quick Access button shows the menu on the top screen as usual; closing it there parks it again.
@@ -138,14 +156,28 @@ object SteamQam {
 
     fun release(context: Context, relayPort: Int) {
         eval(context, script(false))
+        stopRelay(context, relayPort)
+    }
+
+    fun stopRelay(context: Context, relayPort: Int) {
         if (relayPort > 0) helper(context, "stop", relayPort.toString())
     }
 
+    /** Starts the guest relay to Steam's DevTools and finds the menu's page; the relay is stopped again when there is none. */
     fun target(context: Context): Target? = runCatching {
         val devtools = File(AgentGuest.dir(context), "cdp-port").readText().trim().toInt()
-        val relay = helper(context, "start", devtools.toString())?.trim()?.toIntOrNull() ?: return null
-        parseTarget(relay, get(relay, "/json"))
+        val (relay, secret) = parseRelay(helper(context, "start", devtools.toString())) ?: return null
+        val found = runCatching { parseTarget(relay, get(relay, "/$secret/json"))?.let { it.copy(path = "/$secret${it.path}") } }
+        if (found.getOrNull() == null) helper(context, "stop", relay.toString())
+        found.getOrThrow()
     }.onFailure { android.util.Log.e(TAG, "no quick access target: $it") }.getOrNull()
+
+    internal fun parseRelay(text: String?): Pair<Int, String>? {
+        val parts = text?.trim()?.split(' ') ?: return null
+        val port = parts.getOrNull(0)?.toIntOrNull() ?: return null
+        val secret = parts.getOrNull(1)?.takeIf { it.matches(Regex("[0-9a-f]{16,64}")) } ?: return null
+        return port to secret
+    }
 
     private fun helper(context: Context, vararg args: String): String? = runCatching {
         val request = JSONObject().put("kind", "exec").put("argv", JSONArray(listOf("droiddeck-qam-relay") + args)).put("timeout", 5.0)

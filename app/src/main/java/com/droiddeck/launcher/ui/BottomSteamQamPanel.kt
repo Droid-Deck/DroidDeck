@@ -15,7 +15,6 @@ import androidx.compose.material.icons.outlined.AlignHorizontalLeft
 import androidx.compose.material.icons.outlined.AlignHorizontalRight
 import androidx.compose.material.icons.outlined.WidthFull
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,16 +37,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.droiddeck.launcher.R
-import com.droiddeck.launcher.companion.CdpPage
+import com.droiddeck.launcher.session.CdpPage
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SteamQam
-import kotlin.concurrent.thread
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
@@ -138,70 +138,75 @@ internal fun SteamQamPanel() {
     val aspect = remember { floatArrayOf(0f) }
     val measure = Modifier.fillMaxSize().onSizeChanged { if (it.height > 0) aspect[0] = it.width.toFloat() / it.height }
     val show = { frame: ImageBitmap -> image = frame; QamCache.image = frame; live.set(true) }
-    DisposableEffect(Unit) {
-        onDispose {
-            val page = holder[0]
-            val port = relay[0]
-            holder[0] = null
-            thread(name = "qam-release", isDaemon = true) {
-                runCatching { page?.send("Page.stopScreencast") }
-                page?.close()
-                SteamQam.release(context, port)
-            }
-        }
-    }
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            while (isActive) {
-                // Holding the menu before Steam's first frame keeps gamescope from presenting it.
-                if (SessionState.phase != SessionPhase.READY) {
-                    delay(FAST_TICK_MS)
-                    continue
-                }
-                if (aspect[0] == 0f) {
-                    delay(FAST_TICK_MS)
-                    continue
-                }
-                val held = SteamQam.hold(context, aspect[0])
-                failed = held == null
-                if (held?.open == SteamQam.QUICK_ACCESS) {
-                    var page = holder[0]
-                    if (page == null || page.closed) {
-                        page?.close()
-                        live.set(false)
-                        page = SteamQam.target(context)?.let { t ->
-                            relay[0] = t.port
-                            runCatching {
-                                CdpPage(t.port, t.path) { method, params ->
-                                    if (method == "Page.screencastFrame") {
-                                        holder[0]?.send("Page.screencastFrameAck", JSONObject().put("sessionId", params.optInt("sessionId")))
-                                        decodeFrame(params.optString("data"))?.let(show)
+            try {
+                while (isActive) {
+                    // Holding the menu before Steam's first frame keeps gamescope from presenting it.
+                    if (SessionState.phase != SessionPhase.READY) {
+                        delay(FAST_TICK_MS)
+                        continue
+                    }
+                    if (aspect[0] == 0f) {
+                        delay(FAST_TICK_MS)
+                        continue
+                    }
+                    val held = SteamQam.hold(context, aspect[0])
+                    ensureActive()
+                    var reached = held != null
+                    if (held?.open == SteamQam.QUICK_ACCESS) {
+                        var page = holder[0]
+                        if (page == null || page.closed) {
+                            page?.close()
+                            live.set(false)
+                            page = SteamQam.target(context)?.let { t ->
+                                if (relay[0] != 0 && relay[0] != t.port) SteamQam.stopRelay(context, relay[0])
+                                relay[0] = t.port
+                                runCatching {
+                                    CdpPage(t.port, t.path) { method, params ->
+                                        if (method == "Page.screencastFrame") {
+                                            holder[0]?.send("Page.screencastFrameAck", JSONObject().put("sessionId", params.optInt("sessionId")))
+                                            decodeFrame(params.optString("data"))?.let(show)
+                                        }
                                     }
-                                }
-                            }.onFailure { android.util.Log.w("SteamQam", "devtools connect: $it") }.getOrNull()
+                                }.onFailure { android.util.Log.w("SteamQam", "devtools connect: $it") }.getOrNull()
+                            }
+                            holder[0] = page
+                            ensureActive()
+                            page?.send("Page.enable")
+                            page?.send("Page.startScreencast", JSONObject().put("format", "jpeg").put("quality", 85)
+                                .put("maxWidth", 1920).put("maxHeight", 1440))
                         }
-                        holder[0] = page
-                        page?.send("Page.enable")
-                        page?.send("Page.startScreencast", JSONObject().put("format", "jpeg").put("quality", 85)
-                            .put("maxWidth", 1920).put("maxHeight", 1440))
-                    }
-                    // The screencast sends frames only when the menu repaints, so a still menu needs one screenshot.
-                    if (!live.get()) {
-                        page?.call("Page.captureScreenshot", JSONObject().put("format", "jpeg").put("quality", 85))
-                            ?.optJSONObject("result")?.optString("data")?.let(::decodeFrame)?.let(show)
-                    }
-                    val wide = !held.top && QamFit.current(context) == QamFit.FULL
-                    (page?.evaluate(QamLayout.contentScript(wide)) as? String)?.let { text ->
-                        runCatching {
-                            val a = JSONArray(text)
-                            val layout = floatArrayOf(a.getDouble(0).toFloat(), a.getDouble(1).toFloat(), a.getDouble(2).toFloat(), a.getDouble(3).toFloat())
-                            if (!layout.contentEquals(shape)) { shape = layout; QamCache.shape = layout }
+                        // The screencast sends frames only when the menu repaints, so a still menu needs one screenshot.
+                        if (!live.get()) {
+                            page?.call("Page.captureScreenshot", JSONObject().put("format", "jpeg").put("quality", 85))
+                                ?.optJSONObject("result")?.optString("data")?.let(::decodeFrame)?.let(show)
                         }
+                        reached = page != null
+                        val wide = !held.top && QamFit.current(context) == QamFit.FULL
+                        (page?.evaluate(QamLayout.contentScript(wide)) as? String)?.let { text ->
+                            runCatching {
+                                val a = JSONArray(text)
+                                val layout = floatArrayOf(a.getDouble(0).toFloat(), a.getDouble(1).toFloat(), a.getDouble(2).toFloat(), a.getDouble(3).toFloat())
+                                if (!layout.contentEquals(shape)) { shape = layout; QamCache.shape = layout }
+                            }
+                        }
+                    }
+                    failed = !reached
+                    val used = QamFit.current(context)
+                    withTimeoutOrNull(if (live.get()) TICK_MS else FAST_TICK_MS) {
+                        snapshotFlow { QamFit.current(context) }.first { it != used }
                     }
                 }
-                val used = QamFit.current(context)
-                withTimeoutOrNull(if (live.get()) TICK_MS else FAST_TICK_MS) {
-                    snapshotFlow { QamFit.current(context) }.first { it != used }
+            } finally {
+                withContext(NonCancellable) {
+                    val page = holder[0]
+                    holder[0] = null
+                    runCatching { page?.send("Page.stopScreencast") }
+                    // The page outlives this connection, so the widened layout would otherwise stay on the top screen.
+                    runCatching { page?.evaluate(QamLayout.contentScript(wide = false)) }
+                    page?.close()
+                    SteamQam.release(context, relay[0])
                 }
             }
         }
@@ -225,23 +230,29 @@ internal fun SteamQamPanel() {
         Canvas(
             Modifier.fillMaxSize().pointerInput(f.cssWidth, f.contentRight, boxW, boxH, fit) {
                 var touching = false
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull() ?: continue
-                        val (x, y) = QamLayout.toCss(change.position.x, change.position.y, scale, left)
-                        val type = when (event.type) {
-                            PointerEventType.Press -> if (x in 0f..f.contentRight && y in 0f..f.cssHeight) "touchStart" else null
-                            PointerEventType.Move -> "touchMove"
-                            PointerEventType.Release -> "touchEnd"
-                            else -> null
-                        }?.takeIf { it == "touchStart" || touching } ?: continue
-                        touching = type != "touchEnd"
-                        val points = if (type == "touchEnd") JSONArray()
-                            else JSONArray().put(JSONObject().put("x", x.toDouble()).put("y", y.toDouble()))
-                        holder[0]?.send("Input.dispatchTouchEvent", JSONObject().put("type", type).put("touchPoints", points))
-                        change.consume()
+                val touched = holder[0]
+                try {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull() ?: continue
+                            val (x, y) = QamLayout.toCss(change.position.x, change.position.y, scale, left)
+                            val type = when (event.type) {
+                                PointerEventType.Press -> if (x in 0f..f.contentRight && y in 0f..f.cssHeight) "touchStart" else null
+                                PointerEventType.Move -> "touchMove"
+                                PointerEventType.Release -> "touchEnd"
+                                else -> null
+                            }?.takeIf { it == "touchStart" || touching } ?: continue
+                            touching = type != "touchEnd"
+                            val points = if (type == "touchEnd") JSONArray()
+                                else JSONArray().put(JSONObject().put("x", x.toDouble()).put("y", y.toDouble()))
+                            holder[0]?.send("Input.dispatchTouchEvent", JSONObject().put("type", type).put("touchPoints", points))
+                            change.consume()
+                        }
                     }
+                } finally {
+                    if (touching) (touched ?: holder[0])?.send("Input.dispatchTouchEvent",
+                        JSONObject().put("type", "touchCancel").put("touchPoints", JSONArray()))
                 }
             },
         ) {

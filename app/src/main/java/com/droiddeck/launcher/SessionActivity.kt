@@ -2937,7 +2937,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             val on = SessionState.hdrCapable && SessionPrefs.hdr(this, mode)
             SessionState.hdr = on
             WaylandCompositor.nativeSetHdrOutput(on)
-            WaylandCompositor.nativeSetZeroCopy(on || SessionPrefs.zeroCopy(this, mode) && composedHolds == 0)
+            WaylandCompositor.nativeSetZeroCopy(on || SessionPrefs.zeroCopy(this, mode) && composedOutputFree())
             Log.i(TAG, "hdr: " + (if (on) "on" else "off") + " for this $mode session")
         }
         com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "compositor.start driver=$driverId")
@@ -3990,6 +3990,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val presentation = secondScreenPresentation ?: return
         presentation.showMenu(false)
         if (secondScreenMode == SecondScreenMode.NONE) closeSecondScreen(reset = false) else updateKeyboardRoute()
+        if (gamePanelPending) uiHandler.post { restoreGamePanel(gestureGame) }
     }
 
 
@@ -4456,8 +4457,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         typingReturnMode = null
         automaticPanel = false
         SessionPrefs.setSecondScreenPanel(this, desktopSession, SecondScreenMode.MENU.id)
+        bottomGameKey()?.let { SessionPrefs.setGameSecondScreenPanel(this, it, SecondScreenMode.MENU.id) }
+        gamePanelApplied = bottomGameKey() != null
         drawerOpen = true
     }
+
+    /** What bottom-screen memory is kept under: the game id in direct-run mode when there is one, else the focused game. */
+    private fun bottomGameKey(): String? =
+        if (SessionState.mode == SessionService.MODE_RUN) SessionState.gameId?.takeIf { it.isNotBlank() }?.let { "game:$it" } ?: gestureGame
+        else gestureGame
 
     private fun settleDualScreenControls() {
         if (!dualControlsProvisional || pipUi || !started || (::loading.isInitialized && loading.visible)) return
@@ -4578,17 +4586,24 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         SessionState.bottomMenu = false
         if (mode != SecondScreenMode.NONE) {
             SessionPrefs.setSecondScreenPanel(this, desktopSession, mode.id)
-            gestureGame?.let { SessionPrefs.setGameSecondScreenPanel(this, it, mode.id) }
-            gamePanelApplied = gestureGame != null
+            bottomGameKey()?.let { SessionPrefs.setGameSecondScreenPanel(this, it, mode.id) }
+            gamePanelApplied = bottomGameKey() != null
         }
         selectSecondScreenMode(mode)
     }
 
     private var gamePanelApplied = false
+    private var gamePanelPending = false
 
     private fun restoreGamePanel(game: String?) {
-        if (secondScreenMode == SecondScreenMode.NONE || typingReturnMode != null || menuShownOnBottom() || pipUi) return
-        val remembered = game?.let { SessionPrefs.gameSecondScreenPanel(this, it) }
+        if (secondScreenMode == SecondScreenMode.NONE || pipUi) return
+        // The bottom menu or field keyboard is in the way; the panel is restored once it closes.
+        if (typingReturnMode != null || menuShownOnBottom()) {
+            gamePanelPending = true
+            return
+        }
+        gamePanelPending = false
+        val remembered = game?.let { bottomGameKey() }?.let { SessionPrefs.gameSecondScreenPanel(this, it) }
         val wanted = when {
             remembered != null -> SecondScreenMode.opening(remembered, SessionState.deckPad, bottomPages().isNotEmpty(),
                 com.droiddeck.launcher.session.BottomDesktop.available(), SessionState.mode == SessionService.MODE_STEAM)
@@ -4651,10 +4666,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 BottomDashboard(
                     bottomPages(), com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
                     gameStarts = gameStarts,
-                    gamePage = { gestureGame?.let { SessionPrefs.gameBottomPage(this@SessionActivity, it) } },
+                    gamePage = { bottomGameKey()?.let { SessionPrefs.gameBottomPage(this@SessionActivity, it) } },
                     onPage = {
                         com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it)
-                        gestureGame?.let { game -> SessionPrefs.setGameBottomPage(this@SessionActivity, game, it) }
+                        bottomGameKey()?.let { game -> SessionPrefs.setGameBottomPage(this@SessionActivity, game, it) }
                     },
                     strip = { pageId ->
                         com.droiddeck.launcher.ui.SessionBottomStrip(pageId) { if (::hud.isInitialized) hud.liveFps else null }
@@ -4673,10 +4688,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         takeScreenshot = ::captureScreenshot,
         fps = { if (::hud.isInitialized) hud.liveFps else null },
         runningGame = { gestureGame },
+        gameKey = ::bottomGameKey,
         copyRegion = ::copyGameRegion,
+        sourceAspect = { gameSource()?.takeIf { it.width > 0 && it.height > 0 }?.let { it.width.toFloat() / it.height } ?: (16f / 9f) },
         holdComposed = ::holdComposedOutput,
         maskRegion = ::maskGameRegion,
-        screenOff = { secondScreenPresentation?.screenOff() },
     )
 
     private fun captureScreenshot(onDone: (Boolean) -> Unit) = copyGameFrame { bitmap ->
@@ -4726,9 +4742,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
     }
 
+    private fun gameSource(): android.view.SurfaceView? = if (glassesOutputActive) glassesScreen?.surfaceView
+        else if (bottomOutputActive) bottomGame?.surfaceView else if (::surfaceView.isInitialized) surfaceView else null
+
     private fun copyGameRegion(region: android.graphics.RectF?, outWidth: Int, outHeight: Int, onFrame: (android.graphics.Bitmap?) -> Unit) {
-        val source = if (glassesOutputActive) glassesScreen?.surfaceView else if (bottomOutputActive) bottomGame?.surfaceView
-            else if (::surfaceView.isInitialized) surfaceView else null
+        val source = gameSource()
         val width = source?.width ?: 0
         val height = source?.height ?: 0
         if (source == null || width <= 0 || height <= 0 || outWidth <= 0 || outHeight <= 0 || source.holder.surface?.isValid != true) {
@@ -4747,16 +4765,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             onFrame(null)
             return
         }
-        try {
-            android.view.PixelCopy.request(source, src, bitmap, { result ->
-                if (result == android.view.PixelCopy.SUCCESS) onFrame(bitmap) else {
-                    bitmap.recycle()
-                    onFrame(null)
-                }
-            }, uiHandler)
-        } catch (_: IllegalArgumentException) {
-            bitmap.recycle()
-            onFrame(null)
+        withPictureFrame { done ->
+            try {
+                android.view.PixelCopy.request(source, src, bitmap, { result ->
+                    done()
+                    if (result == android.view.PixelCopy.SUCCESS) onFrame(bitmap) else {
+                        bitmap.recycle()
+                        onFrame(null)
+                    }
+                }, uiHandler)
+            } catch (_: IllegalArgumentException) {
+                done()
+                bitmap.recycle()
+                onFrame(null)
+            }
         }
     }
 
@@ -5062,7 +5084,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         com.droiddeck.launcher.ui.SessionTyping.returnFocus(this, taskId)
         val mode = typingReturnMode ?: return
         typingReturnMode = null
-        uiHandler.post { if (secondScreenMode == SecondScreenMode.KEYBOARD_TRACKPAD) selectSecondScreenMode(mode) }
+        uiHandler.post {
+            if (secondScreenMode == SecondScreenMode.KEYBOARD_TRACKPAD) selectSecondScreenMode(mode)
+            if (gamePanelPending) restoreGamePanel(gestureGame)
+        }
     }
 
     private fun updateKeyboardRoute() {
@@ -5993,7 +6018,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (zeroCopyActive()) {
             WaylandCompositor.nativeSetZeroCopy(false)
             val restore = java.util.concurrent.atomic.AtomicBoolean(false)
-            val back = { if (restore.compareAndSet(false, true)) WaylandCompositor.nativeSetZeroCopy(composedHolds == 0) }
+            pauseCaptures++
+            val back = {
+                if (restore.compareAndSet(false, true)) {
+                    pauseCaptures--
+                    if (!isDestroyed) WaylandCompositor.nativeSetZeroCopy(composedOutputFree())
+                }
+            }
             uiHandler.postDelayed({ capturePausedFrame(manual = true, onDone = back) }, ZERO_COPY_SETTLE_MS)
             uiHandler.postDelayed({ back() }, ZERO_COPY_RESTORE_MS)
         } else {
@@ -6003,6 +6034,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private var composedHolds = 0
+    private var pauseCaptures = 0
+
+    private fun composedOutputFree() = composedHolds == 0 && pauseCaptures == 0
     private var mirrorMask: android.view.View? = null
     private var maskedRegion: android.graphics.RectF? = null
     private var maskDim = false
@@ -6035,15 +6069,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val w = surfaceView.width
         val h = surfaceView.height
         mask.layoutParams = FrameLayout.LayoutParams(((r.right - r.left) * w).toInt(), ((r.bottom - r.top) * h).toInt(), Gravity.TOP or Gravity.START).apply {
-            leftMargin = surfaceView.left + (r.left * w).toInt()
-            topMargin = surfaceView.top + (r.top * h).toInt()
+            leftMargin = surfaceView.left - sessionRoot.paddingLeft + (r.left * w).toInt()
+            topMargin = surfaceView.top - sessionRoot.paddingTop + (r.top * h).toInt()
         }
         mask.visibility = android.view.View.VISIBLE
     }
 
     private fun holdComposedOutput(hold: Boolean) {
         composedHolds = (composedHolds + if (hold) 1 else -1).coerceAtLeast(0)
-        if (zeroCopyActive()) WaylandCompositor.nativeSetZeroCopy(composedHolds == 0)
+        if (zeroCopyActive()) WaylandCompositor.nativeSetZeroCopy(composedOutputFree())
     }
 
     private fun zeroCopyActive(): Boolean =
@@ -6773,10 +6807,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 else -> BottomDashboard(
                     pages, com.droiddeck.launcher.ui.SessionBottomTab.picked(SessionState.sessionId),
                     gameStarts = gameStarts,
-                    gamePage = { gestureGame?.let { SessionPrefs.gameBottomPage(this@SessionActivity, it) } },
+                    gamePage = { bottomGameKey()?.let { SessionPrefs.gameBottomPage(this@SessionActivity, it) } },
                     onPage = {
                         com.droiddeck.launcher.ui.SessionBottomTab.pick(SessionState.sessionId, it)
-                        gestureGame?.let { game -> SessionPrefs.setGameBottomPage(this@SessionActivity, game, it) }
+                        bottomGameKey()?.let { game -> SessionPrefs.setGameBottomPage(this@SessionActivity, game, it) }
                     },
                     bar = bar(getString(R.string.second_mode_dashboard)),
                     strip = { pageId ->

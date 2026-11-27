@@ -44,18 +44,36 @@ class QamRelayTest(unittest.TestCase):
         server.listen(1)
         port = server.getsockname()[1]
         Path(self.relay.FLAG).write_text("me %d" % port)
-        serving = threading.Thread(target=self.relay.serve, args=(server, upstream.getsockname()[1], "me"), daemon=True)
+        serving = threading.Thread(target=self.relay.serve, args=(server, upstream.getsockname()[1], "me", "s3cret"), daemon=True)
         serving.start()
         with socket.create_connection(("127.0.0.1", port), 2) as client:
-            client.sendall(b"GET /json")
+            client.sendall(b"GET /s3cret/json HTTP/1.1\r\nHost: x\r\n\r\n")
             client.settimeout(2)
-            self.assertEqual(b"answer:GET /json", client.recv(100))
+            self.assertEqual(b"answer:GET /json HTTP/1.1\r\nHost: x\r\n\r\n", client.recv(100))
         with mock.patch.object(self.relay.sys, "argv", ["x", "stop", str(port + 1)]):
             self.assertEqual(0, self.relay.main())
         serving.join(0.3)
         self.assertTrue(serving.is_alive())
         with mock.patch.object(self.relay.sys, "argv", ["x", "stop", str(port)]):
             self.assertEqual(0, self.relay.main())
+        serving.join(2)
+        self.assertFalse(serving.is_alive())
+
+    def test_refuses_requests_without_the_secret_or_outside_the_allowed_paths(self):
+        rewrite = self.relay.rewrite
+        self.assertEqual(b"GET /devtools/page/AB-1 HTTP/1.1\r\n", rewrite(b"GET /k/devtools/page/AB-1 HTTP/1.1\r\n", "k"))
+        for head in (b"GET /json HTTP/1.1\r\n", b"GET /x/json HTTP/1.1\r\n", b"POST /k/json HTTP/1.1\r\n",
+                     b"GET /k/devtools/browser/1 HTTP/1.1\r\n", b"GET /k/json/new?x HTTP/1.1\r\n", b"GET /k/json HTTP/1.1"):
+            self.assertIsNone(rewrite(head, "k"), head)
+
+    def test_stops_after_an_idle_period(self):
+        self.relay.IDLE_SECONDS = 0.1
+        server = socket.socket()
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+        Path(self.relay.FLAG).write_text("me %d" % server.getsockname()[1])
+        serving = threading.Thread(target=self.relay.serve, args=(server, 1, "me", "k"), daemon=True)
+        serving.start()
         serving.join(2)
         self.assertFalse(serving.is_alive())
 

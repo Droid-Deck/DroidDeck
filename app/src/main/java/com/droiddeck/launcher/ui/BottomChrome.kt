@@ -60,6 +60,8 @@ internal fun FullScreenChrome() {
     }
 }
 
+private const val PULL_PX = 6f
+
 /** The tab at the top edge that brings the hidden bar back, by a tap or a pull down. */
 @Composable
 internal fun PullTab() {
@@ -71,7 +73,13 @@ internal fun PullTab() {
             modifier = Modifier.testTag("bottom-pull-tab").size(width = 72.dp, height = 26.dp)
                 .semantics { contentDescription = description }
                 .clip(shape).background(Color.Black.copy(alpha = 0.55f)).border(1.dp, Color.White.copy(alpha = 0.14f), shape)
-                .pointerInput(Unit) { detectVerticalDragGestures { change, drag -> if (drag > 6f) { change.consume(); BottomChrome.show(true) } } }
+                .pointerInput(Unit) {
+                    var pulled = 0f
+                    detectVerticalDragGestures(onDragStart = { pulled = 0f }, onDragEnd = { pulled = 0f }, onDragCancel = { pulled = 0f }) { change, drag ->
+                        pulled = (pulled + drag).coerceAtLeast(0f)
+                        if (pulled > PULL_PX) { change.consume(); pulled = 0f; BottomChrome.show(true) }
+                    }
+                }
                 .clickable(role = Role.Button) { BottomChrome.show(true) },
         ) {
             Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(22.dp))

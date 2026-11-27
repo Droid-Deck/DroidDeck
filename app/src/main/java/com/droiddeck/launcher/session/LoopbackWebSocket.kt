@@ -1,4 +1,4 @@
-package com.droiddeck.launcher.companion
+package com.droiddeck.launcher.session
 
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -7,6 +7,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 
@@ -19,7 +20,7 @@ class LoopbackWebSocket(port: Int, path: String = "/", connectTimeoutMs: Int = 1
     init {
         try {
             socket.connect(InetSocketAddress("127.0.0.1", port), connectTimeoutMs)
-            socket.soTimeout = readTimeoutMs
+            socket.soTimeout = UPGRADE_TIMEOUT_MS
             socket.tcpNoDelay = true
             out = socket.getOutputStream()
             input = DataInputStream(socket.getInputStream().buffered())
@@ -28,11 +29,19 @@ class LoopbackWebSocket(port: Int, path: String = "/", connectTimeoutMs: Int = 1
                 "Sec-WebSocket-Key: $key\r\nSec-WebSocket-Version: 13\r\n\r\n").toByteArray())
             out.flush()
             val status = line(input) ?: throw IOException("no upgrade response")
-            if (!status.contains(" 101")) throw IOException("upgrade refused: $status")
+            if (status.split(' ').getOrNull(1) != "101") throw IOException("upgrade refused: $status")
+            val headers = HashMap<String, String>()
             while (true) {
                 val header = line(input) ?: throw IOException("upgrade cut short")
                 if (header.isEmpty()) break
+                val colon = header.indexOf(':')
+                if (colon > 0) headers[header.substring(0, colon).trim().lowercase()] = header.substring(colon + 1).trim()
             }
+            if (!headers["upgrade"].equals("websocket", ignoreCase = true) ||
+                headers["connection"]?.split(',')?.none { it.trim().equals("upgrade", ignoreCase = true) } != false ||
+                headers["sec-websocket-accept"] != accept(key)
+            ) throw IOException("bad upgrade headers")
+            socket.soTimeout = readTimeoutMs
         } catch (e: Exception) {
             runCatching { socket.close() }
             throw e
@@ -103,7 +112,11 @@ class LoopbackWebSocket(port: Int, path: String = "/", connectTimeoutMs: Int = 1
         runCatching { socket.close() }
     }
 
-    private companion object {
+    internal companion object {
         const val MAX_FRAME = 16L * 1024 * 1024
+        const val UPGRADE_TIMEOUT_MS = 3_000
+
+        fun accept(key: String): String = Base64.getEncoder().encodeToString(
+            MessageDigest.getInstance("SHA-1").digest((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").toByteArray()))
     }
 }

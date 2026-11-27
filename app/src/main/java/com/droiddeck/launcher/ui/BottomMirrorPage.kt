@@ -28,6 +28,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -97,8 +100,9 @@ internal object MirrorRegion {
 
 private const val FRAME_MS = 66L
 private const val COMPOSED_SETTLE_MS = 250L
-private const val EDIT_WIDTH = 960
-private const val EDIT_HEIGHT = 540
+private const val EDIT_LONGEST = 960
+private const val EDIT_TRIES = 3
+private const val EDIT_RETRY_MS = 500L
 private const val LIVE_LONGEST = 720
 
 @Composable
@@ -113,19 +117,22 @@ internal fun MirrorPanel(actions: BottomPageActions) {
         actions.holdComposed(true)
         onDispose { actions.holdComposed(false) }
     }
-    val game = actions.runningGame() ?: "steam"
+    val game = actions.gameKey() ?: "steam"
     var region by remember(game) { mutableStateOf(MirrorRegion.parse(SessionPrefs.mirrorRegion(context, game))) }
     var editing by remember(game) { mutableStateOf(region == null) }
     var sharp by remember { mutableStateOf(true) }
     val host = rememberMenuHost()
     if (editing) {
-        MirrorEditor(copy, region,
-            onSave = {
-                region = it
-                SessionPrefs.setMirrorRegion(context, game, MirrorRegion.format(it))
-                editing = false
-            },
-            onCancel = if (region != null) ({ editing = false }) else null)
+        // A game change must not carry the last game's still or pick into this one's editor.
+        key(game) {
+            MirrorEditor(copy, region, actions.sourceAspect(),
+                onSave = {
+                    region = it
+                    SessionPrefs.setMirrorRegion(context, game, MirrorRegion.format(it))
+                    editing = false
+                },
+                onCancel = if (region != null) ({ editing = false }) else null)
+        }
         return
     }
     val r = region ?: return
@@ -138,7 +145,7 @@ internal fun MirrorPanel(actions: BottomPageActions) {
     var failed by remember(r) { mutableStateOf(false) }
     LaunchedEffect(r) {
         while (isActive) {
-            val (w, h) = MirrorRegion.outputSize(r, 16f / 9f, LIVE_LONGEST)
+            val (w, h) = MirrorRegion.outputSize(r, actions.sourceAspect(), LIVE_LONGEST)
             val bitmap = capture(copy, r, w, h)
             failed = bitmap == null
             if (bitmap != null) frame = bitmap.asImageBitmap()
@@ -158,7 +165,7 @@ internal fun MirrorPanel(actions: BottomPageActions) {
         ) {
             val shape = RoundedCornerShape(16.dp)
             Column(
-                Modifier.padding(12.dp).width(380.dp).testTag("bottom-mirror-options").clip(shape).background(MaterialTheme.colorScheme.background)
+                Modifier.padding(12.dp).widthIn(max = 380.dp).fillMaxWidth().testTag("bottom-mirror-options").clip(shape).background(MaterialTheme.colorScheme.background)
                     .border(1.dp, pal.line, shape).clickable(remember { MutableInteractionSource() }, indication = null) {}
                     .padding(horizontal = 10.dp, vertical = 4.dp),
             ) {
@@ -190,6 +197,7 @@ internal object MirrorOptions {
 private fun MirrorEditor(
     copy: (RectF?, Int, Int, (Bitmap?) -> Unit) -> Unit,
     current: RectF?,
+    sourceAspect: Float,
     onSave: (RectF) -> Unit,
     onCancel: (() -> Unit)?,
 ) {
@@ -199,9 +207,17 @@ private fun MirrorEditor(
     var start by remember { mutableStateOf<Offset?>(null) }
     var end by remember { mutableStateOf<Offset?>(null) }
     var picked by remember { mutableStateOf(current) }
-    LaunchedEffect(Unit) {
+    var attempt by remember { mutableIntStateOf(0) }
+    LaunchedEffect(attempt) {
         delay(COMPOSED_SETTLE_MS)
-        val bitmap = capture(copy, null, EDIT_WIDTH, EDIT_HEIGHT)
+        val (w, h) = MirrorRegion.outputSize(RectF(0f, 0f, 1f, 1f), sourceAspect, EDIT_LONGEST)
+        // The surface can be briefly invalid while the session settles, so a failed still is retried a few times.
+        var bitmap: Bitmap? = null
+        for (i in 0 until EDIT_TRIES) {
+            bitmap = capture(copy, null, w, h)
+            if (bitmap != null) break
+            delay(EDIT_RETRY_MS)
+        }
         failed = bitmap == null
         still = bitmap?.asImageBitmap()
     }
@@ -216,7 +232,10 @@ private fun MirrorEditor(
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(bottom = 6.dp), contentAlignment = Alignment.Center) {
             val image = still
             if (image == null) {
-                if (failed) MirrorNote(stringResource(R.string.bottom_mirror_no_frame))
+                if (failed) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    MirrorNote(stringResource(R.string.bottom_mirror_no_frame))
+                    SecondaryButton(stringResource(R.string.agent_retry), compact = true) { failed = false; attempt++ }
+                }
                 return@BoxWithConstraints
             }
             Box(Modifier.aspectRatio(image.width.toFloat() / image.height).clip(RoundedCornerShape(8.dp))) {

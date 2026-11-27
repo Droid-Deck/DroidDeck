@@ -34,4 +34,14 @@ class BottomBrightnessTest {
         SessionPrefs.setBottomBrightness(context, 80)
         assertEquals(0.05f, BottomBrightness.dimmed(context, 0.05f), 0.001f)
     }
+
+    @Test fun autoDimFollowsADarkerManualSystemLevelWhenNothingIsSaved() {
+        val resolver = context.contentResolver
+        android.provider.Settings.System.putInt(resolver, android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE,
+            android.provider.Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+        android.provider.Settings.System.putInt(resolver, android.provider.Settings.System.SCREEN_BRIGHTNESS, 3)
+        assertEquals(3 / 255f, BottomBrightness.dimmed(context, 0.05f), 0.001f)
+        android.provider.Settings.System.putInt(resolver, android.provider.Settings.System.SCREEN_BRIGHTNESS, 200)
+        assertEquals(0.05f, BottomBrightness.dimmed(context, 0.05f), 0.001f)
+    }
 }

@@ -46,6 +46,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 private const val ART_POLL_MS = 2_000L
+private const val RESCAN_MS = 30_000L
 private const val DRIFT_MS = 28_000
 
 /** The game's art filling the bottom screen with a slow pan and zoom, for the running game or the one selected in Steam. */
@@ -56,20 +57,28 @@ internal fun ArtPanel(runningGame: () -> String?) {
     var playing by remember { mutableStateOf(false) }
     FullScreenChrome()
     LaunchedEffect(Unit) {
-        val games = withContext(Dispatchers.IO) { runCatching { Library.steamGames(context) }.getOrDefault(emptyList()) }
+        var games = emptyList<Library.SteamGame>()
+        var scanned = 0L
         while (isActive) {
             val running = runningGame()?.toLongOrNull()
             val shown = running ?: withContext(Dispatchers.IO) { runCatching { AgentGuest.selectedSteamAppId(context) }.getOrNull() }
-            if (shown == null || shown != game?.appId?.toLong()) {
-                withContext(Dispatchers.IO) { IdleHome.load(context, games, shown) }?.let { game = it }
+            val missing = games.isEmpty() || (shown != null && games.none { it.appId.toLong() == shown })
+            if (missing && (scanned == 0L || System.currentTimeMillis() - scanned > RESCAN_MS)) {
+                withContext(Dispatchers.IO) { runCatching { Library.steamGames(context) }.getOrNull() }?.let { games = it }
+                scanned = System.currentTimeMillis()
             }
+            // Reloaded every poll so stats that failed to load once still arrive; the crossfade is keyed by app id.
+            withContext(Dispatchers.IO) { IdleHome.load(context, games, shown) }?.takeIf { it != game }?.let { game = it }
             playing = running != null && running == game?.appId?.toLong()
             delay(ART_POLL_MS)
         }
     }
     Box(Modifier.fillMaxSize().background(Color.Black).testTag("bottom-art")) {
-        Crossfade(game, label = "art") { g ->
-            if (g != null) ArtScene(g, playing)
+        // Keyed by app id so a refreshed game keeps its pan; the fading-out scene keeps its last details.
+        val seen = remember { HashMap<Int, IdleGame>() }
+        game?.let { seen[it.appId] = it }
+        Crossfade(game?.appId, label = "art") { id ->
+            seen[id]?.let { ArtScene(it, playing) }
         }
     }
 }

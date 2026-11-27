@@ -86,7 +86,7 @@ internal fun BottomDashboard(
     strip: (@Composable (String?) -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
-    var current by remember { mutableStateOf(pickBottomPage(remembered, pages.map { it.id })) }
+    var current by remember { mutableStateOf(gamePage()?.takeIf { id -> pages.any { it.id == id } } ?: pickBottomPage(remembered, pages.map { it.id })) }
     val startsWhenOpened = remember { gameStarts }
     LaunchedEffect(gameStarts) {
         if (gameStarts != startsWhenOpened) pageForGameStart(pages.map { it.id }, gamePage())?.let { current = it }

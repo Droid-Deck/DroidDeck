@@ -115,6 +115,7 @@ class SecondScreenPresentation(
 
     fun requestKeyboard(forField: Boolean = false) {
         if (!showsKeyboard || keyboardHost == null) return
+        wake()
         if (forField) fieldKeyboard = true
         keyboardPending = true
         if (window?.decorView?.hasWindowFocus() == true) showPendingKeyboard()
@@ -159,6 +160,7 @@ class SecondScreenPresentation(
 
     fun showChat(onLost: () -> Unit, content: @androidx.compose.runtime.Composable () -> Unit) {
         if (!showsKeyboard || chatView != null) return
+        wake()
         keyboardHost?.takeIf { it.shown }?.hide()
         keyboardShown.value = false
         keyboardPending = false
@@ -197,6 +199,7 @@ class SecondScreenPresentation(
         val content = menu ?: return
         menuShown = on
         if (on) {
+            wake()
             keyboardHost?.takeIf { it.shown }?.hide()
             keyboardShown.value = false
             ownComposeViews()
@@ -249,7 +252,9 @@ class SecondScreenPresentation(
         val ownKeys = currentMode == SecondScreenMode.TERMINAL || currentMode == SecondScreenMode.DASHBOARD || currentMode.sessionPanel ||
             currentMode == SecondScreenMode.DESKTOP
         val back = event.keyCode == KeyEvent.KEYCODE_BACK && currentMode == SecondScreenMode.DASHBOARD
-        val forward = menuShown || !ownKeys || back || PadBridge.isControllerKeyEvent(event)
+        val pad = PadBridge.isControllerKeyEvent(event)
+        if (!pad) uiActivity()
+        val forward = menuShown || !ownKeys || back || pad
         if (forward && sessionActivity.dispatchKeyEvent(event)) return true
         return super.dispatchKeyEvent(event)
     }
@@ -277,7 +282,20 @@ class SecondScreenPresentation(
     private var waking = false
     private val dim = Runnable { if (screen == BottomScreenLight.ON) light(BottomScreenLight.DIM) }
 
-    fun screenOff() = light(BottomScreenLight.OFF)
+    fun screenOff() {
+        // A control held by another finger would keep its press, since the screen-off overlay takes the release.
+        controlsView?.releaseInputs()
+        light(BottomScreenLight.OFF)
+    }
+
+    /** Keyboard or mouse use of the bottom screen's own UI counts as activity; an explicit screen off stays off. */
+    private fun uiActivity() {
+        when (screen) {
+            BottomScreenLight.DIM -> wake()
+            BottomScreenLight.ON -> scheduleDim()
+            BottomScreenLight.OFF -> Unit
+        }
+    }
 
     fun wake() {
         light(BottomScreenLight.ON)
@@ -317,6 +335,7 @@ class SecondScreenPresentation(
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
         if (PadBridge.isControllerMotionEvent(event) && sessionActivity.dispatchGenericMotionEvent(event)) return true
+        if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) uiActivity()
         return super.dispatchGenericMotionEvent(event)
     }
 
@@ -381,7 +400,7 @@ class SecondScreenPresentation(
                 attachKeyboard()
             }
             SecondScreenMode.DASHBOARD -> renderDashboard()
-            SecondScreenMode.GUIDES, SecondScreenMode.MIRROR, SecondScreenMode.COMPANION, SecondScreenMode.STEAM_QAM, SecondScreenMode.ART -> renderPanel(mode)
+            SecondScreenMode.GUIDES, SecondScreenMode.MIRROR, SecondScreenMode.STEAM_QAM, SecondScreenMode.ART -> renderPanel(mode)
             SecondScreenMode.DESKTOP -> {
                 root.addView(BottomDesktopPanel(context, onClose, onMenu,
                     (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }, onSwap,
@@ -434,7 +453,7 @@ class SecondScreenPresentation(
                 MirrorOptions.open.value = !MirrorOptions.open.value
             }) + extras)
             SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.GUIDES,
-            SecondScreenMode.COMPANION, SecondScreenMode.ART -> model(extras)
+            SecondScreenMode.ART -> model(extras)
             SecondScreenMode.TERMINAL -> model(listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard,
                 tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }) + extras)
             else -> null

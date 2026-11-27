@@ -1,6 +1,6 @@
 # Bottom screen: research and proposals
 
-Researched 2026-11-26 against `main` at `d788afc12` (0.7.11). Implementation is not scheduled yet. This document records what other dual-screen Android projects put on the second screen, how they get their data, where DroidDeck stands, and the features we want to build. Three proposals have their own documents: [region mirror](bottom-screen-region-mirror.md), [guides tab](bottom-screen-guides.md) and [companion API](bottom-screen-companion-api.md).
+Researched 2026-11-26 against `main` at `d788afc12` (0.7.11). This document records what other dual-screen Android projects put on the second screen, how they get their data, where DroidDeck stood at that commit, and the features we want to build. "DroidDeck today" is that researched baseline; each proposal's **Status** line says what has been built since, and proposals without one are not scheduled. Two proposals have their own documents: [region mirror](bottom-screen-region-mirror.md) and [guides tab](bottom-screen-guides.md).
 
 The starting point was WULFF DEN's survey video [Dual screen Android apps are getting crazy](https://youtu.be/dAiuG2A-wkc) (2026-11-26). It covers the AYN Thor and Retroid Pocket Duo, and most of its apps come from the [GAFT list](https://andreyvelsk.github.io/GAFT) of Thor apps.
 
@@ -65,6 +65,8 @@ Other GAFT companions: Thor Pip-Boy, FNVDS, Grand Theft Companion, FFXII, Terrar
 
 ## DroidDeck today
 
+As of `d788afc12`, before the work in the Status lines below.
+
 Paths are under [`app/src/main/java/com/droiddeck/launcher/`](../../app/src/main/java/com/droiddeck/launcher/).
 
 **Panels.** [`input/SecondScreenMode.kt`](../../app/src/main/java/com/droiddeck/launcher/input/SecondScreenMode.kt) lists the modes: menu, keyboard + trackpad, terminal, Deck grips + trackpads, profile controls, dashboard and the KDE desktop. [`ui/SecondScreenPresentation.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/SecondScreenPresentation.kt) hosts them in a `Presentation`, with the bar in [`ui/BottomScreenBar.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomScreenBar.kt). The last mode is remembered once for game sessions and once for desktop sessions (`SessionPrefs.secondScreenPanel`), not per game. Outside a session the launcher shows [`ui/DualScreenPanel.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/DualScreenPanel.kt).
@@ -122,7 +124,7 @@ Remember the bottom mode, dashboard tab and control layout per Steam app id, and
 
 An achievements page for the running game (progress, recent unlocks, locked list with hidden descriptions behind a tap) and a notifications page (friends, invites, downloads finished).
 
-- Source: `steamEval` against Steam's UI stores; the Steam Web API as a fallback for achievements when the client is offline.
+- Source: `steamEval` against Steam's UI stores, which keep the last synced achievements while the device is offline. The Steam Web API is a fallback only when the device has a network but the Steam client is offline; with no network, the page shows the cached list or says achievements are unavailable.
 - Matches the existing Epic, GOG and EA achievement readers so all stores look the same.
 
 ### 4. Quick tiles and per-game rules
@@ -165,11 +167,9 @@ Details: [bottom-screen-guides.md](bottom-screen-guides.md).
 
 ### 8. Companion API for PC games
 
-**Status:** phase 1 started, as its own bottom-screen panel (Companion in the panel picker), drawn with the settings groups and rows. It connects over loopback only while shown: Stardew Valley (the dual-screen SMAPI mod on 7786: day, gold, energy, health, a tappable hotbar, birthdays, quests), Skyrim SE (SkyrimWebSocket on 8765) and Fallout 4 (Thor Pip-Boy on 8767: vitals, caps, rads, carry weight, favorites to equip or use, radio). Code: [`companion/`](../../app/src/main/java/com/droiddeck/launcher/companion/), [`ui/BottomCompanionPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomCompanionPage.kt).
+**Status:** not built here; the first adapters (Stardew Valley, Skyrim SE, Fallout 4) follow in their own change.
 
 Let mods running in Proton drive native bottom-screen pages over loopback. Thor Pip-Boy (Fallout 4) and Grand Theft Companion (GTA) already run against DroidDeck as separate apps, and the Stardew, Skyrim and RimWorld ecosystems have servers we can adapt to. Plan: adapters for those first, then DroidDeck's own token-authenticated protocol with declarative pages and normalized state keys, then "run on bottom", then memory profiles only if needed. The existing racing, War Thunder and Elite Dangerous telemetry is the first set of built-in adapters.
-
-Details: [bottom-screen-companion-api.md](bottom-screen-companion-api.md).
 
 ### 9. Steam's Quick Access menu on the bottom screen
 

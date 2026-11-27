@@ -92,6 +92,15 @@ class GameLinksTest {
     }
 
     @Test
+    fun cachedDiscoveriesYieldToNewWikidataLinks() {
+        val fandom = GameLinks.Link(GameLinks.Kind.WIKI, "https://bully.fandom.com/")
+        val map = GameLinks.Link(GameLinks.Kind.MAPGENIE, "https://mapgenie.io/bully")
+        val wiki = GameLinks.Link(GameLinks.Kind.WIKI, "https://bully.wiki.gg/")
+        assertEquals(listOf(wiki, map), GameLinks.merge(listOf(wiki), listOf(fandom, map)))
+        assertEquals(listOf(fandom, map), GameLinks.merge(emptyList(), listOf(fandom, map)))
+    }
+
+    @Test
     fun cachedLinksRoundTrip() {
         val links = listOf(GameLinks.Link(GameLinks.Kind.MAPGENIE, "https://mapgenie.io/bully"))
         assertEquals(links, GameLinks.readLinks(GameLinks.writeLinks(links)))

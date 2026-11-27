@@ -21,7 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
-class IdleGame(
+data class IdleGame(
     val appId: Int,
     val name: String,
     val art: File?,

@@ -60,9 +60,23 @@ class SteamQamTest {
         assertFalse(SteamQam.script(false, 1.5f).contains("g.__ddQamAspect ="))
     }
 
+    @Test fun aSteamDialogOverTheGameGetsTheInput() {
+        val script = SteamQam.script(true)
+        assertTrue(script.contains("t.m_ID?.startsWith(\"ModalDialogOverlay\") && t.m_Root?.m_element?.isConnected"))
+        assertTrue(script.contains("if (dialog && !g.__ddQamTop) {"))
+        assertTrue(script.indexOf("if (dialog && !g.__ddQamTop)") < script.indexOf("g.__ddQamDecky = decky;"))
+    }
+
+    @Test fun theRelayAnswersWithItsPortAndSecret() {
+        assertEquals(41234 to "0123456789abcdef0123456789abcdef", SteamQam.parseRelay("41234 0123456789abcdef0123456789abcdef\n"))
+        assertNull(SteamQam.parseRelay("41234"))
+        assertNull(SteamQam.parseRelay("41234 not-a-secret"))
+        assertNull(SteamQam.parseRelay(null))
+    }
+
     @Test fun whileHeldTheMenuStaysOffTheTopScreenAndOutOfTheGamesWay() {
         val script = SteamQam.script(true)
-        assertTrue(script.contains("return v === 2 && ours() ? 1 : v;"))
+        assertTrue(script.contains("return without >= 2 ? v : 1;"))
         assertTrue(script.contains("if (w > 0 && ours()) { x = popup.m_popup.innerWidth + 64; w = width(h) || w; }"))
         assertTrue(script.contains("nav.m_LastActiveNavTree?.m_ID?.startsWith(\"QuickAccess\")"))
         assertTrue(script.contains("if (m.m_eOpenSideMenu === QAM) m.CloseSideMenus();"))

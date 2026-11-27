@@ -59,7 +59,15 @@ object GameLinks {
     }
 
     /** Direct pages for what Wikidata has no ID for, found from each site's own routes rather than a web search. */
-    internal fun direct(name: String, found: List<Link>, exists: (String) -> Boolean, strategyWiki: (String) -> String?): List<Link> {
+    internal fun direct(name: String, found: List<Link>, exists: (String) -> Boolean, strategyWiki: (String) -> String?): List<Link> =
+        merge(found, discover(name, found, exists, strategyWiki))
+
+    /** Wikidata's links with the discovered ones; a discovered IGN wiki replaces Wikidata's IGN game page. */
+    internal fun merge(found: List<Link>, extra: List<Link>): List<Link> =
+        found.filterNot { it.kind == Kind.IGN && extra.any { e -> e.kind == Kind.IGN } } +
+            extra.filterNot { e -> e.kind != Kind.IGN && found.any { it.kind == e.kind } }
+
+    internal fun discover(name: String, found: List<Link>, exists: (String) -> Boolean, strategyWiki: (String) -> String?): List<Link> {
         val have = found.map { it.kind }.toSet()
         val slugs = slugs(name)
         fun first(urls: List<String>) = urls.firstOrNull(exists)
@@ -73,7 +81,7 @@ object GameLinks {
                 ?.let { Link(Kind.WIKI, "https://$it.fandom.com/") },
             if (Kind.STRATEGYWIKI in have) null else strategyWiki(name.split(":").first().trim())?.let { Link(Kind.STRATEGYWIKI, it) },
         )
-        return found.filterNot { it.kind == Kind.IGN && extra.any { e -> e.kind == Kind.IGN } } + extra
+        return extra
     }
 
     internal fun parseOpenSearch(json: String, title: String): String? = runCatching {
@@ -83,38 +91,44 @@ object GameLinks {
         (0 until titles.length()).firstOrNull { titles.getString(it).equals(title, ignoreCase = true) }?.let { urls.getString(it) }
     }.getOrNull()
 
-    private fun exists(url: String): Boolean = runCatching {
+    /** Whether the page exists, or null when the site could not be asked. */
+    private fun exists(url: String): Boolean? = runCatching {
         val c = URL(url).openConnection() as HttpURLConnection
         c.instanceFollowRedirects = false
         c.connectTimeout = 6_000
         c.readTimeout = 6_000
         c.setRequestProperty("User-Agent", BROWSER)
-        try { c.responseCode in 200..399 } finally { c.disconnect() }
-    }.getOrDefault(false)
+        try { c.responseCode.takeIf { it < 500 }?.let { it in 200..399 } } finally { c.disconnect() }
+    }.getOrNull()
 
-    private fun strategyWiki(title: String): String? = runCatching {
+    private fun strategyWiki(title: String): Result<String?> = runCatching {
         parseOpenSearch(get("https://strategywiki.org/w/api.php?action=opensearch&namespace=0&limit=5&format=json&search=" +
             URLEncoder.encode(title, "UTF-8")), title)
-    }.getOrNull()
+    }
 
     fun links(context: Context, appId: Long, name: String? = null): List<Link> {
         val cache = File(context.cacheDir, "game-links/$appId.json")
         val fresh = cache.isFile && System.currentTimeMillis() - cache.lastModified() < CACHE_MS
         val text = if (fresh) runCatching { cache.readText() }.getOrNull() else null
-        val json = text ?: runCatching {
+        val fetched = text ?: runCatching {
             get("https://query.wikidata.org/sparql?format=json&query=" + URLEncoder.encode(sparql(appId), "UTF-8"))
         }.getOrNull()?.also { runCatching { cache.parentFile?.mkdirs(); cache.writeText(it) } }
-            ?: runCatching { cache.readText() }.getOrNull()
+        val json = fetched ?: runCatching { cache.readText() }.getOrNull()
         val wikidata = json?.let { runCatching { parse(it) }.getOrNull() }.orEmpty()
         val withFixes = if (wikidata.any { it.kind == Kind.PCGAMINGWIKI }) wikidata
             else wikidata + Link(Kind.PCGAMINGWIKI, "https://www.pcgamingwiki.com/api/appid.php?appid=$appId")
         if (name.isNullOrBlank()) return withFixes
-        val directCache = File(context.cacheDir, "game-links/$appId-direct-v2.json")
+        // Only the discovered pages are cached, and only when every site answered, so an offline lookup is retried.
+        val directCache = File(context.cacheDir, "game-links/$appId-direct-v3.json")
         val cached = directCache.takeIf { it.isFile && System.currentTimeMillis() - it.lastModified() < CACHE_MS }
             ?.let { runCatching { readLinks(it.readText()) }.getOrNull() }
-        if (cached != null) return cached
-        return direct(name, withFixes, ::exists, ::strategyWiki)
-            .also { runCatching { directCache.parentFile?.mkdirs(); directCache.writeText(writeLinks(it)) } }
+        if (cached != null) return merge(withFixes, cached)
+        var complete = fetched != null
+        val extra = discover(name, withFixes, { url -> exists(url).also { if (it == null) complete = false } == true }) { title ->
+            strategyWiki(title).onFailure { complete = false }.getOrNull()
+        }
+        if (complete) runCatching { directCache.parentFile?.mkdirs(); directCache.writeText(writeLinks(extra)) }
+        return merge(withFixes, extra)
     }
 
     internal fun writeLinks(links: List<Link>): String =
@@ -215,22 +229,25 @@ object GuideLibrary {
             val ext = IMAGE_TYPES[c.contentType?.substringBefore(';')?.trim()?.lowercase()] ?: return null
             if (c.contentLengthLong > MAX_MAP_BYTES) return null
             val out = File(dir(context, game, "maps").apply { mkdirs() }, "${System.currentTimeMillis()}.$ext")
-            c.inputStream.use { input ->
-                out.outputStream().use { output ->
-                    val buf = ByteArray(64 * 1024)
-                    var total = 0L
-                    while (true) {
-                        val n = input.read(buf)
-                        if (n < 0) break
-                        total += n
-                        if (total > MAX_MAP_BYTES) {
-                            output.close()
-                            out.delete()
-                            return null
+            // Written beside the map and renamed when complete, so the Maps list never shows a partial image.
+            val part = File(out.path + ".part")
+            try {
+                c.inputStream.use { input ->
+                    part.outputStream().use { output ->
+                        val buf = ByteArray(64 * 1024)
+                        var total = 0L
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            total += n
+                            if (total > MAX_MAP_BYTES) return null
+                            output.write(buf, 0, n)
                         }
-                        output.write(buf, 0, n)
                     }
                 }
+                if (!part.renameTo(out)) return null
+            } finally {
+                part.delete()
             }
             out
         } finally {

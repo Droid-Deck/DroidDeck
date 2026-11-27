@@ -1,10 +1,14 @@
 #!/usr/bin/python3
 # Relays the app to Steam's DevTools port, which only answers clients inside the guest, while the bottom screen
-# shows Steam's quick access menu.
-#   droiddeck-qam-relay start <devtools port>   prints the relay port
+# shows Steam's quick access menu. Only requests carrying the secret printed at start reach DevTools, and only for
+# the target list and page sockets, so other local apps cannot use the relay to reach Steam.
+#   droiddeck-qam-relay start <devtools port>   prints the relay port and its secret
 #   droiddeck-qam-relay stop [<relay port>]       stops the relay, or only the one on that port
 
+import hmac
 import os
+import re
+import secrets
 import socket
 import sys
 import threading
@@ -13,6 +17,24 @@ import time
 FLAG = "/tmp/.dd-qam-relay"
 INTERVAL = 0.5
 MAX_SECONDS = 6 * 3600
+IDLE_SECONDS = 30
+ALLOWED = re.compile(r"^/(json|json/list|devtools/page/[A-Za-z0-9-]+)$")
+
+
+class Activity:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.open = 0
+        self.last = time.monotonic()
+
+    def change(self, delta):
+        with self.lock:
+            self.open += delta
+            self.last = time.monotonic()
+
+    def idle(self):
+        with self.lock:
+            return self.open == 0 and time.monotonic() - self.last > IDLE_SECONDS
 
 
 def owner():
@@ -39,25 +61,61 @@ def pipe(src, dst):
             pass
 
 
-def relay(server, devtools_port):
+def rewrite(head, token):
+    """Returns the request with the secret removed from its path, or None when it is not an allowed request."""
+    line, sep, rest = head.partition(b"\r\n")
+    parts = line.split(b" ")
+    if not sep or len(parts) != 3 or parts[0] != b"GET" or not parts[2].startswith(b"HTTP/1."):
+        return None
+    prefix = b"/" + token.encode()
+    path = parts[1]
+    if not hmac.compare_digest(path[:len(prefix)], prefix) or not ALLOWED.match(path[len(prefix):].decode("ascii", "replace")):
+        return None
+    return b"GET " + path[len(prefix):] + b" " + parts[2] + sep + rest
+
+
+def handle(client, devtools_port, token, activity):
+    activity.change(1)
+    try:
+        client.settimeout(3)
+        head = b""
+        while b"\r\n" not in head and len(head) < 4096:
+            data = client.recv(4096)
+            if not data:
+                break
+            head += data
+        request = rewrite(head, token)
+        if request is None:
+            client.sendall(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            return
+        client.settimeout(None)
+        upstream = socket.create_connection(("127.0.0.1", devtools_port), 3)
+        upstream.sendall(request)
+        back = threading.Thread(target=pipe, args=(upstream, client), daemon=True)
+        back.start()
+        pipe(client, upstream)
+        back.join()
+    except OSError:
+        pass
+    finally:
+        client.close()
+        activity.change(-1)
+
+
+def relay(server, devtools_port, token, activity):
     while True:
         try:
             client, _ = server.accept()
         except OSError:
             return
-        try:
-            upstream = socket.create_connection(("127.0.0.1", devtools_port), 3)
-        except OSError:
-            client.close()
-            continue
-        for a, b in ((client, upstream), (upstream, client)):
-            threading.Thread(target=pipe, args=(a, b), daemon=True).start()
+        threading.Thread(target=handle, args=(client, devtools_port, token, activity), daemon=True).start()
 
 
-def serve(server, devtools_port, me):
-    threading.Thread(target=relay, args=(server, devtools_port), daemon=True).start()
+def serve(server, devtools_port, me, token):
+    activity = Activity()
+    threading.Thread(target=relay, args=(server, devtools_port, token, activity), daemon=True).start()
     started = time.monotonic()
-    while owner()[:1] == [me] and time.monotonic() - started < MAX_SECONDS:
+    while owner()[:1] == [me] and time.monotonic() - started < MAX_SECONDS and not activity.idle():
         time.sleep(INTERVAL)
     server.close()
 
@@ -80,7 +138,8 @@ def main():
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind(("127.0.0.1", 0))
     server.listen(4)
-    print(server.getsockname()[1], flush=True)
+    token = secrets.token_hex(16)
+    print(server.getsockname()[1], token, flush=True)
     if os.fork():
         return 0
     os.setsid()
@@ -90,7 +149,7 @@ def main():
     devnull = os.open(os.devnull, os.O_RDWR)
     for fd in (0, 1, 2):
         os.dup2(devnull, fd)
-    serve(server, devtools_port, me)
+    serve(server, devtools_port, me, token)
     return 0
 
 

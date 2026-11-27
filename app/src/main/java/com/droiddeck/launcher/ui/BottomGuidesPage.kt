@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -152,34 +153,37 @@ internal fun GuidesPanel(runningGame: () -> String?) {
         return
     }
     reading?.let { open ->
-        GuideReaderPanel(
-            url = open,
-            scroll = SteamGuides.place(context, game)?.takeIf { it.url == open }?.scroll ?: 0f,
-            note = note,
-            onBack = { reading = null; note = null },
-            onPlace = { url, s -> SteamGuides.savePlace(context, game, url, s) },
-            onSave = { view ->
-                val file = GuideLibrary.savedFile(context, game)
-                val title = view.title.orEmpty()
-                val url = view.url.orEmpty()
-                view.saveWebArchive(file.path, false) { path ->
-                    if (path != null) {
-                        GuideLibrary.recordSaved(file, title, url)
-                        note = savedMsg
+        // A new game or page needs a new WebView: its factory runs once and keeps the first page's callbacks.
+        key(game, open) {
+            GuideReaderPanel(
+                url = open,
+                scroll = SteamGuides.place(context, game)?.takeIf { it.url == open }?.scroll ?: 0f,
+                note = note,
+                onBack = { reading = null; note = null },
+                onPlace = { url, s -> SteamGuides.savePlace(context, game, url, s) },
+                onSave = { view ->
+                    val file = GuideLibrary.savedFile(context, game)
+                    val title = view.title.orEmpty()
+                    val url = view.url.orEmpty()
+                    view.saveWebArchive(file.path, false) { path ->
+                        if (path != null) {
+                            GuideLibrary.recordSaved(file, title, url)
+                            note = savedMsg
+                            libraryRevision++
+                        }
+                    }
+                },
+                onPin = { image ->
+                    scope.launch {
+                        val cookies = CookieManager.getInstance().getCookie(image)
+                        val file = withContext(Dispatchers.IO) { GuideLibrary.pin(context, game, image, cookies) }
+                        note = if (file != null) pinnedMsg else pinFailedMsg
                         libraryRevision++
                     }
-                }
-            },
-            onPin = { image ->
-                scope.launch {
-                    val cookies = CookieManager.getInstance().getCookie(image)
-                    val file = withContext(Dispatchers.IO) { GuideLibrary.pin(context, game, image, cookies) }
-                    note = if (file != null) pinnedMsg else pinFailedMsg
-                    libraryRevision++
-                }
-            },
-            onStopped = { reading = null },
-        )
+                },
+                onStopped = { reading = null },
+            )
+        }
         return
     }
     PanelColumn {
@@ -231,7 +235,7 @@ private fun WikiSection(appId: Long, name: String?, onOpen: (String) -> Unit) {
     val context = LocalContext.current
     var links by remember(appId) { mutableStateOf<List<GameLinks.Link>?>(null) }
     var tier by remember(appId) { mutableStateOf<String?>(null) }
-    LaunchedEffect(appId) {
+    LaunchedEffect(appId, name) {
         val (found, t) = withContext(Dispatchers.IO) {
             val pending = async { GameLinks.protonTier(appId) }
             GameLinks.links(context, appId, name) to pending.await()
@@ -377,6 +381,8 @@ internal object ReaderAds {
     }
 }
 
+private const val REDIRECT_GRACE_MS = 10_000L
+
 internal fun readerAllows(start: String, target: Uri, userInitiated: Boolean): Boolean {
     val host = target.host ?: return false
     if (target.scheme != "https" && target.scheme != "http") return false
@@ -405,9 +411,14 @@ private fun GuideReader(
             settings.allowContentAccess = false
             settings.allowFileAccess = url.startsWith("file:") && GuideLibrary.isSaved(context, File(Uri.parse(url).path.orEmpty()))
             var restore = scroll
+            // Opening the page and each tapped link may redirect off the site for a moment; a page's own navigation may not.
+            var approvedUntil = android.os.SystemClock.uptimeMillis() + REDIRECT_GRACE_MS
             webViewClient = object : WebViewClient() {
-                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                    !readerAllows(url, request.url, request.hasGesture() || request.isRedirect)
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                    val now = android.os.SystemClock.uptimeMillis()
+                    if (request.hasGesture()) approvedUntil = now + REDIRECT_GRACE_MS
+                    return !readerAllows(url, request.url, request.hasGesture() || (request.isRedirect && now < approvedUntil))
+                }
 
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): android.webkit.WebResourceResponse? =
                     if (ReaderAds.blocks(request.url.host)) android.webkit.WebResourceResponse("text/plain", "utf-8", java.io.ByteArrayInputStream(ByteArray(0)))

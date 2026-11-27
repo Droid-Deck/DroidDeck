@@ -45,8 +45,14 @@ internal object BottomBrightness {
         Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS) * 100 / 255
     }.getOrDefault(60))
 
-    /** Auto-dim never brightens a screen the user set darker. */
-    fun dimmed(context: Context, dim: Float): Float = level(context)?.let { minOf(it, dim) } ?: dim
+    /** Auto-dim never brightens a screen the user set darker, here or in the system's manual brightness. */
+    fun dimmed(context: Context, dim: Float): Float = minOf(dim, level(context) ?: system(context) ?: dim)
+
+    private fun system(context: Context): Float? = runCatching {
+        val resolver = context.contentResolver
+        if (Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE) != Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL) null
+        else Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS) / 255f
+    }.getOrNull()
 }
 
 /** A dropdown under the bottom bar: a brightness slider and the screen-off button. A tap outside closes it. */
