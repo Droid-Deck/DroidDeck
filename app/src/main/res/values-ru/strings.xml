@@ -2194,6 +2194,8 @@
     <string name="bottom_companion_character">Персонаж</string>
     <string name="bottom_companion_weight">Переносимый вес</string>
     <string name="bottom_companion_radio">Радио</string>
+    <string name="bottom_qam_title">Быстрый доступ</string>
+    <string name="bottom_qam_unavailable">Меню быстрого доступа Steam пока недоступно.</string>
     <string name="bottom_page_telemetry">Игровая статистика</string>
     <string name="bottom_hud_group">HUD нижнего экрана</string>
     <string name="bottom_strip_tabs">Полоса на всех вкладках</string>

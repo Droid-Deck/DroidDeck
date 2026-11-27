@@ -4446,7 +4446,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun openingPanel() = SecondScreenMode.opening(SessionPrefs.secondScreenPanel(this, desktopSession), SessionState.deckPad,
-        bottomPages().isNotEmpty(), com.droiddeck.launcher.session.BottomDesktop.available())
+        bottomPages().isNotEmpty(), com.droiddeck.launcher.session.BottomDesktop.available(), SessionState.mode == SessionService.MODE_STEAM)
 
     private fun openingSurface() = openingPanel().takeIf { it != SecondScreenMode.MENU } ?: SecondScreenMode.KEYBOARD_TRACKPAD
 
@@ -4607,7 +4607,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val remembered = game?.let { SessionPrefs.gameSecondScreenPanel(this, it) }
         val wanted = when {
             remembered != null -> SecondScreenMode.opening(remembered, SessionState.deckPad, bottomPages().isNotEmpty(),
-                com.droiddeck.launcher.session.BottomDesktop.available())
+                com.droiddeck.launcher.session.BottomDesktop.available(), SessionState.mode == SessionService.MODE_STEAM)
             gamePanelApplied -> openingPanel()
             else -> return
         }

@@ -2119,6 +2119,8 @@
     <string name="bottom_companion_character">キャラクター</string>
     <string name="bottom_companion_weight">所持重量</string>
     <string name="bottom_companion_radio">ラジオ</string>
+    <string name="bottom_qam_title">クイックアクセス</string>
+    <string name="bottom_qam_unavailable">Steam のクイックアクセスメニューはまだ使えません。</string>
     <string name="bottom_page_telemetry">ゲーム内統計</string>
     <string name="bottom_hud_group">下部画面の HUD</string>
     <string name="bottom_strip_tabs">すべてのタブにストリップを表示</string>

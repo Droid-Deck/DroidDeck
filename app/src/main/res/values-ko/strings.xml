@@ -2119,6 +2119,8 @@
     <string name="bottom_companion_character">캐릭터</string>
     <string name="bottom_companion_weight">소지 무게</string>
     <string name="bottom_companion_radio">라디오</string>
+    <string name="bottom_qam_title">빠른 메뉴</string>
+    <string name="bottom_qam_unavailable">Steam 빠른 메뉴를 아직 사용할 수 없습니다.</string>
     <string name="bottom_page_telemetry">게임 내 통계</string>
     <string name="bottom_hud_group">하단 화면 HUD</string>
     <string name="bottom_strip_tabs">모든 탭에 스트립 표시</string>

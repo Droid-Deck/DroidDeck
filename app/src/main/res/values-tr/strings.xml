@@ -2135,6 +2135,8 @@
     <string name="bottom_companion_character">Karakter</string>
     <string name="bottom_companion_weight">Taşıma ağırlığı</string>
     <string name="bottom_companion_radio">Radyo</string>
+    <string name="bottom_qam_title">Hızlı Erişim</string>
+    <string name="bottom_qam_unavailable">Steam Hızlı Erişim menüsü henüz kullanılamıyor.</string>
     <string name="bottom_page_telemetry">Oyun içi istatistikler</string>
     <string name="bottom_hud_group">Alt ekrandaki HUD</string>
     <string name="bottom_strip_tabs">Her sekmede şerit</string>

@@ -2143,6 +2143,8 @@
     <string name="bottom_companion_character">Hahmo</string>
     <string name="bottom_companion_weight">Kantokyky</string>
     <string name="bottom_companion_radio">Radio</string>
+    <string name="bottom_qam_title">Pikavalikko</string>
+    <string name="bottom_qam_unavailable">Steamin pikavalikko ei ole vielä käytettävissä.</string>
     <string name="bottom_page_telemetry">Pelinsisäiset tilastot</string>
     <string name="bottom_hud_group">Alanäytön HUD</string>
     <string name="bottom_strip_tabs">Palkki kaikilla välilehdillä</string>

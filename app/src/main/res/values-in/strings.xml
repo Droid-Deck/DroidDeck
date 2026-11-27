@@ -2119,6 +2119,8 @@
     <string name="bottom_companion_character">Karakter</string>
     <string name="bottom_companion_weight">Beban</string>
     <string name="bottom_companion_radio">Radio</string>
+    <string name="bottom_qam_title">Akses Cepat</string>
+    <string name="bottom_qam_unavailable">Menu Akses Cepat Steam belum tersedia.</string>
     <string name="bottom_page_telemetry">Statistik dalam gim</string>
     <string name="bottom_hud_group">HUD layar bawah</string>
     <string name="bottom_strip_tabs">Strip di setiap tab</string>

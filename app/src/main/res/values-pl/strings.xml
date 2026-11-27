@@ -2193,6 +2193,8 @@
     <string name="bottom_companion_character">Postać</string>
     <string name="bottom_companion_weight">Udźwig</string>
     <string name="bottom_companion_radio">Radio</string>
+    <string name="bottom_qam_title">Szybki dostęp</string>
+    <string name="bottom_qam_unavailable">Menu szybkiego dostępu Steam nie jest jeszcze dostępne.</string>
     <string name="bottom_page_telemetry">Statystyki w grze</string>
     <string name="bottom_hud_group">HUD dolnego ekranu</string>
     <string name="bottom_strip_tabs">Pasek na każdej karcie</string>

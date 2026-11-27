@@ -99,6 +99,12 @@ class SecondScreenModeTest {
         assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("dashboard", deckPad = false))
     }
 
+    @Test fun steamQuickAccessOpensAgainOnlyInASteamSession() {
+        assertEquals(SecondScreenMode.STEAM_QAM, SecondScreenMode.opening("steam-qam", deckPad = true, dashboard = true, steam = true))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("steam-qam", deckPad = true, dashboard = true))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("steam-qam", deckPad = true, steam = true))
+    }
+
     @Test fun theDesktopOpensAgainOnlyWhileItCanRun() {
         assertEquals(SecondScreenMode.DESKTOP, SecondScreenMode.opening("desktop", deckPad = true, dashboard = true, bottomDesktop = true))
         assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("desktop", deckPad = true, dashboard = true))

@@ -2193,6 +2193,8 @@
     <string name="bottom_companion_character">Postava</string>
     <string name="bottom_companion_weight">Nosnost</string>
     <string name="bottom_companion_radio">Rádio</string>
+    <string name="bottom_qam_title">Rychlý přístup</string>
+    <string name="bottom_qam_unavailable">Nabídka rychlého přístupu Steamu zatím není k dispozici.</string>
     <string name="bottom_page_telemetry">Statistiky ve hře</string>
     <string name="bottom_hud_group">HUD na spodní obrazovce</string>
     <string name="bottom_strip_tabs">Lišta na každé kartě</string>

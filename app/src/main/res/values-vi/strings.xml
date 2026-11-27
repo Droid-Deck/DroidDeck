@@ -2119,6 +2119,8 @@
     <string name="bottom_companion_character">Nhân vật</string>
     <string name="bottom_companion_weight">Trọng lượng mang</string>
     <string name="bottom_companion_radio">Radio</string>
+    <string name="bottom_qam_title">Truy cập nhanh</string>
+    <string name="bottom_qam_unavailable">Menu Truy cập nhanh của Steam chưa sẵn sàng.</string>
     <string name="bottom_page_telemetry">Thông số trong game</string>
     <string name="bottom_hud_group">HUD màn hình dưới</string>
     <string name="bottom_strip_tabs">Thanh trên mọi tab</string>

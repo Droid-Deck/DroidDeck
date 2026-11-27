@@ -2143,6 +2143,8 @@
     <string name="bottom_companion_character">Χαρακτήρας</string>
     <string name="bottom_companion_weight">Φορτίο</string>
     <string name="bottom_companion_radio">Ραδιόφωνο</string>
+    <string name="bottom_qam_title">Γρήγορη πρόσβαση</string>
+    <string name="bottom_qam_unavailable">Το μενού γρήγορης πρόσβασης του Steam δεν είναι ακόμη διαθέσιμο.</string>
     <string name="bottom_page_telemetry">Στατιστικά παιχνιδιού</string>
     <string name="bottom_hud_group">HUD κάτω οθόνης</string>
     <string name="bottom_strip_tabs">Λωρίδα σε κάθε καρτέλα</string>

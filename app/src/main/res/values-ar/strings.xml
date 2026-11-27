@@ -2243,6 +2243,8 @@
     <string name="bottom_companion_character">الشخصية</string>
     <string name="bottom_companion_weight">الحمولة</string>
     <string name="bottom_companion_radio">الراديو</string>
+    <string name="bottom_qam_title">الوصول السريع</string>
+    <string name="bottom_qam_unavailable">قائمة الوصول السريع في Steam غير متاحة بعد.</string>
     <string name="bottom_page_telemetry">إحصاءات داخل اللعبة</string>
     <string name="bottom_hud_group">مؤشرات الشاشة السفلية</string>
     <string name="bottom_strip_tabs">شريط على كل تبويب</string>

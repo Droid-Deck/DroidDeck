@@ -2143,6 +2143,8 @@
     <string name="bottom_companion_character">Karaktär</string>
     <string name="bottom_companion_weight">Bärvikt</string>
     <string name="bottom_companion_radio">Radio</string>
+    <string name="bottom_qam_title">Snabbåtkomst</string>
+    <string name="bottom_qam_unavailable">Steams snabbåtkomstmeny är inte tillgänglig än.</string>
     <string name="bottom_page_telemetry">Statistik i spelet</string>
     <string name="bottom_hud_group">HUD på nedre skärmen</string>
     <string name="bottom_strip_tabs">Remsa på varje flik</string>

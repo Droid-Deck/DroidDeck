@@ -2135,6 +2135,8 @@
     <string name="bottom_companion_character">Charakter</string>
     <string name="bottom_companion_weight">Traglast</string>
     <string name="bottom_companion_radio">Radio</string>
+    <string name="bottom_qam_title">Schnellzugriff</string>
+    <string name="bottom_qam_unavailable">Das Schnellzugriffsmenü von Steam ist noch nicht verfügbar.</string>
     <string name="bottom_page_telemetry">Spielstatistiken</string>
     <string name="bottom_hud_group">HUD für den unteren Bildschirm</string>
     <string name="bottom_strip_tabs">Leiste auf jedem Tab</string>

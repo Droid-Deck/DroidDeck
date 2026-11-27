@@ -2143,6 +2143,8 @@
     <string name="bottom_companion_character">Personage</string>
     <string name="bottom_companion_weight">Draaggewicht</string>
     <string name="bottom_companion_radio">Radio</string>
+    <string name="bottom_qam_title">Snelle toegang</string>
+    <string name="bottom_qam_unavailable">Het menu Snelle toegang van Steam is nog niet beschikbaar.</string>
     <string name="bottom_page_telemetry">In-game statistieken</string>
     <string name="bottom_hud_group">HUD op het onderste scherm</string>
     <string name="bottom_strip_tabs">Strip op elk tabblad</string>

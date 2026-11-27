@@ -2119,6 +2119,8 @@
     <string name="bottom_companion_character">ตัวละคร</string>
     <string name="bottom_companion_weight">น้ำหนักที่แบก</string>
     <string name="bottom_companion_radio">วิทยุ</string>
+    <string name="bottom_qam_title">เข้าถึงด่วน</string>
+    <string name="bottom_qam_unavailable">เมนูเข้าถึงด่วนของ Steam ยังไม่พร้อมใช้งาน</string>
     <string name="bottom_page_telemetry">สถิติในเกม</string>
     <string name="bottom_hud_group">HUD หน้าจอล่าง</string>
     <string name="bottom_strip_tabs">แถบในทุกแท็บ</string>

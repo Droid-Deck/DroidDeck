@@ -2238,6 +2238,8 @@
     <string name="bottom_companion_character">Personaje</string>
     <string name="bottom_companion_weight">Peso cargado</string>
     <string name="bottom_companion_radio">Radio</string>
+    <string name="bottom_qam_title">Acceso rápido</string>
+    <string name="bottom_qam_unavailable">El menú de acceso rápido de Steam aún no está disponible.</string>
     <string name="bottom_page_telemetry">Estadísticas del juego</string>
     <string name="bottom_hud_group">HUD de la pantalla inferior</string>
     <string name="bottom_strip_tabs">Franja en todas las pestañas</string>

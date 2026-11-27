@@ -2196,6 +2196,8 @@
     <string name="bottom_companion_character">角色</string>
     <string name="bottom_companion_weight">负重</string>
     <string name="bottom_companion_radio">收音机</string>
+    <string name="bottom_qam_title">快速访问</string>
+    <string name="bottom_qam_unavailable">Steam 快速访问菜单暂不可用。</string>
     <string name="bottom_page_telemetry">游戏内数据</string>
     <string name="bottom_hud_group">下屏 HUD</string>
     <string name="bottom_strip_tabs">所有页签显示横条</string>

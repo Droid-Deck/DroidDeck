@@ -2119,6 +2119,8 @@
     <string name="bottom_companion_character">Watak</string>
     <string name="bottom_companion_weight">Beban</string>
     <string name="bottom_companion_radio">Radio</string>
+    <string name="bottom_qam_title">Akses Pantas</string>
+    <string name="bottom_qam_unavailable">Menu Akses Pantas Steam belum tersedia.</string>
     <string name="bottom_page_telemetry">Statistik dalam permainan</string>
     <string name="bottom_hud_group">HUD skrin bawah</string>
     <string name="bottom_strip_tabs">Jalur pada setiap tab</string>

@@ -2143,6 +2143,8 @@
     <string name="bottom_companion_character">Герой</string>
     <string name="bottom_companion_weight">Товар</string>
     <string name="bottom_companion_radio">Радио</string>
+    <string name="bottom_qam_title">Бърз достъп</string>
+    <string name="bottom_qam_unavailable">Менюто за бърз достъп на Steam още не е налично.</string>
     <string name="bottom_page_telemetry">Статистика в играта</string>
     <string name="bottom_hud_group">HUD на долния екран</string>
     <string name="bottom_strip_tabs">Лента на всеки раздел</string>

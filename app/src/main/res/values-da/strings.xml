@@ -2143,6 +2143,8 @@
     <string name="bottom_companion_character">Figur</string>
     <string name="bottom_companion_weight">Bæreevne</string>
     <string name="bottom_companion_radio">Radio</string>
+    <string name="bottom_qam_title">Hurtig adgang</string>
+    <string name="bottom_qam_unavailable">Steams menu til hurtig adgang er ikke tilgængelig endnu.</string>
     <string name="bottom_page_telemetry">Statistik i spillet</string>
     <string name="bottom_hud_group">HUD på nederste skærm</string>
     <string name="bottom_strip_tabs">Stribe på alle faner</string>

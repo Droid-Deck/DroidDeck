@@ -18,9 +18,10 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindi
     GUIDES("guides", R.string.bottom_page_guides),
     MIRROR("mirror", R.string.bottom_page_mirror),
     COMPANION("companion", R.string.bottom_page_companion),
+    STEAM_QAM("steam-qam", R.string.bottom_qam_title),
     DESKTOP("desktop", R.string.second_mode_desktop);
 
-    val sessionPanel: Boolean get() = this == GUIDES || this == MIRROR || this == COMPANION
+    val sessionPanel: Boolean get() = this == GUIDES || this == MIRROR || this == COMPANION || this == STEAM_QAM
 
     val controls: Boolean get() = this == CUSTOM_CONTROLS || bindings != null
 
@@ -28,9 +29,10 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindi
 
     companion object {
         /** The mode the bottom screen opens in: the one picked last if it is still available, else the DroidDeck menu. */
-        fun opening(remembered: String?, deckPad: Boolean, dashboard: Boolean = false, bottomDesktop: Boolean = false): SecondScreenMode =
+        fun opening(remembered: String?, deckPad: Boolean, dashboard: Boolean = false, bottomDesktop: Boolean = false,
+            steam: Boolean = false): SecondScreenMode =
             entries.firstOrNull {
-                it != NONE && it.id == remembered && (it != DECK_CONTROLS || deckPad) && (it != DASHBOARD && !it.sessionPanel || dashboard) &&
+                it != NONE && it.id == remembered && (it != DECK_CONTROLS || deckPad) && (it != DASHBOARD && !it.sessionPanel || dashboard) && (it != STEAM_QAM || steam) &&
                     (it != DESKTOP || bottomDesktop)
             } ?: MENU
     }

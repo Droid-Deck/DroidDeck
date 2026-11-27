@@ -338,7 +338,7 @@ class SecondScreenPresentation(
                 attachKeyboard()
             }
             SecondScreenMode.DASHBOARD -> renderDashboard()
-            SecondScreenMode.GUIDES, SecondScreenMode.MIRROR, SecondScreenMode.COMPANION -> renderPanel(mode)
+            SecondScreenMode.GUIDES, SecondScreenMode.MIRROR, SecondScreenMode.COMPANION, SecondScreenMode.STEAM_QAM -> renderPanel(mode)
             SecondScreenMode.DESKTOP -> {
                 root.addView(BottomDesktopPanel(context, onClose, onMenu,
                     (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }, onSwap,
@@ -368,7 +368,7 @@ class SecondScreenPresentation(
                 icon = R.drawable.ic_bottom_keyboard, active = keyboardShown.value, tag = "bottom-keyboard") { showKeyboard() }) + extras)
             SecondScreenMode.DECK_CONTROLS -> model(extras, deckPanelTabs(context, deckPanel.value, ::selectDeckPanel))
             SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.GUIDES, SecondScreenMode.MIRROR,
-            SecondScreenMode.COMPANION -> model(extras)
+            SecondScreenMode.COMPANION, SecondScreenMode.STEAM_QAM -> model(extras)
             SecondScreenMode.TERMINAL -> model(listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard,
                 tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }) + extras)
             else -> null

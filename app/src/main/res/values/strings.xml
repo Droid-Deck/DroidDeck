@@ -2426,6 +2426,8 @@
     <string name="bottom_companion_character">Character</string>
     <string name="bottom_companion_weight">Carry weight</string>
     <string name="bottom_companion_radio">Radio</string>
+    <string name="bottom_qam_title">Quick Access</string>
+    <string name="bottom_qam_unavailable">Steam\'s Quick Access menu is not available yet.</string>
     <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_hud_group">Bottom screen HUD</string>
     <string name="bottom_strip_tabs">Strip on every tab</string>
