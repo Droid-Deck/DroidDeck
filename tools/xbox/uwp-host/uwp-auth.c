@@ -2759,6 +2759,35 @@ done:
     return ok;
 }
 
+static int extract_url_host(const char *url, char *out, size_t cap);
+
+/* A title's own services are issued tokens for the title's relying party, which only
+ * the title-specific NSAL names. When that list cannot be fetched (the generic list
+ * has no entry) a title service rejects an http://xboxlive.com token with 403, so
+ * keep the mappings proved against a real title NSAL here as a floor. */
+static const struct {
+    const char *host_suffix;
+    const char *rp;
+} g_title_rp_floor[] = {
+    { ".forzamotorsport.net", "http://xboxliveauth.forzamotorsport.net/" },
+};
+
+/* RP for a title service host that the loaded NSAL does not name, or NULL. */
+static const char *title_rp_for_url(const char *url)
+{
+    char host[128];
+    size_t i;
+    size_t hlen;
+    if (!url || !url[0] || !extract_url_host(url, host, sizeof host) || !host[0]) return NULL;
+    hlen = strlen(host);
+    for (i = 0; i < sizeof(g_title_rp_floor) / sizeof(g_title_rp_floor[0]); i++) {
+        size_t slen = strlen(g_title_rp_floor[i].host_suffix);
+        if (hlen >= slen && _stricmp(host + hlen - slen, g_title_rp_floor[i].host_suffix) == 0)
+            return g_title_rp_floor[i].rp;
+    }
+    return NULL;
+}
+
 /* Normalize a requested target/URL into an XSTS RelyingParty. */
 static void normalize_relying_party(const char *raw_target, const char *raw_url, char *rp, size_t cap)
 {
@@ -4812,6 +4841,46 @@ static int read_title_id_from_config(char *out, size_t cap)
     return 0;
 }
 
+/* A title-specific endpoint list only changes with a title update, so keep the last
+ * one that was fetched. The generic list is served to anyone and cannot name a
+ * title's relying parties; when the title call is refused (a 403 has been seen) the
+ * cached copy is what keeps the title's services reachable. */
+#define NSAL_CACHE_PATH "C:\\uwp-nsal-cache.json"
+
+static void nsal_cache_save(const char *json, DWORD len)
+{
+    HANDLE f;
+    DWORD wrote = 0;
+    if (!json || !len) return;
+    f = CreateFileA(NSAL_CACHE_PATH, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS,
+                    FILE_ATTRIBUTE_NORMAL, NULL);
+    if (f == INVALID_HANDLE_VALUE) return;
+    if (WriteFile(f, json, len, &wrote, NULL) && wrote > 0)
+        auth_log("NSAL cache saved len=%lu", (unsigned long)wrote);
+    CloseHandle(f);
+}
+
+/* Caller holds g_auth_lock. */
+static void nsal_cache_load_locked(void)
+{
+    HANDLE f;
+    DWORD len = 0, got = 0;
+    char *buf;
+    f = CreateFileA(NSAL_CACHE_PATH, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                    OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (f == INVALID_HANDLE_VALUE) return;
+    len = GetFileSize(f, NULL);
+    if (len == 0 || len > (1u << 20)) { CloseHandle(f); return; }
+    buf = (char *)malloc(len + 1);
+    if (buf && ReadFile(f, buf, len, &got, NULL) && got > 0) {
+        buf[got] = '\0';
+        parse_nsal_json_locked(buf);
+        auth_log("NSAL cache loaded len=%lu", (unsigned long)got);
+    }
+    free(buf);
+    CloseHandle(f);
+}
+
 static int nsal_fetch_path(const char *path_a, const char *auth_hdr)
 {
     char sig[128] = "";
@@ -4851,6 +4920,8 @@ static int nsal_fetch_path(const char *path_a, const char *auth_hdr)
             EnterCriticalSection(&g_auth_lock);
             parse_nsal_json_locked((const char *)resp);
             LeaveCriticalSection(&g_auth_lock);
+            if (strstr(path_a, "/titles/") && !strstr(path_a, "/default/"))
+                nsal_cache_save((const char *)resp, rlen);
             got_ok = 1;
         }
     }
@@ -4873,6 +4944,7 @@ static int nsal_resolve_relying_party(const char *url, char *rp_out, size_t cap)
         char title_id[32];
         xsts_entry xbl;
         g_nsal_loaded = 1;
+        nsal_cache_load_locked();
         LeaveCriticalSection(&g_auth_lock);
 
         memset(&xbl, 0, sizeof xbl);
@@ -4953,8 +5025,12 @@ static DWORD WINAPI token_worker_thread(LPVOID param)
         if (nsal_resolve_relying_party(prop_url, nsal_rp, sizeof nsal_rp) && nsal_rp[0]) {
             snprintf(rp, sizeof rp, "%s", nsal_rp);
         } else if (!rp_is_xboxlive_equiv(rp)) {
-            /* Endpoint not mapped to a custom RP in NSAL: use canonical Xbox Live RP. */
-            snprintf(rp, sizeof rp, "http://xboxlive.com");
+            /* The generic NSAL names no relying party for this title service. Sending
+             * the canonical user RP instead earns a 403 from the service, so use the
+             * title's own RP where it is known; otherwise keep the old fallback. */
+            const char *floor_rp = title_rp_for_url(prop_url);
+            snprintf(rp, sizeof rp, "%s", floor_rp ? floor_rp : "http://xboxlive.com");
+            auth_log("NSAL gap rp=%s url=%s", rp, prop_url);
         }
     }
     {
