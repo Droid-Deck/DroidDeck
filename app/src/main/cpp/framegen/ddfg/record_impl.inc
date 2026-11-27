@@ -158,7 +158,7 @@ static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
                           int kLevels, const Config& cfg, uint64_t imageGeneration);
 
 static void destroyScratch(const DeviceDispatch* dd, VkDevice dev, VkDescriptorPool pool) {
-    if (g_scratch.built && g_scratch.ownerDevice != dev) return;
+    if (g_scratch.ownerDevice != VK_NULL_HANDLE && g_scratch.ownerDevice != dev) return;
     auto freeUbo = [&](VkBuffer& b, VkDeviceMemory& m, void*& p) {
         if (m) dd->UnmapMemory(dev, m);
         if (b) dd->DestroyBuffer(dev, b, nullptr);
@@ -540,8 +540,9 @@ static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
                           FrameGen::Img& flowRegA, FrameGen::Img& flowRegB, VkBuffer* gmSsbo,
                           int kLevels, const Config& cfg, uint64_t imageGeneration) {
     auto& S = g_scratch;
-    if (S.built && S.ownerDevice != dev) return false;
+    if (S.ownerDevice != VK_NULL_HANDLE && S.ownerDevice != dev) return false;
     S = ScratchState{};
+    S.ownerDevice = dev;
     const auto GEN = VK_IMAGE_LAYOUT_GENERAL;
 
     for (int s = 0; s < FrameGen::kSynthSlots; ++s)
