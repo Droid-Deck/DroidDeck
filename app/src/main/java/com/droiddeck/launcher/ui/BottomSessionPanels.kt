@@ -37,6 +37,7 @@ internal fun BottomSessionPanel(mode: SecondScreenMode, actions: BottomPageActio
                 SecondScreenMode.MIRROR -> MirrorPanel(actions)
                 SecondScreenMode.COMPANION -> CompanionPanel(actions.runningGame)
                 SecondScreenMode.STEAM_QAM -> SteamQamPanel()
+                SecondScreenMode.ART -> ArtPanel(actions.runningGame)
                 else -> Unit
             }
         }

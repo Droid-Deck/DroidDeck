@@ -2049,9 +2049,10 @@
     <string name="stats_hud_red_mark">Punainen merkki on kohta, jossa HUD alkaa näyttää lämpötilan punaisena.</string>
     <string name="stats_hud_whole_device">koko laite</string>
     <string name="stats_hud_battery_temp">akku</string>
+    <string name="bottom_art_title">Pelin kuvitus</string>
+    <string name="bottom_art_playing">Pelataan</string>
     <string name="bottom_idle_selected">Valittu Steamissä</string>
     <string name="bottom_idle_recent">Viimeksi pelattu</string>
-    <string name="bottom_idle_play">Pelaa</string>
     <string name="bottom_idle_never">Ei vielä pelattu</string>
     <string name="bottom_idle_minutes">Pelattu %1$d min</string>
     <string name="bottom_idle_hours">Pelattu %1$d h</string>
@@ -2077,6 +2078,8 @@
     <string name="bottom_chat_mic_off">Mikrofoni pois</string>
     <string name="bottom_chat_mic_unavailable">Mikrofoni on pois päältä tässä pelissä. Jos haluat puhua, kytke Mikrofoni päälle DroidDeckin Steam-asetuksissa (Ääni) ja käynnistä peli uudelleen.</string>
     <string name="bottom_chat_volume">Äänenvoimakkuus %1$d %%</string>
+    <string name="bottom_bar_hide">Piilota palkki</string>
+    <string name="bottom_bar_show">Näytä palkki</string>
     <string name="bottom_brightness">Alanäytön kirkkaus</string>
     <string name="bottom_screen_off">Sammuta alanäyttö</string>
     <string name="bottom_page_guides">Oppaat</string>

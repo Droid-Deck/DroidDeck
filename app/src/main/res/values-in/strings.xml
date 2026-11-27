@@ -2025,9 +2025,10 @@
     <string name="stats_hud_red_mark">Tanda merah adalah batas saat HUD menampilkan suhu berwarna merah.</string>
     <string name="stats_hud_whole_device">seluruh perangkat</string>
     <string name="stats_hud_battery_temp">baterai</string>
+    <string name="bottom_art_title">Gambar game</string>
+    <string name="bottom_art_playing">Sedang dimainkan</string>
     <string name="bottom_idle_selected">Dipilih di Steam</string>
     <string name="bottom_idle_recent">Terakhir dimainkan</string>
-    <string name="bottom_idle_play">Main</string>
     <string name="bottom_idle_never">Belum dimainkan</string>
     <string name="bottom_idle_minutes">%1$d mnt dimainkan</string>
     <string name="bottom_idle_hours">%1$d jam dimainkan</string>
@@ -2053,6 +2054,8 @@
     <string name="bottom_chat_mic_off">Mik mati</string>
     <string name="bottom_chat_mic_unavailable">Mik mati untuk gim ini. Untuk berbicara, aktifkan Mikrofon di setelan Steam DroidDeck (Audio) lalu mulai gim lagi.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
+    <string name="bottom_bar_hide">Sembunyikan bilah</string>
+    <string name="bottom_bar_show">Tampilkan bilah</string>
     <string name="bottom_brightness">Kecerahan layar bawah</string>
     <string name="bottom_screen_off">Matikan layar bawah</string>
     <string name="bottom_page_guides">Panduan</string>

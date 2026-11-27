@@ -121,6 +121,7 @@ internal fun GuidesPanel(runningGame: () -> String?) {
     var cookieHeader by remember(id) { mutableStateOf<String?>(null) }
     var name by remember(id) { mutableStateOf<String?>(null) }
     var openMap by remember(id) { mutableStateOf<File?>(null) }
+    if (reading != null || openMap != null) FullScreenChrome()
     var libraryRevision by remember(id) { mutableIntStateOf(0) }
     var note by remember(id) { mutableStateOf<String?>(null) }
     LaunchedEffect(id) {
@@ -183,13 +184,13 @@ internal fun GuidesPanel(runningGame: () -> String?) {
     }
     PanelColumn {
         TabStrip(GuideSection.entries.map { stringResource(it.label) }, section.ordinal, { section = GuideSection.entries[it] },
-            modifier = Modifier.fillMaxWidth(), compact = true)
+            modifier = Modifier.fillMaxWidth(), compact = true, centered = true)
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
             when (section) {
                 GuideSection.GUIDES -> GuidesSection(host, list, tag, SteamGuides.place(context, game), onTag = { tag = it }, onOpen = { reading = it })
                 GuideSection.ACHIEVEMENTS -> AchievementsSection(id)
                 GuideSection.WIKI -> WikiSection(id, name, onOpen = { reading = it })
-                GuideSection.MAPS -> MapsSection(game, name, libraryRevision, onOpenMap = { openMap = it }, onOpen = { reading = it })
+                GuideSection.MAPS -> MapsSection(id, game, name, libraryRevision, onOpenMap = { openMap = it }, onOpen = { reading = it })
                 GuideSection.SAVED -> SavedSection(game, libraryRevision, onOpen = { reading = Uri.fromFile(it).toString() }, onDelete = {
                     GuideLibrary.delete(it)
                     libraryRevision++
@@ -233,7 +234,7 @@ private fun WikiSection(appId: Long, name: String?, onOpen: (String) -> Unit) {
     LaunchedEffect(appId) {
         val (found, t) = withContext(Dispatchers.IO) {
             val pending = async { GameLinks.protonTier(appId) }
-            GameLinks.links(context, appId) to pending.await()
+            GameLinks.links(context, appId, name) to pending.await()
         }
         tier = t
         links = found
@@ -251,20 +252,20 @@ private fun WikiSection(appId: Long, name: String?, onOpen: (String) -> Unit) {
         }
     }
     SettingsGroup(stringResource(R.string.bottom_guides_wiki)) {
-        for (link in found) PanelRow(stringResource(linkLabel(link.kind)), Uri.parse(link.url).host.orEmpty().removePrefix("www."),
+        for (link in found.filter { it.kind != GameLinks.Kind.MAPGENIE }) PanelRow(stringResource(linkLabel(link.kind)), Uri.parse(link.url).host.orEmpty().removePrefix("www."),
             onClick = { onOpen(link.url) },
             trailing = { SecondaryButton(open, compact = true, modifier = Modifier.testTag("guides-link-${link.kind.name.lowercase()}")) { onOpen(link.url) } })
     }
     name?.let { n ->
         SettingsGroup(stringResource(R.string.bottom_guides_search)) {
-            for (s in GameLinks.searches(n)) PanelRow(stringResource(searchLabel(s.id)), n, onClick = { onOpen(s.url) },
+            for (s in GameLinks.searches(n, found)) PanelRow(stringResource(searchLabel(s.id)), n, onClick = { onOpen(s.url) },
                 trailing = { SecondaryButton(open, compact = true, modifier = Modifier.testTag("guides-search-${s.id}")) { onOpen(s.url) } })
         }
     }
 }
 
 @Composable
-private fun MapsSection(game: String, name: String?, revision: Int, onOpenMap: (File) -> Unit, onOpen: (String) -> Unit) {
+private fun MapsSection(appId: Long, game: String, name: String?, revision: Int, onOpenMap: (File) -> Unit, onOpen: (String) -> Unit) {
     val context = LocalContext.current
     var maps by remember(game) { mutableStateOf<List<GuideLibrary.PinnedMap>>(emptyList()) }
     LaunchedEffect(game, revision) { maps = withContext(Dispatchers.IO) { GuideLibrary.maps(context, game) } }
@@ -281,11 +282,16 @@ private fun MapsSection(game: String, name: String?, revision: Int, onOpenMap: (
             )
         }
     }
-    name?.let { n ->
+    var mapSite by remember(name) { mutableStateOf<GameLinks.Link?>(null) }
+    LaunchedEffect(name) {
+        if (name != null) mapSite = withContext(Dispatchers.IO) { GameLinks.links(context, appId, name) }.firstOrNull { it.kind == GameLinks.Kind.MAPGENIE }
+    }
+    mapSite?.let { link ->
         val open = stringResource(R.string.store_open)
         SettingsGroup(stringResource(R.string.bottom_guides_find_maps)) {
-            for (s in GameLinks.mapSearches(n)) PanelRow(stringResource(searchLabel(s.id)), n, onClick = { onOpen(s.url) },
-                trailing = { SecondaryButton(open, compact = true, modifier = Modifier.testTag("guides-maps-${s.id}")) { onOpen(s.url) } })
+            PanelRow(stringResource(R.string.bottom_guides_search_mapgenie), Uri.parse(link.url).run { host.orEmpty() + path.orEmpty() },
+                onClick = { onOpen(link.url) },
+                trailing = { SecondaryButton(open, compact = true, modifier = Modifier.testTag("guides-maps-mapgenie")) { onOpen(link.url) } })
         }
     }
 }
@@ -542,14 +548,12 @@ private fun linkLabel(kind: GameLinks.Kind): Int = when (kind) {
     GameLinks.Kind.GAMEFAQS -> R.string.bottom_guides_link_gamefaqs
     GameLinks.Kind.IGN -> R.string.bottom_guides_link_ign
     GameLinks.Kind.HOWLONGTOBEAT -> R.string.bottom_guides_link_hltb
+    GameLinks.Kind.MAPGENIE -> R.string.bottom_guides_search_mapgenie
 }
 
 private fun searchLabel(id: String): Int = when (id) {
     "youtube" -> R.string.bottom_guides_search_youtube
-    "gamefaqs" -> R.string.bottom_guides_link_gamefaqs
-    "ign" -> R.string.bottom_guides_link_ign
-    "mapgenie" -> R.string.bottom_guides_search_mapgenie
-    else -> R.string.bottom_guides_search_vgmaps
+    else -> R.string.bottom_guides_link_gamefaqs
 }
 
 private fun tierLabel(tier: String): Int = when (tier) {

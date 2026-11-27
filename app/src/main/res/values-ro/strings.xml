@@ -2074,9 +2074,10 @@
     <string name="stats_hud_red_mark">Marcajul roșu indică locul în care HUD-ul afișează temperatura în roșu.</string>
     <string name="stats_hud_whole_device">tot dispozitivul</string>
     <string name="stats_hud_battery_temp">baterie</string>
+    <string name="bottom_art_title">Imagini din joc</string>
+    <string name="bottom_art_playing">Se joacă</string>
     <string name="bottom_idle_selected">Selectat în Steam</string>
     <string name="bottom_idle_recent">Jucat ultima dată</string>
-    <string name="bottom_idle_play">Joacă</string>
     <string name="bottom_idle_never">Nejucat încă</string>
     <string name="bottom_idle_minutes">%1$d min jucate</string>
     <string name="bottom_idle_hours">%1$d h jucate</string>
@@ -2102,6 +2103,8 @@
     <string name="bottom_chat_mic_off">Microfon oprit</string>
     <string name="bottom_chat_mic_unavailable">Microfonul este oprit pentru acest joc. Pentru a vorbi, activează Microfon în setările Steam din DroidDeck (Sunet) și pornește din nou jocul.</string>
     <string name="bottom_chat_volume">Volum %1$d%%</string>
+    <string name="bottom_bar_hide">Ascunde bara</string>
+    <string name="bottom_bar_show">Afișează bara</string>
     <string name="bottom_brightness">Luminozitatea ecranului de jos</string>
     <string name="bottom_screen_off">Oprește ecranul de jos</string>
     <string name="bottom_page_guides">Ghiduri</string>

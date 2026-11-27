@@ -105,6 +105,12 @@ class SecondScreenModeTest {
         assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("steam-qam", deckPad = true, steam = true))
     }
 
+    @Test fun gameArtOpensAgainOnlyInASteamSession() {
+        assertEquals(SecondScreenMode.ART, SecondScreenMode.opening("art", deckPad = true, dashboard = true, steam = true))
+        assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("art", deckPad = true, dashboard = true))
+        assertTrue(SecondScreenMode.ART.sessionPanel)
+    }
+
     @Test fun theDesktopOpensAgainOnlyWhileItCanRun() {
         assertEquals(SecondScreenMode.DESKTOP, SecondScreenMode.opening("desktop", deckPad = true, dashboard = true, bottomDesktop = true))
         assertEquals(SecondScreenMode.MENU, SecondScreenMode.opening("desktop", deckPad = true, dashboard = true))

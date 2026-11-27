@@ -47,10 +47,54 @@ class GameLinksTest {
     }
 
     @Test
-    fun searchesEncodeTheName() {
-        val youtube = GameLinks.searches("Arcade Paradise").first { it.id == "youtube" }.url
+    fun searchesStayOnTheSitesAndSkipGameFaqsWhenItHasAPage() {
+        val youtube = GameLinks.searches("Arcade Paradise", emptyList()).first { it.id == "youtube" }.url
         assertEquals("https://m.youtube.com/results?search_query=Arcade+Paradise+walkthrough", youtube)
-        assertTrue(GameLinks.mapSearches("Elden Ring").all { it.url.startsWith("https://duckduckgo.com/html/?q=site%3A") })
+        assertTrue(GameLinks.searches("Bully", emptyList()).none { "duckduckgo" in it.url })
+        val faqs = GameLinks.Link(GameLinks.Kind.GAMEFAQS, "https://gamefaqs.gamespot.com/-/1-")
+        assertEquals(listOf("youtube"), GameLinks.searches("Bully", listOf(faqs)).map { it.id })
+    }
+
+    @Test
+    fun slugsTryTheFullNameThenTheShortOne() {
+        assertEquals(listOf("bully-scholarship-edition", "bully"), GameLinks.slugs("Bully: Scholarship Edition"))
+        assertEquals(listOf("sonic-mania"), GameLinks.slugs("Sonic Mania"))
+        assertEquals(listOf("tom-clancys-the-division-2"), GameLinks.slugs("Tom Clancy’s The Division 2"))
+        assertEquals(listOf("hotline-miami"), GameLinks.slugs("Hotline Miami™"))
+    }
+
+    @Test
+    fun directPagesComeFromTheSitesOwnRoutes() {
+        val live = setOf("https://mapgenie.io/bully", "https://www.ign.com/wikis/bully", "https://bully.fandom.com/api.php?action=query&meta=siteinfo&format=json")
+        val found = GameLinks.direct("Bully: Scholarship Edition",
+            listOf(GameLinks.Link(GameLinks.Kind.IGN, "https://www.ign.com/games/bully-scholarship-edition")),
+            exists = { it in live }, strategyWiki = { if (it == "Bully") "https://strategywiki.org/wiki/Bully" else null })
+        assertEquals(mapOf(
+            GameLinks.Kind.MAPGENIE to "https://mapgenie.io/bully",
+            GameLinks.Kind.IGN to "https://www.ign.com/wikis/bully",
+            GameLinks.Kind.WIKI to "https://bully.fandom.com/",
+            GameLinks.Kind.STRATEGYWIKI to "https://strategywiki.org/wiki/Bully",
+        ), found.associate { it.kind to it.url })
+        assertTrue(found.none { "duckduckgo" in it.url })
+    }
+
+    @Test
+    fun aMissingSiteLeavesWikidataLinksAlone() {
+        val ign = GameLinks.Link(GameLinks.Kind.IGN, "https://www.ign.com/games/x")
+        assertEquals(listOf(ign), GameLinks.direct("X", listOf(ign), exists = { false }, strategyWiki = { null }))
+    }
+
+    @Test
+    fun openSearchPicksTheExactTitle() {
+        val json = """["Bully",["Bully's Sporting Darts","Bully"],["",""],["https://strategywiki.org/wiki/Bully%27s_Sporting_Darts","https://strategywiki.org/wiki/Bully"]]"""
+        assertEquals("https://strategywiki.org/wiki/Bully", GameLinks.parseOpenSearch(json, "Bully"))
+        assertNull(GameLinks.parseOpenSearch(json, "Canis Canem Edit"))
+    }
+
+    @Test
+    fun cachedLinksRoundTrip() {
+        val links = listOf(GameLinks.Link(GameLinks.Kind.MAPGENIE, "https://mapgenie.io/bully"))
+        assertEquals(links, GameLinks.readLinks(GameLinks.writeLinks(links)))
     }
 
     @Test

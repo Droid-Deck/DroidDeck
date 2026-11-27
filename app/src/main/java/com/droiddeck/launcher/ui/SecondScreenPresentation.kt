@@ -16,6 +16,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import androidx.activity.setViewTreeOnBackPressedDispatcherOwner
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
@@ -76,6 +77,7 @@ class SecondScreenPresentation(
         androidx.compose.ui.platform.ComposeView(context).apply {
             setContent {
                 DroidDeckTheme {
+                    if (!BottomChrome.barShown && currentMode.hasBar) PullTab()
                     if (brightnessOpen.value) BrightnessDrop(brightness.intValue, ::setBrightness,
                         onScreenOff = { brightnessOpen.value = false; screenOff() }, onDismiss = { brightnessOpen.value = false })
                 }
@@ -146,6 +148,7 @@ class SecondScreenPresentation(
         if (currentMode == mode && isShowing) return
         currentMode = mode
         brightnessOpen.value = false
+        BottomChrome.reset()
         if (created) renderMode()
     }
 
@@ -377,7 +380,7 @@ class SecondScreenPresentation(
                 attachKeyboard()
             }
             SecondScreenMode.DASHBOARD -> renderDashboard()
-            SecondScreenMode.GUIDES, SecondScreenMode.MIRROR, SecondScreenMode.COMPANION, SecondScreenMode.STEAM_QAM -> renderPanel(mode)
+            SecondScreenMode.GUIDES, SecondScreenMode.MIRROR, SecondScreenMode.COMPANION, SecondScreenMode.STEAM_QAM, SecondScreenMode.ART -> renderPanel(mode)
             SecondScreenMode.DESKTOP -> {
                 root.addView(BottomDesktopPanel(context, onClose, onMenu,
                     (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }, onSwap,
@@ -392,13 +395,26 @@ class SecondScreenPresentation(
 
     private fun bar(mode: SecondScreenMode) {
         val first = barModel(mode) ?: return
-        root.addView(bottomScreenBarView(context) { barModel(mode) ?: first }, LinearLayout.LayoutParams(-1, -2))
+        root.addView(androidx.compose.ui.platform.ComposeView(context).apply {
+            setContent {
+                DroidDeckTheme {
+                    androidx.compose.animation.AnimatedVisibility(BottomChrome.barShown,
+                        enter = androidx.compose.animation.expandVertically(), exit = androidx.compose.animation.shrinkVertically()) {
+                        BottomScreenBar(barModel(mode) ?: first)
+                    }
+                }
+            }
+        }, LinearLayout.LayoutParams(-1, -2))
     }
 
     internal fun barModel(mode: SecondScreenMode): BottomBarModel? {
         val extras = listOfNotNull(onSwap?.let { BarExtra(context.getString(R.string.swap_screens), icon = R.drawable.ic_bottom_swap, tag = "bottom-swap", onClick = it) }) +
             BarExtra(context.getString(R.string.bottom_brightness), vector = Icons.Outlined.LightMode, active = brightnessOpen.value,
-                tag = "bottom-brightness-toggle", onClick = ::toggleBrightness)
+                tag = "bottom-brightness-toggle", onClick = ::toggleBrightness) +
+            BarExtra(context.getString(R.string.bottom_bar_hide), vector = Icons.Outlined.ExpandLess, tag = "bottom-bar-hide") {
+                brightnessOpen.value = false
+                BottomChrome.show(false)
+            }
         fun model(extras: List<BarExtra>, tabs: BarTabs? = null) =
             sessionBarModel(context.getString(mode.label), onClose, onMenu, onSteamMenu, onQam, extras, tabs, picker?.invoke(mode))
         return when (mode) {
@@ -412,7 +428,7 @@ class SecondScreenPresentation(
                     tag = "bottom-qam-layout") { QamFit.choose(context, fit.next) }) + extras)
             }
             SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.GUIDES, SecondScreenMode.MIRROR,
-            SecondScreenMode.COMPANION -> model(extras)
+            SecondScreenMode.COMPANION, SecondScreenMode.ART -> model(extras)
             SecondScreenMode.TERMINAL -> model(listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard,
                 tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }) + extras)
             else -> null
@@ -501,3 +517,6 @@ internal enum class BottomScreenLight(val brightness: Float) {
         fun autoDims(mode: SecondScreenMode) = mode == SecondScreenMode.DASHBOARD
     }
 }
+
+/** Modes drawn with the bottom bar, which the pull tab can bring back. */
+internal val SecondScreenMode.hasBar: Boolean get() = this != SecondScreenMode.NONE && this != SecondScreenMode.MENU && this != SecondScreenMode.DESKTOP

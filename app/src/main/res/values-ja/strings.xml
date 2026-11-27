@@ -2025,9 +2025,10 @@
     <string name="stats_hud_red_mark">赤いマークは、HUD が温度を赤で表示する位置です。</string>
     <string name="stats_hud_whole_device">デバイス全体</string>
     <string name="stats_hud_battery_temp">バッテリー</string>
+    <string name="bottom_art_title">ゲームアート</string>
+    <string name="bottom_art_playing">プレイ中</string>
     <string name="bottom_idle_selected">Steam で選択中</string>
     <string name="bottom_idle_recent">最近プレイ</string>
-    <string name="bottom_idle_play">プレイ</string>
     <string name="bottom_idle_never">未プレイ</string>
     <string name="bottom_idle_minutes">%1$d 分プレイ</string>
     <string name="bottom_idle_hours">%1$d 時間プレイ</string>
@@ -2053,6 +2054,8 @@
     <string name="bottom_chat_mic_off">マイク オフ</string>
     <string name="bottom_chat_mic_unavailable">このゲームではマイクがオフです。話すには、DroidDeckのSteam設定（オーディオ）でマイクをオンにして、ゲームを再起動してください。</string>
     <string name="bottom_chat_volume">音量 %1$d%%</string>
+    <string name="bottom_bar_hide">バーを隠す</string>
+    <string name="bottom_bar_show">バーを表示</string>
     <string name="bottom_brightness">下画面の明るさ</string>
     <string name="bottom_screen_off">下の画面をオフにする</string>
     <string name="bottom_page_guides">ガイド</string>

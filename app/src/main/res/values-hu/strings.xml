@@ -2049,9 +2049,10 @@
     <string name="stats_hud_red_mark">A piros jelölés jelzi, hol jeleníti meg pirosan a HUD a hőmérsékletet.</string>
     <string name="stats_hud_whole_device">teljes eszköz</string>
     <string name="stats_hud_battery_temp">akkumulátor</string>
+    <string name="bottom_art_title">Játékgrafika</string>
+    <string name="bottom_art_playing">Játékban</string>
     <string name="bottom_idle_selected">Kiválasztva a Steamben</string>
     <string name="bottom_idle_recent">Legutóbb játszott</string>
-    <string name="bottom_idle_play">Játék</string>
     <string name="bottom_idle_never">Még nem játszott</string>
     <string name="bottom_idle_minutes">%1$d perc játék</string>
     <string name="bottom_idle_hours">%1$d óra játék</string>
@@ -2077,6 +2078,8 @@
     <string name="bottom_chat_mic_off">Mikrofon ki</string>
     <string name="bottom_chat_mic_unavailable">A mikrofon ki van kapcsolva ennél a játéknál. A beszédhez kapcsolja be a Mikrofon opciót a DroidDeck Steam-beállításaiban (Hang), majd indítsa újra a játékot.</string>
     <string name="bottom_chat_volume">Hangerő %1$d%%</string>
+    <string name="bottom_bar_hide">Sáv elrejtése</string>
+    <string name="bottom_bar_show">Sáv megjelenítése</string>
     <string name="bottom_brightness">Alsó kijelző fényereje</string>
     <string name="bottom_screen_off">Alsó képernyő kikapcsolása</string>
     <string name="bottom_page_guides">Útmutatók</string>

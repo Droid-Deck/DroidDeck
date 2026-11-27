@@ -2024,9 +2024,10 @@
     <string name="stats_hud_red_mark">紅色標記是 HUD 將溫度顯示為紅色的界線。</string>
     <string name="stats_hud_whole_device">整機</string>
     <string name="stats_hud_battery_temp">電池</string>
+    <string name="bottom_art_title">遊戲美術</string>
+    <string name="bottom_art_playing">遊玩中</string>
     <string name="bottom_idle_selected">在 Steam 中選取</string>
     <string name="bottom_idle_recent">最近玩過</string>
-    <string name="bottom_idle_play">開始遊戲</string>
     <string name="bottom_idle_never">尚未玩過</string>
     <string name="bottom_idle_minutes">已玩 %1$d 分鐘</string>
     <string name="bottom_idle_hours">已玩 %1$d 小時</string>
@@ -2052,6 +2053,8 @@
     <string name="bottom_chat_mic_off">麥克風已關閉</string>
     <string name="bottom_chat_mic_unavailable">此遊戲的麥克風已關閉。若要說話，請在 DroidDeck 的 Steam 設定（音訊）中開啟麥克風，然後重新啟動遊戲。</string>
     <string name="bottom_chat_volume">音量 %1$d%%</string>
+    <string name="bottom_bar_hide">隱藏列</string>
+    <string name="bottom_bar_show">顯示列</string>
     <string name="bottom_brightness">下方螢幕亮度</string>
     <string name="bottom_screen_off">關閉下螢幕</string>
     <string name="bottom_page_guides">指南</string>

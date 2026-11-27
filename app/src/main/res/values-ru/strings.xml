@@ -2100,9 +2100,10 @@
     <string name="stats_hud_red_mark">Красная отметка — температура, с которой HUD показывает значение красным.</string>
     <string name="stats_hud_whole_device">все устройство</string>
     <string name="stats_hud_battery_temp">батарея</string>
+    <string name="bottom_art_title">Обложка игры</string>
+    <string name="bottom_art_playing">Идёт игра</string>
     <string name="bottom_idle_selected">Выбрано в Steam</string>
     <string name="bottom_idle_recent">Последняя игра</string>
-    <string name="bottom_idle_play">Играть</string>
     <string name="bottom_idle_never">Ещё не запускалась</string>
     <string name="bottom_idle_minutes">Сыграно %1$d мин</string>
     <string name="bottom_idle_hours">Сыграно %1$d ч</string>
@@ -2128,6 +2129,8 @@
     <string name="bottom_chat_mic_off">Микрофон выкл.</string>
     <string name="bottom_chat_mic_unavailable">Микрофон для этой игры выключен. Чтобы говорить, включите «Микрофон» в настройках Steam в DroidDeck (Аудио) и запустите игру снова.</string>
     <string name="bottom_chat_volume">Громкость %1$d%%</string>
+    <string name="bottom_bar_hide">Скрыть панель</string>
+    <string name="bottom_bar_show">Показать панель</string>
     <string name="bottom_brightness">Яркость нижнего экрана</string>
     <string name="bottom_screen_off">Выключить нижний экран</string>
     <string name="bottom_page_guides">Руководства</string>

@@ -98,7 +98,9 @@ Ordered by value for effort. Each is independent unless noted.
 
 ### 1. Idle home page
 
-**Status:** first version built and checked on a Retroid Pocket Duo Lite Plus. With no game running, the In-game stats page starts with one compact row for the game selected in Big Picture (art, name, play time, last played, Play), read from Steam's `appStore` overview, or the most recently played installed game. The performance HUD stays below it. Code: [`ui/BottomIdleHome.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomIdleHome.kt).
+**Status:** built as its own panel, Game art (Steam sessions), after a first version as a row on the dashboard was removed. The bottom screen shows the hero art of the running game, or the one selected in Big Picture, or the most recently played, with a slow pan and zoom, its logo, and play time; it cross-fades when the selection changes and starts with the bar hidden. Checked on a Retroid Pocket Duo Lite Plus. Code: [`ui/BottomArtPanel.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomArtPanel.kt), selection in [`ui/BottomIdleHome.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomIdleHome.kt).
+
+![](evidence/bottom-screen-art-2026-11-27.png)
 
 When no game is focused, replace the Steam-client FPS card with a page about the game highlighted in Steam: art, play time, last played, achievement progress, and Play / Stream buttons. Add downloads in progress and friends online.
 
@@ -133,11 +135,17 @@ Rearrangeable tiles on the dashboard: FPS limit, 60/120 Hz, per-screen brightnes
 
 ### 5. Bottom screen off and auto-dim
 
-**Status:** built and checked on a Retroid Pocket Duo Lite Plus, where the window brightness override is per display: screen off sets the bottom display to 0.0 and auto-dim to 0.05 (`mBrightnessReason=override(com.droiddeck.launcher)`), while the top display stays at the user's manual level. Every panel's bar has a screen-off button: the panel goes black and asks for the lowest window brightness (`BRIGHTNESS_OVERRIDE_OFF`); a touch wakes it. The dashboard dims after 60 s without touch (pref `bottomAutoDim`, on by default); trackpad and keyboard panels never dim. Hardware buttons are not claimed.
+**Status:** built and checked on a Retroid Pocket Duo Lite Plus, where the window brightness override is per display: screen off sets the bottom display to 0.0 and auto-dim to 0.05 (`mBrightnessReason=override(com.droiddeck.launcher)`), while the top display stays at the user's manual level. Every panel's bar has a sun button that drops down a brightness slider for the bottom screen only (5–100 %, saved; it never reaches 0) with the screen-off button at its end: the panel goes black and asks for the lowest window brightness (`BRIGHTNESS_OVERRIDE_OFF`); a touch wakes it to the chosen level, and the waking touch does not reach the panel. Auto-dim never brightens a level set below it. The dashboard dims after 60 s without touch (pref `bottomAutoDim`, on by default); trackpad and keyboard panels never dim. Hardware buttons are not claimed.
 
 - A real off state for the bottom panel during a game (the backlight off, not a black Presentation), toggled from the bar or a button hold.
 - Dim after a period without touch, wake on touch. Off by default for the trackpad and keyboard modes.
 - Investigate which hardware buttons we can claim on the Thor and Duo without fighting the stock assistant.
+
+**Bar:** every panel's bar can be hidden with its chevron button; a pull tab at the top edge brings it back by a tap or a pull down. Game art, a page open in the Guides reader and a pinned map hide it on their own, and leaving them shows it again.
+
+| Brightness | Bar hidden |
+| --- | --- |
+| ![](evidence/bottom-screen-brightness-2026-11-27.png) | ![](evidence/bottom-screen-bar-hidden-2026-11-27.png) |
 
 ### 6. Region mirror from our compositor
 
@@ -149,7 +157,7 @@ Details: [bottom-screen-region-mirror.md](bottom-screen-region-mirror.md).
 
 ### 7. Guides panel
 
-**Status:** milestones 1 and 4 built as their own bottom-screen panel (Guides in the panel picker), checked on a Retroid Pocket Duo Lite Plus. Five sections, switched with the app's tab strip and LB/RB, for the running game or the one selected in Steam: Guides (top-rated Steam guides in the device's language with a category choice and Continue reading), Achievements, Wiki & fixes (ProtonDB tier, and the wiki, StrategyWiki, PCGamingWiki, GameFAQs, IGN and HowLongToBeat through Wikidata, plus web searches), Maps (images pinned by long-press, with zoom and markers per map) and Saved (web archives for offline reading). The reader never takes focus, blocks common ad hosts and stays on the opened site unless the user follows a link. Code: [`session/SteamGuides.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamGuides.kt), [`session/GameLinks.kt`](../../app/src/main/java/com/droiddeck/launcher/session/GameLinks.kt), [`ui/BottomGuidesPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomGuidesPage.kt).
+**Status:** milestones 1 and 4 built as their own bottom-screen panel (Guides in the panel picker), checked on a Retroid Pocket Duo Lite Plus. Five sections, switched with the app's tab strip and LB/RB, for the running game or the one selected in Steam: Guides (top-rated Steam guides in the device's language with a category choice and Continue reading), Achievements, Wiki & fixes (ProtonDB tier, and the wiki, StrategyWiki, PCGamingWiki, GameFAQs, IGN and HowLongToBeat through Wikidata; what Wikidata lacks is found from each site's own routes, such as Map Genie and IGN wiki slugs, Fandom's API and StrategyWiki's search API, so every row opens the page itself rather than a web search; only YouTube walkthroughs stay a search), Maps (images pinned by long-press, with zoom and markers per map, and the game's Map Genie page) and Saved (web archives for offline reading). The reader never takes focus, blocks common ad hosts and stays on the opened site unless the user follows a link. Code: [`session/SteamGuides.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamGuides.kt), [`session/GameLinks.kt`](../../app/src/main/java/com/droiddeck/launcher/session/GameLinks.kt), [`ui/BottomGuidesPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomGuidesPage.kt).
 
 A per-game tab with Steam Community guides for the exact app id, Steam achievements as a spoiler-safe checklist, the game's wiki and fixes (found through Wikidata), saved pages for offline use, and a workspace that reopens at the last section. It must never take focus from the game, and pauses pages it is not showing.
 

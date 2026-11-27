@@ -2319,9 +2319,10 @@
     <string name="stats_hud_red_mark">The red mark is where the HUD shows the temperature in red.</string>
     <string name="stats_hud_whole_device">whole device</string>
     <string name="stats_hud_battery_temp">battery</string>
+    <string name="bottom_art_title">Game art</string>
+    <string name="bottom_art_playing">Playing</string>
     <string name="bottom_idle_selected">Selected in Steam</string>
     <string name="bottom_idle_recent">Last played</string>
-    <string name="bottom_idle_play">Play</string>
     <string name="bottom_idle_never">Not played yet</string>
     <string name="bottom_idle_minutes">%1$d min played</string>
     <string name="bottom_idle_hours">%1$d h played</string>
@@ -2348,6 +2349,8 @@
     <string name="bottom_chat_mic_off">Mic off</string>
     <string name="bottom_chat_mic_unavailable">Mic is off for this game. To talk, turn on Microphone in DroidDeck\'s Steam settings (Audio) and start the game again.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
+    <string name="bottom_bar_hide">Hide bar</string>
+    <string name="bottom_bar_show">Show bar</string>
     <string name="bottom_brightness">Bottom screen brightness</string>
     <string name="bottom_screen_off">Turn off the bottom screen</string>
     <string name="bottom_page_guides">Guides</string>
@@ -2406,7 +2409,6 @@
     <string name="bottom_guides_link_ign" translatable="false">IGN</string>
     <string name="bottom_guides_link_hltb" translatable="false">HowLongToBeat</string>
     <string name="bottom_guides_search_mapgenie" translatable="false">Map Genie</string>
-    <string name="bottom_guides_search_vgmaps" translatable="false">VGMaps</string>
     <string name="bottom_guides_tier_platinum" translatable="false">Platinum</string>
     <string name="bottom_guides_tier_gold" translatable="false">Gold</string>
     <string name="bottom_guides_tier_silver" translatable="false">Silver</string>

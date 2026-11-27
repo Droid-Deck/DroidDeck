@@ -2025,9 +2025,10 @@
     <string name="stats_hud_red_mark">빨간색 표시는 HUD가 온도를 빨간색으로 표시하는 지점입니다.</string>
     <string name="stats_hud_whole_device">기기 전체</string>
     <string name="stats_hud_battery_temp">배터리</string>
+    <string name="bottom_art_title">게임 아트</string>
+    <string name="bottom_art_playing">플레이 중</string>
     <string name="bottom_idle_selected">Steam에서 선택됨</string>
     <string name="bottom_idle_recent">최근 플레이</string>
-    <string name="bottom_idle_play">플레이</string>
     <string name="bottom_idle_never">아직 플레이 안 함</string>
     <string name="bottom_idle_minutes">%1$d분 플레이</string>
     <string name="bottom_idle_hours">%1$d시간 플레이</string>
@@ -2053,6 +2054,8 @@
     <string name="bottom_chat_mic_off">마이크 꺼짐</string>
     <string name="bottom_chat_mic_unavailable">이 게임에서는 마이크가 꺼져 있습니다. 대화하려면 DroidDeck의 Steam 설정(오디오)에서 마이크를 켜고 게임을 다시 시작하세요.</string>
     <string name="bottom_chat_volume">볼륨 %1$d%%</string>
+    <string name="bottom_bar_hide">막대 숨기기</string>
+    <string name="bottom_bar_show">막대 표시</string>
     <string name="bottom_brightness">아래쪽 화면 밝기</string>
     <string name="bottom_screen_off">아래 화면 끄기</string>
     <string name="bottom_page_guides">가이드</string>

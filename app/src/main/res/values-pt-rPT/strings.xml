@@ -2079,9 +2079,10 @@
     <string name="stats_hud_red_mark">A marca vermelha é o ponto em que o HUD mostra a temperatura a vermelho.</string>
     <string name="stats_hud_whole_device">todo o dispositivo</string>
     <string name="stats_hud_battery_temp">bateria</string>
+    <string name="bottom_art_title">Arte do jogo</string>
+    <string name="bottom_art_playing">A jogar</string>
     <string name="bottom_idle_selected">Selecionado no Steam</string>
     <string name="bottom_idle_recent">Jogado por último</string>
-    <string name="bottom_idle_play">Jogar</string>
     <string name="bottom_idle_never">Ainda não jogado</string>
     <string name="bottom_idle_minutes">%1$d min jogados</string>
     <string name="bottom_idle_hours">%1$d h jogadas</string>
@@ -2107,6 +2108,8 @@
     <string name="bottom_chat_mic_off">Microfone desligado</string>
     <string name="bottom_chat_mic_unavailable">O microfone está desligado neste jogo. Para falar, ative Microfone nas definições do Steam do DroidDeck (Áudio) e volte a iniciar o jogo.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
+    <string name="bottom_bar_hide">Ocultar barra</string>
+    <string name="bottom_bar_show">Mostrar barra</string>
     <string name="bottom_brightness">Brilho do ecrã inferior</string>
     <string name="bottom_screen_off">Desligar o ecrã inferior</string>
     <string name="bottom_page_guides">Guias</string>

@@ -9,7 +9,7 @@ import java.net.URL
 import java.net.URLEncoder
 
 object GameLinks {
-    enum class Kind { WIKI, STRATEGYWIKI, PCGAMINGWIKI, GAMEFAQS, IGN, HOWLONGTOBEAT }
+    enum class Kind { WIKI, STRATEGYWIKI, PCGAMINGWIKI, GAMEFAQS, IGN, HOWLONGTOBEAT, MAPGENIE }
 
     data class Link(val kind: Kind, val url: String)
 
@@ -50,7 +50,54 @@ object GameLinks {
         )
     }
 
-    fun links(context: Context, appId: Long): List<Link> {
+    /** Site slugs to try for a game name, longest first: "Bully: Scholarship Edition" gives bully-scholarship-edition, then bully. */
+    internal fun slugs(name: String): List<String> {
+        fun slug(s: String) = s.lowercase().replace("&", "and").replace(Regex("['’™®©]"), "")
+            .replace(Regex("[^a-z0-9]+"), "-").trim('-')
+        val short = name.split(Regex(":| - | – |\\("), limit = 2).first()
+        return listOf(slug(name), slug(short)).filter { it.isNotEmpty() }.distinct()
+    }
+
+    /** Direct pages for what Wikidata has no ID for, found from each site's own routes rather than a web search. */
+    internal fun direct(name: String, found: List<Link>, exists: (String) -> Boolean, strategyWiki: (String) -> String?): List<Link> {
+        val have = found.map { it.kind }.toSet()
+        val slugs = slugs(name)
+        fun first(urls: List<String>) = urls.firstOrNull(exists)
+        val ignWiki = found.firstOrNull { it.kind == Kind.IGN }?.url?.substringAfter("/games/", "")?.takeIf { it.isNotEmpty() }
+        val extra = listOfNotNull(
+            first(slugs.map { "https://mapgenie.io/$it" })?.let { Link(Kind.MAPGENIE, it) },
+            first((listOfNotNull(ignWiki) + slugs).distinct().map { "https://www.ign.com/wikis/$it" })?.let { Link(Kind.IGN, it) },
+            // Fandom answers pages with a bot check, but its API with 200 for a wiki that exists and 404 for one that does not.
+            if (Kind.WIKI in have) null else slugs.map { it.replace("-", "") }.distinct()
+                .firstOrNull { exists("https://$it.fandom.com/api.php?action=query&meta=siteinfo&format=json") }
+                ?.let { Link(Kind.WIKI, "https://$it.fandom.com/") },
+            if (Kind.STRATEGYWIKI in have) null else strategyWiki(name.split(":").first().trim())?.let { Link(Kind.STRATEGYWIKI, it) },
+        )
+        return found.filterNot { it.kind == Kind.IGN && extra.any { e -> e.kind == Kind.IGN } } + extra
+    }
+
+    internal fun parseOpenSearch(json: String, title: String): String? = runCatching {
+        val a = JSONArray(json)
+        val titles = a.getJSONArray(1)
+        val urls = a.getJSONArray(3)
+        (0 until titles.length()).firstOrNull { titles.getString(it).equals(title, ignoreCase = true) }?.let { urls.getString(it) }
+    }.getOrNull()
+
+    private fun exists(url: String): Boolean = runCatching {
+        val c = URL(url).openConnection() as HttpURLConnection
+        c.instanceFollowRedirects = false
+        c.connectTimeout = 6_000
+        c.readTimeout = 6_000
+        c.setRequestProperty("User-Agent", BROWSER)
+        try { c.responseCode in 200..399 } finally { c.disconnect() }
+    }.getOrDefault(false)
+
+    private fun strategyWiki(title: String): String? = runCatching {
+        parseOpenSearch(get("https://strategywiki.org/w/api.php?action=opensearch&namespace=0&limit=5&format=json&search=" +
+            URLEncoder.encode(title, "UTF-8")), title)
+    }.getOrNull()
+
+    fun links(context: Context, appId: Long, name: String? = null): List<Link> {
         val cache = File(context.cacheDir, "game-links/$appId.json")
         val fresh = cache.isFile && System.currentTimeMillis() - cache.lastModified() < CACHE_MS
         val text = if (fresh) runCatching { cache.readText() }.getOrNull() else null
@@ -58,9 +105,23 @@ object GameLinks {
             get("https://query.wikidata.org/sparql?format=json&query=" + URLEncoder.encode(sparql(appId), "UTF-8"))
         }.getOrNull()?.also { runCatching { cache.parentFile?.mkdirs(); cache.writeText(it) } }
             ?: runCatching { cache.readText() }.getOrNull()
-        val found = json?.let { runCatching { parse(it) }.getOrNull() }.orEmpty()
-        return if (found.any { it.kind == Kind.PCGAMINGWIKI }) found
-            else found + Link(Kind.PCGAMINGWIKI, "https://www.pcgamingwiki.com/api/appid.php?appid=$appId")
+        val wikidata = json?.let { runCatching { parse(it) }.getOrNull() }.orEmpty()
+        val withFixes = if (wikidata.any { it.kind == Kind.PCGAMINGWIKI }) wikidata
+            else wikidata + Link(Kind.PCGAMINGWIKI, "https://www.pcgamingwiki.com/api/appid.php?appid=$appId")
+        if (name.isNullOrBlank()) return withFixes
+        val directCache = File(context.cacheDir, "game-links/$appId-direct-v2.json")
+        val cached = directCache.takeIf { it.isFile && System.currentTimeMillis() - it.lastModified() < CACHE_MS }
+            ?.let { runCatching { readLinks(it.readText()) }.getOrNull() }
+        if (cached != null) return cached
+        return direct(name, withFixes, ::exists, ::strategyWiki)
+            .also { runCatching { directCache.parentFile?.mkdirs(); directCache.writeText(writeLinks(it)) } }
+    }
+
+    internal fun writeLinks(links: List<Link>): String =
+        JSONArray(links.map { JSONObject().put("kind", it.kind.name).put("url", it.url) }).toString()
+
+    internal fun readLinks(json: String): List<Link> = JSONArray(json).let { a ->
+        (0 until a.length()).map { a.getJSONObject(it) }.map { Link(Kind.valueOf(it.getString("kind")), it.getString("url")) }
     }
 
     fun protonTier(appId: Long): String? = runCatching {
@@ -70,20 +131,12 @@ object GameLinks {
     internal fun parseTier(json: String): String? =
         JSONObject(json).optString("tier").takeIf { it in TIERS }
 
-    fun searches(name: String): List<Search> {
+    /** Searches on the sites themselves, for what has no direct page. */
+    fun searches(name: String, found: List<Link>): List<Search> {
         val q = URLEncoder.encode(name, "UTF-8")
-        return listOf(
+        return listOfNotNull(
             Search("youtube", "https://m.youtube.com/results?search_query=$q+walkthrough"),
-            Search("gamefaqs", "https://gamefaqs.gamespot.com/search?game=$q"),
-            Search("ign", "https://www.ign.com/search?q=$q+guide"),
-        )
-    }
-
-    fun mapSearches(name: String): List<Search> {
-        val q = URLEncoder.encode(name, "UTF-8")
-        return listOf(
-            Search("mapgenie", "https://duckduckgo.com/html/?q=site%3Amapgenie.io+$q"),
-            Search("vgmaps", "https://duckduckgo.com/html/?q=site%3Avgmaps.com+$q"),
+            Search("gamefaqs", "https://gamefaqs.gamespot.com/search?game=$q").takeIf { found.none { it.kind == Kind.GAMEFAQS } },
         )
     }
 
@@ -105,6 +158,7 @@ object GameLinks {
 
     val TIERS = listOf("platinum", "gold", "silver", "bronze", "borked")
     private const val CACHE_MS = 7L * 24 * 3600 * 1000
+    private const val BROWSER = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
 }
 
 object GuideLibrary {

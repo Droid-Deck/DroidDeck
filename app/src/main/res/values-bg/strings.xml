@@ -2049,9 +2049,10 @@
     <string name="stats_hud_red_mark">Червената маркировка е мястото, където HUD показва температурата в червено.</string>
     <string name="stats_hud_whole_device">цялото устройство</string>
     <string name="stats_hud_battery_temp">батерия</string>
+    <string name="bottom_art_title">Изображения на играта</string>
+    <string name="bottom_art_playing">Играе се</string>
     <string name="bottom_idle_selected">Избрано в Steam</string>
     <string name="bottom_idle_recent">Последно играна</string>
-    <string name="bottom_idle_play">Играй</string>
     <string name="bottom_idle_never">Още не е играна</string>
     <string name="bottom_idle_minutes">%1$d мин игра</string>
     <string name="bottom_idle_hours">%1$d ч игра</string>
@@ -2077,6 +2078,8 @@
     <string name="bottom_chat_mic_off">Микрофонът е изключен</string>
     <string name="bottom_chat_mic_unavailable">Микрофонът е изключен за тази игра. За да говорите, включете „Микрофон“ в настройките на Steam в DroidDeck (Звук) и стартирайте играта отново.</string>
     <string name="bottom_chat_volume">Сила на звука %1$d%%</string>
+    <string name="bottom_bar_hide">Скриване на лентата</string>
+    <string name="bottom_bar_show">Показване на лентата</string>
     <string name="bottom_brightness">Яркост на долния екран</string>
     <string name="bottom_screen_off">Изключи долния екран</string>
     <string name="bottom_page_guides">Ръководства</string>

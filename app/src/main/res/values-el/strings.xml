@@ -2049,9 +2049,10 @@
     <string name="stats_hud_red_mark">Η κόκκινη ένδειξη είναι το σημείο όπου το HUD εμφανίζει τη θερμοκρασία με κόκκινο.</string>
     <string name="stats_hud_whole_device">ολόκληρη η συσκευή</string>
     <string name="stats_hud_battery_temp">μπαταρία</string>
+    <string name="bottom_art_title">Εικόνες παιχνιδιού</string>
+    <string name="bottom_art_playing">Παίζεται</string>
     <string name="bottom_idle_selected">Επιλεγμένο στο Steam</string>
     <string name="bottom_idle_recent">Παίχτηκε τελευταία</string>
-    <string name="bottom_idle_play">Παίξε</string>
     <string name="bottom_idle_never">Δεν έχει παιχτεί</string>
     <string name="bottom_idle_minutes">%1$d λεπ. παιχνιδιού</string>
     <string name="bottom_idle_hours">%1$d ώρ. παιχνιδιού</string>
@@ -2077,6 +2078,8 @@
     <string name="bottom_chat_mic_off">Μικρόφωνο κλειστό</string>
     <string name="bottom_chat_mic_unavailable">Το μικρόφωνο είναι απενεργοποιημένο για αυτό το παιχνίδι. Για να μιλήσετε, ενεργοποιήστε το Μικρόφωνο στις ρυθμίσεις Steam του DroidDeck (Ήχος) και ξεκινήστε ξανά το παιχνίδι.</string>
     <string name="bottom_chat_volume">Ένταση %1$d%%</string>
+    <string name="bottom_bar_hide">Απόκρυψη γραμμής</string>
+    <string name="bottom_bar_show">Εμφάνιση γραμμής</string>
     <string name="bottom_brightness">Φωτεινότητα κάτω οθόνης</string>
     <string name="bottom_screen_off">Απενεργοποίηση κάτω οθόνης</string>
     <string name="bottom_page_guides">Οδηγοί</string>
