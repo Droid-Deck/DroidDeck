@@ -243,6 +243,7 @@ internal val SecondScreenMode.icon: ImageVector get() = when (this) {
     SecondScreenMode.DASHBOARD -> Icons.Outlined.Dashboard
     SecondScreenMode.GUIDES -> Icons.Outlined.MenuBook
     SecondScreenMode.MIRROR -> Icons.Outlined.CropFree
+    SecondScreenMode.COMPANION -> Icons.Outlined.Extension
     SecondScreenMode.STEAM_QAM -> Icons.Outlined.ViewSidebar
     SecondScreenMode.ART -> Icons.Outlined.Wallpaper
     SecondScreenMode.DESKTOP -> Icons.Outlined.DesktopWindows

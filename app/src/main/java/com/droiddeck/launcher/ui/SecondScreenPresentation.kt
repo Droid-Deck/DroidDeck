@@ -305,6 +305,7 @@ class SecondScreenPresentation(
 
     private fun light(state: BottomScreenLight) {
         screen = state
+        BottomScreenLight.current.value = state
         sleepView.visibility = if (state == BottomScreenLight.OFF) View.VISIBLE else View.GONE
         sleepView.alpha = 1f
         val w = window ?: return
@@ -401,7 +402,7 @@ class SecondScreenPresentation(
                 attachKeyboard()
             }
             SecondScreenMode.DASHBOARD -> renderDashboard()
-            SecondScreenMode.GUIDES, SecondScreenMode.MIRROR, SecondScreenMode.STEAM_QAM, SecondScreenMode.ART -> renderPanel(mode)
+            SecondScreenMode.GUIDES, SecondScreenMode.MIRROR, SecondScreenMode.COMPANION, SecondScreenMode.STEAM_QAM, SecondScreenMode.ART -> renderPanel(mode)
             SecondScreenMode.DESKTOP -> {
                 root.addView(BottomDesktopPanel(context, onClose, onMenu,
                     (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }, onSwap,
@@ -454,7 +455,7 @@ class SecondScreenPresentation(
                 MirrorOptions.open.value = !MirrorOptions.open.value
             }) + extras)
             SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.GUIDES,
-            SecondScreenMode.ART -> model(extras)
+            SecondScreenMode.COMPANION, SecondScreenMode.ART -> model(extras)
             SecondScreenMode.TERMINAL -> model(listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard,
                 tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }) + extras)
             else -> null
@@ -540,6 +541,9 @@ internal enum class BottomScreenLight(val brightness: Float) {
 
     companion object {
         const val DIM_AFTER_MS = 60_000L
+
+        /** The bottom screen's light, so panels can drop live connections while it is off. */
+        val current = androidx.compose.runtime.mutableStateOf(ON)
         fun autoDims(mode: SecondScreenMode) = mode == SecondScreenMode.DASHBOARD
     }
 }
