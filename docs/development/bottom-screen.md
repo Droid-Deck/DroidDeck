@@ -1,0 +1,209 @@
+# Bottom screen: research and proposals
+
+Researched 2026-11-26 against `main` at `d788afc12` (0.7.11). This document records what other dual-screen Android projects put on the second screen, how they get their data, where DroidDeck stood at that commit, and the features we want to build. "DroidDeck today" is that researched baseline; each proposal's **Status** line says what has been built since, and proposals without one are not scheduled. Two proposals have their own documents: [region mirror](bottom-screen-region-mirror.md) and [guides tab](bottom-screen-guides.md).
+
+The starting point was WULFF DEN's survey video [Dual screen Android apps are getting crazy](https://youtu.be/dAiuG2A-wkc) (2026-11-26). It covers the AYN Thor and Retroid Pocket Duo, and most of its apps come from the [GAFT list](https://andreyvelsk.github.io/GAFT) of Thor apps.
+
+## DroidDeck in the video
+
+DroidDeck appears from 17:47 to 18:30 on a Thor: the Steam gamepad UI on top, our bottom panel below.
+
+- Shown: the mode picker (DroidDeck menu, Keyboard + trackpad, Terminal, Deck grips + trackpads, Profile controls, Dashboard), the controller page of the docked menu, and the Dashboard's In-game stats card with FPS, 1%/0.1%/0.01% lows and a frame-time graph while Ball x Pit runs.
+- Verdict: it fills the bottom screen "with useful things like a keyboard and a trackpad" or game information, and makes the device feel "a lot more like having a dual screen Steam Deck".
+- Problem: it "froze on install a handful of times" and needed three device restarts. The build was probably 0.7.1 or earlier. Two first-run hang fixes landed later: #3070 (FEX/AppImage extraction deadlock in the clock-pause preload) and #3212 (first-run setup crashing in the background). Whether they cover this report is unconfirmed; slow exFAT preallocation on the Thor's SD card ([thor-sd-storage-investigation.md](thor-sd-storage-investigation.md)) can also look like a freeze.
+- Problem: with no game running, the stats card reads "59.6 fps · Steam Client ARM". It measures the Steam client itself, which tells the user nothing.
+
+## What other projects do
+
+### System companions and utilities
+
+| Project | Bottom screen | Data source |
+| --- | --- | --- |
+| [ArmadaLive](https://github.com/FabianZettl/armadalive) (Armada OS, SteamOS-like Linux on the Thor) | Follows the top screen: logo, background, info, PDF manual, cheats and play time of the current game. Launcher with user and smart folders (recent, favourites, per system), random pick, Add to Steam. System page with FPS and a 60/120 Hz switch, rearrangeable quick-setting tiles (power profile, fan curve, stick LEDs, per-screen brightness, screen off), gauges. Rules (power profile, FPS limit, emulator resolution per game, per system, idle, or base). Tuning (governor, GPU limits, fan curve editor) that reverts after 15 s unless kept. Graphs, task manager, play-time history, trackpads, back buttons as a second controller. Dims after 10 s; hold Start+Select to close a game; AYN button shows or hides it, hold turns the screen off. 55 themes, first-run permission walkthrough, health check, verified self-update | ES-DE custom event scripts writing a state file, emulator process scan matched to ROMs, gamescope focus and stats pipe, the Big Picture selection read over Steam's CEF debug port, ES-DE scraped media and Steam's library cache |
+| [Armada OS](https://github.com/armada-os/armada) | Little in game mode: the bottom screen sleeps with the top. An experimental Plasma Mobile session, and `armada-run-bottom -- <cmd>` to run single apps on a second gamescope on the bottom panel | n/a |
+| [Thor Command Panel](https://github.com/BrianJr03/command-panel) | Replaces the stock dual-screen assistant: screen modes with real blanking, per-screen brightness and volume, 60/120 Hz with FPS, tiles, telemetry, themes, drag-to-arrange cards, replay buffer of either or both screens, full gamepad navigation | System APIs |
+| [Better Dual Screen Assistant](https://github.com/stormpanda/better-dual-screen-assistant) (Thor and Duo) | One-tap swap of the foreground apps between screens, linked brightness and volume, FPS from real frame delivery, paged tiles switched with L1/R1, recording, touch lock, mouse mode, key mapper, works before unlock | System APIs |
+| [Wayfinder](https://github.com/Thor-Wayfinder/thor-wayfinder) | Move or swap live apps between screens, button combos with a cheat sheet, per-app profiles (screen, performance, fan, refresh rate, lights, controls), keyboard and trackpad on the other screen | System APIs |
+| [Megingiard](https://github.com/stormpanda/megingiard) | Mirrors up to 10 cropped regions of the top screen (minimap, HUD) with pinch zoom; per-app macro pads; split keyboard on text focus; trackpad | Screen capture |
+| [WalkThor](https://github.com/nerf-herder-29/WalkThor) | Now Playing art, the guide at your last page, up to 4 mirrored top-screen regions remembered per game, console-style face-button labels, FPS graph, learned per-game battery runtime, offline captions of game audio. Hands focus back to the game | Cocoon and ES-DE log files, screen capture |
+| [Heimdall](https://github.com/mastercook777/Heimdall-AYN-Thor-Assistant) | Per-game module grid, macros, precision aim, virtual mouse and stick, "portals" (live top-screen regions), OCR translation | Screen capture |
+| [ThorSport](https://github.com/CHINW3/ThorSport) | Live scoreboards for 15 leagues, bottom-only mode so a game can run on top, spoiler delay synced to a stream | Sports APIs |
+| AYANEO Flip DS (Windows, AYASpace) | Performance stats, quick settings, app shortcuts, moving any window between screens | Windows |
+
+### Guides
+
+| Project | Bottom screen | Data source |
+| --- | --- | --- |
+| [Game Twin](https://github.com/alpha-minus/game-twin) | Per-game vault of guides (GameFAQs, StrategyWiki, IGN) saved offline, VGMaps maps with markers, RetroAchievements and Steam achievements including missables, checklists. Switches workspace with the game and reopens where you left off. Optional Gemini help with a screenshot of the top screen | Polls Cocoon `launch_debug.log`, ES-DE `es_log.txt`, RetroArch `content_history.lpl`, and the Steam Web API for recently played |
+| [Pixel Guide](https://github.com/rexmont/Pixel-Guide-Android) | Offline guides, maps, manuals, RetroAchievements, AI help | Games are added by hand |
+
+### Game companions
+
+| Project | Bottom screen | How it gets live state |
+| --- | --- | --- |
+| [Eden Duo](https://github.com/igawa6/eden-duo) (Switch) | Interactive per-game pages (Stats, Map, Tasks); can use items and change equipment | Per-game `.dsmod.zip` packages from a [catalog repo](https://github.com/igawa6/eden-duo-companions): `package.json` with build IDs and per-ABI native modules, a declarative UI manifest (pages, widgets, actions, `poll_hz`, art loaded from the game's own romfs), and pointer chains per build. A small C ABI gives modules `read_memory`/`write_memory`/`publish_*`. Unity IL2CPP members are resolved by name. Unknown builds show a "needs version X" page |
+| [GBA DS](https://github.com/kyannon/gba-ds) | Map or HUD for 77 GBA games. Per-game screen sizing, placement, generated overlays and per-screen brightness | A second silent emulator instance receives the live state, opens the map and captures it, confirmed by RAM flags and pixel probes. Some games render twice, with and without the HUD |
+| [WiiDS](https://github.com/Maddex712/WiiDS) | Course maps, standings, a rotating Galaxy planet with a touch cursor | Native recompilations, so state is in-process |
+| [Silksong Android](https://github.com/jakobkhansen/SilksongAndroid) | Interactive map, inventory and pause menu that look like part of the game | C# patches compiled on-device against the game's assemblies, drawn by a Unity camera on `Display.displays[1]`. Downloads the Linux depot with JavaSteam and syncs Steam Cloud saves |
+| [AYN Thor dual-screen mods](https://github.com/JoeCorrell/AYN-Thor-Dualscreen-Mods) (Stardew Valley) | Today, Map, Farm, Journal, Bundles, Calendar; touch actions | A SMAPI mod inside a Steam container serves a WebSocket on `127.0.0.1:7786`; a separate APK draws the pages. A [second client](https://github.com/project-barry/stardew-dual-screen) speaks the same protocol |
+| [ShulkDS](https://github.com/NaiSenshin/ShulkDS) (Minecraft Java) | Minimap, touch inventory, options | Its own client reimplementation |
+| [TotK Native](https://github.com/AurelioB/totk-android) | Touch equip and eat actions | Guarded reads of native memory into a JSON snapshot polled by a Java UI |
+| [Kanto Gear](https://github.com/AverageConsumer/kanto-gear) ([Gen 1 recomp](https://github.com/bryanthaboi/gen1recomp)) | Companion panel, as a combined window, a separate process, or a phone/browser over Wi-Fi | In-process; [KantoGearBottom](https://github.com/venatrix-ritz/KantoGearBottom) puts the separate window on Armada's bottom gamescope |
+| [EmuLnk](https://github.com/EmuLnk/emulnk) | HTML/JS dashboards per game that can also write memory or run macros | Emulator forks send memory over UDP; profiles are JSON memory points from a [content repo](https://github.com/EmuLnk/emulnk-repo) |
+
+Other GAFT companions: Thor Pip-Boy, FNVDS, Grand Theft Companion, FFXII, Terraria, ZomboidDS, Skyrim, Delphis (live Dolphin button guide), PokeMMO Companion, Thor-SpeedrunSplits, DrillPod.
+
+### Patterns that recur
+
+- The bottom screen follows the game on top without the user telling it which game.
+- Everything is remembered per game: panel, guide page, mirrored regions, power and FPS rules, control profiles.
+- One hardware button shows or hides the panel; holding it switches the bottom screen fully off, not just black.
+- Per-screen brightness, a 60/120 Hz switch and an honest FPS readout.
+- Live crops of the minimap or HUD.
+- Auto-dim of an idle OLED panel.
+- The panel never takes focus or priority from the game.
+
+## DroidDeck today
+
+As of `d788afc12`, before the work in the Status lines below.
+
+Paths are under [`app/src/main/java/com/droiddeck/launcher/`](../../app/src/main/java/com/droiddeck/launcher/).
+
+**Panels.** [`input/SecondScreenMode.kt`](../../app/src/main/java/com/droiddeck/launcher/input/SecondScreenMode.kt) lists the modes: menu, keyboard + trackpad, terminal, Deck grips + trackpads, profile controls, dashboard and the KDE desktop. [`ui/SecondScreenPresentation.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/SecondScreenPresentation.kt) hosts them in a `Presentation`, with the bar in [`ui/BottomScreenBar.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomScreenBar.kt). The last mode is remembered once for game sessions and once for desktop sessions (`SessionPrefs.secondScreenPanel`), not per game. Outside a session the launcher shows [`ui/DualScreenPanel.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/DualScreenPanel.kt).
+
+**Dashboard.** [`ui/BottomDashboard.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomDashboard.kt) has In-game stats, Downloads, Screenshots and Chat & voice. The tab is remembered per session and jumps to stats when a game starts. A strip of metrics ([`ui/BottomStrip.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomStrip.kt)) can sit on the other tabs.
+
+**Displays.** [`input/DualScreen.kt`](../../app/src/main/java/com/droiddeck/launcher/input/DualScreen.kt) finds built-in presentation displays with their own touch panel. Sessions support Auto, On, Swapped (game on the bottom, [`ui/BottomGameScreen.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomGameScreen.kt)) and Off. The game is rendered by our compositor into a `SurfaceView` we own, not by a separate activity. [`input/BottomScreenGuests.kt`](../../app/src/main/java/com/droiddeck/launcher/input/BottomScreenGuests.kt) yields the screen when another app takes it.
+
+**Data already available.**
+
+- Frame times from gamescope's ring buffer ([`hud/GameFrames.kt`](../../app/src/main/java/com/droiddeck/launcher/hud/GameFrames.kt)), with lows, graph, focused app and refresh rate.
+- Device metrics ([`hud/HudMetrics.java`](../../app/src/main/java/com/droiddeck/launcher/hud/HudMetrics.java)): CPU/GPU load, clocks and temperatures, RAM, VRAM, network, battery with a runtime estimate, fan.
+- Game telemetry ([`session/GameTelemetry.kt`](../../app/src/main/java/com/droiddeck/launcher/session/GameTelemetry.kt)): racing UDP, War Thunder over local HTTP, Elite Dangerous status file.
+- Steam downloads from app manifests and `content_log.txt`, screenshots from DroidDeck and Steam, Steam chat in a WebView with the web-login cookies.
+- `AgentGuest.steamEval` runs `SteamClient.*` in Steam's UI. Only offline mode and live shortcuts use it today.
+- Per-game profiles ([`session/SelectedGameProfile.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SelectedGameProfile.kt)) that follow the game Steam has focused (`GameProfileFollowState`).
+
+**Gaps.**
+
+- The panel does not follow the game: no per-game mode, tab or control layout.
+- With no game running, the stats card measures the Steam client.
+- No Steam achievements, friends or notifications on the bottom screen. Achievements exist only for Epic, GOG and EA. The 0.7.0 notes mention a notifications page that no longer exists.
+- No way to switch the bottom panel fully off or dim it when idle.
+- [`settings-map.md`](../settings-map.md) lists only "Dual screen launcher". Dual screen sessions, Show the game on, Bottom screen controls in games, Bottom screen HUD, Strip on every tab and Physical controls can use bottom screen are missing.
+
+DroidDeck already has more on the bottom screen than any other project that runs PC games. What it lacks is context: it does not react to what is on top.
+
+## Proposals
+
+Ordered by value for effort. Each is independent unless noted.
+
+### 1. Idle home page
+
+**Status:** built as its own panel, Game art (Steam sessions), after a first version as a row on the dashboard was removed. The bottom screen shows the hero art of the running game, or the one selected in Big Picture, or the most recently played, with a slow pan and zoom, its logo, and play time; it cross-fades when the selection changes and starts with the bar hidden. Checked on a Retroid Pocket Duo Lite Plus. Code: [`ui/BottomArtPanel.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomArtPanel.kt), selection in [`ui/BottomIdleHome.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomIdleHome.kt).
+
+![Game art panel: a game's hero art with its logo and play time](evidence/bottom-screen-art-2026-11-27.png)
+
+When no game is focused, replace the Steam-client FPS card with a page about the game highlighted in Steam: art, play time, last played, achievement progress, and Play / Stream buttons. Add downloads in progress and friends online.
+
+- Source: the Big Picture selection and app details through `steamEval`, as ArmadaLive does over the CEF port. Art from the existing `SteamGameArt`.
+- Open question: which `SteamClient` call or store gives the focused library item most reliably across client updates. ArmadaLive lists this as fragile; we need a fallback to the most recent game.
+
+### 2. Per-game panel memory
+
+**Status:** built. Picking a bottom mode or a dashboard tab while a game is focused saves it for that game (`secondScreenPanel.app.<id>`, `bottomPage.app.<id>`); focusing the game restores it, and returning to Steam restores the global choice. Resetting the game profile clears both. Control layouts already follow the game through input profiles. Not yet checked on hardware: launching a game on the test device would have signed out another session on the same Steam account.
+
+Remember the bottom mode, dashboard tab and control layout per Steam app id, and restore them when that game gains focus. Fall back to today's global choice.
+
+- Source: the focus already tracked for `GameProfileFollowState`. Store next to the game profile so Reset clears it.
+- Applies to swapped mode too, where the panel is on the top screen.
+
+### 3. Steam achievements and notifications
+
+**Status:** achievements built, as a section of the Guides panel rather than a dashboard tab. They are read from `SteamClient.Apps.GetMyAchievementsForApp` into the shared `StoreAchievements` model (same list and hidden-achievement handling as Epic and GOG); games without Steam stats show the empty state. Notifications are not started.
+
+An achievements page for the running game (progress, recent unlocks, locked list with hidden descriptions behind a tap) and a notifications page (friends, invites, downloads finished).
+
+- Source: `steamEval` against Steam's UI stores, which keep the last synced achievements while the device is offline. The Steam Web API is a fallback only when the device has a network but the Steam client is offline; with no network, the page shows the cached list or says achievements are unavailable.
+- Matches the existing Epic, GOG and EA achievement readers so all stores look the same.
+
+### 4. Quick tiles and per-game rules
+
+**Status:** not built. A first tile page was tried and removed: the in-game menu already has these controls, and a second copy on the dashboard did not fit the panel's style.
+
+Rearrangeable tiles on the dashboard: FPS limit, 60/120 Hz, per-screen brightness, frame generation, screen effects, screenshot, swap screens, bottom screen off. A "Keep for this game" action saves the value into the game profile; settings that can make the device unusable revert after 15 s unless confirmed.
+
+- Most of these are already per-game somewhere (frame generation, screen effects, FPS limit for non-Steam games). This exposes them where the user is looking during play.
+
+### 5. Bottom screen off and auto-dim
+
+**Status:** built and checked on a Retroid Pocket Duo Lite Plus, where the window brightness override is per display: screen off sets the bottom display to 0.0 and auto-dim to 0.05 (`mBrightnessReason=override(com.droiddeck.launcher)`), while the top display stays at the user's manual level. Every panel's bar has a sun button that drops down a brightness slider for the bottom screen only (5–100 %, saved; it never reaches 0) with the screen-off button at its end: the panel goes black and asks for the lowest window brightness (`BRIGHTNESS_OVERRIDE_OFF`); a touch wakes it to the chosen level, and the waking touch does not reach the panel. Auto-dim never brightens a level set below it. The dashboard dims after 60 s without touch (pref `bottomAutoDim`, on by default); trackpad and keyboard panels never dim. Hardware buttons are not claimed.
+
+- A real off state for the bottom panel during a game (the backlight off, not a black Presentation), toggled from the bar or a button hold.
+- Dim after a period without touch, wake on touch. Off by default for the trackpad and keyboard modes.
+- Investigate which hardware buttons we can claim on the Thor and Duo without fighting the stock assistant.
+
+**Bar:** every panel's bar can be hidden with its chevron button; a pull tab at the top edge brings it back by a tap or a pull down. Game art, a page open in the Guides reader and a pinned map hide it on their own, and leaving them shows it again.
+
+| Brightness | Bar hidden |
+| --- | --- |
+| ![Brightness slider dropped down under the bottom bar, with the screen-off button at its end](evidence/bottom-screen-brightness-2026-11-27.png) | ![Bottom bar hidden, with the pull tab at the top edge](evidence/bottom-screen-bar-hidden-2026-11-27.png) |
+
+### 6. Region mirror from our compositor
+
+**Status:** milestone 1 built as its own bottom-screen panel (Mirror in the panel picker): the live region fills the panel, and Region, Top screen (shown, hidden or dimmed) and Scaling open as a card from the bar's options button. Checked on a Retroid Pocket Duo Lite Plus; see the region mirror doc.
+
+Crop rectangles of the game image (minimap, HUD, ability bars) onto the bottom screen, saved per game, optionally hidden on the top screen. Other Thor tools need MediaProjection or a privileged helper and cannot hide the original; our compositor has the game image before display, so it can do both with no permission prompt. Recommended path: a second output in `vk_present` that blits region sub-rectangles, with zero-copy layers later.
+
+Details: [bottom-screen-region-mirror.md](bottom-screen-region-mirror.md).
+
+### 7. Guides panel
+
+**Status:** milestones 1 and 4 built as their own bottom-screen panel (Guides in the panel picker), checked on a Retroid Pocket Duo Lite Plus. Five sections, switched with the app's tab strip and LB/RB, for the running game or the one selected in Steam: Guides (top-rated Steam guides in the device's language with a category choice and Continue reading), Achievements, Wiki & fixes (ProtonDB tier, and the wiki, StrategyWiki, PCGamingWiki, GameFAQs, IGN and HowLongToBeat through Wikidata; what Wikidata lacks is found from each site's own routes, such as Map Genie and IGN wiki slugs, Fandom's API and StrategyWiki's search API, so every row opens the page itself rather than a web search; only YouTube walkthroughs stay a search), Maps (images pinned by long-press, with zoom and markers per map, and the game's Map Genie page) and Saved (web archives for offline reading). The reader never takes focus, blocks common ad hosts and stays on the opened site unless the user follows a link. Code: [`session/SteamGuides.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamGuides.kt), [`session/GameLinks.kt`](../../app/src/main/java/com/droiddeck/launcher/session/GameLinks.kt), [`ui/BottomGuidesPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomGuidesPage.kt).
+
+A per-game tab with Steam Community guides for the exact app id, Steam achievements as a spoiler-safe checklist, the game's wiki and fixes (found through Wikidata), saved pages for offline use, and a workspace that reopens at the last section. It must never take focus from the game, and pauses pages it is not showing.
+
+Details: [bottom-screen-guides.md](bottom-screen-guides.md).
+
+### 8. Companion API for PC games
+
+**Status:** not built here; the first adapters (Stardew Valley, Skyrim SE, Fallout 4) follow in their own change.
+
+Let mods running in Proton drive native bottom-screen pages over loopback. Thor Pip-Boy (Fallout 4) and Grand Theft Companion (GTA) already run against DroidDeck as separate apps, and the Stardew, Skyrim and RimWorld ecosystems have servers we can adapt to. Plan: adapters for those first, then DroidDeck's own token-authenticated protocol with declarative pages and normalized state keys, then "run on bottom", then memory profiles only if needed. The existing racing, War Thunder and Elite Dangerous telemetry is the first set of built-in adapters.
+
+### 9. Steam's Quick Access menu on the bottom screen
+
+**Status:** built as its own panel (Quick Access in the panel picker, Steam sessions only) and checked on a Retroid Pocket Duo Lite Plus in Big Picture and in a game. The bottom screen shows Steam's real Quick Access menu: notifications, friends and chat, quick settings, performance, soundtracks and help, plus Decky Loader's tab and its plugins when Decky is enabled. Taps, drags and scrolling go to it; the controller stays on the top screen, so the d-pad drives the library or the game while the menu stays open. Code: [`session/SteamQam.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamQam.kt), [`ui/BottomSteamQamPanel.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomSteamQamPanel.kt), [`droiddeck-qam-relay`](../../tools/linuxfs/overlay/usr/local/bin/droiddeck-qam-relay).
+
+Plugin loaders expose Steam's CEF DevTools so the menu can be viewed in a desktop browser, but it renders only while it is open on the main screen. The panel keeps it open without covering the top screen:
+
+- Steam's UI is told to open the menu and keep it open: its composition request is capped at "notification" while the menu is ours, so gamescope keeps focus on the game, and losing focus no longer closes it. Gamepad focus moves from the menu back to the main UI only when the menu took it, so Steam's own popups keep the controller. The blurred backdrop is hidden.
+- The menu's browser view is placed just outside the Big Picture window through its own `SetBounds`, so it keeps rendering but never shows on top, including while Steam slides it wider for Friends and chat. The view is also given the panel's shape (about 712 × 463 instead of Steam's 856 × 463), so every tab shows at one scale. In Full width, a style on the menu page also lifts Steam's 300 px cap on each tab, so every tab fills the panel and Friends shows its list and chat side by side.
+- A timer inside Steam keeps this state every 250 ms, so the menu comes back, on the tab it was showing, as soon as Steam's main menu or a full-screen page such as Decky's store closes. It runs on a 5 s lease that the panel renews each second: if the app stops, Steam returns to normal by itself.
+- The hold starts only once the session is ready: holding the menu before Steam's first frame kept gamescope from presenting anything.
+- `droiddeck-qam-relay` relays the app to the DevTools port, which only answers clients inside the guest. The panel streams the menu with `Page.startScreencast`, scales its content to the panel and fills the rest with the menu's own background, and forwards touches on the menu with `Input.dispatchTouchEvent`. A layout button in the panel's bar cycles Full width (every tab stretched to the panel), Left, Center and Right (Steam's own narrow tabs, placed on that side); the choice is kept. Returning to the panel shows the last frame at once while the stream reconnects, and the first frame after a cold start takes about 1.4 s.
+- The Quick Access button still shows the menu on the top screen, in Steam's own layout and with the controller; closing it there (B or the button again) returns it to the bottom screen on the same tab.
+- Leaving the panel closes the menu and turns the patches off; the Steam button and the normal Quick Access button then work as before. Opening Steam's main menu replaces the Quick Access menu for as long as it is open, as on a Deck.
+
+Checked with Decky Loader 3.3.1 enabled: its tab renders and takes touch, and its store opens full screen on top with the controller, then returns to the Decky tab below. Decky hooks the menu after Steam starts, so the panel reopens it once when that happens.
+
+Limits: it relies on Steam's minified UI stores and method names, so a client update can break it; the panel then shows that the menu is not available.
+
+| Big Picture, friends | In game, performance | In game, quick settings |
+| --- | --- | --- |
+| ![Quick Access Friends tab on the bottom screen](evidence/bottom-screen-qam-friends-2026-11-27.png) | ![Quick Access Performance tab on the bottom screen during a game](evidence/bottom-screen-qam-performance-ingame-2026-11-27.png) | ![Quick Access Quick Settings tab on the bottom screen](evidence/bottom-screen-qam-settings-2026-11-27.png) |
+
+| Decky | Performance |
+| --- | --- |
+| ![Decky Loader's tab in Quick Access on the bottom screen](evidence/bottom-screen-qam-decky-2026-11-27.png) | ![Quick Access Performance tab in the full-width layout](evidence/bottom-screen-qam-performance-2026-11-27.png) |
+
+| Layout: Center | Layout: Right |
+| --- | --- |
+| ![Quick Access in the centred layout](evidence/bottom-screen-qam-center-2026-11-27.png) | ![Quick Access in the right-aligned layout](evidence/bottom-screen-qam-right-2026-11-27.png) |
+
+The top screen during that game, with the menu open on the bottom: ![Top screen during the game, with nothing drawn over it](evidence/bottom-screen-qam-top-ingame-2026-11-27.png)
+
+## Related fixes
+
+- Add the missing dual-screen settings to `SettingsIndex` and regenerate [`settings-map.md`](../settings-map.md).
+- Reproduce a first install on a Thor from a clean state, including with Steam on the SD card, against 0.7.11 to confirm the reported freeze is gone.

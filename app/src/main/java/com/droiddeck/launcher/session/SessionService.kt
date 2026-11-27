@@ -693,12 +693,14 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "Epic install directory setup failed", it) }
         }
         if (steamHere || noSteamGame) {
-            val added = SessionEvents.step("added-games-scan") { com.droiddeck.launcher.frontend.AddedGames.scan(this) }
-            val listing = SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added) }
+            val listing = if (steamHere) SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGamesPublisher.sessionListing(this) } else {
+                val added = SessionEvents.step("added-games-scan") { com.droiddeck.launcher.frontend.AddedGames.scan(this) }
+                com.droiddeck.launcher.frontend.AddedGamesPublisher.log(added)
+                SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added) }
+            }
             guest.add("DD_ADDED_GAMES=" + listing.path)
             if (OfflineMode.active(this)) guest.add("DD_STEAM_OFFLINE=1")
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("DD_LOSSLESS_OWNED=1")
-            if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
         guest.add("DD_LAUNCH_DIR=" + sessionRoot.path)
         // Proton builds up to 11.12 report X11 text fields under this name.
@@ -1727,6 +1729,7 @@ class SessionService : Service() {
             var startupWasSuspended = false
             var seen = false
             var goneSince = 0L
+            var gamePid: String? = null
             while (token == gameExitWatchToken && gen == sessionGen && SessionState.running && !SessionState.stopRequested) {
                 val now = android.os.SystemClock.elapsedRealtime()
                 val startupSuspended = SessionState.suspended || SessionState.suspending || SessionState.phase != SessionPhase.READY
@@ -1742,7 +1745,8 @@ class SessionService : Service() {
                         lastStartupCheck = now
                     }
                 }
-                if (steamGameRunning(gameId)) {
+                gamePid = SteamGameProcess.runningPid(gameId, gamePid)
+                if (gamePid != null) {
                     if (!seen) {
                         Log.i(TAG, "game $gameId started; tracking its exit")
                         mainHandler.post {

@@ -105,7 +105,11 @@ is left, so a process that is not paging out has no thread the preload added. Pr
 check they are single-threaded before they fork or call `unshare(CLONE_NEWUSER)`, such as
 Chromium's zygote, keep working. The worker is a bare `clone` with the flags of a normal
 thread, on a stack the preload maps itself, and makes only raw system calls, so starting it
-from the signal handler is safe and seccomp filters that only allow thread clones accept it. A
+from the signal handler is safe and seccomp filters that only allow thread clones accept it.
+Because those calls bypass the native userland hook (Run without proot), which maps guest paths
+only inside libc, the preload adds `DDNATV_ROOT` to `/tmp/.dd-zram` and its hold, trim and ack files
+once at startup. Without it, no process of a native session installed the handler and every
+request was ignored. A
 process that has a single thread, or whose signalled thread added a seccomp filter after the
 process started, as browser sandboxes do, gets no worker. When there is no worker, the process trims inline in steps of at most 32 MiB per request and
 looks at no more than 512 MiB of its address space each time. The page-out for a suspend and the read-back

@@ -41,7 +41,8 @@ class SubsurfaceReleaseTest(unittest.TestCase):
         start = cls.source.index('struct pending_release {')
         end = cls.source.index('\n};\n', start) + 4
         parts = [extract_function(cls.source, name) for name in FUNCTIONS]
-        code = cls.source[start:end] + '\n'.join(p[0] for p in parts) + '\n' + '\n'.join(p[1] for p in parts) + '\n'
+        depth = re.search(r'^#define RELEASE_PACE_DEPTH \d+$', cls.source, re.MULTILINE).group(0)
+        code = depth + '\n' + cls.source[start:end] + '\n'.join(p[0] for p in parts) + '\n' + '\n'.join(p[1] for p in parts) + '\n'
         cls.temp = tempfile.TemporaryDirectory(prefix='droiddeck-subsurface-release-')
         cls.addClassCleanup(cls.temp.cleanup)
         folder = Path(cls.temp.name)
@@ -73,6 +74,15 @@ class SubsurfaceReleaseTest(unittest.TestCase):
 
     def test_toplevel_release_pacing_is_unchanged(self):
         self.check_case('toplevel')
+
+    def test_client_that_never_waits_keeps_a_bounded_release_queue(self):
+        self.check_case('never-waits')
+
+    def test_sync_child_that_never_waits_keeps_a_bounded_release_queue(self):
+        self.check_case('never-waits-sync')
+
+    def test_fixed_pool_as_deep_as_the_cap_stays_held_to_the_limit(self):
+        self.check_case('deep-pool')
 
     def test_held_release_is_sent_when_the_parent_is_destroyed(self):
         self.check_case('destroyed')

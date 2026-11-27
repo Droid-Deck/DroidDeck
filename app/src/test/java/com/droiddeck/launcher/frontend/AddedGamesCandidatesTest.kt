@@ -145,4 +145,15 @@ class AddedGamesCandidatesTest {
         SessionPrefs.setAddedGamesDirs(app, listOf(games.path))
         assertEquals("My Game [Repack]", AddedGames.scan(app).single().name)
     }
+
+    @Test fun linksAndFoldersNamedLikeAnExeAreNotCandidates() {
+        val elsewhere = tmp.newFolder("Elsewhere")
+        exe(elsewhere, "Other.exe")
+        val game = tmp.newFolder("Linked")
+        exe(game, "bin/Linked.exe")
+        File(game, "Folder.exe").mkdirs()
+        java.nio.file.Files.createSymbolicLink(File(game, "other").toPath(), elsewhere.toPath())
+        java.nio.file.Files.createSymbolicLink(File(game, "Alias.exe").toPath(), File(elsewhere, "Other.exe").toPath())
+        assertEquals(listOf("bin/Linked.exe"), names(game))
+    }
 }

@@ -73,35 +73,72 @@ object EaLaunch {
     /** Answers the guest's request right before an EA game starts: session, licence and the LSX endpoint. */
     fun prepare(context: Context, request: JSONObject): JSONObject {
         val app = context.applicationContext
+        request.optJSONObject("steam")?.let { return prepareSteam(app, request, it) }
         val id = request.optString("id")
-        val reply = JSONObject().put("ok", false)
-        val (folder, recorded) = installed(app, id) ?: return reply.put("reason", "not-installed")
+        val (folder, recorded) = installed(app, id) ?: return JSONObject().put("ok", false).put("reason", "not-installed")
         val sidecar = backfill(folder, recorded)
         runCatching { com.droiddeck.launcher.stores.StoreLaunch.refreshLauncher(folder, sidecar) }
         File(folder, ENV_FILE).delete()
-        val account = EaAuth.load(app) ?: return reply.put("reason", "signed-out")
-        val access = EaAuth.accessToken(app) ?: return reply.put("reason", "sign-in-expired")
-        val contentId = sidecar.extra["contentId"].orEmpty()
-        val locale = sidecar.extra["locale"].orEmpty().ifEmpty { "en_US" }
-        val core = EaOoa.coreDir(folder, sidecar.exe)
+        val known = (sidecar.extra["contentIds"].orEmpty().split(',') + sidecar.extra["multiplayerId"].orEmpty()).map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        val game = Started(folder, id, sidecar.extra["contentId"].orEmpty(), known, sidecar.extra["contentIds"].orEmpty().split(','),
+            sidecar.title, sidecar.installVersion, sidecar.extra["locale"].orEmpty().ifEmpty { "en_US" }, sidecar.exe)
+        val (reply, env) = start(app, game, request)
+        if (env != null) {
+            val tmp = File(folder, "$ENV_FILE.tmp")
+            tmp.writeText(env.entries.joinToString("\r\n", postfix = "\r\n") { "${it.key}=${it.value}" })
+            tmp.renameTo(File(folder, ENV_FILE))
+        }
+        return reply
+    }
+
+    private val OFFER = Regex("Origin\\.OFR\\.[0-9]+\\.[0-9]+")
+    private val CONTENT = Regex("[A-Za-z0-9._-]{1,64}")
+
+    /** Steam's copy of an EA game, which Steam would hand to the EA app; the env comes back in the reply. */
+    private fun prepareSteam(app: Context, request: JSONObject, steam: JSONObject): JSONObject {
+        val failed = JSONObject().put("ok", false)
+        val root = com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(app).canonicalFile
+        val folder = File(root, steam.optString("folder").removePrefix("/")).canonicalFile
+        if (!folder.path.startsWith(root.path + File.separator) || !folder.isDirectory) return failed.put("reason", "no-folder")
+        fun strings(name: String, pattern: Regex) = steam.optJSONArray(name)?.let { a -> (0 until a.length()).map { a.optString(it) } }
+            .orEmpty().filter { pattern.matches(it) }.distinct()
+        val offers = strings("offers", OFFER)
+        val contents = strings("contentIds", CONTENT)
+        if (offers.isEmpty() || contents.isEmpty()) return failed.put("reason", "no-offer")
+        val game = Started(folder, offers.first(), contents.first(), contents.toSet(), contents, steam.optString("title").ifEmpty { folder.name },
+            steam.optString("version"), steam.optString("locale").ifEmpty { "en_US" }, steam.optString("exe"))
+        val (reply, env) = start(app, game, request)
+        if (env != null) reply.put("id", game.offerId).put("env", JSONObject(env.toMap()))
+        return reply
+    }
+
+    private class Started(
+        val folder: File, val offerId: String, val contentId: String, val contentIds: Set<String>, val licenceIds: List<String>,
+        val title: String, val version: String, val locale: String, val exe: String,
+    )
+
+    private fun start(app: Context, game: Started, request: JSONObject): Pair<JSONObject, LinkedHashMap<String, String>?> {
+        val reply = JSONObject().put("ok", false)
+        val id = game.offerId
+        val account = EaAuth.load(app) ?: return reply.put("reason", "signed-out") to null
+        val access = EaAuth.accessToken(app) ?: return reply.put("reason", "sign-in-expired") to null
+        val contentId = game.contentId
+        val locale = game.locale
+        val core = EaOoa.coreDir(game.folder, game.exe)
         val hashVersion = core?.let(EaOoa::activationVersion) ?: 1
         val hardware = request.optJSONObject("hardware")?.let(EaOoa.Hardware::fromJson)?.takeIf { it.complete(hashVersion) }
         val legacy = EaOoa.legacyCore(core)
 
         val lifetime = if (legacy) 14400 else 550
         val opaque = EaAuth.mint(app, EaAuth.CLIENT_ID, "token", EaAuth.OPAQUE_SCOPES, "OPAQUE", lifetime).orEmpty()
-        val known = (sidecar.extra["contentIds"].orEmpty().split(',') + sidecar.extra["multiplayerId"].orEmpty()).map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-        val lsx = EaLsx.start(app, EaLsx.Game(id, contentId, sidecar.title, sidecar.installVersion, locale, hardware, hashVersion, opaque,
-            System.currentTimeMillis() + (lifetime - 30) * 1000L, known))
+        val lsx = EaLsx.start(app, EaLsx.Game(id, contentId, game.title, game.version, locale, hardware, hashVersion, opaque,
+            System.currentTimeMillis() + (lifetime - 30) * 1000L, game.contentIds))
         val env = environment(id, contentId, locale, if (legacy && opaque.isNotEmpty()) opaque else access, access, opaque, EaAuth.load(app) ?: account)
-        val tmp = File(folder, "$ENV_FILE.tmp")
-        tmp.writeText(env.entries.joinToString("\r\n", postfix = "\r\n") { "${it.key}=${it.value}" })
-        tmp.renameTo(File(folder, ENV_FILE))
 
         val licenses = JSONArray()
         val notes = ArrayList<String>()
         if (core != null) {
-            val ids = (listOf(contentId) + sidecar.extra["contentIds"].orEmpty().split(',')).map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+            val ids = (listOf(contentId) + game.licenceIds).map { it.trim() }.filter { it.isNotEmpty() }.distinct()
             if (hardware == null) notes += "no-hardware" else {
                 val hash = EaOoa.machineHash(hardware, hashVersion)
                 for (content in ids) {
@@ -125,7 +162,7 @@ object EaLaunch {
         }
         val licenseNote = if (core == null) "none-needed" else "v$hashVersion " + notes.joinToString(",")
         Log.i(TAG, "prepared $id lsx=$lsx legacy=$legacy opaque=${opaque.isNotEmpty()} licence=$licenseNote")
-        return reply.put("ok", true).put("lsx", lsx).put("license", licenseNote).put("licenses", licenses)
+        return reply.put("ok", true).put("lsx", lsx).put("license", licenseNote).put("licenses", licenses) to env
     }
 }
 

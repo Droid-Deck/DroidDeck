@@ -39,6 +39,10 @@ internal object BuildWatermarkSetting {
                 throw error
             }
         }
+        notifyChanged(context)
+    }
+
+    fun notifyChanged(context: Context) {
         context.sendBroadcast(Intent(CHANGED).setPackage(context.packageName))
     }
 }

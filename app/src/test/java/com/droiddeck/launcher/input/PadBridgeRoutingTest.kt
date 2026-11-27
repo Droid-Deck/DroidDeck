@@ -71,7 +71,7 @@ class PadBridgeRoutingTest {
             InputDevice.KEYBOARD_TYPE_NONE, id = -1)
         assertTrue(virtual.isVirtual)
         assertFalse(PadBridge.isFromController(virtual))
-        for (uinputName in listOf("uinput-xiaomi", "uinput-fpc", "uinput_nav")) {
+        for (uinputName in listOf("uinput-xiaomi", "uinput-fpc", "uinput_nav", "ui-input-xiaomi")) {
             val phantom = device(
                 InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_JOYSTICK,
                 InputDevice.KEYBOARD_TYPE_NONE,

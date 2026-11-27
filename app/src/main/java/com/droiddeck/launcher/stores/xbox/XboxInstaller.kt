@@ -137,7 +137,7 @@ internal class XboxInstaller(private val app: Context, private val item: Catalog
         delete = deleteFiles
         val process = child
         if (process == null) {
-            if (deleteFiles && !item.extra["baseId"].isNullOrBlank()) StoreInstalls.deleteTree(folder)
+            if (deleteFiles && !item.extra["baseId"].isNullOrBlank()) StoreInstalls.deleteLater(folder)
             else if (deleteFiles) StoreInstalls.discard(app, folder, emptyList())
             return
         }
