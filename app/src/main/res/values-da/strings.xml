@@ -2439,7 +2439,7 @@
     <string name="phantom_title_not_required">Procesgrænse er ikke nødvendig</string>
     <string name="phantom_instructions_fix">%1$s Hvis det ikke er muligt, så forbind enheden til en computer med ADB, og køre kommandoen nedenfor. Kom tilbage hertil, og tjek igen.</string>
     <string name="phantom_instructions_off">Steam-sessioner kan starte.</string>
-    <string name="phantom_instructions_not_applicable">Denne Android-version bruger ikke denne grænse.</string>
+    <string name="phantom_instructions_not_applicable">Denne Android-version bruger ikke denne grænse.</string>
     <string name="phantom_title_uncounted">DroidDeck håndterer grænsen for underprocesser</string>
     <string name="phantom_instructions_uncounted">DroidDeck kører sessionens programmer i processer, som Android ikke tæller med, så Indstillinger for udviklere kan forblive slået fra.</string>
     <string name="phantom_fix_toggle">Tænd „Deaktiver begrænsningerne for underprocesser“ i Udvikleremuligheder, og lad Udvikleremuligheder være tændt bagefter.</string>
@@ -4141,6 +4141,7 @@
     <string name="theme_custom_signal">Fremhævninger</string>
     <string name="theme_custom_good">Succes</string>
     <string name="theme_custom_error">Fejl</string>
+    <string name="theme_custom_warning">Advarsel</string>
     <string name="hud_only_during_game">Vis kun HUD under spil</string>
     <string name="hud_only_during_game_hint">Skjul HUD, når der ikke registreres spilbilleder.</string>
     <string name="steam_store_close_steam">Luk Steam først</string>

@@ -2465,7 +2465,7 @@
     <string name="phantom_title_not_required">El límite de procesos secundarios no es necesario</string>
     <string name="phantom_instructions_fix">%1$s Si no es posible, conecta este dispositivo a un ordenador con ADB y ejecuta el comando de abajo. Después vuelve aquí y comprueba de nuevo.</string>
     <string name="phantom_instructions_off">Ya se pueden iniciar sesiones de Steam.</string>
-    <string name="phantom_instructions_not_applicable">Esta versión de Android no usa este límite.</string>
+    <string name="phantom_instructions_not_applicable">Esta versión de Android no usa este límite.</string>
     <string name="phantom_title_uncounted">DroidDeck gestiona el límite de procesos secundarios</string>
     <string name="phantom_instructions_uncounted">DroidDeck ejecuta los programas de la sesión en procesos que Android no cuenta, así que las Opciones para desarrolladores pueden seguir desactivadas.</string>
     <string name="phantom_fix_toggle">Activa “Inhabilitar restricciones de procesos secundarios” en Opciones de desarrollador y deja activadas las Opciones de desarrollador después.</string>
@@ -4181,6 +4181,7 @@
     <string name="theme_custom_signal">Destacados</string>
     <string name="theme_custom_good">Éxito</string>
     <string name="theme_custom_error">Error</string>
+    <string name="theme_custom_warning">Advertencia</string>
     <string name="hud_only_during_game">Mostrar el HUD solo durante una partida</string>
     <string name="hud_only_during_game_hint">Ocultar el HUD cuando no se detecten fotogramas del juego.</string>
     <string name="steam_store_close_steam">Cierra Steam primero</string>

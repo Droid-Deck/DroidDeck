@@ -2414,7 +2414,7 @@
     <string name="phantom_title_not_required">ไม่จำเป็นต้องใช้ขีดจำกัดโพรเซสลูก</string>
     <string name="phantom_instructions_fix">%1$s หากทำไม่ได้ ให้เชื่อมต่ออุปกรณ์นี้กับคอมพิวเตอร์ที่มี ADB แล้วรันคำสั่งด้านล่าง กลับมาที่นี่แล้วตรวจสอบอีกครั้ง</string>
     <string name="phantom_instructions_off">เซสชัน Steam สามารถเริ่มได้</string>
-    <string name="phantom_instructions_not_applicable">Android รุ่นนี้ไม่ใช้ขีดจำกัดนี้</string>
+    <string name="phantom_instructions_not_applicable">Android รุ่นนี้ไม่ใช้ขีดจำกัดนี้</string>
     <string name="phantom_title_uncounted">DroidDeck จัดการขีดจำกัดโปรเซสลูกให้</string>
     <string name="phantom_instructions_uncounted">DroidDeck เรียกใช้โปรแกรมของเซสชันในโปรเซสที่ Android ไม่นับ จึงปิดตัวเลือกสำหรับนักพัฒนาซอฟต์แวร์ไว้ได้</string>
     <string name="phantom_fix_toggle">เปิด “ปิดการจำกัดการประมวลผลข้อมูลย่อย” ในตัวเลือกสำหรับนักพัฒนา และเปิดตัวเลือกสำหรับนักพัฒนาไว้ต่อไปหลังจากนั้น</string>
@@ -4111,6 +4111,7 @@
     <string name="theme_custom_signal">จุดเน้น</string>
     <string name="theme_custom_good">สำเร็จ</string>
     <string name="theme_custom_error">ข้อผิดพลาด</string>
+    <string name="theme_custom_warning">คำเตือน</string>
     <string name="hud_only_during_game">แสดง HUD เฉพาะขณะเล่นเกม</string>
     <string name="hud_only_during_game_hint">ซ่อน HUD เมื่อไม่พบเฟรมของเกม</string>
     <string name="steam_store_close_steam">ปิด Steam ก่อน</string>

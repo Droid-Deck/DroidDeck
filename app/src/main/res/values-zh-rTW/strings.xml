@@ -2411,7 +2411,7 @@
     <string name="phantom_title_not_required">不需要變更子處理程序限制</string>
     <string name="phantom_instructions_fix">%1$s 如果無法這麼做，請將此裝置連接到裝有 ADB 的電腦並執行下方指令，然後返回這裡重新檢查。</string>
     <string name="phantom_instructions_off">可以啟動 Steam 工作階段。</string>
-    <string name="phantom_instructions_not_applicable">此 Android 版本不使用這項限制。</string>
+    <string name="phantom_instructions_not_applicable">此 Android 版本不使用這項限制。</string>
     <string name="phantom_title_uncounted">子程序限制由 DroidDeck 處理</string>
     <string name="phantom_instructions_uncounted">DroidDeck 在 Android 不計算的程序中執行工作階段的程式，因此開發人員選項可以保持關閉。</string>
     <string name="phantom_fix_toggle">在開發人員選項中開啟「停止限制子程序」，之後請保持開發人員選項開啟。</string>
@@ -4111,6 +4111,7 @@
     <string name="theme_custom_signal">醒目標示</string>
     <string name="theme_custom_good">成功</string>
     <string name="theme_custom_error">錯誤</string>
+    <string name="theme_custom_warning">警告</string>
     <string name="hud_only_during_game">僅在遊戲期間顯示 HUD</string>
     <string name="hud_only_during_game_hint">未偵測到遊戲畫面時隱藏 HUD。</string>
     <string name="steam_store_close_steam">請先關閉 Steam</string>

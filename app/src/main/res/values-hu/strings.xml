@@ -2439,7 +2439,7 @@
     <string name="phantom_title_not_required">A gyermekfolyamat-korlát nem szükséges</string>
     <string name="phantom_instructions_fix">%1$s Ha ez nem lehetséges, csatlakoztassa ezt az eszközt egy ADB-vel rendelkező számítógéphez, és futtassa az alábbi parancsot. Térjen vissza ide, és ellenőrizze újra.</string>
     <string name="phantom_instructions_off">A Steam-munkamenetek elindulhatnak.</string>
-    <string name="phantom_instructions_not_applicable">Ez az Android-verzió nem használja ezt a korlátot.</string>
+    <string name="phantom_instructions_not_applicable">Ez az Android-verzió nem használja ezt a korlátot.</string>
     <string name="phantom_title_uncounted">A gyermekfolyamat-korlátot a DroidDeck kezeli</string>
     <string name="phantom_instructions_uncounted">A DroidDeck a munkamenet programjait olyan folyamatokban futtatja, amelyeket az Android nem számol bele, így a fejlesztői beállítások kikapcsolva maradhatnak.</string>
     <string name="phantom_fix_toggle">Kapcsolja be az „Alárendelt folyamatok korlátozásának kikapcsolása” lehetőséget a Fejlesztői beállításokban, és utána hagyja bekapcsolva a Fejlesztői beállításokat.</string>
@@ -4141,6 +4141,7 @@
     <string name="theme_custom_signal">Kiemelések</string>
     <string name="theme_custom_good">Siker</string>
     <string name="theme_custom_error">Hiba</string>
+    <string name="theme_custom_warning">Figyelmeztetés</string>
     <string name="hud_only_during_game">HUD megjelenítése csak játék közben</string>
     <string name="hud_only_during_game_hint">HUD elrejtése, ha nem észlelhetők játék képkockái.</string>
     <string name="steam_store_close_steam">Előbb zárd be a Steamet</string>

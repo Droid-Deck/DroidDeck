@@ -2,6 +2,7 @@ package com.droiddeck.launcher.input
 
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.MotionEvent
 import kotlin.math.abs
 
@@ -24,6 +25,7 @@ class DirectTouchHold(
     private var delayMs = 0L
     private var holdBehavior = TouchGestureConfig.MOUSE_BEHAVIOR_CLICK
     private var forwarded = false
+    private var forwardedAt = 0L
     private var held = false
     private var pressing = false
     private var upX = 0f
@@ -125,8 +127,11 @@ class DirectTouchHold(
                 upX = event.x
                 upY = event.y
                 liftId = event.getPointerId(event.actionIndex)
-                liftPending = true
-                handler.postDelayed(lift, LIFT_MS)
+                val wait = MIN_PRESS_MS - (SystemClock.uptimeMillis() - forwardedAt)
+                if (wait > 0L) {
+                    liftPending = true
+                    handler.postDelayed(lift, wait)
+                } else lift.run()
             }
             MotionEvent.ACTION_CANCEL -> cancel()
         }
@@ -136,9 +141,10 @@ class DirectTouchHold(
     private fun forwardDown() {
         touch.down(downId, downX, downY)
         forwarded = true
+        forwardedAt = SystemClock.uptimeMillis()
     }
 
     private companion object {
-        const val LIFT_MS = 50L
+        const val MIN_PRESS_MS = 50L
     }
 }

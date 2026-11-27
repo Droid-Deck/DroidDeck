@@ -2465,7 +2465,7 @@
     <string name="phantom_title_not_required">Limita proceselor-copil nu este necesară</string>
     <string name="phantom_instructions_fix">%1$s Dacă nu este posibil, conectează acest dispozitiv la un computer cu ADB și rulează comanda de mai jos. Revino aici și verifică din nou.</string>
     <string name="phantom_instructions_off">Sesiunile Steam pot porni.</string>
-    <string name="phantom_instructions_not_applicable">Această versiune de Android nu folosește această limită.</string>
+    <string name="phantom_instructions_not_applicable">Această versiune de Android nu folosește această limită.</string>
     <string name="phantom_title_uncounted">Limita proceselor copil este gestionată de DroidDeck</string>
     <string name="phantom_instructions_uncounted">DroidDeck rulează programele sesiunii în procese pe care Android nu le numără, așa că Opțiunile pentru dezvoltatori pot rămâne dezactivate.</string>
     <string name="phantom_fix_toggle">Activează „Dezactivează restricțiile pentru procese secundare” în Opțiunile pentru dezvoltatori, și lasă Opțiunile pentru dezvoltatori activate după aceea.</string>
@@ -4181,6 +4181,7 @@
     <string name="theme_custom_signal">Evidențieri</string>
     <string name="theme_custom_good">Succes</string>
     <string name="theme_custom_error">Eroare</string>
+    <string name="theme_custom_warning">Avertisment</string>
     <string name="hud_only_during_game">Afișează HUD-ul doar în timpul jocului</string>
     <string name="hud_only_during_game_hint">Ascunde HUD-ul când nu sunt detectate cadre ale jocului.</string>
     <string name="steam_store_close_steam">Închide mai întâi Steam</string>

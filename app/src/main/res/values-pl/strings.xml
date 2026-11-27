@@ -2491,7 +2491,7 @@
     <string name="phantom_title_not_required">Limit procesów podrzędnych: nie dotyczy</string>
     <string name="phantom_instructions_fix">%1$s Jeśli to niemożliwe, podłącz to urządzenie do komputera z ADB i uruchom poniższe polecenie. Wróć tutaj i sprawdź ponownie.</string>
     <string name="phantom_instructions_off">Sesje Steam mogą się uruchamiać.</string>
-    <string name="phantom_instructions_not_applicable">Ta wersja systemu Android nie używa tego limitu.</string>
+    <string name="phantom_instructions_not_applicable">Ta wersja systemu Android nie używa tego limitu.</string>
     <string name="phantom_title_uncounted">Limitem procesów podrzędnych zajmuje się DroidDeck</string>
     <string name="phantom_instructions_uncounted">DroidDeck uruchamia programy sesji w procesach, których Android nie liczy, więc Opcje programisty mogą pozostać wyłączone.</string>
     <string name="phantom_fix_toggle">Włącz „Wyłącz ograniczenia procesów podrzędnych aplikacji” w Opcjach programisty i nie wyłączaj potem Opcji programisty.</string>
@@ -4221,6 +4221,7 @@
     <string name="theme_custom_signal">Wyróżnienia</string>
     <string name="theme_custom_good">Sukces</string>
     <string name="theme_custom_error">Błąd</string>
+    <string name="theme_custom_warning">Ostrzeżenie</string>
     <string name="hud_only_during_game">Pokazuj HUD tylko podczas gry</string>
     <string name="hud_only_during_game_hint">Ukryj HUD, gdy nie wykryto klatek gry.</string>
     <string name="steam_store_close_steam">Najpierw zamknij Steam</string>

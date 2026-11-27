@@ -693,12 +693,14 @@ class SessionService : Service() {
                 .onFailure { Log.w(TAG, "Epic install directory setup failed", it) }
         }
         if (steamHere || noSteamGame) {
-            val added = SessionEvents.step("added-games-scan") { com.droiddeck.launcher.frontend.AddedGames.scan(this) }
-            val listing = SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added) }
+            val listing = if (steamHere) SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGamesPublisher.sessionListing(this) } else {
+                val added = SessionEvents.step("added-games-scan") { com.droiddeck.launcher.frontend.AddedGames.scan(this) }
+                com.droiddeck.launcher.frontend.AddedGamesPublisher.log(added)
+                SessionEvents.step("added-games-listing") { com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added) }
+            }
             guest.add("DD_ADDED_GAMES=" + listing.path)
             if (OfflineMode.active(this)) guest.add("DD_STEAM_OFFLINE=1")
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("DD_LOSSLESS_OWNED=1")
-            if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
         guest.add("DD_LAUNCH_DIR=" + sessionRoot.path)
         // this session's worker number: the shared field may be a newer session's by the time it is used

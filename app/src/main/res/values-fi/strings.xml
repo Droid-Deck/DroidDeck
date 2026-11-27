@@ -2439,7 +2439,7 @@
     <string name="phantom_title_not_required">Lapsiprosessirajaa ei vaadita</string>
     <string name="phantom_instructions_fix">%1$s Jos se ei ole mahdollista, yhdistä tämä laite tietokoneeseen ADB:llä ja suorita alla oleva komento. Palaa tähän ja tarkista uudelleen.</string>
     <string name="phantom_instructions_off">Steam-istunnot voivat käynnistyä.</string>
-    <string name="phantom_instructions_not_applicable">Tämä Android-versio ei käytä tätä rajaa.</string>
+    <string name="phantom_instructions_not_applicable">Tämä Android-versio ei käytä tätä rajaa.</string>
     <string name="phantom_title_uncounted">DroidDeck hoitaa aliprosessirajoituksen</string>
     <string name="phantom_instructions_uncounted">DroidDeck ajaa istunnon ohjelmat prosesseissa, joita Android ei laske, joten kehittäjäasetukset voivat pysyä pois päältä.</string>
     <string name="phantom_fix_toggle">Ota käyttöön ”Poista käytöstä alatason prosessirajoitukset” Kehittäjäasetuksissa, ja pidä Kehittäjäasetukset päällä sen jälkeen.</string>
@@ -4141,6 +4141,7 @@
     <string name="theme_custom_signal">Korostukset</string>
     <string name="theme_custom_good">Onnistuminen</string>
     <string name="theme_custom_error">Virhe</string>
+    <string name="theme_custom_warning">Varoitus</string>
     <string name="hud_only_during_game">Näytä HUD vain pelin aikana</string>
     <string name="hud_only_during_game_hint">Piilota HUD, kun pelin ruutuja ei havaita.</string>
     <string name="steam_store_close_steam">Sulje Steam ensin</string>

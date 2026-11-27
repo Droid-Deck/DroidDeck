@@ -2439,7 +2439,7 @@
     <string name="phantom_title_not_required">Το όριο θυγατρικών διαδικασιών δεν απαιτείται</string>
     <string name="phantom_instructions_fix">%1$s Αν αυτό δεν είναι δυνατό, συνδέστε αυτή τη συσκευή σε έναν υπολογιστή με ADB και εκτελέστε την παρακάτω εντολή. Επιστρέψτε εδώ και ελέγξτε ξανά.</string>
     <string name="phantom_instructions_off">Οι συνεδρίες Steam μπορούν να ξεκινήσουν.</string>
-    <string name="phantom_instructions_not_applicable">Αυτή η έκδοση Android δεν χρησιμοποιεί αυτό το όριο.</string>
+    <string name="phantom_instructions_not_applicable">Αυτή η έκδοση Android δεν χρησιμοποιεί αυτό το όριο.</string>
     <string name="phantom_title_uncounted">Το DroidDeck χειρίζεται το όριο θυγατρικών διεργασιών</string>
     <string name="phantom_instructions_uncounted">Το DroidDeck εκτελεί τα προγράμματα της συνεδρίας σε διεργασίες που το Android δεν μετράει, οπότε οι Επιλογές για προγραμματιστές μπορούν να μείνουν απενεργοποιημένες.</string>
     <string name="phantom_fix_toggle">Ενεργοποιήστε την «Απενεργοπ. περιορισμών σε θυγατρικές διεργασίες» στις Επιλογές προγραμματιστή και αφήστε τις Επιλογές προγραμματιστή ενεργές μετά.</string>
@@ -4141,6 +4141,7 @@
     <string name="theme_custom_signal">Επισημάνσεις</string>
     <string name="theme_custom_good">Επιτυχία</string>
     <string name="theme_custom_error">Σφάλμα</string>
+    <string name="theme_custom_warning">Προειδοποίηση</string>
     <string name="hud_only_during_game">Εμφάνιση HUD μόνο κατά τη διάρκεια παιχνιδιού</string>
     <string name="hud_only_during_game_hint">Απόκρυψη HUD όταν δεν ανιχνεύονται καρέ παιχνιδιού.</string>
     <string name="steam_store_close_steam">Κλείστε πρώτα το Steam</string>

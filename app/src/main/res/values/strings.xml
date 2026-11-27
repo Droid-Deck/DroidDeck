@@ -2028,6 +2028,7 @@
     <string name="theme_custom_signal">Highlights</string>
     <string name="theme_custom_good">Success</string>
     <string name="theme_custom_error">Error</string>
+    <string name="theme_custom_warning">Warning</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>

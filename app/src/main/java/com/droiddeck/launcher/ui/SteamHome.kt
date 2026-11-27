@@ -82,7 +82,18 @@ import kotlinx.coroutines.withContext
 private const val WALL_MIN_GAMES = 4
 private const val WALL_DISTINCT = 40
 
-private const val DRIFT_STEP_NS = 15_000_000L
+private const val IDLE_FRAME_NS = 30_000_000L
+
+internal object IdleFrames {
+    private var shown = 0L
+
+    fun due(nanos: Long): Boolean {
+        if (nanos == shown) return true
+        if (nanos - shown < IDLE_FRAME_NS) return false
+        shown = nanos
+        return true
+    }
+}
 
 @Composable
 internal fun SteamHome(s: FrontEndState, a: FrontEndActions, modifier: Modifier) {
@@ -281,7 +292,7 @@ internal fun TiltedWall(
         var shown = 0L
         while (true) withFrameNanos { now ->
             if (shown == 0L) shown = now
-            else if (now - shown >= DRIFT_STEP_NS) {
+            else if (IdleFrames.due(now)) {
                 drift.floatValue = ((drift.floatValue + (now - shown) / (period.value * 1_000_000.0 * Motion.scale)) % 1.0).toFloat()
                 shown = now
             }

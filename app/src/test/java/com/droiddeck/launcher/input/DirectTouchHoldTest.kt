@@ -201,6 +201,25 @@ class DirectTouchHoldTest {
         )
     }
 
+    @Test fun aDragLiftsAtOnce() {
+        touch(MotionEvent.ACTION_DOWN)
+        touch(MotionEvent.ACTION_MOVE, 80f)
+        advance(80)
+        touches.clear()
+        touch(MotionEvent.ACTION_UP, 80f)
+        assertEquals(listOf("up 0 at 80.0,30.0"), touches)
+    }
+
+    @Test fun aTapStaysPressedLongEnoughToBeSeen() {
+        touch(MotionEvent.ACTION_DOWN)
+        advance(10)
+        touch(MotionEvent.ACTION_UP)
+        advance(49)
+        assertEquals(listOf("down 0 at 40.0,30.0"), touches)
+        advance(1)
+        assertEquals(listOf("down 0 at 40.0,30.0", "up 0 at 40.0,30.0"), touches)
+    }
+
     private fun advance(ms: Long) = shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(ms))
     private fun touch(action: Int, x: Float = 40f): Boolean {
         val event = MotionEvent.obtain(0, 0, action, x, 30f, 0)

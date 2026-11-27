@@ -2414,7 +2414,7 @@
     <string name="phantom_title_not_required">Không cần giới hạn tiến trình con</string>
     <string name="phantom_instructions_fix">%1$s Nếu không thể, hãy kết nối thiết bị này với một máy tính có ADB và chạy lệnh dưới đây. Quay lại đây và kiểm tra lại.</string>
     <string name="phantom_instructions_off">Phiên Steam có thể khởi động.</string>
-    <string name="phantom_instructions_not_applicable">Phiên bản Android này không dùng giới hạn này.</string>
+    <string name="phantom_instructions_not_applicable">Phiên bản Android này không dùng giới hạn này.</string>
     <string name="phantom_title_uncounted">DroidDeck xử lý giới hạn tiến trình con</string>
     <string name="phantom_instructions_uncounted">DroidDeck chạy các chương trình của phiên trong những tiến trình mà Android không tính, nên có thể để tắt Tùy chọn cho nhà phát triển.</string>
     <string name="phantom_fix_toggle">Bật “Tắt các mục hạn chế đối với tiến trình con” trong Developer options, và giữ Developer options luôn mở sau đó.</string>
@@ -4111,6 +4111,7 @@
     <string name="theme_custom_signal">Điểm nhấn</string>
     <string name="theme_custom_good">Thành công</string>
     <string name="theme_custom_error">Lỗi</string>
+    <string name="theme_custom_warning">Cảnh báo</string>
     <string name="hud_only_during_game">Chỉ hiển thị HUD khi đang chơi</string>
     <string name="hud_only_during_game_hint">Ẩn HUD khi không phát hiện khung hình trò chơi.</string>
     <string name="steam_store_close_steam">Hãy đóng Steam trước</string>

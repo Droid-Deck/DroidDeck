@@ -2439,7 +2439,7 @@
     <string name="phantom_title_not_required">चाइल्ड-प्रोसेस सीमा ज़रूरी नहीं</string>
     <string name="phantom_instructions_fix">%1$s अगर यह संभव नहीं है, तो इस डिवाइस को ADB वाले कंप्यूटर से कनेक्ट करें और नीचे दिया कमांड चलाएं। यहां वापस आएं और फिर से जांचें।</string>
     <string name="phantom_instructions_off">Steam सेशन शुरू हो सकते हैं।</string>
-    <string name="phantom_instructions_not_applicable">यह Android वर्शन इस सीमा का उपयोग नहीं करता।</string>
+    <string name="phantom_instructions_not_applicable">यह Android वर्शन इस सीमा का उपयोग नहीं करता।</string>
     <string name="phantom_title_uncounted">चाइल्ड-प्रोसेस सीमा DroidDeck संभालता है</string>
     <string name="phantom_instructions_uncounted">DroidDeck सत्र के प्रोग्राम उन प्रोसेस में चलाता है जिन्हें Android नहीं गिनता, इसलिए डेवलपर विकल्प बंद रह सकते हैं।</string>
     <string name="phantom_fix_toggle">डेवलपर विकल्प में “चाइल्ड प्रोसेस से जुड़ी पाबंदियां हटाएं” चालू करें, और बाद में डेवलपर विकल्प चालू रहने दें।</string>
@@ -4141,6 +4141,7 @@
     <string name="theme_custom_signal">हाइलाइट</string>
     <string name="theme_custom_good">सफलता</string>
     <string name="theme_custom_error">त्रुटि</string>
+    <string name="theme_custom_warning">चेतावनी</string>
     <string name="hud_only_during_game">HUD केवल गेम के दौरान दिखाएँ</string>
     <string name="hud_only_during_game_hint">गेम के फ़्रेम का पता न चलने पर HUD छिपाएँ।</string>
     <string name="steam_store_close_steam">पहले Steam बंद करें</string>

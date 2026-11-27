@@ -2414,7 +2414,7 @@
     <string name="phantom_title_not_required">하위 프로세스 제한 해당 없음</string>
     <string name="phantom_instructions_fix">%1$s 이 방법을 사용할 수 없으면 이 기기를 ADB가 설치된 PC에 연결하고 아래 명령을 실행하세요. 그런 다음 여기로 돌아와 다시 확인하세요.</string>
     <string name="phantom_instructions_off">Steam 세션을 시작할 수 있습니다.</string>
-    <string name="phantom_instructions_not_applicable">이 Android 버전에서는 이 제한을 사용하지 않습니다.</string>
+    <string name="phantom_instructions_not_applicable">이 Android 버전에서는 이 제한을 사용하지 않습니다.</string>
     <string name="phantom_title_uncounted">하위 프로세스 제한은 DroidDeck이 처리합니다</string>
     <string name="phantom_instructions_uncounted">DroidDeck은 세션의 프로그램을 Android가 세지 않는 프로세스에서 실행하므로 개발자 옵션을 꺼 둔 채로 두어도 됩니다.</string>
     <string name="phantom_fix_toggle">개발자 옵션에서 “하위 프로세스 제한 사용 중지”를 켜고, 이후에도 개발자 옵션을 켜 둔 상태로 유지하세요.</string>
@@ -4111,6 +4111,7 @@
     <string name="theme_custom_signal">강조 표시</string>
     <string name="theme_custom_good">성공</string>
     <string name="theme_custom_error">오류</string>
+    <string name="theme_custom_warning">경고</string>
     <string name="hud_only_during_game">게임 중에만 HUD 표시</string>
     <string name="hud_only_during_game_hint">게임 프레임이 감지되지 않으면 HUD 숨기기.</string>
     <string name="steam_store_close_steam">먼저 Steam을 닫으세요</string>

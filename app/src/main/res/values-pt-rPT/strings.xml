@@ -1812,6 +1812,7 @@
     <string name="theme_custom_signal">Destaques e indicadores</string>
     <string name="theme_custom_good">Sucesso</string>
     <string name="theme_custom_error">Erro</string>
+    <string name="theme_custom_warning">Aviso</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2470,7 +2471,7 @@
     <string name="phantom_title_not_required">Limite de processos secundários não necessário</string>
     <string name="phantom_instructions_fix">%1$s Se não for possível, ligue este dispositivo a um computador com ADB e execute o comando abaixo. Volte aqui e verifique novamente.</string>
     <string name="phantom_instructions_off">As sessões Steam podem ser iniciadas.</string>
-    <string name="phantom_instructions_not_applicable">Esta versão do Android não usa este limite.</string>
+    <string name="phantom_instructions_not_applicable">Esta versão do Android não usa este limite.</string>
     <string name="phantom_title_uncounted">Limite de processos filhos gerido pelo DroidDeck</string>
     <string name="phantom_instructions_uncounted">O DroidDeck executa os programas da sessão em processos que o Android não conta, por isso as Opções de programador podem continuar desativadas.</string>
     <string name="phantom_fix_toggle">Ative «Desativar restrições de processos secundários» nas Opções de programador e mantenha as Opções de programador ativadas depois.</string>

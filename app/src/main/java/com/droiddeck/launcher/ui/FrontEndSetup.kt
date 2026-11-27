@@ -1255,6 +1255,7 @@ private fun CustomColorRows() {
         Triple("signal", stringResource(R.string.theme_custom_signal), colors.signal),
         Triple("good", stringResource(R.string.theme_custom_good), colors.good),
         Triple("error", stringResource(R.string.theme_custom_error), colors.error),
+        Triple("warning", stringResource(R.string.theme_custom_warning), colors.warning),
     )
 
     rows.forEach { (key, label, argb) ->

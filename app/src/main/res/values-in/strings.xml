@@ -2414,7 +2414,7 @@
     <string name="phantom_title_not_required">Batas proses turunan tidak diperlukan</string>
     <string name="phantom_instructions_fix">%1$s Jika itu tidak memungkinkan, sambungkan perangkat ini ke komputer dengan ADB dan jalankan perintah di bawah. Kembali ke sini dan periksa lagi.</string>
     <string name="phantom_instructions_off">Sesi Steam dapat dimulai.</string>
-    <string name="phantom_instructions_not_applicable">Versi Android ini tidak menggunakan batas ini.</string>
+    <string name="phantom_instructions_not_applicable">Versi Android ini tidak menggunakan batas ini.</string>
     <string name="phantom_title_uncounted">Batas proses anak ditangani DroidDeck</string>
     <string name="phantom_instructions_uncounted">DroidDeck menjalankan program sesi dalam proses yang tidak dihitung Android, jadi Opsi developer bisa tetap nonaktif.</string>
     <string name="phantom_fix_toggle">Aktifkan “Nonaktifkan batasan proses turunan” di Opsi developer, dan biarkan Opsi developer tetap aktif setelahnya.</string>
@@ -4111,6 +4111,7 @@
     <string name="theme_custom_signal">Sorotan</string>
     <string name="theme_custom_good">Berhasil</string>
     <string name="theme_custom_error">Kesalahan</string>
+    <string name="theme_custom_warning">Peringatan</string>
     <string name="hud_only_during_game">Tampilkan HUD hanya saat bermain</string>
     <string name="hud_only_during_game_hint">Sembunyikan HUD saat tidak ada frame game yang terdeteksi.</string>
     <string name="steam_store_close_steam">Tutup Steam terlebih dahulu</string>

@@ -2492,7 +2492,7 @@
     <string name="phantom_title_not_required">Отключать ограничение дочерних процессов не нужно</string>
     <string name="phantom_instructions_fix">%1$s Если это невозможно, подключите устройство к компьютеру с ADB и выполните команду ниже. Затем вернитесь сюда и проверьте снова.</string>
     <string name="phantom_instructions_off">Сессии Steam могут запускаться.</string>
-    <string name="phantom_instructions_not_applicable">Эта версия Android не использует это ограничение.</string>
+    <string name="phantom_instructions_not_applicable">Эта версия Android не использует это ограничение.</string>
     <string name="phantom_title_uncounted">Ограничение дочерних процессов обходит DroidDeck</string>
     <string name="phantom_instructions_uncounted">DroidDeck запускает программы сеанса в процессах, которые Android не учитывает, поэтому параметры разработчика можно не включать.</string>
     <string name="phantom_fix_toggle">Включите «Отключить ограничения для дочерних процессов» в разделе «Для разработчиков» и оставьте этот раздел включенным.</string>
@@ -4222,6 +4222,7 @@
     <string name="theme_custom_signal">Выделения</string>
     <string name="theme_custom_good">Успех</string>
     <string name="theme_custom_error">Ошибка</string>
+    <string name="theme_custom_warning">Предупреждение</string>
     <string name="hud_only_during_game">Показывать HUD только во время игры</string>
     <string name="hud_only_during_game_hint">Скрывать HUD, когда кадры игры не обнаруживаются.</string>
     <string name="steam_store_close_steam">Сначала закройте Steam</string>
