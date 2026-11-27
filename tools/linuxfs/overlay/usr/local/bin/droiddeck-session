@@ -30,6 +30,15 @@ dd_spawn() {
   "$@" &
   dd_spawned=$!
 }
+# Long-lived programs the session's guests start run in their own processes too
+# (tools/nativeguest/hook/handoff.c). Not Steam, its web helper's browser process (gamescope finds a
+# window's app by walking its process's parents) or its utility processes (the client only accepts
+# its transport from its own children).
+if [ "${DD_SPAWN_DAEMONS:-1}" = 1 ] && [ -n "${DD_SPAWN:-}" ]; then
+  export DD_HANDOFF=${DD_HANDOFF-xdg-desktop-portal:xdg-permission-store:xdg-desktop-portal-gtk:at-spi-bus-launcher:at-spi2-registryd:plasma_waitforname:python3:pipewire:wireplumber:PluginLoader:PluginLoader.real:xprop+-spy:gnudd:steamwebhelper+--type=renderer:wine:wine-preloader:wine64:wine64-preloader:wineserver}
+else
+  unset DD_HANDOFF
+fi
 steam_setup_failed() {
   echo "== steam: the Steam client could not be set up (status $1)"
   [ -z "${DD_STEAM_EXIT_FILE:-}" ] || printf '%s\n' "$1" > "$DD_STEAM_EXIT_FILE"

@@ -207,16 +207,70 @@ hook, at `execve()` in a forked child, could move all 40, leaving about 7 counte
 the pid translation described in B (the parent keeps the forked pid; `wait4`, `kill`, `SIGCHLD` and
 `/proc/<pid>` go to the worker's process).
 
+### Handoff in the native hook (prototype, on this branch)
+
+`tools/nativeguest/hook/handoff.c`. At `execve()` in a forked child, a program named in
+`DD_HANDOFF` is sent to the app's spawn socket instead of exec'd: the request carries argv, the
+environment, the working directory and every inheritable fd with its number, and a worker execs
+the program with those fds in place. The child records "my pid is now worker pid P" in a memfd
+table its parent created, and exits. In the parent, `wait4`/`waitpid`/`wait`/`wait3`/`waitid` and
+`kill` treat the forked pid as P until P exits; the app writes P's exit status (from
+`ApplicationExitInfo`) into the table and sends the parent `SIGCHLD`. The child's side is
+vfork-safe (Python's subprocess execs under `vfork`). Details that mattered:
+
+- **Scripts:** the list also matches the `#!` interpreter (`python3` for `droiddeck-agent`).
+- **Exec chains:** a forked child that first execs a wrapper (`env`, `taskset`, a shell script,
+  Wine re-executing itself through `wine-preloader`) keeps its parent's table fd across the exec,
+  so the wrapper's own exec can still be handed off.
+- **Not handed off:** Steam and the web helper's browser process (gamescope finds a window's app by
+  walking its process's parents) and its utility processes (the client refuses its transport —
+  "no transport is available" — from processes that are not its children). The web helper's
+  renderers hand off fine.
+- One-shot programs cost a worker start (~100 ms) each, so the list names long-lived programs only
+  (`xprop+-spy`: `name+prefix` matches only when an argument starts with prefix).
+
+Default list: the portals, at-spi, `python3`, PipeWire, WirePlumber, Decky's PluginLoader, the log's
+`gnudd`, `xprop -spy`, the web helper's renderers, `wine`, `wine-preloader`, `wineserver`.
+
+Measured on the Thor, same session and game as above:
+
+| | counted children, idle | counted, Bully (Proton) running |
+|---|---|---|
+| main, no handoff | 48 | 63 |
+| handoff | **26** | **29** |
+
+With the handoff on, Bully reached its menu at 30 fps, kept focus, and Steam's library, Decky, the
+portals, NetworkManager/login1 and the agent all worked. Then Android's own limit was switched back
+on (`settings_enable_monitor_phantom_procs=true`, default limit 32) with the game running, and
+scans were forced by switching apps: Android listed **28** child processes device-wide and killed
+**none**; the game and its Wine processes were still running afterwards.
+
+Still counted with a game running: the session script's 9 bash subshells, gamescope with its two
+Xwayland servers, its reaper and an autolaunched D-Bus, Steam with its web helper browser and two
+utility processes, Steam's launch chain (`sh`, `pw-audio-namespace`, `reaper`), and the app's own
+logcat, PulseAudio and audio relay. The app's three can use `GuestWorkers.start` directly, and the
+autolaunched bus goes away once gamescope sees the session bus address.
+
 ### C. Plan
 
 1. ~~Verify both gaps on the Thor (Android 13, 5.15)~~ done; still to do on one stock Android 14+
    phone with an enforcing `isolated_app`.
-2. B for the processes DroidDeck and the session script start themselves (no pid translation).
-   Measure the session's count.
-3. A for the Steam client tree if 2 is not enough. Only GPU, Wine and game processes then stay in
-   the counted cgroup, about 15 with a game running.
-4. Keep the developer-option check as a fallback until the count with a game running stays well
-   under 32 on every supported device, then turn it into a warning.
+2. ~~B for the processes DroidDeck and the session script start themselves~~ done (45 of 48).
+3. ~~B inside the hook, with pid translation~~ prototype done: 26 idle, 29 with a game, no kills
+   with Android's limit on.
+4. To finish B:
+   - the app's own logcat, PulseAudio and audio relay through `GuestWorkers.start`;
+   - fewer session-script subshells, or start them with `dd_spawn bash -c`;
+   - the autolaunched D-Bus under gamescope;
+   - Xwayland, if gamescope keeps working without them as its children;
+   - `/proc/<pid>/stat` showing the virtual parent, so Steam, its web helper and the launch chain
+     can be handed off too;
+   - a pre-started worker or two, so a handoff costs no zygote fork.
+5. Then the session can stop requiring the developer option where the in-game count stays well
+   under 32. Keep the check as a warning and fall back to counted processes if a worker cannot
+   start.
+6. A (the isolated tier) only if B stops working on a future Android; it needs a file and socket
+   broker and keeps the GPU outside.
 
 ## Robustness
 
