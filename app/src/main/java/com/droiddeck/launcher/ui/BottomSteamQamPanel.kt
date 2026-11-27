@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -112,6 +113,8 @@ internal fun SteamQamPanel() {
     val holder = remember { arrayOfNulls<CdpPage>(1) }
     val relay = remember { intArrayOf(0) }
     val live = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    val aspect = remember { floatArrayOf(0f) }
+    val measure = Modifier.fillMaxSize().onSizeChanged { if (it.height > 0) aspect[0] = it.width.toFloat() / it.height }
     val show = { frame: ImageBitmap -> image = frame; QamCache.image = frame; live.set(true) }
     DisposableEffect(Unit) {
         onDispose {
@@ -133,7 +136,11 @@ internal fun SteamQamPanel() {
                     delay(FAST_TICK_MS)
                     continue
                 }
-                val open = SteamQam.hold(context)
+                if (aspect[0] == 0f) {
+                    delay(FAST_TICK_MS)
+                    continue
+                }
+                val open = SteamQam.hold(context, aspect[0])
                 failed = open == null
                 if (open == SteamQam.QUICK_ACCESS) {
                     var page = holder[0]
@@ -179,10 +186,12 @@ internal fun SteamQamPanel() {
         if (img != null && l != null && l[0] > 0f) QamFrame(img, l[0], l[1], l[3].coerceIn(l[0] * 0.25f, l[0])) else null
     }
     if (f == null) {
-        if (slow) PanelNote(stringResource(if (failed) R.string.bottom_qam_unavailable else R.string.achievements_reading))
+        Box(measure) {
+            if (slow) PanelNote(stringResource(if (failed) R.string.bottom_qam_unavailable else R.string.achievements_reading))
+        }
         return
     }
-    BoxWithConstraints(Modifier.fillMaxSize().background(f.fill)) {
+    BoxWithConstraints(measure.background(f.fill)) {
         val density = LocalDensity.current
         val boxW = with(density) { maxWidth.toPx() }
         val boxH = with(density) { maxHeight.toPx() }

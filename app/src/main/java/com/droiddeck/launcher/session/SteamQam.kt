@@ -17,7 +17,8 @@ object SteamQam {
     private const val TAG = "SteamQam"
     private const val EVAL_MS = 6_000L
 
-    internal fun script(on: Boolean): String = """(() => {
+    /** [aspect] is the panel's width over height: the menu is laid out at that shape so every tab shows at one scale. */
+    internal fun script(on: Boolean, aspect: Float = 0f): String = """(() => {
         const g = globalThis, QAM = 2;
         const W = SteamUIStore.WindowStore.SteamUIWindows[0];
         const m = W.MenuStore, c = W.m_CompositionStateStore;
@@ -25,6 +26,7 @@ object SteamQam {
         const popup = g_PopupManager.GetExistingPopup("SP BPM_uid0");
         const held = () => g.__ddQamUntil > Date.now();
         const ours = () => held() && m.m_eOpenSideMenu === QAM;
+        const width = (h) => g.__ddQamAspect > 0 ? Math.round(h * g.__ddQamAspect) : 0;
         if (!c.__ddQam) {
             c.__ddQam = c.ComputeOverallMinimumRequestedComposition;
             c.ComputeOverallMinimumRequestedComposition = function (...a) {
@@ -54,8 +56,9 @@ object SteamQam {
                 v.__ddQam = v.SetBounds;
                 v.SetBounds = function (x, y, w, h, ...r) {
                     v.__ddAsked = [x, y, w, h];
-                    if (w > 0 && ours()) x = popup.m_popup.innerWidth + 64;
+                    if (w > 0 && ours()) { x = popup.m_popup.innerWidth + 64; w = width(h) || w; }
                     v.__ddAt = x;
+                    v.__ddW = w;
                     return v.__ddQam.call(this, x, y, w, h, ...r);
                 };
             }
@@ -80,15 +83,17 @@ object SteamQam {
             for (const v of views()) {
                 if (!v.__ddAsked) {
                     const b = v.GetBounds?.();
-                    if (b && b.width > 0) { v.__ddAsked = [b.x, b.y, b.width, b.height]; v.__ddAt = b.x; }
+                    if (b && b.width > 0) { v.__ddAsked = [b.x, b.y, b.width, b.height]; v.__ddAt = b.x; v.__ddW = b.width; }
                 }
-                if (v.__ddAsked?.[2] > 0 && v.__ddAt < popup.m_popup.innerWidth) v.SetBounds(...v.__ddAsked);
+                const a = v.__ddAsked;
+                if (a?.[2] > 0 && (v.__ddAt < popup.m_popup.innerWidth || (width(a[3]) && v.__ddW !== width(a[3])))) v.SetBounds(...a);
             }
             const main = nav?.m_rgGamepadNavigationTrees?.find(t => t.m_ID === "GamepadUI_Full_Root");
             if (main && nav.m_LastActiveNavTree?.m_ID?.startsWith("QuickAccess")) nav.SetActiveNavTree(main);
             backdrop(true);
         };
         g.__ddQamUntil = ${if (on) "Date.now() + $LEASE_MS" else "0"};
+        ${if (on && aspect > 0f) "g.__ddQamAspect = $aspect;" else ""}
         keep();
         if (held() && !g.__ddQamTimer) {
             g.__ddQamTimer = setInterval(() => {
@@ -99,7 +104,7 @@ object SteamQam {
         return m.m_eOpenSideMenu;
     })()"""
 
-    fun hold(context: Context): Int? = eval(context, script(true))?.toIntOrNull()
+    fun hold(context: Context, aspect: Float): Int? = eval(context, script(true, aspect))?.toIntOrNull()
 
     fun release(context: Context, relayPort: Int) {
         eval(context, script(false))

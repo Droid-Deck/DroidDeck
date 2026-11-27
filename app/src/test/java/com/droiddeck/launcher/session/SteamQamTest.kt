@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import com.droiddeck.launcher.ui.QamLayout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -38,10 +39,16 @@ class SteamQamTest {
         assertTrue(SteamQam.script(false).contains("g.__ddQamUntil = 0;"))
     }
 
+    @Test fun theMenuIsLaidOutAtThePanelsShapeOnlyWhileHeld() {
+        assertTrue(SteamQam.script(true, 1.5f).contains("g.__ddQamAspect = 1.5;"))
+        assertFalse(SteamQam.script(true).contains("g.__ddQamAspect ="))
+        assertFalse(SteamQam.script(false, 1.5f).contains("g.__ddQamAspect ="))
+    }
+
     @Test fun whileHeldTheMenuStaysOffTheTopScreenAndOutOfTheGamesWay() {
         val script = SteamQam.script(true)
         assertTrue(script.contains("return v === 2 && ours() ? 1 : v;"))
-        assertTrue(script.contains("if (w > 0 && ours()) x = popup.m_popup.innerWidth + 64;"))
+        assertTrue(script.contains("if (w > 0 && ours()) { x = popup.m_popup.innerWidth + 64; w = width(h) || w; }"))
         assertTrue(script.contains("nav.m_LastActiveNavTree?.m_ID?.startsWith(\"QuickAccess\")"))
         assertTrue(script.contains("if (m.m_eOpenSideMenu === QAM) m.CloseSideMenus();"))
     }
