@@ -989,6 +989,8 @@ static int swap_init_locked(void) {
 
     droiddeck_log("gpu", "screen output %ux%u, %u buffers, vsync%s", g_extent.width, g_extent.height, g_nimg,
                g_swap_extra ? " (frame generation: several presents per frame)" : "");
+    droiddeck_log("gpu", "present synchronization: %u render-finished semaphores, one per swapchain image",
+                  g_rnd_count);
     return 0;
 }
 
