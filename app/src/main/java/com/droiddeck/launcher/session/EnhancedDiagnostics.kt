@@ -11,16 +11,15 @@ object EnhancedDiagnostics {
     const val MANIFEST_FILE = "enhanced-diagnostics.json"
 
     private const val TAG = "EnhancedDiagnostics"
-    private const val PREFS = "session"
     private const val ARMED = "enhancedDiagnosticsNext"
     private const val ACTIVE_RECORDS = "enhancedDiagnosticsActiveSessions"
     private const val SCHEMA = 1
 
     fun isArmed(context: Context): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(ARMED, false)
+        TolerantPrefs.session(context).getBoolean(ARMED, false)
 
     fun setArmed(context: Context, armed: Boolean): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(ARMED, armed).commit()
+        TolerantPrefs.session(context).edit().putBoolean(ARMED, armed).commit()
 
     fun isActive(context: Context, folder: File?): Boolean = activeAt(context, folder) != null
 
@@ -84,7 +83,7 @@ object EnhancedDiagnostics {
             if (!File(known).isDirectory) records.remove(known)
         }
         records.put(path, activatedAt)
-        return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        return TolerantPrefs.session(context).edit()
             .putString(ACTIVE_RECORDS, records.toString())
             .putBoolean(ARMED, false)
             .commit()
@@ -108,11 +107,11 @@ object EnhancedDiagnostics {
     }
 
     private fun records(context: Context): JSONObject {
-        val text = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(ACTIVE_RECORDS, null)
+        val text = TolerantPrefs.session(context).getString(ACTIVE_RECORDS, null)
         return runCatching { JSONObject(text ?: "{}") }.getOrDefault(JSONObject())
     }
 
     private fun saveRecords(context: Context, records: JSONObject): Boolean =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        TolerantPrefs.session(context).edit()
             .putString(ACTIVE_RECORDS, records.toString()).commit()
 }

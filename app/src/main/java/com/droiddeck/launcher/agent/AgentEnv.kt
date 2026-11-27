@@ -235,6 +235,10 @@ object AgentPrefs {
             if (e is AgentException) throw e
             throw AgentException("INVALID_PREF", "The value is not a $type")
         }
+        val stored = previous?.let(::typeOf)
+        if (type != "remove" && stored != null && stored != type) {
+            throw AgentException("INVALID_PREF", "$file/$key is stored as $stored; set it with type $stored, or remove it first")
+        }
         if (!editor.commit()) throw AgentException("PREF_WRITE_FAILED", "Could not write $file/$key")
         return JSONObject().put("file", file).put("key", key).put("type", type)
             .put("previous", previous ?: JSONObject.NULL).put("value", prefs.all[key] ?: JSONObject.NULL)
@@ -245,6 +249,15 @@ object AgentPrefs {
         validateFile(file)
         val all = context.getSharedPreferences(file, Context.MODE_PRIVATE).all
         return JSONObject().put("file", file).put("values", JSONObject(all.mapValues { it.value ?: JSONObject.NULL }))
+    }
+
+    private fun typeOf(value: Any): String = when (value) {
+        is Boolean -> "bool"
+        is Int -> "int"
+        is Long -> "long"
+        is Float -> "float"
+        is String -> "string"
+        else -> "string set"
     }
 
     private fun validateFile(file: String) {

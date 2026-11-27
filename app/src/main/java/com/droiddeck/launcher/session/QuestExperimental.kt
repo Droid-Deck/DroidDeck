@@ -42,7 +42,7 @@ object QuestExperimental {
 
     fun initialize(context: Context) {
         if (!isSupported()) return
-        val prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE)
+        val prefs = TolerantPrefs.session(context)
         val defaultsKey = if (isQuest2()) "quest2DefaultsV1" else "questDefaultsV1"
         if (!prefs.getBoolean(defaultsKey, false)) {
             prefs.edit()
