@@ -81,6 +81,7 @@ STEAM_VERBS = ("run", "waitforexitandrun")
 ESCAPE = re.compile(rb"\\([0-7]{3})")
 DEVICE_FONTS = "/usr/local/share/fonts/android"
 FONT_RULES = "/etc/fonts/conf.d/66-droiddeck-device-fonts.conf"
+CPUINFO = "/proc/cpuinfo"
 
 
 def say(message):
@@ -550,7 +551,17 @@ def describe(fex, platform, graphics=None):
     }
 
 
+def kernel_hides_cpu_features():
+    cores = [line.partition(":")[2].split() for line in (read_text(CPUINFO) or "").splitlines()
+             if line.partition(":")[0].strip() == "Features"]
+    return any("cpuid" not in features for features in cores)
+
+
 def prepare(app=SNIPER_APPID):
+    if kernel_hides_cpu_features():
+        say("x86 Linux programs need Linux 4.11 or newer to run FEX: Linux %s does not let programs read the CPU's "
+            "features (no cpuid in %s)" % (os.uname().release, CPUINFO))
+        return None
     with locked():
         update_own_fex()
         fex = fex_install()

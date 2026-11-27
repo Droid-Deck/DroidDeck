@@ -3870,6 +3870,7 @@
     <string name="sync_not_running">Syncthing neběží.</string>
     <string name="session_end_steam_sigill">Steam se zastavil na neplatné instrukci (SIGILL). Může jít o problém s kompatibilitou instrukcí CPU nebo o pád klienta. Sdílejte protokoly s údaji o zařízení.</string>
     <string name="session_end_steam_try_x64">Můžete zkusit Nastavení Steamu → Klient Steam → x86-64 (experimentální). Vyžaduje další stahování a může běžet pomaleji.</string>
+    <string name="session_end_fex_kernel">Programy x86 a klient Steam x86-64 běží přes FEX, který na jádře Linuxu tohoto zařízení (%1$s) běžet nemůže.</string>
     <string name="session_end_vulkan_device">Grafický ovladač Linuxu nenašel použitelné zařízení Vulkan. Zkontrolujte, zda vybraný ovladač GPU pro Linux toto GPU podporuje.</string>
     <string name="session_end_gpu_unsupported">Tuto relaci nelze spustit, protože toto GPU nemá v aktuálním nastavení kompatibilní ovladač Vulkan pro Linux. Ovladače Adreno Turnip nemohou zapnout podporu GPU MediaTek/Mali.</string>
     <string name="setup_group_memory">Paměť</string>

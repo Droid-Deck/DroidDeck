@@ -3869,6 +3869,7 @@
     <string name="sync_not_running">Syncthing не запущено.</string>
     <string name="session_end_steam_sigill">Steam зупинився через недопустиму інструкцію (SIGILL). Це може бути проблема сумісності інструкцій CPU або збій клієнта. Надішліть журнали разом із даними про ваш пристрій.</string>
     <string name="session_end_steam_try_x64">Можна спробувати «Налаштування Steam → Клієнт Steam → x86-64 (експериментально)». Потрібне додаткове завантаження, і робота може бути повільнішою.</string>
+    <string name="session_end_fex_kernel">Програми x86 і клієнт Steam x86-64 працюють через FEX, який не може працювати з ядром Linux цього пристрою (%1$s).</string>
     <string name="session_end_vulkan_device">Графічний драйвер Linux не знайшов придатного пристрою Vulkan. Перевірте, чи вибраний драйвер GPU для Linux підтримує цей GPU.</string>
     <string name="session_end_gpu_unsupported">Сеанс не може запуститися: для цього GPU в поточній конфігурації немає сумісного драйвера Vulkan для Linux. Драйвери Adreno Turnip не можуть увімкнути підтримку GPU MediaTek/Mali.</string>
     <string name="setup_group_memory">Пам\'ять</string>

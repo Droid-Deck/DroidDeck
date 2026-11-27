@@ -3762,6 +3762,7 @@
     <string name="sync_not_running">Syncthing ไม่ได้ทำงานอยู่</string>
     <string name="session_end_steam_sigill">Steam หยุดทำงานเพราะคำสั่งที่ไม่ถูกต้อง (SIGILL) อาจเป็นปัญหาความเข้ากันได้ของคำสั่ง CPU หรือไคลเอนต์ขัดข้อง แชร์บันทึกพร้อมรายละเอียดอุปกรณ์ของคุณ</string>
     <string name="session_end_steam_try_x64">คุณสามารถลองการตั้งค่า Steam → ไคลเอนต์ Steam → x86-64 (ทดลอง) ต้องดาวน์โหลดเพิ่มเติมและอาจทำงานช้าลง</string>
+    <string name="session_end_fex_kernel">โปรแกรม x86 และไคลเอนต์ Steam x86-64 ทำงานผ่าน FEX ซึ่งไม่สามารถทำงานบนเคอร์เนล Linux ของอุปกรณ์นี้ (%1$s) ได้</string>
     <string name="session_end_vulkan_device">ไดรเวอร์กราฟิก Linux ไม่พบอุปกรณ์ Vulkan ที่ใช้งานได้ ตรวจสอบว่าไดรเวอร์ GPU ของ Linux ที่เลือกรองรับ GPU นี้</string>
     <string name="session_end_gpu_unsupported">เซสชันนี้เริ่มไม่ได้เพราะ GPU นี้ไม่มีไดรเวอร์ Linux Vulkan ที่เข้ากันได้ในการตั้งค่าปัจจุบัน ไดรเวอร์ Adreno Turnip ไม่สามารถเปิดการรองรับ GPU ของ MediaTek/Mali ได้</string>
     <string name="setup_group_memory">หน่วยความจำ</string>

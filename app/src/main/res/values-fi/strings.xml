@@ -3792,6 +3792,7 @@
     <string name="sync_not_running">Syncthing ei ole käynnissä.</string>
     <string name="session_end_steam_sigill">Steam pysähtyi virheelliseen käskyyn (SIGILL). Syynä voi olla CPU-käskyjen yhteensopivuusongelma tai asiakasohjelman kaatuminen. Jaa lokit ja laitteesi tiedot.</string>
     <string name="session_end_steam_try_x64">Voit kokeilla Steam-asetukset → Steam-asiakasohjelma → x86-64 (kokeellinen). Se vaatii lisälatauksen ja voi toimia hitaammin.</string>
+    <string name="session_end_fex_kernel">x86-ohjelmat ja x86-64-Steam-asiakasohjelma toimivat FEXin kautta, eikä FEX toimi tämän laitteen Linux-ytimellä (%1$s).</string>
     <string name="session_end_vulkan_device">Linux-grafiikka-ajuri ei löytänyt käyttökelpoista Vulkan-laitetta. Tarkista, että valittu Linux-GPU-ajuri tukee tätä GPU:ta.</string>
     <string name="session_end_gpu_unsupported">Tätä istuntoa ei voi käynnistää, koska tälle GPU:lle ei ole yhteensopivaa Linux Vulkan -ajuria nykyisissä asetuksissa. Adreno Turnip -ajurit eivät voi tuoda tukea MediaTek/Mali-GPU:ille.</string>
     <string name="setup_group_memory">Muisti</string>

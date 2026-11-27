@@ -3790,6 +3790,7 @@
     <string name="sync_not_running">A Syncthing nem fut.</string>
     <string name="session_end_steam_sigill">A Steam érvénytelen utasítással leállt (SIGILL). Ez CPU-utasítás-kompatibilitási probléma vagy a kliens összeomlása lehet. Ossza meg a naplókat az eszköz adataival együtt.</string>
     <string name="session_end_steam_try_x64">Kipróbálhatja a Steam-beállítások → Steam-kliens → x86-64 (kísérleti) lehetőséget. További letöltést igényel, és lassabban futhat.</string>
+    <string name="session_end_fex_kernel">Az x86-os programok és az x86-64-es Steam-kliens a FEX-en keresztül futnak, amely nem tud futni ennek az eszköznek a Linux-kernelén (%1$s).</string>
     <string name="session_end_vulkan_device">A Linux grafikus illesztőprogram nem talált használható Vulkan-eszközt. Ellenőrizze, hogy a kiválasztott Linux GPU-illesztőprogram támogatja-e ezt a GPU-t.</string>
     <string name="session_end_gpu_unsupported">Ez a munkamenet nem indulhat el, mert ehhez a GPU-hoz nincs kompatibilis Linux Vulkan-illesztőprogram a jelenlegi beállításban. Az Adreno Turnip illesztőprogramok nem tudják engedélyezni a MediaTek/Mali GPU-k támogatását.</string>
     <string name="setup_group_memory">Memória</string>
