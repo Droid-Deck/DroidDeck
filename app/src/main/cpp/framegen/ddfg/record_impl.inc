@@ -314,13 +314,13 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
     auto bar = [&](FrameGen::Img& i){ barrier(cmd, i.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL); };
 
     if (!reuseFlow) {
-        for (auto& i : pyrA_)    barrier(cmd, i.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-        for (auto& i : pyrB_)    barrier(cmd, i.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-        for (int l = flowFinest_; l < kLevels; ++l) barrier(cmd, pyrAs_[l].image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-        barrier(cmd, flowExpA_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-        barrier(cmd, flowExpB_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-        barrier(cmd, flowRegA_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
-        barrier(cmd, flowRegB_.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        for (auto& i : pyrA_)    initializeImage(cmd, i.image, VK_IMAGE_LAYOUT_GENERAL);
+        for (auto& i : pyrB_)    initializeImage(cmd, i.image, VK_IMAGE_LAYOUT_GENERAL);
+        for (int l = flowFinest_; l < kLevels; ++l) initializeImage(cmd, pyrAs_[l].image, VK_IMAGE_LAYOUT_GENERAL);
+        initializeImage(cmd, flowExpA_.image, VK_IMAGE_LAYOUT_GENERAL);
+        initializeImage(cmd, flowExpB_.image, VK_IMAGE_LAYOUT_GENERAL);
+        initializeImage(cmd, flowRegA_.image, VK_IMAGE_LAYOUT_GENERAL);
+        initializeImage(cmd, flowRegB_.image, VK_IMAGE_LAYOUT_GENERAL);
         {
             VkClearColorValue zero{};
             VkImageSubresourceRange rng{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
