@@ -237,11 +237,18 @@ void FrameGen::initializeImage(VkCommandBuffer cmd, VkImage img, VkImageLayout t
 void FrameGen::destroy() {
     if (!device_) return;
     const VkResult idleResult = dd_->DeviceWaitIdle(device_);
-    if (idleResult != VK_SUCCESS) {
+    if (idleResult != VK_SUCCESS && idleResult != VK_ERROR_DEVICE_LOST) {
         DDFG_LOGE("framegen destroy: DeviceWaitIdle failed (%d); preserving resources for safe retry", (int)idleResult);
         return;
     }
-    destroyScratchResources();
+    if (idleResult == VK_ERROR_DEVICE_LOST) {
+        // A lost device cannot become idle again. Still explicitly destroy its
+        // child objects; skip descriptor-pool reset and release scratch ownership.
+        DDFG_LOGE("framegen destroy: device lost; releasing owned resources without waiting");
+        destroyScratch(dd_, device_, descPool_, false);
+    } else {
+        destroyScratchResources();
+    }
     for (auto& i : pyrA_) destroyImage(i); pyrA_.clear();
     for (auto& i : pyrB_) destroyImage(i); pyrB_.clear();
     for (auto& i : pyrAs_) destroyImage(i); pyrAs_.clear();
