@@ -393,7 +393,7 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
                 dd_->CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pFlowReg_.pipeline);
                 dd_->CmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pFlowReg_.layout, 0, 1, &set, 0, nullptr);
                 dd_->CmdDispatch(cmd, (fe.width + 15) / 16, (fe.height + 15) / 16, 1);
-                bar(*outImg);
+                if (it + 1 < cfg_.frIters) bar(*outImg);
                 last = outImg;
             }
             VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
