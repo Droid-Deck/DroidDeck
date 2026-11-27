@@ -1095,7 +1095,8 @@ class LauncherTest(SyncTestCase):
                 self.assertEqual((calls[0][2]["WINEESYNC"], calls[0][2]["PROTON_NO_ESYNC"], calls[0][2]["DD_SYNC_PACK"]), ("0", "1", pack["id"]))
                 self.assertEqual(calls[1][2], self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", DD_SYNC="0", WINEESYNC="1",
                                                        vblank_mode="0", GAMESCOPE_WSI_MIN_IMAGE_COUNT="8",
-                                                       GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT="1", **expected))
+                                                       GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT="1", PROTON_DISABLE_NVAPI="1",
+                                                       **expected))
                 self.assertEqual(calls[0][2].get("WINEDLLOVERRIDES"), expected.get("WINEDLLOVERRIDES"))
                 self.assertEqual(calls[0][2].get("SteamDeck"), expected.get("SteamDeck"))
                 self.assertIn("could not start (", said.getvalue())

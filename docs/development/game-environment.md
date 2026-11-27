@@ -294,7 +294,14 @@ adds `tabtip.exe=d` to `WINEDLLOVERRIDES` unless the launch has `SteamDeck=1`
 or the overrides already set `tabtip.exe` (also as `*tabtip.exe` or
 `tabtip.exe.dll`): Proton's tabtip only opens Steam's
 keyboard with `SteamDeck=1`, but it always runs UI Automation queries inside the
-focused game, which crash games that answer them (Godot 4.5 AccessKit). Malformed
+focused game, which crash games that answer them (Godot 4.5 AccessKit). A game
+launch also sets `PROTON_DISABLE_NVAPI=1` unless the launch already sets
+`PROTON_DISABLE_NVAPI`, `PROTON_FORCE_NVAPI` or `DXVK_ENABLE_NVAPI`. Proton turns
+NVAPI off itself when `/proc/modules` lists no NVIDIA driver, but Android does
+not let it read that file, so NVAPI stayed on and its `nvcuda=b` override loaded
+Wine's nvcuda stub, which exports no functions. A game that delay-loads CUDA
+then stops with `0xc06d007f` (procedure not found) instead of seeing that there
+is no nvcuda.dll, as it would on Windows without an NVIDIA driver. Malformed
 configuration falls back to the inherited environment without evaluating its
 contents. Both component and environment selection normalize signed non-Steam
 prefix IDs to unsigned IDs.

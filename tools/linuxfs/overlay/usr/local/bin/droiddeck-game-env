@@ -241,6 +241,13 @@ def keyboard_helper_off(env):
     return "tabtip.exe off (it only opens Steam's keyboard with SteamDeck=1, and its UI Automation calls crash games)"
 
 
+def nvapi_off(env):
+    if {"PROTON_DISABLE_NVAPI", "PROTON_FORCE_NVAPI", "DXVK_ENABLE_NVAPI"} & env.keys():
+        return None
+    env["PROTON_DISABLE_NVAPI"] = "1"
+    return "NVAPI and nvcuda off (no NVIDIA driver; Proton cannot read /proc/modules to see that)"
+
+
 def skip_red_launcher(command):
     if len(command) > 2 and os.path.basename(command[2]).lower() == "redprelauncher.exe":
         game = os.path.join(os.path.dirname(command[2]), "bin", "x64", "Cyberpunk2077.exe")
@@ -1673,6 +1680,9 @@ def main():
                     fixes.pop("vblank_mode", None)
                 env = apply_config(env, launch_config, app_id, fixes)
             note = keyboard_helper_off(env)
+            if note:
+                print("droiddeck-game-env: " + note, file=sys.stderr)
+            note = nvapi_off(env)
             if note:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
         else:
