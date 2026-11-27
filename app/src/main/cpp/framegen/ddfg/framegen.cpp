@@ -245,7 +245,7 @@ void FrameGen::destroy() {
         // A lost device cannot become idle again. Still explicitly destroy its
         // child objects; skip descriptor-pool reset and release scratch ownership.
         DDFG_LOGE("framegen destroy: device lost; releasing owned resources without waiting");
-        destroyScratch(dd_, device_, descPool_, false);
+        destroyScratchResources(false);
     } else {
         destroyScratchResources();
     }
