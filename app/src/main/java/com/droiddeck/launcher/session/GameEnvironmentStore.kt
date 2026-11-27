@@ -112,6 +112,7 @@ object GameEnvironmentStore {
         config: GameEnvironment.Config = read(context),
         gameDebugLogsOverride: Boolean? = null,
     ) {
+        publishGameCores(context)
         val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared)
         val json = encode(resolved)
         val dxvk = TextureFiltering.dxvkOptions(
@@ -139,10 +140,16 @@ object GameEnvironmentStore {
             gameDebugLogsOverride ?: SessionPrefs.gameDebugLogsEffective(context),
         )
         write(File(LinuxRuntime.rootDir(context), GUEST_FILE), json.toString())
-        write(
-            File(LinuxRuntime.rootDir(context), GAME_CORES_FILE),
-            com.droiddeck.launcher.core.CpuCores.restrictionOrEmpty(SessionPrefs.gameCpus(context)) + "\n",
-        )
+    }
+
+    private fun publishGameCores(context: Context) {
+        val file = File(LinuxRuntime.rootDir(context), GAME_CORES_FILE)
+        try {
+            write(file, com.droiddeck.launcher.core.CpuCores.restrictionOrEmpty(SessionPrefs.gameCpus(context)) + "\n")
+        } catch (error: Exception) {
+            file.delete()
+            throw error
+        }
     }
 
     private fun write(file: File, text: String) {

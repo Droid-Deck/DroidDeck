@@ -38,6 +38,7 @@ class GameEnvironmentStoreTest {
             .remove("gameDebugLogsEnabled")
             .remove("gameCpus")
             .commit()
+        listOf("game-environment.json.new", "game-cores.new").forEach { File(guest.parentFile, it).delete() }
     }
 
     @Test fun gameCoresChangedInSettingsReachTheGuestAtOnce() {
@@ -49,6 +50,29 @@ class GameEnvironmentStoreTest {
 
         SessionPrefs.setGameCpus(context, com.droiddeck.launcher.core.CpuCores.format(all.toSet()))
         assertEquals("\n", live.readText())
+    }
+
+    @Config(sdk = [34])
+    @Test fun gameCoresStillReachTheGuestWhenTheRestOfTheEnvironmentCannotBeWritten() {
+        val dir = File(LinuxRuntime.rootDir(context), "root/.config/droiddeck")
+        val last = com.droiddeck.launcher.core.CpuCores.all.last()
+        assertTrue(File(dir, "game-environment.json.new").mkdirs())
+
+        SessionPrefs.setGameCpus(context, last.toString())
+
+        assertEquals("$last\n", File(dir, "game-cores").readText())
+    }
+
+    @Config(sdk = [34])
+    @Test fun gameCoresThatCannotBeWrittenLeaveNoOlderValueForTheGuest() {
+        val dir = File(LinuxRuntime.rootDir(context), "root/.config/droiddeck")
+        val all = com.droiddeck.launcher.core.CpuCores.all
+        SessionPrefs.setGameCpus(context, all.last().toString())
+        assertTrue(File(dir, "game-cores.new").mkdirs())
+
+        SessionPrefs.setGameCpus(context, all.first().toString())
+
+        assertFalse(File(dir, "game-cores").exists())
     }
 
     @Test fun gameDebugLogsAreOffByDefault() {
