@@ -4,13 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -75,23 +70,6 @@ private fun BottomIdle() = PreviewHost {
 
 @DroidDeckPreviews @Composable private fun BottomIdlePreview() = BottomIdle()
 
-/** The dashboard's quick tiles, with a frame limit and the HUD on. */
-@Composable
-private fun BottomQuick() = PreviewHost {
-    Column(Modifier.fillMaxSize().background(Color.Black).padding(12.dp)) {
-        QuickTileGrid(listOf(
-            QuickTile("screenshot", "Take screenshot", androidx.compose.material.icons.Icons.Filled.PhotoCamera) {},
-            QuickTile("fps", "Frame limit", androidx.compose.material.icons.Icons.Filled.Timer, "40", active = true) {},
-            QuickTile("framegen", "Frame generation", androidx.compose.material.icons.Icons.Filled.AutoAwesome, "Off") {},
-            QuickTile("hud", "Performance HUD", androidx.compose.material.icons.Icons.Filled.Speed, "On", active = true) {},
-            QuickTile("swap", "Swap screens", androidx.compose.material.icons.Icons.Filled.SwapVert) {},
-            QuickTile("screen-off", "Turn off the bottom screen", androidx.compose.material.icons.Icons.Filled.DarkMode) {},
-        ))
-    }
-}
-
-@DroidDeckPreviews @Composable private fun BottomQuickPreview() = BottomQuick()
-
 /** The Stardew Valley companion page, fed with the mod's messages. */
 @Composable
 private fun BottomStardew() = PreviewHost {
@@ -103,7 +81,7 @@ private fun BottomStardew() = PreviewHost {
         """{"type":"sdv_villagers","villagers":[{"name":"Haley","birthdayIn":0},{"name":"Abigail","birthdayIn":3}]}""",
         """{"type":"sdv_quests","quests":[{"title":"Introductions","objective":"Meet 28 people (12 of 28)"},{"title":"How To Win Friends","objective":"Give a gift to someone"}]}""",
     ).fold(com.droiddeck.launcher.companion.StardewCompanion.State()) { st, m -> S.reduce(st, m) }
-    Column(Modifier.fillMaxSize().background(Color.Black).padding(12.dp)) { StardewPanel(state) {} }
+    androidx.compose.foundation.layout.Box(Modifier.size(640.dp, 420.dp).background(androidx.compose.material3.MaterialTheme.colorScheme.background)) { StardewPanel(state) {} }
 }
 
 @DroidDeckPreviews @Composable private fun BottomStardewPreview() = BottomStardew()
@@ -116,7 +94,7 @@ private fun BottomPipBoy() = PreviewHost {
         "player.stats":{"level":23,"hp":245,"hpMax":310,"ap":88,"apMax":105,"rads":65,"caps":1834,"weight":187.4,"weightMax":260},
         "player.inventory":[{"id":"0x102","name":"Service Pistol","count":1,"equipped":true,"fav":1},{"id":"0x236","name":"Med Kit","count":7,"fav":0},
             {"id":"0x303","name":"Clean Water","count":4,"fav":2}],"radio":{"enabled":true}}}""")
-    Column(Modifier.fillMaxSize().background(Color.Black).padding(12.dp)) { RpgPanel(state, {}, {}) }
+    androidx.compose.foundation.layout.Box(Modifier.size(640.dp, 420.dp).background(androidx.compose.material3.MaterialTheme.colorScheme.background)) { RpgPanel(state, {}, {}) }
 }
 
 @DroidDeckPreviews @Composable private fun BottomPipBoyPreview() = BottomPipBoy()
@@ -142,7 +120,6 @@ internal val previewCases: List<PreviewCase> = listOf(
     PreviewCase("session-menu-docked-display") { DockedMenu(SessionDrawerPage.DISPLAY) },
     PreviewCase("bottom-panel-bar") { BottomPanelBar() },
     PreviewCase("bottom-idle-home") { BottomIdle() },
-    PreviewCase("bottom-quick-tiles") { BottomQuick() },
     PreviewCase("bottom-companion-stardew") { BottomStardew() },
     PreviewCase("bottom-companion-pipboy") { BottomPipBoy() },
 )

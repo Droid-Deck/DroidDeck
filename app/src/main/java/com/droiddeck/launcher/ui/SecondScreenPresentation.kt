@@ -45,6 +45,7 @@ class SecondScreenPresentation(
     private val onMenuTouched: () -> Unit = {},
     private val onDeckPanel: (DeckPanel) -> Unit = { SessionPrefs.setDeckPanel(sessionActivity, it) },
     private val picker: ((SecondScreenMode) -> ScreenPicker?)? = null,
+    private val panel: (SecondScreenMode) -> (@androidx.compose.runtime.Composable () -> Unit)? = { null },
 ) : Presentation(sessionActivity, display) {
     private val frame = FrameLayout(context)
     private var menuView: androidx.compose.ui.platform.ComposeView? = null
@@ -226,7 +227,7 @@ class SecondScreenPresentation(
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val ownKeys = currentMode == SecondScreenMode.TERMINAL || currentMode == SecondScreenMode.DASHBOARD ||
+        val ownKeys = currentMode == SecondScreenMode.TERMINAL || currentMode == SecondScreenMode.DASHBOARD || currentMode.sessionPanel ||
             currentMode == SecondScreenMode.DESKTOP
         val back = event.keyCode == KeyEvent.KEYCODE_BACK && currentMode == SecondScreenMode.DASHBOARD
         val forward = menuShown || !ownKeys || back || PadBridge.isControllerKeyEvent(event)
@@ -318,6 +319,7 @@ class SecondScreenPresentation(
         val mode = when {
             requested == SecondScreenMode.DECK_CONTROLS && !SessionState.deckPad -> SecondScreenMode.NONE
             requested == SecondScreenMode.DASHBOARD && dashboard == null -> SecondScreenMode.NONE
+            requested.sessionPanel && panel(requested) == null -> SecondScreenMode.NONE
             requested == SecondScreenMode.DESKTOP && !BottomDesktop.available() -> SecondScreenMode.NONE
             else -> requested
         }
@@ -336,6 +338,7 @@ class SecondScreenPresentation(
                 attachKeyboard()
             }
             SecondScreenMode.DASHBOARD -> renderDashboard()
+            SecondScreenMode.GUIDES, SecondScreenMode.MIRROR, SecondScreenMode.COMPANION -> renderPanel(mode)
             SecondScreenMode.DESKTOP -> {
                 root.addView(BottomDesktopPanel(context, onClose, onMenu,
                     (onSteamMenu to onQam).takeIf { SessionState.mode == SessionService.MODE_STEAM }, onSwap,
@@ -364,7 +367,8 @@ class SecondScreenPresentation(
                 context.getString(if (keyboardShown.value) R.string.second_hide_keyboard else R.string.second_show_keyboard),
                 icon = R.drawable.ic_bottom_keyboard, active = keyboardShown.value, tag = "bottom-keyboard") { showKeyboard() }) + extras)
             SecondScreenMode.DECK_CONTROLS -> model(extras, deckPanelTabs(context, deckPanel.value, ::selectDeckPanel))
-            SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS -> model(extras)
+            SecondScreenMode.DASHBOARD, SecondScreenMode.CUSTOM_CONTROLS, SecondScreenMode.GUIDES, SecondScreenMode.MIRROR,
+            SecondScreenMode.COMPANION -> model(extras)
             SecondScreenMode.TERMINAL -> model(listOf(BarExtra(context.getString(R.string.drawer_keyboard), icon = R.drawable.ic_bottom_keyboard,
                 tag = "bottom-keyboard") { terminalPanel?.showKeyboard() }) + extras)
             else -> null
@@ -381,6 +385,14 @@ class SecondScreenPresentation(
     private fun renderDashboard() {
         val content = dashboard ?: return
         bar(SecondScreenMode.DASHBOARD)
+        val view = androidx.compose.ui.platform.ComposeView(context).apply { setContent { PresentationWindows(content) } }
+        dashboardView = view
+        root.addView(view, weightParams())
+    }
+
+    private fun renderPanel(mode: SecondScreenMode) {
+        val content = panel(mode) ?: return
+        bar(mode)
         val view = androidx.compose.ui.platform.ComposeView(context).apply { setContent { PresentationWindows(content) } }
         dashboardView = view
         root.addView(view, weightParams())

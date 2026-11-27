@@ -25,7 +25,7 @@ object SteamAchievements : StoreAchievements("steam", "Steam") {
 
     internal fun parse(appId: Long, json: String): Result {
         val root = runCatching { JSONObject(json) }.getOrNull() ?: return Result.Failed(Reason.UNREACHABLE)
-        if (root.optInt("result", 1) != 1) return Result.Failed(Reason.UNREACHABLE)
+        if (root.optInt("result", 1) != 1) return Result.Found(emptyList())
         val items = root.optJSONObject("data")?.optJSONArray("rgAchievements") ?: return Result.Found(emptyList())
         val out = ArrayList<Achievement>(items.length())
         for (i in 0 until items.length()) {

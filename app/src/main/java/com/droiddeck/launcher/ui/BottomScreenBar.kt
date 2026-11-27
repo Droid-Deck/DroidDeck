@@ -25,6 +25,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.CropFree
+import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.DesktopAccessDisabled
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.ExpandLess
@@ -236,6 +239,9 @@ internal val SecondScreenMode.icon: ImageVector get() = when (this) {
     SecondScreenMode.DECK_CONTROLS -> Icons.Outlined.SportsEsports
     SecondScreenMode.CUSTOM_CONTROLS -> Icons.Outlined.Tune
     SecondScreenMode.DASHBOARD -> Icons.Outlined.Dashboard
+    SecondScreenMode.GUIDES -> Icons.Outlined.MenuBook
+    SecondScreenMode.MIRROR -> Icons.Outlined.CropFree
+    SecondScreenMode.COMPANION -> Icons.Outlined.Extension
     SecondScreenMode.DESKTOP -> Icons.Outlined.DesktopWindows
 }
 

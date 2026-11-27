@@ -64,6 +64,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.stores.SteamAchievements
+import androidx.compose.foundation.verticalScroll
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.GameLinks
 import com.droiddeck.launcher.session.GuideLibrary
@@ -86,6 +88,7 @@ private sealed class GuideList {
 
 internal enum class GuideSection(val label: Int) {
     GUIDES(R.string.bottom_page_guides),
+    ACHIEVEMENTS(R.string.achievements_title),
     WIKI(R.string.bottom_guides_wiki),
     MAPS(R.string.bottom_guides_maps),
     SAVED(R.string.bottom_guides_saved),
@@ -100,16 +103,18 @@ private val TAG_LABELS = listOf(
 )
 
 @Composable
-internal fun BottomGuidesPage(runningGame: () -> String?) {
+internal fun GuidesPanel(runningGame: () -> String?) {
     val context = LocalContext.current
     val id = rememberShownGame(runningGame)
     if (id == null) {
-        PageNote(stringResource(R.string.bottom_guides_no_game))
+        PanelNote(stringResource(R.string.bottom_guides_no_game))
         return
     }
     val game = id.toString()
     val scope = rememberCoroutineScope()
-    var reading by remember(id) { mutableStateOf(SteamGuides.place(context, game)?.url) }
+    val host = rememberMenuHost()
+    val firstGame = remember { id }
+    var reading by remember(id) { mutableStateOf(if (id == firstGame) SteamGuides.place(context, game)?.url else null) }
     var section by remember(id) { mutableStateOf(GuideSection.GUIDES) }
     var tag by remember(id) { mutableStateOf<String?>(null) }
     var list by remember(id) { mutableStateOf<GuideList>(GuideList.Loading) }
@@ -145,8 +150,7 @@ internal fun BottomGuidesPage(runningGame: () -> String?) {
         })
         return
     }
-    val open = reading
-    if (open != null) {
+    reading?.let { open ->
         GuideReaderPanel(
             url = open,
             scroll = SteamGuides.place(context, game)?.takeIf { it.url == open }?.scroll ?: 0f,
@@ -177,13 +181,13 @@ internal fun BottomGuidesPage(runningGame: () -> String?) {
         )
         return
     }
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (s in GuideSection.entries) GuideChip(stringResource(s.label), s == section, "guides-section-${s.name.lowercase()}") { section = s }
-        }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+    PanelColumn {
+        TabStrip(GuideSection.entries.map { stringResource(it.label) }, section.ordinal, { section = GuideSection.entries[it] },
+            modifier = Modifier.fillMaxWidth(), compact = true)
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
             when (section) {
-                GuideSection.GUIDES -> GuidesSection(list, tag, SteamGuides.place(context, game), onTag = { tag = it }, onOpen = { reading = it })
+                GuideSection.GUIDES -> GuidesSection(host, list, tag, SteamGuides.place(context, game), onTag = { tag = it }, onOpen = { reading = it })
+                GuideSection.ACHIEVEMENTS -> AchievementsSection(id)
                 GuideSection.WIKI -> WikiSection(id, name, onOpen = { reading = it })
                 GuideSection.MAPS -> MapsSection(game, name, libraryRevision, onOpenMap = { openMap = it }, onOpen = { reading = it })
                 GuideSection.SAVED -> SavedSection(game, libraryRevision, onOpen = { reading = Uri.fromFile(it).toString() }, onDelete = {
@@ -197,25 +201,28 @@ internal fun BottomGuidesPage(runningGame: () -> String?) {
 
 @Composable
 private fun GuidesSection(
-    list: GuideList, tag: String?, last: SteamGuides.Place?, onTag: (String?) -> Unit, onOpen: (String) -> Unit,
+    host: MenuHost, list: GuideList, tag: String?, last: SteamGuides.Place?, onTag: (String?) -> Unit, onOpen: (String) -> Unit,
 ) {
-    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item(key = "tags") {
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for ((value, label) in TAG_LABELS) GuideChip(stringResource(label), value == tag, "guides-tag-${value ?: "all"}", small = true) { onTag(value) }
-            }
-        }
-        if (last != null) item(key = "continue") {
-            BottomPillButton(stringResource(R.string.bottom_guides_continue), "bottom-guides-continue") { onOpen(last.url) }
-        }
+    SettingsGroup(stringResource(R.string.bottom_guides_steam)) {
+        if (last != null) PanelRow(stringResource(R.string.bottom_guides_continue), onClick = { onOpen(last.url) }, tag = "bottom-guides-continue",
+            trailing = { SecondaryButton(stringResource(R.string.store_open), compact = true) { onOpen(last.url) } })
+        ChoiceRow(host, "guides-tag", stringResource(R.string.bottom_guides_category), null,
+            TAG_LABELS.map { (value, label) -> value to stringResource(label) }, tag) { onTag(it) }
         when (list) {
-            GuideList.Loading -> item(key = "loading") { InlineNote(stringResource(R.string.achievements_reading)) }
-            GuideList.Failed -> item(key = "failed") { InlineNote(stringResource(R.string.bottom_guides_failed)) }
+            GuideList.Loading -> PanelRow(stringResource(R.string.achievements_reading))
+            GuideList.Failed -> PanelRow(stringResource(R.string.bottom_guides_failed))
             is GuideList.Found ->
-                if (list.guides.isEmpty()) item(key = "empty") { InlineNote(stringResource(R.string.bottom_guides_empty)) }
-                else items(list.guides, key = { it.id }) { guide -> GuideRow(guide) { onOpen(guide.url) } }
+                if (list.guides.isEmpty()) PanelRow(stringResource(R.string.bottom_guides_empty))
+                else for (guide in list.guides) GuideRow(guide) { onOpen(guide.url) }
         }
     }
+}
+
+@Composable
+private fun AchievementsSection(appId: Long) {
+    val game = remember(appId) { SteamAchievements.game(appId) }
+    val state = rememberAchievements(game) ?: return
+    Box(Modifier.padding(top = 8.dp)) { AchievementsTab(SteamAchievements.label, state) }
 }
 
 @Composable
@@ -231,26 +238,27 @@ private fun WikiSection(appId: Long, name: String?, onOpen: (String) -> Unit) {
         tier = t
         links = found
     }
-    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        tier?.let { t ->
-            item(key = "tier") {
-                GuideLinkRow(stringResource(R.string.bottom_guides_protondb), stringResource(tierLabel(t)), tierColor(t), "guides-protondb") {
-                    onOpen("https://www.protondb.com/app/$appId")
-                }
-            }
+    val open = stringResource(R.string.store_open)
+    val found = links
+    if (found == null) {
+        SettingsGroup(stringResource(R.string.bottom_guides_wiki)) { PanelRow(stringResource(R.string.achievements_reading)) }
+        return
+    }
+    tier?.let { t ->
+        SettingsGroup(stringResource(R.string.fex_compatibility_label)) {
+            PanelRow(stringResource(R.string.bottom_guides_protondb), tag = "guides-protondb", onClick = { onOpen("https://www.protondb.com/app/$appId") },
+                trailing = { PanelValue(stringResource(tierLabel(t)), tierColor(t)) })
         }
-        val found = links
-        if (found == null) item(key = "loading") { InlineNote(stringResource(R.string.achievements_reading)) }
-        else items(found, key = { it.kind.name }) { link ->
-            GuideLinkRow(stringResource(linkLabel(link.kind)), Uri.parse(link.url).host.orEmpty().removePrefix("www."), null, "guides-link-${link.kind.name.lowercase()}") {
-                onOpen(link.url)
-            }
-        }
-        name?.let { n ->
-            item(key = "search-head") { GuideSectionLabel(stringResource(R.string.bottom_guides_search)) }
-            items(GameLinks.searches(n), key = { "search-" + it.id }) { s ->
-                GuideLinkRow(stringResource(searchLabel(s.id)), n, null, "guides-search-${s.id}") { onOpen(s.url) }
-            }
+    }
+    SettingsGroup(stringResource(R.string.bottom_guides_wiki)) {
+        for (link in found) PanelRow(stringResource(linkLabel(link.kind)), Uri.parse(link.url).host.orEmpty().removePrefix("www."),
+            onClick = { onOpen(link.url) },
+            trailing = { SecondaryButton(open, compact = true, modifier = Modifier.testTag("guides-link-${link.kind.name.lowercase()}")) { onOpen(link.url) } })
+    }
+    name?.let { n ->
+        SettingsGroup(stringResource(R.string.bottom_guides_search)) {
+            for (s in GameLinks.searches(n)) PanelRow(stringResource(searchLabel(s.id)), n, onClick = { onOpen(s.url) },
+                trailing = { SecondaryButton(open, compact = true, modifier = Modifier.testTag("guides-search-${s.id}")) { onOpen(s.url) } })
         }
     }
 }
@@ -260,25 +268,24 @@ private fun MapsSection(game: String, name: String?, revision: Int, onOpenMap: (
     val context = LocalContext.current
     var maps by remember(game) { mutableStateOf<List<GuideLibrary.PinnedMap>>(emptyList()) }
     LaunchedEffect(game, revision) { maps = withContext(Dispatchers.IO) { GuideLibrary.maps(context, game) } }
-    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (maps.isEmpty()) item(key = "hint") { InlineNote(stringResource(R.string.bottom_guides_maps_hint)) }
-        items(maps, key = { it.file.path }) { map ->
-            val pal = LocalPalette.current
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(pal.surface)
-                    .clickable(role = Role.Button) { onOpenMap(map.file) }.testTag("guides-map").padding(10.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AsyncImage(model = map.file, contentDescription = null, contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(96.dp, 64.dp).clip(RoundedCornerShape(8.dp)))
-                Text(stringResource(R.string.bottom_guides_markers, map.markers.size), fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground)
-            }
+    SettingsGroup(stringResource(R.string.bottom_guides_maps)) {
+        if (maps.isEmpty()) PanelRow(stringResource(R.string.bottom_guides_maps_empty), stringResource(R.string.bottom_guides_pin_hint))
+        maps.forEachIndexed { i, map ->
+            PanelRow(
+                stringResource(R.string.bottom_guides_map_name, i + 1), stringResource(R.string.bottom_guides_markers, map.markers.size),
+                tag = "guides-map", onClick = { onOpenMap(map.file) },
+                leading = {
+                    AsyncImage(model = map.file, contentDescription = null, contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(64.dp, 40.dp).clip(RoundedCornerShape(6.dp)))
+                },
+            )
         }
-        name?.let { n ->
-            item(key = "find") { GuideSectionLabel(stringResource(R.string.bottom_guides_find_maps)) }
-            items(GameLinks.mapSearches(n), key = { it.id }) { s ->
-                GuideLinkRow(stringResource(searchLabel(s.id)), n, null, "guides-maps-${s.id}") { onOpen(s.url) }
-            }
+    }
+    name?.let { n ->
+        val open = stringResource(R.string.store_open)
+        SettingsGroup(stringResource(R.string.bottom_guides_find_maps)) {
+            for (s in GameLinks.mapSearches(n)) PanelRow(stringResource(searchLabel(s.id)), n, onClick = { onOpen(s.url) },
+                trailing = { SecondaryButton(open, compact = true, modifier = Modifier.testTag("guides-maps-${s.id}")) { onOpen(s.url) } })
         }
     }
 }
@@ -288,16 +295,12 @@ private fun SavedSection(game: String, revision: Int, onOpen: (File) -> Unit, on
     val context = LocalContext.current
     var saved by remember(game) { mutableStateOf<List<GuideLibrary.Saved>>(emptyList()) }
     LaunchedEffect(game, revision) { saved = withContext(Dispatchers.IO) { GuideLibrary.saved(context, game) } }
-    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (saved.isEmpty()) item(key = "hint") { InlineNote(stringResource(R.string.bottom_guides_saved_hint)) }
-        items(saved, key = { it.file.path }) { page ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(Modifier.weight(1f)) {
-                    GuideLinkRow(page.title, Uri.parse(page.url).host.orEmpty().removePrefix("www."), null, "guides-saved") { onOpen(page.file) }
-                }
-                BottomPillButton(stringResource(R.string.common_delete), "guides-saved-delete") { onDelete(page.file) }
-            }
-        }
+    val delete = stringResource(R.string.common_delete)
+    SettingsGroup(stringResource(R.string.bottom_guides_saved)) {
+        if (saved.isEmpty()) PanelRow(stringResource(R.string.bottom_guides_saved_empty), stringResource(R.string.bottom_guides_saved_hint))
+        for (page in saved) PanelRow(page.title, Uri.parse(page.url).host.orEmpty().removePrefix("www."), tag = "guides-saved",
+            onClick = { onOpen(page.file) },
+            trailing = { SecondaryButton(delete, compact = true, modifier = Modifier.testTag("guides-saved-delete")) { onDelete(page.file) } })
     }
 }
 
@@ -312,21 +315,37 @@ private fun GuideReaderPanel(
     onPin: (String) -> Unit,
     onStopped: () -> Unit,
 ) {
+    val pal = LocalPalette.current
     var view by remember { mutableStateOf<WebView?>(null) }
     var image by remember(url) { mutableStateOf<String?>(null) }
     val local = url.startsWith("file:")
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            BottomPillButton(stringResource(R.string.mode_back), "bottom-guides-back", onBack)
-            if (!local) BottomPillButton(stringResource(R.string.game_env_save), "bottom-guides-save") { view?.let(onSave) }
-            image?.let { img -> BottomPillButton(stringResource(R.string.bottom_guides_pin), "bottom-guides-pin") { onPin(img); image = null } }
-            Text(note ?: stringResource(R.string.bottom_guides_pin_hint), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+    PanelColumn {
+        Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
+            Text(note ?: stringResource(R.string.bottom_guides_pin_hint), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            image?.let { img -> SecondaryButton(stringResource(R.string.bottom_guides_pin), compact = true, modifier = Modifier.testTag("bottom-guides-pin")) { onPin(img); image = null } }
+            if (!local) SecondaryButton(stringResource(R.string.game_env_save), compact = true, modifier = Modifier.testTag("bottom-guides-save")) { view?.let(onSave) }
         }
-        Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp))) {
+        Box(Modifier.weight(1f).fillMaxWidth().padding(bottom = 6.dp).clip(RoundedCornerShape(14.dp)).border(1.dp, pal.line, RoundedCornerShape(14.dp))) {
             GuideReader(url, scroll, onPlace, onStopped, onView = { view = it }, onImage = { image = it })
         }
     }
+}
+
+@Composable
+internal fun GuideRow(guide: SteamGuides.Guide, onOpen: () -> Unit) {
+    val pal = LocalPalette.current
+    PanelRow(
+        guide.title,
+        listOfNotNull(guide.author.takeIf { it.isNotEmpty() }, "★".repeat(guide.stars).takeIf { it.isNotEmpty() }).joinToString(" · "),
+        tag = "guide-${guide.id}", onClick = onOpen,
+        leading = {
+            Box(Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)).background(pal.line)) {
+                if (guide.preview != null) AsyncImage(model = guide.preview, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            }
+        },
+    )
 }
 
 internal object ReaderAds {
@@ -426,6 +445,7 @@ private fun GuideReader(
     })
 }
 
+
 @Composable
 private fun MapViewer(file: File, onBack: () -> Unit, onDelete: () -> Unit) {
     var image by remember(file) { mutableStateOf<ImageBitmap?>(null) }
@@ -434,15 +454,16 @@ private fun MapViewer(file: File, onBack: () -> Unit, onDelete: () -> Unit) {
     var offset by remember(file) { mutableStateOf(Offset.Zero) }
     LaunchedEffect(file) { image = withContext(Dispatchers.IO) { decodeMap(file) } }
     val pal = LocalPalette.current
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            BottomPillButton(stringResource(R.string.mode_back), "guides-map-back", onBack)
-            BottomPillButton(stringResource(R.string.common_delete), "guides-map-delete", onDelete)
-            Text(stringResource(R.string.bottom_guides_marker_hint), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f), maxLines = 2)
+    PanelColumn {
+        Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BackLink(stringResource(R.string.mode_back), compact = true, onClick = onBack)
+            Text(stringResource(R.string.bottom_guides_marker_hint), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            SecondaryButton(stringResource(R.string.common_delete), compact = true, modifier = Modifier.testTag("guides-map-delete"), onClick = onDelete)
         }
         Box(
-            Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.Black)
+            Modifier.weight(1f).fillMaxWidth().padding(bottom = 6.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black)
+                .border(1.dp, pal.line, RoundedCornerShape(14.dp))
                 .pointerInput(file) {
                     detectTransformGestures { _, pan, zoom, _ ->
                         scale = (scale * zoom).coerceIn(1f, MAX_ZOOM)
@@ -514,48 +535,6 @@ private const val MAX_ZOOM = 8f
 private const val DOUBLE_TAP_ZOOM = 2.5f
 private const val MARKER_HIT_PX = 20f
 private const val MAP_LONGEST = 4096
-
-@Composable
-private fun GuideChip(label: String, selected: Boolean, tag: String, small: Boolean = false, onClick: () -> Unit) {
-    val pal = LocalPalette.current
-    val shape = RoundedCornerShape(18.dp)
-    Box(
-        Modifier.height(if (small) 32.dp else 38.dp).clip(shape)
-            .background(if (selected) pal.signal else Color.Transparent)
-            .border(1.dp, if (selected) pal.signal else pal.line, shape)
-            .clickable(role = Role.Tab, onClick = onClick).testTag(tag).padding(horizontal = 14.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(label, fontSize = if (small) 12.sp else 14.sp, fontWeight = FontWeight.SemiBold,
-            color = if (selected) pal.onSignal else MaterialTheme.colorScheme.onBackground, maxLines = 1)
-    }
-}
-
-@Composable
-private fun GuideLinkRow(title: String, detail: String, badge: Color?, tag: String, onClick: () -> Unit) {
-    val pal = LocalPalette.current
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(pal.surface)
-            .clickable(role = Role.Button, onClick = onClick).testTag(tag).padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(detail, fontSize = 13.sp, fontWeight = if (badge != null) FontWeight.Bold else FontWeight.Normal,
-            color = badge ?: MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-@Composable
-private fun GuideSectionLabel(text: String) {
-    Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = LocalPalette.current.signal, modifier = Modifier.padding(top = 6.dp, start = 4.dp))
-}
-
-@Composable
-private fun InlineNote(text: String) {
-    Text(text, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.fillMaxWidth().padding(12.dp))
-}
-
 private fun linkLabel(kind: GameLinks.Kind): Int = when (kind) {
     GameLinks.Kind.WIKI -> R.string.bottom_guides_link_wiki
     GameLinks.Kind.STRATEGYWIKI -> R.string.bottom_guides_link_strategywiki
@@ -589,31 +568,3 @@ private fun tierColor(tier: String): Color = when (tier) {
     else -> Color(0xFFFF6B6B)
 }
 
-@Composable
-private fun PageNote(text: String) {
-    Box(Modifier.fillMaxSize()) {
-        Text(text, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
-            modifier = Modifier.align(Alignment.Center).padding(24.dp))
-    }
-}
-
-@Composable
-internal fun GuideRow(guide: SteamGuides.Guide, onOpen: () -> Unit) {
-    val pal = LocalPalette.current
-    val colors = MaterialTheme.colorScheme
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(pal.surface)
-            .clickable(role = Role.Button, onClick = onOpen).testTag("guide-${guide.id}").padding(10.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).background(pal.line)) {
-            if (guide.preview != null) AsyncImage(model = guide.preview, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(guide.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(listOfNotNull(guide.author.takeIf { it.isNotEmpty() }, "★".repeat(guide.stars).takeIf { it.isNotEmpty() }).joinToString(" · "),
-                fontSize = 12.sp, color = pal.signal, maxLines = 1)
-            Text(guide.summary, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}

@@ -42,6 +42,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxHeight
 import com.droiddeck.launcher.session.SessionPrefs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -92,7 +100,7 @@ private const val EDIT_HEIGHT = 540
 private const val LIVE_LONGEST = 720
 
 @Composable
-internal fun BottomMirrorPage(actions: BottomPageActions) {
+internal fun MirrorPanel(actions: BottomPageActions) {
     val context = LocalContext.current
     val copy = actions.copyRegion
     if (copy == null) {
@@ -107,6 +115,7 @@ internal fun BottomMirrorPage(actions: BottomPageActions) {
     var region by remember(game) { mutableStateOf(MirrorRegion.parse(SessionPrefs.mirrorRegion(context, game))) }
     var editing by remember(game) { mutableStateOf(region == null) }
     var sharp by remember { mutableStateOf(true) }
+    val host = rememberMenuHost()
     if (editing) {
         MirrorEditor(copy, region,
             onSave = {
@@ -134,20 +143,32 @@ internal fun BottomMirrorPage(actions: BottomPageActions) {
             delay(FRAME_MS)
         }
     }
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            BottomPillButton(stringResource(R.string.bottom_mirror_edit), "bottom-mirror-edit") { editing = true }
-            BottomPillButton(stringResource(if (sharp) R.string.bottom_mirror_sharp else R.string.bottom_mirror_smooth), "bottom-mirror-filter") { sharp = !sharp }
-            BottomPillButton(stringResource(hide.label), "bottom-mirror-hide") {
-                hide = hide.next()
-                SessionPrefs.setMirrorHide(context, game, hide.id)
-            }
-        }
-        Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+    val pal = LocalPalette.current
+    Row(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(
+            Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(14.dp)).background(Color.Black)
+                .border(1.dp, pal.line, RoundedCornerShape(14.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
             val f = frame
             if (f != null) Image(f, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
                 filterQuality = if (sharp) FilterQuality.None else FilterQuality.Medium)
             else if (failed) MirrorNote(stringResource(R.string.bottom_mirror_no_frame))
+        }
+        Column(Modifier.width(260.dp).fillMaxHeight().verticalScroll(rememberScrollState())) {
+            SettingsGroup(stringResource(R.string.bottom_page_mirror)) {
+                ActionRow(stringResource(R.string.bottom_mirror_region), null, stringResource(R.string.game_env_edit), onClick = { editing = true },
+                    modifier = Modifier.testTag("bottom-mirror-edit"))
+                ChoiceRow(host, "mirror-hide", stringResource(R.string.bottom_mirror_top), null,
+                    MirrorHide.entries.map { it to stringResource(it.label) }, hide) {
+                    hide = it
+                    SessionPrefs.setMirrorHide(context, game, it.id)
+                }
+                ChoiceRow(host, "mirror-scaling", stringResource(R.string.bottom_mirror_scaling), null,
+                    listOf(true to stringResource(R.string.bottom_mirror_sharp), false to stringResource(R.string.bottom_mirror_smooth)), sharp) {
+                    sharp = it
+                }
+            }
         }
     }
 }
@@ -171,13 +192,15 @@ private fun MirrorEditor(
         failed = bitmap == null
         still = bitmap?.asImageBitmap()
     }
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.bottom_mirror_pick), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-            onCancel?.let { BottomPillButton(stringResource(android.R.string.cancel), "bottom-mirror-cancel", it) }
-            picked?.let { r -> BottomPillButton(stringResource(R.string.bottom_mirror_save), "bottom-mirror-save") { onSave(r) } }
+    PanelColumn {
+        Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            onCancel?.let { BackLink(stringResource(R.string.common_cancel), compact = true, onClick = it) }
+            Text(stringResource(R.string.bottom_mirror_pick), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            SecondaryButton(stringResource(R.string.bottom_mirror_save), enabled = picked != null, compact = true,
+                modifier = Modifier.testTag("bottom-mirror-save")) { picked?.let(onSave) }
         }
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(bottom = 6.dp), contentAlignment = Alignment.Center) {
             val image = still
             if (image == null) {
                 if (failed) MirrorNote(stringResource(R.string.bottom_mirror_no_frame))

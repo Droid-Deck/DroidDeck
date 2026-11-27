@@ -22,7 +22,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -33,6 +32,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import androidx.compose.ui.platform.testTag
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.border
 import com.droiddeck.launcher.agent.AgentGuest
 import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.SessionPrefs
@@ -132,23 +135,23 @@ internal fun BottomIdleHome(modifier: Modifier = Modifier) {
 @Composable
 internal fun IdleHomeCard(game: IdleGame, modifier: Modifier = Modifier, onPlay: () -> Unit) {
     val pal = LocalPalette.current
-    Box(modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(14.dp)).background(pal.surface)) {
-        if (game.art != null) AsyncImage(model = game.art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        else Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(pal.primary.copy(alpha = 0.45f), pal.surface))))
-        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f)))))
-        Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                stringResource(if (game.highlighted) R.string.bottom_idle_selected else R.string.bottom_idle_recent),
-                fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = pal.signal,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(game.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(details(game), fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                BottomPillButton(stringResource(R.string.bottom_idle_play), "bottom-idle-play", onPlay)
-            }
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier.fillMaxWidth().clip(shape).background(colors.surface).border(1.dp, pal.line, shape).padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(width = 112.dp, height = 52.dp).clip(RoundedCornerShape(8.dp)).background(pal.line)) {
+            if (game.art != null) AsyncImage(model = game.art, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         }
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(if (game.highlighted) R.string.bottom_idle_selected else R.string.bottom_idle_recent).uppercase(),
+                fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, color = colors.onSurfaceVariant)
+            Text(game.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(details(game), fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        SecondaryButton(stringResource(R.string.bottom_idle_play), compact = true, modifier = Modifier.testTag("bottom-idle-play"), onClick = onPlay)
     }
 }
 

@@ -29,8 +29,8 @@ class SteamAchievementsTest {
     }
 
     @Test
-    fun aFailedResultIsUnreachable() {
-        assertTrue(SteamAchievements.parse(620, """{"result":2}""") is StoreAchievements.Result.Failed)
+    fun gamesWithoutStatsHaveNoAchievementsAndGarbageIsUnreachable() {
+        assertEquals(0, (SteamAchievements.parse(12200, """{"result":2,"message":"Failed to retrieve user stats"}""") as StoreAchievements.Result.Found).list.size)
         assertTrue(SteamAchievements.parse(620, "nope") is StoreAchievements.Result.Failed)
     }
 

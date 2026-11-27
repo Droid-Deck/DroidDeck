@@ -1487,7 +1487,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         effectsEditorTarget: String?,
     ) {
         SessionDrawer(drawerOpen || (docked && drawerPinned), drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, docked = docked,
-            backRequest = drawerBackRequests, onLayerChange = { drawerLayerOpen = it }, a = latestDrawerActions(DrawerActions(
+            backRequest = drawerBackRequests, onLayerChange = { drawerLayerOpen = it }, a = DrawerActions(
             steam = SessionState.mode == SessionService.MODE_STEAM,
             desktop = SessionState.mode == SessionService.MODE_DESKTOP,
             systemPowerVr = com.droiddeck.launcher.gpu.SystemVulkanDriver.usesDefault(
@@ -1986,12 +1986,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             defaultProtonId = drawerDefaultProton,
             onDefaultProton = ::chooseDrawerDefaultProton,
             onGameProton = ::setDrawerGameProton,
-        )))
+        ))
     }
-
-    private var drawerActions: DrawerActions? = null
-
-    private fun latestDrawerActions(actions: DrawerActions): DrawerActions = actions.also { drawerActions = it }
 
     private fun refreshHomeApp() {
         isHomeApp = HomeApp.isDefault(this)
@@ -2957,7 +2953,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             val on = SessionState.hdrCapable && SessionPrefs.hdr(this, mode)
             SessionState.hdr = on
             WaylandCompositor.nativeSetHdrOutput(on)
-            WaylandCompositor.nativeSetZeroCopy(on || SessionPrefs.zeroCopy(this, mode))
+            WaylandCompositor.nativeSetZeroCopy(on || SessionPrefs.zeroCopy(this, mode) && composedHolds == 0)
             Log.i(TAG, "hdr: " + (if (on) "on" else "off") + " for this $mode session")
         }
         com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "compositor.start driver=$driverId")
@@ -4634,6 +4630,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         onKeyboardClosed = ::bottomKeyboardClosed,
         onMenu = { drawerOpen = true },
         picker = ::bottomScreenPicker,
+        panel = ::bottomPanel,
         onMenuTouched = {
             if (drawerPinned) {
                 drawerPinned = false
@@ -4683,16 +4680,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }),
     )
 
-    private fun bottomPages(): List<BottomPage> = sessionBottomPages(BottomPageActions(
+    private fun bottomPages(): List<BottomPage> = sessionBottomPages(bottomActions())
+
+    private fun bottomPanel(mode: SecondScreenMode): (@androidx.compose.runtime.Composable () -> Unit)? =
+        if (!mode.sessionPanel) null else ({ DroidDeckTheme { com.droiddeck.launcher.ui.BottomSessionPanel(mode, bottomActions()) } })
+
+    private fun bottomActions() = BottomPageActions(
         takeScreenshot = ::captureScreenshot,
         fps = { if (::hud.isInitialized) hud.liveFps else null },
         runningGame = { gestureGame },
-        quick = { drawerActions },
         copyRegion = ::copyGameRegion,
         holdComposed = ::holdComposedOutput,
         maskRegion = ::maskGameRegion,
         screenOff = { secondScreenPresentation?.screenOff() },
-    ))
+    )
 
     private fun captureScreenshot(onDone: (Boolean) -> Unit) = copyGameFrame { bitmap ->
         if (bitmap == null) {
@@ -6777,6 +6778,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         factory = { context -> com.droiddeck.launcher.ui.SessionTerminalPanel(context).also { terminal = it } },
                         modifier = Modifier.fillMaxWidth().weight(1f),
                     )
+                }
+                secondScreenMode.sessionPanel -> androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+                    com.droiddeck.launcher.ui.BottomScreenBar(bar(getString(secondScreenMode.label)))
+                    androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().weight(1f)) {
+                        com.droiddeck.launcher.ui.BottomSessionPanel(secondScreenMode, bottomActions())
+                    }
                 }
                 pages.isEmpty() -> com.droiddeck.launcher.ui.BottomScreenBar(bar(null))
                 else -> BottomDashboard(

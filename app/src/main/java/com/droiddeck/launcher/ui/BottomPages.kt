@@ -8,12 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.CropFree
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.Text
@@ -32,7 +27,6 @@ class BottomPageActions(
     val takeScreenshot: ((onDone: (Boolean) -> Unit) -> Unit)? = null,
     val fps: () -> Float? = { null },
     val runningGame: () -> String? = { null },
-    val quick: () -> DrawerActions? = { null },
     val screenOff: (() -> Unit)? = null,
     val copyRegion: ((android.graphics.RectF?, Int, Int, (android.graphics.Bitmap?) -> Unit) -> Unit)? = null,
     val holdComposed: (Boolean) -> Unit = {},
@@ -43,11 +37,6 @@ internal const val BOTTOM_PAGE_TELEMETRY = "telemetry"
 
 fun sessionBottomPages(actions: BottomPageActions): List<BottomPage> = listOf(
     BottomPage(BOTTOM_PAGE_TELEMETRY, R.string.bottom_page_telemetry, Icons.Filled.Speed) { BottomTelemetryPage(actions.fps, actions.runningGame) },
-    BottomPage("quick", R.string.drawer_quick_access, Icons.Filled.GridView) { BottomQuickPage(actions) },
-    BottomPage("mirror", R.string.bottom_page_mirror, Icons.Filled.CropFree) { BottomMirrorPage(actions) },
-    BottomPage("achievements", R.string.achievements_title, Icons.Filled.EmojiEvents) { BottomAchievementsPage(actions.runningGame) },
-    BottomPage("companion", R.string.bottom_page_companion, Icons.Filled.Extension) { BottomCompanionPage(actions.runningGame) },
-    BottomPage("guides", R.string.bottom_page_guides, Icons.Filled.MenuBook) { BottomGuidesPage(actions.runningGame) },
     BottomPage("downloads", R.string.bottom_page_downloads, Icons.Filled.Download) { BottomDownloadsPage() },
     BottomPage("screenshots", R.string.bottom_page_screenshots, Icons.Filled.Image) { BottomScreenshotsPage(actions.takeScreenshot) },
     BottomPage("chat", R.string.bottom_page_chat, Icons.Filled.People) { BottomChatPage() },

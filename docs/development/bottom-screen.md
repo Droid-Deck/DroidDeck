@@ -98,7 +98,7 @@ Ordered by value for effort. Each is independent unless noted.
 
 ### 1. Idle home page
 
-**Status:** first version built and checked on a Retroid Pocket Duo Lite Plus. With no game running, the In-game stats page shows the game selected in Big Picture (read through the agent's `steam-selection` request) with its name, play time and last played from Steam's own `appStore` overview, so it also works for games installed on another PC; otherwise the most recently played installed game, from `localconfig.vdf`. Art comes from Steam's library cache, and Play calls `SteamClient.Apps.RunGame`. Downloads and friends are not on it yet. Code: [`ui/BottomIdleHome.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomIdleHome.kt), [`session/SteamLocalConfig.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamLocalConfig.kt).
+**Status:** first version built and checked on a Retroid Pocket Duo Lite Plus. With no game running, the In-game stats page starts with one compact row for the game selected in Big Picture (art, name, play time, last played, Play), read from Steam's `appStore` overview, or the most recently played installed game. The performance HUD stays below it. Code: [`ui/BottomIdleHome.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomIdleHome.kt).
 
 When no game is focused, replace the Steam-client FPS card with a page about the game highlighted in Steam: art, play time, last played, achievement progress, and Play / Stream buttons. Add downloads in progress and friends online.
 
@@ -116,7 +116,7 @@ Remember the bottom mode, dashboard tab and control layout per Steam app id, and
 
 ### 3. Steam achievements and notifications
 
-**Status:** achievements built; notifications not started. An Achievements tab reads `SteamClient.Apps.GetMyAchievementsForApp` through `steamEval` into the shared `StoreAchievements` model, so it uses the same list, groups and hidden-achievement handling as Epic and GOG, and is cached for offline use. With no game running it shows the game selected in Steam. Checked on hardware (Arcade Paradise: 20 of 54, with icons and unlock dates). Code: [`stores/SteamAchievements.kt`](../../app/src/main/java/com/droiddeck/launcher/stores/SteamAchievements.kt), [`ui/BottomAchievementsPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomAchievementsPage.kt).
+**Status:** achievements built, as a section of the Guides panel rather than a dashboard tab. They are read from `SteamClient.Apps.GetMyAchievementsForApp` into the shared `StoreAchievements` model (same list and hidden-achievement handling as Epic and GOG); games without Steam stats show the empty state. Notifications are not started.
 
 An achievements page for the running game (progress, recent unlocks, locked list with hidden descriptions behind a tap) and a notifications page (friends, invites, downloads finished).
 
@@ -125,7 +125,7 @@ An achievements page for the running game (progress, recent unlocks, locked list
 
 ### 4. Quick tiles and per-game rules
 
-**Status:** first version built. A Quick access tab has tiles for screenshot, frame limit (off, 30, 40, 45, 60), frame generation, the performance HUD, HDR (when available), swap screens and bottom screen off. Tiles call the in-game menu's own actions, so per-game behaviour is the same as in the menu. Rearranging, per-screen brightness, refresh rate and the 15 s revert are not done. Code: [`ui/BottomQuickPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomQuickPage.kt).
+**Status:** not built. A first tile page was tried and removed: the in-game menu already has these controls, and a second copy on the dashboard did not fit the panel's style.
 
 Rearrangeable tiles on the dashboard: FPS limit, 60/120 Hz, per-screen brightness, frame generation, screen effects, screenshot, swap screens, bottom screen off. A "Keep for this game" action saves the value into the game profile; settings that can make the device unusable revert after 15 s unless confirmed.
 
@@ -141,15 +141,15 @@ Rearrangeable tiles on the dashboard: FPS limit, 60/120 Hz, per-screen brightnes
 
 ### 6. Region mirror from our compositor
 
-**Status:** milestone 1 built (PixelCopy prototype with the editor and per-game regions), plus hiding the region on the top screen (shown, black or dimmed). Checked on a Retroid Pocket Duo Lite Plus; see the region mirror doc.
+**Status:** milestone 1 built as its own bottom-screen panel (Mirror in the panel picker): the live region on the left, and Region, Top screen (shown, hidden or dimmed) and Scaling as settings rows on the right. Checked on a Retroid Pocket Duo Lite Plus; see the region mirror doc.
 
 Crop rectangles of the game image (minimap, HUD, ability bars) onto the bottom screen, saved per game, optionally hidden on the top screen. Other Thor tools need MediaProjection or a privileged helper and cannot hide the original; our compositor has the game image before display, so it can do both with no permission prompt. Recommended path: a second output in `vk_present` that blits region sub-rectangles, with zero-copy layers later.
 
 Details: [bottom-screen-region-mirror.md](bottom-screen-region-mirror.md).
 
-### 7. Guides tab
+### 7. Guides panel
 
-**Status:** milestones 1 and 4 built and checked on a Retroid Pocket Duo Lite Plus. The Guides tab has four sections for the running game, or the one selected in Steam: Guides (top-rated Steam guides in the device's language, filtered by Walkthroughs, Achievements, Secrets or Maps, with "Continue reading"), Wiki & fixes (the ProtonDB tier, and the game wiki, StrategyWiki, PCGamingWiki, GameFAQs, IGN and HowLongToBeat found through Wikidata, plus web searches), Maps (images pinned from any page by long-press, opened in a viewer with pinch and double-tap zoom and markers saved per map, plus Map Genie and VGMaps searches) and Saved (pages kept with Save as web archives for offline reading). The reader never takes focus, blocks common ad hosts, and stays on the opened site unless the user follows a link. Code: [`session/SteamGuides.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamGuides.kt), [`session/GameLinks.kt`](../../app/src/main/java/com/droiddeck/launcher/session/GameLinks.kt), [`ui/BottomGuidesPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomGuidesPage.kt).
+**Status:** milestones 1 and 4 built as their own bottom-screen panel (Guides in the panel picker), checked on a Retroid Pocket Duo Lite Plus. Five sections, switched with the app's tab strip and LB/RB, for the running game or the one selected in Steam: Guides (top-rated Steam guides in the device's language with a category choice and Continue reading), Achievements, Wiki & fixes (ProtonDB tier, and the wiki, StrategyWiki, PCGamingWiki, GameFAQs, IGN and HowLongToBeat through Wikidata, plus web searches), Maps (images pinned by long-press, with zoom and markers per map) and Saved (web archives for offline reading). The reader never takes focus, blocks common ad hosts and stays on the opened site unless the user follows a link. Code: [`session/SteamGuides.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamGuides.kt), [`session/GameLinks.kt`](../../app/src/main/java/com/droiddeck/launcher/session/GameLinks.kt), [`ui/BottomGuidesPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomGuidesPage.kt).
 
 A per-game tab with Steam Community guides for the exact app id, Steam achievements as a spoiler-safe checklist, the game's wiki and fixes (found through Wikidata), saved pages for offline use, and a workspace that reopens at the last section. It must never take focus from the game, and pauses pages it is not showing.
 
@@ -157,7 +157,7 @@ Details: [bottom-screen-guides.md](bottom-screen-guides.md).
 
 ### 8. Companion API for PC games
 
-**Status:** phase 1 started. A Companion tab connects over loopback only while it is shown: Stardew Valley (the dual-screen SMAPI mod on 7786: day, gold, energy, hotbar with tap to select, birthdays, quests), Skyrim SE (SkyrimWebSocket on 8765: vitals, level, carry weight, hotkeys with tap to trigger) and Fallout 4 (Thor Pip-Boy on 8767: HP, AP, caps, rads, favorites with tap to equip or use, radio). GTA, RimWorld and DroidDeck's own protocol are next. Code: [`companion/`](../../app/src/main/java/com/droiddeck/launcher/companion/), [`ui/BottomCompanionPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomCompanionPage.kt).
+**Status:** phase 1 started, as its own bottom-screen panel (Companion in the panel picker), drawn with the settings groups and rows. It connects over loopback only while shown: Stardew Valley (the dual-screen SMAPI mod on 7786: day, gold, energy, health, a tappable hotbar, birthdays, quests), Skyrim SE (SkyrimWebSocket on 8765) and Fallout 4 (Thor Pip-Boy on 8767: vitals, caps, rads, carry weight, favorites to equip or use, radio). Code: [`companion/`](../../app/src/main/java/com/droiddeck/launcher/companion/), [`ui/BottomCompanionPage.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomCompanionPage.kt).
 
 Let mods running in Proton drive native bottom-screen pages over loopback. Thor Pip-Boy (Fallout 4) and Grand Theft Companion (GTA) already run against DroidDeck as separate apps, and the Stardew, Skyrim and RimWorld ecosystems have servers we can adapt to. Plan: adapters for those first, then DroidDeck's own token-authenticated protocol with declarative pages and normalized state keys, then "run on bottom", then memory profiles only if needed. The existing racing, War Thunder and Elite Dangerous telemetry is the first set of built-in adapters.
 

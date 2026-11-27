@@ -2348,10 +2348,7 @@
     <string name="bottom_chat_mic_off">Mic off</string>
     <string name="bottom_chat_mic_unavailable">Mic is off for this game. To talk, turn on Microphone in DroidDeck\'s Steam settings (Audio) and start the game again.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
-    <string name="bottom_achievements_no_game">Start a game to see its achievements here.</string>
     <string name="bottom_screen_off">Turn off the bottom screen</string>
-    <string name="bottom_quick_on">On</string>
-    <string name="bottom_quick_off">Off</string>
     <string name="bottom_page_guides">Guides</string>
     <string name="bottom_guides_no_game">Start a game to see its Steam guides here.</string>
     <string name="bottom_guides_continue">Continue reading</string>
@@ -2364,8 +2361,6 @@
     <string name="bottom_companion_energy">Energy</string>
     <string name="bottom_companion_health">Health</string>
     <string name="bottom_companion_birthdays">Birthdays this week</string>
-    <string name="bottom_companion_birthday_today">%1$s: birthday today</string>
-    <string name="bottom_companion_birthday_in">%1$s: birthday in %2$d days</string>
     <string name="bottom_companion_quests">Quests</string>
     <string name="bottom_companion_skyrim_missing">Install the SkyrimWebSocket SKSE plugin to see your character here.</string>
     <string name="bottom_companion_pipboy_missing">Install the Thor Pip-Boy F4SE plugin to see your Pip-Boy here.</string>
@@ -2373,15 +2368,12 @@
     <string name="bottom_companion_magicka">Magicka</string>
     <string name="bottom_companion_stamina">Stamina</string>
     <string name="bottom_companion_action_points">Action points</string>
-    <string name="bottom_companion_caps">%1$s caps</string>
-    <string name="bottom_companion_rads">%1$s rads</string>
+    <string name="bottom_companion_caps">Caps</string>
+    <string name="bottom_companion_rads">Rads</string>
     <string name="bottom_companion_favorites">Favorites</string>
-    <string name="bottom_companion_radio_on">Turn on the radio</string>
-    <string name="bottom_companion_radio_off">Turn off the radio</string>
     <string name="bottom_page_mirror">Mirror</string>
     <string name="bottom_mirror_pick">Drag over the part of the game to show here, such as the minimap.</string>
     <string name="bottom_mirror_save">Save region</string>
-    <string name="bottom_mirror_edit">Edit region</string>
     <string name="bottom_mirror_sharp">Sharp</string>
     <string name="bottom_mirror_smooth">Smooth</string>
     <string name="bottom_mirror_no_frame">The game picture cannot be copied right now.</string>
@@ -2395,7 +2387,6 @@
     <string name="bottom_guides_pin_failed">That image could not be saved.</string>
     <string name="bottom_guides_saved_note">Page saved for offline reading.</string>
     <string name="bottom_guides_search">Search the web</string>
-    <string name="bottom_guides_maps_hint">Long-press a map image in a guide or wiki page to pin it here.</string>
     <string name="bottom_guides_markers">Markers: %1$d</string>
     <string name="bottom_guides_find_maps">Find maps</string>
     <string name="bottom_guides_saved_hint">Use Save in the reader to keep a page for offline reading.</string>
@@ -2405,9 +2396,9 @@
     <string name="bottom_guides_link_wiki">Game wiki</string>
     <string name="bottom_guides_link_pcgw">PCGamingWiki fixes</string>
     <string name="bottom_guides_search_youtube">YouTube walkthroughs</string>
-    <string name="bottom_mirror_hide_off">Shown on top</string>
-    <string name="bottom_mirror_hide_black">Hidden on top</string>
-    <string name="bottom_mirror_hide_dim">Dimmed on top</string>
+    <string name="bottom_mirror_hide_off">Shown</string>
+    <string name="bottom_mirror_hide_black">Hidden</string>
+    <string name="bottom_mirror_hide_dim">Dimmed</string>
     <string name="bottom_guides_protondb" translatable="false">ProtonDB</string>
     <string name="bottom_guides_link_strategywiki" translatable="false">StrategyWiki</string>
     <string name="bottom_guides_link_gamefaqs" translatable="false">GameFAQs</string>
@@ -2420,6 +2411,21 @@
     <string name="bottom_guides_tier_silver" translatable="false">Silver</string>
     <string name="bottom_guides_tier_bronze" translatable="false">Bronze</string>
     <string name="bottom_guides_tier_borked" translatable="false">Borked</string>
+    <string name="bottom_guides_steam">Steam guides</string>
+    <string name="bottom_guides_category">Category</string>
+    <string name="bottom_guides_maps_empty">No pinned maps yet</string>
+    <string name="bottom_guides_map_name">Map %1$d</string>
+    <string name="bottom_guides_saved_empty">No saved pages yet</string>
+    <string name="bottom_mirror_region">Region</string>
+    <string name="bottom_mirror_top">Top screen</string>
+    <string name="bottom_mirror_scaling">Scaling</string>
+    <string name="bottom_companion_today">Today</string>
+    <string name="bottom_companion_gold">Gold</string>
+    <string name="bottom_companion_hotbar">Hotbar</string>
+    <string name="bottom_companion_in_days">In %1$d days</string>
+    <string name="bottom_companion_character">Character</string>
+    <string name="bottom_companion_weight">Carry weight</string>
+    <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_hud_group">Bottom screen HUD</string>
     <string name="bottom_strip_tabs">Strip on every tab</string>

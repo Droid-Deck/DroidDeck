@@ -45,6 +45,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.width
 import com.droiddeck.launcher.companion.CompanionLink
 import com.droiddeck.launcher.companion.RpgCompanion
 import com.droiddeck.launcher.companion.StardewCompanion
@@ -59,7 +61,7 @@ internal fun companionFor(appId: Long?): Long? =
     appId?.takeIf { it == StardewCompanion.APP_ID || it == RpgCompanion.SKYRIM_SE || it == RpgCompanion.FALLOUT_4 }
 
 @Composable
-internal fun BottomCompanionPage(runningGame: () -> String?) {
+internal fun CompanionPanel(runningGame: () -> String?) {
     var appId by remember { mutableStateOf(runningGame()?.toLongOrNull()) }
     LaunchedEffect(Unit) {
         while (isActive) {
@@ -70,15 +72,7 @@ internal fun BottomCompanionPage(runningGame: () -> String?) {
     when (companionFor(appId)) {
         StardewCompanion.APP_ID -> StardewLive()
         RpgCompanion.SKYRIM_SE, RpgCompanion.FALLOUT_4 -> RpgLive(appId!!)
-        else -> CompanionNote(stringResource(R.string.bottom_companion_none))
-    }
-}
-
-@Composable
-private fun CompanionNote(text: String) {
-    Box(Modifier.fillMaxSize()) {
-        Text(text, fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center,
-            modifier = Modifier.align(Alignment.Center).padding(24.dp))
+        else -> PanelNote(stringResource(R.string.bottom_companion_none))
     }
 }
 
@@ -98,8 +92,8 @@ private fun StardewLive() {
         }
     }
     when {
-        !connected -> CompanionNote(stringResource(R.string.bottom_companion_stardew_missing))
-        !state.inGame -> CompanionNote(stringResource(R.string.bottom_companion_title_screen))
+        !connected -> PanelNote(stringResource(R.string.bottom_companion_stardew_missing))
+        !state.inGame -> PanelNote(stringResource(R.string.bottom_companion_title_screen))
         else -> StardewPanel(state) { slot -> link.send(StardewCompanion.selectSlot(slot)) }
     }
 }
@@ -110,50 +104,47 @@ internal fun StardewPanel(state: StardewCompanion.State, onSlot: (Int) -> Unit) 
     val colors = MaterialTheme.colorScheme
     val twelveHour = !DateFormat.is24HourFormat(LocalContext.current)
     val sprites = remember(state.sprites) { state.sprites.mapValues { (_, png) -> decode(png) } }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        state.day?.let { d ->
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(pal.surface).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("${d.weekday} · ${d.season.replaceFirstChar { it.uppercase() }} ${d.day} · ${StardewCompanion.clock(d.time, twelveHour)}",
-                    fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
-                Text(listOf(d.location, d.weather, "%,dg".format(d.gold)).filter { it.isNotEmpty() }.joinToString(" · "),
-                    fontSize = 13.sp, color = colors.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Meter(stringResource(R.string.bottom_companion_energy), d.energy, d.maxEnergy, pal.good)
-                    Meter(stringResource(R.string.bottom_companion_health), d.health, d.maxHealth, colors.error)
+    Row(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+            state.day?.let { d ->
+                SettingsGroup(stringResource(R.string.bottom_companion_today)) {
+                    PanelRow("${d.weekday} · ${d.season.replaceFirstChar { it.uppercase() }} ${d.day}", listOf(d.location, d.weather).filter { it.isNotEmpty() }.joinToString(" · "),
+                        trailing = { PanelValue(StardewCompanion.clock(d.time, twelveHour)) })
+                    PanelRow(stringResource(R.string.bottom_companion_gold), trailing = { PanelValue("%,d".format(d.gold), CompanionGold) })
+                    MeterRow(stringResource(R.string.bottom_companion_energy), d.energy, d.maxEnergy, pal.good)
+                    MeterRow(stringResource(R.string.bottom_companion_health), d.health, d.maxHealth, colors.error)
+                }
+            }
+            SettingsGroup(stringResource(R.string.bottom_companion_hotbar)) {
+                for (row in state.hotbar.withIndex().chunked(6)) Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for ((slot, item) in row) {
+                        val selected = slot == state.selected
+                        Box(
+                            Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(8.dp))
+                                .background(if (selected) pal.signal.copy(alpha = 0.18f) else colors.surfaceVariant)
+                                .border(1.dp, if (selected) pal.signal else pal.line2, RoundedCornerShape(8.dp))
+                                .clickable(role = Role.Button) { onSlot(slot) }.testTag("stardew-slot-$slot"),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            val sprite = item?.let { sprites[it.id] }
+                            if (sprite != null) Image(sprite, item.name, Modifier.fillMaxSize().padding(5.dp), filterQuality = FilterQuality.None)
+                            else if (item != null) Text(item.name.take(3), fontSize = 10.sp, color = colors.onSurfaceVariant)
+                            if (item != null && item.count > 1) Text("${item.count}", fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                color = colors.onBackground, modifier = Modifier.align(Alignment.BottomEnd).padding(3.dp))
+                        }
+                    }
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            state.hotbar.forEachIndexed { slot, item ->
-                val selected = slot == state.selected
-                Box(
-                    Modifier.weight(1f).aspectRatio(1f).clip(RoundedCornerShape(8.dp))
-                        .background(if (selected) pal.signal.copy(alpha = 0.25f) else pal.surface)
-                        .border(1.dp, if (selected) pal.signal else pal.line, RoundedCornerShape(8.dp))
-                        .clickable(role = Role.Button) { onSlot(slot) }.testTag("stardew-slot-$slot"),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    val sprite = item?.let { sprites[it.id] }
-                    if (sprite != null) Image(sprite, item.name, Modifier.fillMaxSize().padding(4.dp), filterQuality = FilterQuality.None)
-                    else if (item != null) Text(item.name.take(3), fontSize = 10.sp, color = colors.onBackground)
-                    if (item != null && item.count > 1) Text("${item.count}", fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                        color = colors.onBackground, modifier = Modifier.align(Alignment.BottomEnd).padding(2.dp))
-                }
+        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+            if (state.birthdays.isNotEmpty()) SettingsGroup(stringResource(R.string.bottom_companion_birthdays)) {
+                for (b in state.birthdays) PanelRow(b.name,
+                    trailing = { PanelValue(if (b.days == 0) stringResource(R.string.bottom_companion_today) else stringResource(R.string.bottom_companion_in_days, b.days),
+                        if (b.days == 0) pal.signal else colors.onSurfaceVariant) })
             }
-        }
-        if (state.birthdays.isNotEmpty()) Section(stringResource(R.string.bottom_companion_birthdays)) {
-            for (b in state.birthdays) Text(
-                if (b.days == 0) stringResource(R.string.bottom_companion_birthday_today, b.name)
-                else stringResource(R.string.bottom_companion_birthday_in, b.name, b.days),
-                fontSize = 13.sp, color = colors.onBackground,
-            )
-        }
-        if (state.quests.isNotEmpty()) Section(stringResource(R.string.bottom_companion_quests)) {
-            for (q in state.quests) Column {
-                Text(q.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = if (q.complete) pal.good else colors.onBackground,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (q.objective.isNotEmpty()) Text(q.objective, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (state.quests.isNotEmpty()) SettingsGroup(stringResource(R.string.bottom_companion_quests)) {
+                for (q in state.quests) PanelRow(q.title, q.objective, selected = q.complete)
             }
         }
     }
@@ -176,7 +167,7 @@ private fun RpgLive(appId: Long) {
         }
     }
     if (!connected) {
-        CompanionNote(stringResource(if (appId == RpgCompanion.FALLOUT_4) R.string.bottom_companion_pipboy_missing else R.string.bottom_companion_skyrim_missing))
+        PanelNote(stringResource(if (appId == RpgCompanion.FALLOUT_4) R.string.bottom_companion_pipboy_missing else R.string.bottom_companion_skyrim_missing))
         return
     }
     RpgPanel(state,
@@ -188,66 +179,56 @@ private fun RpgLive(appId: Long) {
 internal fun RpgPanel(state: RpgCompanion.State, onSlot: (RpgCompanion.Slot) -> Unit, onRadio: (Boolean) -> Unit) {
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(pal.surface).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.level?.let { Text(stringResource(R.string.bottom_companion_level, it), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colors.onBackground) }
-            for (bar in state.bars) {
-                val (label, color) = when (bar.key) {
-                    "hp", "health" -> stringResource(R.string.bottom_companion_health) to colors.error
-                    "magicka" -> stringResource(R.string.bottom_companion_magicka) to pal.primary
-                    "stamina" -> stringResource(R.string.bottom_companion_stamina) to pal.good
-                    else -> stringResource(R.string.bottom_companion_action_points) to pal.good
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text("$label ${bar.value.toInt()} / ${bar.max.toInt()}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = color)
-                    Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(pal.line)) {
-                        Box(Modifier.fillMaxWidth(if (bar.max > 0) (bar.value / bar.max).coerceIn(0f, 1f) else 0f).fillMaxHeight().background(color))
+    Row(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+            SettingsGroup(stringResource(R.string.bottom_companion_character), detail = state.level?.let { stringResource(R.string.bottom_companion_level, it) }) {
+                for (bar in state.bars) {
+                    val (label, color) = when (bar.key) {
+                        "hp", "health" -> stringResource(R.string.bottom_companion_health) to colors.error
+                        "magicka" -> stringResource(R.string.bottom_companion_magicka) to pal.primary
+                        "stamina" -> stringResource(R.string.bottom_companion_stamina) to pal.good
+                        else -> stringResource(R.string.bottom_companion_action_points) to pal.good
                     }
+                    MeterRow(label, bar.value.toInt(), bar.max.toInt(), color)
                 }
-            }
-            if (state.facts.isNotEmpty()) {
-                val caps = stringResource(R.string.bottom_companion_caps)
-                val rads = stringResource(R.string.bottom_companion_rads)
-                Text(state.facts.joinToString(" · ") { (key, value) ->
+                for ((key, value) in state.facts) PanelRow(
                     when (key) {
-                        "caps" -> caps.format(value)
-                        "rads" -> rads.format(value)
-                        else -> value
-                    }
-                }, fontSize = 13.sp, color = colors.onSurfaceVariant)
+                        "caps" -> stringResource(R.string.bottom_companion_caps)
+                        "rads" -> stringResource(R.string.bottom_companion_rads)
+                        else -> stringResource(R.string.bottom_companion_weight)
+                    },
+                    trailing = { PanelValue(value) },
+                )
+            }
+            state.radio?.let { on ->
+                SettingsGroup(stringResource(R.string.bottom_companion_radio)) {
+                    SettingsRow(stringResource(R.string.bottom_companion_radio), null) { ToggleSwitch(on, label = stringResource(R.string.bottom_companion_radio)) { onRadio(it) } }
+                }
             }
         }
-        if (state.slots.isNotEmpty()) Section(stringResource(R.string.bottom_companion_favorites)) {
-            for (slot in state.slots) Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                    .background(if (slot.active) pal.signal.copy(alpha = 0.18f) else androidx.compose.ui.graphics.Color.Transparent)
-                    .clickable(role = Role.Button) { onSlot(slot) }.testTag("rpg-slot-${slot.key}").padding(horizontal = 8.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(slot.label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (slot.active) pal.signal else colors.onBackground,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                Text(slot.detail, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1)
+        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+            if (state.slots.isNotEmpty()) SettingsGroup(stringResource(R.string.bottom_companion_favorites)) {
+                for (slot in state.slots) PanelRow(slot.label, slot.detail.ifEmpty { null }, tag = "rpg-slot-${slot.key}", selected = slot.active,
+                    onClick = { onSlot(slot) })
             }
         }
-        state.radio?.let { on -> BottomPillButton(stringResource(if (on) R.string.bottom_companion_radio_off else R.string.bottom_companion_radio_on), "rpg-radio") { onRadio(!on) } }
     }
 }
 
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+private fun MeterRow(label: String, value: Int, max: Int, color: Color) {
     val pal = LocalPalette.current
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(pal.surface).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = pal.signal)
-        content()
-    }
+    PanelRow(label, trailing = {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.width(72.dp).height(6.dp).clip(RoundedCornerShape(3.dp)).background(pal.line2)) {
+                Box(Modifier.fillMaxWidth(if (max > 0) (value.toFloat() / max).coerceIn(0f, 1f) else 0f).fillMaxHeight().background(color))
+            }
+            PanelValue("$value / $max")
+        }
+    })
 }
 
-@Composable
-private fun Meter(label: String, value: Int, max: Int, color: androidx.compose.ui.graphics.Color) {
-    Text("$label $value / $max", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = color)
-}
+private val CompanionGold = Color(0xFFE2B33C)
 
 private fun decode(png: String): ImageBitmap? = runCatching {
     val bytes = Base64.decode(png, Base64.DEFAULT)
