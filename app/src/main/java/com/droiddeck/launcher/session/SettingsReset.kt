@@ -16,7 +16,7 @@ object SettingsReset {
         "drawerWidthDp", "dualScreenMode", "dualScreenSessionMode", "dualScreenLauncher", "dualScreenSessionControls", "androidTextFieldKeyboard",
         "soundtracksIngame", "gameStoresSpeedTier", "gameStoresParallel", "storesOpenTab", "storesShowMature",
         "storesInstallLanguage",
-        "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "__KEEP_droidDeckHud__", "__KEEP_droidDeckHudPos__", "backHold", "dockedMenuController", "backActionsInverted", "backDoubleTapMs", "touch", "pen", "penButton", "osc", "shape", "steamController",
+        "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "__KEEP_droidDeckHud__", "__KEEP_droidDeckHudPos__", "backHold", "dockedMenuController", "backActionsInverted", "backDoubleTapMs", "touch", "pen", "penButton", "penPalm", "osc", "shape", "steamController",
         "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "unfoldedControlsWithController",
         "stretch16x9", "avoidNotch", "picturePosition", "integerScaling", "railLabels", "developerTools", "navTabOrder", "navTabShelved", "navTabHidden", "drawerPageOrder", "drawerPageHidden", "pcKeyboardSize", "pcKeyboardOpacity", "pcKeyboardHiddenKeys",
         "gpuDriverMode", "androidDriver", "linuxDriver", "linuxDriver.steam", "linuxDriver.desktop",

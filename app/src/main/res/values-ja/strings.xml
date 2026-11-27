@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">マウス</string>
     <string name="mode_pen_touch">タッチ</string>
     <string name="mode_pen_button">サイドボタン</string>
+    <string name="mode_pen_palm">パームリジェクション</string>
     <string name="mode_osc">画面コントローラー</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">自動では、コントローラーが接続されていないときに画面コントローラーを表示します。</string>

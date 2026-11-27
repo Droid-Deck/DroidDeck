@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Мишка</string>
     <string name="mode_pen_touch">Докосване</string>
     <string name="mode_pen_button">Страничен бутон</string>
+    <string name="mode_pen_palm">Игнориране на дланта</string>
     <string name="mode_osc">Екранни контроли</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Автоматично показва контролите, когато няма свързан контролер.</string>

@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Chuột</string>
     <string name="mode_pen_touch">Chạm</string>
     <string name="mode_pen_button">Nút bên</string>
+    <string name="mode_pen_palm">Chống chạm lòng bàn tay</string>
     <string name="mode_osc">Điều khiển trên màn hình</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Tự động hiện các nút điều khiển khi không có tay cầm kết nối.</string>

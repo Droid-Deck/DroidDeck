@@ -293,6 +293,7 @@
     <string name="mode_pen_mouse">Mysz</string>
     <string name="mode_pen_touch">Dotyk</string>
     <string name="mode_pen_button">Przycisk boczny</string>
+    <string name="mode_pen_palm">Odrzucanie dłoni</string>
     <string name="mode_osc">Sterowanie ekranowe</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto pokazuje sterowanie, gdy nie jest podłączony żaden kontroler.</string>
