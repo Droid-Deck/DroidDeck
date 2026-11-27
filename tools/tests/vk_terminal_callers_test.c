@@ -38,6 +38,10 @@ static void blit(VkCommandBuffer c, VkImage s, VkImageLayout sl, VkImage d, VkIm
                  uint32_t n, const VkImageBlit *b, VkFilter f) { live(); }
 static void destroy_swap(VkDevice d, VkSwapchainKHR s, const VkAllocationCallbacks *a) { ++destroys; }
 static void destroy_surface(VkInstance i, VkSurfaceKHR s, const VkAllocationCallbacks *a) { ++destroys; }
+static void destroy_fence(VkDevice d, VkFence f, const VkAllocationCallbacks *a) { ++destroys; }
+static void destroy_pool(VkDevice d, VkCommandPool p, const VkAllocationCallbacks *a) { ++destroys; }
+static void destroy_device(VkDevice d, const VkAllocationCallbacks *a) { ++destroys; }
+static void destroy_instance(VkInstance i, const VkAllocationCallbacks *a) { ++destroys; }
 static void destroy_sem(VkDevice d, VkSemaphore s, const VkAllocationCallbacks *a) { live(); ++destroys; }
 static VkResult create_sem(VkDevice d, const VkSemaphoreCreateInfo *c, const VkAllocationCallbacks *a, VkSemaphore *s) {
     live(); *s = (VkSemaphore)(uintptr_t)1; return VK_SUCCESS;
@@ -155,6 +159,8 @@ static void setup(int extra) {
         .ResetCommandBuffer = reset_cmd, .ResetFences = reset_fence, .BeginCommandBuffer = begin_cmd,
         .EndCommandBuffer = end_cmd, .CmdPipelineBarrier = barrier, .CmdClearColorImage = clear,
         .CmdBlitImage = blit, .DestroySwapchainKHR = destroy_swap, .DestroySurfaceKHR = destroy_surface,
+        .DestroyFence = destroy_fence, .DestroyCommandPool = destroy_pool,
+        .DestroyDevice = destroy_device, .DestroyInstance = destroy_instance,
         .DestroySemaphore = destroy_sem, .CreateSemaphore = create_sem,
         .DestroyImage = destroy_image, .FreeMemory = free_memory, .UnmapMemory = unmap};
     idle_answer = fence_answer = acquire_answer = present_answer = VK_SUCCESS;
