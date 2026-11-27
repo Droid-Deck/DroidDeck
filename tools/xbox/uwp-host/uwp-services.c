@@ -8585,12 +8585,51 @@ static HRESULT __stdcall xbl_devaddr_CreateFromSnapshotBytes(svc_object *self, U
 
 static unsigned char g_xbl_local_ipv4[4];
 static void xbl_detect_local_ipv4_once(void);
+extern const char *uwp_auth_device_token(void);
+
+/* Name this device from the device token Xbox Live actually issued it.
+ *
+ * The snapshot's host ID cannot be empty, but filling it with a chosen literal makes
+ * the host claim an identity it does not have -- the sort of thing a service is entitled
+ * to reject, and a poor basis for staying in good standing. Hashing the genuine device
+ * token gives a stable 13-byte name that is derived from this device's real credential
+ * and identifies no other device. Until sign-in has produced a token the field stays
+ * zero, which says "not known yet" rather than making something up.
+ */
+static void xbl_name_device_once(void)
+{
+    static LONG done;
+    const char *token;
+    unsigned long long h = 1469598103934665603ULL; /* FNV-1a 64 */
+    unsigned i;
+
+    if (InterlockedCompareExchange(&done, 1, 0) != 0)
+        return;
+    if (xbl_devaddr_local.snapshot_len < 72)
+        return;
+    token = uwp_auth_device_token();
+    if (!token || !token[0]) {
+        InterlockedExchange(&done, 0); /* no token yet; try again on the next call */
+        return;
+    }
+    for (i = 0; token[i]; i++) {
+        h ^= (unsigned char)token[i];
+        h *= 1099511628211ULL;
+    }
+    for (i = 0; i < 13; i++) {
+        xbl_devaddr_local.snapshot[3 + i] = (unsigned char)(h >> (8 * (i % 8)));
+        if (i == 7)
+            h = h * 6364136223846793005ULL + 1442695040888963407ULL;
+    }
+    svc_tracef("xbl_devaddr host id named from the device token");
+}
 
 static HRESULT __stdcall xbl_devaddr_GetLocal(svc_object *self, void **out)
 {
     (void)self;
     if (!out) return E_POINTER;
     xbl_detect_local_ipv4_once();
+    xbl_name_device_once();
     /* Put the host's real address in both IPv4 records of the 72-byte Windows 10
        SDA snapshot. Native Windows repeats the addresses it actually owns, so a
        peer that reads the second record is given a routable address instead of
@@ -13002,10 +13041,12 @@ void uwp_services_install(void)
         /* Valid 72-byte Windows 10 XboxLiveDeviceAddress snapshot (version 1 +
            16-byte host ID + Teredo/IPv6 record + local IPv4 record) so MPSD
            accepts our local secureDeviceAddress instead of rejecting an empty
-           string. */
+           string. The host ID is left zero here and filled in from this device's
+           real Xbox Live device token once one exists (xbl_name_device_once); a
+           literal name would be an identity this device does not actually have. */
         static const unsigned char default_sda[72] = {
-            0x01, 0x00, 0x0e, 0x44, 0x52, 0x4f, 0x49, 0x44,
-            0x44, 0x45, 0x43, 0x4b, 0x58, 0x42, 0x4c, 0x31,
+            0x01, 0x00, 0x0e, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x04, 0x06, 0x02, 0x20, 0x01, 0x00, 0x00, 0x14,
             0xc9, 0xc8, 0x4c, 0x2c, 0xf4, 0x3a, 0x96, 0x3f,
             0x57, 0xcd, 0x1f, 0x02, 0xfd, 0x7a, 0x11, 0x5c,

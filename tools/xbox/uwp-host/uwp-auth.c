@@ -1565,6 +1565,15 @@ static time_t g_msa_expiry = 0;
 static char g_msa_account_id[128];
 
 static char g_xbl_device_token[8192];
+
+/* The genuine Xbox Live device token this device was issued, or "" before sign-in.
+ *
+ * Exposed so other parts of the host can name this device from its real credential
+ * instead of inventing an identifier of their own. */
+const char *uwp_auth_device_token(void)
+{
+    return g_xbl_device_token;
+}
 static char g_xbl_title_token[8192];
 static char g_xbl_user_token[8192];
 static time_t g_xbl_user_expiry = 0;
