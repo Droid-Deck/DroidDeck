@@ -69,6 +69,11 @@ class HarnessTest(unittest.TestCase):
         self.assertIs(bench.running(FakeDevice([{'ok': False}, {'ok': True, 'session': {'running': False}}])), False)
         self.assertIs(bench.running(FakeDevice([{'ok': True, 'session': {'running': True}}])), True)
 
+    def test_a_refused_environment_write_stops_the_run(self):
+        with self.assertRaises(RuntimeError):
+            bench.set_env(FakeDevice([{'ok': False, 'error': 'AGENT_COMMANDS_DISABLED'}]), 'DD_STEAM_SOFT_COMPOSITING', '1')
+        bench.set_env(FakeDevice([{'ok': True}]), 'DD_STEAM_SOFT_COMPOSITING', '1')
+
     def test_unreadable_web_pss_keeps_the_phase(self):
         samples = [sample(t, 'idle', [row(1, 'client', 1024, 0), row(2, 'renderer', None, 0)]) for t in range(4)]
         out = bench.summarize(samples, {'profile': 'stock'})

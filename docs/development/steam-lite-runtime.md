@@ -17,8 +17,10 @@ branch, Run without proot, the native arm64 Steam client (build 1793740892, CEF 
   storage services ~70 MiB), plus **190–260 MiB of KGSL GPU memory** in the browser process (the GPU
   runs in-process). KGSL is unswappable and not in PSS. Some sessions held 650–1080 MiB of it
   until the overlay was opened once; that state was not reproducible on demand.
-- **No profile touched game frame pacing:** Sonic Mania stayed at 58.5–59.4 fps with a 16 ms p95
-  under stock, L1, L2 and soft compositing on the Duo.
+- **Frame pacing:** with Sonic Mania in front on the Duo, stock, L1, L2 and soft compositing all
+  ran at 58.5–59.4 fps with a 16 ms p95. In those L1 and L2 runs the supervisor had nothing to do
+  (the monitor had already paged the client out), so this covers soft compositing and an idle
+  supervisor only; pacing during an active L1/L2 pass and under L3 was not measured.
 - **The one large, safe saving is compositing the web helper in software**
   (`DD_STEAM_SOFT_COMPOSITING=1`, already used for the open driver pair): KGSL 239 → 26 MiB in the
   library, for +0.9 points of one core and +25 MiB of PSS, about 190 MiB net, and the UI looks the
@@ -218,9 +220,10 @@ title in front, a 20 s SurfaceFlinger capture 60 s after it took focus:
 | L2 | 2 | 59.2, 58.5 | 16 / 25 | 1.7–5.2 % | 2587 (KGSL 936), 3169 | 239–936 | 2.0–3.6 |
 | soft compositing | 3 | 59.3, 59.2, 59.2 | 16 / 25 | 1.8–3.0 % | 3435, 3373, 3367 | 26 | 1.7–2.9, once 11.4 |
 
-No profile changed the game's frame rate or p95; the off-cadence spread is run-to-run noise (in all
-four L1 and L2 runs the supervisor did nothing, because the monitor had already put 165–404 MB of the
-client in zRAM before the game took focus). Soft compositing left the most memory available
+No measured profile changed the game's frame rate or p95, and the off-cadence spread is run-to-run
+noise. In all four L1 and L2 runs, though, the supervisor did nothing, because the monitor had
+already put 165–404 MB of the client in zRAM before the game took focus, so these runs show an
+idle supervisor; pacing while a GC or page-out pass runs, and under L3, is untested. Soft compositing left the most memory available
 (median 3373 against 3197 MiB for stock). One soft-compositing run spent 11.4 % of a core in the web
 helper while the renderer grew 43 MiB: some UI work ran while hidden, and drawing in software makes
 that cost CPU instead of GPU; the other two runs used 1.7 and 2.9 %.

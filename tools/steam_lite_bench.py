@@ -265,6 +265,11 @@ def oom_trial(dev: Device, app: str, profile: str, run_dir: Path, args, arm: str
     t0 = time.monotonic()
     launched = dev.ctl("launch", app, "--wait", "--timeout", "120", timeout=130)
     events["launch_s"] = round(time.monotonic() - t0, 2) if launched.get("ok") else None
+    if not launched.get("ok"):
+        events["launch_error"] = launched.get("error") or launched.get("message")
+        rec.kill()
+        (run_dir / "events.json").write_text(json.dumps(events, indent=1))
+        raise RuntimeError("app %s did not launch: %s" % (app, events["launch_error"]))
     dev.mark("game")
     time.sleep(args.title)
     events["status_in_game"] = dev.status()
@@ -360,7 +365,7 @@ FLAGS = {
 def set_variant(dev: Device, variant: str) -> dict:
     env = dict(FLAG_DEFAULTS, **FLAGS[variant])
     for key, value in env.items():
-        dev.ctl("env", "set", "--persistent", "%s=%s" % (key, value), timeout=30)
+        set_env(dev, key, value)
     return env
 
 
@@ -458,9 +463,16 @@ def cycle(dev: Device, app: str, profile: str, run_dir: Path, args) -> dict:
     return events
 
 
+def set_env(dev: Device, key: str, value: str) -> None:
+    """Set one persistent session variable; a refused write stops the run instead of mislabelling it."""
+    reply = dev.ctl("env", "set", "--persistent", "%s=%s" % (key, value), timeout=30)
+    if not reply.get("ok"):
+        raise RuntimeError("could not set %s=%s: %s" % (key, value, json.dumps(reply)[:300]))
+
+
 def fresh_session(dev: Device, env: dict) -> bool:
     for key, value in env.items():
-        dev.ctl("env", "set", "--persistent", "%s=%s" % (key, value), timeout=30)
+        set_env(dev, key, value)
     dev.ctl("stop", "--timeout", "60", timeout=80)
     if running(dev) is not False:
         return False
@@ -798,7 +810,8 @@ def main(argv=None) -> int:
         return 1 if failed else 0
     if args.command in ("cycle", "oom"):
         for item in getattr(args, "env", None) or []:
-            dev.ctl("env", "set", "--persistent", item, timeout=30)
+            key, _, value = item.partition("=")
+            set_env(dev, key, value)
         arms = (getattr(args, "arms", None) or "").split(",") if getattr(args, "arms", None) else None
         names = arms or args.profiles.split(",")
         unknown = [n for n in names if n not in (ARMS if arms else PROFILES)]
@@ -819,7 +832,7 @@ def main(argv=None) -> int:
                     if arms:
                         profile, env = ARMS[name]
                         for key, value in env.items():
-                            dev.ctl("env", "set", "--persistent", "%s=%s" % (key, value), timeout=30)
+                            set_env(dev, key, value)
                         args.arm, args.env = name, ["%s=%s" % kv for kv in env.items()]
                     arm = args.arm or name
                     if args.arm and not arms and len(names) > 1:
