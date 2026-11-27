@@ -188,6 +188,15 @@ A Unity game under FEX (`UnityPlayer.dll` for Windows builds under Proton,
 turns it off: without TSO such games can deadlock or crash (seen with Megabonk
 and Crab Game). A FEX preset chosen for the game itself still applies.
 
+An Inno Setup installer added as a game runs with the Stability preset's FEX
+settings (full TSO, full x87 precision, no multiblock). Under the default
+Performance + TSO preset the 32-bit setup stub corrupts its own paths and stops
+with Wine's "Path not fpund." dialog (#1277, #3067). The stub is found by the
+setup loader's offset-table ID in its resources, or by the `Inno` marker that
+loaders older than 5.1.5 keep at offset 0x30. GOG installs avoid the stub by
+extracting natively. A FEX preset chosen for the installer's own entry still
+applies.
+
 Games launched through Proton get `vblank_mode=0`, so OpenGL does not wait for
 each screen refresh. Wine asks for a swap interval of 1 on every OpenGL window, and WineD3D's front-buffer
 drawing (DirectDraw, Direct3D 1–7) never lowers it, so those games ran at the

@@ -66,6 +66,35 @@ DOTNET_FEX = {
     "FEX_HALFBARRIERTSOENABLED": "1",
     "FEX_X87REDUCEDPRECISION": "0",
 }
+STABILITY_FEX = dict(DOTNET_FEX, FEX_MULTIBLOCK="0")
+# Setup loader offset-table IDs, as innoextract's known_setup_loader_versions lists them. Loaders
+# from 5.1.5 keep the table in a resource; older ones also put "Inno" at file offset 0x30.
+INNO_LOADER_IDS = (b"rDlPtS", b"nS5W7dT\x83\xaa\x1b\x0fj")
+INNO_RESOURCE_LIMIT = 4 << 20
+
+
+def is_inno_setup(path):
+    try:
+        with open(path, "rb") as exe:
+            head = exe.read(4096)
+            if head[:2] != b"MZ":
+                return False
+            if head[0x30:0x34] == b"Inno":
+                return True
+            pe = int.from_bytes(head[0x3C:0x40], "little")
+            if head[pe:pe + 4] != b"PE\0\0" or int.from_bytes(head[pe + 4:pe + 6], "little") != 0x14C:
+                return False
+            count = int.from_bytes(head[pe + 6:pe + 8], "little")
+            table = pe + 24 + int.from_bytes(head[pe + 20:pe + 22], "little")
+            for entry in range(table, table + 40 * count, 40):
+                if head[entry:entry + 8].rstrip(b"\0") == b".rsrc":
+                    exe.seek(int.from_bytes(head[entry + 20:entry + 24], "little"))
+                    size = int.from_bytes(head[entry + 16:entry + 20], "little")
+                    resources = exe.read(min(size, INNO_RESOURCE_LIMIT))
+                    return any(marker in resources for marker in INNO_LOADER_IDS)
+    except OSError:
+        pass
+    return False
 
 
 def game_files(exe):
@@ -189,6 +218,12 @@ def arkham_city_x87(game):
 def split_second_x87_fip(game):
     if game.app_id == "297860" or game.stem == "splitsecond":
         return {"FEX_JITFEATURES": "enablex87fip"}, [], "Split/Second: FEX x87 FIP emulation on (its SecuROM stops with error 8016 without it)"
+
+
+@fix
+def inno_setup_stability(game):
+    if is_inno_setup(game.exe):
+        return STABILITY_FEX, [], "Inno Setup installer: FEX Stability settings (under Performance + TSO the 32-bit setup stub corrupts its own paths)"
 
 
 @fix
@@ -1676,14 +1711,21 @@ def main():
             if note:
                 print("droiddeck-game-env: " + note, file=sys.stderr)
         else:
+            # An installer started with the run verb gets the same Stability settings as one started with
+            # waitforexitandrun; explicit game settings still win over them in apply_config.
+            installer = {}
+            if len(command) > 2 and command[1] == "run" and is_inno_setup(command[2]):
+                installer = dict(STABILITY_FEX)
+                print("droiddeck-game-env: Inno Setup installer: FEX Stability settings", file=sys.stderr)
             path = Path.home() / ".config/droiddeck/game-environment.json"
             try:
                 with path.open(encoding="utf-8") as source:
                     config = json.load(source)
-                env = apply_config(env, sync_config(config, app_id), app_id)
+                env = apply_config(env, sync_config(config, app_id), app_id, installer)
             except FileNotFoundError:
-                pass
+                env = dict(env, **installer)
             except (OSError, ValueError, TypeError, AttributeError):
+                env = dict(env, **installer)
                 print("droiddeck-game-env: invalid configuration; using inherited environment", file=sys.stderr)
         if waiting:
             before_debug = env
