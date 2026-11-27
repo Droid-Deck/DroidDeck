@@ -1,4 +1,4 @@
-package com.droiddeck.launcher.companion
+package com.droiddeck.launcher.session
 
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
@@ -35,7 +35,7 @@ class CdpPage(port: Int, path: String, private val onEvent: (String, JSONObject)
         if (closed) return
         val id = ids.incrementAndGet()
         val text = JSONObject().put("id", id).put("method", method).put("params", params).toString()
-        sender.execute { runCatching { ws.send(text) } }
+        runCatching { sender.execute { runCatching { ws.send(text) } } }
     }
 
     fun call(method: String, params: JSONObject = JSONObject(), timeoutMs: Long = 3_000): JSONObject? {
@@ -44,7 +44,8 @@ class CdpPage(port: Int, path: String, private val onEvent: (String, JSONObject)
         val future = CompletableFuture<JSONObject>()
         pending[id] = future
         val text = JSONObject().put("id", id).put("method", method).put("params", params).toString()
-        sender.execute { runCatching { ws.send(text) }.onFailure { future.complete(JSONObject()) } }
+        runCatching { sender.execute { runCatching { ws.send(text) }.onFailure { future.complete(JSONObject()) } } }
+            .onFailure { future.complete(JSONObject()) }
         return runCatching { future.get(timeoutMs, TimeUnit.MILLISECONDS) }.getOrNull().also { pending.remove(id) }
     }
 

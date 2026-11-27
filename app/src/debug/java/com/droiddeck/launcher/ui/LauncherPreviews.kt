@@ -60,35 +60,6 @@ private fun BottomPanelBar() = PreviewHost {
 @DroidDeckPreviews @Composable private fun SessionMenuDockedDisplayPreview() = DockedMenu(SessionDrawerPage.DISPLAY)
 @DroidDeckPreviews @Composable private fun BottomPanelBarPreview() = BottomPanelBar()
 
-/** The Stardew Valley companion page, fed with the mod's messages. */
-@Composable
-private fun BottomStardew() = PreviewHost {
-    val S = com.droiddeck.launcher.companion.StardewCompanion
-    val state = listOf(
-        """{"type":"game_info","saveName":"Sunny Farm"}""",
-        """{"type":"sdv_day","season":"spring","day":5,"year":1,"weekday":"Fri","timeOfDay":1330,"weatherToday":"Sunny","gold":12500,"energy":200,"maxEnergy":270,"health":90,"maxHealth":100,"location":"Farm"}""",
-        """{"type":"sdv_inventory","selected":2,"items":[{"slot":0,"id":"(T)Axe","name":"Axe"},{"slot":1,"id":"(T)Hoe","name":"Hoe"},{"slot":2,"id":"(O)24","name":"Parsnip","count":15},{"slot":4,"id":"(O)388","name":"Wood","count":99}]}""",
-        """{"type":"sdv_villagers","villagers":[{"name":"Haley","birthdayIn":0},{"name":"Abigail","birthdayIn":3}]}""",
-        """{"type":"sdv_quests","quests":[{"title":"Introductions","objective":"Meet 28 people (12 of 28)"},{"title":"How To Win Friends","objective":"Give a gift to someone"}]}""",
-    ).fold(com.droiddeck.launcher.companion.StardewCompanion.State()) { st, m -> S.reduce(st, m) }
-    androidx.compose.foundation.layout.Box(Modifier.size(640.dp, 420.dp).background(androidx.compose.material3.MaterialTheme.colorScheme.background)) { StardewPanel(state) {} }
-}
-
-@DroidDeckPreviews @Composable private fun BottomStardewPreview() = BottomStardew()
-
-/** The Fallout 4 companion page, fed with a Thor Pip-Boy data message. */
-@Composable
-private fun BottomPipBoy() = PreviewHost {
-    val rpg = com.droiddeck.launcher.companion.RpgCompanion
-    val state = rpg.reduce(rpg.FALLOUT_4, com.droiddeck.launcher.companion.RpgCompanion.State(), """{"type":"data","id":"droiddeck","data":{
-        "player.stats":{"level":23,"hp":245,"hpMax":310,"ap":88,"apMax":105,"rads":65,"caps":1834,"weight":187.4,"weightMax":260},
-        "player.inventory":[{"id":"0x102","name":"Service Pistol","count":1,"equipped":true,"fav":1},{"id":"0x236","name":"Med Kit","count":7,"fav":0},
-            {"id":"0x303","name":"Clean Water","count":4,"fav":2}],"radio":{"enabled":true}}}""")
-    androidx.compose.foundation.layout.Box(Modifier.size(640.dp, 420.dp).background(androidx.compose.material3.MaterialTheme.colorScheme.background)) { RpgPanel(state, {}, {}) }
-}
-
-@DroidDeckPreviews @Composable private fun BottomPipBoyPreview() = BottomPipBoy()
-
 /** The Library and Stores tabs read store accounts, which load on a background thread. */
 private val storesLoaded = { com.droiddeck.launcher.stores.StoresState.accountsLoaded }
 
@@ -109,6 +80,4 @@ internal val previewCases: List<PreviewCase> = listOf(
     PreviewCase("session-menu-docked") { DockedMenu(SessionDrawerPage.CONTROLLER) },
     PreviewCase("session-menu-docked-display") { DockedMenu(SessionDrawerPage.DISPLAY) },
     PreviewCase("bottom-panel-bar") { BottomPanelBar() },
-    PreviewCase("bottom-companion-stardew") { BottomStardew() },
-    PreviewCase("bottom-companion-pipboy") { BottomPipBoy() },
 )

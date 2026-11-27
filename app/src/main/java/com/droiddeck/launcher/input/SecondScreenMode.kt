@@ -17,12 +17,11 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindi
     DASHBOARD("dashboard", R.string.second_mode_dashboard),
     GUIDES("guides", R.string.bottom_page_guides),
     MIRROR("mirror", R.string.bottom_page_mirror),
-    COMPANION("companion", R.string.bottom_page_companion),
     STEAM_QAM("steam-qam", R.string.bottom_qam_title),
     ART("art", R.string.bottom_art_title),
     DESKTOP("desktop", R.string.second_mode_desktop);
 
-    val sessionPanel: Boolean get() = this == GUIDES || this == MIRROR || this == COMPANION || this == STEAM_QAM || this == ART
+    val sessionPanel: Boolean get() = this == GUIDES || this == MIRROR || this == STEAM_QAM || this == ART
 
     val controls: Boolean get() = this == CUSTOM_CONTROLS || bindings != null
 
