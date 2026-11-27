@@ -1198,6 +1198,14 @@ static uint32_t nominal_refresh_ns(void) {
     return (uint32_t)(1000000000000LL / (int64_t)mhz);
 }
 
+static uint32_t feedback_refresh_ns(void) {
+    const int limit = g_fps_limit;
+    const uint32_t panel = nominal_refresh_ns();
+    if (limit <= 0 || g_release_unpaced) return panel;
+    const uint32_t paced = (uint32_t)(1000000000LL / limit);
+    return paced > panel ? paced : panel;
+}
+
 static int64_t presented_ns(int64_t render_ns) {
     int64_t tick = g_tick_vsync_ns;
     int64_t refresh = (int64_t)nominal_refresh_ns();
@@ -1216,7 +1224,7 @@ static void feedback_present_all(struct wl_list *list, int64_t t) {
     uint32_t nsec = (uint32_t)(t % 1000000000LL);
     wl_resource_for_each_safe(fb, tmp, list) {
         wp_presentation_feedback_send_presented(fb, (uint32_t)(sec >> 32), (uint32_t)sec, nsec,
-                                                nominal_refresh_ns(), 0, 0,
+                                                feedback_refresh_ns(), 0, 0,
                                                 WP_PRESENTATION_FEEDBACK_KIND_VSYNC);
         wl_resource_destroy(fb);
         g_pace.presented++;
