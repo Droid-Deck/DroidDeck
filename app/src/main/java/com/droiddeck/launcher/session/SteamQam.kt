@@ -6,31 +6,37 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-// Steam renders the quick access menu only while it is open. It stays open with its window parked outside the Big
-// Picture window, composition held at "notification" so gamescope keeps the game focused, and gamepad focus on the main UI.
+// Steam renders the quick access menu only while it is open. While the app holds it, the menu is kept open with its
+// browser view placed outside the Big Picture window, composition capped at "notification" so gamescope keeps the game
+// focused, and gamepad focus on the main UI. The hold is a lease the app renews, so Steam recovers if the app goes away.
 object SteamQam {
     data class Target(val port: Int, val path: String)
 
     const val QUICK_ACCESS = 2
+    const val LEASE_MS = 5_000
     private const val TAG = "SteamQam"
     private const val EVAL_MS = 6_000L
 
     internal fun script(on: Boolean): String = """(() => {
+        const g = globalThis, QAM = 2;
         const W = SteamUIStore.WindowStore.SteamUIWindows[0];
         const m = W.MenuStore, c = W.m_CompositionStateStore;
-        const nav = SteamUIStore.m_GamepadNavigationManager.m_ActiveContext;
-        const doc = g_PopupManager.GetExistingPopup("SP BPM_uid0")?.m_popup?.document;
-        const QAM = 2;
-        if (!c.__dd) {
-            c.__dd = c.ComputeOverallMinimumRequestedComposition;
+        const nav = W.m_FocusNavContext;
+        const popup = g_PopupManager.GetExistingPopup("SP BPM_uid0");
+        const held = () => g.__ddQamUntil > Date.now();
+        const ours = () => held() && m.m_eOpenSideMenu === QAM;
+        if (!c.__ddQam) {
+            c.__ddQam = c.ComputeOverallMinimumRequestedComposition;
             c.ComputeOverallMinimumRequestedComposition = function (...a) {
-                const v = c.__dd.apply(this, a);
-                return globalThis.__ddQam && v === 2 && m.m_eOpenSideMenu === QAM ? 1 : v;
+                const v = c.__ddQam.apply(this, a);
+                return v === 2 && ours() ? 1 : v;
             };
-            m.__dd = m.OnMenuDeactivated;
-            m.OnMenuDeactivated = function (d) { if (globalThis.__ddQam && d === QAM) return; return m.__dd.call(this, d); };
+            m.__ddQam = m.OnMenuDeactivated;
+            m.OnMenuDeactivated = function (d) { if (d === QAM && held()) return; return m.__ddQam.call(this, d); };
         }
+        const views = () => popup?.m_rgChildBrowserViews || [];
         const backdrop = (hide) => {
+            const doc = popup?.m_popup?.document;
             if (!doc) return;
             for (const e of doc.querySelectorAll("div")) {
                 if (e.dataset.ddQam) { if (!hide) { e.style.removeProperty("visibility"); delete e.dataset.ddQam; } continue; }
@@ -42,20 +48,47 @@ object SteamQam {
                 }
             }
         };
-        if (${if (on) "true" else "false"}) {
-            globalThis.__ddQam = true;
-            if (m.m_eOpenSideMenu === 0) m.OpenQuickAccessMenu();
-            if (m.m_eOpenSideMenu === QAM) {
-                const main = nav.m_rgGamepadNavigationTrees.find(t => t.m_ID === "GamepadUI_Full_Root");
-                if (main && nav.m_LastActiveNavTree?.m_ID?.startsWith("QuickAccess")) nav.SetActiveNavTree(main);
-                backdrop(true);
+        const keep = () => {
+            for (const v of views()) {
+                if (v.__ddQam) continue;
+                v.__ddQam = v.SetBounds;
+                v.SetBounds = function (x, y, w, h, ...r) {
+                    v.__ddAsked = [x, y, w, h];
+                    if (w > 0 && ours()) x = popup.m_popup.innerWidth + 64;
+                    v.__ddAt = x;
+                    return v.__ddQam.call(this, x, y, w, h, ...r);
+                };
             }
-        } else {
-            globalThis.__ddQam = false;
-            backdrop(false);
-            if (m.m_eOpenSideMenu === QAM) m.CloseSideMenus();
+            if (!held()) {
+                if (!g.__ddQamOn) return;
+                g.__ddQamOn = false;
+                backdrop(false);
+                if (m.m_eOpenSideMenu === QAM) m.CloseSideMenus();
+                c.EnsureCorrectComposition?.();
+                return;
+            }
+            if (m.m_eOpenSideMenu === 0) { m.OpenQuickAccessMenu(); c.EnsureCorrectComposition?.(); }
+            if (m.m_eOpenSideMenu !== QAM) return;
+            if (!g.__ddQamOn) { g.__ddQamOn = true; c.EnsureCorrectComposition?.(); }
+            for (const v of views()) {
+                if (!v.__ddAsked) {
+                    const b = v.GetBounds?.();
+                    if (b && b.width > 0) { v.__ddAsked = [b.x, b.y, b.width, b.height]; v.__ddAt = b.x; }
+                }
+                if (v.__ddAsked?.[2] > 0 && v.__ddAt < popup.m_popup.innerWidth) v.SetBounds(...v.__ddAsked);
+            }
+            const main = nav?.m_rgGamepadNavigationTrees?.find(t => t.m_ID === "GamepadUI_Full_Root");
+            if (main && nav.m_LastActiveNavTree?.m_ID?.startsWith("QuickAccess")) nav.SetActiveNavTree(main);
+            backdrop(true);
+        };
+        g.__ddQamUntil = ${if (on) "Date.now() + $LEASE_MS" else "0"};
+        keep();
+        if (held() && !g.__ddQamTimer) {
+            g.__ddQamTimer = setInterval(() => {
+                keep();
+                if (!held() && !g.__ddQamOn) { clearInterval(g.__ddQamTimer); g.__ddQamTimer = 0; }
+            }, 250);
         }
-        c.EnsureCorrectComposition?.();
         return m.m_eOpenSideMenu;
     })()"""
 
@@ -66,10 +99,6 @@ object SteamQam {
         helper(context, "stop")
     }
 
-    fun park(context: Context, width: Int, height: Int) {
-        helper(context, "size", width.toString(), height.toString())
-    }
-
     fun target(context: Context): Target? = runCatching {
         val devtools = File(AgentGuest.dir(context), "cdp-port").readText().trim().toInt()
         val relay = helper(context, "start", devtools.toString())?.trim()?.toIntOrNull() ?: return null
@@ -77,7 +106,7 @@ object SteamQam {
     }.onFailure { android.util.Log.w(TAG, "no quick access target: $it") }.getOrNull()
 
     private fun helper(context: Context, vararg args: String): String? = runCatching {
-        val request = JSONObject().put("kind", "exec").put("argv", JSONArray(listOf("droiddeck-qam-park") + args)).put("timeout", 5.0)
+        val request = JSONObject().put("kind", "exec").put("argv", JSONArray(listOf("droiddeck-qam-relay") + args)).put("timeout", 5.0)
         val answer = AgentGuest.call(context, request, 8_000, trusted = true)
         if (answer.optInt("exitCode", -1) == 0) answer.optJSONObject("stdout")?.optString("text") ?: answer.optString("stdout") else null
     }.getOrNull()

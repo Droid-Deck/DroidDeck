@@ -24,14 +24,17 @@ class SteamQamTest {
         assertNull(SteamQam.parseTarget(1, """[{"title":"QuickAccess_uid2","webSocketDebuggerUrl":"ws://x/devtools/page/A?b=1"}]"""))
     }
 
-    @Test fun holdingCapsCompositionOnlyWhileTheMenuIsOursAndReleasingClosesIt() {
-        val on = SteamQam.script(true)
-        val off = SteamQam.script(false)
-        assertTrue(on.contains("if (true)"))
-        assertTrue(off.contains("if (false)"))
-        assertTrue(on.contains("globalThis.__ddQam && v === 2 && m.m_eOpenSideMenu === QAM ? 1 : v"))
-        assertTrue(on.contains("startsWith(\"QuickAccess\")"))
-        assertTrue(off.contains("m.CloseSideMenus()"))
+    @Test fun holdingIsALeaseAndReleasingEndsIt() {
+        assertTrue(SteamQam.script(true).contains("g.__ddQamUntil = Date.now() + ${SteamQam.LEASE_MS};"))
+        assertTrue(SteamQam.script(false).contains("g.__ddQamUntil = 0;"))
+    }
+
+    @Test fun whileHeldTheMenuStaysOffTheTopScreenAndOutOfTheGamesWay() {
+        val script = SteamQam.script(true)
+        assertTrue(script.contains("return v === 2 && ours() ? 1 : v;"))
+        assertTrue(script.contains("if (w > 0 && ours()) x = popup.m_popup.innerWidth + 64;"))
+        assertTrue(script.contains("nav.m_LastActiveNavTree?.m_ID?.startsWith(\"QuickAccess\")"))
+        assertTrue(script.contains("if (m.m_eOpenSideMenu === QAM) m.CloseSideMenus();"))
     }
 
     @Test fun theMenuFillsTheHeightAndCentresAndTouchesMapBack() {

@@ -1,0 +1,96 @@
+#!/usr/bin/python3
+# Relays the app to Steam's DevTools port, which only answers clients inside the guest, while the bottom screen
+# shows Steam's quick access menu.
+#   droiddeck-qam-relay start <devtools port>   prints the relay port
+#   droiddeck-qam-relay stop
+
+import os
+import socket
+import sys
+import threading
+import time
+
+FLAG = "/tmp/.dd-qam-relay"
+INTERVAL = 0.5
+MAX_SECONDS = 6 * 3600
+
+
+def owner():
+    try:
+        with open(FLAG) as f:
+            return f.read().strip()
+    except OSError:
+        return None
+
+
+def pipe(src, dst):
+    try:
+        while True:
+            data = src.recv(65536)
+            if not data:
+                break
+            dst.sendall(data)
+    except OSError:
+        pass
+    for s in (src, dst):
+        try:
+            s.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+
+def relay(server, devtools_port):
+    while True:
+        try:
+            client, _ = server.accept()
+        except OSError:
+            return
+        try:
+            upstream = socket.create_connection(("127.0.0.1", devtools_port), 3)
+        except OSError:
+            client.close()
+            continue
+        for a, b in ((client, upstream), (upstream, client)):
+            threading.Thread(target=pipe, args=(a, b), daemon=True).start()
+
+
+def serve(server, devtools_port, me):
+    threading.Thread(target=relay, args=(server, devtools_port), daemon=True).start()
+    started = time.monotonic()
+    while owner() == me and time.monotonic() - started < MAX_SECONDS:
+        time.sleep(INTERVAL)
+    server.close()
+
+
+def main():
+    command = sys.argv[1] if len(sys.argv) > 1 else ""
+    if command == "stop" and len(sys.argv) == 2:
+        try:
+            os.unlink(FLAG)
+        except FileNotFoundError:
+            pass
+        return 0
+    if command != "start" or len(sys.argv) != 3:
+        print("usage: droiddeck-qam-relay start <devtools port> | stop", file=sys.stderr)
+        return 2
+    devtools_port = int(sys.argv[2])
+    server = socket.socket()
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind(("127.0.0.1", 0))
+    server.listen(4)
+    print(server.getsockname()[1], flush=True)
+    if os.fork():
+        return 0
+    os.setsid()
+    me = str(os.getpid())
+    with open(FLAG, "w") as f:
+        f.write(me)
+    devnull = os.open(os.devnull, os.O_RDWR)
+    for fd in (0, 1, 2):
+        os.dup2(devnull, fd)
+    serve(server, devtools_port, me)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

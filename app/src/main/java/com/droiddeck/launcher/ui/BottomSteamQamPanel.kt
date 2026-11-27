@@ -7,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -16,8 +15,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -28,19 +29,27 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.companion.CdpPage
+import com.droiddeck.launcher.session.SessionPhase
+import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.session.SteamQam
+import kotlin.concurrent.thread
+import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import kotlin.concurrent.thread
-import kotlin.math.min
-import kotlin.math.roundToInt
 
 internal class QamFrame(val image: ImageBitmap, val cssWidth: Float, val cssHeight: Float, val contentRight: Float) {
     val pxPerCss: Float get() = image.width / cssWidth
+
+    /** The menu's own background, sampled inside its right edge, to fill the panel around it. */
+    val fill: Color = runCatching {
+        val x = (contentRight * pxPerCss).roundToInt() - 4
+        Color(image.asAndroidBitmap().getPixel(x.coerceIn(0, image.width - 1), image.height / 2))
+    }.getOrDefault(Color.Black)
 }
 
 internal object QamLayout {
@@ -77,10 +86,13 @@ internal fun SteamQamPanel() {
         }
     }
     LaunchedEffect(Unit) {
-        var layout = floatArrayOf(0f, 0f, 1f, 0f)
-        var parked: Pair<Int, Int>? = null
         withContext(Dispatchers.IO) {
             while (isActive) {
+                // Holding the menu before Steam's first frame keeps gamescope from presenting it.
+                if (SessionState.phase != SessionPhase.READY) {
+                    delay(TICK_MS)
+                    continue
+                }
                 val open = SteamQam.hold(context)
                 failed = open == null
                 if (open == SteamQam.QUICK_ACCESS) {
@@ -106,14 +118,9 @@ internal fun SteamQamPanel() {
                     (page?.evaluate(QamLayout.CONTENT_SCRIPT) as? String)?.let { text ->
                         runCatching {
                             val a = JSONArray(text)
-                            layout = floatArrayOf(a.getDouble(0).toFloat(), a.getDouble(1).toFloat(), a.getDouble(2).toFloat(), a.getDouble(3).toFloat())
+                            val layout = floatArrayOf(a.getDouble(0).toFloat(), a.getDouble(1).toFloat(), a.getDouble(2).toFloat(), a.getDouble(3).toFloat())
                             if (!layout.contentEquals(shape)) shape = layout
                         }
-                    }
-                    val size = (layout[0] * layout[2]).roundToInt() to (layout[1] * layout[2]).roundToInt()
-                    if (layout[0] > 0f && size != parked) {
-                        SteamQam.park(context, size.first, size.second)
-                        parked = size
                     }
                 }
                 delay(TICK_MS)
@@ -122,12 +129,14 @@ internal fun SteamQamPanel() {
     }
     val img = image
     val l = shape
-    val f = if (img != null && l != null && l[0] > 0f) QamFrame(img, l[0], l[1], l[3].coerceIn(l[0] * 0.25f, l[0])) else null
+    val f = remember(img, l) {
+        if (img != null && l != null && l[0] > 0f) QamFrame(img, l[0], l[1], l[3].coerceIn(l[0] * 0.25f, l[0])) else null
+    }
     if (f == null) {
         PanelNote(stringResource(if (failed) R.string.bottom_qam_unavailable else R.string.achievements_reading))
         return
     }
-    BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(f.fill)) {
         val density = LocalDensity.current
         val boxW = with(density) { maxWidth.toPx() }
         val boxH = with(density) { maxHeight.toPx() }
