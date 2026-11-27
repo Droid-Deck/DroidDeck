@@ -157,7 +157,8 @@ static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
                           FrameGen::Img& flowRegA, FrameGen::Img& flowRegB, VkBuffer* gmSsbo,
                           int kLevels, const Config& cfg, uint64_t imageGeneration);
 
-static void destroyScratch(const DeviceDispatch* dd, VkDevice dev, VkDescriptorPool pool) {
+static void destroyScratch(const DeviceDispatch* dd, VkDevice dev, VkDescriptorPool pool,
+                          bool resetPool = true) {
     if (g_scratch.ownerDevice != VK_NULL_HANDLE && g_scratch.ownerDevice != dev) return;
     auto freeUbo = [&](VkBuffer& b, VkDeviceMemory& m, void*& p) {
         if (m) dd->UnmapMemory(dev, m);
@@ -171,7 +172,7 @@ static void destroyScratch(const DeviceDispatch* dd, VkDevice dev, VkDescriptorP
     freeUbo(S.flowRegUbo, S.flowRegUboMem, S.flowRegUboPtr);
     for (size_t i = 0; i < S.flowUbo.size(); ++i) freeUbo(S.flowUbo[i], S.flowUboMem[i], S.flowUboPtr[i]);
     for (int s = 0; s < FrameGen::kGmSlots; ++s) freeUbo(S.gmUbo[s], S.gmUboMem[s], S.gmUboPtr[s]);
-    if (pool && dd->ResetDescriptorPool) dd->ResetDescriptorPool(dev, pool, 0);
+    if (resetPool && pool && dd->ResetDescriptorPool) dd->ResetDescriptorPool(dev, pool, 0);
     S = ScratchState{};
 }
 
@@ -180,40 +181,58 @@ void FrameGen::destroyScratchResources() {
 }
 
 void FrameGen::configure(const Config& c) {
-    cfg_ = c; cfg_.sanitize();
-    int want = flowFinestForPreset(cfg_.perfPreset);
+    Config nextCfg = c;
+    nextCfg.sanitize();
+    int want = flowFinestForPreset(nextCfg.perfPreset);
     const int maxFinest = kLevels - 2;
     if (want > maxFinest) {
         DDFG_LOGE("perf-preset=%d wants kFlowFinest=%d but only %d pyramid levels exist "
-                 "(need >=2 solved) - clamping to %d", cfg_.perfPreset, want, kLevels, maxFinest);
+                 "(need >=2 solved) - clamping to %d", nextCfg.perfPreset, want, kLevels, maxFinest);
         want = maxFinest;
     }
     if (want < 1) want = 1;
 
     const int prevFinest = flowFinest_;
-    flowFinest_ = want;
-    const bool live = (flowFinest_ != prevFinest) && ready_;
+    const bool live = (want != prevFinest) && ready_;
     DDFG_LOGI("perf-preset=%d -> kFlowFinest=%d (was %d) live-rebuild=%d ready=%d",
-             cfg_.perfPreset, flowFinest_, prevFinest, live ? 1 : 0, ready_ ? 1 : 0);
+             nextCfg.perfPreset, want, prevFinest, live ? 1 : 0, ready_ ? 1 : 0);
 
-    if (!live) return;
-
-
-
-
-    const VkResult idleResult = dd_->DeviceWaitIdle(device_);
-    if (idleResult != VK_SUCCESS) {
-        DDFG_LOGE("framegen configure: DeviceWaitIdle failed (%d); disabling FrameGen live rebuild", (int)idleResult);
-        ready_ = false;
+    if (!live) {
+        cfg_ = nextCfg;
+        flowFinest_ = want;
         return;
     }
+
+    // Keep the previous configuration and image set if the device cannot idle.
+    const VkResult idleResult = dd_->DeviceWaitIdle(device_);
+    if (idleResult != VK_SUCCESS) {
+        DDFG_LOGE("framegen configure: DeviceWaitIdle failed (%d); keeping previous configuration and images",
+                  (int)idleResult);
+        return;
+    }
+
+    // The device is already idle. Prevent onResize from issuing a second wait
+    // and from exposing old images with the new flow level if rebuilding fails.
     destroyScratch(dd_, device_, descPool_);
-    if (!onResize(extent_, VK_FORMAT_UNDEFINED,  true))
+    cfg_ = nextCfg;
+    flowFinest_ = want;
+    ready_ = false;
+    if (!onResize(extent_, VK_FORMAT_UNDEFINED, true)) {
+        ready_ = false;
         DDFG_LOGE("perf-preset live rebuild: onResize FAILED at %ux%u - FG disabled until next resize",
-                 extent_.width, extent_.height);
+                  extent_.width, extent_.height);
+        return;
+    }
+
     for (int i = 0; i < 6; ++i) gmRun_[i] = 0.0;
-    for (int s = 0; s < kGmSlots; ++s) { gmSlotValid_[s] = false; for (int i = 0; i < 6; ++i) gmLinAt_[s][i] = 0.0; }
-    gmHaveEst_ = false; gmEngaged_ = false; gmStableCount_ = 0; gmLastTransPx_ = 0.0f;
+    for (int s = 0; s < kGmSlots; ++s) {
+        gmSlotValid_[s] = false;
+        for (int i = 0; i < 6; ++i) gmLinAt_[s][i] = 0.0;
+    }
+    gmHaveEst_ = false;
+    gmEngaged_ = false;
+    gmStableCount_ = 0;
+    gmLastTransPx_ = 0.0f;
     DDFG_LOGI("perf-preset live rebuild DONE (kFlowFinest=%d, flow predictor reset)", flowFinest_);
 }
 
