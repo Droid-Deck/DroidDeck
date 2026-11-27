@@ -408,6 +408,7 @@ internal fun LibraryPage(s: FrontEndState, a: FrontEndActions, selected: String,
         Store.ITCH.id.takeIf { itchSignedIn && !soundMode },
         Store.GAMEJOLT.id.takeIf { gameJoltSignedIn && !soundMode },
         Library.ADDED.takeIf { stores },
+        Store.BATTLENET.id.takeIf { stores },
     ).toSet() + signInChips + steamFilter
     val sources = librarySources(
         all, storeTabs.map { it.store.id },
@@ -676,7 +677,8 @@ private fun LibraryGrid(
     // A search that matches nothing keeps the toolbar, so the search can still be cleared.
     val customEmpty = !soundMode && source == Library.ADDED && visible.isEmpty() && hiddenUninstalled == 0 && LibraryView.query.isBlank()
     val splash = !soundMode && (signInStore != null || customEmpty)
-    val headerItems = (if (splash) 1 else 2) + (if (sizesPending) 1 else 0) + syncing.size
+    val showHeader = !splash || source == Store.BATTLENET.id
+    val headerItems = (if (showHeader) 2 else 1) + (if (sizesPending) 1 else 0) + syncing.size
     val expanded = showUninstalled == true
     val notInstalled = if (expanded) visible.count { !it.installed } else hiddenUninstalled
     val toggleAt = when {
@@ -810,7 +812,7 @@ private fun LibraryGrid(
             Box(Modifier.onSizeChanged { chipsH = it.height }) { Rise(0) { if (soundMode) header() else filters() } }
         }
         val splashHeight = with(density) { (gridH - chipsH).toDp() - 28.dp }.coerceAtLeast(300.dp)
-        if (!splash) item(key = if (soundMode) "filters" else "header", span = { GridItemSpan(maxLineSpan) }) { Rise(1) { if (soundMode) filters() else header() } }
+        if (showHeader) item(key = if (soundMode) "filters" else "header", span = { GridItemSpan(maxLineSpan) }) { Rise(1) { if (soundMode) filters() else header() } }
         for ((store, line) in syncing) item(key = "sync-${store.id}", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 Text(store.shortLabel + " · " + line, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -926,6 +928,12 @@ private fun LibraryHeader(
         clearSearchFocus = searchCleared, inlineWhenStacked = true,
         lead = soundLead,
     ) {
+        if (!soundMode && !s.shortcutPicker && source == Store.BATTLENET.id) {
+            SecondaryButton(
+                stringResource(R.string.bnet_open), enabled = !s.busy && DevPreview.library == LibraryPreview.OFF,
+                compact = true, modifier = Modifier.testTag("library-battlenet-open"), onClick = a.onBattleNet,
+            )
+        }
         if (soundMode) HeaderIconButton(stringResource(R.string.soundtracks_saved), Icons.Filled.BookmarkBorder, "collections", onClick = onCollections)
         if (!soundMode && DeveloperTools.on && DevPreview.shortcuts) LibraryPreviewButton()
         if (!soundMode && !s.shortcutPicker && source in setOf(LIBRARY_ALL, Store.STEAM.id)) {
