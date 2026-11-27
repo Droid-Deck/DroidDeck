@@ -27,7 +27,7 @@ class QamRelayTest(unittest.TestCase):
         self.relay.FLAG = str(self.tmp / "flag")
         self.relay.INTERVAL = 0.05
 
-    def test_pipes_bytes_both_ways_until_stopped(self):
+    def test_pipes_bytes_both_ways_until_its_own_port_is_stopped(self):
         upstream = socket.socket()
         upstream.bind(("127.0.0.1", 0))
         upstream.listen(1)
@@ -43,20 +43,24 @@ class QamRelayTest(unittest.TestCase):
         server.bind(("127.0.0.1", 0))
         server.listen(1)
         port = server.getsockname()[1]
-        Path(self.relay.FLAG).write_text("me")
+        Path(self.relay.FLAG).write_text("me %d" % port)
         serving = threading.Thread(target=self.relay.serve, args=(server, upstream.getsockname()[1], "me"), daemon=True)
         serving.start()
         with socket.create_connection(("127.0.0.1", port), 2) as client:
             client.sendall(b"GET /json")
             client.settimeout(2)
             self.assertEqual(b"answer:GET /json", client.recv(100))
-        with mock.patch.object(self.relay.sys, "argv", ["x", "stop"]):
+        with mock.patch.object(self.relay.sys, "argv", ["x", "stop", str(port + 1)]):
+            self.assertEqual(0, self.relay.main())
+        serving.join(0.3)
+        self.assertTrue(serving.is_alive())
+        with mock.patch.object(self.relay.sys, "argv", ["x", "stop", str(port)]):
             self.assertEqual(0, self.relay.main())
         serving.join(2)
         self.assertFalse(serving.is_alive())
 
     def test_rejects_unknown_commands(self):
-        for argv in (["x"], ["x", "start"], ["x", "size", "1", "2"]):
+        for argv in (["x"], ["x", "start"], ["x", "stop", "1", "2"]):
             with mock.patch.object(self.relay.sys, "argv", argv), mock.patch.object(self.relay.sys, "stderr"):
                 self.assertEqual(2, self.relay.main())
 

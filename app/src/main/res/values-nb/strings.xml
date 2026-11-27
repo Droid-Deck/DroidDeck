@@ -2144,6 +2144,9 @@
     <string name="bottom_companion_weight">Bæreevne</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Hurtigtilgang</string>
+    <string name="bottom_qam_align_left">Flytt til venstre</string>
+    <string name="bottom_qam_align_center">Flytt til midten</string>
+    <string name="bottom_qam_align_right">Flytt til høyre</string>
     <string name="bottom_qam_unavailable">Steams hurtigtilgangsmeny er ikke tilgjengelig ennå.</string>
     <string name="bottom_page_telemetry">Statistikk i spillet</string>
     <string name="bottom_hud_group">HUD på bunnskjermen</string>

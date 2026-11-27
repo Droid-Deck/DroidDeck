@@ -2194,6 +2194,9 @@
     <string name="bottom_companion_weight">Udźwig</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Szybki dostęp</string>
+    <string name="bottom_qam_align_left">Przesuń w lewo</string>
+    <string name="bottom_qam_align_center">Przesuń na środek</string>
+    <string name="bottom_qam_align_right">Przesuń w prawo</string>
     <string name="bottom_qam_unavailable">Menu szybkiego dostępu Steam nie jest jeszcze dostępne.</string>
     <string name="bottom_page_telemetry">Statystyki w grze</string>
     <string name="bottom_hud_group">HUD dolnego ekranu</string>

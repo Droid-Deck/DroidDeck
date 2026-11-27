@@ -67,8 +67,9 @@ object SteamQam {
                 c.EnsureCorrectComposition?.();
                 return;
             }
-            if (m.m_eOpenSideMenu === 0) { m.OpenQuickAccessMenu(); c.EnsureCorrectComposition?.(); }
+            if (m.m_eOpenSideMenu === 0) { m.OpenQuickAccessMenu(g.__ddQamTab ?? undefined); c.EnsureCorrectComposition?.(); }
             if (m.m_eOpenSideMenu !== QAM) return;
+            if (m.m_eQuickAccessTab != null) g.__ddQamTab = m.m_eQuickAccessTab;
             if (!g.__ddQamOn) { g.__ddQamOn = true; c.EnsureCorrectComposition?.(); }
             for (const v of views()) {
                 if (!v.__ddAsked) {
@@ -94,16 +95,16 @@ object SteamQam {
 
     fun hold(context: Context): Int? = eval(context, script(true))?.toIntOrNull()
 
-    fun release(context: Context) {
+    fun release(context: Context, relayPort: Int) {
         eval(context, script(false))
-        helper(context, "stop")
+        if (relayPort > 0) helper(context, "stop", relayPort.toString())
     }
 
     fun target(context: Context): Target? = runCatching {
         val devtools = File(AgentGuest.dir(context), "cdp-port").readText().trim().toInt()
         val relay = helper(context, "start", devtools.toString())?.trim()?.toIntOrNull() ?: return null
         parseTarget(relay, get(relay, "/json"))
-    }.onFailure { android.util.Log.w(TAG, "no quick access target: $it") }.getOrNull()
+    }.onFailure { android.util.Log.e(TAG, "no quick access target: $it") }.getOrNull()
 
     private fun helper(context: Context, vararg args: String): String? = runCatching {
         val request = JSONObject().put("kind", "exec").put("argv", JSONArray(listOf("droiddeck-qam-relay") + args)).put("timeout", 5.0)
@@ -118,10 +119,28 @@ object SteamQam {
             write("GET $path HTTP/1.1\r\nHost: 127.0.0.1:$port\r\nAccept: */*\r\nConnection: close\r\n\r\n".toByteArray())
             flush()
         }
-        val response = s.getInputStream().readBytes().toString(Charsets.UTF_8)
-        val split = response.indexOf("\r\n\r\n")
-        check(response.startsWith("HTTP/1.1 200") && split > 0) { "devtools answered ${response.take(80)}" }
-        response.substring(split + 4)
+        httpBody(s.getInputStream())
+    }
+
+    /** Reads one response, by its Content-Length when it has one: DevTools does not always close the connection. */
+    internal fun httpBody(input: java.io.InputStream): String {
+        val head = StringBuilder()
+        while (!head.endsWith("\r\n\r\n")) {
+            val b = input.read()
+            check(b >= 0 && head.length < 16_384) { "devtools answered ${head.take(80)}" }
+            head.append(b.toChar())
+        }
+        check(head.startsWith("HTTP/1.1 200")) { "devtools answered ${head.take(80)}" }
+        val length = Regex("(?im)^content-length:\\s*(\\d+)").find(head)?.groupValues?.get(1)?.toInt()
+        val body = if (length == null) input.readBytes() else ByteArray(length).also { buf ->
+            var read = 0
+            while (read < length) {
+                val n = input.read(buf, read, length - read)
+                check(n > 0) { "devtools closed after $read of $length bytes" }
+                read += n
+            }
+        }
+        return body.toString(Charsets.UTF_8)
     }
 
     internal fun parseTarget(port: Int, json: String): Target? {

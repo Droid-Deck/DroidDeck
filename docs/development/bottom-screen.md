@@ -165,22 +165,28 @@ Details: [bottom-screen-companion-api.md](bottom-screen-companion-api.md).
 
 ### 9. Steam's Quick Access menu on the bottom screen
 
-**Status:** built as its own panel (Quick Access in the panel picker, Steam sessions only) and checked on a Retroid Pocket Duo Lite Plus in Big Picture and in a game. The bottom screen shows Steam's real Quick Access menu: notifications, friends and chat, quick settings, performance, soundtracks and help, plus any tab a plugin loader adds. Taps, drags and scrolling go to it; the controller stays on the top screen, so the d-pad drives the library or the game while the menu stays open. Code: [`session/SteamQam.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamQam.kt), [`ui/BottomSteamQamPanel.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomSteamQamPanel.kt), [`droiddeck-qam-relay`](../../tools/linuxfs/overlay/usr/local/bin/droiddeck-qam-relay).
+**Status:** built as its own panel (Quick Access in the panel picker, Steam sessions only) and checked on a Retroid Pocket Duo Lite Plus in Big Picture and in a game. The bottom screen shows Steam's real Quick Access menu: notifications, friends and chat, quick settings, performance, soundtracks and help, plus Decky Loader's tab and its plugins when Decky is enabled. Taps, drags and scrolling go to it; the controller stays on the top screen, so the d-pad drives the library or the game while the menu stays open. Code: [`session/SteamQam.kt`](../../app/src/main/java/com/droiddeck/launcher/session/SteamQam.kt), [`ui/BottomSteamQamPanel.kt`](../../app/src/main/java/com/droiddeck/launcher/ui/BottomSteamQamPanel.kt), [`droiddeck-qam-relay`](../../tools/linuxfs/overlay/usr/local/bin/droiddeck-qam-relay).
 
 Plugin loaders expose Steam's CEF DevTools so the menu can be viewed in a desktop browser, but it renders only while it is open on the main screen. The panel keeps it open without covering the top screen:
 
 - Steam's UI is told to open the menu and keep it open: its composition request is capped at "notification" while the menu is ours, so gamescope keeps focus on the game, and losing focus no longer closes it. Gamepad focus moves from the menu back to the main UI only when the menu took it, so Steam's own popups keep the controller. The blurred backdrop is hidden.
 - The menu's browser view is placed just outside the Big Picture window through its own `SetBounds`, so it keeps rendering but never shows on top, including while Steam slides it wider for Friends and chat.
-- A timer inside Steam keeps this state every 250 ms, so the menu comes back as soon as Steam's main menu closes. It runs on a 5 s lease that the panel renews each second: if the app stops, Steam returns to normal by itself.
+- A timer inside Steam keeps this state every 250 ms, so the menu comes back, on the tab it was showing, as soon as Steam's main menu or a full-screen page such as Decky's store closes. It runs on a 5 s lease that the panel renews each second: if the app stops, Steam returns to normal by itself.
 - The hold starts only once the session is ready: holding the menu before Steam's first frame kept gamescope from presenting anything.
-- `droiddeck-qam-relay` relays the app to the DevTools port, which only answers clients inside the guest. The panel streams the menu with `Page.startScreencast`, scales its content to the panel and fills the rest with the menu's own background, and forwards touches with `Input.dispatchTouchEvent`.
+- `droiddeck-qam-relay` relays the app to the DevTools port, which only answers clients inside the guest. The panel streams the menu with `Page.startScreencast`, scales its content to the panel and fills the rest with the menu's own background, and forwards touches on the menu with `Input.dispatchTouchEvent`. When the menu is narrower than the panel, buttons in the free space move it left, centre or right; the choice is kept.
 - Leaving the panel closes the menu and turns the patches off; the Steam button and the normal Quick Access button then work as before. Opening Steam's main menu replaces the Quick Access menu for as long as it is open, as on a Deck.
 
-Limits: it relies on Steam's minified UI stores and method names, so a client update can break it; the panel then shows that the menu is not available. Plugin tabs appear only if a loader is installed in the session.
+Checked with Decky Loader 3.3.1 enabled: its tab renders and takes touch, and its store opens full screen on top with the controller, then returns to the Decky tab below.
+
+Limits: it relies on Steam's minified UI stores and method names, so a client update can break it; the panel then shows that the menu is not available.
 
 | Big Picture, friends | In game, performance | In game, quick settings |
 | --- | --- | --- |
 | ![](evidence/bottom-screen-qam-friends-2026-11-27.png) | ![](evidence/bottom-screen-qam-performance-ingame-2026-11-27.png) | ![](evidence/bottom-screen-qam-settings-2026-11-27.png) |
+
+| Decky, centred | Decky, aligned right |
+| --- | --- |
+| ![](evidence/bottom-screen-qam-decky-centred-2026-11-27.png) | ![](evidence/bottom-screen-qam-decky-2026-11-27.png) |
 
 The top screen during that game, with the menu open on the bottom: ![](evidence/bottom-screen-qam-top-ingame-2026-11-27.png)
 

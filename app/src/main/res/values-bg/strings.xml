@@ -2144,6 +2144,9 @@
     <string name="bottom_companion_weight">Товар</string>
     <string name="bottom_companion_radio">Радио</string>
     <string name="bottom_qam_title">Бърз достъп</string>
+    <string name="bottom_qam_align_left">Премести вляво</string>
+    <string name="bottom_qam_align_center">Премести в центъра</string>
+    <string name="bottom_qam_align_right">Премести вдясно</string>
     <string name="bottom_qam_unavailable">Менюто за бърз достъп на Steam още не е налично.</string>
     <string name="bottom_page_telemetry">Статистика в играта</string>
     <string name="bottom_hud_group">HUD на долния екран</string>

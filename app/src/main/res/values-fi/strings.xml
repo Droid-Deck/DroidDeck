@@ -2144,6 +2144,9 @@
     <string name="bottom_companion_weight">Kantokyky</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Pikavalikko</string>
+    <string name="bottom_qam_align_left">Siirrä vasemmalle</string>
+    <string name="bottom_qam_align_center">Siirrä keskelle</string>
+    <string name="bottom_qam_align_right">Siirrä oikealle</string>
     <string name="bottom_qam_unavailable">Steamin pikavalikko ei ole vielä käytettävissä.</string>
     <string name="bottom_page_telemetry">Pelinsisäiset tilastot</string>
     <string name="bottom_hud_group">Alanäytön HUD</string>

@@ -2169,6 +2169,9 @@
     <string name="bottom_companion_weight">Peso cargado</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Acceso rápido</string>
+    <string name="bottom_qam_align_left">Mover a la izquierda</string>
+    <string name="bottom_qam_align_center">Mover al centro</string>
+    <string name="bottom_qam_align_right">Mover a la derecha</string>
     <string name="bottom_qam_unavailable">El menú de acceso rápido de Steam aún no está disponible.</string>
     <string name="bottom_page_telemetry">Estadísticas del juego</string>
     <string name="bottom_hud_group">HUD de la pantalla inferior</string>

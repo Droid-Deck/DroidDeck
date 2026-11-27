@@ -2119,6 +2119,9 @@
     <string name="bottom_companion_weight">負重</string>
     <string name="bottom_companion_radio">收音機</string>
     <string name="bottom_qam_title">快速存取</string>
+    <string name="bottom_qam_align_left">移到左側</string>
+    <string name="bottom_qam_align_center">移到中間</string>
+    <string name="bottom_qam_align_right">移到右側</string>
     <string name="bottom_qam_unavailable">Steam 快速存取選單暫時無法使用。</string>
     <string name="bottom_page_telemetry">遊戲內數據</string>
     <string name="bottom_hud_group">下方螢幕 HUD</string>

@@ -2120,6 +2120,9 @@
     <string name="bottom_companion_weight">Beban</string>
     <string name="bottom_companion_radio">Radio</string>
     <string name="bottom_qam_title">Akses Cepat</string>
+    <string name="bottom_qam_align_left">Pindahkan ke kiri</string>
+    <string name="bottom_qam_align_center">Pindahkan ke tengah</string>
+    <string name="bottom_qam_align_right">Pindahkan ke kanan</string>
     <string name="bottom_qam_unavailable">Menu Akses Cepat Steam belum tersedia.</string>
     <string name="bottom_page_telemetry">Statistik dalam gim</string>
     <string name="bottom_hud_group">HUD layar bawah</string>

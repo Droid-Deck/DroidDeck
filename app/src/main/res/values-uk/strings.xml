@@ -2194,6 +2194,9 @@
     <string name="bottom_companion_weight">Вага ноші</string>
     <string name="bottom_companion_radio">Радіо</string>
     <string name="bottom_qam_title">Швидкий доступ</string>
+    <string name="bottom_qam_align_left">Перемістити ліворуч</string>
+    <string name="bottom_qam_align_center">Перемістити в центр</string>
+    <string name="bottom_qam_align_right">Перемістити праворуч</string>
     <string name="bottom_qam_unavailable">Меню швидкого доступу Steam ще недоступне.</string>
     <string name="bottom_page_telemetry">Ігрова статистика</string>
     <string name="bottom_hud_group">HUD на нижньому екрані</string>

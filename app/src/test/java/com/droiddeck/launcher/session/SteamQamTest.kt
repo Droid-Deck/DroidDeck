@@ -18,6 +18,15 @@ class SteamQamTest {
         assertEquals(SteamQam.Target(4321, "/devtools/page/0F3A-b9"), SteamQam.parseTarget(4321, json))
     }
 
+    @Test fun readsTheTargetListByContentLengthWithoutWaitingForClose() {
+        val stream = object : java.io.InputStream() {
+            val bytes = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 4\r\n\r\n[{}]".toByteArray()
+            var at = 0
+            override fun read(): Int = if (at < bytes.size) bytes[at++].toInt() and 0xff else error("read past the response")
+        }
+        assertEquals("[{}]", SteamQam.httpBody(stream))
+    }
+
     @Test fun ignoresMissingOrForeignDebuggerUrls() {
         assertNull(SteamQam.parseTarget(1, """[{"title":"SP BPM_uid0","webSocketDebuggerUrl":"ws://127.0.0.1:1/devtools/page/A"}]"""))
         assertNull(SteamQam.parseTarget(1, """[{"title":"QuickAccess_uid2"}]"""))
@@ -44,6 +53,12 @@ class SteamQamTest {
         val (x, y) = QamLayout.toCss(left + 130f, 260f, scale, left)
         assertEquals(100f, x, 0.001f)
         assertEquals(200f, y, 0.001f)
+    }
+
+    @Test fun aNarrowMenuCanSitLeftOrRight() {
+        assertEquals(0f, QamLayout.fit(1280f, 832f, 400f, 640f, -1).second, 0.001f)
+        assertEquals(1280f - 520f, QamLayout.fit(1280f, 832f, 400f, 640f, 1).second, 0.001f)
+        assertEquals(0f, QamLayout.fit(1280f, 832f, 1280f, 640f, 1).second, 0.001f)
     }
 
     @Test fun aWideMenuFitsTheWidth() {
