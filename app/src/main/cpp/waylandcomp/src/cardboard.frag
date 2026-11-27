@@ -64,6 +64,7 @@ void main() {
         c = eyeSample(undistort(t, 1.0), eye);
     }
     vec2 e = min(local, 1.0 - local);
-    float fade = smoothstep(0.0, 0.03, min(e.x * pc.view.w, e.y));
+    bool lensless = pc.lens.x == 0.0 && pc.lens.y == 0.0;
+    float fade = lensless ? 1.0 : smoothstep(0.0, 0.03, min(e.x * pc.view.w, e.y));
     outColor = vec4(c * fade, 1.0);
 }
