@@ -5,13 +5,14 @@ import tempfile
 import unittest
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin/droiddeck-steam-x64'
+INSTALLER = SCRIPT.with_name('droiddeck-steam-install')
 
 
 class SteamX64CpuTest(unittest.TestCase):
     def selection(self, features, *, forced=False, same_build=True, unreadable=False):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            arm = root / 'arm'
+            arm = root / 'arm/Steam'
             x64 = root / 'x64'
             for base in (arm, x64):
                 (base / 'package').mkdir(parents=True)
@@ -19,6 +20,10 @@ class SteamX64CpuTest(unittest.TestCase):
             (arm / 'steamrtarm64/steamwebhelper').touch(mode=0o700)
             shim = root / 'arm-shim'
             shim.touch(mode=0o700)
+            tools = root / 'bin'
+            tools.mkdir()
+            (tools / 'droiddeck-steam-install').write_text(f'#!/bin/bash\nexec bash "{INSTALLER}" "$@"\n')
+            (tools / 'droiddeck-steam-install').chmod(0o700)
             (x64 / 'package/beta').write_text('publicbeta\n')
             for base, arch, version in ((x64, 'steamrt64', '123'), (arm, 'linuxarm64', '123' if same_build else '122')):
                 (base / f'package/steam_client_publicbeta_{arch}.manifest').write_text(f'"version" "{version}"\n')
@@ -28,10 +33,13 @@ class SteamX64CpuTest(unittest.TestCase):
             text = SCRIPT.read_text()
             start = text.find('x64_arm_webhelper_cpu_supported() {')
             helper = text[start:text.index('x64_exec() {')] if start >= 0 else ''
+            build = text[text.index('x64_build() {'):]
+            helper = build[:build.index('\n}\n') + 3] + helper
             selection = text.split('x64_exec() {', 1)[1].split('  mkdir -p "$STEAM_X64/logs"', 1)[0]
             shell = helper + '\nx64_env() { :; }\nx64_webhelper_gpu() { return 1; }\nselect_helper() {' + selection + '\nprintf "%s|%s\\n" "${DD_X64_ARM_WEBHELPER:-x86}" "${DD_WEBHELPER_ARGS:-}";\n}\nselect_helper\n'
             shell = shell.replace('/proc/cpuinfo', str(cpuinfo)).replace('/usr/local/bin/droiddeck-x64-arm-webhelper', str(shim))
-            env = dict(os.environ, STEAM_X64=str(x64), ARM_STEAM=str(arm), X64_CHANNEL='publicbeta', DD_X64_X86_WEBHELPER='1' if forced else '0')
+            env = dict(os.environ, STEAM_X64=str(x64), ARM_STEAM=str(arm), X64_CHANNEL='publicbeta', DD_X64_X86_WEBHELPER='1' if forced else '0',
+                       HOME=str(root), PATH=f"{tools}{os.pathsep}{os.environ['PATH']}")
             env.pop('DD_X64_ARM_WEBHELPER', None)
             env.pop('DD_WEBHELPER_ARGS', None)
             result = subprocess.run(['bash', '-eu', '-c', shell], env=env, capture_output=True, text=True)
