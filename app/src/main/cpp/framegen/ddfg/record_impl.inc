@@ -367,6 +367,24 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
         dd_->CmdDispatch(cmd, (e.width + 15) / 16, (e.height + 15) / 16, 1);
     };
     auto bar = [&](FrameGen::Img& i){ barrier(cmd, i.image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL); };
+    auto barPair = [&](FrameGen::Img& a, FrameGen::Img& b) {
+        VkImageMemoryBarrier barriers[2]{};
+        FrameGen::Img* images[] = {&a, &b};
+        for (uint32_t i = 0; i < 2; ++i) {
+            barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            barriers[i].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            barriers[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+            barriers[i].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+            barriers[i].newLayout = VK_IMAGE_LAYOUT_GENERAL;
+            barriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barriers[i].image = images[i]->image;
+            barriers[i].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        }
+        dd_->CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr,
+            0, nullptr, 2, barriers);
+    };
     const bool frEngaged = (cfg_.frMode != 2) && (cfg_.frIters > 0);
 
     if (!reuseFlow) {
@@ -426,11 +444,11 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
 
         disp(pLuma_, g_scratch.sLumaCurr, levelExtent(extent_, 0));
         disp(pLuma_, g_scratch.sLumaPrev, levelExtent(extent_, 0));
-        bar(pyrA_[0]); bar(pyrB_[0]);
+        barPair(pyrA_[0], pyrB_[0]);
         for (int l = 1; l < kLevels; ++l) {
             disp(pDown_, g_scratch.sDownA[l - 1], levelExtent(extent_, l));
             disp(pDown_, g_scratch.sDownB[l - 1], levelExtent(extent_, l));
-            bar(pyrA_[l]); bar(pyrB_[l]);
+            barPair(pyrA_[l], pyrB_[l]);
         }
         if (gmBuffersReady_ && g_scratch.sGmReduce[gmSlot]) {
             dd_->CmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pGmReduce_.pipeline);
@@ -497,7 +515,7 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
         }
 
         disp(expandP, g_scratch.sExpand[gmSlot], levelExtent(extent_, 0));
-        bar(flowExpA_); bar(flowExpB_);
+        barPair(flowExpA_, flowExpB_);
         g_scratch.flowReady = true;
     }
     disp(pSynth_, synthSet, levelExtent(extent_, 0));
