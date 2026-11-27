@@ -240,10 +240,17 @@ Measured on the Thor, same session and game as above:
 | handoff | **26** | **29** |
 
 With the handoff on, Bully reached its menu at 30 fps, kept focus, and Steam's library, Decky, the
-portals, NetworkManager/login1 and the agent all worked. Then Android's own limit was switched back
-on (`settings_enable_monitor_phantom_procs=true`, default limit 32) with the game running, and
-scans were forced by switching apps: Android listed **28** child processes device-wide and killed
-**none**; the game and its Wine processes were still running afterwards.
+portals, NetworkManager/login1 and the agent all worked.
+
+Then Android's own limit was switched back on (`settings_enable_monitor_phantom_procs=true`,
+default limit 32) with the game running, and a scan was forced every 20 s for 3 minutes
+(`dumpsys meminfo` refreshes the CPU stats the scan runs on; process starts and activity changes do
+too, irregularly):
+
+| | Android listed | killed | session |
+|---|---|---|---|
+| no handoff (`DD_SPAWN_DAEMONS=0`, same build) | 63 | **33**, oldest first: the session's bash, Python daemons, D-Bus, Xwayland, Steam, PipeWire, gamescope's reaper | FAILED |
+| handoff | 27–29 (device-wide) | **0** in 9 scans | game running throughout |
 
 Still counted with a game running: the session script's 9 bash subshells, gamescope with its two
 Xwayland servers, its reaper and an autolaunched D-Bus, Steam with its web helper browser and two
