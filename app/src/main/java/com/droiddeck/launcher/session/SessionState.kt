@@ -47,6 +47,9 @@ object SessionState {
 
     @Volatile
     var running = false
+    /** Zoom level retained across activity recreation for the active session. */
+    @Volatile
+    var gameZoom = 1.0f
     @Volatile
     var activityDisplayId = 0
     @Volatile

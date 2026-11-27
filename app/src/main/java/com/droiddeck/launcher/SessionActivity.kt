@@ -179,7 +179,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var quickButtons by mutableStateOf<Map<InputCommand, Boolean>>(emptyMap())
     private var picturePosition by mutableStateOf("center")
     private var integerScaling by mutableStateOf(false)
-    private var gameZoom by mutableStateOf(1.0f)
+    private var gameZoom by mutableStateOf(SessionState.gameZoom)
     private var avoidNotch = false
 
     private fun applyNotchInset(insets: android.view.WindowInsets? = window.decorView.rootWindowInsets) {
@@ -268,10 +268,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     InputCommand.QUICK_ACCESS -> tapQam()
                     InputCommand.GAME_ZOOM_IN -> {
                         gameZoom = (gameZoom + 0.25f).coerceAtMost(3.0f)
+                        SessionState.gameZoom = gameZoom
                         runCatching { WaylandCompositor.nativeSetZoom(gameZoom) }
                     }
                     InputCommand.GAME_ZOOM_OUT -> {
                         gameZoom = (gameZoom - 0.25f).coerceAtLeast(1.0f)
+                        SessionState.gameZoom = gameZoom
                         runCatching { WaylandCompositor.nativeSetZoom(gameZoom) }
                     }
                 }
@@ -1140,9 +1142,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         isFocusableInTouchMode = true
         defaultFocusHighlightEnabled = false
         setContent {
-            androidx.compose.runtime.LaunchedEffect(SessionState.running) {
-                gameZoom = 1.0f
-                runCatching { WaylandCompositor.nativeSetZoom(1.0f) }
+            androidx.compose.runtime.LaunchedEffect(SessionState.running, SessionState.sessionId) {
+                if (SessionState.running) {
+                    gameZoom = SessionState.gameZoom
+                    runCatching { WaylandCompositor.nativeSetZoom(gameZoom) }
+                } else {
+                    gameZoom = 1.0f
+                    SessionState.gameZoom = 1.0f
+                    runCatching { WaylandCompositor.nativeSetZoom(1.0f) }
+                }
             }
 
             val activeEffectsProfileId = currentScreenEffectsProfileId()
@@ -1582,6 +1590,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             gameZoom = gameZoom,
             onGameZoom = { value ->
                 gameZoom = value.coerceIn(1.0f, 3.0f)
+                SessionState.gameZoom = gameZoom
                 runCatching { WaylandCompositor.nativeSetZoom(gameZoom) }
             },
             integerScaling = integerScaling,
