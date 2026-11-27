@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_command_zoom_in">Збільшити масштаб гри</string>
+    <string name="input_command_zoom_out">Зменшити масштаб гри</string>
+</resources>

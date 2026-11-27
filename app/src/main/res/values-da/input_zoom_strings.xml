@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_command_zoom_in">Forøg spillets zoom</string>
+    <string name="input_command_zoom_out">Formindsk spillets zoom</string>
+</resources>

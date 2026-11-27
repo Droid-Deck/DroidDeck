@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_command_zoom_in">放大遊戲畫面</string>
+    <string name="input_command_zoom_out">縮小遊戲畫面</string>
+</resources>

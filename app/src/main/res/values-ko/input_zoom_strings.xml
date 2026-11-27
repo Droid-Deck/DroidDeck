@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_command_zoom_in">게임 확대</string>
+    <string name="input_command_zoom_out">게임 축소</string>
+</resources>

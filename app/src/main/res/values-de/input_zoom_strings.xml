@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_command_zoom_in">Spielzoom vergrößern</string>
+    <string name="input_command_zoom_out">Spielzoom verkleinern</string>
+</resources>
