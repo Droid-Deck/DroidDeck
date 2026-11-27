@@ -21,6 +21,7 @@ struct ScratchState {
     VkDescriptorSet sGmReduce[ddfg::FrameGen::kGmSlots]{};
     std::vector<VkDescriptorSet> sGmPrewarp[ddfg::FrameGen::kGmSlots];
     VkExtent2D builtFor{0,0};
+    uint64_t builtGeneration = 0;
     bool built = false;
     bool flowInited = false;
     bool flowReady = false;
@@ -153,7 +154,7 @@ static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
                           const FrameGen::Pipe& pSynth, const FrameGen::Pipe& pGmReduce,
                           const FrameGen::Pipe& pGmPrewarp, const FrameGen::Pipe& pFlowReg,
                           FrameGen::Img& flowRegA, FrameGen::Img& flowRegB, VkBuffer* gmSsbo,
-                          int kLevels, const Config& cfg);
+                          int kLevels, const Config& cfg, uint64_t imageGeneration);
 
 static void destroyScratch(const DeviceDispatch* dd, VkDevice dev, VkDescriptorPool pool) {
     auto freeUbo = [&](VkBuffer& b, VkDeviceMemory& m, void*& p) {
@@ -289,7 +290,9 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
     const Pipe& flowP   = m4 ? pFlowM4_   : pFlow_;
     const Pipe& expandP = m4 ? pExpandM4_ : pExpand_;
 
-    if (!g_scratch.built || g_scratch.builtFor.width != extent_.width || g_scratch.builtFor.height != extent_.height) {
+    if (!g_scratch.built || g_scratch.builtFor.width != extent_.width ||
+        g_scratch.builtFor.height != extent_.height ||
+        g_scratch.builtGeneration != imageGeneration_) {
         if (g_scratch.built) {
             const VkResult idleResult = dd_->DeviceWaitIdle(device_);
             if (idleResult != VK_SUCCESS) {
@@ -301,7 +304,7 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
         ensureScratch(this, dd_, device_, memProps_, descPool_, linear_, extent_,
                       pyrA_, pyrB_, pyrAs_, flowLvl_, flowExpA_, flowExpB_,
                       pLuma_, pDown_, flowP, expandP, pSynth_, pGmReduce_, pGmPrewarp_,
-                      pFlowReg_, flowRegA_, flowRegB_, gmSsbo_, kLevels, cfg_);
+                      pFlowReg_, flowRegA_, flowRegB_, gmSsbo_, kLevels, cfg_, imageGeneration_);
     }
 
     if (reuseFlow && !g_scratch.flowReady) return;
@@ -493,7 +496,7 @@ static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
                           const FrameGen::Pipe& pSynth, const FrameGen::Pipe& pGmReduce,
                           const FrameGen::Pipe& pGmPrewarp, const FrameGen::Pipe& pFlowReg,
                           FrameGen::Img& flowRegA, FrameGen::Img& flowRegB, VkBuffer* gmSsbo,
-                          int kLevels, const Config& cfg) {
+                          int kLevels, const Config& cfg, uint64_t imageGeneration) {
     auto& S = g_scratch;
     S = ScratchState{};
     const auto GEN = VK_IMAGE_LAYOUT_GENERAL;
@@ -596,7 +599,7 @@ static bool ensureScratch(FrameGen* fg, const DeviceDispatch* dd, VkDevice dev,
         wImg(dd, dev, S.sSynth[s], 35, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, expB.view, samp, GEN);
     }
 
-    S.builtFor = ext; S.built = true;
+    S.builtFor = ext; S.builtGeneration = imageGeneration; S.built = true;
     return true;
 }
 
