@@ -1068,6 +1068,136 @@ static int ddnatv_posix_spawn(pid_t *pid, const char *path,
 
 static int apply_closefrom(posix_spawn_file_actions_t *actions);
 
+// glibc's file actions (posix/spawn_int.h, unchanged since 2.35)
+struct ddh_spawn_action {
+    enum { DDH_DO_CLOSE, DDH_DO_DUP2, DDH_DO_OPEN, DDH_DO_CHDIR, DDH_DO_FCHDIR, DDH_DO_CLOSEFROM, DDH_DO_TCSETPGRP } tag;
+    union {
+        struct { int fd; } close_action;
+        struct { int fd; int newfd; } dup2_action;
+        struct { int fd; char *path; int oflag; mode_t mode; } open_action;
+        struct { char *path; } chdir_action;
+        struct { int fd; } fchdir_action;
+        struct { int from; } closefrom_action;
+        struct { int fd; } setpgrp_action;
+    } action;
+};
+
+#ifndef POSIX_SPAWN_SETSID
+#define POSIX_SPAWN_SETSID 0x80
+#endif
+
+// What glibc's spawn child does before its exec (posix/spawni.c), as an errno.
+static int ddh_spawn_child_setup(const posix_spawn_file_actions_t *fa, const posix_spawnattr_t *attr) {
+    short flags = 0;
+    if (attr) posix_spawnattr_getflags(attr, &flags);
+    if (flags & POSIX_SPAWN_SETSIGDEF) {
+        sigset_t def;
+        posix_spawnattr_getsigdefault(attr, &def);
+        for (int sig = 1; sig < _NSIG; sig++) {
+            if (sigismember(&def, sig) == 1) signal(sig, SIG_DFL);
+        }
+    }
+    if ((flags & POSIX_SPAWN_SETSID) && setsid() < 0) return errno;
+    if (flags & POSIX_SPAWN_SETPGROUP) {
+        pid_t group = 0;
+        posix_spawnattr_getpgroup(attr, &group);
+        if (setpgid(0, group) != 0) return errno;
+    }
+    if (flags & (POSIX_SPAWN_SETSCHEDULER | POSIX_SPAWN_SETSCHEDPARAM)) {
+        struct sched_param param;
+        posix_spawnattr_getschedparam(attr, &param);
+        int policy = 0;
+        posix_spawnattr_getschedpolicy(attr, &policy);
+        int r = (flags & POSIX_SPAWN_SETSCHEDULER) ? sched_setscheduler(0, policy, &param) : sched_setparam(0, &param);
+        if (r == -1) return errno;
+    }
+    const struct ddh_spawn_action *a = fa ? (const struct ddh_spawn_action *)fa->__actions : NULL;
+    for (int i = 0; a && i < fa->__used; i++) {
+        switch (a[i].tag) {
+        case DDH_DO_CLOSE:
+            close(a[i].action.close_action.fd);
+            break;
+        case DDH_DO_OPEN: {
+            int fd = open(a[i].action.open_action.path, a[i].action.open_action.oflag, a[i].action.open_action.mode);
+            if (fd < 0) return errno;
+            if (fd != a[i].action.open_action.fd) {
+                if (dup2(fd, a[i].action.open_action.fd) < 0) return errno;
+                close(fd);
+            }
+            break;
+        }
+        case DDH_DO_DUP2:
+            if (a[i].action.dup2_action.fd == a[i].action.dup2_action.newfd) {
+                int fdflags = fcntl(a[i].action.dup2_action.fd, F_GETFD);
+                if (fdflags < 0 || fcntl(a[i].action.dup2_action.fd, F_SETFD, fdflags & ~FD_CLOEXEC) < 0) return errno;
+            } else if (dup2(a[i].action.dup2_action.fd, a[i].action.dup2_action.newfd) < 0) {
+                return errno;
+            }
+            break;
+        case DDH_DO_CHDIR:
+            if (chdir(a[i].action.chdir_action.path) != 0) return errno;
+            break;
+        case DDH_DO_FCHDIR:
+            if (fchdir(a[i].action.fchdir_action.fd) != 0) return errno;
+            break;
+        case DDH_DO_CLOSEFROM:
+            close_range((unsigned int)a[i].action.closefrom_action.from, ~0U, 0);
+            break;
+        case DDH_DO_TCSETPGRP:
+            if (tcsetpgrp(a[i].action.setpgrp_action.fd, getpgrp()) != 0) return errno;
+            break;
+        }
+    }
+    if (flags & POSIX_SPAWN_SETSIGMASK) {
+        sigset_t mask;
+        posix_spawnattr_getsigmask(attr, &mask);
+        sigprocmask(SIG_SETMASK, &mask, NULL);
+    }
+    return 0;
+}
+
+// posix_spawn() as fork() and execve(), so that ddh_try() sees the exec. -1 when it cannot be.
+static int ddh_spawn_forked(pid_t *pid, const char *path, const posix_spawn_file_actions_t *fa,
+                            const posix_spawnattr_t *attr, char *const argv[], char *const envp[]) {
+    if (fa) {
+        const struct ddh_spawn_action *a = (const struct ddh_spawn_action *)fa->__actions;
+        for (int i = 0; i < fa->__used; i++) {
+            if ((unsigned)a[i].tag > DDH_DO_TCSETPGRP) return -1;
+        }
+    }
+    int report[2];
+    if (pipe2(report, O_CLOEXEC) != 0) return -1;
+    pid_t child = fork();
+    if (child < 0) {
+        int err = errno;
+        close(report[0]);
+        close(report[1]);
+        return err;
+    }
+    if (child == 0) {
+        close(report[0]);
+        int err = ddh_spawn_child_setup(fa, attr);
+        if (!err) {
+            execve(path, argv, envp);
+            err = errno;
+        }
+        syscall(SYS_write, report[1], &err, sizeof(err));
+        _exit(127);
+    }
+    close(report[1]);
+    int err = 0;
+    ssize_t n;
+    do n = read(report[0], &err, sizeof(err));
+    while (n < 0 && errno == EINTR);
+    close(report[0]);
+    if (n == (ssize_t)sizeof(err)) {
+        waitpid(child, NULL, 0);
+        return err;
+    }
+    if (pid) *pid = child;
+    return 0;
+}
+
 int posix_spawn(pid_t *pid, const char *path,
                 const posix_spawn_file_actions_t *file_actions,
                 const posix_spawnattr_t *attrp,
@@ -1077,7 +1207,12 @@ int posix_spawn(pid_t *pid, const char *path,
         if (bad) return bad;
     }
     posix_spawnattr_t sanitized;
-    return ddnatv_posix_spawn(pid, path, file_actions, spawn_attr_for_android(attrp, &sanitized), argv, envp, 0);
+    const posix_spawnattr_t *attr = spawn_attr_for_android(attrp, &sanitized);
+    if (ddh_spawn_wanted(path, argv, envp ? envp : environ)) {
+        int ret = ddh_spawn_forked(pid, path, file_actions, attr, argv, envp ? envp : environ);
+        if (ret != -1) return ret;
+    }
+    return ddnatv_posix_spawn(pid, path, file_actions, attr, argv, envp, 0);
 }
 
 int posix_spawnp(pid_t *pid, const char *file,

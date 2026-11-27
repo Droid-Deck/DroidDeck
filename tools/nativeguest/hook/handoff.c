@@ -17,6 +17,7 @@
 #define DDH_HANDED 1
 #define DDH_EXITED 2
 #define DDH_MAGIC 0x6464686f
+#define DDH_TABLE_FD 800
 
 struct ddh_entry {
     int32_t child;    // the pid the parent got from fork()
@@ -50,13 +51,30 @@ static const char *ddh_env(char *const envp[], const char *name) {
     return NULL;
 }
 
+// DD_HANDOFF_DEBUG=1 writes the trace to stderr; an absolute path appends it to that file instead
+// (stderr can be a pipe a program parses, or one nobody reads).
+static void ddh_log(const char *setting, const char *line, size_t len) {
+    if (!setting || len == 0) return;
+    if (setting[0] != '/') {
+        syscall(SYS_write, 2, line, len);
+        return;
+    }
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, setting, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0644);
+    if (fd < 0) return;
+    syscall(SYS_write, fd, line, len);
+    syscall(SYS_close, fd);
+}
+
 // In the parent, before fork(): the table the children write to.
 static void ddh_prepare_failed(const char *step) {
-    if (!getenv("DD_HANDOFF_DEBUG")) return;
+    const char *debug = getenv("DD_HANDOFF_DEBUG");
+    if (!debug) return;
     char line[96];
     int len = snprintf(line, sizeof(line), "ddnatv handoff: %d no table: %s errno %d\n", (int)getpid(), step, errno);
-    if (len > 0) syscall(SYS_write, 2, line, (size_t)len);
+    if (len > 0) ddh_log(debug, line, (size_t)len);
 }
+
+static void ddh_keep(int fd);
 
 // The table the children write to: at start when DD_SPAWN is set, else at the first fork() (a
 // shell that exports DD_SPAWN itself has no sign of it in its own environment).
@@ -78,18 +96,46 @@ static void ddh_prepare(int any) {
         close(fd);
         return;
     }
+    // Out of the way of the numbers programs redirect, and kept open when a child closes every
+    // inherited fd before exec (Python's subprocess does): the child needs it for its handoff.
+    int high = (int)syscall(SYS_fcntl, fd, F_DUPFD_CLOEXEC, DDH_TABLE_FD);
+    if (high >= 0) {
+        syscall(SYS_close, fd);
+        fd = high;
+    }
+    ddh_keep(fd);
     g_ddh = p;
     g_ddh->magic = DDH_MAGIC;
     g_ddh->pad[0] = getpid();
+    // A nonce that tells this table's fd from any other (inode numbers are rewritten by the hardlink emulation)
+    if (syscall(SYS_getrandom, &g_ddh->pad[1], 2 * sizeof(int32_t), 0) != 2 * (long)sizeof(int32_t)) {
+        g_ddh->pad[1] = (int32_t)time(NULL);
+        g_ddh->pad[2] = (int32_t)(intptr_t)p;
+    }
     g_ddh_fd = fd;
     g_ddh_owner = getpid();
+}
+
+// Whether fd is still this table: a program may have put a file of its own at that number.
+static int ddh_is_table(int fd, const struct ddh_table *t) {
+    int32_t head[4];
+    if (fd < 0 || syscall(SYS_pread64, fd, head, sizeof(head), 0) != (long)sizeof(head)) return 0;
+    return head[0] == t->magic && head[1] == t->pad[0] && head[2] == t->pad[1] && head[3] == t->pad[2];
 }
 
 // A table inherited across exec: the parent's if its owner is still our parent, else closed.
 static void ddh_find_parent_table(void) {
     char path[64], target[64];
     pid_t parent = getppid();
+    // The table a worker's program reports its exit to (DDH_TABLE), also for what it execs
+    int report = -1;
+    const char *spec = getenv("DDH_TABLE");
+    if (spec && getenv("DDH_WORKER_PID") && atoi(getenv("DDH_WORKER_PID")) == getpid()) report = atoi(spec);
     for (int fd = 3; fd < 1024; fd++) {
+        if (fd == report) {
+            ddh_keep(fd);
+            continue;
+        }
         int n = snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
         if (n <= 0) continue;
         long len = syscall(SYS_readlinkat, AT_FDCWD, path, target, sizeof(target) - 1);
@@ -101,6 +147,7 @@ static void ddh_find_parent_table(void) {
             g_ddh_up = t;
             g_ddh_up_fd = fd;
             syscall(SYS_fcntl, fd, F_SETFD, FD_CLOEXEC);
+            ddh_keep(fd);
             continue;
         }
         if (t != MAP_FAILED) munmap(t, sizeof(struct ddh_table));
@@ -166,18 +213,152 @@ static void ddh_find_worker_binder(void) {
 
 // In the program a worker runs for a handed-off child (DDH_TABLE "FD:SLOT:PARENT"): its exit status
 // goes into the parent's table here; the app reports it from Android's exit record only when the
-// program never got to exit() (a signal, _exit()).
+// program never got to exit() or _exit() (a signal).
 static struct ddh_table *g_ddh_report;
 static int g_ddh_report_slot = -1;
 static pid_t g_ddh_report_parent;
 
-static void ddh_report_exit(int status, void *unused) {
-    (void)unused;
+// The line of /proc/PID/cgroup that names the app's per-process cgroup ("...:/uid_U/pid_P").
+static int ddh_cgroup_line(pid_t pid, const char *want, char *out, size_t size) {
+    char path[48], buf[512];
+    snprintf(path, sizeof(path), "/proc/%d/cgroup", (int)pid);
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    long n = syscall(SYS_read, fd, buf, sizeof(buf) - 1);
+    syscall(SYS_close, fd);
+    if (n <= 0) return 0;
+    buf[n] = 0;
+    if (want) return strstr(buf, want) != NULL;
+    char mine[32];
+    snprintf(mine, sizeof(mine), "/pid_%d\n", (int)pid);
+    char *at = strstr(buf, mine);
+    if (!at) return 0;
+    char *start = at;
+    while (start > buf && start[-1] != '\n') start--;
+    size_t len = (size_t)(at - start) + strlen(mine);
+    if (len + 1 > size) return 0;
+    memcpy(out, start, len);
+    out[len] = 0;
+    return 1;
+}
+
+// A live process (not a zombie) in the cgroup that line names.
+static int ddh_cgroup_member(pid_t pid, const char *line) {
+    char path[48], stat[256];
+    snprintf(path, sizeof(path), "/proc/%d/stat", (int)pid);
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+    long n = syscall(SYS_read, fd, stat, sizeof(stat) - 1);
+    syscall(SYS_close, fd);
+    if (n <= 0) return 0;
+    stat[n] = 0;
+    char *paren = strrchr(stat, ')');
+    if (!paren || paren[1] != ' ' || paren[2] == 'Z' || paren[2] == 'X') return 0;
+    return ddh_cgroup_line(pid, line, NULL, 0);
+}
+
+static pid_t ddh_find_cgroup_member(const char *line, pid_t self) {
+    int dir = (int)syscall(SYS_openat, AT_FDCWD, "/proc", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (dir < 0) return 0;
+    char entries[8192];
+    pid_t found = 0;
+    long n;
+    while (!found && (n = syscall(SYS_getdents64, dir, entries, sizeof(entries))) > 0) {
+        for (long off = 0; off < n && !found;) {
+            unsigned short reclen;
+            memcpy(&reclen, entries + off + 16, sizeof(reclen));
+            const char *name = entries + off + 19;
+            off += reclen ? reclen : n;
+            if (name[0] < '1' || name[0] > '9') continue;
+            pid_t pid = (pid_t)atoi(name);
+            if (pid != self && ddh_cgroup_member(pid, line)) found = pid;
+        }
+    }
+    syscall(SYS_close, dir);
+    return found;
+}
+
+static void ddh_linger_note(const char *what, long value) {
+    const char *debug = getenv("DD_HANDOFF_DEBUG");
+    if (!debug) return;
+    char text[160];
+    int len = snprintf(text, sizeof(text), "ddnatv handoff: %d linger: %s %ld\n", (int)getpid(), what, value);
+    if (len > 0) ddh_log(debug, text, (size_t)len);
+}
+
+// Android kills every process in a worker's cgroup when the worker's own process ends: a program's
+// daemon (wineserver forks it and exits) or a job it left running would die with it. So the program's
+// process stays, as if it had exited (no fds but the worker's binder, no signals), until they are gone.
+static void ddh_linger(int flush) {
+    char line[160];
+    pid_t self = getpid();
+    // Not with other threads, which would go on running the program's code meanwhile.
+    int dir = (int)syscall(SYS_openat, AT_FDCWD, "/proc/self/task", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (dir < 0) return;
+    char entries[512];
+    int threads = 0;
+    long n = syscall(SYS_getdents64, dir, entries, sizeof(entries));
+    for (long off = 0; off < n;) {
+        unsigned short reclen;
+        memcpy(&reclen, entries + off + 16, sizeof(reclen));
+        threads += entries[off + 19] >= '1' && entries[off + 19] <= '9';
+        off += reclen ? reclen : n;
+    }
+    syscall(SYS_close, dir);
+    if (threads != 1) {
+        ddh_linger_note("threads", threads);
+        return;
+    }
+    if (!ddh_cgroup_line(self, NULL, line, sizeof(line))) {
+        ddh_linger_note("no cgroup line", 0);
+        return;
+    }
+    pid_t member = ddh_find_cgroup_member(line, self);
+    ddh_linger_note("cgroup member", member);
+    if (member <= 0) return;
+    if (flush) fflush(NULL);
+    sigset_t all;
+    sigfillset(&all);
+    sigprocmask(SIG_SETMASK, &all, NULL);
+    close_range(0, ~0U, 0);
+    while (member > 0) {
+        while (syscall(SYS_wait4, -1, NULL, WNOHANG, NULL) > 0) {
+        }
+        struct timespec second = {1, 0};
+        nanosleep(&second, NULL);
+        if (!ddh_cgroup_member(member, line)) member = ddh_find_cgroup_member(line, self);
+    }
+}
+
+// From exit() (on_exit, arg 1) or _exit() (arg NULL) in a worker's own process.
+// Only a handed-off child lingers: the app waits for the death of the programs it starts itself
+// (the session's root) to tear everything down.
+static void ddh_report_exit(int status, void *from_exit) {
     if (!g_ddh_report || getpid() != g_ddh_worker) return;
     struct ddh_entry *e = &g_ddh_report->e[g_ddh_report_slot];
     e->status = (status & 0xff) << 8;
     __atomic_store_n(&e->state, DDH_EXITED, __ATOMIC_RELEASE);
     if (g_ddh_report_parent > 0) syscall(SYS_kill, g_ddh_report_parent, SIGCHLD);
+    ddh_linger(from_exit != NULL);
+}
+
+// A program that leaves with _exit() skips on_exit(): a daemon's first process does, once it has
+// forked the daemon (wineserver), and its parent waits for that status.
+__attribute__((noreturn)) static void ddh_real_exit(const char *name, int status) {
+    void (*real)(int) = (void (*)(int))dlsym(RTLD_NEXT, name);
+    if (real) real(status);
+    syscall(SYS_exit_group, status);
+    __builtin_unreachable();
+}
+
+void _exit(int status) {
+    ddh_report_exit(status, NULL);
+    ddh_real_exit("_exit", status);
+}
+
+void _Exit(int status) {
+    ddh_report_exit(status, NULL);
+    ddh_real_exit("_Exit", status);
 }
 
 static void ddh_setup_report(void) {
@@ -190,7 +371,7 @@ static void ddh_setup_report(void) {
     g_ddh_report = t;
     g_ddh_report_slot = slot;
     g_ddh_report_parent = parent;
-    on_exit(ddh_report_exit, NULL);
+    on_exit(ddh_report_exit, (void *)1);
 }
 
 // In a program a worker started: the state its forked parent had, sent along with the exec.
@@ -389,9 +570,27 @@ static const char *ddh_interpreter(const char *path, char *buf, size_t size) {
     return name;
 }
 
+static int ddh_program_listed(const char *list, const char *filename, char *const argv[]) {
+    char shebang[256];
+    const char *interp;
+    // "python3 SCRIPT" and "sh SCRIPT" are matched by the script's name too
+    const char *script = argv && argv[0] && argv[1] && argv[1][0] != '-' ? ddh_base(argv[1]) : NULL;
+    return ddh_listed(list, ddh_base(filename), argv) || (argv && ddh_listed(list, ddh_base(argv[0]), argv)) ||
+           (script && ddh_listed(list, script, argv)) ||
+           ((interp = ddh_interpreter(filename, shebang, sizeof(shebang))) && ddh_listed(list, interp, argv));
+}
+
+// Whether a posix_spawn() of this program should be handed off: glibc's spawn child makes the exec
+// system call itself, past ddh_try(), so such a spawn is started with fork() and execve() instead.
+static int ddh_spawn_wanted(const char *path, char *const argv[], char *const envp[]) {
+    const char *list = ddh_env(envp, "DD_HANDOFF");
+    return path && ddh_env(envp, "DD_SPAWN") && list && ddh_program_listed(list, path, argv);
+}
+
 // In a forked child at execve(): hands the program to a worker and exits, or returns to exec it here.
 static void ddh_debug(char *const envp[], const char *what, const char *filename) {
-    if (!ddh_env(envp, "DD_HANDOFF_DEBUG")) return;
+    const char *debug = ddh_env(envp, "DD_HANDOFF_DEBUG");
+    if (!debug) return;
     char line[512];
     struct ddh_buf b = {line, 0, sizeof(line) - 1};
     ddh_puts(&b, "ddnatv handoff: ");
@@ -402,7 +601,7 @@ static void ddh_debug(char *const envp[], const char *what, const char *filename
     ddh_puts(&b, filename ? filename : "?");
     ddh_puts(&b, "\n");
     if (b.len > b.cap) b.len = b.cap;
-    syscall(SYS_write, 2, line, b.len);
+    ddh_log(debug, line, b.len);
 }
 
 static void ddh_try(const char *filename, char *const argv[], char *const envp[]) {
@@ -430,15 +629,13 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
         ddh_debug(envp, "not executable here:", filename);
         return;
     }
+    if (!ddh_is_table(table_fd, table)) {
+        ddh_debug(envp, "table fd lost:", filename);
+        return;
+    }
     // Whatever this exec becomes can still hand off its own exec (a wrapper, a script).
     syscall(SYS_fcntl, table_fd, F_SETFD, 0);
-    char shebang[256];
-    const char *interp = NULL;
-    // "python3 SCRIPT" and "sh SCRIPT" are matched by the script's name too
-    const char *script = argv && argv[0] && argv[1] && argv[1][0] != '-' ? ddh_base(argv[1]) : NULL;
-    if (!ddh_listed(list, ddh_base(filename), argv) && !(argv && ddh_listed(list, ddh_base(argv[0]), argv)) &&
-        !(script && ddh_listed(list, script, argv)) &&
-        !((interp = ddh_interpreter(filename, shebang, sizeof(shebang))) && ddh_listed(list, interp, argv))) {
+    if (!ddh_program_listed(list, filename, argv)) {
         ddh_debug(envp, "not listed:", filename);
         return;
     }
@@ -763,7 +960,7 @@ int kill(pid_t pid, int sig) {
             syscall(SYS_close, fd);
         }
         int len = snprintf(line, sizeof(line), "ddnatv handoff: %d (%s) kill(%d, %d)\n", (int)getpid(), comm, (int)pid, sig);
-        if (len > 0) syscall(SYS_write, 2, line, (size_t)len);
+        if (len > 0) ddh_log(getenv("DD_HANDOFF_DEBUG"), line, (size_t)len);
     }
     return (int)syscall(SYS_kill, pid, sig);
 }

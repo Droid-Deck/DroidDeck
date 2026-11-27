@@ -14,15 +14,31 @@ from tools.tests.test_usr2_preload import runner
 HOOK_BUILD = Path(__file__).resolve().parents[1] / "nativeguest/build.sh"
 
 PARENT = r"""
+#define _GNU_SOURCE
 #include <signal.h>
+#include <spawn.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
+extern char **environ;
+
 int main(int argc, char **argv) {
-  pid_t pid = fork();
-  if (pid == 0) {
+  pid_t pid;
+  if (strcmp(argv[1], "spawn") == 0) {
+    // as Python's subprocess does since 3.13, with its close_fds as a file action
+    posix_spawn_file_actions_t actions;
+    posix_spawn_file_actions_init(&actions);
+    posix_spawn_file_actions_addclosefrom_np(&actions, 3);
+    char *args[] = {"target", argv[2], NULL};
+    int err = posix_spawn(&pid, argc > 3 ? argv[3] : "/bin/target", &actions, NULL, args, environ);
+    printf("spawned\t%d\n", err);
+    if (err) return 0;
+  } else if ((pid = fork()) == 0) {
+    // as Python's subprocess does before exec
+    if (strcmp(argv[1], "closefds") == 0) syscall(SYS_close_range, 3, ~0U, 0);
     execl("/bin/target", "target", argv[2], (char *)NULL);
     _exit(127);
   }
@@ -128,7 +144,7 @@ class NativeHookHandoffTest(unittest.TestCase):
         cls.tmp.cleanup()
 
     def run_parent(self, *argv, handoff="target"):
-        name = "dd-handoff-test-%d-%s" % (os.getpid(), self.id().rsplit(".", 1)[-1])
+        name = "dd-handoff-test-%d-%s-%s" % (os.getpid(), self.id().rsplit(".", 1)[-1], handoff)
         spawner = FakeSpawner(name, self.prefix or [], self.root)
         spawner.start()
         self.addCleanup(spawner.sock.close)
@@ -152,6 +168,26 @@ class NativeHookHandoffTest(unittest.TestCase):
         self.assertEqual("1", result.get("same"), out.stdout)
         self.assertEqual("7", result.get("exit"), out.stdout)
         self.assertEqual("-1", result.get("again"), out.stdout)
+
+    def test_a_child_that_closed_its_inherited_fds_is_handed_off(self):
+        result, requests, out = self.run_parent("closefds", "5")
+        self.assertEqual(1, len(requests), out.stderr)
+        self.assertEqual("1", result.get("same"), out.stdout)
+        self.assertEqual("5", result.get("exit"), out.stdout)
+
+    def test_a_posix_spawn_is_handed_off(self):
+        result, requests, out = self.run_parent("spawn", "6")
+        self.assertEqual("0", result.get("spawned"), out.stdout)
+        self.assertEqual(1, len(requests), out.stderr)
+        self.assertEqual(["target", "6"], requests[0]["argv"])
+        self.assertEqual("1", result.get("same"), out.stdout)
+        self.assertEqual("6", result.get("exit"), out.stdout)
+
+    def test_a_posix_spawn_of_a_missing_program_fails_as_it_would(self):
+        listed, requests, out = self.run_parent("spawn", "6", "/bin/missing")
+        unlisted, _, _ = self.run_parent("spawn", "6", "/bin/missing", handoff="other")
+        self.assertEqual([], requests)
+        self.assertEqual((unlisted.get("spawned"), unlisted.get("exit")), (listed.get("spawned"), listed.get("exit")), out.stdout)
 
     def test_kill_reaches_the_program_and_its_signal_is_reported(self):
         result, requests, out = self.run_parent("kill", "sleep")

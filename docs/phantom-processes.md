@@ -6,8 +6,8 @@ Android must not kill a Steam session for having too many Linux processes, and t
 need developer options.
 
 Status: **working on the AYN Thor (Android 13).** With Android's limit on and no developer option,
-a Steam session with a game running keeps 14 processes in the app's counted cgroup (63 without
-this work), and Android killed nothing in 3 minutes of forced scans. DroidDeck's Setup reports the
+a Steam session with a game running keeps 12 processes in the app's counted cgroups (63 without
+this work), and Android killed nothing in minutes of forced scans. DroidDeck's Setup reports the
 limit as handled and no longer blocks Steam. Both counting gaps below are in identical code on
 Android 12 through 16; a stock Android 14+ phone is still to be tested. The experiments are in
 `tools/phantomlab` (see the end).
@@ -297,9 +297,10 @@ Things this needed, found the hard way:
   took the whole app down once).
 - **The table is made at a process's first fork,** not only when `DD_SPAWN` is in its environment at
   start: a shell that exports it has no sign of it in its own environment.
-- **Exit status:** the program's hook records it with `on_exit` into the parent's table; the app's
-  `ApplicationExitInfo` is only the fallback (signals, `_exit`). A program inherits its forked
-  parent's ignored signals, open-files limit and umask (`DDH_SIGIGN`, `DDH_NOFILE`, `DDH_UMASK`).
+- **Exit status:** the program's hook records it with `on_exit` or in `_exit()` into the parent's
+  table; the app's `ApplicationExitInfo` is only the fallback (signals). A program inherits its
+  forked parent's ignored signals, open-files limit and umask (`DDH_SIGIGN`, `DDH_NOFILE`,
+  `DDH_UMASK`).
 
 Measured on the Thor, Bully under Proton, Android's limit on (default 32), a scan forced every 20 s:
 
@@ -307,12 +308,48 @@ Measured on the Thor, Bully under Proton, Android's limit on (default 32), a sca
 |---|---|---|---|
 | main (no handoff) | 48 | 63 | 33, session failed |
 | first round | 26 | 29 | 0 |
-| **second round** | **9** | **14** | **0** |
-| + PulseAudio in a worker | 8 | | |
+| second round | 9 | 14 | 0 |
+| **third round** | **7–9** | **12** | **0** in 2 min, game kept focus |
 
 Still counted at idle: `run_gamescope`'s subshell, Steam, its web helper's browser and
-two utility processes, the session bus's activation babysitter and Decky's sound-effects worker
-(forks without an exec). Quitting the game, stopping the session (no worker is left) and starting
+two or three utility processes, the session bus's activation babysitter and Decky's
+multiprocessing child (forks without an exec). In game, also Steam's launch chain (`sh`,
+`pw-audio-namespace`, `reaper`) and the `wineserver` daemon (a fork of its first process, which
+lingers in its worker; see below).
+
+### Third round
+
+- **PulseAudio in a worker** (above).
+- **`posix_spawn()`:** Python 3.13+ (`subprocess`, even with `close_fds`) and GLib's `g_spawn` start
+  programs with `posix_spawn()`, whose child makes the exec system call itself, past the hook. A
+  listed program is now spawned with `fork()` and the hook's `execve()`; the hook replays glibc's
+  file actions and attributes in the child, and a close-on-exec pipe returns an exec error as
+  `posix_spawn()`'s result. Proton's Wine and at-spi's bus came out of the count this way.
+- **The table fd survives a child that closes every inherited fd** (Python's `subprocess` before
+  exec): it sits at fd 800 or above and is one of the hook's kept fds. Reopening it from
+  `/proc/<owner>/fd` does not work on Android (EACCES). A nonce in the table's header tells it from
+  a file a program put at that number (inode numbers are rewritten by the hardlink emulation).
+- **The exit status comes from the program itself.** The worker first runs a `bash` that `cd`s and
+  execs the program; that `bash` closed the `DDH_TABLE` fd as someone else's table, so the
+  program after it could never report, and statuses came from `ApplicationExitInfo`, late or
+  unknown. The `DDH_TABLE` fd is now kept through that exec, and `_exit()` reports as `exit()` does.
+- **Daemons:** Android kills every process in a worker's cgroup when the worker's own process ends
+  (`libprocessgroup: Successfully killed process cgroup`). `wineserver` forks the server and leaves
+  with `_exit(0)`, so the server died with it and Wine stopped with "the wine server failed to run".
+  A handed-off program's process now reports its status and then stays, with no fds but the
+  binder's and all signals blocked, until no other process is left in its cgroup (found through
+  `/proc/<pid>/cgroup`, as `cgroup.procs` is not readable). It does so only when it is
+  single-threaded at exit, and never for the processes the app starts itself (the session root),
+  whose exit the app waits for.
+- **`reap_orphans`** in the session script killed every process whose parent was zygote (all the
+  app's workers, the session root among them) when the inner `droiddeck-session` ended in a
+  worker: the guest cannot see zygote in `/proc`. It now stands down when `DDH_WORKER_PID` is
+  its own pid.
+- **`DD_HANDOFF_DEBUG=/path`** appends the hook's trace to a file. On stderr it broke Steam's
+  login, and the trace from a game's processes went to a pipe nobody read.
+- **Finding the sender of a SIGKILL:** shell can enable the `signal/signal_generate` ftrace event
+  on the Thor (`/sys/kernel/tracing`), which names the sending thread; Perfetto recorded nothing
+  there. Quitting the game, stopping the session (no worker is left) and starting
 again all work. Started from the front end with the limit on, Setup shows "Child-process limit
 handled by DroidDeck" and Steam starts.
 
@@ -329,9 +366,11 @@ the old behavior and the old requirement.
 2. ~~B for the processes DroidDeck and the session script start themselves~~ done.
 3. ~~B inside the hook, with pid translation~~ done.
 4. ~~The session root, its jobs, the log pipeline, the gamescope chain~~ done: 9 idle, 14 in game.
+   Third round (PulseAudio, `posix_spawn`, daemons): 7–9 idle, 12 in game.
 5. ~~Setup no longer requires the developer option while the session runs in workers~~ done.
 6. Open:
    - ~~PulseAudio in a worker~~ done;
+   - ~~`posix_spawn()` and daemons in workers~~ done;
    - `/proc/<pid>/stat` showing the virtual parent, so that Steam and its web helper can be handed
      off too;
    - pre-started workers, so that a handoff costs no zygote fork (about 100 ms now);

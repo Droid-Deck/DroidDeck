@@ -658,7 +658,9 @@ export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
 reap_orphans() {
   local round p stat pid left
   # Started by the app as an Android process of its own: its parent is zygote, whose other
-  # children are the app's processes.
+  # children are the app's processes. The guest may not see zygote in /proc; a worker's own
+  # program has DDH_WORKER_PID.
+  [ "${DDH_WORKER_PID:-}" = "$$" ] && return 0
   case "$(tr -d '\0' < "/proc/$PPID/cmdline" 2>/dev/null)" in zygote*) return 0 ;; esac
   for round in 1 2 3 4 5; do
     left=
