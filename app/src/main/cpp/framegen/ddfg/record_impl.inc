@@ -261,6 +261,10 @@ void FrameGen::record(VkCommandBuffer cmd, VkImageView prevView, VkImageView cur
     const Pipe& expandP = m4 ? pExpandM4_ : pExpand_;
 
     if (!g_scratch.built || g_scratch.builtFor.width != extent_.width || g_scratch.builtFor.height != extent_.height) {
+        if (g_scratch.built) {
+            dd_->DeviceWaitIdle(device_);
+            destroyScratch(dd_, device_, descPool_);
+        }
         ensureScratch(this, dd_, device_, memProps_, descPool_, linear_, extent_,
                       pyrA_, pyrB_, pyrAs_, flowLvl_, flowExpA_, flowExpB_,
                       pLuma_, pDown_, flowP, expandP, pSynth_, pGmReduce_, pGmPrewarp_,
