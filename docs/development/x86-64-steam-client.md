@@ -115,10 +115,19 @@ The client's web helper draws its whole UI. There are two:
 - **The arm64 client's helper** (`droiddeck-x64-arm-webhelper`), used when both clients are the same
   Steam build (unless `DD_X64_X86_WEBHELPER=1`). FEX hands the arm64 program to the CPU, so it runs
   natively with the session's preloads (KGSL poll fix, fast path) and the arm64 session's GPU
-  settings. It talks to the client over IPC, and a helper of another build never comes up: the client
-  restarted it every 10 s (device: 1790721607 against 1790904859). The session therefore updates the
-  arm64 client's parts on the same channel first (`droiddeck-steam-install --sync
-  steamdeck_publicbeta`). With this helper the client itself gets the GPU: it shows every Big Picture
+  settings. FEX starts it with a raw `execve`/`execveat` system call, so the native runtime's hook
+  maps those two calls through its own `execve`, as it does the path calls; unmapped, the kernel got
+  the guest path and x86 code could start no arm64 program at all (the helper, the `arm64/env`
+  launcher of an arm64 Proton). It talks to the client over IPC, and a helper of another build never
+  comes up: the client restarted it every 10 s (device: 1790721607 against 1790904859). The session
+  therefore brings the arm64 client's parts to the x86-64 client's build first
+  (`droiddeck-steam-install --sync "$(droiddeck-steam-x64 --build)"`). Valve's channels carry
+  different builds per architecture (device: `steamdeck_publicbeta` was 1793740892 for arm64 and
+  1795567705 for x86-64, which arm64 had on `publicbeta`), so the sync takes the build from whichever
+  arm64 channel has it (the Deck beta, `publicbeta`, the Deck stable, the plain client) and changes
+  nothing when none does; the client then keeps its own helper. `droiddeck-steam-install --build`
+  reports the arm64 build from the newest record in `package/` (the client's own manifest after it
+  updated itself, or the installer's). With this helper the client itself gets the GPU: it shows every Big Picture
   frame the helper draws, and in software (llvmpipe under FEX) that held the UI at about 20 fps
   (`DD_X64_CLIENT_SOFTWARE=1` keeps it in software). Device: 144 fps menus.
 - **The client's own x86 helper on the GPU** (`droiddeck-x64-webhelper`), otherwise: ANGLE's GL
@@ -548,9 +557,10 @@ alone would then read as an installed client.
 
 ## Session integration, restarts and mapping
 
-- With `DD_STEAM_CLIENT_ARCH=x86_64`, `droiddeck-session` updates the arm64 client's parts
-  (`droiddeck-steam-install`, then `--sync steamdeck_publicbeta`), runs `droiddeck-steam-x64 --prepare`
-  and starts the client with `droiddeck-steam-x64 --exec`. Steps only for the arm64 client (library
+- With `DD_STEAM_CLIENT_ARCH=x86_64`, `droiddeck-session` checks the arm64 client's parts
+  (`droiddeck-steam-install`), runs `droiddeck-steam-x64 --prepare`, brings the arm64 parts to the
+  x86-64 client's build (`--sync "$(droiddeck-steam-x64 --build)"`) and starts the client with
+  `droiddeck-steam-x64 --exec`. Steps only for the arm64 client (library
   registration, the ARM64 Proton fetch, the live compat helper) are skipped; added games,
   `steam-compatibility --x64`, UI scale and redistributables run for the x86 client.
 - **Deck mode.** With `-steamos3` the client's SteamOS audio manager passed libpulse the NULL

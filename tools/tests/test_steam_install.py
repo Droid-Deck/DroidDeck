@@ -96,16 +96,20 @@ done(28 if end < len(data) else 0)
                         TEST_PLAN=str(self.plan), DD_STEAM_RETRY_DELAYS='0 0 0',
                         DD_STEAM_PARALLEL=self.parallel)
         for channel in ('steamdeck_publicbeta', 'steamdeck_stable'):
-            archive = self.cdn / (channel + '.zip')
-            with zipfile.ZipFile(archive, 'w') as package:
-                package.writestr('steamrtarm64/steam', channel)
-                package.writestr('linuxarm64/wrapper', 'wrapper')
-            digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-            (self.cdn / ('steam_client_' + channel + '_linuxarm64')).write_text(
-                '"linuxarm64"\n{\n\t"version" "123456"\n'
-                '\t"client_linuxarm64_linuxarm64"\n\t{\n'
-                f'\t\t"file" "{archive.name}"\n\t\t"sha2" "{digest}"\n'
-                '\t}\n}\n')
+            self.publish_client(channel)
+
+    def publish_client(self, channel, version='123456'):
+        name = channel or 'plain'
+        archive = self.cdn / (name + '.zip')
+        with zipfile.ZipFile(archive, 'w') as package:
+            package.writestr('steamrtarm64/steam', name)
+            package.writestr('linuxarm64/wrapper', 'wrapper')
+        digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+        (self.cdn / ('steam_client_' + (channel + '_' if channel else '') + 'linuxarm64')).write_text(
+            f'"linuxarm64"\n{{\n\t"version" "{version}"\n'
+            '\t"client_linuxarm64_linuxarm64"\n\t{\n'
+            f'\t\t"file" "{archive.name}"\n\t\t"sha2" "{digest}"\n'
+            '\t}\n}\n')
 
     def install(self, fail_host=None, *args, timeout=None, **extra):
         env = self.env if fail_host is None else dict(self.env, TEST_FAIL_HOST=fail_host)
@@ -763,6 +767,63 @@ with open(log, 'a') as out:
         result = self.install(None, '--cache')
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('123456\n', (self.steam / 'package/droiddeck-cached').read_text())
+
+    def build(self):
+        result = self.install(None, '--build')
+        self.assertEqual(0, result.returncode, result.stderr)
+        return result.stdout.strip()
+
+    def sync(self, build):
+        self.assertEqual(0, self.install().returncode)
+        self.requests.write_text('')
+        return self.install(None, '--sync', build)
+
+    def test_sync_takes_the_arm64_client_of_the_asked_build_from_whichever_channel_has_it(self):
+        for channel in ('publicbeta', ''):
+            with self.subTest(channel=channel):
+                shutil.rmtree(self.steam, ignore_errors=True)
+                self.publish_client(channel, '777')
+                result = self.sync('777')
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(channel or 'plain', (self.steam / 'steamrtarm64/steam').read_text())
+                self.assertEqual('777', self.build())
+                (self.cdn / ('steam_client_' + (channel + '_' if channel else '') + 'linuxarm64')).unlink()
+
+    def test_sync_of_the_build_already_installed_asks_valve_for_nothing(self):
+        result = self.sync('123456')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual('', self.requests.read_text())
+
+    def test_sync_fails_and_keeps_the_client_when_no_channel_has_the_build(self):
+        self.publish_client('publicbeta', '777')
+        before = (self.data / 'Steam/steamrtarm64/steam')
+        result = self.sync('999')
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn('no arm64 Steam client of build 999', result.stderr)
+        self.assertEqual('123456', self.build())
+        self.assertNotEqual('publicbeta', before.read_text())
+
+    def test_sync_fails_when_no_cdn_answers(self):
+        self.assertEqual(0, self.install().returncode)
+        result = self.install('steam', '--sync', '777')
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual('123456', self.build())
+
+    def test_sync_without_a_build_is_refused(self):
+        result = self.install(None, '--sync')
+        self.assertNotEqual(0, result.returncode)
+        self.assertFalse(self.requests.exists() and self.requests.read_text())
+
+    def test_build_is_empty_before_an_install(self):
+        self.assertEqual('', self.build())
+
+    def test_build_follows_the_manifest_the_client_wrote_when_it_updated_itself(self):
+        self.assertEqual(0, self.install().returncode)
+        own = self.steam / 'package/steam_client_steamdeck_stable_linuxarm64.manifest'
+        own.write_text('"linuxarm64"\n{\n\t"version" "555"\n}\n')
+        later = time.time() + 60
+        os.utime(own, (later, later))
+        self.assertEqual('555', self.build())
 
 
 if __name__ == '__main__':
