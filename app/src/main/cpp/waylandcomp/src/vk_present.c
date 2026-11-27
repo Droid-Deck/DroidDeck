@@ -865,10 +865,10 @@ static int restore_client_images(void) {
 
 static void release_lost_device(void) {
     vkp_pass_abort();
+    blendp_destroy();
     vkp_effects_destroy();
     hdrc_destroy();
     vkp_cardboard_destroy();
-    blendp_destroy();
     vkp_framegen_device_lost();
     vkp_gpu_busy_device_lost();
     suspend_client_images();
