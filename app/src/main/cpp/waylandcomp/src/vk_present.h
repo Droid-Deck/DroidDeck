@@ -73,6 +73,7 @@ int vkp_device_lost(void);
  * buffer references and withhold DMA-BUF releases until the app process exits.
  * This terminal state is distinct from genuine device loss. */
 int vkp_completion_unknown(void);
+int vkp_device_unusable(void);
 
 int vkp_render(int scene_w, int scene_h, const struct vkp_draw *draws, int n);
 int vkp_render_plain(int scene_w, int scene_h);

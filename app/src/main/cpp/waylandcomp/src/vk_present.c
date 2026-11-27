@@ -369,6 +369,7 @@ int vkp_has_window(void) {
 
 int vkp_device_lost(void) { return g_dev_state == -2; }
 int vkp_completion_unknown(void) { return g_dev_state == -3; }
+int vkp_device_unusable(void) { return __atomic_load_n(&g_dev_state, __ATOMIC_RELAXED) < 0; }
 
 void vk_present_set_scale_mode(int mode, int alignment) {
     if (mode < VKP_MODE_OFF || mode > VKP_MODE_INTEGER) mode = VKP_MODE_FIT;

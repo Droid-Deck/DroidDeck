@@ -269,6 +269,13 @@ Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeCompositorFault(JNIE
     return (*env)->NewStringUTF(env, f ? f : "");
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeDisplayDeviceUnusable(JNIEnv *env, jclass clazz) {
+    (void)env; (void)clazz;
+    extern int vkp_device_unusable(void);
+    return vkp_device_unusable() ? JNI_TRUE : JNI_FALSE;
+}
+
 /* The display driver as the driver itself reports it ("" before the compositor's device exists). */
 JNIEXPORT jstring JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeDisplayDriver(JNIEnv *env, jclass clazz) {

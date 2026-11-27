@@ -188,4 +188,9 @@ object CompositorHost {
     }
 
     val isStarted: Boolean get() = started
+
+    fun unusableForNewSession(
+        sessionRunning: Boolean,
+        deviceUnusable: () -> Boolean = WaylandCompositor::displayDeviceUnusable,
+    ): Boolean = started && !sessionRunning && deviceUnusable()
 }

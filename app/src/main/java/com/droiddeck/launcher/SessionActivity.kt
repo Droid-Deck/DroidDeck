@@ -2865,6 +2865,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     override fun surfaceCreated(holder: SurfaceHolder) {
         if (holder !== outputHolder()) return
         if (installingRuntime || SessionState.stopRequested || ended) return
+        if (CompositorHost.unusableForNewSession(SessionState.running)) {
+            restartForUnusableDisplay()
+            return
+        }
         if (!SessionState.running) {
             SessionEvents.transition(SessionPhase.STARTING_COMPOSITOR, "compositor.starting")
         }
@@ -3507,6 +3511,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         closeAtOnce = true
         finish()
         startActivity(again)
+    }
+
+    private fun restartForUnusableDisplay() {
+        val fault = WaylandCompositor.compositorFault()
+        val downloading = com.droiddeck.launcher.stores.StoresState.latestDownloads.any { it.isActive }
+        Log.w(TAG, "the compositor's GPU device from an earlier session is unusable ($fault); " +
+            if (downloading) "a store download is running, so DroidDeck is not restarted" else "restarting DroidDeck for this session")
+        SessionEvents.record("compositor.unusable", mapOf("fault" to fault, "restart" to !downloading))
+        if (downloading) {
+            SessionEvents.fail("DISPLAY_DEVICE_UNUSABLE", fault)
+            loading.showEnded(getString(R.string.session_end_present_fault, fault))
+            focusEndedScreen()
+            return
+        }
+        val again = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        closeAtOnce = true
+        finish()
+        startActivity(again)
+        Runtime.getRuntime().exit(0)
     }
 
     private fun retrySession() {
