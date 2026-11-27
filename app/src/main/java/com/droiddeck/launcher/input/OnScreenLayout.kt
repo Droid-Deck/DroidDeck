@@ -45,9 +45,8 @@ object OnScreenLayout {
         if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
         if (dock?.portrait == true && !dock.grips && !matched && layout.aspect > 0f && layout.aspect < 1f && stored.any(::isGamepad))
             return scaleDocked(context, cluster(stored.filterNot { it.alwaysShown || isGamepad(it) && (it.id == KEYBOARD_ID || it.control in BAR) }, layout.aspect, width, height, safe), ControllerPrefs.read(context).size / 100f, width, height, safe)
-        val oppositeOrientation = layout.aspect > 0f && ((layout.aspect < 1f) != (height > width))
-        val generated = matched ||
-            dock == null && oppositeOrientation && stored.any(::isGamepad)
+        val generated = matched || PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) &&
+            (dock != null || height > width && layout.aspect >= 1f || height <= width && layout.aspect > 0f && layout.aspect < 1f)
         val gamepad = if (generated) stored.filter(::isGamepad) else emptyList()
         val others = fit(stored.filterNot { generated && isGamepad(it) || dock != null && it.alwaysShown }, reference.first, reference.second, width, height, safe)
         val regenerated = when {
@@ -82,6 +81,7 @@ object OnScreenLayout {
     }
 
     private fun scaleDocked(context: Context, elements: List<InputSurfaceElement>, scale: Float, width: Int, height: Int, safe: Rect): List<InputSurfaceElement> {
+        if (scale == 1f) return elements
         val usableWidth = (width - safe.left - safe.right).coerceAtLeast(1).toFloat() / width
         val usableHeight = (height - safe.top - safe.bottom).coerceAtLeast(1).toFloat() / height
         val leftBound = safe.left.toFloat() / width
