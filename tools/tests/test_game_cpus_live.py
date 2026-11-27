@@ -49,6 +49,9 @@ class LiveGameCpusTest(unittest.TestCase):
                          ["taskset=taskset -c 3,4,5,6,7", "cpus=3,4,5,6,7"])
         self.assertEqual(self.run_setup(), ["taskset=", "cpus=unset"])
 
+    def test_a_file_caught_mid_write_keeps_the_session_value(self):
+        self.assertEqual(self.run_setup("", DD_GAME_CPUS="4,5"), ["taskset=taskset -c 4,5", "cpus=4,5"])
+
     def test_an_unreadable_value_keeps_the_session_value(self):
         for bad in ("3;rm\n", "6-\n", "-3\n", "3,,4\n", "3,\n"):
             self.assertEqual(self.run_setup(bad, DD_GAME_CPUS="4,5"), ["taskset=taskset -c 4,5", "cpus=4,5"], bad)
