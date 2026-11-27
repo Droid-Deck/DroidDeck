@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.droiddeck.phantomlab">
+
+    <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="34" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:label="PhantomLab"
+        android:extractNativeLibs="true"
+        android:zygotePreloadName="com.droiddeck.phantomlab.Preload">
+
+        <activity android:name=".Main" android:exported="true" android:launchMode="singleTask"
+            android:configChanges="density|orientation|screenSize|screenLayout|smallestScreenSize|uiMode|keyboard|keyboardHidden|navigation|fontScale">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service android:name=".Iso" android:exported="false"
+            android:isolatedProcess="true" android:useAppZygote="true" />
+        <service android:name=".IsoPlain" android:exported="false"
+            android:isolatedProcess="true" />
+        <service android:name=".Proc" android:exported="false" android:process=":proc" />
+
+        <service android:name=".W0" android:exported="false" android:process=":w0" />
+        <service android:name=".W1" android:exported="false" android:process=":w1" />
+        <service android:name=".W2" android:exported="false" android:process=":w2" />
+        <service android:name=".W3" android:exported="false" android:process=":w3" />
+        <service android:name=".W4" android:exported="false" android:process=":w4" />
+        <service android:name=".W5" android:exported="false" android:process=":w5" />
+        <service android:name=".W6" android:exported="false" android:process=":w6" />
+        <service android:name=".W7" android:exported="false" android:process=":w7" />
+    </application>
+</manifest>
