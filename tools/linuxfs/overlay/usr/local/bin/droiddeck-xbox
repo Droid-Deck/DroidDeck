@@ -486,6 +486,13 @@ def wine(argv, source_env=None, package=None):
     # does not hide them.
     if (RUNTIME / 'sock-trace').exists():
         env['DROIDDECK_SOCK_TRACE'] = '1'
+    # A uwp-trace marker beside the runtime records every WinRT/XHR call the title makes,
+    # and uwp-dump adds the first part of each request and response body. Both are per
+    # launch, so a session can be diagnosed on the device without rebuilding the host.
+    if (RUNTIME / 'uwp-trace').exists():
+        env['DROIDDECK_UWP_TRACE'] = '1'
+    if (RUNTIME / 'uwp-dump').exists():
+        env['DROIDDECK_UWP_DUMP'] = '1'
     for name in ('DROIDDECK_XBOX_CREDENTIAL_SOCKET', 'DROIDDECK_XBOX_CREDENTIAL_PORT', 'DROIDDECK_XBOX_CREDENTIAL_KEY'):
         env.pop(name, None)
     env.pop('DROIDDECK_XBOX_COMMAND_FILE', None)
