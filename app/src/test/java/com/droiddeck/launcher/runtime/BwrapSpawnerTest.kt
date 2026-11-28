@@ -263,8 +263,26 @@ class BwrapSpawnerPlanTest {
         val shim = plan.binds.single { it.guest == "/app/bin/zypak-wrapper.sh" }
         assertTrue(shim.host.startsWith(dir.path))
         assertTrue(File(shim.host).readText().contains("exec \"\$program\" --no-sandbox \"\$@\""))
-        assertFalse(plan.binds.any { it.guest == "/app/bin/zypak-wrapper" })
+        assertEquals(shim.host, plan.binds.single { it.guest == "/app/bin/zypak-wrapper" }.host)
         assertTrue(File(app, "bin/zypak-wrapper.sh").readText().contains("zypak-helper"))
+        assertEquals("/app/bin/zypak-wrapper.sh", Files.readSymbolicLink(File(app, "bin/zypak-wrapper").toPath()).toString())
+    }
+
+    @Test fun zypakWrapperLinkThatDoesNotResolveOnTheHostGetsTheShim() {
+        val context = RuntimeEnvironment.getApplication()
+        val app = File(runtime, "app").apply { File(this, "bin").mkdirs() }
+        File(app, "bin/zypak-wrapper.sh").writeText("#!/usr/bin/bash\nexec zypak-helper host - \"\$@\"\n")
+        val dangling = java.nio.file.Paths.get(LinuxRuntime.rootDir(context).path, "app/bin/zypak-wrapper.sh")
+        Files.createSymbolicLink(File(app, "bin/zypak-wrapper").toPath(), dangling)
+        val plan = BwrapSpawner.plan(context, request(
+            op("t" to "bind", "src" to "/runtime-files/app", "dest" to "/app", "ro" to true),
+        ), dir)
+
+        assertFalse(Files.exists(dangling))
+        val shim = plan.binds.single { it.guest == "/app/bin/zypak-wrapper" }
+        assertTrue(shim.host.startsWith(dir.path))
+        assertTrue(File(shim.host).readText().contains("exec \"\$program\" --no-sandbox \"\$@\""))
+        assertEquals(shim.host, plan.binds.single { it.guest == "/app/bin/zypak-wrapper.sh" }.host)
     }
 
     @Test fun appsWithoutZypakKeepTheirFiles() {

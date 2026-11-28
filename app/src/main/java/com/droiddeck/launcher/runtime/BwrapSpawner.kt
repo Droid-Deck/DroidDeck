@@ -329,8 +329,8 @@ object BwrapSpawner {
 
     private fun zypakShims(binds: List<Bind>, root: File, dir: File): List<Bind> {
         val wrappers = listOf("/app/bin/zypak-wrapper.sh", "/app/bin/zypak-wrapper").filter { guest ->
-            val host = File(hostPath(binds, root.path, guest))
-            host.isFile && !Files.isSymbolicLink(host.toPath())
+            val host = File(hostPath(binds, root.path, guest)).toPath()
+            Files.isRegularFile(host, java.nio.file.LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(host)
         }
         if (wrappers.isEmpty()) return emptyList()
         val shim = File(dir, "zypak-wrapper")
