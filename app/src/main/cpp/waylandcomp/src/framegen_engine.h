@@ -12,6 +12,7 @@ extern "C" {
 
 const void *fge_probe(PFN_vkGetInstanceProcAddr gipa, VkInstance inst, VkPhysicalDevice pd,
                       VkFormat ring_fmt);
+void fge_device_lost(void);
 void fge_device_ready(PFN_vkGetInstanceProcAddr gipa, VkInstance inst, VkPhysicalDevice pd,
                       VkDevice dev, VkQueue queue, uint32_t qfam, int features_enabled);
 int fge_caps_ok(int kind);

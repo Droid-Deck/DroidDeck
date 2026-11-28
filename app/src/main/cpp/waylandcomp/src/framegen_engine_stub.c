@@ -9,6 +9,7 @@ void fge_device_ready(PFN_vkGetInstanceProcAddr gipa, VkInstance inst, VkPhysica
                       VkDevice dev, VkQueue queue, uint32_t qfam, int features_enabled) {
     (void)gipa; (void)inst; (void)pd; (void)dev; (void)queue; (void)qfam; (void)features_enabled;
 }
+void fge_device_lost(void) {}
 int fge_caps_ok(int kind) { (void)kind; return 0; }
 const char *fge_caps_reason(void) { return "frame-generation engines not built into this compositor"; }
 int fge_format_ok(VkFormat fmt) { (void)fmt; return 0; }

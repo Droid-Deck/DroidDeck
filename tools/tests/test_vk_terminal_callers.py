@@ -117,6 +117,9 @@ int __android_log_print(int, const char *, const char *, ...);
     def test_finite_blit_timeout_same_size_pixel_upload(self):
         self.run_scenario('pixel-timeout')
 
+    def test_lost_device_shm_upload_keeps_cpu_snapshot(self):
+        self.run_scenario('lost-shm-upload')
+
     def test_normal_present(self):
         self.run_scenario('normal')
 
@@ -125,6 +128,9 @@ int __android_log_print(int, const char *, const char *, ...);
 
     def test_healthy_later_acquire_timeout_drains_work(self):
         self.run_scenario('later-timeout')
+
+    def test_device_loss_with_unconfirmed_idle_retains_resources(self):
+        self.run_scenario('acquire-device-lost-unconfirmed')
 
     def test_real_device_lost_on_acquire(self):
         self.run_scenario('acquire-device-lost')

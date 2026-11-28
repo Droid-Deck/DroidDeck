@@ -38,7 +38,11 @@ static void blit(VkCommandBuffer c, VkImage s, VkImageLayout sl, VkImage d, VkIm
                  uint32_t n, const VkImageBlit *b, VkFilter f) { live(); }
 static void destroy_swap(VkDevice d, VkSwapchainKHR s, const VkAllocationCallbacks *a) { ++destroys; }
 static void destroy_surface(VkInstance i, VkSurfaceKHR s, const VkAllocationCallbacks *a) { ++destroys; }
-static void destroy_sem(VkDevice d, VkSemaphore s, const VkAllocationCallbacks *a) { live(); ++destroys; }
+static void destroy_fence(VkDevice d, VkFence f, const VkAllocationCallbacks *a) { ++destroys; }
+static void destroy_pool(VkDevice d, VkCommandPool p, const VkAllocationCallbacks *a) { ++destroys; }
+static void destroy_device(VkDevice d, const VkAllocationCallbacks *a) { ++destroys; }
+static void destroy_instance(VkInstance i, const VkAllocationCallbacks *a) { ++destroys; }
+static void destroy_sem(VkDevice d, VkSemaphore s, const VkAllocationCallbacks *a) { ++destroys; }
 static VkResult create_sem(VkDevice d, const VkSemaphoreCreateInfo *c, const VkAllocationCallbacks *a, VkSemaphore *s) {
     live(); *s = (VkSemaphore)(uintptr_t)1; return VK_SUCCESS;
 }
@@ -61,15 +65,17 @@ int sc_layer_base_black(int w, int h) { return 0; }
 void sc_layer_hide_base(void) {}
 void sc_layer_hide_overlay(void) {}
 void vkp_cardboard_bind_device(VkDevice d, const VkPhysicalDeviceMemoryProperties *m) {}
+void vkp_cardboard_destroy(void) {}
 int vkp_cardboard_active(void) { return 0; }
 void vkp_cardboard_begin_frame(void) {}
 VkImage vkp_cardboard_run(VkCommandBuffer c, VkImage s, int sw, int sh, int ow, int oh) { return s; }
-int vk_loader_open(const char *a, const char *b, const char *c) { assert(0); return -1; }
-void vk_loader_close(void) { assert(0); }
-void vk_loader_load_instance(VkInstance i) { assert(0); }
-void vk_loader_load_device(VkDevice d) { assert(0); }
+int vk_loader_open(const char *a, const char *b, const char *c) { return -1; }
+void vk_loader_close(void) {}
+void vk_loader_load_instance(VkInstance i) {}
+void vk_loader_load_device(VkDevice d) {}
 PFN_vkGetInstanceProcAddr vk_loader_gipa(void) { return NULL; }
 void vkp_effects_bind_device(VkDevice d, VkPhysicalDevice p, const VkPhysicalDeviceMemoryProperties *m) {}
+void vkp_effects_destroy(void) {}
 int vkp_effects_active(void) { return 0; }
 int vkp_effects_upscaling(void) { return 0; }
 int vkp_effects_sharpening(void) { return 0; }
@@ -94,9 +100,11 @@ void vkp_framegen_presented(int n) { ++presented_notifications; }
 void vkp_gpu_busy_device(VkPhysicalDevice p, VkDevice d, uint32_t f) {}
 void vkp_gpu_busy_device_lost(void) {}
 void hdrc_bind_device(VkDevice d, const VkPhysicalDeviceMemoryProperties *m) {}
+void hdrc_destroy(void) {}
 void hdrc_forget_image(VkImage i) {}
 int hdrc_encode(VkCommandBuffer c, VkImage a, VkImage b, VkFormat f, int w, int h, const struct hdrc_params *p) { return -1; }
 void blendp_bind_device(VkDevice d) {}
+void blendp_destroy(void) {}
 void blendp_forget_image(VkImage i) {}
 void vkp_effects_forget_image(VkImage i) {}
 void blendp_begin_frame(void) {}
@@ -155,6 +163,8 @@ static void setup(int extra) {
         .ResetCommandBuffer = reset_cmd, .ResetFences = reset_fence, .BeginCommandBuffer = begin_cmd,
         .EndCommandBuffer = end_cmd, .CmdPipelineBarrier = barrier, .CmdClearColorImage = clear,
         .CmdBlitImage = blit, .DestroySwapchainKHR = destroy_swap, .DestroySurfaceKHR = destroy_surface,
+        .DestroyFence = destroy_fence, .DestroyCommandPool = destroy_pool,
+        .DestroyDevice = destroy_device, .DestroyInstance = destroy_instance,
         .DestroySemaphore = destroy_sem, .CreateSemaphore = create_sem,
         .DestroyImage = destroy_image, .FreeMemory = free_memory, .UnmapMemory = unmap};
     idle_answer = fence_answer = acquire_answer = present_answer = VK_SUCCESS;
@@ -180,6 +190,7 @@ static void setup(int extra) {
 /* Probe the public GPU entry points after a terminal result. This includes an
  * active off-screen pass and consumed release fds, not just the render guard. */
 static void assert_stopped(void) {
+    assert(g_dev_state == -3 || (g_dev_state == -2 && g_recovery_attempted));
     unsigned before = operations, before_destroys = destroys;
     struct vkp_image src = {.image = (VkImage)(uintptr_t)7, .w = 1, .h = 1};
     struct vkp_image dst = {.image = (VkImage)(uintptr_t)8, .w = 1, .h = 1, .blit_dst = 1};
@@ -268,7 +279,20 @@ int main(int argc, char **argv) {
     else if (!strcmp(name, "later-surface-lost")) acquire_failure(1, VK_ERROR_SURFACE_LOST_KHR);
     else if (!strcmp(name, "shm-timeout")) upload_timeout(0);
     else if (!strcmp(name, "pixel-timeout")) upload_timeout(1);
-    else if (!strcmp(name, "pass-terminal")) { setup(0); g_dev_state = -3; assert_stopped(); free(g_images); }
+    else if (!strcmp(name, "lost-shm-upload")) {
+        setup(0);
+        uint8_t bytes[64], data[16];
+        memset(bytes, 0xa5, sizeof(bytes));
+        for (unsigned i = 0; i < sizeof(data); i++) data[i] = (uint8_t)(i + 1);
+        struct vkp_image img = {.map = bytes, .offset = 3, .row_pitch = 16, .w = 2, .h = 2,
+                                .source_type = VKP_IMAGE_SOURCE_SHM};
+        g_dev_state = -2;
+        vkp_image_upload_shm(&img, data, 8);
+        assert(img.recovery_pixels && !memcmp(img.recovery_pixels, data, sizeof(data)));
+        assert(bytes[3] == 0xa5 && bytes[19] == 0xa5);
+        free(img.recovery_pixels);
+        free(g_images);
+    } else if (!strcmp(name, "pass-terminal")) { setup(0); g_dev_state = -3; assert_stopped(); free(g_images); }
     else if (!strcmp(name, "normal") || !strcmp(name, "framegen")) {
         int extra = !strcmp(name, "framegen"); setup(extra);
         assert(vkp_render(64, 64, NULL, 0) == 0 && g_dev_state == 1);
@@ -279,6 +303,18 @@ int main(int argc, char **argv) {
         setup(1); fail_acquire_at = 2; acquire_answer = VK_TIMEOUT;
         assert(vkp_render(64, 64, NULL, 0) == -1 && g_dev_state == 1);
         assert(acquires == 2 && submits == 2 && markers == 1 && waits == 1); free(g_images);
+    } else if (!strcmp(name, "acquire-device-lost-unconfirmed")) {
+        setup(1);
+        fail_acquire_at = 2;
+        acquire_answer = VK_ERROR_DEVICE_LOST;
+        idle_answer = VK_ERROR_OUT_OF_HOST_MEMORY;
+        VkImage *retained = g_images;
+        assert(vkp_render(64, 64, NULL, 0) == -1);
+        assert(g_dev_state == -3 && vkp_completion_unknown() && !vkp_device_lost());
+        assert(idle_calls == 1 && lost_notifications == 0 && waits == 0);
+        assert(g_images == retained && g_nimg == 1 && g_swapchain && g_surface && destroys == 0);
+        assert_stopped();
+        free(g_images); /* test-owned fake resources only */
     } else if (!strcmp(name, "acquire-device-lost") || !strcmp(name, "present-device-lost")) {
         setup(1);
         if (!strcmp(name, "acquire-device-lost")) { fail_acquire_at = 2; acquire_answer = VK_ERROR_DEVICE_LOST; }
@@ -287,6 +323,8 @@ int main(int argc, char **argv) {
         assert(!vkp_completion_unknown());
         assert(g_dev_state == -2 && lost_notifications == 1 && markers == 0 && waits == 0);
         assert(!g_images && !g_swapchain && !g_surface && destroys == 2);
+        assert(vkp_ready() == -1);
+        assert(g_dev_state == -2 && g_recovery_attempted);
         assert_stopped();
     } else assert(0 && "unknown scenario");
     return 0;

@@ -194,7 +194,31 @@ void vkp_framegen_device_ready(VkDevice dev, VkQueue queue, uint32_t qfam, int f
           fge_caps_ok(VKP_FG_ENGINE_DDFG) ? "available" : "unavailable");
 }
 
-void vkp_framegen_device_lost(void) { atomic_store(&g_dev_lost, 1); }
+void vkp_framegen_device_lost(void) {
+    atomic_store(&g_dev_lost, 1);
+    atomic_store(&g_dev_ready, 0);
+    fge_device_lost();
+    if (g_dev) {
+        for (uint32_t i = 0; i < g_ring_n; i++) {
+            if (g_ring[i].view && vk.DestroyImageView) vk.DestroyImageView(g_dev, g_ring[i].view, NULL);
+            if (g_ring[i].img && vk.DestroyImage) vk.DestroyImage(g_dev, g_ring[i].img, NULL);
+            if (g_ring[i].mem && vk.FreeMemory) vk.FreeMemory(g_dev, g_ring[i].mem, NULL);
+        }
+    }
+    memset(g_ring, 0, sizeof(g_ring));
+    g_ring_n = g_ring_w = g_ring_h = 0;
+    g_ring_fmt = VK_FORMAT_UNDEFINED;
+    g_engine_ok = 0;
+    g_engine_kind = -1;
+    g_engine_cache_gen = -1;
+    g_built_w = g_built_h = 0;
+    g_built_fmt = VK_FORMAT_UNDEFINED;
+    g_planned = 0;
+    memset(&vk, 0, sizeof(vk));
+    g_dev = VK_NULL_HANDLE;
+    g_queue = VK_NULL_HANDLE;
+    g_qfam = 0;
+}
 
 
 static void destroy_ring(void) {

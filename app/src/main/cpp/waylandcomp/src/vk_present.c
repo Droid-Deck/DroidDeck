@@ -31,6 +31,15 @@
 #define LOGE(...) droiddeck_log("error", __VA_ARGS__)
 #define MOD_INVALID VKP_MOD_INVALID
 
+enum vkp_image_source {
+    VKP_IMAGE_SOURCE_NONE = 0,
+    VKP_IMAGE_SOURCE_DMABUF,
+    VKP_IMAGE_SOURCE_AHB_WLEGL,
+    VKP_IMAGE_SOURCE_AHB_SOURCE,
+    VKP_IMAGE_SOURCE_AHB_TARGET,
+    VKP_IMAGE_SOURCE_SHM
+};
+
 struct vkp_image {
     VkImage image;
     VkDeviceMemory mem;
@@ -47,7 +56,53 @@ struct vkp_image {
     VkBuffer linear_buf;
     VkDeviceMemory linear_mem;
     VkBufferImageCopy linear_copy;
+    enum vkp_image_source source_type;
+    int source_fd;
+    uint32_t source_drm_format, source_stride, source_offset;
+    uint64_t source_modifier;
+    uint8_t *recovery_pixels;
+    struct vkp_image *next;
 };
+
+static struct vkp_image *g_client_images;
+static struct vkp_image *g_rb;
+static int g_recovery_attempted;
+
+static void image_register(struct vkp_image *img) {
+    if (!img) return;
+    img->next = g_client_images;
+    g_client_images = img;
+}
+
+static void image_unregister(struct vkp_image *img) {
+    struct vkp_image **p = &g_client_images;
+    while (*p && *p != img) p = &(*p)->next;
+    if (*p) *p = img->next;
+    if (img) img->next = NULL;
+}
+
+static void image_track_dmabuf(struct vkp_image *img, int fd, uint32_t drm_format,
+                               uint64_t modifier, uint32_t stride, uint32_t offset) {
+    img->source_fd = dup(fd);
+    img->source_type = img->source_fd >= 0 ? VKP_IMAGE_SOURCE_DMABUF : VKP_IMAGE_SOURCE_NONE;
+    img->source_drm_format = drm_format;
+    img->source_modifier = modifier;
+    img->source_stride = stride;
+    img->source_offset = offset;
+    image_register(img);
+    if (img->source_type == VKP_IMAGE_SOURCE_NONE)
+        droiddeck_log("gpu", "device recovery unavailable for one DMA-BUF: source FD could not be retained");
+}
+
+static void image_track_ahb(struct vkp_image *img, AHardwareBuffer *buffer,
+                            enum vkp_image_source source_type) {
+    AHardwareBuffer_acquire(buffer);
+    img->android_buffer = buffer;
+    img->source_type = source_type;
+    image_register(img);
+}
+
+static void destroy_image_objects(struct vkp_image *img);
 
 static ANativeWindow *g_window;
 static int g_ahb_import;
@@ -55,6 +110,7 @@ static int g_drm_modifiers;
 static char *g_driver_path, *g_library_name, *g_native_lib_dir;
 static int g_allow_driver_fallback;
 static int g_dev_state;
+static int dev_init(void);
 static void device_lost(const char *where);
 static const char *vk_result_name(VkResult r);
 
@@ -518,7 +574,7 @@ static void log_display_driver(void) {
                    g_library_name);
 }
 
-static int dev_init(void) {
+static int dev_init_once(void) {
     if (g_dev_state != 0) return g_dev_state == 1 ? 0 : -1;
 
     if (vk_loader_open(g_driver_path, g_library_name, g_native_lib_dir) != 0) {
@@ -717,6 +773,189 @@ static int dev_init(void) {
     init_black_image();
     if (g_dev_state != 1) return -1;
     vkp_framegen_device_ready(g_dev, g_queue, g_qfam, fg_features != NULL);
+    return 0;
+}
+
+static void suspend_client_images(void) {
+    for (struct vkp_image *img = g_client_images; img; img = img->next) {
+        if (img->source_type == VKP_IMAGE_SOURCE_SHM && !img->recovery_pixels)
+            img->source_type = VKP_IMAGE_SOURCE_NONE;
+        if (img->map && g_vk.UnmapMemory && g_dev) g_vk.UnmapMemory(g_dev, img->mem);
+        img->map = NULL;
+        destroy_image_objects(img);
+    }
+}
+
+static int restore_client_image(struct vkp_image *img) {
+    if (!img || img->source_type == VKP_IMAGE_SOURCE_NONE) return -1;
+    struct vkp_image *replacement = NULL;
+    switch (img->source_type) {
+    case VKP_IMAGE_SOURCE_DMABUF:
+        if (img->source_fd >= 0)
+            replacement = vkp_image_import_dmabuf(img->source_fd, img->source_drm_format, img->source_modifier,
+                                                   img->w, img->h, img->source_stride, img->source_offset,
+                                                   img->blit_dst);
+        break;
+    case VKP_IMAGE_SOURCE_AHB_WLEGL:
+        replacement = vkp_image_from_android_buffer(img->android_buffer);
+        break;
+    case VKP_IMAGE_SOURCE_AHB_SOURCE:
+        replacement = vkp_image_from_ahb(img->android_buffer);
+        break;
+    case VKP_IMAGE_SOURCE_AHB_TARGET:
+        replacement = vkp_image_import_ahb(img->android_buffer, NULL, 0);
+        break;
+    case VKP_IMAGE_SOURCE_SHM:
+        replacement = vkp_image_create_shm(img->w, img->h);
+        break;
+    default:
+        break;
+    }
+    if (!replacement) return -1;
+
+    struct vkp_image *next = img->next;
+    const enum vkp_image_source old_type = img->source_type;
+    const int old_fd = img->source_fd;
+    AHardwareBuffer *old_ahb = img->android_buffer;
+    uint8_t *pixels = img->recovery_pixels;
+    image_unregister(replacement);
+    *img = *replacement;
+    img->next = next;
+    free(replacement);
+    if (old_type == VKP_IMAGE_SOURCE_DMABUF && old_fd >= 0) close(old_fd);
+    if (old_ahb) AHardwareBuffer_release(old_ahb);
+    if (old_type == VKP_IMAGE_SOURCE_SHM && pixels && img->map) {
+        const size_t row_bytes = (size_t)img->w * 4;
+        for (int y = 0; y < img->h; y++)
+            memcpy((uint8_t *)img->map + img->offset + (size_t)y * img->row_pitch,
+                   pixels + (size_t)y * row_bytes, row_bytes);
+        img->recovery_pixels = pixels;
+        pixels = NULL;
+    }
+    free(pixels);
+    return 0;
+}
+
+static int restore_client_images(void) {
+    int failed = 0;
+    for (struct vkp_image *img = g_client_images; img; ) {
+        struct vkp_image *next = img->next;
+        if (restore_client_image(img) != 0) {
+            failed++;
+            droiddeck_log("error", "GPU recovery: could not re-import a retained %dx%d client buffer",
+                          img->w, img->h);
+        }
+        img = next;
+    }
+    return failed ? -1 : 0;
+}
+
+static void release_lost_device(void) {
+    vkp_pass_abort();
+    blendp_destroy();
+    vkp_effects_destroy();
+    hdrc_destroy();
+    vkp_cardboard_destroy();
+    vkp_framegen_device_lost();
+    vkp_gpu_busy_device_lost();
+    suspend_client_images();
+
+    if (g_rb) {
+        vkp_image_destroy(g_rb);
+        g_rb = NULL;
+    }
+    if (g_scene.img) g_vk.DestroyImage(g_dev, g_scene.img, NULL);
+    if (g_scene.mem) g_vk.FreeMemory(g_dev, g_scene.mem, NULL);
+    memset(&g_scene, 0, sizeof(g_scene));
+    struct vkp_img_slot *slots[] = {&g_mixed, &g_hdrscene, &g_fgscene};
+    for (size_t i = 0; i < sizeof(slots) / sizeof(slots[0]); i++) {
+        if (slots[i]->img) g_vk.DestroyImage(g_dev, slots[i]->img, NULL);
+        if (slots[i]->mem) g_vk.FreeMemory(g_dev, slots[i]->mem, NULL);
+        memset(slots[i], 0, sizeof(*slots[i]));
+    }
+    if (g_black_img) g_vk.DestroyImage(g_dev, g_black_img, NULL);
+    if (g_black_mem) g_vk.FreeMemory(g_dev, g_black_mem, NULL);
+    g_black_img = VK_NULL_HANDLE;
+    g_black_mem = VK_NULL_HANDLE;
+    g_black_state = 0;
+
+    for (int i = 0; i < MAX_PRESENTS; i++) {
+        if (g_acqs[i]) g_vk.DestroySemaphore(g_dev, g_acqs[i], NULL);
+        if (g_rnds[i]) g_vk.DestroySemaphore(g_dev, g_rnds[i], NULL);
+        g_acqs[i] = g_rnds[i] = VK_NULL_HANDLE;
+    }
+    if (g_wait_sem) g_vk.DestroySemaphore(g_dev, g_wait_sem, NULL);
+    g_wait_sem = VK_NULL_HANDLE;
+    if (g_fence) g_vk.DestroyFence(g_dev, g_fence, NULL);
+    g_fence = VK_NULL_HANDLE;
+    if (g_pool) g_vk.DestroyCommandPool(g_dev, g_pool, NULL);
+    g_pool = VK_NULL_HANDLE;
+    memset(g_cmds, 0, sizeof(g_cmds));
+
+    if (g_swapchain) g_vk.DestroySwapchainKHR(g_dev, g_swapchain, NULL);
+    g_swapchain = VK_NULL_HANDLE;
+    free(g_images);
+    g_images = NULL;
+    g_nimg = 0;
+    if (g_surface) g_vk.DestroySurfaceKHR(g_inst, g_surface, NULL);
+    g_surface = VK_NULL_HANDLE;
+    if (g_dev) g_vk.DestroyDevice(g_dev, NULL);
+    g_dev = VK_NULL_HANDLE;
+    if (g_inst) g_vk.DestroyInstance(g_inst, NULL);
+    g_inst = VK_NULL_HANDLE;
+    vk_loader_close();
+
+    g_pd = VK_NULL_HANDLE;
+    g_queue = VK_NULL_HANDLE;
+    g_qfam = 0;
+    memset(&g_memprops, 0, sizeof(g_memprops));
+    memset(&g_map, 0, sizeof(g_map));
+    memset(&g_extent, 0, sizeof(g_extent));
+    memset(&g_caps_extent, 0, sizeof(g_caps_extent));
+    g_surface_transform_known = 0;
+    g_surface_checked_ns = 0;
+    g_ahb_import = 0;
+    g_drm_modifiers = 0;
+    g_colorspace_ext = 0;
+    g_import_sem_fd = NULL;
+    g_ahb_properties = NULL;
+    g_set_hdr_metadata = NULL;
+    g_swap_extra = 0;
+    g_swap_is_hdr = 0;
+    g_swap_fmt = VK_FORMAT_UNDEFINED;
+    g_swap_md_identity = 0;
+    g_swap_retry_at_ns = 0;
+    g_swap_fail_logged = 0;
+    g_base_black = 0;
+    g_dev_state = 0;
+}
+
+static int dev_init(void) {
+    if (g_dev_state != -2) return dev_init_once();
+    if (g_recovery_attempted) return -1;
+    g_recovery_attempted = 1;
+    droiddeck_log("gpu", "VK_ERROR_DEVICE_LOST: attempting one in-process compositor recovery");
+    release_lost_device();
+    if (dev_init_once() != 0) {
+        if (g_dev_state == -3) {
+            droiddeck_log("error", "GPU recovery initialization left completion unknown; retaining resources");
+            return -1;
+        }
+        release_lost_device();
+        g_dev_state = -2;
+        droiddeck_log("error", "GPU recovery failed while recreating the Vulkan device; restart the session");
+        set_fault("the display GPU was lost and in-process recovery failed");
+        return -1;
+    }
+    if (restore_client_images() != 0) {
+        release_lost_device();
+        g_dev_state = -2;
+        droiddeck_log("error", "GPU recovery could not restore every client buffer; restart the session");
+        set_fault("the display GPU was lost and some client buffers could not be restored");
+        return -1;
+    }
+    g_recovery_attempted = 0;
+    droiddeck_log("gpu", "Vulkan device and retained client buffers recovered");
     return 0;
 }
 
@@ -1216,6 +1455,8 @@ struct vkp_image *vkp_image_from_android_buffer(AHardwareBuffer *buffer) {
     if (result != VK_SUCCESS) goto fail;
     AHardwareBuffer_acquire(buffer);
     img->android_buffer = buffer;
+    img->source_type = VKP_IMAGE_SOURCE_AHB_WLEGL;
+    image_register(img);
     return img;
 fail:
     LOGE("android_wlegl: Vulkan buffer import failed: %s", vk_result_name(result));
@@ -1367,6 +1608,7 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
         if (linear_size && import_linear_dmabuf(img, fd, &linear_copy, linear_size) == 0) {
             if (padded_target) droiddeck_log("gpu", "linear layer target %dx%d writes at pitch %u via DMA-BUF",
                                             w, h, stride);
+            image_track_dmabuf(img, fd, drm_format, modifier, stride, offset);
             return img;
         }
         if (padded_target) { free(img); return NULL; }
@@ -1436,11 +1678,12 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
         g_vk.FreeMemory(g_dev, img->mem, NULL); g_vk.DestroyImage(g_dev, img->image, NULL);
         free(img); return NULL;
     }
+    image_track_dmabuf(img, fd, drm_format, modifier, stride, offset);
     return img;
 }
 
 void vkp_wait_idle(void) {
-    if (g_dev && g_vk.DeviceWaitIdle) g_vk.DeviceWaitIdle(g_dev);
+    if (g_dev_state == 1 && g_dev && g_vk.DeviceWaitIdle) g_vk.DeviceWaitIdle(g_dev);
 }
 
 struct vkp_image *vkp_image_from_ahb(AHardwareBuffer *ahb) {
@@ -1490,6 +1733,7 @@ struct vkp_image *vkp_image_from_ahb(AHardwareBuffer *ahb) {
         if (img->mem) g_vk.FreeMemory(g_dev, img->mem, NULL);
         g_vk.DestroyImage(g_dev, img->image, NULL); free(img); return NULL;
     }
+    image_track_ahb(img, ahb, VKP_IMAGE_SOURCE_AHB_SOURCE);
     return img;
 }
 
@@ -1585,6 +1829,7 @@ struct vkp_image *vkp_image_import_ahb(struct AHardwareBuffer *ahb, char *info, 
     if (info && info_n)
         snprintf(info, info_n, "VkFormat %d, %llu bytes, memory type %d of memoryTypeBits %#x", (int)fp.format,
                  (unsigned long long)hp.allocationSize, idx, hp.memoryTypeBits);
+    image_track_ahb(img, ahb, VKP_IMAGE_SOURCE_AHB_TARGET);
     return img;
 }
 
@@ -1638,13 +1883,34 @@ struct vkp_image *vkp_image_create_shm(int w, int h) {
     if (g_vk.MapMemory(g_dev, img->mem, 0, req.size, 0, &img->map) != VK_SUCCESS) {
         vkp_image_destroy(img); return NULL;
     }
+    img->source_type = VKP_IMAGE_SOURCE_SHM;
+    image_register(img);
     return img;
 }
 
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride) {
-    if (g_dev_state != 1 || !img || !img->map || !data) return;
-    size_t rowbytes = (size_t)img->w * 4;
+    if (!img || !data || img->w <= 0 || img->h <= 0 || stride <= 0 ||
+        (size_t)img->w > SIZE_MAX / 4)
+        return;
+
+    const size_t full_rowbytes = (size_t)img->w * 4;
+    size_t rowbytes = full_rowbytes;
     if ((size_t)stride < rowbytes) rowbytes = (size_t)stride;
+
+    if (img->source_type == VKP_IMAGE_SOURCE_SHM && !img->recovery_pixels) {
+        if ((size_t)img->h <= SIZE_MAX / full_rowbytes) {
+            const size_t bytes = full_rowbytes * (size_t)img->h;
+            img->recovery_pixels = calloc(1, bytes);
+        }
+        if (!img->recovery_pixels) img->source_type = VKP_IMAGE_SOURCE_NONE;
+    }
+    if (img->source_type == VKP_IMAGE_SOURCE_SHM && img->recovery_pixels) {
+        for (int y = 0; y < img->h; y++)
+            memcpy(img->recovery_pixels + (size_t)y * full_rowbytes,
+                   (const uint8_t *)data + (size_t)y * stride, rowbytes);
+    }
+
+    if (g_dev_state != 1 || !img->map) return;
     for (int y = 0; y < img->h; y++)
         memcpy((uint8_t *)img->map + img->offset + (size_t)y * img->row_pitch,
                (const uint8_t *)data + (size_t)y * stride, rowbytes);
@@ -1661,7 +1927,10 @@ void vkp_image_destroy(struct vkp_image *img) {
         if (img->map) g_vk.UnmapMemory(g_dev, img->mem);
         destroy_image_objects(img);
     }
+    image_unregister(img);
+    if (img->source_type == VKP_IMAGE_SOURCE_DMABUF && img->source_fd >= 0) close(img->source_fd);
     if (img->android_buffer) AHardwareBuffer_release(img->android_buffer);
+    free(img->recovery_pixels);
     free(img);
 }
 
@@ -1925,14 +2194,23 @@ static int compose_hdr(VkCommandBuffer cmd, const struct vkp_draw *draws, int n,
 }
 
 static void device_lost(const char *where) {
-    if (g_dev_state == -2) return;
+    if (g_dev_state == -2 || g_dev_state == -3) return;
+
+    if (g_dev_state == 1) {
+        VkResult idle = g_vk.DeviceWaitIdle ? g_vk.DeviceWaitIdle(g_dev) : VK_ERROR_UNKNOWN;
+        if (idle != VK_SUCCESS && idle != VK_ERROR_DEVICE_LOST) {
+            quarantine_pending_work(idle, "device-loss idle");
+            return;
+        }
+    }
+
     g_dev_state = -2;
     g_base_black = 0;
     vkp_framegen_device_lost();
     vkp_gpu_busy_device_lost();
-    droiddeck_log("error", "GPU device lost (VK_ERROR_DEVICE_LOST in %s): the compositor has stopped presenting; "
-               "restart the session", where);
-    set_fault("the display GPU was lost (VK_ERROR_DEVICE_LOST in %s)", where);
+    droiddeck_log("error", "GPU device lost (VK_ERROR_DEVICE_LOST in %s): the compositor will try one in-process recovery",
+               where);
+    set_fault("the display GPU was lost (VK_ERROR_DEVICE_LOST in %s); recovery pending", where);
     for (uint32_t i = 0; i < g_nimg; i++) blendp_forget_image(g_images[i]);
     if (g_swapchain) g_vk.DestroySwapchainKHR(g_dev, g_swapchain, NULL);
     g_swapchain = VK_NULL_HANDLE;
@@ -2157,11 +2435,10 @@ static void send_hdr_metadata(const struct droiddeck_color *c) {
 static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                        const struct vkp_hdr_frame *hf, int *how) {
     if (how) *how = 0;
-    if (g_dev_state < 0) return -1;
+    if (g_dev_state == -1 || g_dev_state == -3) return -1;
     vkp_apply_window_request();
     sc_layer_hide_base();
     check_surface_changed();
-    if (g_dev_state == -2) return -1;
     if (dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
 
     if (g_swapchain && vkp_framegen_extra_images() != g_swap_extra) {
@@ -2506,7 +2783,7 @@ void vkp_signal_first_frame(void) {
 }
 
 int vkp_update_map(int scene_w, int scene_h) {
-    if (g_dev_state == -2 || dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
+    if (dev_init() != 0 || !g_window || scene_w <= 0 || scene_h <= 0) return -1;
     if (vkp_quest_layer_presentation()) {
         int w = ANativeWindow_getWidth(g_window), h = ANativeWindow_getHeight(g_window);
         if (w <= 0 || h <= 0) return -1;
@@ -2580,7 +2857,7 @@ static void blit_to_layer(VkCommandBuffer cmd, VkImage src, VkImageLayout src_la
 }
 
 int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd) {
-    if (!src || src->blit_dst || !dst || !dst->blit_dst || g_dev_state == -2 || dev_init() != 0) {
+    if (!src || src->blit_dst || !dst || !dst->blit_dst || dev_init() != 0) {
         if (wait_fd >= 0) close(wait_fd);
         return -1;
     }
@@ -2643,11 +2920,9 @@ int vkp_blit_image(struct vkp_image *src, struct vkp_image *dst, int wait_fd) {
 
 
 
-static struct vkp_image *g_rb;
-
 int vkp_image_readback(struct vkp_image *src, uint32_t *out, int max_px) {
     if (!src || src->blit_dst || !out || src->w <= 0 || src->h <= 0 || src->w * src->h > max_px ||
-        g_dev_state == -2 || dev_init() != 0)
+        dev_init() != 0)
         return -1;
     if (g_rb && (g_rb->w != src->w || g_rb->h != src->h)) { vkp_image_destroy(g_rb); g_rb = NULL; }
     if (!g_rb) {

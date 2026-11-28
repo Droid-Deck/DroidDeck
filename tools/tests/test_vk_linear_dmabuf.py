@@ -20,6 +20,14 @@ LAYER_HARNESS = r'''
 #include "vk_linear_dmabuf.h"
 
 typedef struct AHardwareBuffer AHardwareBuffer;
+enum vkp_image_source {
+    VKP_IMAGE_SOURCE_NONE = 0,
+    VKP_IMAGE_SOURCE_DMABUF,
+    VKP_IMAGE_SOURCE_AHB_WLEGL,
+    VKP_IMAGE_SOURCE_AHB_SOURCE,
+    VKP_IMAGE_SOURCE_AHB_TARGET,
+    VKP_IMAGE_SOURCE_SHM
+};
 %(image)s
 struct vkp_draw {
     struct vkp_image *img;
