@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.ui
 
 import android.content.Context
+import android.util.DisplayMetrics
+import android.util.TypedValue
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -63,6 +65,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlin.math.ceil
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.input.DeckPanel
@@ -313,6 +316,13 @@ private fun ScreenPickerMenu(picker: ScreenPicker, open: Boolean, dismiss: () ->
 }
 
 internal val BAR_HEIGHT = 64.dp
+
+internal fun deckDockMinHeight(metrics: DisplayMetrics): Int {
+    // Keep 120dp of input beyond the bar, tab padding, and one line of tab text.
+    val tabText = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 22f, metrics)
+    return ceil((BAR_HEIGHT.value + 38f + 120f) * metrics.density + tabText).toInt()
+}
+
 private val BAR_PAD = 12.dp
 private val BAR_GAP = 8.dp
 private val BUTTON = 44.dp
@@ -341,3 +351,17 @@ internal fun deckPanelTabs(context: Context, selected: DeckPanel, onSelect: (Dec
 internal fun bottomScreenBarView(context: Context, model: () -> BottomBarModel): ComposeView = ComposeView(context).apply {
     setContent { DroidDeckTheme { BottomScreenBar(model()) } }
 }
+
+internal fun inlineDockActionsView(context: Context, onClose: () -> Unit, onMenu: () -> Unit): ComposeView =
+    ComposeView(context).apply {
+        setContent {
+            DroidDeckTheme {
+                Row(Modifier.blockTouches(), horizontalArrangement = Arrangement.spacedBy(BAR_GAP),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    BarButton(stringResource(R.string.common_close), Modifier.testTag("inline-dock-close"),
+                        vector = Icons.Outlined.Close, onClick = onClose)
+                    BarActions(onMenu, false, null, null)
+                }
+            }
+        }
+    }

@@ -28,8 +28,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import com.droiddeck.launcher.core.FexPreset
+import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.BootMovie
+import com.droiddeck.launcher.session.SessionDisplay
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 
@@ -98,7 +100,11 @@ class ModeSettings(
     val mangoapp: Boolean = true,
     val steamController: String? = null,
     val unfoldedControls: Boolean? = null,
+    val unfoldedControlsPercent: Int = 0,
     val unfoldedControlsWithController: Boolean = false,
+    val unfoldedControlsSecondScreen: Boolean = false,
+    val unfoldedControlsPanel: SecondScreenMode = SecondScreenMode.CUSTOM_CONTROLS,
+    val unfoldedDeckAvailable: Boolean = false,
     val startupSession: String = SessionPrefs.STARTUP_OFF,
     val bootMovie: String? = null,
     val bootMovieSound: Boolean = true,
@@ -162,7 +168,10 @@ class ModeSettingsActions(
     val onValveProtonOnDemand: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
+    val onUnfoldedControlsPercent: (Int) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
+    val onUnfoldedControlsSecondScreen: (Boolean) -> Unit = {},
+    val onUnfoldedControlsPanel: (SecondScreenMode) -> Unit = {},
     val onStartupSession: (String) -> Unit = {},
     val onBootMovie: (String) -> Unit = {},
     val onBootMovieSound: (Boolean) -> Unit = {},
@@ -357,11 +366,13 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 stringResource(R.string.unfolded_controls_hint),
                 s.unfoldedControls, onChange = a.onUnfoldedControls,
             )
-            if (steam && s.unfoldedControls == true) ToggleRow(
-                host, "unfolded-controls-with-controller", stringResource(R.string.unfolded_controls_with_controller),
-                stringResource(R.string.unfolded_controls_with_controller_hint),
-                s.unfoldedControlsWithController, onChange = a.onUnfoldedControlsWithController,
-            )
+            if (steam && s.unfoldedControls == true) {
+                UnfoldedControlsScreenRow(host, s.unfoldedControlsSecondScreen, onPick = a.onUnfoldedControlsSecondScreen)
+                UnfoldedControlsHeightRow(s.unfoldedControlsPercent, onChange = a.onUnfoldedControlsPercent)
+                UnfoldedControlsPanelRow(host, s.unfoldedControlsPanel,
+                    deckPad = s.unfoldedDeckAvailable, onPick = a.onUnfoldedControlsPanel)
+                UnfoldedControlsWithControllerRow(host, s.unfoldedControlsWithController, onChange = a.onUnfoldedControlsWithController)
+            }
             if (steam) ToggleRow(
                 host, "back-hold", stringResource(R.string.back_hold),
                 stringResource(R.string.back_hold_hint), s.backHold, onChange = a.onBackHold,
@@ -734,4 +745,39 @@ internal fun CustomFollowScaleDialog(initial: Float?, onSave: (Float) -> Unit, o
         confirmButton = { androidx.compose.material3.TextButton(enabled = parsed != null, onClick = { parsed?.let(onSave) }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_use)) } },
         dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.common_cancel)) } },
     )
+}
+
+@Composable
+internal fun UnfoldedControlsScreenRow(host: MenuHost, second: Boolean, modifier: Modifier = Modifier, onPick: (Boolean) -> Unit) {
+    ChoiceRow(host, "unfolded-controls-screen", stringResource(R.string.unfolded_controls_screen),
+        stringResource(R.string.unfolded_controls_screen_hint),
+        listOf(false to stringResource(R.string.input_primary), true to stringResource(R.string.input_secondary)),
+        second, chipModifier = modifier, onPick = onPick)
+}
+
+@Composable
+internal fun UnfoldedControlsPanelRow(host: MenuHost, panel: SecondScreenMode, deckPad: Boolean,
+    modifier: Modifier = Modifier, onPick: (SecondScreenMode) -> Unit,
+) {
+    ChoiceRow(host, "unfolded-controls-panel", stringResource(R.string.unfolded_controls_panel), null,
+        SecondScreenMode.inlineControls(deckPad).map { it to stringResource(it.label) },
+        SecondScreenMode.inlineControls(panel.id, deckPad), chipModifier = modifier, onPick = onPick)
+}
+
+@Composable
+internal fun UnfoldedControlsWithControllerRow(
+    host: MenuHost, checked: Boolean, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit,
+) {
+    ToggleRow(host, "unfolded-controls-with-controller", stringResource(R.string.unfolded_controls_with_controller),
+        stringResource(R.string.unfolded_controls_with_controller_hint), checked, chipModifier = modifier, onChange = onChange)
+}
+
+@Composable
+internal fun UnfoldedControlsHeightRow(percent: Int, modifier: Modifier = Modifier, onChange: (Int) -> Unit) {
+    val shares = SessionDisplay.UNFOLDED_CONTROLS_SHARES
+    val auto = stringResource(R.string.common_auto)
+    val labels = shares.map { if (it == 0) auto else stringResource(R.string.ctrl_percent, it) }
+    SliderRow(stringResource(R.string.unfolded_controls_height), stringResource(R.string.unfolded_controls_height_hint),
+        shares.indexOf(percent).coerceAtLeast(0), shares.indices, format = { labels[it] },
+        modifier = modifier, onChange = { onChange(shares[it]) })
 }

@@ -188,6 +188,24 @@ class InputSurfaceTouchTest {
         } finally { controller.pause().stop().destroy() }
     }
 
+    @Test fun aDockSurfaceUsesItsOwnSecondScreenBindings() {
+        fun profile(key: Int) = InputProfile("touch", bindings = mapOf(
+            InputRole.SECONDARY to mapOf(InputControl.A to InputAction.Keys(listOf(key))),
+        ))
+        val dock = InputSurfaceView(context, bridge, listOf(a), bindingProfile = profile(42))
+        val external = InputSurfaceView(context, bridge, listOf(a))
+        measure(dock)
+        measure(external)
+        bridge.setInputProfile(profile(44))
+        for (panel in listOf(dock, external)) {
+            touch(MotionEvent.ACTION_DOWN, 1 to (800f to 240f), target = panel)
+            touch(MotionEvent.ACTION_UP, 1 to (800f to 240f), target = panel)
+        }
+        dock.releaseInputs()
+        external.releaseInputs()
+        assertEquals(listOf("key 42 true", "key 42 false", "key 44 true", "key 44 false"), events)
+    }
+
     @Test fun onlyPanelsVibrateOnPress() {
         touch(MotionEvent.ACTION_DOWN, 1 to (800f to 240f))
         assertTrue(state().isDown(PadState.A))

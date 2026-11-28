@@ -86,10 +86,15 @@ import com.droiddeck.launcher.input.InputProfiles
 import com.droiddeck.launcher.input.InputProfile
 import com.droiddeck.launcher.input.InputAction
 import com.droiddeck.launcher.input.InputRole
+import com.droiddeck.launcher.input.InputLibraries
+import com.droiddeck.launcher.input.InputLibrary
+import com.droiddeck.launcher.input.InputSurfaceStyle
+import com.droiddeck.launcher.input.SavedInputLayout
 import com.droiddeck.launcher.input.InputControl
 import com.droiddeck.launcher.input.InputMotion
 import com.droiddeck.launcher.input.HeldInput
 import com.droiddeck.launcher.input.DeckControls
+import com.droiddeck.launcher.input.DeckPanel
 import com.droiddeck.launcher.input.PadBridge
 import com.droiddeck.launcher.input.PhysicalShortcuts
 import com.droiddeck.launcher.input.PhysicalShortcutRouter
@@ -121,6 +126,7 @@ import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.GameProfileFollowState
 import com.droiddeck.launcher.session.GameProfileInventoryCache
 import com.droiddeck.launcher.session.GameProfileRefreshState
+import com.droiddeck.launcher.session.SessionDisplay
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionArtifacts
@@ -138,6 +144,7 @@ import com.droiddeck.launcher.ui.CursorOverlay
 import androidx.compose.ui.graphics.asImageBitmap
 import com.droiddeck.launcher.ui.DrawerActions
 import com.droiddeck.launcher.ui.HudText
+import com.droiddeck.launcher.ui.InputSurfaceView
 import com.droiddeck.launcher.ui.LoadingOverlay
 import com.droiddeck.launcher.ui.SessionDrawer
 import com.droiddeck.launcher.ui.SessionPausedOverlay
@@ -157,6 +164,7 @@ import com.droiddeck.launcher.ui.sessionDrawerPages
 import com.droiddeck.launcher.ui.strip
 import com.droiddeck.launcher.ui.tabFor
 import com.droiddeck.launcher.ui.step
+import com.droiddeck.launcher.ui.deckDockMinHeight
 import kotlin.math.abs
 
 private const val SCREEN_EFFECTS_TARGET_AUTO = "auto"
@@ -174,7 +182,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     override val petBlocked: Boolean get() = drawerOpenState || pipUi || pcKeyboardOpen
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
+    private var unfoldedControlsPercent by mutableIntStateOf(0)
     private var unfoldedControlsWithController by mutableStateOf(false)
+    private var unfoldedControlsSecondScreen by mutableStateOf(false)
+    private var unfoldedControllerConnected by mutableStateOf(false)
+    private val showUnfoldedSecondScreen get() =
+        SessionDisplay.unfoldedUsesSecondScreen(unfoldedControlsSecondScreen, unfoldedControllerConnected, unfoldedControlsWithController)
+    private var unfoldedControlsPanel by mutableStateOf(SecondScreenMode.CUSTOM_CONTROLS)
+    private var unfoldedDeckPanel by mutableStateOf(DeckPanel.BOTH)
+    private var unfoldedDeckAvailable by mutableStateOf(false)
+    private var unfoldedKeyboardWindowMode: Int? = null
+    private var unfoldedKeyboardVisible by mutableStateOf(false)
     private var adaptiveSticks by mutableStateOf<Boolean?>(null)
     private var quickButtons by mutableStateOf<Map<InputCommand, Boolean>>(emptyMap())
     private var picturePosition by mutableStateOf("center")
@@ -227,16 +245,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
     private var unfoldedPanel by mutableStateOf<OnScreenControls?>(null)
     private var unfoldedColumn: android.widget.LinearLayout? = null
-    private var unfoldedDeckSurface: com.droiddeck.launcher.ui.InputSurfaceView? = null
+    private var unfoldedSecondSurface: InputSurfaceView? = null
+    private var unfoldedSecondLayout: SavedInputLayout? = null
+    private var unfoldedSecondBindings: InputProfile? = null
+    private var unfoldedSecondStock: InputProfile? = null
     private var swappedInputSurface: com.droiddeck.launcher.ui.InputSurfaceView? = null
-    private var unfoldedDeckPanel by mutableStateOf<com.droiddeck.launcher.input.DeckPanel?>(null)
-    private var deckPanelLayouts: Map<com.droiddeck.launcher.input.DeckPanel, com.droiddeck.launcher.input.SavedInputLayout?> = emptyMap()
     private lateinit var sessionRoot: FrameLayout
     private var inputRouter: InputRouter? = null
     private var physicalInputBindings: com.droiddeck.launcher.input.PhysicalInputBindings? = null
     private var inputSettingsOpen by mutableStateOf(false)
     @Volatile private var inputUsesLocalActions = false
-    private var inputUsesPointer = false
+    private var profileUsesPointer = false
+    private var unfoldedProfileUsesPointer = false
+    private val inputUsesPointer: Boolean
+        get() = profileUsesPointer || unfoldedSecondSurface?.isShown == true && unfoldedProfileUsesPointer
     private var inputProfile = InputProfile.defaults(InputProfile.GAME)
     private var stockInputProfile = InputProfile.defaults(InputProfile.GAME)
     private val inputMotion = InputMotion { inputRouter }
@@ -288,6 +310,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             openDeckRing("deck pad changed")
             onScreenControls?.reload()
             bottomInputControls?.reload()
+            unfoldedDeckAvailable = SessionState.deckPad
+            refreshUnfoldedPanelProfile()
             applyUnfoldedControls()
             leaveDeckPanel()
         }
@@ -1904,10 +1928,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 pipAutoEnter = on
                 pip.refresh(true)
             },
-            unfoldedControls = unfoldedControls,
+            unfoldedControls = unfoldedControls.takeIf { SessionDisplay.controlsBelowSupported(SessionState.mode) },
             onUnfoldedControls = ::chooseUnfoldedControls,
+            onUnfoldedControlsWithController = ::chooseUnfoldedControlsWithController,
+            unfoldedControlsPercent = unfoldedControlsPercent,
+            unfoldedControlsWithController = unfoldedControlsWithController,
+            unfoldedControlsSecondScreen = unfoldedControlsSecondScreen,
+            unfoldedControlsPanel = unfoldedControlsPanel,
+            unfoldedDeckAvailable = unfoldedDeckAvailable,
+            onUnfoldedControlsPanel = ::chooseUnfoldedControlsPanel,
+            onUnfoldedControlsSecondScreen = ::chooseUnfoldedControlsSecondScreen,
+            onUnfoldedControlsPercent = ::chooseUnfoldedControlsPercent,
             adaptiveSticks = adaptiveSticks.takeIf {
-                unfoldedPanel != null || oscMode != SessionPrefs.OSC_NEVER && oscMode != SessionPrefs.OSC_STEAM_QAM && !steamTouchInUse
+                if (unfoldedPanel != null) !showUnfoldedSecondScreen
+                else oscMode != SessionPrefs.OSC_NEVER && oscMode != SessionPrefs.OSC_STEAM_QAM && !steamTouchInUse
             },
             onAdaptiveSticks = { on ->
                 primaryInputLayout?.let { com.droiddeck.launcher.input.InputLibraries.setAdaptiveSticks(this@SessionActivity, it.id, on) }
@@ -1931,15 +1965,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 bottomInputControls?.reload()
             },
             quickButtons = quickButtons.takeIf {
-                unfoldedPanel != null || oscMode != SessionPrefs.OSC_NEVER && !steamTouchInUse
+                if (unfoldedPanel != null) !showUnfoldedSecondScreen
+                else oscMode != SessionPrefs.OSC_NEVER && !steamTouchInUse
             }.orEmpty(),
             onQuickButton = { button, on ->
                 primaryInputLayout?.let { com.droiddeck.launcher.input.InputLibraries.setQuickButton(this@SessionActivity, it.id, button, on) }
                 refreshInputProfile()
                 updateOnScreenControls()
             },
-            unfoldedControlsWithController = unfoldedControlsWithController,
-            onUnfoldedControlsWithController = ::chooseUnfoldedControlsWithController,
             onBackground = { drawerOpen = false; pip.background(); moveTaskToBack(true) },
             onShareLogs = { drawerOpen = false; shareCurrentSessionLogs() },
             onStop = { drawerOpen = false; SessionService.stop(this@SessionActivity); finish() },
@@ -2092,9 +2125,38 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         pendingFieldKeyboard = false
         fieldKeyboardOnPrimary = false
         keyboard?.hide()
+        restoreUnfoldedKeyboardWindow()
+    }
+
+    private fun toggleUnfoldedKeyboard() {
+        if (unfoldedKeyboardWindowMode != null) {
+            closeUnfoldedKeyboard()
+            return
+        }
+        if (keyboard == null) return
+        unfoldedKeyboardWindowMode = window.attributes.softInputMode
+        window.setSoftInputMode((window.attributes.softInputMode and WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST.inv()) or
+            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+        showPrimaryKeyboard()
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) unfoldedKeyboardVisible = true
+    }
+
+    private fun closeUnfoldedKeyboard() {
+        if (unfoldedKeyboardWindowMode != null) hidePrimaryKeyboard()
+    }
+
+    private fun restoreUnfoldedKeyboardWindow() {
+        val previous = unfoldedKeyboardWindowMode ?: return
+        unfoldedKeyboardWindowMode = null
+        unfoldedKeyboardVisible = false
+        window.setSoftInputMode(previous)
     }
 
     private fun onPrimaryImeChanged(visible: Boolean) {
+        if (unfoldedKeyboardWindowMode != null) {
+            if (visible) unfoldedKeyboardVisible = true
+            else if (unfoldedKeyboardVisible || keyboard?.shown == false) hidePrimaryKeyboard()
+        }
         if (visible) fieldKeyboardImeShown = true
         else if (fieldKeyboardImeShown) {
             fieldKeyboardImeShown = false
@@ -2622,7 +2684,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun readPrefs() {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
+        unfoldedControlsPercent = SessionPrefs.unfoldedControlsPercent(this)
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
+        unfoldedControlsSecondScreen = SessionPrefs.unfoldedControlsSecondScreen(this)
+        val previousPanel = effectiveUnfoldedPanel()
+        val previousDeckTab = unfoldedDeckPanel
+        unfoldedControlsPanel = SessionPrefs.unfoldedControlsPanel(this)
+        unfoldedDeckPanel = SessionPrefs.unfoldedDeckPanel(this)
+        unfoldedDeckAvailable = SessionState.deckPad
+        if (previousPanel != effectiveUnfoldedPanel() || previousDeckTab != unfoldedDeckPanel) refreshUnfoldedPanelProfile()
         picturePosition = SessionPrefs.picturePosition(this)
         integerScaling = SessionPrefs.integerScaling(this)
         avoidNotch = SessionPrefs.avoidNotch(this)
@@ -3863,7 +3933,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         return onScreenControls?.let { takes(it, it::takesTouchAt) } == true ||
             steamTouchControls?.let { takes(it, it::takesTouchAt) } == true ||
             unfoldedPanel?.let { takes(it, it::takesTouchAt) } == true ||
-            unfoldedDeckSurface?.let { takes(it, it::takesTouchAt) } == true ||
+            unfoldedSecondSurface?.let { takes(it, it::takesTouchAt) } == true ||
             unfoldedColumn?.getChildAt(0)?.let { takes(it) { _, _ -> true } } == true
     }
 
@@ -4806,7 +4876,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     fun inputEditorDisplay(role: InputRole): Display? {
         val main = window.decorView.display
         if (role == InputRole.PRIMARY) return bottomGame?.display ?: main
-        if (bottomGame != null) return main
+        if (bottomGame != null || unfoldedSecondSurface != null) return main
         return com.droiddeck.launcher.input.SecondScreenDisplays.editorCandidates(selectedSecondScreenDisplay,
             secondScreenDisplays.map { it.id }, com.droiddeck.launcher.input.DualScreen::taken).firstNotNullOfOrNull(displayManager::getDisplay)
     }
@@ -4819,7 +4889,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun refreshInputProfile() {
-        val library = com.droiddeck.launcher.input.InputLibraries.read(this)
+        val library = InputLibraries.read(this)
         val desktop = loadingMode() == SessionService.MODE_DESKTOP
         inputProfile = library.compileActive(desktop, secondScreenMode.panel(this))
         stockInputProfile = library.compileStock(desktop, secondScreenMode.panel(this))
@@ -4827,14 +4897,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         adaptiveSticks = primaryInputLayout?.adaptiveSticks
         quickButtons = primaryInputLayout?.takeIf { it.editable }?.let { l -> l.quickButtons.associateWith { it !in l.style.hidden } }.orEmpty()
         secondaryInputLayout = library.panelLayout(desktop, secondScreenMode.panel(this))
-        deckPanelLayouts = com.droiddeck.launcher.input.DeckPanel.entries.associateWith { library.panelLayout(desktop, it.bindings) }
+        refreshUnfoldedPanelProfile(library, desktop)
         inputUsesLocalActions = InputControl.padControls.any { inputProfile.action(InputRole.PHYSICAL, it) !is InputAction.Native }
-        inputUsesPointer = inputProfile.bindings.values.any { bindings ->
-            bindings.values.any { it is InputAction.Pointer || it is InputAction.MouseButton || it is InputAction.Scroll }
-        } || inputProfile.elements.values.any { bindings ->
-            bindings.values.any { it is InputAction.Pointer || it is InputAction.MouseButton || it is InputAction.Scroll }
-        } || inputProfile.clicks.values.any { bindings -> bindings.values.any { it is InputAction.MouseButton } }
-            || inputProfile.keys.any { it.action is InputAction.MouseButton }
+        profileUsesPointer = inputProfile.usesPointer()
         physicalInputBindings?.configure(inputProfile.keys)
         padBridge?.setInputProfile(inputProfile)
         DeckControls.refresh()
@@ -4842,9 +4907,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         bottomInputControls?.updateLayout(primaryInputLayout)
         unfoldedPanel?.updateLayout(primaryInputLayout)
         if (unfoldedPanel != null) applyUnfoldedControls()
-        showUnfoldedDeckPanel()
         updateOnScreenPad()
         secondScreenPresentation?.refreshControls()
+    }
+
+    private fun InputProfile.usesPointer(role: InputRole? = null): Boolean {
+        fun InputAction.pointer() = this is InputAction.Pointer || this is InputAction.MouseButton || this is InputAction.Scroll
+        fun <K> Map<InputRole, Map<K, InputAction>>.hasPointer() = any { (source, actions) ->
+            (role == null || source == role) && actions.values.any { it.pointer() }
+        }
+        return bindings.hasPointer() || elements.hasPointer() || clicks.hasPointer() ||
+            (role == null && keys.any { it.action is InputAction.MouseButton })
+    }
+
+    private fun effectiveUnfoldedPanel() = SecondScreenMode.inlineControls(unfoldedControlsPanel.id, unfoldedDeckAvailable)
+
+    private fun refreshUnfoldedPanelProfile(library: InputLibrary = InputLibraries.read(this),
+        desktop: Boolean = loadingMode() == SessionService.MODE_DESKTOP,
+    ) {
+        val mode = effectiveUnfoldedPanel()
+        val preset = if (mode == SecondScreenMode.DECK_CONTROLS) unfoldedDeckPanel.bindings else mode.bindings
+        unfoldedSecondLayout = library.panelLayout(desktop, preset)
+        unfoldedSecondBindings = library.compileActive(desktop, preset).also { unfoldedProfileUsesPointer = it.usesPointer(InputRole.SECONDARY) }
+        unfoldedSecondStock = library.compileStock(desktop, preset)
     }
 
     private fun tapQam() {
@@ -4870,6 +4955,33 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         applyUnfoldedControls()
     }
 
+    private fun chooseUnfoldedControlsSecondScreen(second: Boolean) {
+        SessionPrefs.setUnfoldedControlsSecondScreen(this, second)
+        unfoldedControlsSecondScreen = second
+        applyUnfoldedControls()
+    }
+
+    private fun chooseUnfoldedControlsPanel(panel: SecondScreenMode) {
+        SessionPrefs.setUnfoldedControlsPanel(this, panel)
+        unfoldedControlsPanel = panel
+        refreshUnfoldedPanelProfile()
+        applyUnfoldedControls()
+    }
+
+    private fun chooseUnfoldedDeckPanel(panel: DeckPanel) {
+        if (unfoldedDeckPanel == panel) return
+        SessionPrefs.setUnfoldedDeckPanel(this, panel)
+        unfoldedDeckPanel = panel
+        refreshUnfoldedPanelProfile()
+        applyUnfoldedControls()
+    }
+
+    private fun chooseUnfoldedControlsPercent(percent: Int) {
+        SessionPrefs.setUnfoldedControlsPercent(this, percent)
+        unfoldedControlsPercent = percent
+        applyUnfoldedControls()
+    }
+
     private fun refreshControls() {
         applyUnfoldedControls()
         updateOnScreenControls()
@@ -4886,80 +4998,91 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val width = rootContentWidth()
         val height = rootContentHeight()
         val wanted = controlsBelowWanted()
-        val tabRow = unfoldedColumn?.getChildAt(0)?.height?.let {
-            it - (com.droiddeck.launcher.ui.BAR_HEIGHT.value * resources.displayMetrics.density + 0.5f).toInt()
-        } ?: 0
+        unfoldedControllerConnected = PadBridge.anyControllerConnected() || SteamControllerBle.connected
+        if (!wanted || !showUnfoldedSecondScreen || effectiveUnfoldedPanel() != SecondScreenMode.KEYBOARD_TRACKPAD)
+            closeUnfoldedKeyboard()
         val outputAspect = if (!wanted || SessionState.followScreen) 0f
             else outputSize().let { it.first.toFloat() / it.second.coerceAtLeast(1) }
-        val gameHeight = if (wanted) com.droiddeck.launcher.session.SessionDisplay.unfoldedGameHeight(width, height, tabRow, outputAspect)
-            else FrameLayout.LayoutParams.MATCH_PARENT
+        val gameHeight = if (wanted) {
+            val deckPanel = showUnfoldedSecondScreen && effectiveUnfoldedPanel() == SecondScreenMode.DECK_CONTROLS
+            SessionDisplay.unfoldedGameHeight(width, height, outputAspect, unfoldedControlsPercent,
+                minControlsHeight = if (deckPanel) deckDockMinHeight(resources.displayMetrics) else 0)
+        } else FrameLayout.LayoutParams.MATCH_PARENT
         val params = surfaceView.layoutParams as FrameLayout.LayoutParams
         if (params.height != gameHeight) {
             surfaceView.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, gameHeight, Gravity.TOP)
             Log.i(TAG, if (wanted) "unfolded controls: game ${width}x$gameHeight, controls ${width}x${height - gameHeight}"
                 else "unfolded controls: game full screen")
         }
-        val portrait = !com.droiddeck.launcher.session.SessionDisplay.foldable(this)
-        val kit = com.droiddeck.launcher.input.PadKit.forOverlay(this, primaryInputLayout)
-        val dock = if (SessionState.deckPad && kit?.steam != false)
-            com.droiddeck.launcher.input.OnScreenLayout.Dock.deck(portrait, deckPanelLayouts[com.droiddeck.launcher.input.DeckPanel.GAMEPAD])
-            else com.droiddeck.launcher.input.OnScreenLayout.Dock(portrait, false)
+        val dock = OnScreenLayout.Dock(portrait = height > width, grips = false)
         var panel = unfoldedPanel
         if (panel != null && (!wanted || panel.dock != dock)) {
+            unfoldedSecondSurface?.releaseInputs()
             sessionRoot.removeView(unfoldedColumn)
             unfoldedColumn = null
-            unfoldedDeckSurface = null
-            unfoldedDeckPanel = null
+            unfoldedSecondSurface = null
             unfoldedPanel = null
             panel = null
             if (!wanted) updateOnScreenControls()
         }
         if (!wanted) return
         if (panel == null) {
-            panel = OnScreenControls(this, padBridge, dock).also { it.updateLayout(primaryInputLayout) }
+            panel = OnScreenControls(this, padBridge, dock).also {
+                it.updateLayout(primaryInputLayout)
+                it.addDockActions(com.droiddeck.launcher.ui.inlineDockActionsView(this,
+                    { chooseUnfoldedControls(false) }, { drawerOpen = true }))
+            }
             val column = android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.VERTICAL
-                addView(unfoldedBar().apply {
-                    addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
-                        if (bottom - top != oldBottom - oldTop) post { applyUnfoldedControls() }
-                    }
-                }, android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                addView(unfoldedBar(), android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT))
                 addView(panel, android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
             }
             sessionRoot.addView(column, sessionRoot.indexOfChild(surfaceView) + 1)
             unfoldedColumn = column
             unfoldedPanel = panel
-            showUnfoldedDeckPanel()
             updateOnScreenControls()
         }
-        unfoldedColumn?.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, height - gameHeight, Gravity.BOTTOM)
+        unfoldedColumn?.let { column ->
+            panel?.let { showUnfoldedControls(column, it) }
+            val controlsHeight = height - gameHeight
+            if (column.layoutParams.height != controlsHeight)
+                column.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, controlsHeight, Gravity.BOTTOM)
+        }
+    }
+
+    private fun showUnfoldedControls(column: android.widget.LinearLayout, main: OnScreenControls) {
+        val layout = unfoldedSecondLayout
+        val bindings = unfoldedSecondBindings
+        val selected = showUnfoldedSecondScreen
+        column.getChildAt(0).visibility = if (selected) View.VISIBLE else View.GONE
+        if (selected && main.visibility == View.VISIBLE) main.releaseAll()
+        main.visibility = if (selected) View.GONE else View.VISIBLE
+        val current = unfoldedSecondSurface
+        val configuration = layout to bindings
+        if (selected && current?.tag == configuration) return
+        current?.let { it.releaseInputs(); column.removeView(it) }
+        unfoldedSecondSurface = if (selected) InputSurfaceView(this, padBridge, layout?.elements.orEmpty(),
+            surfaceStyle = layout?.style ?: InputSurfaceStyle(), bindingProfile = bindings).also {
+            it.tag = configuration
+            column.addView(it, android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        } else null
     }
 
     private fun unfoldedBar(): View = com.droiddeck.launcher.ui.bottomScreenBarView(this) {
-        val deck = unfoldedDeckPanel
-        com.droiddeck.launcher.ui.sessionBarModel(getString(if (deck != null) R.string.second_mode_deck_controls else R.string.deck_tab_gamepad),
+        val mode = effectiveUnfoldedPanel()
+        val keyboardExtras = if (mode == SecondScreenMode.KEYBOARD_TRACKPAD) listOf(
+            com.droiddeck.launcher.ui.BarExtra(
+                getString(if (unfoldedKeyboardVisible) R.string.second_hide_keyboard else R.string.second_show_keyboard),
+                icon = R.drawable.ic_bottom_keyboard, active = unfoldedKeyboardVisible, tag = "unfolded-keyboard",
+                onClick = ::toggleUnfoldedKeyboard,
+            ),
+        ) else emptyList()
+        val tabs = if (mode == SecondScreenMode.DECK_CONTROLS)
+            com.droiddeck.launcher.ui.deckPanelTabs(this, unfoldedDeckPanel, ::chooseUnfoldedDeckPanel) else null
+        com.droiddeck.launcher.ui.sessionBarModel(getString(mode.label),
             { chooseUnfoldedControls(false) }, { drawerOpen = true }, ::tapSteamButton, ::tapQam,
-            tabs = deck?.let { com.droiddeck.launcher.ui.deckPanelTabs(this, it, ::selectDeckPanel) })
-    }
-
-    private fun showUnfoldedDeckPanel() {
-        val column = unfoldedColumn
-        val panel = unfoldedPanel
-        val selected = SessionPrefs.deckPanel(this).takeIf { column != null && panel?.dock?.grips == true }
-        unfoldedDeckPanel = selected
-        val layout = selected?.takeIf { it != com.droiddeck.launcher.input.DeckPanel.GAMEPAD }?.let { deckPanelLayouts[it] }
-        if (layout != null && unfoldedDeckSurface?.tag == layout) return
-        unfoldedDeckSurface?.let { it.releaseInputs(); column?.removeView(it) }
-        unfoldedDeckSurface = null
-        if (column == null || panel == null) return
-        if (layout == null) { panel.visibility = View.VISIBLE; return }
-        panel.releaseAll()
-        panel.visibility = View.GONE
-        unfoldedDeckSurface = com.droiddeck.launcher.ui.InputSurfaceView(this, padBridge, layout.elements, InputRole.PRIMARY, layout.style, haptics = true).also {
-            it.tag = layout
-            column.addView(it, android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        }
+            extras = keyboardExtras, tabs = tabs)
     }
 
     private fun bottomKeyboardPresentation(): SecondScreenPresentation? {
@@ -5318,9 +5441,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var screenTapsClick = true
 
     private fun onScreenLeftMouseButtonShown(): Boolean = listOfNotNull(
-        onScreenControls?.inputSurface, bottomInputControls?.inputSurface, unfoldedPanel?.inputSurface, unfoldedDeckSurface,
+        onScreenControls?.inputSurface, bottomInputControls?.inputSurface, unfoldedPanel?.inputSurface, unfoldedSecondSurface,
         secondScreenPresentation?.controlsView, swappedInputSurface,
-    ).any { it.isShown && inputProfile.showsLeftMouseButton(it.inputRole, it.shownElements, stockInputProfile) }
+    ).any {
+        val dock = it === unfoldedSecondSurface
+        val active = if (dock) unfoldedSecondBindings ?: inputProfile else inputProfile
+        val stock = if (dock) unfoldedSecondStock ?: stockInputProfile else stockInputProfile
+        it.isShown && active.showsLeftMouseButton(it.inputRole, it.shownElements, stock)
+    }
 
     override fun onTouchEvent(event: MotionEvent): Boolean = inSurfaceSpace(event) { handleTouch(event) }
 
@@ -5795,12 +5923,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             ?: SessionPrefs.oscMode(this, SessionState.mode == SessionService.MODE_STEAM)
         unfoldedColumn?.let { column ->
             val shown = if (inputSettingsOpen) View.INVISIBLE else View.VISIBLE
-            if (column.visibility != shown) { unfoldedPanel?.releaseAll(); unfoldedDeckSurface?.releaseInputs(); column.visibility = shown }
+            if (column.visibility != shown) {
+                unfoldedPanel?.releaseAll()
+                unfoldedSecondSurface?.releaseInputs()
+                column.visibility = shown
+            }
         }
         val controls = onScreenControls ?: return
         fun showPinned() {
             controls.setPinnedOnly(true)
-            val pinned = controls.hasPinned && !pipUi && !inputSettingsOpen
+            val pinned = controls.hasPinned && !pipUi && !inputSettingsOpen &&
+                !(unfoldedPanel != null && unfoldedControllerConnected)
             if (!pinned) controls.releaseAll()
             controls.visibility = if (pinned) View.VISIBLE else View.GONE
         }
@@ -6331,6 +6464,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     override fun onPause() {
+        closeUnfoldedKeyboard()
         departureCleanup()
         super.onPause()
     }

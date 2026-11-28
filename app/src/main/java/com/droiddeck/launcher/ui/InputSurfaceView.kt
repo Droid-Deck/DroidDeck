@@ -25,6 +25,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.droiddeck.launcher.input.InputProfile
 import com.droiddeck.launcher.input.InputRole
 import com.droiddeck.launcher.input.InputControl
 import com.droiddeck.launcher.input.InputSurfaceElement
@@ -54,6 +55,7 @@ class InputSurfaceView(
     val inputRole: InputRole = InputRole.SECONDARY,
     private var surfaceStyle: InputSurfaceStyle = InputSurfaceStyle(),
     private val haptics: Boolean = inputRole != InputRole.PRIMARY,
+    private val bindingProfile: InputProfile? = null,
 ) : FrameLayout(context) {
     private val content = FrameLayout(context)
     private val elementSources = ArrayList<InputSurfaceSource>()
@@ -221,7 +223,7 @@ class InputSurfaceView(
         }
         canvas.clipChildren = customLayout.none { it.kind == InputElementKind.STICK && (classic(it) || adaptive(it)) }
         for (element in customLayout) {
-            val source = pad?.let { InputSurfaceSource(it, inputRole, element).also { s -> elementSources += s } }
+            val source = pad?.let { InputSurfaceSource(it, inputRole, element, bindingProfile).also { s -> elementSources += s } }
             canvas.addView(when (element.kind) {
                 InputElementKind.STICK -> StickView(context, element, source, element.floating, element.hideWhenIdle && pad != null)
                 InputElementKind.TRACKPAD -> TrackpadView(context, element.control == InputControl.RIGHT_PAD, captioned = element.showLabel,

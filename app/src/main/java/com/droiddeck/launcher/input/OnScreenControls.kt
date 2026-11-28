@@ -25,6 +25,12 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Placement, List<InputSurfaceElement>>) = size > PLACEMENT_CACHE
     }
     private val quickToggle = QuickToggle(context)
+    private var dockActions: View? = null
+
+    internal fun addDockActions(actions: View) {
+        dockActions = actions
+        addView(actions, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+    }
     var isButtonsOnly = false
         private set
     var isQuickHidden = false
@@ -93,6 +99,7 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
         })
         quickToggle.visibility = if (isButtonsOnly || isPinnedOnly || layout == null || dock != null) GONE else VISIBLE
         refreshAppearance()
+        if (dockActions != null) requestLayout()
     }
 
     private fun refreshAppearance() {
@@ -105,7 +112,19 @@ class OnScreenControls(context: Context, pad: PadBridge?, val dock: OnScreenLayo
     }
 
     fun takesTouchAt(x: Float, y: Float) = surface.takesTouchAt(x, y) ||
-        quickToggle.visibility == VISIBLE && x >= quickToggle.left && x < quickToggle.right && y >= quickToggle.top && y < quickToggle.bottom
+        hits(quickToggle, x, y) || dockActions?.let { hits(it, x, y) } == true
+
+    private fun hits(view: View, x: Float, y: Float): Boolean =
+        view.visibility == VISIBLE && x >= view.left && x < view.right && y >= view.top && y < view.bottom
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        val actions = dockActions ?: return
+        val gap = (4 * resources.displayMetrics.density).toInt()
+        val (x, y) = OnScreenLayout.dockActionsPosition(placed(), width, height, safe,
+            actions.measuredWidth, actions.measuredHeight, gap)
+        actions.layout(x, y, x + actions.measuredWidth, y + actions.measuredHeight)
+    }
     fun releaseAll() = surface.releaseInputs()
     fun reload() { releaseAll(); placements.clear(); render() }
 

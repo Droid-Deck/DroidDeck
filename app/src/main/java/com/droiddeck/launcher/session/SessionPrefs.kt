@@ -10,6 +10,8 @@ import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.ScreenEffects
 import com.droiddeck.launcher.gpu.SystemVulkanDriver
 import com.droiddeck.launcher.gpu.TurnipDriver
+import com.droiddeck.launcher.input.DeckPanel
+import com.droiddeck.launcher.input.SecondScreenMode
 import org.json.JSONObject
 import java.io.File
 
@@ -2122,10 +2124,7 @@ object SessionPrefs {
         SessionDisplay.unfoldedControlsWanted(
             enabled = unfoldedControls(context),
             foldable = SessionDisplay.foldable(context),
-            controllerConnected = com.droiddeck.launcher.input.PadBridge.anyControllerConnected() ||
-                com.droiddeck.launcher.input.SteamControllerBle.connected,
-            keepWithController = unfoldedControlsWithController(context),
-            gamepadAvailable = mode == SessionService.MODE_STEAM && builtinPad(context),
+            gamepadAvailable = SessionDisplay.controlsBelowSupported(mode) && (mode != SessionService.MODE_STEAM || builtinPad(context)),
             pip = pip, width = width, height = height,
             smallestWidthDp = context.resources.configuration.smallestScreenWidthDp,
         )
@@ -2139,6 +2138,32 @@ object SessionPrefs {
 
     fun setUnfoldedControlsWithController(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean("unfoldedControlsWithController", enabled).apply()
+    }
+
+    fun unfoldedControlsSecondScreen(context: Context): Boolean = prefs(context).getBoolean("unfoldedControlsSecondScreen", false)
+
+    fun setUnfoldedControlsSecondScreen(context: Context, second: Boolean) {
+        prefs(context).edit().putBoolean("unfoldedControlsSecondScreen", second).apply()
+    }
+
+    fun unfoldedControlsPanel(context: Context): SecondScreenMode =
+        SecondScreenMode.inlineControls(prefs(context).getString("unfoldedControlsPanel", null))
+
+    fun setUnfoldedControlsPanel(context: Context, panel: SecondScreenMode) {
+        prefs(context).edit().putString("unfoldedControlsPanel", SecondScreenMode.inlineControls(panel.id).id).apply()
+    }
+
+    fun unfoldedDeckPanel(context: Context): DeckPanel = DeckPanel.from(prefs(context).getString("unfoldedDeckPanel", null))
+
+    fun setUnfoldedDeckPanel(context: Context, panel: DeckPanel) {
+        prefs(context).edit().putString("unfoldedDeckPanel", panel.id).apply()
+    }
+
+    fun unfoldedControlsPercent(context: Context): Int = prefs(context).getInt("unfoldedControlsPercent", 0)
+        .takeIf { it in SessionDisplay.UNFOLDED_CONTROLS_SHARES } ?: 0
+
+    fun setUnfoldedControlsPercent(context: Context, percent: Int) {
+        prefs(context).edit().putInt("unfoldedControlsPercent", percent).apply()
     }
 
     const val SURFACE_STICK = "stick"

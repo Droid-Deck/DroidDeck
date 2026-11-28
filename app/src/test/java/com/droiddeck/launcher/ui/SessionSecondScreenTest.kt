@@ -12,7 +12,10 @@ import android.widget.TextView
 import androidx.compose.ui.test.*
 import androidx.compose.ui.semantics.SemanticsProperties.StateDescription
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.testTag
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.gpu.FrameGen
@@ -65,6 +68,59 @@ class SessionSecondScreenTest {
     @After fun tearDown() {
         SessionState.mode = previousMode
         SessionState.deckPad = previousDeckPad
+    }
+
+    @Test fun theUnderGameScreenAndHeightCanBeSelectedIndependently() {
+        var second by androidx.compose.runtime.mutableStateOf(false)
+        var percent by androidx.compose.runtime.mutableIntStateOf(0)
+        val host = MenuHost()
+        compose.setContent {
+            DroidDeckTheme {
+                androidx.compose.foundation.layout.Column {
+                    UnfoldedControlsScreenRow(host, second, onPick = { second = it })
+                    UnfoldedControlsHeightRow(percent, androidx.compose.ui.Modifier.testTag("controls-height")) { percent = it }
+                }
+            }
+        }
+        compose.onNodeWithTag("setting-unfolded-controls-screen").performClick()
+        compose.onNodeWithText(context.getString(R.string.input_secondary)).performClick()
+        compose.onNodeWithTag("controls-height")
+            .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.SetProgress) { it(4f) }
+        compose.runOnIdle {
+            assertTrue(second)
+            assertEquals(40, percent)
+        }
+    }
+
+    @Test fun inlinePanelPickerOffersKeyboardAndDeckControls() {
+        var panel by androidx.compose.runtime.mutableStateOf(SecondScreenMode.CUSTOM_CONTROLS)
+        val host = MenuHost()
+        compose.setContent {
+            DroidDeckTheme {
+                UnfoldedControlsPanelRow(host, panel, deckPad = true) { panel = it }
+            }
+        }
+        compose.onNodeWithTag("setting-unfolded-controls-panel").performClick()
+        compose.onNodeWithText(context.getString(R.string.second_mode_deck_controls)).assertExists()
+        compose.onNodeWithText(context.getString(R.string.second_mode_keyboard_trackpad)).performClick()
+        compose.runOnIdle { assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, panel) }
+        assertEquals(SecondScreenMode.CUSTOM_CONTROLS,
+            SecondScreenMode.inlineControls(SecondScreenMode.DECK_CONTROLS.id, deckPad = false))
+    }
+
+    @Test fun anUnavailableDeckPanelIsHiddenWithoutReplacingTheSavedSelection() {
+        val saved = SecondScreenMode.DECK_CONTROLS
+        var selected = saved
+        val host = MenuHost()
+        compose.setContent {
+            DroidDeckTheme {
+                UnfoldedControlsPanelRow(host, saved, deckPad = false) { selected = it }
+            }
+        }
+        compose.onNodeWithTag("setting-unfolded-controls-panel").performClick()
+        compose.onNodeWithText(context.getString(R.string.second_mode_deck_controls)).assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.second_mode_keyboard_trackpad)).assertExists()
+        compose.runOnIdle { assertEquals(saved, selected) }
     }
 
     @Test fun desktopMenuOffersTheExistingTrackpadAndTerminal() = checkModes(steam = false)
