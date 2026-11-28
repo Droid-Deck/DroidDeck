@@ -179,6 +179,9 @@ pub fn run(
     if cancelled() {
         return fail("cancelled");
     }
+    // Held until this run returns, past the final manifest write that records them as used.
+    let _shared_hold =
+        register::hold_shared(&plan.shared.iter().map(|d| d.depot_id).collect::<Vec<_>>());
     // Checked before takeover, which removes a half-finished client download's staging.
     if !register::library_registered(&req.steam_root, &req.game_library.guest) {
         return fail("library_not_in_libraryfolders");

@@ -44,6 +44,9 @@ Date of modification: 2026-11-07.
   KeyValues writer), `install` (download orchestration) and a new JNI layer (`jni`).
 - `library` records the depots the account's packages grant, and `plan` installs only those
   (the client skips the rest, e.g. edition-only depots); `plan` flags apps with a Linux build.
+- New `safe_fs`: the depot writer, adoption of a client's staged files and shared-depot removal
+  open every path below their folder relative to its descriptor without following symlinks.
+  Installs hold the shared depots they rely on, so an uninstall in the meantime keeps them.
 - Not ported: QR and password sign-in, auth sessions, friends, chat and chat images, persona,
   lobbies, cloud, user stats, achievements, inventory, published files and workshop, app and
   ownership tickets, playing-session control, the Wine bridge, the other stores' downloaders,
