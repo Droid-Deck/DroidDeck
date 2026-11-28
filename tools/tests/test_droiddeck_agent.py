@@ -247,6 +247,15 @@ class AgentTest(unittest.TestCase):
                 {"window": 13, "map": "viewable", "class": "steam_app_550", "pid": None}]
         self.assertEqual(self.tag(wins), (False, []))
 
+    def test_a_proton_window_run_in_a_worker_takes_its_process_app_id(self):
+        # a store game's Wine process handed to a worker: its parent is zygote, not the reaper
+        self.fake_proc(50, 1, "SplinterCell.exe", {"SteamAppId": "2565121641", "SteamGameId": "11017113558390407168"})
+        self.fake_proc(20, 1, "reaper", {})
+        self.fake_proc(21, 20, "Bully.exe", {"SteamAppId": "12200"})
+        wins = [{"window": 14, "map": "viewable", "class": "steam_app_2565121641", "pid": 50},
+                {"window": 15, "map": "viewable", "class": "steam_app_12200", "pid": 21}]
+        self.assertEqual(self.tag(wins), (True, ["2565121641"]))
+
     def test_the_x86_client_still_tags_its_game_classes(self):
         win = {"window": 13, "map": "viewable", "class": "steam_app_550", "pid": None}
         self.assertEqual(self.tag([win], arch="x86_64"), (True, ["550"]))

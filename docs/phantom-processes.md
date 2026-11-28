@@ -237,6 +237,11 @@ vfork-safe (Python's subprocess execs under `vfork`). Details that mattered:
   walking its process's parents) and its utility processes (the client refuses its transport —
   "no transport is available" — from processes that are not its children). The web helper's
   renderers hand off fine.
+- **Game windows outside the reaper:** gamescope finds a window's app by walking its process up to
+  Steam's `reaper`, which a handed-off Wine process is not under. Proton sets `STEAM_GAME` itself
+  from `SteamGameId`, but a store game's is a 64-bit id and is not set: Splinter Cell (Ubisoft)
+  ran without ever taking focus. The agent now tags such a window from its process's `SteamAppId`
+  also on the arm64 client.
 - One-shot programs cost a worker start (~100 ms) each, so the list names long-lived programs only
   (`xprop+-spy`: `name+prefix` matches only when an argument starts with prefix).
 - **Near the limit, a shell's children too.** Once 20 of the app's processes are counted (the hook
@@ -442,7 +447,8 @@ the old behavior and the old requirement.
    - ~~more games and configurations~~ done on the Thor with the stock limit on, no kills in any:
      Bully on GE-Proton, Proton Experimental ARM64 and DroidDeck-Proton 11 (11–14 counted), Bomb
      Rush Cyberfunk (14), MGSV Ground Zeroes (13), Sekiro (13), zero-copy off (11), the x86-64
-     Steam client under FEX (14, against 55 without the handoff), the desktop at rest (17–20) and
+     Steam client under FEX (14, against 55 without the handoff), Splinter Cell through Ubisoft
+     Connect (14, against 65), the desktop at rest (17–20) and
      with a terminal's 40 background jobs (20). PRoot sessions keep the old behavior and still need
      the developer option: with the limit on, Android killed 30 of their processes and the session
      failed;
