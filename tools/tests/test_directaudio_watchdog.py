@@ -26,22 +26,31 @@ struct userdata {
     AAudioStream *aq;
     uint64_t wd_last_tick_ns, last_cb_ns;
     unsigned int cb_count, wd_last_cb;
-    uint64_t stall_state;
+    uint64_t stall_state, cb_seen_ns, cb_streak_ns;
 };
 static uint64_t clock_ns = 10000000000ull;
 static unsigned int reopens;
-static bool callback_race;
+static bool callback_race, burst_after_reopen;
 static struct userdata *current;
 static uint64_t now_ns(void) { return clock_ns; }
-static void request_reopen(struct userdata *u, const char *why) { reopens++; }
 #define pa_log(...) ((void)0)
 CALLBACK
+static void callback(struct userdata *u) {
+    record_callback(u);
+    __atomic_add_fetch(&u->cb_count, 1, __ATOMIC_SEQ_CST);
+}
+static void request_reopen(struct userdata *u, const char *why) {
+    reopens++;
+    if (burst_after_reopen)
+        for (int i = 0; i < 6; i++) callback(u);
+}
 static bool exchange(uint64_t *value, uint64_t *expected, uint64_t next,
                      int weak, int success, int failure) {
     if (callback_race) {
         struct userdata *u = current;
-        record_callback(u);
-        __atomic_add_fetch(&u->cb_count, 1, __ATOMIC_SEQ_CST);
+        u->cb_streak_ns = clock_ns - DA_CB_STALL_NS;
+        u->cb_seen_ns = clock_ns;
+        callback(u);
     }
     return __atomic_compare_exchange_n(value, expected, next, weak, success, failure);
 }
@@ -57,6 +66,12 @@ int main(int argc, char **argv) {
     struct userdata *u = &state;
     current = u;
     watchdog(u);
+    if (argc > 1 && strcmp(argv[1], "burst") == 0) {
+        atexit(cleanup);
+        burst_after_reopen = true;
+        for (int i = 0; i < 20; i++) tick(u);
+        return 42;
+    }
     if (argc > 1 && strcmp(argv[1], "zero") == 0) {
         callback_race = true;
         tick(u);
@@ -67,6 +82,16 @@ int main(int argc, char **argv) {
     assert(reopens == 1 && (uint32_t) u->stall_state == 1);
     tick(u);
     assert(reopens == 2 && (uint32_t) u->stall_state == 2);
+    if (argc > 1 && strcmp(argv[1], "sustained") == 0) {
+        for (int i = 0; i < 6; i++) callback(u);
+        assert((uint32_t) u->stall_state == 2);
+        for (int i = 0; i < 12; i++) {
+            clock_ns += 100000000ull;
+            callback(u);
+        }
+        assert((uint32_t) u->stall_state == 0);
+        return 0;
+    }
     if (argc > 1 && strcmp(argv[1], "exit") == 0) {
         atexit(cleanup);
         tick(u);
@@ -94,4 +119,7 @@ int main(int argc, char **argv) {
             subprocess.run([str(path / 'watchdog')], check=True, timeout=5)
             subprocess.run([str(path / 'watchdog'), 'zero'], check=True, timeout=5)
             result = subprocess.run([str(path / 'watchdog'), 'exit'], timeout=5)
+            self.assertEqual(1, result.returncode)
+            subprocess.run([str(path / 'watchdog'), 'sustained'], check=True, timeout=5)
+            result = subprocess.run([str(path / 'watchdog'), 'burst'], timeout=5)
             self.assertEqual(1, result.returncode)
