@@ -4145,4 +4145,6 @@
     <string name="steam_store_close_steam">Sulje Steam ensin</string>
     <string name="steam_store_session_wait">Keskeytä Steam-lataus ensin</string>
     <string name="steam_store_linux_build">Tämä peli asentaa Linux-versionsa. Asenna se Steamista.</string>
+    <string name="game_zoom_title">Pelin zoomaus</string>
+    <string name="game_zoom_hint">Säädä pelin suurennusta välillä 100–300 %</string>
 </resources>

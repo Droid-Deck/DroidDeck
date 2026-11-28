@@ -4225,4 +4225,6 @@
     <string name="steam_store_close_steam">Najpierw zamknij Steam</string>
     <string name="steam_store_session_wait">Najpierw wstrzymaj pobieranie ze Steam</string>
     <string name="steam_store_linux_build">Ta gra instaluje swoją wersję dla Linuksa. Zainstaluj ją ze Steama.</string>
+    <string name="game_zoom_title">Powiększenie gry</string>
+    <string name="game_zoom_hint">Dostosuj powiększenie gry w zakresie od 100% do 300%</string>
 </resources>

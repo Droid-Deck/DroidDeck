@@ -4115,4 +4115,6 @@
     <string name="steam_store_close_steam">Tutup Steam terlebih dahulu</string>
     <string name="steam_store_session_wait">Jeda unduhan Steam terlebih dahulu</string>
     <string name="steam_store_linux_build">Game ini memasang versi Linux-nya. Pasang dari Steam.</string>
+    <string name="game_zoom_title">Zoom game</string>
+    <string name="game_zoom_hint">Sesuaikan pembesaran game dari 100% hingga 300%</string>
 </resources>

@@ -4225,4 +4225,6 @@
     <string name="steam_store_close_steam">Спочатку закрийте Steam</string>
     <string name="steam_store_session_wait">Спочатку призупиніть завантаження Steam</string>
     <string name="steam_store_linux_build">Ця гра встановлює свою версію для Linux. Установіть її зі Steam.</string>
+    <string name="game_zoom_title">Масштаб гри</string>
+    <string name="game_zoom_hint">Налаштуйте збільшення гри від 100% до 300%</string>
 </resources>

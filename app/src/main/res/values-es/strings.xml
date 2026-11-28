@@ -4185,4 +4185,6 @@
     <string name="steam_store_close_steam">Cierra Steam primero</string>
     <string name="steam_store_session_wait">Pausa primero la descarga de Steam</string>
     <string name="steam_store_linux_build">Este juego instala su versión para Linux. Instálalo desde Steam.</string>
+    <string name="game_zoom_title">Zoom del juego</string>
+    <string name="game_zoom_hint">Ajusta la ampliación del juego del 100 % al 300 %</string>
 </resources>

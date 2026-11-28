@@ -4145,4 +4145,5 @@
     <string name="steam_store_close_steam">Előbb zárd be a Steamet</string>
     <string name="steam_store_session_wait">Előbb szüneteltesd a Steam-letöltést</string>
     <string name="steam_store_linux_build">Ez a játék a Linux-verzióját telepíti. Telepítsd a Steamből.</string>
+    <string name="game_zoom_title">Játék nagyítása</string>
 </resources>

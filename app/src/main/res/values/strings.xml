@@ -2795,6 +2795,8 @@
     <string name="display_preserve">Keep proportions</string>
     <string name="display_stretch">Stretch to display</string>
     <string name="display_image_scaling">Image scaling</string>
+    <string name="game_zoom_hint">Adjust game magnification from 100% to 300%</string>
+    <string name="game_zoom_title">Game zoom</string>
     <string name="display_integer_scaling">Integer scaling</string>
     <string name="display_integer_scaling_hint">Uses the largest whole-number scale that fits. May crop screen edges. If the source is larger than the output, fractional scaling fits the full image. Resolution is configured separately.</string>
     <string name="display_scaling_fit">Fit</string>

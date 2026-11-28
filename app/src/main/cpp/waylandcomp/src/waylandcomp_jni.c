@@ -22,6 +22,7 @@
 
 extern int droiddeck_wayland_run(void);
 extern void droiddeck_wayland_set_scale_mode(int mode, int alignment);
+extern void droiddeck_wayland_set_zoom(int zoom_percent);
 extern void droiddeck_wayland_send_pointer(int action, int x, int y);
 extern void droiddeck_wayland_send_touch(int action, int pointer_id, int x, int y);
 extern void droiddeck_wayland_send_pen(int flags, int x, int y);
@@ -509,6 +510,15 @@ JNIEXPORT void JNICALL
 Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetScaleMode(JNIEnv *env, jclass clazz, jint mode, jint alignment) {
     droiddeck_wayland_set_scale_mode(mode, alignment);
     __android_log_print(ANDROID_LOG_INFO, TAG, "scale mode %d alignment %d", mode, alignment);
+}
+
+JNIEXPORT void JNICALL
+Java_com_droiddeck_launcher_wayland_WaylandCompositor_nativeSetZoom(JNIEnv *env, jclass clazz, jfloat zoom) {
+    (void)env;
+    (void)clazz;
+    if (!(zoom >= 1.0f)) zoom = 1.0f;
+    if (zoom > 3.0f) zoom = 3.0f;
+    droiddeck_wayland_set_zoom((int)(zoom * 100.0f + 0.5f));
 }
 
 

@@ -4145,4 +4145,6 @@
     <string name="steam_store_close_steam">Stäng Steam först</string>
     <string name="steam_store_session_wait">Pausa Steam-nedladdningen först</string>
     <string name="steam_store_linux_build">Det här spelet installerar sin Linux-version. Installera det från Steam.</string>
+    <string name="game_zoom_title">Spelzoom</string>
+    <string name="game_zoom_hint">Justera spelförstoringen från 100 % till 300 %</string>
 </resources>

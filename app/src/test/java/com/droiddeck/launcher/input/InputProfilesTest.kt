@@ -50,6 +50,8 @@ class InputProfilesTest {
     @Test fun bindingsAndDeviceKeysRoundTripWithoutAffectingOtherProfile() {
         val game = InputProfile.defaults(InputProfile.GAME)
             .withBinding(InputRole.SECONDARY, InputControl.A, InputAction.Keys(listOf(29, 30)))
+            .withBinding(InputRole.PRIMARY, InputControl.Y, InputAction.Command(InputCommand.GAME_ZOOM_IN))
+            .withBinding(InputRole.PRIMARY, InputControl.B, InputAction.Command(InputCommand.GAME_ZOOM_OUT))
             .copy(keys = listOf(PhysicalInputBinding(PhysicalInputKey("1:2:descriptor", "Thor", 131, 59), InputAction.Command(InputCommand.MENU))))
         InputProfiles.save(context, game)
         assertEquals(game, InputProfiles.read(context, InputProfile.GAME))

@@ -52,6 +52,16 @@ static int vkp_output_to_scene(double ox, double oy, double *x, double *y) {
     (void)ox; (void)oy; (void)x; (void)y;
     return 0;
 }
+static int vkp_scene_to_output(double sx, double sy, double *ox, double *oy) {
+    (void)sx; (void)sy; (void)ox; (void)oy;
+    return 0;
+}
+
+static int vkp_zoom_pan_cursor(double ox, double oy) {
+    (void)ox; (void)oy;
+    return 0;
+}
+
 static struct surface *toplevel_at(double x, double y) {
     (void)y;
     return x < 1000 ? &a : &b;
@@ -124,7 +134,8 @@ static void hover_away(void) {
     assert(!g_grab);
     pen(PEN_IN, 1500);
     assert(nevents == 2);
-    left(0, &pointer_a, &surface_a); focus(1, &pointer_b, &surface_b);
+    left(0, &pointer_a, &surface_a);
+    focus(1, &pointer_b, &surface_b);
 }
 
 int main(int argc, char **argv) {
@@ -151,7 +162,8 @@ int main(int argc, char **argv) {
     } else if (!strcmp(c, "swap")) {
         pen(PEN_IN | PEN_RIGHT, 600);
         assert(nevents == 2 && g_grab == &a);
-        button(0, PRESS, BTN_RIGHT); button(1, RELEASE, BTN_LEFT);
+        button(0, PRESS, BTN_RIGHT);
+        button(1, RELEASE, BTN_LEFT);
         pen(PEN_IN | PEN_RIGHT, 1500);
         assert(nevents == 0 && g_grab == &a);
         pen(PEN_IN, 1500);

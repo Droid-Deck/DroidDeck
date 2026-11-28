@@ -4115,4 +4115,6 @@
     <string name="steam_store_close_steam">ปิด Steam ก่อน</string>
     <string name="steam_store_session_wait">หยุดการดาวน์โหลด Steam ชั่วคราวก่อน</string>
     <string name="steam_store_linux_build">เกมนี้ติดตั้งเวอร์ชัน Linux ของตัวเอง ให้ติดตั้งจาก Steam</string>
+    <string name="game_zoom_title">ซูมเกม</string>
+    <string name="game_zoom_hint">ปรับการขยายเกมตั้งแต่ 100% ถึง 300%</string>
 </resources>

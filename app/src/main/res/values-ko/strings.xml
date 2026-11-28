@@ -4115,4 +4115,5 @@
     <string name="steam_store_close_steam">먼저 Steam을 닫으세요</string>
     <string name="steam_store_session_wait">먼저 Steam 다운로드를 일시 중지하세요</string>
     <string name="steam_store_linux_build">이 게임은 Linux 버전을 설치합니다. Steam에서 설치하세요.</string>
+    <string name="game_zoom_title">게임 확대</string>
 </resources>

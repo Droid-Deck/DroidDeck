@@ -4145,4 +4145,6 @@
     <string name="steam_store_close_steam">Lukk Steam først</string>
     <string name="steam_store_session_wait">Sett Steam-nedlastingen på pause først</string>
     <string name="steam_store_linux_build">Dette spillet installerer Linux-versjonen sin. Installer det fra Steam.</string>
+    <string name="game_zoom_title">Spillzoom</string>
+    <string name="game_zoom_hint">Juster spillforstørrelsen fra 100 % til 300 %</string>
 </resources>
