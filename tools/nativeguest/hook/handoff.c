@@ -301,8 +301,10 @@ static void ddh_keep(int fd) {
 }
 
 // A dup2() or dup3() onto the parent's pidfd (ddh_parent_lives()): the pidfd moves to another number
-// first, so that the program gets the number it asked for and the check keeps its pidfd.
-static void ddh_parent_pidfd_moves(int target);
+// first, so that the program gets the number it asked for and the check keeps its pidfd; if the call
+// then fails, the move is undone (ddh_parent_pidfd_settle()). Returns the number moved from, or -1.
+static int ddh_parent_pidfd_moves(int target);
+static void ddh_parent_pidfd_settle(int from, int done);
 
 static void ddh_drop_worker_binder(void) {
     if (g_ddh_nbinder == 0 || getpid() == g_ddh_worker) return;
@@ -349,13 +351,27 @@ static pid_t g_ddh_report_child;
 // The forked parent as a pidfd, opened at the start: readable once it has exited, reaped or not.
 static int g_ddh_parent_pidfd = -1;
 
-static void ddh_parent_pidfd_moves(int target) {
+static int ddh_parent_pidfd_moves(int target) {
     int fd = __atomic_load_n(&g_ddh_parent_pidfd, __ATOMIC_ACQUIRE);
-    if (fd < 0 || target != fd) return;
+    if (fd < 0 || target != fd) return -1;
     int moved = (int)call_orig_syscall(SYS_fcntl, (unsigned long)fd, F_DUPFD_CLOEXEC, 900, 0, 0, 0);
     ddh_unkeep(fd);
     __atomic_store_n(&g_ddh_parent_pidfd, moved, __ATOMIC_RELEASE);
     if (moved >= 0) ddh_keep(moved);
+    return fd;
+}
+
+static void ddh_parent_pidfd_settle(int from, int done) {
+    if (from < 0 || done) return;
+    // the dup failed and left the number as it was: the pidfd is still there
+    int moved = __atomic_exchange_n(&g_ddh_parent_pidfd, from, __ATOMIC_ACQ_REL);
+    ddh_keep(from);
+    if (moved >= 0 && moved != from) {
+        ddh_unkeep(moved);
+        int saved = errno;
+        syscall(SYS_close, moved);
+        errno = saved;
+    }
 }
 
 // The line of /proc/PID/cgroup that names the app's per-process cgroup ("...:/uid_U/pid_P").
@@ -1767,18 +1783,23 @@ static pid_t ddh_logical_pgrp(void) { return ddh_logical_group(getpgrp()); }
 // later process given the pid, which started after that child. child_start -1: not checked.
 // 1 yes, 0 no, -1 when /proc could not be read for another reason (out of fds, say).
 static int ddh_parent_lives(pid_t parent, long child_start) {
-    if (parent == g_ddh_report_parent && g_ddh_parent_pidfd >= 0) {
+    int fd = __atomic_load_n(&g_ddh_parent_pidfd, __ATOMIC_ACQUIRE);
+    if (parent == g_ddh_report_parent && fd >= 0) {
         // No new fd, and exited counts whether reaped or not. Only while the number still is that
-        // pidfd (a raw close() can take it), and only a clear answer: anything else asks /proc.
-        char path[32], target[32];
-        snprintf(path, sizeof(path), "/proc/self/fd/%d", g_ddh_parent_pidfd);
+        // pidfd, before and after the poll (a raw close() or another thread's dup2() can take it),
+        // and only a clear answer: anything else asks /proc.
+        char path[32], before[32], after[32];
+        snprintf(path, sizeof(path), "/proc/self/fd/%d", fd);
         int saved = errno;
-        long len = syscall(SYS_readlinkat, AT_FDCWD, path, target, sizeof(target) - 1);
-        struct pollfd p = {g_ddh_parent_pidfd, POLLIN, 0};
+        long len = syscall(SYS_readlinkat, AT_FDCWD, path, before, sizeof(before) - 1);
+        struct pollfd p = {fd, POLLIN, 0};
         long n = len > 0 ? syscall(SYS_ppoll, &p, 1, &(struct timespec){0, 0}, NULL, 0) : -1;
+        long len2 = n >= 0 ? syscall(SYS_readlinkat, AT_FDCWD, path, after, sizeof(after) - 1) : -1;
         errno = saved;
-        if (len > 0) target[len] = 0;
-        if (n >= 0 && strcmp(target, "anon_inode:[pidfd]") == 0 && !(p.revents & (POLLNVAL | POLLERR)))
+        if (len > 0) before[len] = 0;
+        if (len2 > 0) after[len2] = 0;
+        if (n >= 0 && len2 > 0 && strcmp(before, "anon_inode:[pidfd]") == 0 && strcmp(after, before) == 0 &&
+            __atomic_load_n(&g_ddh_parent_pidfd, __ATOMIC_ACQUIRE) == fd && !(p.revents & (POLLNVAL | POLLERR)))
             return !(p.revents & POLLIN);
     }
     char path[48], stat[512];
