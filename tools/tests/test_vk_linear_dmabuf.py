@@ -20,8 +20,6 @@ LAYER_HARNESS = r'''
 #include "vk_linear_dmabuf.h"
 
 typedef struct AHardwareBuffer AHardwareBuffer;
-/* The production image struct references this enum, but the test extracts
- * only the struct definition rather than the translation unit's enum. */
 enum vkp_image_source {
     VKP_IMAGE_SOURCE_NONE = 0,
     VKP_IMAGE_SOURCE_DMABUF,
