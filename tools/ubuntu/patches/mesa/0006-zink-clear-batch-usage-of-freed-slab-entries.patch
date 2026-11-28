@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] zink: clear batch usage of freed slab entries
+
+bo_destroy_or_cache() drops a real BO's batch usage before the BO goes into
+the cache, but bo_slab_destroy() hands slab entries to pb_slab_free() with
+their reads/writes usage still set. Zink only frees a BO once no batch holds a
+reference any more, so whatever usage is left at that point is stale: it
+points at a batch state the BO is no longer tracked by.
+
+A stale pointer can name a batch state that is never submitted again, for
+example the recording batch of a context that was destroyed (its unflushed
+flag stays set while it waits in the screen's free list) or of a context that
+another thread keeps current without ever flushing. bo_can_reclaim() then
+returns false for that entry forever. pb_slabs_reclaim_locked() walks the
+reclaim list from the oldest entry and stops after MAX_FAILED_RECLAIMS (2)
+failures, so two such entries at the head stop all slab reclaim for the
+screen: every later small buffer gets a fresh 2 MB slab and nothing is ever
+freed.
+
+Wine's WineD3D (Gothic II through Proton 11, Zink on Venus) can hit this
+as soon as it enters the 3D world: about 0.2 new slabs per frame,
+gigabytes of GPU memory after a few minutes, until Android kills the
+session. Clear the usage the same way bo_destroy_or_cache() does.
+
+Upstream fixed the same ballooning in Mesa 26.2 with commit fa867cf18
+("zink/bo: check for usage before completion when reclaiming bos",
+MR !41936), which relies on the per-BO submit_count tracking added in
+26.1 and does not apply to 26.0. This is a minimal alternative for the
+26.0 series; drop it once DroidDeck moves to Mesa >= 26.2.
+---
+diff --git a/src/gallium/drivers/zink/zink_bo.c b/src/gallium/drivers/zink/zink_bo.c
+--- a/src/gallium/drivers/zink/zink_bo.c
++++ b/src/gallium/drivers/zink/zink_bo.c
+@@ -185,6 +185,10 @@
+    struct zink_bo *bo = zink_bo(pbuf);
+ 
+    assert(!bo->mem);
++   /* no batch references the entry any more: any usage left is stale and
++    * would keep it out of reclaim forever (see bo_destroy_or_cache) */
++   bo->reads.u = NULL;
++   bo->writes.u = NULL;
+ 
+    //if (bo->base.usage & RADEON_FLAG_ENCRYPTED)
+       //pb_slab_free(get_slabs(screen, bo->base.size, RADEON_FLAG_ENCRYPTED), &bo->u.slab.entry);
