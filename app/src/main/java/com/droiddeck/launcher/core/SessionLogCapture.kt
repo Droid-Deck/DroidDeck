@@ -3,7 +3,6 @@ package com.droiddeck.launcher.core
 import android.content.Context
 import android.os.Process
 import android.util.Log
-import java.io.BufferedWriter
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.file.Files
@@ -14,7 +13,7 @@ object SessionLogCapture {
     private const val TAG = "SessionLogCapture"
 
     private var pid = -1
-    private var writer: BufferedWriter? = null
+    private var writer: CappedLogWriter? = null
     private var target: File? = null
     private var syncer: Thread? = null
 
@@ -22,26 +21,20 @@ object SessionLogCapture {
     fun start(target: File, sinceMillis: Long) {
         stop()
         try {
-            val out = target.bufferedWriter()
-            out.write("The app's own log for this session (logcat, this process only).\n")
-            out.write("Lines the app wrote before the session folder existed are in logcat only.\n\n")
-            out.flush()
+            val out = CappedLogWriter(target, false)
+            out.line("The app's own log for this session (logcat, this process only).")
+            out.line("Lines the app wrote before the session folder existed are in logcat only.")
+            out.line("")
             writer = out
             this.target = target
             pid = HostProcess.start(
                 command(Process.myPid(), sinceMillis),
                 null, target.parentFile, null,
             ) { line ->
-                synchronized(this) {
-                    try {
-                        writer?.apply { write(line); newLine(); flush() }
-                    } catch (e: Exception) {
-                    }
-                }
+                synchronized(this) { writer?.line(line) }
             }
             if (pid == -1) {
-                out.write("logcat could not be started; this ROM may not hand an app its own entries.\n")
-                out.flush()
+                out.line("logcat could not be started; this ROM may not hand an app its own entries.")
             }
             target.parentFile?.let { syncer = startSyncing(it) }
             Log.i(TAG, "app log -> $target (logcat pid $pid)")
@@ -81,10 +74,7 @@ object SessionLogCapture {
             }
             pid = -1
         }
-        try {
-            writer?.close()
-        } catch (e: Exception) {
-        }
+        writer?.close()
         writer = null
     }
 

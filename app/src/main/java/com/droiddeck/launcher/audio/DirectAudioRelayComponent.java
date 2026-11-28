@@ -3,6 +3,7 @@ package com.droiddeck.launcher.audio;
 import android.os.Process;
 import android.util.Log;
 
+import com.droiddeck.launcher.core.CappedLogWriter;
 import com.droiddeck.launcher.core.FileUtils;
 import com.droiddeck.launcher.core.SessionPart;
 import com.droiddeck.launcher.core.HostProcess;
@@ -16,6 +17,7 @@ public class DirectAudioRelayComponent extends SessionPart {
 
     private final File socketPath;
     private File logFile;
+    private volatile CappedLogWriter log;
     private final File micFifoPath;
     private volatile int pid = -1;
     private final Object micLock = new Object();
@@ -77,24 +79,23 @@ public class DirectAudioRelayComponent extends SessionPart {
         }
         ArrayList<String> env = new ArrayList<>();
         env.add("HOME=" + app().getFilesDir());
-        java.io.PrintWriter out = null;
+        CappedLogWriter out = null;
         if (logFile != null) {
             try {
-                out = new java.io.PrintWriter(new java.io.FileWriter(logFile, true));
-                out.println("== DirectAudio relay helper starting"
+                out = new CappedLogWriter(logFile, true);
+                out.line("== DirectAudio relay helper starting"
                         + (withMic ? " with the microphone" : " (no microphone)"));
-                out.flush();
             } catch (Exception e) {
                 Log.w(TAG, "could not open " + logFile, e);
             }
         }
-        final java.io.PrintWriter log = out;
+        final CappedLogWriter helperLog = out;
+        log = out;
         pid = HostProcess.start(command.toString(), env.toArray(new String[0]),
                 app().getFilesDir(), null,
                 line -> {
-                    Log.i(TAG, line);
+                    if (helperLog == null || helperLog.line(line)) Log.i(TAG, line);
                     if (withMic) trackMic(line);
-                    if (log != null) synchronized (log) { log.println(line); log.flush(); }
                 });
         Log.i(TAG, "started pid=" + pid + " socket=" + socketPath
                 + (withMic ? " mic=" + micFifoPath : " (no microphone)"));
@@ -141,6 +142,9 @@ public class DirectAudioRelayComponent extends SessionPart {
             Process.killProcess(pid);
             pid = -1;
         }
+        CappedLogWriter current = log;
+        log = null;
+        if (current != null) current.close();
     }
 
     @Override
