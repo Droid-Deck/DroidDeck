@@ -2240,4 +2240,15 @@ object SessionPrefs {
     fun setSteamLibraryNextId(context: Context, id: Int) {
         prefs(context).edit().putInt("steamLibraryNextId", id).apply()
     }
+
+    /**
+     * The bridge's per-frame diagnostics (VKBRIDGE_STATS, VKBRIDGE_FRAME_TRACE): logged round trips and
+     * frame events, at the cost of frame time. Off unless Setup's switch asks for them, and the session
+     * clears any such setting left in the guest, so one session cannot slow the next.
+     */
+    fun bridgeDiagnostics(context: Context): Boolean = prefs(context).getBoolean("bridgeDiagnostics", false)
+
+    fun setBridgeDiagnostics(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("bridgeDiagnostics", on).apply()
+    }
 }

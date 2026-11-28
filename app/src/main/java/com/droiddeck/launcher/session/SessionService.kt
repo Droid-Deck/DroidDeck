@@ -1134,6 +1134,9 @@ class SessionService : Service() {
             ?.let { guest.add("DD_VKBRIDGE_FALLBACK_ICD=$it") }
         guest.add("VKBRIDGE_SOCKET=" + socket.path)
         guest.add("VKBRIDGE_CLIENT_LOG=" + File(sessionDir, "vkbridge-client.log").path)
+        // Off unless asked for: VKBRIDGE_STATS and VKBRIDGE_FRAME_TRACE cost frame time (15.5 fps in
+        // Steam's menu on an X8), and the guest clears them when no session asked for them.
+        guest.add("DD_VKBRIDGE_DIAG=" + if (SessionPrefs.bridgeDiagnostics(this)) "1" else "0")
         guest.add("VKBRIDGE_MODE=" + SessionPrefs.vkBridgeMode(this))
         LinuxRuntime.gpuStandIn(this)?.let { node ->
             guest.add("DD_DRM_STANDIN=$node")
