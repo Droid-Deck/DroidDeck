@@ -301,6 +301,7 @@ class NativeHookHandoffTest(unittest.TestCase):
         result, requests, out = self.run_parent("wait", "3", handoff="other")
         self.assertEqual([], requests)
         self.assertEqual("1", result.get("same"), out.stdout)
+        self.assertEqual("3", result.get("exit"), out.stdout)
 
 
 if __name__ == "__main__":

@@ -701,6 +701,31 @@ static int ddh_startable(const char *path) {
     return call_orig_syscall(SYS_faccessat, (unsigned long)AT_FDCWD, (unsigned long)rewrite_path(p, real, sizeof(real)), X_OK, 0, 0, 0) == 0;
 }
 
+// Whether s is valid UTF-8: the app reads the request as UTF-8, and any other byte would reach the
+// program changed (a file name in Latin-1, say), where a local exec passes it on as it is.
+static int ddh_utf8(const char *s) {
+    const unsigned char *p = (const unsigned char *)s;
+    while (*p) {
+        int n = *p < 0x80 ? 0 : (*p & 0xe0) == 0xc0 ? 1 : (*p & 0xf0) == 0xe0 ? 2 : (*p & 0xf8) == 0xf0 ? 3 : -1;
+        if (n < 0 || (n == 1 && *p < 0xc2) || (n == 3 && *p > 0xf4)) return 0;
+        unsigned int cp = n == 0 ? *p : *p & (0x3f >> n);
+        for (int i = 1; i <= n; i++) {
+            if ((p[i] & 0xc0) != 0x80) return 0;
+            cp = (cp << 6) | (p[i] & 0x3f);
+        }
+        if ((n == 2 && (cp < 0x800 || (cp >= 0xd800 && cp <= 0xdfff))) || (n == 3 && (cp < 0x10000 || cp > 0x10ffff))) return 0;
+        p += n + 1;
+    }
+    return 1;
+}
+
+static int ddh_all_utf8(char *const v[]) {
+    for (int i = 0; v && v[i]; i++) {
+        if (!ddh_utf8(v[i])) return 0;
+    }
+    return 1;
+}
+
 static int ddh_program_listed(const char *list, const char *filename, char *const argv[]) {
     char shebang[256];
     const char *interp;
@@ -787,6 +812,10 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
         ddh_debug(envp, "would not start:", filename);
         return;
     }
+    if (!ddh_utf8(filename) || !ddh_all_utf8(argv) || !ddh_all_utf8(envp)) {
+        ddh_debug(envp, "not all UTF-8:", filename);
+        return;
+    }
 
     int fds[DDH_MAX_FDS + 1];
     int nfds = ddh_open_fds(fds, DDH_MAX_FDS, table_fd);
@@ -837,6 +866,11 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
         char why[64];
         snprintf(why, sizeof(why), "kernel name for the working directory (errno %d):", err);
         ddh_debug(envp, why, cwd);
+    }
+    if (!ddh_utf8(cwd)) {
+        __atomic_store_n(&e->state, DDH_FREE, __ATOMIC_RELEASE);
+        ddh_debug(envp, "working directory not UTF-8:", cwd);
+        return;
     }
     // What the program would have inherited here and a worker does not have: ignored signals, the
     // open-files limit, the umask (ddh_apply_inherited() restores them in the program).
@@ -1066,7 +1100,7 @@ static int ddh_any_live(pid_t pid) {
     for (int i = 0; i < DDH_SLOTS; i++) {
         struct ddh_entry *e = &g_ddh->e[i];
         int st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
-        if ((st == DDH_HANDED || st == DDH_EXITED || st == DDH_TAKEN) && e->parent == me && ddh_selects(e, pid)) return 1;
+        if ((st == DDH_HANDED || st == DDH_EXITED || st == DDH_TAKEN || st == DDH_CLAIMED) && e->parent == me && ddh_selects(e, pid)) return 1;
     }
     return 0;
 }
@@ -1102,12 +1136,13 @@ static void ddh_check_gone(void) {
     for (int i = 0; i < DDH_SLOTS; i++) {
         struct ddh_entry *e = &t->e[i];
         if (__atomic_load_n(&e->state, __ATOMIC_ACQUIRE) != DDH_HANDED || e->parent != me) continue;
+        pid_t child = e->child;
         if (syscall(SYS_kill, e->real, 0) == 0 || errno != ESRCH) continue;
         int32_t report[2];
         uint64_t both = __atomic_load_n((uint64_t *)e->app, __ATOMIC_ACQUIRE);
         memcpy(report, &both, sizeof(report));
         int32_t status = SIGKILL;
-        if (report[1] == e->child && report[1] != 0) {
+        if (report[1] == child && report[1] != 0) {
             status = report[0];
         } else {
             // The app looks the status up for up to a second after the worker's death: wait longer.
@@ -1119,13 +1154,20 @@ static void ddh_check_gone(void) {
             }
             if (now.tv_sec + 1 - e->pad[0] < 3) continue;
         }
-        // Only this side moves HANDED to EXITED; a status the program wrote itself is kept.
+        // Only this side moves HANDED to EXITED, the entry held meanwhile and still the child looked at:
+        // a waiter may have finished with it and a new handoff taken the slot since the look above.
+        int expected = DDH_HANDED;
+        if (!__atomic_compare_exchange_n(&e->state, &expected, DDH_TAKEN, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) continue;
+        if (e->child != child || e->parent != me) {
+            __atomic_store_n(&e->state, DDH_HANDED, __ATOMIC_RELEASE);
+            continue;
+        }
+        // a status the program wrote itself is kept
         int32_t none = DDH_NO_STATUS;
         if (__atomic_compare_exchange_n(&e->status, &none, status, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED) &&
-            report[1] != e->child)
+            report[1] != child)
             e->pad[0] = -1;  // the timeout's guess: an app report that comes before the exit is taken wins (ddh_release)
-        int expected = DDH_HANDED;
-        __atomic_compare_exchange_n(&e->state, &expected, DDH_EXITED, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+        __atomic_store_n(&e->state, DDH_EXITED, __ATOMIC_RELEASE);
     }
 }
 
@@ -1224,11 +1266,13 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
             pid_t child = e->child;
             if (!e->reaped && !ddh_reap_shim(real, child, options)) {
                 ddh_untake(e);
-                return (options & WNOHANG) ? 0 : -1;
+                if (!(options & WNOHANG)) return -1;
+                // its forked child is still exiting: another child may be ready now (below)
+            } else {
+                if (ru) memset(ru, 0, sizeof(*ru));
+                ddh_release(e, status);
+                return child;
             }
-            if (ru) memset(ru, 0, sizeof(*ru));
-            ddh_release(e, status);
-            return child;
         }
         int live = pid <= 0 && ddh_any_live(pid);
         int wstatus = 0;
@@ -1272,7 +1316,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
     // As a waitpid() selector: a pid, -1 for any child, 0 for our group, -G for group G
     pid_t which = idtype == P_PID ? (pid_t)id : idtype == P_PGID ? (id == 0 ? 0 : -(pid_t)id) : -1;
     if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || !(options & WEXITED) || (idtype != P_PID && idtype != P_ALL && idtype != P_PGID) ||
-        (idtype == P_PID ? !ddh_find(which) : !ddh_any_live(which)))
+        (idtype == P_PID ? !ddh_find(which) && !ddh_claiming(which) : !ddh_any_live(which)))
         return real(idtype, id, info, options);
     // Only exits are asked for here: answer through ddh_wait and describe the result as waitid does.
     int status = 0;

@@ -258,6 +258,10 @@ object GuestWorkers {
         @Volatile var onExit: ((Int) -> Unit)? = null
         /** Set once its program was handed over: only then does its end count as the program's. */
         @Volatile var started = false
+        /** Between the pid and the last word of a launch (under the slots lock): its end is held back. */
+        var launching = false
+        /** It ended while launching: reported once the launch turns out to have run, never otherwise. */
+        var endedLaunching = false
     }
 
     private val slots = arrayOfNulls<Slot>(classes.size)
@@ -273,6 +277,11 @@ object GuestWorkers {
     private const val WARM_WORKERS = 2
     private const val ACK_TIMEOUT_MS = 5000
     private const val ANSWER_TIMEOUT_MS = 5000
+    private const val RECEIVE_TIMEOUT_MS = 10000
+    // argv and the environment of one exec, with room: Linux caps them at a quarter of the stack
+    private const val MAX_REQUEST_BYTES = 8 shl 20
+    private const val MAX_RECEIVING = 32
+    private val receiving = java.util.concurrent.atomic.AtomicInteger()
     private val connections = java.util.concurrent.Executors.newSingleThreadExecutor { Thread(it, "guest-worker-binder").apply { isDaemon = true } }
     @Volatile private var server: Thread? = null
 
@@ -343,11 +352,11 @@ object GuestWorkers {
         // without one, the worker ends without running the program (the caller starts it another way).
         // It answers with a byte of its own: without that it gave up waiting, and nothing runs.
         var go: Array<ParcelFileDescriptor>? = null
-        val data = Parcel.obtain()
+        var data: Parcel? = Parcel.obtain()
         val reply = Parcel.obtain()
         try {
             go = ParcelFileDescriptor.createSocketPair()
-            data.writeStringArray(argv.toTypedArray())
+            data!!.writeStringArray(argv.toTypedArray())
             data.writeStringArray(env.toTypedArray())
             data.writeInt(fds.size)
             fds.forEach { data.writeFileDescriptor(it.fileDescriptor) }
@@ -355,7 +364,10 @@ object GuestWorkers {
             data.writeInt(if (guest) 0 else 1)
             data.writeFileDescriptor(go[0].fileDescriptor)
             slot.service!!.transact(GuestWorker.RUN, data, reply, 0)
-            // The worker has its own copy: with ours closed, a worker that gave up leaves no reader
+            // The worker has its own copy: with ours closed (and the request's, which holds one too),
+            // a worker that gave up leaves no reader
+            data.recycle()
+            data = null
             go[0].close()
             val pid = reply.readInt()
             // Once a session's teardown has begun (stopGuests), none of its programs may start: it
@@ -366,8 +378,9 @@ object GuestWorkers {
                 release(app, slot)
                 return -1
             }
+            // launching, not started yet: an end before the last word is reported only if the launch ran
             val live = synchronized(slots) {
-                (slots[slot.index] === slot && !stopping()).also { if (it) { slot.pid = pid; slot.started = true } }
+                (slots[slot.index] === slot && !stopping()).also { if (it) { slot.pid = pid; slot.launching = true } }
             }
             if (!live) {
                 Log.w(TAG, "worker ${slot.index} ended, or its session is stopping, before running ${argv.firstOrNull()}")
@@ -380,20 +393,29 @@ object GuestWorkers {
             // answer came too late never runs a program this call reports as not started. [confirmed]
             // goes first: a caller that hears nothing runs the program itself, so it must have heard
             // before the worker may run it (an app dying in between loses the program, not doubles it).
+            // A teardown that began meanwhile has the pid already (guestPids lists a launching slot), so
+            // a launch that goes on from here is still stopped with the session.
             val accepted = Os.poll(arrayOf(answer), ANSWER_TIMEOUT_MS) > 0 && Os.read(go[1].fileDescriptor, ByteArray(1), 0, 1) == 1 &&
-                confirmed() && Os.write(go[1].fileDescriptor, byteArrayOf(1), 0, 1) == 1
+                !stopping() && confirmed() && Os.write(go[1].fileDescriptor, byteArrayOf(1), 0, 1) == 1
+            val endedRunning = synchronized(slots) {
+                slot.launching = false
+                if (accepted && !slot.endedLaunching) slot.started = true
+                accepted && slot.endedLaunching
+            }
             if (!accepted) {
                 Log.w(TAG, "worker ${slot.index} did not take ${argv.firstOrNull()} on")
-                slot.started = false
                 release(app, slot)
                 return -1
             }
+            // it ran and was already gone by now: its end, once
+            if (endedRunning) reportEnd(app, slot)
         } catch (e: Exception) {
             Log.w(TAG, "worker ${slot.index} refused ${argv.firstOrNull()}", e)
+            synchronized(slots) { slot.launching = false }
             release(app, slot)
             return -1
         } finally {
-            data.recycle()
+            data?.recycle()
             reply.recycle()
             go?.forEach { runCatching { it.close() } }
         }
@@ -472,14 +494,20 @@ object GuestWorkers {
     }
 
     private fun release(app: Context, slot: Slot) {
+        var report = false
         val removed = synchronized(slots) {
             warm.remove(slot)
+            if (slot.launching) slot.endedLaunching = true else report = slot.started
             (slots[slot.index] === slot).also { if (it) slots[slot.index] = null }
         }
         if (!removed) return
         runCatching { app.unbindService(slot.connection) }
-        val onExit = slot.onExit
-        if (slot.started && onExit != null) Thread({ onExit(exitStatus(app, slot.pid)) }, "guest-worker-exit").start()
+        if (report) reportEnd(app, slot)
+    }
+
+    private fun reportEnd(app: Context, slot: Slot) {
+        val onExit = slot.onExit ?: return
+        Thread({ onExit(exitStatus(app, slot.pid)) }, "guest-worker-exit").start()
     }
 
     /** The worker's exit as a wait status (exit code << 8, or the signal), -1 when unknown. */
@@ -549,9 +577,16 @@ object GuestWorkers {
                         Thread.sleep(100)  // out of fds, for one: do not spin
                         continue
                     }
+                    // A bounded number of requests still coming in: a stalled sender holds a thread
+                    if (receiving.incrementAndGet() > MAX_RECEIVING) {
+                        receiving.decrementAndGet()
+                        Log.w(TAG, "$MAX_RECEIVING spawn requests are still coming in: refusing another")
+                        runCatching { client.close() }
+                        continue
+                    }
                     Thread({
                         try {
-                            handle(app, client)
+                            handle(app, client) { receiving.decrementAndGet() }
                         } catch (e: Throwable) {
                             Log.w(TAG, "spawn request failed", e)
                         }
@@ -562,11 +597,28 @@ object GuestWorkers {
         return number
     }
 
-    private fun handle(app: Context, client: LocalSocket) {
+    private fun handle(app: Context, client: LocalSocket, received: () -> Unit) {
+        var receiving = true
+        val done = { if (receiving) { receiving = false; received() } }
+        try {
+            handleRequest(app, client, done)
+        } finally {
+            done()
+        }
+    }
+
+    private fun handleRequest(app: Context, client: LocalSocket, received: () -> Unit) {
         client.use {
             if (client.peerCredentials.uid != Process.myUid()) return
+            // Each read of the request and its fds within this (the wait for a program's exit is not)
+            client.soTimeout = RECEIVE_TIMEOUT_MS
             val input = DataInputStream(client.inputStream)
-            val payload = ByteArray(input.readInt()).also { input.readFully(it) }
+            val length = input.readInt()
+            if (length !in 1..MAX_REQUEST_BYTES) {
+                Log.w(TAG, "spawn request of $length bytes refused")
+                return
+            }
+            val payload = ByteArray(length).also { input.readFully(it) }
             val request = JSONObject(String(payload))
             val fds = ArrayList<ParcelFileDescriptor>()
             fun take() {
@@ -590,6 +642,7 @@ object GuestWorkers {
             } else {
                 take()
             }
+            received()
             val argv = request.getJSONArray("argv").let { a -> List(a.length()) { a.getString(it) } }
             val env = LinkedHashMap<String, String>()
             request.optJSONObject("env")?.let { o -> o.keys().forEach { env[it] = o.getString(it) } }

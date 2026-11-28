@@ -1201,6 +1201,11 @@ static int ddh_spawn_forked(pid_t *pid, const char *path, const posix_spawn_file
             if ((unsigned)a[i].tag >= DDH_DO_TCSETPGRP) return -1;
         }
     }
+    // A scheduling policy or priority would apply to this child, not to the worker that runs the program
+    short spawn_flags = 0;
+    if (attr && posix_spawnattr_getflags(attr, &spawn_flags) == 0 &&
+        (spawn_flags & (POSIX_SPAWN_SETSCHEDULER | POSIX_SPAWN_SETSCHEDPARAM)))
+        return -1;
     int report[2];
     if (pipe2(report, O_CLOEXEC) != 0) return -1;
     pid_t child = fork();
