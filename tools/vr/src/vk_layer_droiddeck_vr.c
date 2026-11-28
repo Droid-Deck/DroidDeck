@@ -585,9 +585,28 @@ static void VKAPI_CALL DestroySwapchainKHR(VkDevice device, VkSwapchainKHR swapc
     NEXT(device, DestroySwapchainKHR)(device, swapchain, allocator);
 }
 
+static VkResult VKAPI_CALL AcquireNextImageKHR(VkDevice device, VkSwapchainKHR swapchain, uint64_t timeout, VkSemaphore semaphore,
+                                               VkFence fence, uint32_t *index) {
+    VkResult r = NEXT(device, AcquireNextImageKHR)(device, swapchain, timeout, semaphore, fence, index);
+#ifdef DROIDDECK_WSI_CAPTURE
+    if (r == VK_SUCCESS || r == VK_SUBOPTIMAL_KHR) droiddeck_wsi_acquired(device, swapchain, *index);
+#endif
+    return r;
+}
+
+static VkResult VKAPI_CALL AcquireNextImage2KHR(VkDevice device, const VkAcquireNextImageInfoKHR *info, uint32_t *index) {
+    VkResult r = NEXT(device, AcquireNextImage2KHR)(device, info, index);
+#ifdef DROIDDECK_WSI_CAPTURE
+    if (r == VK_SUCCESS || r == VK_SUBOPTIMAL_KHR) droiddeck_wsi_acquired(device, info->swapchain, *index);
+#endif
+    return r;
+}
+
 static PFN_vkVoidFunction display_device_hook(const char *name) {
     HOOK_AS("vkCreateSwapchainKHR", CreateSwapchainKHR)
     HOOK_AS("vkDestroySwapchainKHR", DestroySwapchainKHR)
+    HOOK_AS("vkAcquireNextImageKHR", AcquireNextImageKHR)
+    HOOK_AS("vkAcquireNextImage2KHR", AcquireNextImage2KHR)
     HOOK_AS("vkDisplayPowerControlEXT", DisplayPowerControlEXT)
     HOOK_AS("vkRegisterDeviceEventEXT", RegisterDeviceEventEXT)
     HOOK_AS("vkRegisterDisplayEventEXT", RegisterDisplayEventEXT)

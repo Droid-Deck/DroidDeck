@@ -4,7 +4,9 @@ import os
 from pathlib import Path
 import sys
 
-OVERRIDES = {'enableLinuxVulkanAsync': True, 'motionSmoothing': False}
+# SteamVR's arm64 build throttles the compositor to save power and skipped refreshes it had time for.
+OVERRIDES = {'enableLinuxVulkanAsync': True, 'motionSmoothing': False, 'framesToThrottle': 0, 'powersaveFramesToThrottle': 0}
+UNSET = [False, None]
 
 
 def read(path):
@@ -33,7 +35,7 @@ def saved_preferences(path):
         if not isinstance(backup.get('section'), bool) or not isinstance(backup.get('values'), dict):
             raise ValueError('invalid backup object')
         for key in OVERRIDES:
-            entry = backup['values'].get(key)
+            entry = backup['values'].get(key, UNSET)
             if not isinstance(entry, list) or len(entry) != 2 or not isinstance(entry[0], bool):
                 raise ValueError('invalid saved preference: ' + key)
         return backup
@@ -59,7 +61,7 @@ def update(operation, settings_path, backup_path):
         backup = saved_preferences(backup_path)
         section = settings.setdefault('steamvr', {})
         for key in OVERRIDES:
-            present, value = backup['values'][key]
+            present, value = backup['values'].get(key, UNSET)
             if present:
                 section[key] = value
             else:

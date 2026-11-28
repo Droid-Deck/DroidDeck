@@ -41,6 +41,7 @@ struct CaptureSlot {
     bool rgbaInitialized{};
     void *mapping{};
     VkFence fence{};
+    uint64_t uses{};
     bool busy{}, queued{};
     DroidDeckXrFrameHeader header{};
     ~CaptureSlot() { Clear(); }
@@ -134,6 +135,7 @@ struct Swapchain {
     VkFormat format{};
     std::vector<VkImage> images;
     std::vector<VkSemaphore> ready;
+    std::vector<std::pair<CaptureSlot *, uint64_t>> copying;
     std::array<CaptureSlot, 3> slots;
     uint64_t frame{};
     XrTrackingFile tracking;
@@ -250,6 +252,7 @@ struct Swapchain {
         images.resize(count);
         if (d.GetSwapchainImagesKHR(d.handle, chain, &count, images.data())) return false;
         ready.resize(count);
+        copying.assign(count, {nullptr, 0});
         VkSemaphoreCreateInfo semaphoreInfo{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
         for (auto &semaphore : ready) if (d.CreateSemaphore(d.handle, &semaphoreInfo, nullptr, &semaphore)) return false;
         XrGpuPoolInfo info;
@@ -301,6 +304,15 @@ struct Swapchain {
             p[2][2] = -1; p[2][3] = -0.2f; p[3][2] = -1;
         }
         return xr_frame_valid(header);
+    }
+    // The headless swapchain hands an image back as soon as it is presented, and KGSL has no implicit sync, so
+    // the compositor drew its next frame into an image this copy still read: blocky panels. The copy is waited
+    // for when the image is acquired again, by which time it has nearly always finished, rather than stalling
+    // the compositor in every present.
+    void Acquired(uint32_t index) {
+        if (index >= copying.size() || !copying[index].first) return;
+        CaptureSlot &slot = *copying[index].first;
+        if (slot.uses == copying[index].second) device->WaitForFences(device->handle, 1, &slot.fence, VK_TRUE, UINT64_MAX);
     }
     VkResult Capture(VkQueue queue, uint32_t index, const VkPresentInfoKHR &present, VkSemaphore *completion) {
         auto &d = *device;
@@ -371,9 +383,8 @@ struct Swapchain {
         submit.pWaitDstStageMask = stages.data(); submit.commandBufferCount = 1; submit.pCommandBuffers = &command;
         submit.signalSemaphoreCount = 1; submit.pSignalSemaphores = &ready[index];
         if ((result = d.QueueSubmit(queue, 1, &submit, fence))) return Fail(result, slot);
-        // The headless swapchain hands the image back as soon as it is presented, and KGSL has no implicit
-        // sync, so the compositor drew its next frame into it while this copy still read it: blocky panels.
-        if ((result = d.WaitForFences(d.handle, 1, &fence, VK_TRUE, UINT64_MAX))) return Fail(result, slot);
+        if (copying.size() < images.size()) copying.resize(images.size(), {nullptr, 0});
+        copying[index] = {&slot, ++slot.uses};
         rgbaInitialized = true;
         { std::lock_guard<std::mutex> lock(sendMutex); slot.header = header; slot.queued = true; sendReady.notify_all(); }
         *completion = ready[index];
@@ -423,6 +434,11 @@ extern "C" void droiddeck_wsi_swapchain(VkDevice device, VkSwapchainKHR chain, c
     auto chainState = std::make_unique<Swapchain>(); chainState->device = it->second.get();
     chainState->extent = create->imageExtent; chainState->format = create->imageFormat;
     swapchains[chain] = std::move(chainState);
+}
+extern "C" void droiddeck_wsi_acquired(VkDevice device, VkSwapchainKHR chain, uint32_t index) {
+    (void)device; std::lock_guard<std::mutex> lock(mutex);
+    auto it = swapchains.find(chain);
+    if (it != swapchains.end() && it->second->initialized) it->second->Acquired(index);
 }
 extern "C" void droiddeck_wsi_forget(VkDevice device, VkSwapchainKHR chain) {
     (void)device; std::lock_guard<std::mutex> lock(mutex); swapchains.erase(chain);

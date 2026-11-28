@@ -108,7 +108,8 @@ class SteamVrHelperTest(unittest.TestCase):
             receiver.bind(str(self.runtime / 'droiddeck-xr-frames'))
             self.assertIn('present=questwsi lease=unset', self.lease_log())
         settings = json.loads((self.home / '.local/share/Steam/config/steamvr.vrsettings').read_text())
-        self.assertEqual(settings['steamvr'], {'enableLinuxVulkanAsync': True, 'motionSmoothing': False})
+        self.assertEqual(settings['steamvr'], {'enableLinuxVulkanAsync': True, 'motionSmoothing': False,
+                                               'framesToThrottle': 0, 'powersaveFramesToThrottle': 0})
         self.assertFalse(cvp.exists())
         self.assertEqual(Path(str(cvp) + '.droiddeck-disabled').read_bytes(), b'frame-only backend')
 
@@ -170,6 +171,18 @@ class SteamVrHelperTest(unittest.TestCase):
         backup.write_bytes(valid_backup)
         subprocess.run([sys.executable, str(helper), 'restore', str(settings), str(backup)], check=True)
         self.assertEqual(json.loads(settings.read_text()), original)
+        self.assertFalse(backup.exists())
+
+    def test_backup_saved_before_new_overrides_still_restores(self):
+        settings = self.root / 'steamvr.vrsettings'
+        backup = self.root / 'quest-backup.json'
+        helper = SOURCE.with_name('droiddeck-steamvr-settings')
+        settings.write_text(json.dumps({'steamvr': {'enableLinuxVulkanAsync': True, 'motionSmoothing': False,
+                                                    'framesToThrottle': 0}}))
+        backup.write_text(json.dumps({'section': True, 'values': {'enableLinuxVulkanAsync': [False, None],
+                                                                  'motionSmoothing': [True, True]}}))
+        subprocess.run([sys.executable, str(helper), 'restore', str(settings), str(backup)], check=True)
+        self.assertEqual(json.loads(settings.read_text()), {'steamvr': {'motionSmoothing': True}})
         self.assertFalse(backup.exists())
 
     def test_quest_update_preserves_previous_cvp_backup(self):
