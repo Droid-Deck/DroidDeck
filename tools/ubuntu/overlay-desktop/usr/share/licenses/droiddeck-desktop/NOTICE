@@ -14,6 +14,9 @@ Third-party files in DroidDeck's Ubuntu runtime (tools/ubuntu/overlay):
 - Mesa (packages with version +droiddeck): Ubuntu's Mesa source package, MIT and others, rebuilt with
   the freedreno KGSL kernel interface enabled (tools/ubuntu/build-debs.sh). Corresponding source:
   `apt source mesa`.
+- Xwayland (xwayland, version +droiddeck): Ubuntu's Xwayland source package, MIT and others, rebuilt
+  with tools/ubuntu/patches/xwayland. Corresponding source: `apt source xwayland` plus those patches
+  (https://github.com/Droid-Deck/DroidDeck/tree/main/tools/ubuntu/patches/xwayland).
 
 Everything else in the runtime is Ubuntu's own packages, under their own licenses
 (/usr/share/doc/*/copyright).

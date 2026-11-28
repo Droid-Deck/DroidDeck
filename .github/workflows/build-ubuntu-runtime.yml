@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Build Mesa with KGSL and the patched KWin
+      - name: Build Mesa with KGSL and the patched KWin and Xwayland
         run: |
           set -euo pipefail
           docker run --rm -v "$PWD:/work" -w /work ubuntu:26.04 bash tools/ubuntu/build-debs.sh /work/out/debs
