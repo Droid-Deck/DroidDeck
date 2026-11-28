@@ -106,13 +106,14 @@ int main(int argc, char **argv) {
     printf("again\t%d\n", (int)waitpid(-1, &status, WNOHANG));
     return 0;
   }
-  if (strcmp(argv[1], "waitid") == 0) {
-    // at once, before the child has claimed its handoff, and for stops too
+  int all = strcmp(argv[1], "waitidall") == 0 ? __WALL : 0;
+  if (strcmp(argv[1], "waitid") == 0 || all) {
+    // at once, before the child has claimed its handoff, and for stops too (and with __WALL)
     siginfo_t si;
     errno = 0;
     printf("pid0\t%d\n", waitid(P_PID, 0, &si, WEXITED) < 0 && errno == EINVAL);
     memset(&si, 0, sizeof(si));
-    int r = waitid(P_ALL, 0, &si, WEXITED | WSTOPPED);
+    int r = waitid(P_ALL, 0, &si, WEXITED | WSTOPPED | all);
     printf("same\t%d\n", r == 0 && si.si_pid == pid);
     printf("code\t%d\n", si.si_code);
     printf("exit\t%d\n", si.si_status);
@@ -408,6 +409,14 @@ class NativeHookHandoffTest(unittest.TestCase):
         self.assertEqual(str(CLD_EXITED), result.get("code"), out.stdout)
         self.assertEqual("7", result.get("exit"), out.stdout)
         self.assertEqual(str(os.getuid()), result.get("uid"), out.stdout)
+        self.assertEqual("-1", result.get("again"), out.stdout)
+
+    def test_waitid_with_wall_reports_the_program(self):
+        result, requests, out = self.run_parent("waitidall", "7")
+        self.assertEqual(1, len(requests), out.stderr)
+        self.assertEqual("1", result.get("same"), out.stdout)
+        self.assertEqual(str(CLD_EXITED), result.get("code"), out.stdout)
+        self.assertEqual("7", result.get("exit"), out.stdout)
         self.assertEqual("-1", result.get("again"), out.stdout)
 
     def test_waitid_for_a_child_not_listed_is_the_kernels(self):

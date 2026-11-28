@@ -1467,11 +1467,14 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
         errno = ENOSYS;
         return -1;
     }
-    // A wait without exits never takes a forked child's exit for the program's. Other option bits
-    // (invalid ones too, which the kernel refuses) and group 1 (init's, which a waitpid() selector of
-    // -1 would take for any child): the real call.
+    // A wait without exits never takes a forked child's exit for the program's. Invalid option bits
+    // (which the kernel refuses), __WCLONE alone (which selects no forked child) and group 1 (init's,
+    // which a waitpid() selector of -1 would take for any child): the real call. __WALL and
+    // __WNOTHREAD go along with each call made here.
+    int carried = options & (__WALL | __WNOTHREAD);
     if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || !(options & WEXITED) ||
-        (options & ~(WEXITED | WSTOPPED | WCONTINUED | WNOHANG | WNOWAIT)) ||
+        (options & ~(WEXITED | WSTOPPED | WCONTINUED | WNOHANG | WNOWAIT | __WALL | __WNOTHREAD | __WCLONE)) ||
+        ((options & __WCLONE) && !(options & __WALL)) ||
         (idtype != P_PID && idtype != P_ALL && idtype != P_PGID) || (idtype == P_PGID && id == 1))
         return real(idtype, id, info, options);
     if ((idtype == P_PID && (pid_t)id <= 0) || (idtype == P_PGID && (pid_t)id < 0)) {
@@ -1521,7 +1524,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
             int exited = seen.si_code == CLD_EXITED || seen.si_code == CLD_KILLED || seen.si_code == CLD_DUMPED;
             struct ddh_entry *h = exited ? ddh_find(child) : NULL;
             if (h && !h->reaped) {
-                if (w4 && w4(child, NULL, WNOHANG, NULL) == child) h->reaped = 1;  // the forked child that handed its program off
+                if (w4 && w4(child, NULL, WNOHANG | carried, NULL) == child) h->reaped = 1;  // the forked child that handed its program off
                 continue;
             }
             if (options & WNOWAIT) {
@@ -1533,7 +1536,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
             int kind = exited ? WEXITED : seen.si_code == CLD_CONTINUED ? WCONTINUED : WSTOPPED;
             siginfo_t got;
             memset(&got, 0, sizeof(got));
-            if (real(P_PID, (id_t)child, &got, kind | WNOHANG) < 0 || got.si_pid != child) continue;  // another waiter took it
+            if (real(P_PID, (id_t)child, &got, kind | carried | WNOHANG) < 0 || got.si_pid != child) continue;  // another waiter took it
             // A forked child that died while handing its program off (a signal): its entry is done.
             int died = got.si_code == CLD_EXITED || got.si_code == CLD_KILLED || got.si_code == CLD_DUMPED;
             if (died && !ddh_find(child) && (h = ddh_claiming(child))) ddh_release(h, NULL);
