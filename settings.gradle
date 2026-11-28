@@ -8,6 +8,18 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        def robolectricMirror = providers.gradleProperty('robolectricMavenMirror').orNull
+        if (robolectricMirror) {
+            exclusiveContent {
+                forRepository {
+                    maven {
+                        name = 'robolectricMirror'
+                        url = uri(robolectricMirror)
+                    }
+                }
+                filter { includeGroup 'org.robolectric' }
+            }
+        }
         google()
         mavenCentral()
         maven { url 'https://jitpack.io' }
