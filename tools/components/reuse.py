@@ -23,8 +23,8 @@ import prepare  # noqa: E402
 # CI records identities under its runner labels and pinned NDK, not this host's.
 RUNNER_ARCHITECTURES = ('X64', 'ARM64')
 # The components job builds these outside the recipe registry.
-UNREGISTERED_INPUTS = ['.github/workflows/build.yml', 'tools/linuxfs/xclipse-layer', 'tools/venus/glprobe.c',
-                       'tools/quest']
+UNREGISTERED_INPUTS = ['.github/workflows/build.yml', 'tools/linuxfs/xclipse-layer', 'tools/linuxfs/lse-emu',
+                       'tools/venus/glprobe.c', 'tools/quest']
 
 
 def ci_environment(architecture, root):
