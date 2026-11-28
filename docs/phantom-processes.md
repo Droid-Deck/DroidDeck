@@ -390,9 +390,12 @@ lingers in its worker; see below).
   signal the groups those programs lead.
 - **Tried and dropped:** handing off Steam's launch chain (`sh`, `steam-launch-wrapper`, `reaper`):
   the client tracks the process it forked, which then exits at once, and called the game closed.
-  Showing a handed-off program's forking process as its parent in `/proc/<pid>/stat`, `status` and
-  `getppid()` left Steam's UI at "Loading library data": the client checks the parents of the
-  processes on its IPC connections with `lsof -F R`. And `posix_spawn()` emulation must make only
+  Showing a handed-off program's forking process as its parent in `/proc/<pid>/stat` and `status`
+  left Steam's UI at "Loading library data": the client checks the parents of the processes on its
+  IPC connections with `lsof -F R`. Only the program's own `getppid()` answers with that process
+  (while it lives, then 1): the GOG launch leases the game folder for as long as the launcher, its
+  parent, runs, and took zygote, which the guest cannot see, for a launcher already gone. And
+  `posix_spawn()` emulation must make only
   system calls in its child (no hook wrapper takes a lock there): one Steam fork hung on a lock
   another thread held.
 
@@ -448,7 +451,8 @@ the old behavior and the old requirement.
      Bully on GE-Proton, Proton Experimental ARM64 and DroidDeck-Proton 11 (11–14 counted), Bomb
      Rush Cyberfunk (14), MGSV Ground Zeroes (13), Sekiro (13), zero-copy off (11), the x86-64
      Steam client under FEX (14, against 55 without the handoff), Splinter Cell through Ubisoft
-     Connect (14, against 65), the desktop at rest (17–20) and
+     Connect (14, against 65), Star Wars: Galaxy of Heroes (EA, 14), 9 Years of Shadows (GOG, 14),
+     run mode with 40 background jobs (1), the desktop at rest (17–20) and
      with a terminal's 40 background jobs (20). PRoot sessions keep the old behavior and still need
      the developer option: with the limit on, Android killed 30 of their processes and the session
      failed;

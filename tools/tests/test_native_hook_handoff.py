@@ -403,6 +403,35 @@ class NativeHookHandoffTest(unittest.TestCase):
         self.assertEqual([], requests)
         self.assertEqual(self.child_status, result.get("exit"), out.stdout)
 
+    def ppid_in_worker(self, parent):
+        # as a worker's own program: DDH_WORKER_PID is its pid, DDH_TABLE names the process that forked it
+        tmp = Path(self.tmp.name)
+        probe = tmp / "ppid"
+        if not probe.exists():
+            (tmp / "ppid.c").write_text('#include <stdio.h>\n#include <unistd.h>\nint main(void) { printf("%d", (int)getppid()); return 0; }\n')
+            subprocess.run([self.cc, "-O1", "-o", str(probe), str(tmp / "ppid.c")], check=True)
+        env = {"LD_PRELOAD": str(self.hook), "DDNATV_ROOT": str(self.root)}
+        if parent is not None:
+            env["DDH_TABLE"] = "3:0:%d:0" % parent
+        settings = " ".join("-E %s=%s" % item for item in env.items()) if self.prefix else \
+            " ".join("%s=%s" % item for item in env.items())
+        worker = "-E DDH_WORKER_PID=$$" if self.prefix else "DDH_WORKER_PID=$$"
+        runner = " ".join(self.prefix) + " " + settings + " " + worker if self.prefix else "env " + settings + " " + worker
+        out = subprocess.run(["sh", "-c", "exec %s %s" % (runner, probe)], capture_output=True, text=True, timeout=60)
+        return out.stdout.strip()
+
+    def test_a_handed_off_programs_parent_is_the_process_that_forked_it(self):
+        forker = subprocess.Popen(["sleep", "60"])
+        self.addCleanup(forker.wait)
+        self.addCleanup(forker.kill)
+        self.assertEqual(str(forker.pid), self.ppid_in_worker(forker.pid))
+
+    def test_a_handed_off_program_whose_forking_process_is_gone_has_init_as_parent(self):
+        self.assertEqual("1", self.ppid_in_worker(4194303))
+
+    def test_any_other_program_has_its_real_parent(self):
+        self.assertEqual(str(os.getpid()), self.ppid_in_worker(None))
+
     def test_a_program_not_listed_is_a_normal_child(self):
         result, requests, out = self.run_parent("wait", "3", handoff="other")
         self.assertEqual([], requests)

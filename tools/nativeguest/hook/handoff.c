@@ -185,7 +185,7 @@ static int ddh_list_fds(int *fds, int max) {
 // A table inherited across exec: the parent's if its owner is still our parent, else closed.
 static void ddh_find_parent_table(void) {
     char path[64], target[64];
-    pid_t parent = getppid();
+    pid_t parent = (pid_t)syscall(SYS_getppid);
     // The table a worker's program reports its exit to (DDH_TABLE), also for what it execs
     int report = -1;
     const char *spec = getenv("DDH_TABLE");
@@ -850,7 +850,7 @@ static int ddh_waiter(pid_t pid) {
 }
 
 static int ddh_pressed(const char *filename, char *const envp[]) {
-    if (ddh_exec_stub(filename) || !ddh_waiter(getppid())) return 0;
+    if (ddh_exec_stub(filename) || !ddh_waiter((pid_t)syscall(SYS_getppid))) return 0;
     // Not one that reads the terminal it is in the foreground of: a handed-off program has no
     // controlling terminal (the worker's setsid()), so /dev/tty, ^C and job control would miss it.
     // A job started with & reads /dev/null, or runs in a background group.
@@ -886,14 +886,14 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     if (own && getpid() != own_owner) {
         table = own;
         table_fd = g_ddh_fd;
-    } else if (g_ddh_up && getppid() == g_ddh_up->pad[0]) {
+    } else if (g_ddh_up && (pid_t)syscall(SYS_getppid) == g_ddh_up->pad[0]) {
         table = g_ddh_up;
         table_fd = g_ddh_up_fd;
     } else {
         if (ddh_env(envp, "DD_HANDOFF_DEBUG")) {
             char why[160];
             snprintf(why, sizeof(why), "not a child its parent can track (table %d owner %d up %d up-owner %d ppid %d):",
-                     own != NULL, (int)own_owner, g_ddh_up != NULL, g_ddh_up ? g_ddh_up->pad[0] : 0, (int)getppid());
+                     own != NULL, (int)own_owner, g_ddh_up != NULL, g_ddh_up ? g_ddh_up->pad[0] : 0, (int)(pid_t)syscall(SYS_getppid));
             ddh_debug(envp, why, filename);
         }
         return;
@@ -938,7 +938,7 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     }
     if (slot < 0) return;
     struct ddh_entry *e = &table->e[slot];
-    pid_t me = getpid(), parent = getppid();
+    pid_t me = getpid(), parent = (pid_t)syscall(SYS_getppid);
     // Before the request: the app checks them before it reports an exit into this entry, which a
     // later handoff may have taken over by then.
     e->child = me;
@@ -1550,6 +1550,25 @@ static pid_t ddh_logical_group(pid_t real) {
 }
 
 static pid_t ddh_logical_pgrp(void) { return ddh_logical_group(getpgrp()); }
+
+// A handed-off program's parent is zygote, which the guest cannot see: a launcher that watches its
+// parent through /proc/<ppid> took it for gone at once. getppid() answers with the process that
+// forked it (DDH_TABLE's parent) while that one lives, and init once it is gone, as after the
+// kernel's reparenting. /proc/<pid>/stat keeps the real parent (see docs, "Tried and dropped").
+pid_t getppid(void) {
+    pid_t real = (pid_t)syscall(SYS_getppid);
+    const char *worker = getenv("DDH_WORKER_PID"), *spec = getenv("DDH_TABLE");
+    if (!worker || !spec || (pid_t)atoi(worker) != getpid()) return real;
+    // fd:slot:parent:child
+    const char *p = strchr(spec, ':');
+    p = p ? strchr(p + 1, ':') : NULL;
+    pid_t parent = p ? (pid_t)atoi(p + 1) : 0;
+    if (parent <= 0) return real;
+    int saved = errno;
+    int gone = syscall(SYS_kill, parent, 0) != 0 && errno == ESRCH;
+    errno = saved;
+    return gone ? 1 : parent;
+}
 
 static char g_ddh_group_entry[96];
 static int g_ddh_parent_entry;
