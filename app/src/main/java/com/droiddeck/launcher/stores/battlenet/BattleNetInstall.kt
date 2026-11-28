@@ -114,8 +114,11 @@ object BattleNetInstall {
     internal const val UPDATE_FOLDER = "updateFolder"
     internal const val STALLED = "stalled"
 
+    internal fun registered(context: Context, id: String): BattleNet.Game? =
+        runCatching { BattleNet.games(context).firstOrNull { it.uid == id } }.getOrNull()
+
     internal fun installUid(context: Context, game: InstalledStoreGame): String =
-        runCatching { BattleNet.games(context).firstOrNull { it.uid == game.sidecar.id }?.installUid }.getOrNull() ?: game.sidecar.id
+        registered(context, game.sidecar.id)?.installUid ?: game.sidecar.id
 
     fun uninstall(context: Context, game: InstalledStoreGame): Boolean {
         if (product(game.sidecar.id) == null || !BattleNet.installed(context)) return false
@@ -243,6 +246,7 @@ internal class BattleNetInstaller(
     private val ended = java.util.concurrent.CountDownLatch(1)
     private var before = 0L
     private var kept = -1L
+    @Volatile private var registered: BattleNet.Game? = null
 
     override fun run(handle: DownloadQueue.JobHandle): String? {
         started.set(true)
@@ -259,12 +263,17 @@ internal class BattleNetInstaller(
         if (!BattleNet.installed(app)) throw IllegalStateException(app.getString(R.string.bnet_dl_client_first))
         val title = BattleNet.title(item.id)
         val product = title?.product ?: throw IllegalStateException(app.getString(R.string.bnet_dl_failed, item.id))
-        val uid = item.extra[BattleNetInstall.INSTALL_UID] ?: title.uid
-        if (!update) folder.mkdirs()
-        val guest = AddedGames.guestPath(app, folder) ?: throw IllegalStateException(app.getString(R.string.bnet_dl_failed, folder.path))
-        val (country, region) = BattleNetInstall.country(Locale.getDefault())
-        val args = if (update) listOf("agent-update", uid)
-        else listOf("agent-install", uid, product, guest, BattleNetInstall.localeTag(app), country, region)
+        val registered = (if (update) null else BattleNetInstall.registered(app, title.uid)).also { this.registered = it }
+        val updating = update || registered != null
+        val target = registered?.folder ?: folder
+        val uid = registered?.installUid ?: item.extra[BattleNetInstall.INSTALL_UID] ?: title.uid
+        val args = if (updating) listOf("agent-update", uid)
+        else {
+            folder.mkdirs()
+            val guest = AddedGames.guestPath(app, folder) ?: throw IllegalStateException(app.getString(R.string.bnet_dl_failed, folder.path))
+            val (country, region) = BattleNetInstall.country(Locale.getDefault())
+            listOf("agent-install", uid, product, guest, BattleNetInstall.localeTag(app), country, region)
+        }
         var done: JSONObject? = null
         var reason: String? = null
         val code = BattleNetInstall.run(app, args, cancelled) { line ->
@@ -280,13 +289,13 @@ internal class BattleNetInstaller(
         }
         if (cancelled.get()) return null
         if (done == null) throw IllegalStateException(BattleNetInstall.failure(app, reason, code))
-        handle.log("Battle.net: ${item.title} ${if (update) "updated" else "installed"} ${done?.optString("version").orEmpty()}".trimEnd())
+        handle.log("Battle.net: ${item.title} ${if (updating) "updated" else "installed"} ${done?.optString("version").orEmpty()}".trimEnd())
         StoresState.post {
             BattleNetInstall.updates.remove(item.id)
             StoresState.notifyLibraryChanged(app)
         }
-        BattleNetInstall.check(item.id, folder, force = true)
-        return folder.absolutePath
+        BattleNetInstall.check(item.id, target, force = true)
+        return target.absolutePath
     }
 
     private fun progress(handle: DownloadQueue.JobHandle, status: JSONObject) {
@@ -308,9 +317,14 @@ internal class BattleNetInstaller(
         val uid = item.extra[BattleNetInstall.INSTALL_UID] ?: BattleNet.title(item.id)?.uid ?: return
         Thread({
             if (started.get() && !ended.await(END_WAIT_S, TimeUnit.SECONDS)) Log.w("BattleNetInstall", "the cancelled install of $uid is still stopping")
-            val gone = BattleNetInstall.agentUninstall(app, uid)
+            val existing = registered
+            val gone = existing == null && BattleNetInstall.agentUninstall(app, uid)
             if (folder.isDirectory && (gone || folder.list().isNullOrEmpty())) com.droiddeck.launcher.core.FileUtils.delete(folder)
-            Log.i("BattleNetInstall", "cancelled install of $uid: ${if (gone) "removed" else "left for Battle.net to remove"}")
+            Log.i("BattleNetInstall", "cancelled install of $uid: " + when {
+                existing != null -> "Battle.net already had it in ${existing.folder}"
+                gone -> "removed"
+                else -> "left for Battle.net to remove"
+            })
         }, "battlenet-cancel").start()
     }
 }
