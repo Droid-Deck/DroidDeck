@@ -298,6 +298,14 @@ class EaTest {
         assertNotNull(EaApi.query("getPreloadedOwnedGames"))
     }
 
+    @Test fun ownedGamesIncludeEpicCopiesTheEaAppInstallsButNotSteamCopies() {
+        val variables = EaApi.ownedVariables("0")
+        val storefronts = variables.getJSONArray("storefronts").let { a -> (0 until a.length()).map { a.getString(it) } }
+        assertEquals(listOf("EA", "EPIC"), storefronts)
+        assertEquals("0", variables.getString("next"))
+        assertEquals("PC", variables.getJSONArray("platforms").getString(0))
+    }
+
     @Test fun launcherReadsTheSessionFileOnce() {
         val text = StoreLaunch.launcherText(StoreGameSidecar(Store.EA, "Origin.OFR.1", "Game", exe = "bin/Game.exe", args = listOf("-dx12")))
         assertTrue(text.contains("for /f \"usebackq tokens=1,* delims==\" %%a in (\"%~dp0.droiddeck-ea-env\") do set \"%%a=%%b\""))

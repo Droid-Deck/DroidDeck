@@ -117,19 +117,20 @@ object EaApi {
         return list to next
     }
 
+    internal fun ownedVariables(next: String): JSONObject = JSONObject()
+        .put("isMac", false)
+        .put("limit", 100)
+        .put("next", next)
+        .put("type", JSONArray().put("DIGITAL_FULL_GAME").put("PACKAGED_FULL_GAME"))
+        .put("storefronts", JSONArray().put("EA").put("EPIC"))
+        .put("platforms", JSONArray().put("PC"))
+
     fun owned(token: String): List<OwnedProduct> {
         val out = ArrayList<OwnedProduct>()
         var next: String? = "0"
         var guard = 0
         while (next != null && guard++ < 50) {
-            val variables = JSONObject()
-                .put("isMac", false)
-                .put("limit", 100)
-                .put("next", next)
-                .put("type", JSONArray().put("DIGITAL_FULL_GAME").put("PACKAGED_FULL_GAME"))
-                .put("storefronts", JSONArray().put("EA"))
-                .put("platforms", JSONArray().put("PC"))
-            val (items, after) = parseOwned(call(token, "getPreloadedOwnedGames", variables))
+            val (items, after) = parseOwned(call(token, "getPreloadedOwnedGames", ownedVariables(next)))
             out += items
             next = after?.takeIf { it != next && items.isNotEmpty() }
         }
