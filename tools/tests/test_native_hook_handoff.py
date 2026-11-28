@@ -15,6 +15,25 @@ from tools.tests.test_usr2_preload import runner
 
 HOOK_BUILD = Path(__file__).resolve().parents[1] / "nativeguest/build.sh"
 
+# fork() and exec argv[1] with "3", without the hook: prints the exit status it got
+EXEC_PROBE = r"""
+#include <stdio.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+int main(int argc, char **argv) {
+  pid_t pid = fork();
+  if (pid == 0) {
+    execl(argv[1], "target", "3", (char *)NULL);
+    _exit(127);
+  }
+  int status = 0;
+  if (waitpid(pid, &status, 0) != pid) return 1;
+  printf("%d\n", WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+  return 0;
+}
+"""
+
 PARENT = r"""
 #define _GNU_SOURCE
 #include <fcntl.h>
@@ -196,6 +215,14 @@ class NativeHookHandoffTest(unittest.TestCase):
         (cls.root / "bin").mkdir(parents=True)
         (tmp / "target.c").write_text(TARGET)
         subprocess.run([cls.cc, "-static", "-O1", "-o", str(cls.root / "bin/target"), str(tmp / "target.c")], check=True)
+        # Whether a child here can exec an aarch64 program at all: under qemu-user only where the
+        # kernel runs them (binfmt_misc), which a plain x86 runner does not. A handed-off program is
+        # started by the fake spawner through the runner itself either way.
+        (tmp / "execs.c").write_text(EXEC_PROBE)
+        subprocess.run([cls.cc, "-static", "-O1", "-o", str(tmp / "execs"), str(tmp / "execs.c")], check=True)
+        probe = subprocess.run(list(cls.prefix or []) + [str(tmp / "execs"), str(cls.root / "bin/target")],
+                               capture_output=True, text=True, timeout=60)
+        cls.child_execs = probe.stdout.strip() == "3"
 
     @classmethod
     def tearDownClass(cls):
@@ -301,7 +328,8 @@ class NativeHookHandoffTest(unittest.TestCase):
         result, requests, out = self.run_parent("wait", "3", handoff="other")
         self.assertEqual([], requests)
         self.assertEqual("1", result.get("same"), out.stdout)
-        self.assertEqual("3", result.get("exit"), out.stdout)
+        if self.child_execs:
+            self.assertEqual("3", result.get("exit"), out.stdout)
 
 
 if __name__ == "__main__":
