@@ -1,8 +1,10 @@
 # Xbox / PC Game Pass on Thor
 
 This integrates PC Microsoft Store packages, both streamed MSIXVC packages and the legacy
-EAppx containers older desktop titles still ship as. It is not Xbox console emulation and
-does not run UWP titles in a packaged-app host.
+EAppx containers older desktop titles still ship as. It is not Xbox console emulation.
+View-activated UWP packages are started by `compat/uwp-host.dll` (built from
+`tools/xbox/uwp-host` and staged by `droiddeck-xbox`); full-trust packages still start as
+ordinary Win32 executables.
 
 ## Testing on Thor
 
@@ -146,19 +148,20 @@ Verified during development:
   a time rather than the archive plus everything under it. The install bubble
   advances through this stage: each file's declared length is counted as it is
   written, and a bundle member is one file, so the folder's growth covers it.
-- A launch of this title through Xodus/ARM64 Proton reaches the loader with every declared
-  framework in place, then fails inside Wine: its manifest names `EntryPoint="Forza.App"`, a UWP
-  application that expects the app model to activate a view, which Wine has no host for. The
-  Play action reads that entry point from `AppxManifest.xml` and refuses the launch with a
-  message, and a launch that does reach the runtime reports `uwp-entry-point` rather than dying
-  silently. A package naming `Windows.FullTrustApplication` starts as an ordinary Win32
-  executable instead.
-- Activation itself is not the missing piece. A DLL registered under
-  `HKLM\Software\Microsoft\WindowsRuntime\ActivatableClassId\Windows.ApplicationModel.Core.CoreApplication`
-  is loaded by `combase.dll`, and its `DllGetActivationFactory` is called for that class. Such a
-  title still stops earlier: `GetCurrentPackageFullName` and `GetCurrentPackageFamilyName` are
-  Wine stubs, so a package has no identity, and an activation factory alone cannot supply the
-  `IFrameworkViewSource`/`CoreWindow` host the view asks for.
+- A launch of this title through Xodus/ARM64 Proton now reaches live gameplay. The package
+  names `EntryPoint="Forza.App"`, a UWP view. `droiddeck-xbox` stages `compat/uwp-host.dll`,
+  exposes the package under `C:\Program Files\WindowsApps\<FullName>`, and registers the
+  host for CoreApplication, CoreWindow, Package identity, ApplicationData, Xbox Live auth and
+  Connected Storage, and the other WinRT classes the title asks for on the way up. The Play
+  action no longer refuses view packages. A package naming `Windows.FullTrustApplication`
+  still starts as an ordinary Win32 executable.
+- The host is the missing activation piece: `DllGetActivationFactory` for
+  `Windows.ApplicationModel.Core.CoreApplication` and `Windows.UI.Core.CoreWindow` (including
+  `ICoreWindowInterop::get_WindowHandle` for DXGI), plus PackageRepository identity so
+  `GetCurrentPackageFullName` has something to read. Companion DroidDeck-Proton patches cover
+  DXVK CoreWindow swapchains, a dummy composition swapchain for this title's hardware
+  profiler, MTA context sharing, IXMLHTTPRequest2, and the WinRT input/media/UI stubs the
+  title reaches.
 
 - Native AArch64 CLI execution on Thor's existing Linux runtime.
 - Abstract-socket credential transport with a synthetic account on Thor; this

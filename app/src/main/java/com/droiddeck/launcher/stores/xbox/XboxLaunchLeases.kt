@@ -7,11 +7,22 @@ internal class XboxLaunchLeases(private val now: () -> Long) {
     private data class Lease(val id: String, val account: String, val session: String, var expires: Long, var child: Closeable? = null)
     private val leases = HashMap<String, Lease>()
 
-    @Synchronized fun active(id: String) = leases.values.any { it.id == id }
-    @Synchronized fun begin(id: String, account: String, session: String): String {
-        check(!active(id)) { "This Xbox game is already starting or running." }
+    /** A lease only blocks another launch while it is still renewing; see [begin]. */
+    @Synchronized fun active(id: String) = leases.values.any { it.id == id && it.expires > now() }
+    fun begin(id: String, account: String, session: String): String {
         val token = UUID.randomUUID().toString()
-        leases[token] = Lease(id, account, session, now() + 180_000)
+        val expired = ArrayList<Closeable>()
+        synchronized(this) {
+            check(!active(id)) { "This Xbox game is already starting or running." }
+            // A launch whose renewals stopped leaves its lease behind, and the expiry thread
+            // only runs while a lease is active, so nothing else would ever drop it. Reaping it
+            // here keeps a dead lease from turning the Play button into a permanent
+            // "already starting or running" with no game in sight.
+            val dead = leases.filterValues { it.id == id && it.expires <= now() }.keys
+            dead.forEach { leases.remove(it)?.child?.let(expired::add) }
+            leases[token] = Lease(id, account, session, now() + 180_000)
+        }
+        expired.forEach { runCatching { it.close() } }
         return token
     }
     @Synchronized fun attach(token: String, child: Closeable): Boolean {

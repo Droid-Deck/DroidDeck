@@ -277,9 +277,10 @@ class XboxLaunchTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             prefix = Path(root)
             key = xbox['CLASS_KEY'].replace('\\', '\\\\')
-            present = [name for names in xbox['CLASSES'].values() for name in names
+            section = '[%s%s] 1\n"DllPath"="C:\\\\windows\\\\system32\\\\%s"\n\n'
+            present = [(name, dll) for dll, names in xbox['CLASSES'].items() for name in names
                        if name != 'Windows.ApplicationModel.DataTransfer.DataTransferManager']
-            (prefix / 'system.reg').write_text(''.join('[%s%s] 1\n"DllPath"="x"\n\n' % (key, name) for name in present))
+            (prefix / 'system.reg').write_text(''.join(section % (key, name, dll) for name, dll in present))
             imported = []
             def run(argv, **kwargs):
                 imported.append(Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le'))
@@ -292,12 +293,88 @@ class XboxLaunchTest(unittest.TestCase):
                                         '\\ActivatableClassId\\Windows.ApplicationModel.DataTransfer.DataTransferManager]\r\n'
                                         '"DllPath"="C:\\\\windows\\\\system32\\\\twinapi.appcore.dll"\r\n\r\n'])
             with (prefix / 'system.reg').open('a') as file:
-                file.write('[%sWindows.ApplicationModel.DataTransfer.DataTransferManager] 1\n' % key)
+                file.write(section % (key, 'Windows.ApplicationModel.DataTransfer.DataTransferManager', 'twinapi.appcore.dll'))
             with patch('subprocess.run') as child:
                 xbox['register_classes']('/selected/proton', prefix, {})
                 (prefix / 'system.reg').unlink()
                 xbox['register_classes']('/selected/proton', prefix, {})
             child.assert_not_called()
+
+    def test_package_classes_come_from_the_manifest(self):
+        with tempfile.TemporaryDirectory() as root:
+            package = Path(root) / 'Game'
+            (package / 'bin').mkdir(parents=True)
+            (package / 'Wheel.dll').write_bytes(b'MZ')
+            (package / 'bin' / 'Live.dll').write_bytes(b'MZ')
+            server = ('<Extension Category="windows.activatableClass.inProcessServer"><InProcessServer>'
+                      '<Path>%s</Path>%s</InProcessServer></Extension>')
+            (package / 'AppxManifest.xml').write_text(''.join((
+                server % ('Wheel.dll', '<ActivatableClass ActivatableClassId="Vendor.Input.Wheel" ThreadingModel="both" />'),
+                server % ('bin\\Live.dll', '<ActivatableClass ActivatableClassId="Vendor.Live.User" />'
+                                           '<ActivatableClass ActivatableClassId="Vendor.Live.Context" />'),
+                server % ('..\\Outside.dll', '<ActivatableClass ActivatableClassId="Vendor.Outside" />'),
+                server % ('C:\\windows\\system32\\kernel32.dll', '<ActivatableClass ActivatableClassId="Vendor.Absolute" />'),
+                server % ('Missing.dll', '<ActivatableClass ActivatableClassId="Vendor.Missing" />'),
+                server % ('Wheel.dll', '<ActivatableClass ActivatableClassId="Vendor.Bad]Name" />'))))
+            windows = 'Z:' + str(package).replace('/', '\\')
+            self.assertEqual(xbox['package_classes'](package),
+                             {windows + '\\Wheel.dll': ['Vendor.Input.Wheel'],
+                              windows + '\\bin\\Live.dll': ['Vendor.Live.User', 'Vendor.Live.Context']})
+            self.assertEqual(xbox['package_classes'](Path('Game')), {})
+
+            prefix = Path(root)
+            key = xbox['CLASS_KEY'].replace('\\', '\\\\')
+            (prefix / 'system.reg').write_text(''.join(
+                '[%s%s] 1\n"DllPath"="C:\\\\windows\\\\system32\\\\%s"\n\n' % (key, name, dll)
+                for dll, names in xbox['CLASSES'].items() for name in names))
+            imported = []
+            def run(argv, **kwargs):
+                imported.append(Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le'))
+                return subprocess.CompletedProcess(argv, 0)
+            with patch('subprocess.run', side_effect=run):
+                xbox['register_classes']('/selected/proton', prefix, {}, {'Z:\\games\\Game\\Wheel.dll': ['Vendor.Input.Wheel']})
+            self.assertEqual(imported, ['Windows Registry Editor Version 5.00\r\n\r\n[HKEY_LOCAL_MACHINE\\Software\\Microsoft\\WindowsRuntime'
+                                        '\\ActivatableClassId\\Vendor.Input.Wheel]\r\n'
+                                        '"DllPath"="Z:\\\\games\\\\Game\\\\Wheel.dll"\r\n\r\n'])
+
+    def test_a_class_named_twice_resolves_to_the_later_dll(self):
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root)
+            key = xbox['CLASS_KEY'].replace('\\', '\\\\')
+            section = '[%s%s] 1\n"DllPath"="C:\\\\windows\\\\system32\\\\%s"\n\n'
+            name = 'Windows.Devices.Enumeration.DeviceInformation'
+            (prefix / 'system.reg').write_text(''.join(
+                section % (key, other, 'uwp-host.dll' if other == name else dll)
+                for dll, names in xbox['CLASSES'].items() for other in names))
+            with patch('subprocess.run') as child:
+                xbox['register_classes']('/selected/proton', prefix, {}, {'uwp-host.dll': (name,)})
+            child.assert_not_called()
+
+    def test_uwp_classes_override_windows_data_json_to_uwp_host(self):
+        json_classes = (
+            'Windows.Data.Json.JsonObject',
+            'Windows.Data.Json.JsonArray',
+            'Windows.Data.Json.JsonValue',
+        )
+        for cls in json_classes:
+            self.assertIn(cls, xbox['UWP_CLASSES'])
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root)
+            key = xbox['CLASS_KEY'].replace('\\', '\\\\')
+            section = '[%s%s] 1\n"DllPath"="C:\\\\windows\\\\system32\\\\%s"\n\n'
+            (prefix / 'system.reg').write_text(''.join(
+                section % (key, other, dll)
+                for dll, names in xbox['CLASSES'].items() for other in names))
+            imported = []
+            def run(argv, **kwargs):
+                imported.append(Path(argv[4][2:].replace('\\', '/')).read_bytes()[2:].decode('utf-16-le'))
+                return subprocess.CompletedProcess(argv, 0)
+            with patch('subprocess.run', side_effect=run):
+                xbox['register_classes']('/selected/proton', prefix, {}, {'uwp-host.dll': xbox['UWP_CLASSES']})
+            self.assertEqual(len(imported), 1)
+            for cls in json_classes:
+                self.assertIn('[HKEY_LOCAL_MACHINE\\Software\\Microsoft\\WindowsRuntime\\ActivatableClassId\\%s]\r\n'
+                              '"DllPath"="C:\\\\windows\\\\system32\\\\uwp-host.dll"' % cls, imported[0])
 
     def test_failed_class_registration_is_reported_and_launch_continues(self):
         with tempfile.TemporaryDirectory() as root:
@@ -489,3 +566,125 @@ class PlayFabProxyTest(unittest.TestCase):
                                                     {'DD_LAUNCH_DIR': '/launch', 'WINEDLLOVERRIDES': 'd3d11=n'}), 0)
                 self.assertEqual(wine.call_args.args[1]['WINEDLLOVERRIDES'], 'd3d11=n')
             self.assertEqual(staged, [root])
+
+
+class ComClassRegistrationTest(unittest.TestCase):
+    XHR_CLSID = '{88d96a0a-f192-11d4-a65f-0040963251e5}'
+    OTHER_CLSID = '{11111111-2222-3333-4444-555555555555}'
+
+    def test_com_class_paths_parses_inprocserver32_entries(self):
+        registry = (
+            '[Software\\\\Classes\\\\CLSID\\\\{88D96A0A-F192-11D4-A65F-0040963251E5}\\\\InprocServer32] 1700000000\n'
+            '@="C:\\\\windows\\\\system32\\\\uwp-host.dll"\n'
+            '"ThreadingModel"="Both"\n'
+            '[Software\\\\Classes\\\\CLSID\\\\{11111111-2222-3333-4444-555555555555}\\\\ProgID] 1700000000\n'
+            '@="Ignored.ProgID"\n'
+        )
+        self.assertEqual(
+            xbox['com_class_paths'](registry),
+            {self.XHR_CLSID: 'C:\\windows\\system32\\uwp-host.dll'},
+        )
+
+    def test_register_com_classes_imports_only_missing_or_mismatched_clsids(self):
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root)
+            (prefix / 'system.reg').write_text(
+                '[Software\\\\Classes\\\\CLSID\\\\{88d96a0a-f192-11d4-a65f-0040963251e5}\\\\InprocServer32]\n'
+                '@="C:\\\\windows\\\\system32\\\\msxml6.dll"\n',
+                encoding='utf-8',
+            )
+            imported = []
+            def fake_run(cmd, **kwargs):
+                reg_path = Path(cmd[-1][2:].replace('\\', '/'))
+                imported.append(reg_path.read_bytes().decode('utf-16'))
+                return unittest.mock.Mock(returncode=0)
+
+            with patch('subprocess.run', side_effect=fake_run) as run:
+                xbox['register_com_classes']('/proton', prefix, {}, 'uwp-host.dll', [self.XHR_CLSID])
+            self.assertEqual(run.call_count, 1)
+            self.assertIn(self.XHR_CLSID, imported[0])
+            self.assertIn('C:\\\\windows\\\\system32\\\\uwp-host.dll', imported[0])
+            self.assertIn('"ThreadingModel"="Both"', imported[0])
+
+    def test_register_com_classes_skips_when_already_pointing_to_target_dll(self):
+        with tempfile.TemporaryDirectory() as root:
+            prefix = Path(root)
+            (prefix / 'system.reg').write_text(
+                '[Software\\\\Classes\\\\CLSID\\\\{88d96a0a-f192-11d4-a65f-0040963251e5}\\\\InprocServer32]\n'
+                '@="C:\\\\windows\\\\system32\\\\uwp-host.dll"\n',
+                encoding='utf-8',
+            )
+            with patch('subprocess.run') as run:
+                previous = xbox['register_com_classes']('/proton', prefix, {}, 'uwp-host.dll', [self.XHR_CLSID])
+            self.assertEqual(previous, {})
+            run.assert_not_called()
+
+    def test_restores_previous_com_entry_and_removes_new_ones(self):
+        with tempfile.TemporaryDirectory() as folder:
+            prefix = Path(folder)
+            (prefix / 'system.reg').write_text(
+                '[Software\\\\Classes\\\\CLSID\\\\' + self.XHR_CLSID + '\\\\InprocServer32]\n'
+                '@="C:\\\\windows\\\\system32\\\\msxml6.dll"\n'
+                '"ThreadingModel"="Apartment"\n',
+                encoding='utf-8',
+            )
+            imported = []
+
+            def fake_run(cmd, **kwargs):
+                reg_file = Path(cmd[-1][2:].replace('\\', '/'))
+                imported.append(reg_file.read_bytes().decode('utf-16'))
+                return type('Result', (), {'returncode': 0})()
+
+            other_clsid = '{11111111-2222-3333-4444-555555555555}'
+            with patch('subprocess.run', side_effect=fake_run):
+                previous = xbox['register_com_classes'](
+                    '/proton', prefix, {}, 'uwp-host.dll', [self.XHR_CLSID, other_clsid]
+                )
+                self.assertEqual(
+                    previous,
+                    {
+                        self.XHR_CLSID: ('C:\\windows\\system32\\msxml6.dll', 'Apartment'),
+                        other_clsid: None,
+                    },
+                )
+                xbox['restore_com_classes']('/proton', prefix, {}, previous)
+            self.assertEqual(len(imported), 2)
+            self.assertIn('msxml6.dll', imported[1])
+            self.assertIn('"ThreadingModel"="Apartment"', imported[1])
+            self.assertIn('[-HKEY_LOCAL_MACHINE\\Software\\Classes\\CLSID\\' + other_clsid + '\\InprocServer32]', imported[1])
+
+    def test_restore_failure_is_nonfatal(self):
+        with tempfile.TemporaryDirectory() as folder:
+            prefix = Path(folder)
+            with patch('subprocess.run', return_value=type('Result', (), {'returncode': 1})()):
+                xbox['restore_com_classes']('/proton', prefix, {}, {self.XHR_CLSID: None})
+
+    def test_failed_com_import_keeps_snapshot_for_restore(self):
+        with tempfile.TemporaryDirectory() as folder:
+            prefix = Path(folder)
+            (prefix / 'system.reg').write_text(
+                '[Software\\\\Classes\\\\CLSID\\\\' + self.XHR_CLSID + '\\\\InprocServer32]\n'
+                '@="C:\\\\windows\\\\system32\\\\msxml6.dll"\n',
+                encoding='utf-8',
+            )
+            with patch('subprocess.run', return_value=type('Result', (), {'returncode': 1})()):
+                previous = xbox['register_com_classes'](
+                    '/proton', prefix, {}, 'uwp-host.dll', [self.XHR_CLSID]
+                )
+            self.assertEqual(previous, {self.XHR_CLSID: ('C:\\windows\\system32\\msxml6.dll', None)})
+
+    def test_uwp_view_app_matches_launched_executable(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'AppxManifest.xml').write_text(
+                '<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10">'
+                '<Applications>'
+                '<Application Id="Desktop" Executable="Bin\\Desktop.exe" EntryPoint="Windows.FullTrustApplication"/>'
+                '<Application Id="Game" Executable="Game.exe" EntryPoint="Game.App"/>'
+                '</Applications>'
+                '</Package>',
+                encoding='utf-8',
+            )
+            self.assertFalse(xbox['uwp_view_app'](root, str(root / 'Bin' / 'Desktop.exe')))
+            self.assertTrue(xbox['uwp_view_app'](root, str(root / 'Game.exe')))
+
