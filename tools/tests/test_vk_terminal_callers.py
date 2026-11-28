@@ -129,6 +129,9 @@ int __android_log_print(int, const char *, const char *, ...);
     def test_healthy_later_acquire_timeout_drains_work(self):
         self.run_scenario('later-timeout')
 
+    def test_device_loss_with_unconfirmed_idle_retains_resources(self):
+        self.run_scenario('acquire-device-lost-unconfirmed')
+
     def test_real_device_lost_on_acquire(self):
         self.run_scenario('acquire-device-lost')
 
