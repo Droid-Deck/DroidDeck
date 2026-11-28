@@ -2782,6 +2782,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 unfoldedControlsWithController = unfoldedControlsWithController,
                 unfoldedControlsSecondScreen = unfoldedControlsSecondScreen,
                 unfoldedControlsPanel = unfoldedControlsPanel,
+                unfoldedDeckAvailable = SessionState.running && SessionState.mode == mode && SessionState.deckPad,
                 oscMode = if (mode == SessionService.MODE_STEAM) oscMode else null,
                 backHold = backHold,
                 backActionsInverted = backActionsInverted,

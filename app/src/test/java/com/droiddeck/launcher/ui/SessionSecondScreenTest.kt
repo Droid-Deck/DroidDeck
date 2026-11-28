@@ -108,6 +108,21 @@ class SessionSecondScreenTest {
             SecondScreenMode.inlineControls(SecondScreenMode.DECK_CONTROLS.id, deckPad = false))
     }
 
+    @Test fun anUnavailableDeckPanelIsHiddenWithoutReplacingTheSavedSelection() {
+        val saved = SecondScreenMode.DECK_CONTROLS
+        var selected = saved
+        val host = MenuHost()
+        compose.setContent {
+            DroidDeckTheme {
+                UnfoldedControlsPanelRow(host, saved, deckPad = false) { selected = it }
+            }
+        }
+        compose.onNodeWithTag("setting-unfolded-controls-panel").performClick()
+        compose.onNodeWithText(context.getString(R.string.second_mode_deck_controls)).assertDoesNotExist()
+        compose.onNodeWithText(context.getString(R.string.second_mode_keyboard_trackpad)).assertExists()
+        compose.runOnIdle { assertEquals(saved, selected) }
+    }
+
     @Test fun desktopMenuOffersTheExistingTrackpadAndTerminal() = checkModes(steam = false)
 
     @Test fun steamMenuKeepsTheExistingTrackpadAndTerminal() = checkModes(steam = true)

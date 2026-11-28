@@ -104,6 +104,7 @@ class ModeSettings(
     val unfoldedControlsWithController: Boolean = false,
     val unfoldedControlsSecondScreen: Boolean = false,
     val unfoldedControlsPanel: SecondScreenMode = SecondScreenMode.CUSTOM_CONTROLS,
+    val unfoldedDeckAvailable: Boolean = false,
     val startupSession: String = SessionPrefs.STARTUP_OFF,
     val bootMovie: String? = null,
     val bootMovieSound: Boolean = true,
@@ -369,7 +370,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 UnfoldedControlsScreenRow(host, s.unfoldedControlsSecondScreen, onPick = a.onUnfoldedControlsSecondScreen)
                 UnfoldedControlsHeightRow(s.unfoldedControlsPercent, onChange = a.onUnfoldedControlsPercent)
                 UnfoldedControlsPanelRow(host, s.unfoldedControlsPanel,
-                    deckPad = true, onPick = a.onUnfoldedControlsPanel)
+                    deckPad = s.unfoldedDeckAvailable, onPick = a.onUnfoldedControlsPanel)
                 UnfoldedControlsWithControllerRow(host, s.unfoldedControlsWithController, onChange = a.onUnfoldedControlsWithController)
             }
             if (steam) ToggleRow(

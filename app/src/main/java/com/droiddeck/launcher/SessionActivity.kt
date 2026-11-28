@@ -164,6 +164,7 @@ import com.droiddeck.launcher.ui.sessionDrawerPages
 import com.droiddeck.launcher.ui.strip
 import com.droiddeck.launcher.ui.tabFor
 import com.droiddeck.launcher.ui.step
+import com.droiddeck.launcher.ui.deckDockMinHeight
 import kotlin.math.abs
 
 private const val SCREEN_EFFECTS_TARGET_AUTO = "auto"
@@ -5002,8 +5003,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             closeUnfoldedKeyboard()
         val outputAspect = if (!wanted || SessionState.followScreen) 0f
             else outputSize().let { it.first.toFloat() / it.second.coerceAtLeast(1) }
-        val gameHeight = if (wanted) SessionDisplay.unfoldedGameHeight(width, height, outputAspect, unfoldedControlsPercent)
-            else FrameLayout.LayoutParams.MATCH_PARENT
+        val gameHeight = if (wanted) {
+            val deckPanel = showUnfoldedSecondScreen && effectiveUnfoldedPanel() == SecondScreenMode.DECK_CONTROLS
+            SessionDisplay.unfoldedGameHeight(width, height, outputAspect, unfoldedControlsPercent,
+                minControlsHeight = if (deckPanel) deckDockMinHeight(resources.displayMetrics) else 0)
+        } else FrameLayout.LayoutParams.MATCH_PARENT
         val params = surfaceView.layoutParams as FrameLayout.LayoutParams
         if (params.height != gameHeight) {
             surfaceView.layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, gameHeight, Gravity.TOP)

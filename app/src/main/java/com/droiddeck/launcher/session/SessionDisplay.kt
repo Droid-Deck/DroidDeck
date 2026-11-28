@@ -91,13 +91,15 @@ object SessionDisplay {
 
     val UNFOLDED_CONTROLS_SHARES = listOf(0, 25, 30, 35, 40, 45, 50, 55, 60)
 
-    fun unfoldedGameHeight(width: Int, height: Int, aspect: Float = 0f, controlsPercent: Int = 0): Int {
+    fun unfoldedGameHeight(
+        width: Int, height: Int, aspect: Float = 0f, controlsPercent: Int = 0, minControlsHeight: Int = 0,
+    ): Int {
         val gameHeight = if (controlsPercent in UNFOLDED_CONTROLS_SHARES && controlsPercent != 0)
             height * (100 - controlsPercent) / 100
         else {
             val cap = (height * UNFOLDED_MAX_GAME_SHARE).toInt()
             val fitted = if (aspect > 0f && aspect < 16f / 9f) (width / aspect).toInt() else width * 9 / 16
-            minOf(fitted, cap)
+            minOf(fitted, cap, height - minControlsHeight)
         }
         return gameHeight.coerceAtLeast(0) and 1.inv()
     }

@@ -64,6 +64,20 @@ class SessionDisplayTest {
         assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
     }
 
+    @Test fun autoHeightLeavesRoomForTheDeckHeaderAndInputOnAnUnfoldedWindow() {
+        val header = 64 + 60
+        val input = 120
+        assertEquals(480, SessionDisplay.unfoldedGameHeight(1000, 600))
+        for (aspect in listOf(0f, 4f / 3f)) {
+            val auto = SessionDisplay.unfoldedGameHeight(1000, 600, aspect, minControlsHeight = header + input)
+            assertTrue(600 - auto - header >= input)
+            assertEquals(356, auto)
+        }
+        assertEquals(450, SessionDisplay.unfoldedGameHeight(1000, 600, controlsPercent = 25,
+            minControlsHeight = header + input))
+        assertEquals(0, SessionDisplay.unfoldedGameHeight(1000, 200, minControlsHeight = header + input))
+    }
+
     @Test fun aManualSplitReservesTheRequestedShareOfTheWindowForControls() {
         assertEquals(1176, SessionDisplay.unfoldedGameHeight(2180, 1960, controlsPercent = 40))
         assertEquals(1152, SessionDisplay.unfoldedGameHeight(1080, 1920, controlsPercent = 40))
