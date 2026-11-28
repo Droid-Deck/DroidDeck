@@ -127,13 +127,13 @@ class WinCompSourcesTest {
 
     companion object {
     fun writeAppinfo(file: File, appId: Int) {
-        val strings = listOf("appinfo", "common", "name", "depots", "228986", "depotfromapp", "228990", "1001", "maxsize")
+        val strings = listOf("appinfo", "common", "name", "type", "depots", "228986", "depotfromapp", "228990", "1001", "maxsize")
         fun key(s: String) = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(strings.indexOf(s)).array()
         val kv = ByteArrayOutputStream().apply {
             fun map(k: String) { write(0x00); write(key(k)) }
             fun str(k: String, v: String) { write(0x01); write(key(k)); write(v.toByteArray()); write(0) }
             fun end() = write(0x08)
-            map("appinfo"); map("common"); str("name", "Some Game"); end()
+            map("appinfo"); map("common"); str("name", "Some Game"); str("type", "game"); end()
             map("depots"); map("228986"); str("depotfromapp", "228980"); end(); map("228990"); str("depotfromapp", "228980"); end()
             map("1001"); str("maxsize", "1"); end(); end(); end(); end()
         }.toByteArray()

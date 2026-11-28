@@ -207,6 +207,7 @@
     <string name="user_apps_update_failed">Updating the app failed</string>
     <string name="user_apps_icon_failed">That icon could not be read</string>
     <string name="user_apps_saved">%1$s saved</string>
+    <string name="stores_library_export_failed">Could not export the library. Choose another destination and try again.</string>
     <string name="user_apps_edit">Edit</string>
     <string name="user_apps_check_updates">Check for updates</string>
     <string name="user_apps_checking_updates">Checking for updates…</string>
@@ -1574,7 +1575,7 @@
     <string name="desktop_removal_unknown">Update DroidDeck before removing this desktop version.</string>
     <string name="content_linux_desktop">Linux desktop</string>
     <string name="content_linux_desktop_hint">KDE Plasma, Firefox and your emulators</string>
-    <string name="games_empty">Games you install in Steam show up here after the session.</string>
+    <string name="games_empty">Sign in to Steam from Stores to see your full library here.</string>
     <string name="games_play_steam">Play Steam</string>
     <string name="games_play_steamvr">Play SteamVR</string>
     <string name="games_files">Game files</string>

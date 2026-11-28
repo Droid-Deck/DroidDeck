@@ -20,8 +20,9 @@ enum class Store(val id: String, val label: String, val shortLabel: String) {
 
     companion object {
         fun byId(id: String?): Store? = entries.firstOrNull { it.id == id }
+            ?: STEAM.takeIf { id == "steam-account" }
 
-        /** The stores with a tab of their own; Steam's games list in the Library's Steam tab. */
-        val tabbed: List<Store> get() = entries - STEAM
+        /** Stores with a storefront tab and a single account selector in the Library. */
+        val tabbed: List<Store> get() = entries
     }
 }

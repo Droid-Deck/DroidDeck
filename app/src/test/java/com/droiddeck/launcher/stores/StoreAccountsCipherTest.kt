@@ -169,6 +169,34 @@ class StoreAccountsCipherTest {
         assertNull(StoreAccounts.read(app, Store.GOG))
     }
 
+    @Test fun steamCredentialsFromThePreviousStoreIdAreMigrated() {
+        val previous = File(File(File(app.filesDir, "stores"), "steam-account"), "credentials.json")
+        previous.parentFile?.mkdirs()
+        previous.writeText(JSONObject().put("steam_id", "76561198000000001").put("display_name", "GuideAhon").toString())
+
+        assertEquals("GuideAhon", StoreAccounts.signedInAs(app, Store.STEAM))
+        assertTrue(file(Store.STEAM).isFile)
+        assertFalse(previous.exists())
+    }
+
+    @Test fun steamSignOutRemovesCanonicalAndLegacyCredentialsAndTemporaryFiles() {
+        val current = file(Store.STEAM)
+        val legacy = File(File(File(app.filesDir, "stores"), "steam-account"), "credentials.json")
+        current.writeText(creds.toString())
+        legacy.parentFile?.mkdirs()
+        legacy.writeText(creds.toString())
+        File(current.path + ".tmp").writeText("pending")
+        File(legacy.path + ".tmp").writeText("pending")
+
+        StoreAccounts.clear(app, Store.STEAM)
+
+        assertFalse(current.exists())
+        assertFalse(legacy.exists())
+        assertFalse(File(current.path + ".tmp").exists())
+        assertFalse(File(legacy.path + ".tmp").exists())
+        assertNull(StoreAccounts.read(app, Store.STEAM))
+    }
+
     private class Flaky(private val key: SecretKey, var failures: Int, private val error: () -> Exception) : CredentialCipher.KeyProvider {
         override fun key(): SecretKey = key
         override fun existing(): SecretKey { if (failures > 0) { failures--; throw error() }; return key }

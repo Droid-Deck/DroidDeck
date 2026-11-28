@@ -20,6 +20,7 @@ internal object SteamEngine {
 
     private val lock = Any()
     @Volatile private var signedIn = false
+    @Volatile private var signedInSteamId: String? = null
     /** The saved login the last sign-in attempt read, so a refusal rejects that login and not one saved since. */
     @Volatile var attempted: String? = null
         private set
@@ -44,7 +45,7 @@ internal object SteamEngine {
 
     fun signIn(context: Context): JSONObject {
         synchronized(lock) {
-            if (signedIn) return JSONObject().put("ok", true)
+            if (signedIn) return JSONObject().put("ok", true).apply { signedInSteamId?.let { put("steamId", it) } }
             failed?.takeIf { SystemClock.elapsedRealtime() - failedAt < waitAfter(it) }?.let { return it }
             val roots = JSONArray()
                 .put(SessionPrefs.steamRoot(context, "arm64").absolutePath)
@@ -53,6 +54,7 @@ internal object SteamEngine {
             attempted = SteamStore.fingerprint(context)
             val answer = call("signIn") { SteamNative.nativeSignIn(roots.toString(), registry, "") }
             signedIn = answer.optBoolean("ok")
+            signedInSteamId = answer.optString("steamId").takeIf { signedIn && it.isNotBlank() }
             failed = if (signedIn) null else answer
             failedAt = SystemClock.elapsedRealtime()
             if (!signedIn) Log.w(TAG, "sign-in: ${answer.optString("error")}")
@@ -68,8 +70,8 @@ internal object SteamEngine {
     fun forget() {
         synchronized(lock) {
             failed = null
-            if (!signedIn) return
             signedIn = false
+            signedInSteamId = null
             try {
                 SteamNative.nativeSignOut()
             } catch (t: Throwable) {
@@ -78,18 +80,22 @@ internal object SteamEngine {
         }
     }
 
-    private fun signedCall(context: Context, op: String, block: () -> String): JSONObject {
+    private fun signedCall(context: Context, op: String, includeSteamId: Boolean = false, block: () -> String): JSONObject {
         synchronized(lock) {
             val signIn = signIn(context)
             if (!signIn.optBoolean("ok")) return signIn
             val answer = call(op, block)
             val error = answer.optString("error").lowercase()
-            if (!answer.optBoolean("ok") && listOf("logon", "sign", "session", "connect").any { it in error }) signedIn = false
+            if (!answer.optBoolean("ok") && listOf("logon", "sign", "session", "connect").any { it in error }) {
+                signedIn = false
+                signedInSteamId = null
+            }
+            if (answer.optBoolean("ok") && includeSteamId) signedInSteamId?.let { answer.put("steamId", it) }
             return answer
         }
     }
 
-    fun library(context: Context): JSONObject = signedCall(context, "library") { SteamNative.nativeLibrary() }
+    fun library(context: Context): JSONObject = signedCall(context, "library", includeSteamId = true) { SteamNative.nativeLibrary() }
 
     fun plan(context: Context, appId: Int, language: String): JSONObject =
         signedCall(context, "plan") { SteamNative.nativePlan(appId, language) }

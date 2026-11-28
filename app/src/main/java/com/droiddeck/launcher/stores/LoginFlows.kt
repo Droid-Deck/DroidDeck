@@ -9,6 +9,7 @@ internal object LoginFlows {
     private const val TAG = "StoreLogin"
 
     fun forStore(store: Store, state: String, browserUserAgent: String): StoreLoginActivity.Flow? = when (store) {
+        Store.STEAM -> com.droiddeck.launcher.stores.steam.SteamLogin(browserUserAgent)
         Store.GOG -> GogFlow(state, browserUserAgent)
         Store.EPIC -> epicFlow()
         Store.AMAZON -> amazonFlow()

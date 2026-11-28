@@ -13,6 +13,11 @@ twice. Stores is only for getting games: a store opens on its storefront (search
 under a profile strip whose "Owned games in Library" opens the Library filtered to that store. The
 Epic Games Launcher (open, settings, uninstall, install) lives in Epic's profile strip.
 
+Steam sign-in from Stores opens the normal DroidDeck Steam client session rather than a separate
+WebView. When that session ends, the launcher reads the client's Steam web cookies through
+`SteamOwnedLibrary`, saves the Steam account with `SteamAccount` and refreshes the owned-game list.
+The same client session is used when sign-in starts from Play.
+
 Every game opens one page (`ui/GameDetail.kt`) from either place: the hero and its actions by state
 (installed, downloading, failed, unfinished, owned, not owned), then tabs LB/RB cycle through:
 About, Achievements, Launch, Saves & cloud and Install, each hidden when it has nothing to show.

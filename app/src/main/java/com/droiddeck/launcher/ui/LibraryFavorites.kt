@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.session.SessionPrefs
+import com.droiddeck.launcher.stores.Store
 
 internal const val LIBRARY_FAVORITES = "favorites"
 
@@ -34,6 +36,6 @@ internal fun inLibrarySource(source: String, entry: LibraryEntry, favorites: Set
         LIBRARY_HIDDEN -> concealed
         LIBRARY_ALL -> !concealed
         LIBRARY_FAVORITES -> !concealed && entry.favoriteKey in favorites
-        else -> !concealed && entry.source == source
+        else -> !concealed && librarySourceMatches(source, entry)
     }
 }

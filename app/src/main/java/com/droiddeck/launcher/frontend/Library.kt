@@ -20,9 +20,12 @@ object Library {
         val logo: File? = null,
         val installedAt: Long = 0L,
         val soundtrack: Boolean = false,
+        val installed: Boolean = true,
+        val remoteArt: String? = null,
+        val remoteHero: String? = null,
     ) {
         fun withArt(art: File?, hero: File?, icon: File?, logo: File? = this.logo) =
-            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo, installedAt, soundtrack)
+            SteamGame(appId, name, art, library, gameId, hero, lastPlayed, gameFiles, protonPrefix, icon, source, storeId, logo, installedAt, soundtrack, installed, remoteArt, remoteHero)
 
         val gameIdString: String get() = java.lang.Long.toUnsignedString(gameId)
         val launchKey: String get() = if (storeId != null) "$source:$storeId" else gameIdString
@@ -33,6 +36,7 @@ object Library {
         }
     }
     const val ADDED = "added"
+    const val NOT_INSTALLED = "not-installed"
     private const val PLAYED = "added_games_played"
     const val EPIC_LAUNCHER = "epic-launcher"
     const val EPIC_LAUNCHER_NAME = "Epic Games Launcher"

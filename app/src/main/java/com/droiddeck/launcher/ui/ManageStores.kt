@@ -81,7 +81,7 @@ internal object StoreTabsState {
     fun load(context: android.content.Context) {
         SessionPrefs.settleStoresTabOrder(context, Store.tabbed.map { it.id })
         tabs = arrangeStoreTabs(SessionPrefs.storesTabOrder(context), SessionPrefs.storesTabHidden(context))
-        libraryPlaces = SessionPrefs.libraryTabPlaces(context) ?: DEFAULT_LIBRARY_PLACES
+        libraryPlaces = SessionPrefs.libraryTabPlaces(context)?.let(::migrateSteamLibraryTabPlaces) ?: DEFAULT_LIBRARY_PLACES
         libraryHidden = SessionPrefs.libraryTabsHidden(context) + listOfNotNull(LIBRARY_HIDDEN.takeUnless { SessionPrefs.libraryShowHidden(context) })
     }
 
@@ -118,13 +118,13 @@ internal object StoreTabsState {
         SessionPrefs.saveStoresTabs(context, tabs.map { it.store.id }, tabs.filterNot { it.shown }.map { it.store.id }.toSet(), arranged)
 }
 
-/** The Library tabs that are not stores but sort among them in Manage stores. Only Favorites, Custom games and Hidden can be turned off; Hidden starts off. */
-internal val LIBRARY_OWN_TABS = listOf(LIBRARY_FAVORITES, Library.SOURCE_STEAM, Library.ADDED, LIBRARY_HIDDEN)
+/** Library tabs that are not stores. Steam uses its storefront tab for both ordering and filtering. */
+internal val LIBRARY_OWN_TABS = listOf(LIBRARY_FAVORITES, Library.ADDED, LIBRARY_HIDDEN)
 internal val LIBRARY_HIDEABLE_TABS = setOf(LIBRARY_FAVORITES, Library.ADDED, LIBRARY_HIDDEN)
 
-/** Favorites, then Steam, ahead of the stores; Custom games and Hidden after them (null: the end). */
+/** Favorites before the stores; Custom games and Hidden after them (null: the end). */
 internal val DEFAULT_LIBRARY_PLACES: List<Pair<String, String?>> =
-    listOf(LIBRARY_FAVORITES to "", Library.SOURCE_STEAM to LIBRARY_FAVORITES, Library.ADDED to null, LIBRARY_HIDDEN to null)
+    listOf(LIBRARY_FAVORITES to "", Library.ADDED to null, LIBRARY_HIDDEN to null)
 
 /**
  * Puts the Library's own tabs into a store tab order. Each goes after the tab it follows ("" for first; null or a tab that is gone
@@ -148,6 +148,9 @@ internal fun placeLibraryTabs(stores: List<String>, places: List<Pair<String, St
 internal fun libraryPlacesOf(order: List<String>): List<Pair<String, String>> =
     order.mapIndexedNotNull { i, id -> if (id in LIBRARY_OWN_TABS) id to (order.getOrNull(i - 1) ?: "") else null }
 
+internal fun migrateSteamLibraryTabPlaces(places: List<Pair<String, String>>): List<Pair<String, String>> =
+    places.map { (id, after) -> id to (if (after == Library.SOURCE_STEAM) Store.STEAM.id else after) }
+
 internal object ManageStores {
     var open by mutableStateOf(false)
     /** Opened from the Library, which also lists the Custom games tab. */
@@ -156,6 +159,23 @@ internal object ManageStores {
 }
 
 internal enum class StoreAccount { SIGNED_IN, SIGNED_OUT, EXPIRED, NEEDS_KEY }
+
+internal fun canRefreshSteamLibrary(preview: LibraryPreview): Boolean = preview == LibraryPreview.OFF
+
+internal fun librarySignInSources(
+    tabs: List<StoreTab>, availableBackends: Set<Store>, preview: LibraryPreview, accounts: Map<Store, StoreAccount>,
+): Set<String> = if (preview == LibraryPreview.SAMPLE) emptySet() else tabs.asSequence()
+    .filter { it.shown && it.store in availableBackends && (preview == LibraryPreview.SIGNED_OUT || accounts[it.store] != StoreAccount.SIGNED_IN) }
+    .mapTo(linkedSetOf()) { it.store.id }
+
+internal fun shouldShowStoreSignInCard(
+    source: String, signInSources: Set<String>, preview: LibraryPreview, account: StoreAccount, hasGames: Boolean,
+): Boolean = source in signInSources && when {
+    preview == LibraryPreview.SIGNED_OUT -> true
+    account == StoreAccount.SIGNED_OUT || account == StoreAccount.NEEDS_KEY -> !hasGames
+    account == StoreAccount.EXPIRED -> !hasGames
+    else -> false
+}
 
 internal fun storeAccount(store: Store): StoreAccount = when {
     StoresState.isSignedIn(store) && StoresState.expired[store] == true -> StoreAccount.EXPIRED

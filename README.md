@@ -38,7 +38,7 @@ DroidDeck brings the SteamOS experience to Android: Steam Gaming Mode, full Linu
 
 1. Android 9 or newer on Adreno 730 or newer, or any 8xx. Adreno 6xx, Mali, Xclipse and PowerVR are experimental. Adreno 710 is currently unsupported. No root needed.
 2. About 3 GB free for the runtime, plus 1.1 GB for the desktop and emulators.
-3. Install the [APK](https://github.com/Droid-Deck/DroidDeck/releases/download/0.7.11/DroidDeck-0.7.11.apk), install the Linux runtime, press **Play** and sign in to Steam.
+3. Install the [APK](https://github.com/Droid-Deck/DroidDeck/releases/download/0.7.11/DroidDeck-0.7.11.apk), install the Linux runtime, then sign in to Steam from **Play** or from Steam in **Stores**. Both open the same Steam client session; DroidDeck shares that session with Stores and lists your full Steam library, including games that are not installed.
 4. On Android 14 and newer, turn on **Disable child process restrictions** in Developer options. On Android 12 and 13, Steam's first launch shows a **Fix it for me** button that walks you through it.
 
 Smart glasses setup is in the [support matrix](docs/smart-glasses-support.md). Release notes are in [docs/releases](docs/releases).
@@ -56,6 +56,10 @@ tools/build_local.sh
 The APK lands in `app/build/outputs/apk/release/`. Install it with `tools/deploy_local.sh`. After the first run, `./gradlew :app:assembleRelease` reuses the prepared inputs. Unit tests run with `./gradlew -PskipRust=true :app:testDebugUnitTest`, and the helper and preload suite with `bash tools/test_local.sh`.
 
 On Windows, see `tools/run_windows.ps1` and `tools/prepare_windows_runtime.py`.
+
+## Windows launcher
+
+`windows-launcher/` is a native Rust game launcher for Windows. It does not use Android, Linux runtimes or emulation. Sign in to Steam, Epic, EA, GOG, Ubisoft, Amazon Games, Rockstar Games or Game Jolt from its store accounts page; itch.io connects with an API key. The launcher syncs owned games—including titles that are not installed—and checks local Steam and Epic installations. Xbox and Battle.net do not yet have full account-library integration in the Windows launcher. See [the Windows launcher guide](windows-launcher/README.md).
 
 
 ## Credits and licence

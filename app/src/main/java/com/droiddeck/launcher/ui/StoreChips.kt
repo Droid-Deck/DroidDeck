@@ -29,6 +29,7 @@ internal class SourceColours(val fill: Color, val ink: Color, val dot: Color)
 internal val FavoritesColours = SourceColours(Color(0xFF3D1A26), Color(0xFFFFB3C8), Color(0xFFFF5C8A))
 
 internal fun sourceColours(source: String): SourceColours = when (source) {
+    Store.STEAM.id -> SourceColours(Color(0xFF16293D), Color(0xFF7CC4FF), Color(0xFF1A9FFF))
     Store.GOG.id -> SourceColours(Color(0xFF3A1A3C), Color(0xFFE6A3EA), Color(0xFFC25BC8))
     Store.EPIC.id -> SourceColours(Color(0xFF2A2A2A), Color(0xFFDDDDDD), Color(0xFFBDBDBD))
     Store.AMAZON.id -> SourceColours(Color(0xFF3A2A0A), Color(0xFFFFC266), Color(0xFFFF9900))

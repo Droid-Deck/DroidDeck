@@ -130,6 +130,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.frontend.SteamFeatured
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.CatalogItem
 import com.droiddeck.launcher.stores.gamejolt.GameJoltBrowseState
@@ -574,13 +575,16 @@ internal fun CountPill(count: Int) {
 /** [inert]: shown in a Library preview, where signing in would act on the real account; the button only says so. */
 internal fun SignInCard(store: Store, height: Dp, inert: Boolean = false) {
     val ctx = LocalContext.current
-    LaunchedEffect(store) { StoresState.preview(ctx, store) }
-    val art = remember(StoresState.shelves[store]) {
+    LaunchedEffect(store) {
+        StoresState.preview(ctx, store)
+        if (store == Store.STEAM) SteamFeatured.load(ctx)
+    }
+    val featuredSteam = SteamFeatured.games
+    val art = remember(store, StoresState.shelves[store], featuredSteam) {
         val shelves = StoresState.shelves[store]
-        wallTiles(
-            shelves?.art?.takeIf { it.isNotEmpty() }
-                ?: shelves?.all.orEmpty().filter { !it.mature && !it.owned }.mapNotNull { it.tallImageUrl ?: it.imageUrl },
-        )
+        if (store == Store.STEAM && featuredSteam.isNotEmpty()) wallTiles(featuredSteam.map { it.art })
+        else wallTiles(shelves?.art?.takeIf { it.isNotEmpty() }
+            ?: shelves?.all.orEmpty().filter { !it.mature && !it.owned }.mapNotNull { it.tallImageUrl ?: it.imageUrl })
     }
     HeroWallCard(store.label, art, sourceColours(store.id), height) { SignInButton(store, large = true, inert = inert) }
 }
@@ -665,8 +669,13 @@ private fun Storefront(
     LaunchedEffect(store, q) { StoresState.search(ctx, store, q) }
     val gameJolt = store == Store.GAMEJOLT
     LaunchedEffect(gameJolt, s.storesShowMature) { if (gameJolt) GameJoltBrowseState.sync(ctx, s.storesShowMature) }
-    val browsing = q.isEmpty() && (store == Store.ITCH || gameJolt)
-    val browseItems = if (!browsing) emptyList() else if (gameJolt) GameJoltBrowseState.items else ItchBrowseState.items
+    val steamLibrary = store == Store.STEAM
+    val browsing = q.isEmpty() && (store == Store.ITCH || gameJolt || steamLibrary)
+    val browseItems = if (!browsing) emptyList() else when {
+        gameJolt -> GameJoltBrowseState.items
+        steamLibrary -> library
+        else -> ItchBrowseState.items
+    }
     val catalog = store == Store.BATTLENET && q.isEmpty()
     val visible = remember(found, library, shelves, q, s.storesShowMature, browsing, browseItems, catalog) {
         if (catalog) shelf(shelves?.trending) ?: emptyList()
@@ -680,8 +689,9 @@ private fun Storefront(
     val nothing = stringResource(when {
         browsing && gameJolt && GameJoltBrowseState.loading -> R.string.stores_shelves_loading
         browsing && gameJolt && GameJoltBrowseState.failed -> R.string.stores_gamejolt_browse_failed
-        browsing && !gameJolt && ItchBrowseState.loading -> R.string.stores_shelves_loading
-        browsing && !gameJolt && ItchBrowseState.failed -> R.string.stores_itch_browse_failed
+        browsing && store == Store.ITCH && ItchBrowseState.loading -> R.string.stores_shelves_loading
+        browsing && store == Store.ITCH && ItchBrowseState.failed -> R.string.stores_itch_browse_failed
+        browsing && steamLibrary -> R.string.stores_nothing_matches
         catalog && shelves == null -> R.string.stores_shelves_loading
         else -> R.string.stores_nothing_matches
     })
@@ -754,7 +764,7 @@ private fun Storefront(
         if (searching) {
             storeGrid(visible, nothing, card)
             if (browsing && gameJolt) item(key = "gamejolt-more", span = { GridItemSpan(maxLineSpan) }) { GameJoltLoadMore() }
-            else if (browsing) item(key = "itch-more", span = { GridItemSpan(maxLineSpan) }) { ItchLoadMore() }
+            else if (browsing && store == Store.ITCH) item(key = "itch-more", span = { GridItemSpan(maxLineSpan) }) { ItchLoadMore() }
         } else item(key = "shelves", span = { GridItemSpan(maxLineSpan) }) {
             Column {
                 Shelf(stringResource(R.string.stores_shelf_new), shelf(shelves?.whatsNew), card)
@@ -789,7 +799,7 @@ private fun ProfileStrip(store: Store, owned: Int, loaded: Boolean, s: FrontEndS
             Column(Modifier.weight(1f)) {
                 Text(name.ifEmpty { store.label }, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (loaded) OwnedLink(store.shortLabel + " · " + androidx.compose.ui.res.pluralStringResource(R.plurals.mode_added_count, owned, owned)) {
-                    LibraryView.showOwned(ctx, store)
+                    if (store == Store.STEAM) LibraryView.showSteamOwned(ctx) else LibraryView.showOwned(ctx, store)
                     show("games")
                 }
                 else Text(store.label, fontSize = 12.sp, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1021,6 +1031,7 @@ internal fun ModeHeader(
 
 internal fun storePalette(base: Palette, store: Store?): Palette {
     val (accent, deep) = when (store) {
+        Store.STEAM -> Color(0xFF66C0F4) to Color(0xFF1A9FFF)
         Store.GOG -> Color(0xFFC25BC8) to Color(0xFF9A3FA1)
         Store.EPIC -> Color(0xFFE6E6E6) to Color(0xFFBDBDBD)
         Store.AMAZON -> Color(0xFFFF9900) to Color(0xFFE07800)

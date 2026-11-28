@@ -114,6 +114,25 @@ class StoreRestorationTest {
         compose.onNodeWithText(ctx.getString(R.string.game_stream)).assertExists()
     }
 
+    @Test fun anUninstalledSteamGameKeepsItsDownloadAndFailureControls() {
+        val game = Library.SteamGame(620, "Portal 2", null, Library.NOT_INSTALLED, installed = false)
+        val entry = DownloadEntry(Store.STEAM, "620", game.name, state = DownloadState.RUNNING)
+        StoresState.publishDownloads(listOf(entry))
+        compose.setContent { DroidDeckTheme { GameActions(Store.STEAM, "620", game, null, null, state(), actions(), Modifier) } }
+        compose.onNodeWithText(ctx.getString(R.string.stores_dl_pause)).assertExists()
+        compose.onNodeWithText(ctx.getString(R.string.stores_dl_cancel)).assertExists()
+        compose.onNodeWithText(ctx.getString(R.string.stores_play)).assertDoesNotExist()
+
+        compose.runOnIdle { StoresState.publishDownloads(listOf(entry.copy(state = DownloadState.PAUSED))) }
+        compose.onNodeWithText(ctx.getString(R.string.stores_dl_resume)).assertExists()
+        compose.onNodeWithText(ctx.getString(R.string.stores_dl_cancel)).assertExists()
+
+        compose.runOnIdle { StoresState.publishDownloads(listOf(entry.copy(state = DownloadState.FAILED))) }
+        compose.onNodeWithText(ctx.getString(R.string.stores_dl_resume)).assertExists()
+        compose.onNodeWithText(ctx.getString(R.string.stores_dl_clear)).assertExists()
+        compose.onNodeWithText(ctx.getString(R.string.stores_install)).assertDoesNotExist()
+    }
+
     @Test fun aConsoleOnlyCloudGameDoesNotOfferAPcInstall() {
         compose.setContent { DroidDeckTheme { GameActions(Store.XBOX, product.id, cloud, product.copy(sizeBytes = 0, extra = mapOf("pc" to "0", "cloud" to "1")), null, state(), actions(), Modifier) } }
         compose.onNodeWithText(ctx.getString(R.string.game_stream)).assertExists()
