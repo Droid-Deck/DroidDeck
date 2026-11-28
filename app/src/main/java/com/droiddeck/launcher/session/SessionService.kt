@@ -417,6 +417,7 @@ class SessionService : Service() {
             SessionPrefs.screenEffectsProfileId(SessionState.mode, resolvedGameId, SessionState.program),
         )
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
+        QuestSteamVrLaunch.clearRequest(this)
         val gen = synchronized(SessionState.startLock) {
             synchronized(stopLock) {
                 SessionState.steamClientArch = null
@@ -519,7 +520,6 @@ class SessionService : Service() {
         val root = LinuxRuntime.rootDir(this)
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
-        QuestSteamVrLaunch.clearRequest(this)
         killStragglers()
         val stillStarting = { gen == sessionGen && SessionState.running }
         val prootPack = LinuxRuntime.patchedProot(this) || AddonPack.PROOT.await(this, stillStarting)

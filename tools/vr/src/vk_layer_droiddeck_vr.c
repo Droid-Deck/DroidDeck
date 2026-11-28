@@ -1561,7 +1561,8 @@ EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL DroidDeckVr_GetInstanceProcAddr(
         if (f) return f;
     }
     if (in) {
-        PFN_vkVoidFunction f = semaphore_hook(name);
+        PFN_vkVoidFunction f = warp_hook(name);
+        if (!f) f = semaphore_hook(name);
         if (f && in->gipa(instance, name)) return f;
     }
     return in ? in->gipa(instance, name) : NULL;
