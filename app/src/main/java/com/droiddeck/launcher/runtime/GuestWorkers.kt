@@ -53,12 +53,15 @@ open class GuestWorker : Service() {
                 // poll() with a timeout counts as network I/O to StrictMode on the main thread
                 android.os.StrictMode.setThreadPolicy(android.os.StrictMode.ThreadPolicy.LAX)
                 val committed = runCatching {
-                    val poll = StructPollfd().apply { fd = go.fileDescriptor; events = OsConstants.POLLIN.toShort() }
-                    val ready = Os.poll(arrayOf(poll), GO_TIMEOUT_MS)
-                    val got = if (ready > 0) Os.read(go.fileDescriptor, ByteArray(1), 0, 1) else -1
-                    why = "poll $ready revents ${poll.revents} read $got"
-                    // and the answer the app waits for before it reports the launch as started
-                    got == 1 && Os.write(go.fileDescriptor, byteArrayOf(1), 0, 1) == 1
+                    fun byte(): Int {
+                        val poll = StructPollfd().apply { fd = go.fileDescriptor; events = OsConstants.POLLIN.toShort() }
+                        val ready = Os.poll(arrayOf(poll), GO_TIMEOUT_MS)
+                        return (if (ready > 0) Os.read(go.fileDescriptor, ByteArray(1), 0, 1) else -1)
+                            .also { why = "poll $ready revents ${poll.revents} read $it" }
+                    }
+                    // The commit, an answer, and the app's word that it has the answer: the app may
+                    // have stopped waiting for it (and started the program another way) meanwhile.
+                    byte() == 1 && Os.write(go.fileDescriptor, byteArrayOf(1), 0, 1) == 1 && byte() == 1
                 }.getOrElse { why = it.toString(); false }
                 go.close()
                 if (committed) exec(argv, env, fds, targets, fillBinderFd)
@@ -367,7 +370,10 @@ object GuestWorkers {
             }
             Os.write(go[1].fileDescriptor, byteArrayOf(1), 0, 1)
             val answer = StructPollfd().apply { fd = go[1].fileDescriptor; events = OsConstants.POLLIN.toShort() }
-            val accepted = Os.poll(arrayOf(answer), ANSWER_TIMEOUT_MS) > 0 && Os.read(go[1].fileDescriptor, ByteArray(1), 0, 1) == 1
+            // then the word to run it: given only here, once its answer is in, so that a worker whose
+            // answer came too late never runs a program this call reports as not started
+            val accepted = Os.poll(arrayOf(answer), ANSWER_TIMEOUT_MS) > 0 && Os.read(go[1].fileDescriptor, ByteArray(1), 0, 1) == 1 &&
+                Os.write(go[1].fileDescriptor, byteArrayOf(1), 0, 1) == 1
             if (!accepted) {
                 Log.w(TAG, "worker ${slot.index} did not take ${argv.firstOrNull()} on")
                 slot.started = false
@@ -669,6 +675,9 @@ object GuestWorkers {
             if (!answered) {
                 out.write(if (pid > 0) "pid $pid\n".toByteArray() else "error no worker\n".toByteArray())
                 out.flush()
+            } else {
+                // The hook's last word: the worker runs it, or nothing does and the hook runs it itself
+                runCatching { out.write(if (pid > 0) "ok\n".toByteArray() else "error not started\n".toByteArray()); out.flush() }
             }
             if (pid > 0 && wait) {
                 exited.await()
@@ -683,23 +692,23 @@ object GuestWorkers {
         }
     }
 
-    // Layout of the hook's table (tools/nativeguest/hook/handoff.c): a 64-byte header, then 32-byte
-    // entries of int32 child, real, parent, state, status, ...
-    // Written only while the entry is still this program's (state CLAIMED or HANDED, its child, parent
-    // and worker): the parent may have reaped it and a later handoff taken the entry over meanwhile.
+    // Layout of the hook's table (tools/nativeguest/hook/handoff.c): a 64-byte header, then 64-byte
+    // entries of int32 child, real, parent, state, ..., and at 32 the app's report: int32 status, child.
+    // The report is one 8-byte write tagged with the child it is for; only the hook changes an
+    // entry's state, so a report that lands after the entry went to another child is ignored there.
     private fun reportExit(table: ParcelFileDescriptor, slot: Int, status: Int, parent: Int, child: Int, worker: Int) {
         runCatching {
-            val entry = 64L + slot * 32L
+            val entry = 64L + slot * 64L
             val head = java.nio.ByteBuffer.allocate(16).order(java.nio.ByteOrder.nativeOrder())
             Os.pread(table.fileDescriptor, head, entry)
             val real = head.getInt(4)
             val state = head.getInt(12)
             if (head.getInt(0) != child || head.getInt(8) != parent || (real != 0 && real != worker) || (state != 1 && state != 3))
                 return@runCatching
-            val word = java.nio.ByteBuffer.allocate(4).order(java.nio.ByteOrder.nativeOrder())
             // An exit Android has no record of is reported as a failure, not as a signal.
-            Os.pwrite(table.fileDescriptor, word.putInt(0, if (status < 0) 1 shl 8 else status).also { it.rewind() }, entry + 16)
-            Os.pwrite(table.fileDescriptor, word.putInt(0, 2).also { it.rewind() }, entry + 12)
+            val report = java.nio.ByteBuffer.allocate(8).order(java.nio.ByteOrder.nativeOrder())
+                .putInt(0, if (status < 0) 1 shl 8 else status).putInt(4, child)
+            Os.pwrite(table.fileDescriptor, report, entry + 32)
             if (parent > 0) Process.sendSignal(parent, OsConstants.SIGCHLD)
         }.onFailure { Log.w(TAG, "could not report an exit to the guest's parent", it) }
         runCatching { table.close() }

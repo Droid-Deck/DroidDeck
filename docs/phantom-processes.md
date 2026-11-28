@@ -220,8 +220,13 @@ the pid translation described in B (the parent keeps the forked pid; `wait4`, `k
 environment, the working directory and every inheritable fd with its number, and a worker execs
 the program with those fds in place. The child records "my pid is now worker pid P" in a memfd
 table its parent created, and exits. In the parent, `wait4`/`waitpid`/`wait`/`wait3`/`waitid` and
-`kill` treat the forked pid as P until P exits; the app writes P's exit status (from
-`ApplicationExitInfo`) into the table and sends the parent `SIGCHLD`. The child's side is
+`kill` treat the forked pid as P until P exits. P's hook writes its exit status into the table; for
+a program that ends without `exit()` (a signal) the app writes a report tagged with the child it is
+for (from `ApplicationExitInfo`), which the parent's hook takes once P is gone, and sends the parent
+`SIGCHLD`. Only the hook moves an entry to "exited", by compare-and-swap. A launch takes three
+answers: the hook's "go" once it has P's pid, the worker's answer to the app's commit, and the
+app's "ok" once the worker runs the program; without any of them the program runs locally instead,
+never twice. The child's side is
 vfork-safe (Python's subprocess execs under `vfork`). Details that mattered:
 
 - **Scripts:** the list also matches the `#!` interpreter (`python3` for `droiddeck-agent`).

@@ -5,8 +5,9 @@
 // fork() + execve() can instead run as the main process of one of the app's worker processes: the
 // forked child sends the exec to the app (DD_SPAWN, an abstract socket) with its open fds, records
 // the worker's pid in a table it shares with its parent, and exits. For the parent nothing changes:
-// wait*(), kill() and SIGCHLD treat the pid fork() returned as that program until it exits; the app
-// writes its exit status into the table and sends the parent SIGCHLD.
+// wait*(), kill() and SIGCHLD treat the pid fork() returned as that program until it exits; its exit
+// status reaches the table from the program's hook, or for a signal from the app's report (see
+// ddh_check_gone()), and the parent gets SIGCHLD.
 //
 // Only programs named in DD_HANDOFF (basenames separated by ':', or "*") are handed off. The child's
 // side runs where vfork() children run too, so it allocates nothing and writes no globals.
@@ -26,9 +27,13 @@ struct ddh_entry {
     int32_t real;     // the worker's pid
     int32_t parent;
     int32_t state;
-    int32_t status;   // wait status, written by the app
+    int32_t status;   // wait status
     int32_t reaped;   // the parent has reaped the forked child itself
     int32_t pad[2];
+    // The app's report of a program that died without exit() or _exit() (GuestWorkers.reportExit):
+    // the wait status and the child it is for, in one 8-byte write. Only this side changes state.
+    int32_t app[2] __attribute__((aligned(8)));
+    int32_t pad2[6];
 };
 
 struct ddh_table {
@@ -87,31 +92,35 @@ static int ddh_is_binder(const char *target) {
 
 // The table the children write to, in a process of a session that hands programs off (DD_SPAWN).
 // One thread makes it; a fork() while another thread is making it goes without (its child runs here).
+static int g_ddh_preparing;
+
+// In a forked child: the thread making the table did not come along, so the child may make its own.
+static void ddh_forked(void) { __atomic_store_n(&g_ddh_preparing, 0, __ATOMIC_RELAXED); }
+
 static void ddh_prepare(void) {
-    static int busy;
     if (__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || !getenv("DD_SPAWN")) return;
-    if (__atomic_exchange_n(&busy, 1, __ATOMIC_ACQ_REL)) return;
+    if (__atomic_exchange_n(&g_ddh_preparing, 1, __ATOMIC_ACQ_REL)) return;
     if (g_ddh) {
-        __atomic_store_n(&busy, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&g_ddh_preparing, 0, __ATOMIC_RELEASE);
         return;
     }
     int fd = (int)syscall(SYS_memfd_create, "ddnatv-handoff", 1 /* MFD_CLOEXEC */);
     if (fd < 0) {
         ddh_prepare_failed("memfd_create");
-        __atomic_store_n(&busy, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&g_ddh_preparing, 0, __ATOMIC_RELEASE);
         return;
     }
     if (ftruncate(fd, sizeof(struct ddh_table)) != 0) {
         ddh_prepare_failed("ftruncate");
         close(fd);
-        __atomic_store_n(&busy, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&g_ddh_preparing, 0, __ATOMIC_RELEASE);
         return;
     }
     struct ddh_table *p = mmap(NULL, sizeof(struct ddh_table), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (p == MAP_FAILED) {
         ddh_prepare_failed("mmap");
         close(fd);
-        __atomic_store_n(&busy, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&g_ddh_preparing, 0, __ATOMIC_RELEASE);
         return;
     }
     // Out of the way of the numbers programs redirect, and kept open when a child closes every
@@ -132,7 +141,7 @@ static void ddh_prepare(void) {
     g_ddh_fd = fd;
     g_ddh_owner = getpid();
     __atomic_store_n(&g_ddh, p, __ATOMIC_RELEASE);
-    __atomic_store_n(&busy, 0, __ATOMIC_RELEASE);
+    __atomic_store_n(&g_ddh_preparing, 0, __ATOMIC_RELEASE);
 }
 
 // Whether fd is still this table: a program may have put a file of its own at that number.
@@ -398,12 +407,16 @@ static void ddh_report_exit(int status, void *from_exit) {
     struct ddh_entry *e = &g_ddh_report->e[g_ddh_report_slot];
     // Still this program's entry: the parent frees it when the forked child dies before handing off
     // (and a later child may have it by now).
+    // From the state read (the forked child may still move it from CLAIMED to HANDED): a parent
+    // that freed the entry meanwhile keeps it freed.
     int st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
-    if ((st == DDH_HANDED || st == DDH_CLAIMED) && e->parent == g_ddh_report_parent &&
-        (g_ddh_report_child <= 0 || e->child == g_ddh_report_child)) {
+    while ((st == DDH_HANDED || st == DDH_CLAIMED) && e->parent == g_ddh_report_parent &&
+           (g_ddh_report_child <= 0 || e->child == g_ddh_report_child)) {
         e->status = (status & 0xff) << 8;
-        __atomic_store_n(&e->state, DDH_EXITED, __ATOMIC_RELEASE);
-        if (g_ddh_report_parent > 0) syscall(SYS_kill, g_ddh_report_parent, SIGCHLD);
+        if (__atomic_compare_exchange_n(&e->state, &st, DDH_EXITED, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+            if (g_ddh_report_parent > 0) syscall(SYS_kill, g_ddh_report_parent, SIGCHLD);
+            break;
+        }
     }
     ddh_linger(from_exit != NULL);
     ddh_unregister_group();
@@ -734,7 +747,7 @@ static void ddh_debug(char *const envp[], const char *what, const char *filename
 static void ddh_try(const char *filename, char *const argv[], char *const envp[]) {
     struct ddh_table *table;
     int table_fd;
-    if (g_ddh && getpid() != g_ddh_owner) {
+    if (__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) && getpid() != g_ddh_owner) {
         table = g_ddh;
         table_fd = g_ddh_fd;
     } else if (g_ddh_up && getppid() == g_ddh_up->pad[0]) {
@@ -796,6 +809,7 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     pid_t real_group = getpgrp();
     e->pad[1] = real_group;
     e->status = DDH_NO_STATUS;
+    __atomic_store_n((uint64_t *)e->app, 0, __ATOMIC_RELAXED);
     char cwd[PATH_MAX];
     // The guest's name for it, else the kernel's (the worker's cd takes either). A directory with no
     // name (removed) cannot be sent: the exec stays here, in it.
@@ -943,6 +957,20 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
                 if (strncmp(reply, "pid ", 4) == 0) pid = atol(reply + 4);
                 // Without it the app does not let the worker run the program, and it runs here.
                 if (pid > 0 && syscall(SYS_sendto, s, "go\n", 3, MSG_NOSIGNAL, NULL, 0) != 3) pid = -1;
+                // Then the app's last word, once the worker has taken the program on: "ok", or it
+                // never runs there and runs here.
+                if (pid > 0) {
+                    char last[32];
+                    size_t have = 0;
+                    while (have < sizeof(last) - 1) {
+                        long r = syscall(SYS_read, s, last + have, 1);
+                        if (r < 0 && errno == EINTR) continue;
+                        if (r <= 0 || last[have] == '\n') break;
+                        have++;
+                    }
+                    last[have] = 0;
+                    if (strcmp(last, "ok") != 0) pid = -1;
+                }
             }
         }
     }
@@ -966,7 +994,7 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
 // ---- the parent's side -----------------------------------------------------------------------
 
 static struct ddh_entry *ddh_find(pid_t child) {
-    if (!g_ddh || child <= 0) return NULL;
+    if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || child <= 0) return NULL;
     pid_t me = getpid();
     for (int i = 0; i < DDH_SLOTS; i++) {
         struct ddh_entry *e = &g_ddh->e[i];
@@ -1003,7 +1031,7 @@ static int ddh_take_for(struct ddh_entry *e, pid_t pid) {
 }
 
 static int ddh_any_live(pid_t pid) {
-    if (!g_ddh) return 0;
+    if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE)) return 0;
     pid_t me = getpid();
     for (int i = 0; i < DDH_SLOTS; i++) {
         struct ddh_entry *e = &g_ddh->e[i];
@@ -1014,7 +1042,7 @@ static int ddh_any_live(pid_t pid) {
 }
 
 static struct ddh_entry *ddh_exited(pid_t pid) {
-    if (!g_ddh) return NULL;
+    if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE)) return NULL;
     pid_t me = getpid();
     for (int i = 0; i < DDH_SLOTS; i++) {
         struct ddh_entry *e = &g_ddh->e[i];
@@ -1025,7 +1053,7 @@ static struct ddh_entry *ddh_exited(pid_t pid) {
 
 // The entry of child while it is still handing its program off (its request is with the app).
 static struct ddh_entry *ddh_claiming(pid_t child) {
-    if (!g_ddh || child <= 0) return NULL;
+    if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || child <= 0) return NULL;
     pid_t me = getpid();
     for (int i = 0; i < DDH_SLOTS; i++) {
         struct ddh_entry *e = &g_ddh->e[i];
@@ -1035,27 +1063,37 @@ static struct ddh_entry *ddh_claiming(pid_t child) {
 }
 
 // A worker that is gone with no status from the app (it crashed with the app): reported as killed.
+// A worker that is gone: its program's end as the app reported it (a signal), else, with no report
+// after a while (the app crashed with it), as killed.
 static void ddh_check_gone(void) {
-    if (!g_ddh) return;
+    struct ddh_table *t = __atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE);
+    if (!t) return;
     pid_t me = getpid();
     for (int i = 0; i < DDH_SLOTS; i++) {
-        struct ddh_entry *e = &g_ddh->e[i];
+        struct ddh_entry *e = &t->e[i];
         if (__atomic_load_n(&e->state, __ATOMIC_ACQUIRE) != DDH_HANDED || e->parent != me) continue;
         if (syscall(SYS_kill, e->real, 0) == 0 || errno != ESRCH) continue;
-        // The app looks the status up for up to a second after the worker's death: wait longer.
-        struct timespec now;
-        clock_gettime(CLOCK_MONOTONIC, &now);
-        if (e->pad[0] == 0) {
-            e->pad[0] = (int32_t)now.tv_sec + 1;
-            continue;
+        int32_t report[2];
+        uint64_t both = __atomic_load_n((uint64_t *)e->app, __ATOMIC_ACQUIRE);
+        memcpy(report, &both, sizeof(report));
+        int32_t status = SIGKILL;
+        if (report[1] == e->child && report[1] != 0) {
+            status = report[0];
+        } else {
+            // The app looks the status up for up to a second after the worker's death: wait longer.
+            struct timespec now;
+            clock_gettime(CLOCK_MONOTONIC, &now);
+            if (e->pad[0] == 0) {
+                e->pad[0] = (int32_t)now.tv_sec + 1;
+                continue;
+            }
+            if (now.tv_sec + 1 - e->pad[0] < 3) continue;
         }
-        if (now.tv_sec + 1 - e->pad[0] >= 3) {
-            // only where no status was written (the app's or the program's own wins)
-            int32_t none = DDH_NO_STATUS;
-            __atomic_compare_exchange_n(&e->status, &none, SIGKILL, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
-            int expected = DDH_HANDED;
-            __atomic_compare_exchange_n(&e->state, &expected, DDH_EXITED, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
-        }
+        // Only this side moves HANDED to EXITED; a status the program wrote itself is kept.
+        int32_t none = DDH_NO_STATUS;
+        __atomic_compare_exchange_n(&e->status, &none, status, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+        int expected = DDH_HANDED;
+        __atomic_compare_exchange_n(&e->state, &expected, DDH_EXITED, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
     }
 }
 
@@ -1066,6 +1104,7 @@ static void ddh_release(struct ddh_entry *e, int *status) {
     e->reaped = 0;
     e->pad[0] = 0;
     e->pad[1] = 0;
+    __atomic_store_n((uint64_t *)e->app, 0, __ATOMIC_RELAXED);
     __atomic_store_n(&e->state, DDH_FREE, __ATOMIC_RELEASE);
 }
 
@@ -1113,7 +1152,7 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
         errno = ENOSYS;
         return -1;
     }
-    if (!g_ddh) return real(pid, status, options, ru);
+    if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE)) return real(pid, status, options, ru);
     // After a nap a signal interrupted, one more look before EINTR: the signal may be the SIGCHLD
     // that reports an exit.
     int interrupted = 0;
@@ -1193,7 +1232,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
     // An ordinary child asked for by pid: the real call, with all its options (stops, WNOWAIT).
     // As a waitpid() selector: a pid, -1 for any child, 0 for our group, -G for group G
     pid_t which = idtype == P_PID ? (pid_t)id : idtype == P_PGID ? (id == 0 ? 0 : -(pid_t)id) : -1;
-    if (!g_ddh || !(options & WEXITED) || (idtype != P_PID && idtype != P_ALL && idtype != P_PGID) ||
+    if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || !(options & WEXITED) || (idtype != P_PID && idtype != P_ALL && idtype != P_PGID) ||
         (idtype == P_PID ? !ddh_find(which) : !ddh_any_live(which)))
         return real(idtype, id, info, options);
     // Only exits are asked for here: answer through ddh_wait and describe the result as waitid does.
@@ -1463,7 +1502,7 @@ int killpg(int pgrp, int sig) {
 }
 
 int kill(pid_t pid, int sig) {
-    if (g_ddh && pid > 0) {
+    if (__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) && pid > 0) {
         // A child still handing its program off: the signal is for the program, which the forked
         // child (stopped or killed by it) could no longer hand off or account for. Up to 3 s for the
         // app's answer; a cold worker start takes well under one.

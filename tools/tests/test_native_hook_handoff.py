@@ -136,12 +136,14 @@ class FakeSpawner(threading.Thread):
             os.close(gate_r)
             conn.sendall(b"pid %d\n" % pid)
             went = not request.get("ack") or self.read(conn, 3) == b"go\n"
-            conn.close()
             for fd in fds:
                 if fd != table:
                     os.close(fd)
             if went:
                 os.write(gate_w, b"1")
+                if request.get("ack"):
+                    conn.sendall(b"ok\n")  # the app's last word, once the worker runs it
+            conn.close()
             os.close(gate_w)
             if not went:
                 os.waitpid(pid, 0)
@@ -163,9 +165,10 @@ class FakeSpawner(threading.Thread):
     def report(pid, table, request):
         code = os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1])
         status = (-code) & 0x7F if code < 0 else (code & 0xFF) << 8
-        entry = 64 + request["slot"] * 32
-        os.pwrite(table, struct.pack("<i", status), entry + 16)
-        os.pwrite(table, struct.pack("<i", 2), entry + 12)
+        # as GuestWorkers.reportExit: one write of the status and the child it is for; the hook
+        # moves the entry to exited itself
+        entry = 64 + request["slot"] * 64
+        os.pwrite(table, struct.pack("<ii", status, request["child"]), entry + 32)
         os.close(table)
         os.kill(request["parent"], signal.SIGCHLD)
 
