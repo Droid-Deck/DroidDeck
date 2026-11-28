@@ -42,7 +42,7 @@ static void destroy_fence(VkDevice d, VkFence f, const VkAllocationCallbacks *a)
 static void destroy_pool(VkDevice d, VkCommandPool p, const VkAllocationCallbacks *a) { ++destroys; }
 static void destroy_device(VkDevice d, const VkAllocationCallbacks *a) { ++destroys; }
 static void destroy_instance(VkInstance i, const VkAllocationCallbacks *a) { ++destroys; }
-static void destroy_sem(VkDevice d, VkSemaphore s, const VkAllocationCallbacks *a) { live(); ++destroys; }
+static void destroy_sem(VkDevice d, VkSemaphore s, const VkAllocationCallbacks *a) { ++destroys; }
 static VkResult create_sem(VkDevice d, const VkSemaphoreCreateInfo *c, const VkAllocationCallbacks *a, VkSemaphore *s) {
     live(); *s = (VkSemaphore)(uintptr_t)1; return VK_SUCCESS;
 }
@@ -65,15 +65,17 @@ int sc_layer_base_black(int w, int h) { return 0; }
 void sc_layer_hide_base(void) {}
 void sc_layer_hide_overlay(void) {}
 void vkp_cardboard_bind_device(VkDevice d, const VkPhysicalDeviceMemoryProperties *m) {}
+void vkp_cardboard_destroy(void) {}
 int vkp_cardboard_active(void) { return 0; }
 void vkp_cardboard_begin_frame(void) {}
 VkImage vkp_cardboard_run(VkCommandBuffer c, VkImage s, int sw, int sh, int ow, int oh) { return s; }
-int vk_loader_open(const char *a, const char *b, const char *c) { assert(0); return -1; }
-void vk_loader_close(void) { assert(0); }
-void vk_loader_load_instance(VkInstance i) { assert(0); }
-void vk_loader_load_device(VkDevice d) { assert(0); }
+int vk_loader_open(const char *a, const char *b, const char *c) { return -1; }
+void vk_loader_close(void) {}
+void vk_loader_load_instance(VkInstance i) {}
+void vk_loader_load_device(VkDevice d) {}
 PFN_vkGetInstanceProcAddr vk_loader_gipa(void) { return NULL; }
 void vkp_effects_bind_device(VkDevice d, VkPhysicalDevice p, const VkPhysicalDeviceMemoryProperties *m) {}
+void vkp_effects_destroy(void) {}
 int vkp_effects_active(void) { return 0; }
 int vkp_effects_upscaling(void) { return 0; }
 int vkp_effects_sharpening(void) { return 0; }
@@ -98,9 +100,11 @@ void vkp_framegen_presented(int n) { ++presented_notifications; }
 void vkp_gpu_busy_device(VkPhysicalDevice p, VkDevice d, uint32_t f) {}
 void vkp_gpu_busy_device_lost(void) {}
 void hdrc_bind_device(VkDevice d, const VkPhysicalDeviceMemoryProperties *m) {}
+void hdrc_destroy(void) {}
 void hdrc_forget_image(VkImage i) {}
 int hdrc_encode(VkCommandBuffer c, VkImage a, VkImage b, VkFormat f, int w, int h, const struct hdrc_params *p) { return -1; }
 void blendp_bind_device(VkDevice d) {}
+void blendp_destroy(void) {}
 void blendp_forget_image(VkImage i) {}
 void vkp_effects_forget_image(VkImage i) {}
 void blendp_begin_frame(void) {}
@@ -186,6 +190,7 @@ static void setup(int extra) {
 /* Probe the public GPU entry points after a terminal result. This includes an
  * active off-screen pass and consumed release fds, not just the render guard. */
 static void assert_stopped(void) {
+    assert(g_dev_state == -3 || (g_dev_state == -2 && g_recovery_attempted));
     unsigned before = operations, before_destroys = destroys;
     struct vkp_image src = {.image = (VkImage)(uintptr_t)7, .w = 1, .h = 1};
     struct vkp_image dst = {.image = (VkImage)(uintptr_t)8, .w = 1, .h = 1, .blit_dst = 1};
@@ -306,6 +311,10 @@ int main(int argc, char **argv) {
         assert(!vkp_completion_unknown());
         assert(g_dev_state == -2 && lost_notifications == 1 && markers == 0 && waits == 0);
         assert(!g_images && !g_swapchain && !g_surface && destroys == 2);
+        /* Inject loader failure to verify the one permitted recovery attempt
+         * and its cleanup path without needing a real Vulkan driver. */
+        assert(vkp_ready() == -1);
+        assert(g_dev_state == -2 && g_recovery_attempted);
         assert_stopped();
     } else assert(0 && "unknown scenario");
     return 0;
