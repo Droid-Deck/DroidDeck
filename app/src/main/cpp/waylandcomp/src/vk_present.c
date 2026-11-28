@@ -2198,7 +2198,20 @@ static int compose_hdr(VkCommandBuffer cmd, const struct vkp_draw *draws, int n,
 }
 
 static void device_lost(const char *where) {
-    if (g_dev_state == -2) return;
+    if (g_dev_state == -2 || g_dev_state == -3) return;
+
+    /* Presentation can report device loss while earlier queue submissions are
+     * still in flight. Do not destroy module or swapchain resources until the
+     * device confirms completion. VK_ERROR_DEVICE_LOST is also a terminal
+     * completion outcome; other errors leave ownership uncertain. */
+    if (g_dev_state == 1) {
+        VkResult idle = g_vk.DeviceWaitIdle ? g_vk.DeviceWaitIdle(g_dev) : VK_ERROR_UNKNOWN;
+        if (idle != VK_SUCCESS && idle != VK_ERROR_DEVICE_LOST) {
+            quarantine_pending_work(idle, "device-loss idle");
+            return;
+        }
+    }
+
     g_dev_state = -2;
     g_base_black = 0;
     /* Notify modules before invalidating swapchain resources so they stop using
