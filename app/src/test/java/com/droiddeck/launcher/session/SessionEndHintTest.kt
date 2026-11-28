@@ -4,6 +4,7 @@ import android.app.Application
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.SessionActivity
 import com.droiddeck.launcher.gpu.GpuInfo
+import com.droiddeck.launcher.gpu.ShadowGpuInfo
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -17,8 +18,6 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import org.robolectric.annotation.Implementation
-import org.robolectric.annotation.Implements
 import org.robolectric.util.ReflectionHelpers
 import java.io.File
 
@@ -26,7 +25,7 @@ import java.io.File
 @Config(
     sdk = [33], application = Application::class, qualifiers = "en-rUS",
     instrumentedPackages = ["com.droiddeck.launcher.gpu.GpuInfo"],
-    shadows = [SessionEndHintTest.DetectedGpu::class],
+    shadows = [ShadowGpuInfo::class],
 )
 class SessionEndHintTest {
     @get:Rule val temporary = TemporaryFolder()
@@ -48,8 +47,7 @@ class SessionEndHintTest {
         SessionState.logDirectory = null
         SessionState.failureCode = null
         SessionState.failureMessage = null
-        DetectedGpu.family = GpuInfo.Family.NOT_ADRENO
-        DetectedGpu.name = "test GPU"
+        ShadowGpuInfo.setGpu(GpuInfo.Family.NOT_ADRENO, "test GPU")
         activity = Robolectric.buildActivity(SessionActivity::class.java).get()
         SessionState.steamClientArch = "arm64"
     }
@@ -61,8 +59,31 @@ class SessionEndHintTest {
         SessionState.logDirectory = previousDirectory
         SessionState.failureCode = previousFailureCode
         SessionState.failureMessage = previousFailureMessage
-        DetectedGpu.family = GpuInfo.Family.NOT_ADRENO
-        DetectedGpu.name = "test GPU"
+        ShadowGpuInfo.reset()
+    }
+
+    @Test
+    fun maliFailureKeepsItsSpecificReason() {
+        assertEquals("Venus lacks nullDescriptor required by Zink.",
+            hintText(log("== mali graphics failed: Venus lacks nullDescriptor required by Zink.\n== steam exited rc=69\n")))
+        try {
+            SessionState.failureCode = "MALI_GRAPHICS_FAILED"
+            SessionState.failureMessage = "MaliBridge is unavailable."
+            assertEquals("MaliBridge is unavailable.", ReflectionHelpers.getField<String>(exitHint(-1), "text"))
+        } finally {
+            SessionState.failureCode = null
+            SessionState.failureMessage = null
+        }
+    }
+
+    @Test
+    fun cleanExitRetainsTheRecordedMaliStartupFailure() {
+        SessionState.failureCode = "MALI_GRAPHICS_FAILED"
+        SessionState.failureMessage = "MaliBridge is unavailable."
+        val hint = exitHint(0)
+        assertNotNull(hint)
+        assertEquals("MaliBridge is unavailable.", ReflectionHelpers.getField<String>(hint, "text"))
+        assertTrue(ReflectionHelpers.getField(hint, "evenOnSuccess"))
     }
 
     @Test
@@ -92,7 +113,7 @@ class SessionEndHintTest {
     @Test
     fun vulkanFailureOnAdrenoSelectsTheDriverHint() {
         for (family in listOf(GpuInfo.Family.A6XX, GpuInfo.Family.ADRENO_UNKNOWN)) {
-            DetectedGpu.family = family
+            ShadowGpuInfo.setGpu(family, "test GPU", model = if (family == GpuInfo.Family.A6XX) 610 else 0)
 
             assertEquals(family.name, activity.getString(R.string.session_end_vulkan_device), hintText(vulkanLog()))
         }
@@ -101,12 +122,11 @@ class SessionEndHintTest {
     @Test
     fun vulkanFailureOnNonAdrenoIdentifiesTheGpuAndOffersDriverGuidance() {
         for (family in GpuInfo.Family.entries.filter { it.mali || it == GpuInfo.Family.POWERVR || it == GpuInfo.Family.NOT_ADRENO }) {
-            DetectedGpu.family = family
+            ShadowGpuInfo.setGpu(family, "test GPU")
             val expected = "test GPU (${family.label("test GPU")})\n" + activity.getString(R.string.session_end_vulkan_device)
             assertEquals(family.name, expected, hintText(vulkanLog()))
         }
-        DetectedGpu.family = GpuInfo.Family.POWERVR
-        DetectedGpu.name = "Samsung Xclipse 940"
+        ShadowGpuInfo.setGpu(GpuInfo.Family.POWERVR, "Samsung Xclipse 940")
         assertEquals("Samsung Xclipse 940 (Samsung Xclipse)\n" + activity.getString(R.string.session_end_vulkan_device),
             hintText(vulkanLog()))
     }
@@ -170,16 +190,5 @@ class SessionEndHintTest {
         val result = hint(log)
         assertNotNull(result)
         return ReflectionHelpers.getField(result, "text")
-    }
-
-    @Implements(value = GpuInfo.Companion::class, isInAndroidSdk = false)
-    class DetectedGpu {
-        @Implementation
-        fun detect(): GpuInfo = GpuInfo(name, if (family == GpuInfo.Family.A6XX) 610 else 0, family, "", false)
-
-        companion object {
-            var family = GpuInfo.Family.NOT_ADRENO
-            var name = "test GPU"
-        }
     }
 }

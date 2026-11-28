@@ -92,7 +92,7 @@ object GraphicsReport {
         }
         appendLine("frame generation: " + runCatching { com.droiddeck.launcher.gpu.FrameGen.mode(context).toString() }.getOrDefault("?") +
             " (engine=off means it is switched off in Play settings; a driver that fails LSFG's gates logs \"device gates\" below)")
-        appendLine("mali bridge setting: " + SessionPrefs.vkBridge(context) + ", in use: " + DeviceSupport.vkBridge(context))
+        appendLine("mali graphics choice: " + guest.lastOrNull { it.startsWith("DD_MALI_GRAPHICS_MODE=") }?.substringAfter('='))
         val standIn = runCatching { com.droiddeck.launcher.runtime.LinuxRuntime.gpuStandIn(context) }.getOrNull()
         appendLine("render node for the guest: " + (standIn?.let { node ->
             com.droiddeck.launcher.runtime.LinuxRuntime.deviceNumbers(node)?.let { n -> "/dev/dri/renderD${n.substringAfter(':')} -> $node ($n)" } ?: node

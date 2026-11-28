@@ -3559,7 +3559,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         EndHint(getString(R.string.session_end_present_fault, it), evenOnSuccess = true)
     }
 
-    private fun sessionExitHint(status: Int): EndHint? = if (status == 0) presentationFaultHint()
+    private fun sessionExitHint(status: Int): EndHint? =
+        if (SessionState.failureCode == "MALI_GRAPHICS_FAILED") {
+            SessionState.failureMessage?.let { EndHint(it, evenOnSuccess = true) }
+        } else if (status == 0) presentationFaultHint()
         else runtimeDamageHint() ?: sessionEndHint(SessionState.logFile) ?: startFailureHint()
 
     private fun sessionEndHint(log: File?): EndHint? {
@@ -3581,6 +3584,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 if (line.contains(FEX_MISSING)) fexMissing = true
             }
             val steamSetup = com.droiddeck.launcher.session.SteamClientSetupFailure.find(text.lineSequence())
+            text.lineSequence().lastOrNull { it.startsWith("== mali graphics failed: ") }?.let {
+                return EndHint(it.removePrefix("== mali graphics failed: "))
+            }
             val launchFailure = com.droiddeck.launcher.session.SessionLaunchFailure.find(text.lineSequence())
             if (steamSetup != null) {
                 val message = getString(if (steamSetup.download) R.string.session_end_steam_download else R.string.session_end_steam_setup)

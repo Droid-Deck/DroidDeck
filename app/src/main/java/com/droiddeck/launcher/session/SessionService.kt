@@ -502,9 +502,6 @@ class SessionService : Service() {
         SessionPrefs.ensurePowerVrAutoDriversAfterGpuQuery(this)
         if (!com.droiddeck.launcher.core.DeviceSupport.adreno()) {
             com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
-            if (SessionPrefs.venus(this)) VenusComponent.hostVulkanTooOld(this)?.let {
-                Log.w(TAG, "venus: off for this session - the phone's driver reports Vulkan $it and gamescope needs 1.2 or newer; the session uses the PanVK pair or the bridge")
-            }
         }
         SessionTerminal.clear()
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)
@@ -620,8 +617,16 @@ class SessionService : Service() {
                 .onSuccess { if (it != null) Log.i(TAG, it) }
                 .onFailure { Log.w(TAG, "forced components", it) }
         }
+        val maliChoice = if (com.droiddeck.launcher.core.DeviceSupport.mali()) SessionPrefs.maliGraphicsMode(this) else MaliGraphicsMode.AUTO
+        val maliRoute = MaliGraphics.resolve(this, maliChoice)
+        MaliGraphics.problem(this, maliRoute)?.let { message ->
+            failSession(gen, "MALI_GRAPHICS_FAILED", message, -1)
+            stopSession(-1, gen)
+            abandonStart(gen, sessionDir)
+            return
+        }
         try {
-            SessionEvents.step("client-environment") { addClientEnvironment(guest, steamHere, agentEnvironment) }
+            SessionEvents.step("client-environment") { addClientEnvironment(guest, steamHere, agentEnvironment, maliChoice, maliRoute) }
         } catch (e: IllegalStateException) {
             Log.e(TAG, "Could not resolve the selected Linux Vulkan driver", e)
             failSession(gen, "VULKAN_DRIVER_UNAVAILABLE", e.message ?: "Selected Linux Vulkan driver is unavailable", -1)
@@ -633,8 +638,8 @@ class SessionService : Service() {
         val fastPathAt = guest.size
 
         val pulse = SessionEvents.step("audio") { startAudio(guest, sessionDir, directAudioPack) }
-        SessionEvents.step("vk-bridge") { startVkBridge(guest, sessionDir) }
-        if (VenusComponent.wanted(this)) {
+        if (maliRoute == MaliGraphicsMode.BRIDGE) SessionEvents.step("vk-bridge") { startVkBridge(guest, sessionDir) }
+        if (maliRoute == MaliGraphicsMode.VENUS) {
             components.add(VenusComponent(File(sessionDir, "venus.log")).also { it.attach(this) })
         }
         if (steamHere) {
@@ -844,11 +849,15 @@ class SessionService : Service() {
                     return
                 }
                 started.add(part)
-                part.start()
+                try { part.start() } catch (e: Exception) {
+                    if (part is VenusComponent) failSession(gen, "MALI_GRAPHICS_FAILED", e.message ?: getString(R.string.mali_venus_start_failed), -1)
+                    throw e
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Could not start the session components", e)
-            failSession(gen, "COMPONENT_START_FAILED", e.message ?: "Session component could not be started", -1)
+            if (SessionState.failureCode != "MALI_GRAPHICS_FAILED")
+                failSession(gen, "COMPONENT_START_FAILED", e.message ?: "Session component could not be started", -1)
             stopSession(-1, gen)
             abandonStart(gen, sessionDir, started)
             return
@@ -990,7 +999,7 @@ class SessionService : Service() {
         return com.droiddeck.launcher.input.GesturePrefs.read(this, game).relativeMouseMode
     }
 
-    private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean, agentEnvironment: List<String>) {
+    private fun addClientEnvironment(guest: MutableList<String>, steamHere: Boolean, agentEnvironment: List<String>, maliChoice: MaliGraphicsMode, maliRoute: MaliGraphicsMode) {
         guest.add("/usr/bin/env")
         guest.add("-i")
         guest.add("DROIDDECK_BWRAP_SOCKET=" + com.droiddeck.launcher.runtime.BwrapSpawner.socket(this))
@@ -1020,7 +1029,8 @@ class SessionService : Service() {
         guest.add("MESA_LOADER_DRIVER_OVERRIDE=zink")
         guest.add("GALLIUM_DRIVER=zink")
         guest.add("LIBGL_KOPPER_DRI2=true")
-        val venus = VenusComponent.wanted(this)
+        guest.add("DD_MALI_GRAPHICS_MODE=" + maliChoice.id)
+        val venus = maliRoute == MaliGraphicsMode.VENUS
         if (venus) {
             VenusComponent.guestEnv(this).forEach { guest.add(it) }
         } else {
@@ -1034,7 +1044,7 @@ class SessionService : Service() {
                 ?: SessionPrefs.androidDriver(this),
             linuxDriverId,
         )
-        val bridge = com.droiddeck.launcher.core.DeviceSupport.vkBridge(this)
+        val bridge = maliRoute == MaliGraphicsMode.BRIDGE
         if (!bridge && !venus && SystemVulkanDriver.usesDefault(linuxDriverId)) {
             SystemVulkanDriver.addEnvironment(this, guest)
         }
@@ -1060,7 +1070,7 @@ class SessionService : Service() {
                 Log.i(TAG, "gamescope: explicit sync off (" + (if (old) "kernel $kernel has no SYNCOBJ_EVENTFD" else "Mali stand-in node has no syncobjs") + ")")
             }
         }
-        if (!bridge && com.droiddeck.launcher.core.DeviceSupport.openDriverActive(this)) {
+        if (!bridge && !venus && com.droiddeck.launcher.core.DeviceSupport.openDriverActive(this)) {
             if (SessionPrefs.steamGpuCompositing(this)) {
                 Log.i(TAG, "steam: GPU web compositing (Setup's \"Steam interface: GPU drawing\")")
             } else {
@@ -1108,7 +1118,7 @@ class SessionService : Service() {
             guest.add("DD_ZRAM=1")
         }
         guest.add("AUDIO_DIRECT_DECAY=0")
-        val extra = extraEnv() + agentEnvironment
+        val extra = MaliGraphics.diagnosticOverrides(maliChoice, extraEnv() + agentEnvironment)
         guest.addAll(TurnipEnvironment.gameEnvironment(tuOverride, tuDriver, SessionPrefs.tuSysmem(this), extra))
         if (extra.none { it.startsWith("MESA_NO_ERROR=") }) guest.add("${GAME_PREFIX}MESA_NO_ERROR=")
         extra.forEach { guest.add(it) }
@@ -1122,7 +1132,6 @@ class SessionService : Service() {
     }
 
     private fun startVkBridge(guest: MutableList<String>, sessionDir: File) {
-        if (!com.droiddeck.launcher.core.DeviceSupport.vkBridge(this)) return
         val socket = File(filesDir, "vkbridge/server.sock")
         val bridge = com.droiddeck.launcher.gpu.VkBridgeComponent(socket, File(sessionDir, "vkbridge-server.log"))
         bridge.attach(this)

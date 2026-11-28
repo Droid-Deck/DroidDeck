@@ -81,6 +81,7 @@ import com.droiddeck.launcher.frontend.GameLaunchIntent
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.ui.RomsDialog
 import com.droiddeck.launcher.files.InAppFilePicker
+import com.droiddeck.launcher.session.MaliGraphicsMode
 import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionState
@@ -176,6 +177,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var gameCores by mutableStateOf<Set<Int>>(emptySet())
     private var tuSysmem by mutableStateOf(false)
     private var zinkLazy by mutableStateOf(false)
+    private var maliGraphicsMode by mutableStateOf(MaliGraphicsMode.AUTO)
     private var vkBridge by mutableStateOf(false)
     private var venus by mutableStateOf(false)
     private var venusHostVulkan by mutableStateOf<String?>(null)
@@ -1417,7 +1419,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 FrontEndScreen(
                     FrontEndState(
                         installed = installed, ready = ready, available = available?.version, removalPending = removalPending, runtimeActionsBlocked = runtimeChangesBlocked(),
-                        vkBridge = vkBridge, venus = venus, venusHostVulkan = venusHostVulkan, vkBridgeSafe = vkBridgeSafe, bridgeProtonDxvk = bridgeProtonDxvk, adreno = adrenoGpu,
+                        maliGraphicsMode = maliGraphicsMode, vkBridge = vkBridge, venus = venus, venusHostVulkan = venusHostVulkan, vkBridgeSafe = vkBridgeSafe, bridgeProtonDxvk = bridgeProtonDxvk, adreno = adrenoGpu,
                         shortcutPicker = shortcutPicker,
                         preparingGames = preparingGames,
                         shortcutLibraryScanning = shortcutLibraryScanning,
@@ -1608,19 +1610,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                         onInstallPackage = { id -> installPackage(id) },
                         onRemovePackage = { id -> removePackage(id) },
                         onRuntime = { onRuntimeButton() },
-                        onVkBridge = { on ->
-                            SessionPrefs.setVkBridge(this, on); SessionPrefs.setMaliFallbackByAuto(this, ""); vkBridge = on
-                            if (!on) com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
-                        },
-                        onVenus = { on ->
-                            SessionPrefs.setVenus(this, on)
-                            SessionPrefs.setMaliFallbackByAuto(this, "")
-                            venus = on
-                            if (on && !com.droiddeck.launcher.core.DeviceSupport.adreno()) Thread({
-                                com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
-                                runOnUiThread { venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this) }
-                            }, "venus-host-vulkan").start()
-                        },
+                        onMaliGraphicsMode = ::pickMaliGraphicsMode,
                         onVkBridgeSafe = { on -> SessionPrefs.setVkBridgeSafe(this, on); vkBridgeSafe = on },
                         onBridgeProtonDxvk = { on ->
                             SessionPrefs.setBridgeProtonDxvk(this, on); bridgeProtonDxvk = on
@@ -3265,6 +3255,17 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         }, "usb-link").start()
     }
 
+    private fun pickMaliGraphicsMode(choice: MaliGraphicsMode) {
+        if (runtimeChangesBlocked()) return
+        SessionPrefs.setMaliGraphicsMode(this, choice)
+        refreshCores()
+        com.droiddeck.launcher.session.ComponentsManager.settleAutoDxvk(this)
+        if (choice == MaliGraphicsMode.VENUS) Thread({
+            com.droiddeck.launcher.gpu.VulkanInfo.query()["api"]?.let { SessionPrefs.setHostVulkanApi(this, it) }
+            runOnUiThread { venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this) }
+        }, "venus-host-vulkan").start()
+    }
+
     private fun refreshCores() {
         clientOverride = SessionPrefs.clientCpusOverride(this)
         glThread = SessionPrefs.glThread(this)
@@ -3273,6 +3274,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         gameCores = CpuCores.parse(SessionPrefs.gameCpus(this)).ifEmpty { CpuCores.all.toSet() }
         tuSysmem = SessionPrefs.tuSysmem(this)
         zinkLazy = SessionPrefs.zinkLazy(this)
+        maliGraphicsMode = SessionPrefs.maliGraphicsMode(this)
         vkBridge = SessionPrefs.vkBridge(this)
         venus = SessionPrefs.venus(this)
         venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this)
@@ -3340,6 +3342,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         offlineAuto = OfflineMode.auto(this)
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
+        maliGraphicsMode = SessionPrefs.maliGraphicsMode(this)
         vkBridge = SessionPrefs.vkBridge(this)
         venus = SessionPrefs.venus(this)
         venusHostVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(this)

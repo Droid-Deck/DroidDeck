@@ -3,7 +3,6 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import android.os.Process
 import android.util.Log
-import com.droiddeck.launcher.core.DeviceSupport
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.HostProcess
 import com.droiddeck.launcher.core.SessionPart
@@ -44,6 +43,7 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
             Log.i(TAG, line)
             out?.let { synchronized(it) { it.println(line); it.flush() } }
         })
+        check(pid > 0) { context.getString(com.droiddeck.launcher.R.string.mali_venus_start_failed) }
         Log.i(TAG, "vtest server pid $pid on $socket")
     }
 
@@ -59,15 +59,9 @@ class VenusComponent(private val logFile: File?) : SessionPart() {
         private const val LIB = "libvulkan_virtio.so"
         private const val ICD = "virtio_icd.json"
 
-        /**
-         * The selection rule: Venus when Setup's "Mali (Venus)" is on, on a GPU that is neither an
-         * Adreno nor one the system-driver route covers (PowerVR, Xclipse), and the apk carries it.
-         * It then replaces the Mali bridge and any open driver pair for the session.
-         */
         @JvmStatic
         fun wanted(context: Context): Boolean =
-            !DeviceSupport.adreno() && !com.droiddeck.launcher.gpu.SystemVulkanDriver.isAvailable() &&
-                SessionPrefs.venus(context) && available(context) && hostVulkanTooOld(context) == null
+            SessionPrefs.venus(context)
 
         /** The phone driver's Vulkan version when it is below 1.2: gamescope skips such a device, so Venus cannot run. */
         @JvmStatic
