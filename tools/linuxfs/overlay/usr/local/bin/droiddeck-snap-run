@@ -61,6 +61,35 @@ def content_binds(name, meta, env):
     return out
 
 
+def outside(path, mounted):
+    for source, target in sorted(mounted, key=lambda m: len(m[1]), reverse=True):
+        if path == target or path.startswith(target + "/"):
+            return source + path[len(target):]
+    return path
+
+
+def layout_args(meta, env, mounted):
+    out = []
+    writable = tuple(env[k] + "/" for k in ("SNAP_DATA", "SNAP_COMMON"))
+    layout = [(p, e) for p, e in (meta.get("layout") or {}).items() if isinstance(e, dict)]
+    for path, entry in sorted(layout, key=lambda item: ("symlink" in item[1], item[0])):
+        dest = os.path.normpath(expand(path, env))
+        if "symlink" in entry:
+            out += ["--symlink", os.path.normpath(expand(entry["symlink"], env)), dest]
+        elif entry.get("type") == "tmpfs":
+            out += ["--tmpfs", dest]
+        elif "bind" in entry or "bind-file" in entry:
+            source = os.path.normpath(expand(entry.get("bind") or entry.get("bind-file"), env))
+            if source.startswith(writable) and not os.path.exists(source):
+                if "bind" in entry:
+                    os.makedirs(source, exist_ok=True)
+                else:
+                    os.makedirs(os.path.dirname(source), exist_ok=True)
+                    open(source, "a").close()
+            out += ["--bind", outside(source, mounted), dest]
+    return out
+
+
 def game_gpu(env, snap):
     try:
         game_env = runpy.run_path(os.path.join(BIN_DIR, "droiddeck-game-env"))
@@ -133,9 +162,10 @@ def main(argv):
     bwrap += ["--bind", "/", "/var/lib/snapd/hostfs"]
     bwrap += ["--bind", "/dev/null", "/etc/ld.so.preload"]
     binds = content_binds(name, meta, env)
-    for _, source, target in binds:
-        if os.path.isdir(source):
-            bwrap += ["--bind", source, target]
+    mounted = [(source, target) for _, source, target in binds if os.path.isdir(source)]
+    for source, target in mounted:
+        bwrap += ["--bind", source, target]
+    bwrap += layout_args(meta, env, mounted)
     content = {k for k, v in (meta.get("plugs") or {}).items() if isinstance(v, dict) and v.get("interface") == "content"}
     plugs = (set(meta.get("plugs") or {}) | set(spec.get("plugs") or [])) - content | {plug for plug, _, _ in binds}
     env["DROIDDECK_SNAP_PLUGS"] = " ".join(sorted(plugs))
