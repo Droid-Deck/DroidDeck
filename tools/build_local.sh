@@ -270,7 +270,7 @@ else
     fi
 
     vr_out="${linuxfs_dir}/usr/local/lib/droiddeck-vr"
-    vr_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/vr app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c)
+    vr_key=$(inputs_hash "${image_id} ${ndk_version} ${VK_INCLUDE:-}" tools/vr xr-core/src/main/cpp app/src/main/cpp/waylandcomp/generated/xdg-shell-protocol.c)
     if ! restore_step vr "${vr_key}" "${vr_out}"; then
         DROIDDECK_BUILD_IMAGE="${image_name}" "${repo_root}/tools/vr/build.sh" "${vr_out}"
         save_step vr "${vr_key}" "${vr_out}"
