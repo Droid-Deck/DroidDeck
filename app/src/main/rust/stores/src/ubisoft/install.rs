@@ -64,11 +64,19 @@ impl Done {
 }
 
 pub fn safe_path(root: &Path, name: &str) -> Result<PathBuf, String> {
-    let rel = Path::new(name.trim_start_matches('/'));
-    if rel.components().any(|c| !matches!(c, Component::Normal(_))) {
-        return Err(format!("The manifest names an unsafe path: {name}"));
+    let unsafe_path = || format!("The manifest names an unsafe path: {name}");
+    let mut out = root.to_path_buf();
+    for component in Path::new(name.trim_start_matches('/')).components() {
+        match component {
+            Component::Normal(part) => out.push(part),
+            Component::CurDir => {}
+            _ => return Err(unsafe_path()),
+        }
     }
-    Ok(root.join(rel))
+    if out == root {
+        return Err(unsafe_path());
+    }
+    Ok(out)
 }
 
 fn sha1(b: &[u8]) -> Vec<u8> {
@@ -393,6 +401,23 @@ mod tests {
         assert!(safe_path(root, "../evil").is_err());
         assert!(safe_path(root, "a/../../evil").is_err());
         assert_eq!(safe_path(root, "/bin/game.exe").unwrap(), root.join("bin/game.exe"));
+        assert!(safe_path(root, "./../evil").is_err());
+    }
+
+    #[test]
+    fn accepts_names_that_start_in_the_current_folder() {
+        let root = Path::new("/games/x");
+        assert_eq!(safe_path(root, "./alut.dll").unwrap(), root.join("alut.dll"));
+        assert_eq!(safe_path(root, "./bin/./game.exe").unwrap(), root.join("bin/game.exe"));
+        assert_eq!(safe_path(root, "alut.dll").unwrap(), root.join("alut.dll"));
+    }
+
+    #[test]
+    fn refuses_names_without_a_file_name() {
+        let root = Path::new("/games/x");
+        for name in [".", "./", "/./", "", "/"] {
+            assert!(safe_path(root, name).is_err(), "{name:?}");
+        }
     }
 
     #[test]
