@@ -249,11 +249,11 @@ vfork-safe (Python's subprocess execs under `vfork`). Details that mattered:
   a child of `bash`, `sh`, `dash`, `zsh`, `ksh`, `fish`, `make` or `xargs` is handed off even when
   it is not listed. Those parents wait with `wait()`, which the hook answers; Qt's `QProcess` and
   other parents that watch a child by pidfd or `/proc` would see the forked child end at once, so
-  their children stay. A job in the foreground of its terminal (`TIOCGPGRP` on whichever standard fd
-  is the controlling terminal) stays too when it reads the terminal, a pipe or a socket (`less` in
-  `cmd | less` opens `/dev/tty`): a handed-off program has no controlling terminal, so `/dev/tty`,
-  ^C and job control would miss it. A job started with `&` runs in a background group, or, from a
-  shell without job control, reads `/dev/null`. Steam's client and launch chain (`steam`, its
+  their children stay. A job in the foreground of its controlling terminal (`TIOCGPGRP` on
+  `/dev/tty`, whatever its standard fds are: `cmd | less`, `less < file`) stays too: a handed-off
+  program has no controlling terminal, so `/dev/tty`, ^C and job control would miss it. A job
+  started with `&` runs in a background group, or, from a shell without job control, in the
+  foreground group reading `/dev/null`, and goes. Steam's client and launch chain (`steam`, its
   web helper, `droiddeck-steam-x64`, `reaper`, `steam-launch-wrapper`, `pw-audio-namespace`,
   gamescope, anything under `Steam/`) never go this way. In the desktop
   session (KDE Plasma, 17–19 counted at rest), a Konsole running 40 `sleep 600 &` jobs peaked at

@@ -119,25 +119,32 @@ static struct ddh_fork {
 static struct ddh_entry *ddh_find(pid_t child);
 
 static void ddh_forked_by(pid_t child, pid_t thread) {
-    struct ddh_fork *free_one = NULL;
     for (int i = 0; i < DDH_FORKS; i++) {
-        pid_t seen = __atomic_load_n(&g_ddh_forks[i].child, __ATOMIC_ACQUIRE);
-        if (seen == child) {
+        if (__atomic_load_n(&g_ddh_forks[i].child, __ATOMIC_ACQUIRE) == child) {
             __atomic_store_n(&g_ddh_forks[i].thread, thread, __ATOMIC_RELEASE);
             return;
         }
-        if (seen == 0 && !free_one) free_one = &g_ddh_forks[i];
     }
-    for (int i = 0; !free_one && i < DDH_FORKS; i++) {
-        // all in use: one whose child is gone and has no entry
-        pid_t seen = __atomic_load_n(&g_ddh_forks[i].child, __ATOMIC_ACQUIRE);
-        int saved = errno;
-        if (seen > 0 && syscall(SYS_kill, seen, 0) != 0 && errno == ESRCH && !ddh_find(seen)) free_one = &g_ddh_forks[i];
-        errno = saved;
+    // A record is taken by compare-and-swap of its child (another thread may be recording a fork of
+    // its own), then given the thread: until then it names no thread, which no __WNOTHREAD wait takes.
+    for (int pass = 0; pass < 2; pass++) {
+        for (int i = 0; i < DDH_FORKS; i++) {
+            struct ddh_fork *f = &g_ddh_forks[i];
+            pid_t seen = __atomic_load_n(&f->child, __ATOMIC_ACQUIRE);
+            if (pass == 0 ? seen != 0 : seen <= 0) continue;
+            if (pass == 1) {
+                // all in use: one whose child is gone and has no entry
+                int saved = errno;
+                int stale = syscall(SYS_kill, seen, 0) != 0 && errno == ESRCH && !ddh_find(seen);
+                errno = saved;
+                if (!stale) continue;
+            }
+            __atomic_store_n(&f->thread, 0, __ATOMIC_RELEASE);
+            if (!__atomic_compare_exchange_n(&f->child, &seen, child, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) continue;
+            __atomic_store_n(&f->thread, thread, __ATOMIC_RELEASE);
+            return;
+        }
     }
-    if (!free_one) return;
-    __atomic_store_n(&free_one->thread, thread, __ATOMIC_RELEASE);
-    __atomic_store_n(&free_one->child, child, __ATOMIC_RELEASE);
 }
 
 static pid_t ddh_forking_thread(pid_t child) {
@@ -929,22 +936,20 @@ static int ddh_pressure_keeps(const char *filename, char *const argv[]) {
 
 static int ddh_pressed(const char *filename, char *const argv[], char *const envp[]) {
     if (ddh_exec_stub(filename) || ddh_pressure_keeps(filename, argv) || !ddh_waiter((pid_t)syscall(SYS_getppid))) return 0;
-    // Not a job in the foreground of its terminal that reads it, or a pipe (less in "cmd | less"
-    // opens /dev/tty): a handed-off program has no controlling terminal (the worker's setsid()), so
-    // /dev/tty, ^C and job control would miss it. A job started with & runs in a background group,
-    // or, from a shell without job control, reads /dev/null. TIOCGPGRP answers only for the caller's
-    // controlling terminal, on whichever of its standard fds that is.
-    pid_t group = (pid_t)syscall(SYS_getpgid, 0);
-    int foreground = 0;
-    for (int fd = 0; fd <= 2 && !foreground; fd++) {
-        pid_t fg = 0;
-        foreground = syscall(SYS_ioctl, fd, TIOCGPGRP, &fg) == 0 && fg == group;
-    }
+    // Not a job in the foreground of its controlling terminal: a handed-off program has none (the
+    // worker's setsid()), so /dev/tty, ^C and job control would miss it, whatever its standard fds
+    // are ("cmd | less", "less < file", output redirected). A job started with & runs in a background
+    // group, or, from a shell without job control, in the foreground group reading /dev/null: that
+    // one goes.
+    pid_t fg = 0;
+    int tty = (int)call_orig_syscall(SYS_openat, (unsigned long)AT_FDCWD, (unsigned long)"/dev/tty",
+                                     O_RDONLY | O_NOCTTY | O_NONBLOCK | O_CLOEXEC, 0, 0, 0);
+    int foreground = tty >= 0 && syscall(SYS_ioctl, tty, TIOCGPGRP, &fg) == 0 && fg == (pid_t)syscall(SYS_getpgid, 0);
+    if (tty >= 0) syscall(SYS_close, tty);
     if (foreground) {
         struct stat st;
-        unsigned char t[64];  // the kernel's struct termios, which TCGETS fills, is smaller
-        if (syscall(SYS_ioctl, 0, TCGETS, t) == 0 || call_orig_syscall(SYS_fstat, 0, (unsigned long)&st, 0, 0, 0, 0) != 0 ||
-            S_ISFIFO(st.st_mode) || S_ISSOCK(st.st_mode))
+        if (call_orig_syscall(SYS_fstat, 0, (unsigned long)&st, 0, 0, 0, 0) != 0 || !S_ISCHR(st.st_mode) ||
+            st.st_rdev != makedev(1, 3))
             return 0;
     }
     return ddh_counted() >= ddh_pressure(envp);
@@ -1252,8 +1257,8 @@ static void ddh_untake(struct ddh_entry *e) { __atomic_store_n(&e->state, DDH_EX
 // Whether a wait for pid (-1: any child, 0: one in our group, -G: one in group G) takes e's child.
 static int ddh_selects(const struct ddh_entry *e, pid_t pid) {
     if (t_ddh_only_thread) {
-        pid_t thread = ddh_forking_thread(e->child);
-        if (thread && thread != t_ddh_only_thread) return 0;
+        // not this thread's, or not known yet (the fork is still being recorded): not for this wait
+        if (ddh_forking_thread(e->child) != t_ddh_only_thread) return 0;
     }
     if (pid > 0) return e->child == pid;
     if (pid == -1) return 1;
@@ -1705,8 +1710,11 @@ static int ddh_parent_lives(pid_t parent, long child_start) {
     snprintf(path, sizeof(path), "/proc/%d/stat", (int)parent);
     int saved = errno;
     long n = ddh_read_proc(path, stat, sizeof(stat));
+    int failed = errno;
     errno = saved;
-    char *s = n > 0 ? strrchr(stat, ')') : NULL;
+    // only a parent known gone: a lookup that failed otherwise (out of fds, say) proves nothing
+    if (n <= 0) return !(failed == ENOENT || failed == ESRCH);
+    char *s = strrchr(stat, ')');
     if (!s || s[1] != ' ' || s[2] == 'Z' || s[2] == 'X') return 0;
     for (int field = 2; s && field < 22; field++) s = strchr(s + 1, ' ');
     long start = s ? atol(s + 1) : -1;

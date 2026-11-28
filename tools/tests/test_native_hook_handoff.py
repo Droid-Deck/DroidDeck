@@ -382,23 +382,34 @@ class NativeHookHandoffTest(unittest.TestCase):
             cmd = []
             env.update(hook_env)
         stdin, stderr, ctty = None, subprocess.PIPE, None
+        passed = ()
         if terminal:
             # as a shell's foreground job: the controlling terminal of the parent's session as stdin
-            # (terminal=True), or as stderr with stdin a pipe or /dev/null (terminal="pipe", "null")
+            # (terminal=True); as stderr with stdin a pipe, /dev/null or a file ("pipe", "null",
+            # "file"); or on no standard fd at all, stdin a pipe ("hidden")
             master, slave = os.openpty()
             self.addCleanup(os.close, master)
             self.addCleanup(os.close, slave)
             if terminal is True:
                 stdin, fd = slave, 0
+            elif terminal == "hidden":
+                stdin, fd, passed = subprocess.PIPE, slave, (slave,)
             else:
-                stdin, stderr, fd = (subprocess.PIPE if terminal == "pipe" else subprocess.DEVNULL), slave, 2
+                if terminal == "file":
+                    data = Path(self.tmp.name) / "input.txt"
+                    data.write_text("input\n")
+                    stdin = open(data)
+                    self.addCleanup(stdin.close)
+                else:
+                    stdin = subprocess.PIPE if terminal == "pipe" else subprocess.DEVNULL
+                stderr, fd = slave, 2
 
             def ctty():
                 os.setsid()
                 fcntl.ioctl(fd, termios.TIOCSCTTY, 0)
         given = {"input": ""} if stdin == subprocess.PIPE else {"stdin": stdin}
         out = subprocess.run(cmd + [parent, *argv], env=env, stdout=subprocess.PIPE, stderr=stderr, preexec_fn=ctty,
-                             text=True, timeout=120, **given)
+                             pass_fds=passed, text=True, timeout=120, **given)
         result = dict(line.split("\t", 1) for line in out.stdout.splitlines() if "\t" in line)
         return result, spawner.requests, out
 
@@ -525,6 +536,18 @@ class NativeHookHandoffTest(unittest.TestCase):
     def test_near_the_limit_a_foreground_pipe_reader_is_not(self):
         # less in "cmd | less": stdin a pipe, the terminal on another fd
         result, requests, out = self.run_parent("wait", "3", handoff="other", pressure=0, as_shell=True, terminal="pipe")
+        self.assertEqual([], requests)
+        self.assertEqual(self.child_status, result.get("exit"), out.stdout)
+
+    def test_near_the_limit_a_foreground_job_reading_a_file_is_not(self):
+        # "less < file"
+        result, requests, out = self.run_parent("wait", "3", handoff="other", pressure=0, as_shell=True, terminal="file")
+        self.assertEqual([], requests)
+        self.assertEqual(self.child_status, result.get("exit"), out.stdout)
+
+    def test_near_the_limit_a_foreground_job_with_no_terminal_fd_is_not(self):
+        # "cmd | less > out 2> err": the controlling terminal on none of its standard fds
+        result, requests, out = self.run_parent("wait", "3", handoff="other", pressure=0, as_shell=True, terminal="hidden")
         self.assertEqual([], requests)
         self.assertEqual(self.child_status, result.get("exit"), out.stdout)
 
