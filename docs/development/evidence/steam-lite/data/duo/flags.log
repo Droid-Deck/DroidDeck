@@ -1,0 +1,12 @@
+== default run 1
+{"variant": "default", "applied": ["--no-zygote", "--in-process-gpu"], "total": 940.9, "renderer": 322.0, "browser": 343.7, "gpu": 254.9}
+== v8-small run 1
+{"variant": "v8-small", "applied": ["--no-zygote", "--in-process-gpu", "--js-flags=--optimize-for-size,--max-semi-space-size=2"], "total": 1114.5, "renderer": 509.7, "browser": 334.7, "gpu": 260.3}
+== gpu-budget run 1
+{"variant": "gpu-budget", "applied": ["--no-zygote", "--in-process-gpu", "--force-gpu-mem-available-mb=96", "--force-gpu-mem-discardable-limit-mb=32"], "total": 1156.4, "renderer": 583.5, "browser": 323.4, "gpu": 235.9}
+== default run 2
+{"variant": "default", "applied": ["--no-zygote", "--in-process-gpu"], "total": 913.4, "renderer": 319.3, "browser": 317.8, "gpu": 262.3}
+== v8-small run 2
+{"variant": "v8-small", "applied": ["--no-zygote", "--in-process-gpu", "--js-flags=--optimize-for-size,--max-semi-space-size=2"], "total": 1110.0, "renderer": 497.5, "browser": 340.1, "gpu": 277.2}
+== gpu-budget run 2
+{"variant": "gpu-budget", "applied": ["--no-zygote", "--in-process-gpu", "--force-gpu-mem-available-mb=96", "--force-gpu-mem-discardable-limit-mb=32"], "total": 1157.7, "renderer": 553.4, "browser": 334.9, "gpu": 255.6}

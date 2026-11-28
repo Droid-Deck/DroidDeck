@@ -1,0 +1,11 @@
+{
+ "kind": "flags",
+ "variant": "v8-small",
+ "flags": "--no-zygote --in-process-gpu -AudioServiceOutOfProcess --js-flags=--optimize-for-size,--max-semi-space-size=2",
+ "helper_cmdline_has": [
+  "--no-zygote",
+  "--in-process-gpu",
+  "--js-flags=--optimize-for-size,--max-semi-space-size=2"
+ ],
+ "started": 1795724242.7830796
+}

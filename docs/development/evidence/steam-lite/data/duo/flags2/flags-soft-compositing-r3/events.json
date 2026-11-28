@@ -1,0 +1,15 @@
+{
+ "kind": "flags",
+ "variant": "soft-compositing",
+ "env": {
+  "DD_WEBHELPER_ARGS": "--no-zygote --in-process-gpu -AudioServiceOutOfProcess",
+  "DD_STEAM_SOFT_COMPOSITING": "1",
+  "DD_STEAM_CEF_GPU": "1"
+ },
+ "helper_cmdline": "/data/data/com.droiddeck.launcher/files/linuxfs/root/.local/share/Steam/steamrtarm64/steamwebhelper -nocrashdialog -lang=en_US -cachedir=/root/.local/share/Steam/config/htmlcache -steampid=15143 -buildid=1793740892 -steamid=0 -logdir=/root/.local/share/Steam/logs -uimode=4 -startcount=0 -steamos3 -steamuniverse=Public -realm=Global -clientui=/root/.local/share/Steam/clientui -steampath=/root/.local/share/Steam/steamrtarm64/steam -launcher=0 --valve-enable-accessibility --valve-enable-site-isolation --crl-sets-path=/root/.local/share/Steam/resource/crl-set --remote-allow-origins=* --remote-debugging-address=127.0.0.1 --remote-debugging-port=37259 --enable-smooth-scrolling --ignore-gpu-blocklist --no-sandbox --password-store=basic --ignore-gpu-blocklist --disable-gpu-compositing --disable-gpu-early-init --log-file=/root/.local/share/Steam/logs/cef_log.txt --disable-quick-menu --disable-component-update --gaia-url=http://disabled.invalid --no-zygote --in-process-gpu --enable-features=PlatformHEVCDecoderSupport,V4L2VideoDecode --disable-features=WinRetrieveSuggestionsOnlyOnDemand,SpareRendererForSitePerProcess,BlockPromptsIfIgnoredOften,WebUsbDeviceDetection,ValveFFmpegAllowLowDelayHEVC,AudioServiceOutOfProcess",
+ "helper_cmdline_has": [
+  "--no-zygote",
+  "--in-process-gpu"
+ ],
+ "started": 1795726650.5014696
+}

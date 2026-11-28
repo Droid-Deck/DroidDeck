@@ -699,6 +699,7 @@ case $mode in
     steam_x64=0
     [ "${DD_STEAM_CLIENT_ARCH:-}" = x86_64 ] && steam_x64=1
     steam_cef_gpu=1
+    [ "${DD_STEAM_CEF_GPU:-1}" != 0 ] || steam_cef_gpu=0
     if [ "$steam_x64" = 1 ]; then
       step "checking the Steam client's arm64 parts (first run downloads them, ~1-2 min)"
       _dd_x64_repair=0

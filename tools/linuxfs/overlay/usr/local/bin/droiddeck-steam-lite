@@ -1,0 +1,713 @@
+#!/usr/bin/python3
+"""Measuring tool for the Steam web helper (docs/development/steam-lite-runtime.md).
+
+    droiddeck-steam-lite probe            CEF version, targets and which DevTools methods answer
+    droiddeck-steam-lite sample [--cdp]   one JSON sample of the client's memory and CPU
+    droiddeck-steam-lite record SECONDS INTERVAL OUT.jsonl [--cdp] [--mark FILE]
+    droiddeck-steam-lite apply ACTION...  one intervention now (gc, moderate, critical, browser-moderate,
+                                          browser-critical, pause, resume, freeze, thaw, motion, nomotion,
+                                          hide, show, pageout, readback)
+"""
+
+import importlib.machinery
+import importlib.util
+import json
+import os
+import select
+import signal
+import socket
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+CALL_TIMEOUT = 5.0
+PAGEOUT_BUDGET_KB = 1024 * 1024
+PAGEOUT_TIMEOUT = 6.0
+READBACK_TIMEOUT = 8.0
+READBACK_ATTEMPTS = 3
+HOLD = Path("/tmp/.dd-zram.hold")
+UI_ORIGIN = "https://steamloopback.host/"
+
+
+def log(message):
+    print("droiddeck-steam-lite: " + message, flush=True)
+
+
+def load_agent():
+    for path in (Path(__file__).resolve().with_name("droiddeck-agent"), Path("/usr/local/bin/droiddeck-agent")):
+        if path.is_file():
+            loader = importlib.machinery.SourceFileLoader("droiddeck_agent", str(path))
+            spec = importlib.util.spec_from_loader("droiddeck_agent", loader)
+            module = importlib.util.module_from_spec(spec)
+            loader.exec_module(module)
+            return module
+    raise ImportError("droiddeck-agent is not installed")
+
+
+# ---- process accounting -------------------------------------------------------------------------
+
+def read_text(path):
+    try:
+        with open(path, "rb") as stream:
+            return stream.read().decode("utf-8", "replace")
+    except OSError:
+        return None
+
+
+def process_role(argv):
+    if not argv:
+        return None
+    name = argv[0].rsplit("/", 1)[-1]
+    if name.startswith("python") and len(argv) > 1 and argv[1].endswith("/droiddeck-steam-lite"):
+        return "sampler"
+    if name in ("FEX", "FEXInterpreter") and len(argv) > 1:
+        argv = argv[1:]
+        name = argv[0].rsplit("/", 1)[-1]
+    if name in ("steam", "steam.sh"):
+        return "client"
+    if name != "steamwebhelper":
+        return None
+    kind = next((a[7:] for a in argv[1:] if a.startswith("--type=")), None)
+    if kind is None:
+        return "browser"
+    if kind == "utility":
+        sub = next((a[19:] for a in argv[1:] if a.startswith("--utility-sub-type=")), "")
+        return "utility:" + sub.rsplit(".", 1)[-1] if sub else "utility"
+    return kind
+
+
+def rollup(text):
+    out = {}
+    for line in (text or "").splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0].endswith(":") and parts[1].isdigit():
+            out[parts[0][:-1]] = int(parts[1])
+    return out
+
+
+def cpu_ticks(text):
+    if not text:
+        return None
+    fields = text.rsplit(")", 1)[-1].split()
+    try:
+        return int(fields[11]) + int(fields[12]), int(fields[17])
+    except (IndexError, ValueError):
+        return None
+
+
+def steam_processes(proc=Path("/proc"), me=None):
+    me = os.getpid() if me is None else me
+    found = []
+    for entry in os.listdir(proc):
+        if not entry.isdigit():
+            continue
+        pid = int(entry)
+        raw = read_text(proc / entry / "cmdline")
+        if not raw:
+            continue
+        role = "sampler" if pid == me else process_role([a for a in raw.split("\0") if a])
+        if role:
+            found.append((pid, role))
+    return found
+
+
+def sample_processes(proc=Path("/proc"), me=None):
+    rows = []
+    for pid, role in steam_processes(proc, me):
+        stat = cpu_ticks(read_text(proc / str(pid) / "stat"))
+        smaps = read_text(proc / str(pid) / "smaps_rollup")
+        status = rollup(read_text(proc / str(pid) / "status"))
+        row = {"pid": pid, "role": role, "ticks": stat[0] if stat else None, "threads": stat[1] if stat else None}
+        if smaps is not None:
+            r = rollup(smaps)
+            for key in ("Rss", "Pss", "Pss_Anon", "Pss_File", "Pss_Shmem", "SwapPss"):
+                if key in r:
+                    row[key] = r[key]
+        else:
+            row["Pss"] = None
+        row["VmSwap"] = status.get("VmSwap")
+        row["VmRSS"] = status.get("VmRSS")
+        rows.append(row)
+    return rows
+
+
+def system_memory(root=Path("/")):
+    out = {}
+    meminfo = rollup(read_text(root / "proc/meminfo"))
+    for key in ("MemTotal", "MemAvailable", "MemFree", "Cached", "SwapTotal", "SwapFree", "Shmem"):
+        out[key] = meminfo.get(key)
+    psi = read_text(root / "proc/pressure/memory")
+    if psi:
+        for line in psi.splitlines():
+            kind, *fields = line.split()
+            values = dict(f.split("=", 1) for f in fields if "=" in f)
+            out["psi_" + kind + "_avg10"] = float(values.get("avg10", "nan"))
+            out["psi_" + kind + "_total_us"] = int(values.get("total", "0"))
+    else:
+        out["psi"] = None
+    mm = read_text(root / "sys/block/zram0/mm_stat")
+    if mm:
+        values = mm.split()
+        out["zram_orig_bytes"], out["zram_compr_bytes"], out["zram_mem_used_bytes"] = map(int, values[:3])
+    else:
+        out["zram"] = None
+    for line in (read_text(root / "proc/vmstat") or "").splitlines():
+        key, _, value = line.partition(" ")
+        if key in ("pswpin", "pswpout", "workingset_refault_anon") and value.strip().isdigit():
+            out[key] = int(value)
+    return out
+
+
+def gpu_memory(pids, kgsl=Path("/sys/class/kgsl/kgsl/proc")):
+    if not kgsl.is_dir():
+        return None
+    out = {}
+    for pid in pids:
+        text = read_text(kgsl / str(pid) / "gpumem_unmapped")
+        mapped = read_text(kgsl / str(pid) / "gpumem_mapped")
+        if text is None and mapped is None:
+            continue
+        try:
+            out[str(pid)] = int((text or "0").strip()) + int((mapped or "0").strip())
+        except ValueError:
+            pass
+    return out
+
+
+def sample(cdp=None, proc=Path("/proc")):
+    rows = sample_processes(proc)
+    snap = {"t": time.time(), "mono": time.monotonic(), "clk_tck": os.sysconf("SC_CLK_TCK"),
+            "processes": rows, "memory": system_memory(), "gpu": gpu_memory([r["pid"] for r in rows])}
+    if cdp is not None:
+        try:
+            snap["cdp"] = cdp.metrics()
+        except Exception as error:
+            snap["cdp"] = {"error": str(error)}
+    return snap
+
+
+# ---- DevTools ---------------------------------------------------------------------------------
+
+METHOD_NOT_FOUND = -32601
+
+
+class CdpError(Exception):
+    def __init__(self, message, code=None):
+        super().__init__(message)
+        self.code = code
+
+
+class Session:
+    """One DevTools WebSocket to a target, with bounded calls."""
+
+    def __init__(self, agent, url, timeout=CALL_TIMEOUT):
+        self.agent = agent
+        self.ws = agent.WebSocket(url, timeout)
+        self.ws.s.settimeout(timeout)
+        self.next_id = 0
+        self.timeout = timeout
+
+    def call(self, method, params=None, timeout=None):
+        self.next_id += 1
+        self.ws.send(json.dumps({"id": self.next_id, "method": method, "params": params or {}}))
+        deadline = time.monotonic() + (timeout or self.timeout)
+        while True:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise CdpError("%s timed out" % method)
+            if not self.ws.buffer and not select.select([self.ws.s], [], [], left)[0]:
+                continue
+            message = json.loads(self.ws.recv())
+            if message.get("id") != self.next_id:
+                continue
+            if "error" in message:
+                raise CdpError("%s: %s" % (method, message["error"].get("message")), message["error"].get("code"))
+            return message.get("result", {})
+
+    def close(self):
+        self.ws.close()
+
+
+class Client:
+    """The client's DevTools endpoint: targets, sessions and capability probes."""
+
+    def __init__(self, agent, agent_dir, opener=None):
+        self.agent = agent
+        self.agent_dir = Path(agent_dir)
+        self.opener = opener or (lambda url: Session(agent, url))
+        self.sessions = {}
+        self.unsupported = set()
+
+    def targets(self):
+        return [t for t in self.agent.cdp_targets(self.agent_dir, timeout=CALL_TIMEOUT)
+                if t.get("type") == "page" and t.get("webSocketDebuggerUrl")]
+
+    def version(self, keep_url=False):
+        port = self.agent.cdp_port(self.agent_dir)
+        with urllib.request.urlopen("http://127.0.0.1:%d/json/version" % port, timeout=CALL_TIMEOUT) as r:
+            body = json.loads(r.read(65536).decode())
+        if not keep_url:
+            body.pop("webSocketDebuggerUrl", None)
+        return body
+
+    def browser(self):
+        """The browser-wide target, which owns the in-process GPU and the browser's own caches."""
+        url = self.version(keep_url=True).get("webSocketDebuggerUrl")
+        if not url:
+            raise CdpError("no browser target")
+        return {"id": "browser", "title": "browser", "type": "browser", "webSocketDebuggerUrl": url}
+
+    def session(self, target):
+        key = target.get("id")
+        found = self.sessions.get(key)
+        if found is None:
+            found = self.sessions[key] = self.opener(target["webSocketDebuggerUrl"])
+        return found
+
+    def call(self, target, method, params=None):
+        if method in self.unsupported:
+            raise CdpError("%s is not supported by this client" % method)
+        try:
+            return self.session(target).call(method, params)
+        except CdpError as error:
+            if error.code == METHOD_NOT_FOUND:
+                self.unsupported.add(method)
+            raise
+        except (OSError, ValueError, socket.timeout, self.agent.AgentError) as error:
+            self.drop(target)
+            raise CdpError("%s: %s" % (method, error))
+
+    def drop(self, target):
+        found = self.sessions.pop(target.get("id"), None)
+        if found:
+            found.close()
+
+    def close(self):
+        for found in self.sessions.values():
+            found.close()
+        self.sessions.clear()
+
+    def metrics(self):
+        out = []
+        for target in self.targets():
+            row = {"title": target.get("title"), "ui": is_ui(target)}
+            for method, key in (("Runtime.getHeapUsage", "heap"), ("Memory.getDOMCounters", "dom")):
+                try:
+                    row[key] = self.call(target, method)
+                except CdpError as error:
+                    row[key] = {"error": str(error)}
+            out.append(row)
+        return out
+
+
+def is_ui(target):
+    url = target.get("url") or ""
+    return url.startswith(UI_ORIGIN) or url == "" or url.startswith("about:blank")
+
+
+def renderer_groups(targets):
+    """One target per renderer the client's own windows share, plus every other page."""
+    shared = [t for t in targets if t.get("title") == "SharedJSContext"]
+    ui = shared[:1] or [t for t in targets if is_ui(t)][:1]
+    return ui + [t for t in targets if not is_ui(t)]
+
+
+PROBES = (
+    ("Runtime.getHeapUsage", {}),
+    ("Memory.getDOMCounters", {}),
+    ("Performance.enable", {}),
+    ("Performance.getMetrics", {}),
+    ("Performance.disable", {}),
+    ("HeapProfiler.enable", {}),
+    ("HeapProfiler.disable", {}),
+    ("Animation.enable", {}),
+    ("Animation.getPlaybackRate", {}),
+    ("Animation.disable", {}),
+    ("Emulation.setEmulatedMedia", {}),
+    ("Page.getFrameTree", {}),
+)
+
+
+def probe(client):
+    out = {"version": None, "targets": [], "methods": {}}
+    try:
+        out["version"] = client.version()
+    except Exception as error:
+        out["version"] = {"error": str(error)}
+    targets = client.targets()
+    out["targets"] = [{"title": t.get("title"), "type": t.get("type"), "ui": is_ui(t),
+                       "origin": (t.get("url") or "").split("/", 3)[2] if "://" in (t.get("url") or "") else ""}
+                      for t in targets]
+    first = renderer_groups(targets)[:1]
+    for target in first:
+        for method, params in PROBES:
+            try:
+                result = client.call(target, method, params)
+                out["methods"][method] = "ok" if method != "Performance.getMetrics" else \
+                    sorted(m.get("name") for m in result.get("metrics", []))
+            except CdpError as error:
+                out["methods"][method] = "error: %s" % error
+    return out
+
+
+# ---- interventions ------------------------------------------------------------------------------
+
+class Actions:
+    """Reversible DevTools interventions. Every method returns {target title: outcome}."""
+
+    def __init__(self, client, clock=time.monotonic):
+        self.client = client
+        self.clock = clock
+        self.paused = set()
+        self.frozen = set()
+        self.motion = set()
+        self.hidden = set()
+        self.deadline = None
+
+    def release(self, held, targets, method, params):
+        """Undo a held intervention; targets whose undo failed stay held for the next restore."""
+        present = {t.get("id") for t in targets}
+        mine = [t for t in targets if t.get("id") in held]
+        undone = set()
+        out = self.each(mine, method, params, undone)
+        held.difference_update(undone)
+        held.intersection_update(present)
+        return out
+
+    def each(self, targets, method, params=None, remember=None):
+        out = {}
+        for target in targets:
+            start = self.clock()
+            if self.deadline is not None and start > self.deadline:
+                out[target.get("title") or "?"] = "skipped: pass budget spent"
+                continue
+            try:
+                self.client.call(target, method, params)
+                out[target.get("title") or "?"] = round((self.clock() - start) * 1000)
+                if remember is not None:
+                    remember.add(target.get("id"))
+            except CdpError as error:
+                out[target.get("title") or "?"] = "error: %s" % error
+        return out
+
+    def gc(self, targets):
+        return self.each(renderer_groups(targets), "HeapProfiler.collectGarbage")
+
+    def pressure(self, targets, level):
+        return self.each(renderer_groups(targets), "Memory.simulatePressureNotification", {"level": level})
+
+    def browser_pressure(self, level):
+        try:
+            target = self.client.browser()
+        except (CdpError, OSError, ValueError) as error:
+            return {"browser": "error: %s" % error}
+        return self.each([target], "Memory.simulatePressureNotification", {"level": level})
+
+    def pause(self, targets):
+        ui = [t for t in targets if is_ui(t) and t.get("title") != "SharedJSContext"]
+        for target in ui:
+            try:
+                self.client.call(target, "Animation.enable")
+            except CdpError:
+                pass
+        return self.each(ui, "Animation.setPlaybackRate", {"playbackRate": 0}, self.paused)
+
+    def resume(self, targets):
+        mine = [t for t in targets if t.get("id") in self.paused]
+        out = self.release(self.paused, targets, "Animation.setPlaybackRate", {"playbackRate": 1})
+        for target in mine:
+            if target.get("id") in self.paused:
+                continue
+            try:
+                self.client.call(target, "Animation.disable")
+            except CdpError:
+                pass
+        return out
+
+    def freeze(self, targets):
+        independent = [t for t in targets if not is_ui(t)]
+        return self.each(independent, "Page.setWebLifecycleState", {"state": "frozen"}, self.frozen)
+
+    def thaw(self, targets):
+        return self.release(self.frozen, targets, "Page.setWebLifecycleState", {"state": "active"})
+
+    def reduce_motion(self, targets):
+        ui = [t for t in targets if is_ui(t)]
+        return self.each(ui, "Emulation.setEmulatedMedia",
+                         {"features": [{"name": "prefers-reduced-motion", "value": "reduce"}]}, self.motion)
+
+    def full_motion(self, targets):
+        return self.release(self.motion, targets, "Emulation.setEmulatedMedia", {"features": []})
+
+    def window_state(self, targets, state):
+        """Browser.setWindowBounds on the client's own top-level window (not its popups)."""
+        try:
+            browser = self.client.browser()
+        except (CdpError, OSError, ValueError) as error:
+            return {"browser": "error: %s" % error}
+        out = {}
+        for target in targets:
+            if (not is_ui(target) or "browserviewpopup" in (target.get("url") or "")
+                    or target.get("title") == "SharedJSContext"):
+                continue
+            name = target.get("title") or "?"
+            start = self.clock()
+            try:
+                found = self.client.call(browser, "Browser.getWindowForTarget", {"targetId": target.get("id")})
+                self.client.call(browser, "Browser.setWindowBounds",
+                                 {"windowId": found["windowId"], "bounds": {"windowState": state}})
+                out[name] = round((self.clock() - start) * 1000)
+                if state == "minimized":
+                    self.hidden.add(target.get("id"))
+            except (CdpError, KeyError) as error:
+                out[name] = "error: %s" % error
+        if state != "minimized":
+            self.hidden.clear()
+        return out
+
+    def restore(self, targets):
+        out = {}
+        if self.hidden:
+            out["show"] = self.window_state(targets, "normal")
+        if self.frozen:
+            out["thaw"] = self.thaw(targets)
+        if self.paused:
+            out["resume"] = self.resume(targets)
+        if self.motion:
+            out["motion"] = self.full_motion(targets)
+        return out
+
+    def holding(self):
+        return bool(self.paused or self.frozen or self.hidden or self.motion)
+
+
+# ---- zRAM preload requests -----------------------------------------------------------------------
+
+class ZramHold:
+    """Holds droiddeck-session's zRAM monitor off for one pass, optionally carrying a preload request.
+
+    Empty, it only keeps the monitor from trimming, so a GC does not page in what it trims. With a
+    request ("2 <kB>" cold page-out, "0" read back) every process the preload is in reads it before
+    the monitor's control file. The app writes its own suspend requests into the same file and
+    deletes it when done, so the hold is removed only while it is still the same file with what we
+    wrote in it.
+    """
+
+    def __init__(self, path=HOLD, request=""):
+        self.path = path
+        self.request = request
+        self.inode = None
+
+    def __enter__(self):
+        self.inode = None
+        try:
+            fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except OSError:
+            return self
+        try:
+            inode = os.fstat(fd).st_ino
+            if self.request:
+                os.write(fd, self.request.encode())
+            self.inode = inode
+        except OSError:
+            try:
+                os.unlink(self.path)
+            except OSError:
+                pass
+        finally:
+            os.close(fd)
+        return self
+
+    @property
+    def mine(self):
+        return self.inode is not None
+
+    def __exit__(self, *_):
+        if self.inode is None:
+            return
+        try:
+            if os.stat(self.path).st_ino == self.inode and read_text(self.path) == self.request:
+                os.unlink(self.path)
+        except OSError:
+            pass
+        self.inode = None
+
+
+class Pager:
+    """Asks the client's processes to page out cold memory, or read it back, through the zRAM preload."""
+
+    def __init__(self, hold_path=HOLD, proc=Path("/proc"), clock=time.monotonic, nap=time.sleep,
+                 signal_pid=None, pids=None):
+        self.attempts = 0
+        self.hold_path = Path(hold_path)
+        self.proc = proc
+        self.clock = clock
+        self.nap = nap
+        self.signal_pid = signal_pid or (lambda pid: os.kill(pid, signal.SIGURG))
+        self.pids = pids or (lambda: [pid for pid, role in steam_processes(proc) if role != "sampler"])
+        self.out_kb = 0
+
+    def ack_path(self, pid):
+        return self.hold_path.with_name(self.hold_path.name.replace(".hold", "") + ".trim.%d" % pid)
+
+    def swapped(self, pids):
+        return sum(rollup(read_text(self.proc / str(pid) / "status")).get("VmSwap") or 0 for pid in pids)
+
+    def pageout(self, budget_kb, timeout=PAGEOUT_TIMEOUT):
+        pids = self.pids()
+        if not pids:
+            return {"skipped": "no client processes"}
+        done, answered = 0, 0
+        with ZramHold(self.hold_path, "2 %d" % budget_kb) as hold:
+            if not hold.mine:
+                return {"skipped": "the zRAM hold is taken"}
+            acks = {}
+            for pid in pids:
+                path = self.ack_path(pid)
+                try:
+                    path.write_text("-")
+                    self.signal_pid(pid)
+                    acks[pid] = path
+                except OSError:
+                    pass
+            end = self.clock() + timeout
+            while acks and self.clock() < end:
+                for pid, path in list(acks.items()):
+                    text = (read_text(path) or "").strip()
+                    if text.isdigit():
+                        done += int(text)
+                        answered += 1
+                        del acks[pid]
+                    elif not (self.proc / str(pid)).exists():
+                        del acks[pid]
+                if acks:
+                    self.nap(0.05)
+            for pid in list(acks) + [p for p in pids if p not in acks]:
+                try:
+                    self.ack_path(pid).unlink()
+                except OSError:
+                    pass
+        self.out_kb += done
+        return {"kB": done, "processes": len(pids), "answered": answered}
+
+    def readback(self, timeout=READBACK_TIMEOUT):
+        pids = self.pids()
+        before = self.swapped(pids)
+        if not pids or before < 1024:
+            self.out_kb, self.attempts = 0, 0
+            return {"skipped": "nothing in zRAM", "kB": before}
+        with ZramHold(self.hold_path, "0") as hold:
+            if not hold.mine:
+                return {"skipped": "the zRAM hold is taken"}
+            for pid in pids:
+                try:
+                    self.signal_pid(pid)
+                except OSError:
+                    pass
+            end, last, steady = self.clock() + timeout, before, 0
+            while self.clock() < end and steady < 3:
+                self.nap(0.2)
+                now = self.swapped(pids)
+                steady = steady + 1 if now >= last else 0
+                last = now
+        self.attempts += 1
+        if last < max(1024, before // 4) or self.attempts >= READBACK_ATTEMPTS:
+            self.out_kb, self.attempts = 0, 0
+        return {"before kB": before, "after kB": last}
+
+
+# ---- command line -------------------------------------------------------------------------------
+
+def agent_dir():
+    base = os.environ.get("DD_LAUNCH_DIR")
+    if not base:
+        raise SystemExit("droiddeck-steam-lite: DD_LAUNCH_DIR is not set (not inside a session)")
+    return Path(base) / "agent"
+
+
+def main(argv):
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return 0 if argv else 2
+    command, rest = argv[0], argv[1:]
+    if command == "probe":
+        client = Client(load_agent(), agent_dir())
+        try:
+            print(json.dumps(probe(client), indent=1))
+        finally:
+            client.close()
+        return 0
+    if command == "sample":
+        client = Client(load_agent(), agent_dir()) if "--cdp" in rest else None
+        try:
+            print(json.dumps(sample(client)))
+        finally:
+            if client:
+                client.close()
+        return 0
+    if command == "record":
+        if len(rest) < 3:
+            print("usage: droiddeck-steam-lite record SECONDS INTERVAL OUT.jsonl [--cdp] [--mark FILE]", file=sys.stderr)
+            return 2
+        seconds, interval, out = float(rest[0]), float(rest[1]), Path(rest[2])
+        client = Client(load_agent(), agent_dir()) if "--cdp" in rest else None
+        mark = Path(rest[rest.index("--mark") + 1]) if "--mark" in rest else None
+        end = time.monotonic() + seconds
+        with open(out, "a") as stream:
+            while time.monotonic() < end:
+                snap = sample(client)
+                if mark is not None:
+                    snap["mark"] = (read_text(mark) or "").strip() or None
+                stream.write(json.dumps(snap, separators=(",", ":")) + "\n")
+                stream.flush()
+                time.sleep(max(0.0, interval - (time.monotonic() - snap["mono"])))
+        if client:
+            client.close()
+        return 0
+    if command == "apply":
+        client = Client(load_agent(), agent_dir())
+        actions = Actions(client)
+        targets = client.targets()
+        out = {}
+        try:
+            for name in rest:
+                if name == "gc":
+                    out[name] = actions.gc(targets)
+                elif name in ("browser-moderate", "browser-critical"):
+                    out[name] = actions.browser_pressure(name.split("-", 1)[1])
+                elif name in ("moderate", "critical"):
+                    out[name] = actions.pressure(targets, name)
+                elif name == "pause":
+                    out[name] = actions.pause(targets)
+                elif name == "resume":
+                    actions.paused = {t.get("id") for t in targets}
+                    out[name] = actions.resume(targets)
+                elif name == "freeze":
+                    out[name] = actions.freeze(targets)
+                elif name == "thaw":
+                    actions.frozen = {t.get("id") for t in targets if not is_ui(t)}
+                    out[name] = actions.thaw(targets)
+                elif name == "pageout":
+                    out[name] = Pager().pageout(PAGEOUT_BUDGET_KB)
+                elif name == "readback":
+                    out[name] = Pager().readback()
+                elif name in ("hide", "show"):
+                    out[name] = actions.window_state(targets, "minimized" if name == "hide" else "normal")
+                elif name == "motion":
+                    out[name] = actions.reduce_motion(targets)
+                elif name == "nomotion":
+                    actions.motion = {t.get("id") for t in targets}
+                    out[name] = actions.full_motion(targets)
+                else:
+                    out[name] = "unknown action"
+        finally:
+            client.close()
+        print(json.dumps(out))
+        return 0
+    print(__doc__.strip(), file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

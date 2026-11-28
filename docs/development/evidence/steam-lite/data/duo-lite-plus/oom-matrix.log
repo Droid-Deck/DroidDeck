@@ -1,0 +1,19 @@
+== stock run 1
+{"arm": "stock", "profile": "stock", "loaded": true, "survived": false, "died_after_s": 29.1, "exit": {"timestamp": "2026-11-26 15:51:30.570", "reason": "3", "importance": "100", "pss": "175MB", "rss": "195MB"}, "launch_s": 15.6}
+== l1 run 1
+{"arm": "l1", "profile": "1", "loaded": true, "survived": false, "died_after_s": 32.5, "exit": {"timestamp": "2026-11-26 15:54:07.845", "reason": "3", "importance": "100", "pss": "191MB", "rss": "184MB"}, "launch_s": 16.46}
+== softcomp run 1
+{"arm": "softcomp", "profile": "stock", "loaded": true, "survived": false, "died_after_s": 16.8, "exit": {"timestamp": "2026-11-26 15:58:45.708", "reason": "3", "importance": "100", "pss": "165MB", "rss": "212MB"}, "launch_s": 17.56}
+== softcomp+l1 run 1
+{"arm": "softcomp+l1", "profile": "1", "loaded": true, "survived": false, "died_after_s": 30.4, "exit": {"timestamp": "2026-11-26 16:01:17.571", "reason": "3", "importance": "100", "pss": "180MB", "rss": "190MB"}, "launch_s": 15.66}
+== l1 run 2
+{"arm": "l1", "profile": "1", "loaded": true, "survived": false, "died_after_s": 33.0, "exit": {"timestamp": "2026-11-26 16:04:49.867", "reason": "3", "importance": "100", "pss": "190MB", "rss": "197MB"}, "launch_s": 16.33}
+== stock run 2
+{"arm": "stock", "profile": "stock", "loaded": false, "survived": true, "died_after_s": null, "exit": null, "launch_s": 16.21}
+== softcomp run 2
+{"arm": "softcomp", "profile": "stock", "loaded": true, "survived": false, "died_after_s": 31.0, "exit": {"timestamp": "2026-11-26 16:14:15.483", "reason": "3", "importance": "100", "pss": "189MB", "rss": "212MB"}, "launch_s": 15.73}
+== softcomp+l1 run 2
+{"arm": "softcomp+l1", "profile": "1", "loaded": true, "survived": false, "died_after_s": 29.6, "exit": {"timestamp": "2026-11-26 16:17:35.934", "reason": "3", "importance": "100", "pss": "170MB", "rss": "211MB"}, "launch_s": 16.51}
+== stock run 3
+{"arm": "stock", "profile": "stock", "loaded": true, "survived": false, "died_after_s": 31.9, "exit": {"timestamp": "2026-11-26 16:20:13.404", "reason": "3", "importance": "100", "pss": "187MB", "rss": "189MB"}, "launch_s": 16.39}
+== softcomp+l1 run 3

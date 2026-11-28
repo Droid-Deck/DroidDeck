@@ -1,0 +1,83 @@
+{
+ "level": "stock",
+ "app": "12200",
+ "idle": {
+  "label": "library idle",
+  "t": 1795730816.1691864,
+  "mono": 88518.597291283,
+  "tck": 100,
+  "pss": 1083,
+  "renderer": 460,
+  "swappss": 0,
+  "gpu": 216,
+  "avail": 4020,
+  "ticks": {
+   "1699": 2005,
+   "1957": 1733
+  },
+  "lite_ticks": 0
+ },
+ "launch_ok": true,
+ "launch_s": 11.2,
+ "game": {
+  "label": "game +80s",
+  "t": 1795730908.9514465,
+  "mono": 88611.379550987,
+  "tck": 100,
+  "pss": 902,
+  "renderer": 305,
+  "swappss": 0,
+  "gpu": 187,
+  "avail": 3224,
+  "ticks": {
+   "1699": 2548,
+   "1957": 2594
+  },
+  "lite_ticks": 0
+ },
+ "web_cpu_pct": 2.1,
+ "lite_cpu_pct": 0.0,
+ "status": null,
+ "overlay_open_s": [
+  4.08,
+  4.04,
+  4.04
+ ],
+ "overlay_close_s": [
+  3.71,
+  4.02,
+  4.08
+ ],
+ "after_overlay": {
+  "label": "after overlay",
+  "t": 1795730950.4252868,
+  "mono": 88652.8533917,
+  "tck": 100,
+  "pss": 873,
+  "renderer": 300,
+  "swappss": 0,
+  "gpu": 152,
+  "avail": 3277,
+  "ticks": {
+   "1699": 3739,
+   "1957": 3700
+  },
+  "lite_ticks": 0
+ },
+ "back": {
+  "label": "library after quit",
+  "t": 1795730968.0939407,
+  "mono": 88670.522045547,
+  "tck": 100,
+  "pss": 950,
+  "renderer": 347,
+  "swappss": 0,
+  "gpu": 163,
+  "avail": 4075,
+  "ticks": {
+   "1699": 3963,
+   "1957": 4037
+  },
+  "lite_ticks": 0
+ }
+}

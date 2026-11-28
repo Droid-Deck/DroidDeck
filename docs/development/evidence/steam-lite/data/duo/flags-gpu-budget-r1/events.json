@@ -1,0 +1,12 @@
+{
+ "kind": "flags",
+ "variant": "gpu-budget",
+ "flags": "--no-zygote --in-process-gpu -AudioServiceOutOfProcess --force-gpu-mem-available-mb=96 --force-gpu-mem-discardable-limit-mb=32",
+ "helper_cmdline_has": [
+  "--no-zygote",
+  "--in-process-gpu",
+  "--force-gpu-mem-available-mb=96",
+  "--force-gpu-mem-discardable-limit-mb=32"
+ ],
+ "started": 1795723993.938381
+}

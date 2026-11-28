@@ -1,0 +1,24 @@
+== default run 1
+{"variant": "default", "applied": ["--no-zygote", "--in-process-gpu"], "total": 935.7, "renderer": 359.3, "browser": 306.0, "gpu": 189.9}
+== soft-compositing run 1
+{"variant": "soft-compositing", "applied": ["--no-zygote", "--in-process-gpu"], "total": 945.1, "renderer": 380.7, "browser": 294.7, "gpu": 26.4}
+== cef-software run 1
+{"variant": "cef-software", "applied": ["--no-zygote", "--in-process-gpu"], "total": 939.9, "renderer": 381.8, "browser": 290.9, "gpu": 25.2}
+== v8-small run 1
+{"variant": "v8-small", "applied": ["--no-zygote", "--in-process-gpu", "--js-flags=--optimize-for-size,--max-semi-space-size=2"], "total": 1097.6, "renderer": 519.2, "browser": 300.0, "gpu": 202.2}
+== default run 2
+{"variant": "default", "applied": ["--no-zygote", "--in-process-gpu"], "total": 1104.5, "renderer": 529.0, "browser": 307.9, "gpu": 197.4}
+== soft-compositing run 2
+{"variant": "soft-compositing", "applied": [], "total": 985.2, "renderer": 414.6, "browser": 295.1, "gpu": 26.4}
+== cef-software run 2
+{"variant": "cef-software", "applied": ["--no-zygote", "--in-process-gpu"], "total": 965.4, "renderer": 405.6, "browser": 291.8, "gpu": 25.2}
+== v8-small run 2
+{"variant": "v8-small", "applied": ["--no-zygote", "--in-process-gpu", "--js-flags=--optimize-for-size,--max-semi-space-size=2"], "total": 1134.2, "renderer": 542.1, "browser": 316.6, "gpu": 193.9}
+== default run 3
+{"variant": "default", "applied": ["--no-zygote", "--in-process-gpu"], "total": 1100.5, "renderer": 525.5, "browser": 302.8, "gpu": 202.1}
+== soft-compositing run 3
+{"variant": "soft-compositing", "applied": ["--no-zygote", "--in-process-gpu"], "total": 978.9, "renderer": 421.5, "browser": 290.4, "gpu": 26.4}
+== cef-software run 3
+{"variant": "cef-software", "applied": ["--no-zygote", "--in-process-gpu"], "total": 954.5, "renderer": 397.5, "browser": 286.3, "gpu": 25.2}
+== v8-small run 3
+{"variant": "v8-small", "applied": ["--no-zygote", "--in-process-gpu", "--js-flags=--optimize-for-size,--max-semi-space-size=2"], "total": 1114.5, "renderer": 542.1, "browser": 300.7, "gpu": 202.1}

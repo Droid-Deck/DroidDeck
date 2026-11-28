@@ -141,6 +141,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-steam-share" to "usr/local/bin/droiddeck-steam-share",
             "usr/local/bin/droiddeck-seed-redists" to "usr/local/bin/droiddeck-seed-redists",
             "usr/local/bin/droiddeck-launcher-cores" to "usr/local/bin/droiddeck-launcher-cores",
+            "usr/local/bin/droiddeck-steam-lite" to "usr/local/bin/droiddeck-steam-lite",
             "usr/local/bin/droiddeck-pace-cores" to "usr/local/bin/droiddeck-pace-cores",
             "usr/local/bin/droiddeck-proton-extra" to "usr/local/bin/droiddeck-proton-extra",
             "usr/local/bin/droiddeck-netmanager" to "usr/local/bin/droiddeck-netmanager",

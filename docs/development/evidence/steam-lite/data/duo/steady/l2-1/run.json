@@ -1,0 +1,128 @@
+{
+ "level": "2",
+ "app": "584400",
+ "idle": {
+  "label": "library idle",
+  "t": 1795737872.6921616,
+  "mono": 31222.099747045,
+  "tck": 100,
+  "pss": 609,
+  "renderer": 211,
+  "swappss": 264,
+  "gpu": 871,
+  "avail": 3205,
+  "ticks": {
+   "7872": 2743,
+   "8031": 2348
+  },
+  "lite_ticks": 19
+ },
+ "launch_ok": true,
+ "launch_s": 21.0,
+ "pacing": {
+  "fps": 59.2,
+  "p50": 16,
+  "p95": 16,
+  "p99": 25,
+  "off_cadence_pct": 1.7,
+  "hist": {
+   "16": 1169,
+   "25": 10,
+   "33": 6,
+   "8": 4
+  },
+  "error": null
+ },
+ "game": {
+  "label": "game +80s",
+  "t": 1795737975.5354009,
+  "mono": 31324.942984922,
+  "tck": 100,
+  "pss": 742,
+  "renderer": 258,
+  "swappss": 124,
+  "gpu": 936,
+  "avail": 2587,
+  "ticks": {
+   "7872": 3833,
+   "8031": 3585
+  },
+  "lite_ticks": 35
+ },
+ "web_cpu_pct": 2.0,
+ "lite_cpu_pct": 0.1,
+ "status": {
+  "state": "game",
+  "app": 584400,
+  "level": null,
+  "interventions": [
+   "gc",
+   "moderate",
+   "pageout"
+  ],
+  "passes": 1,
+  "history": [
+   {
+    "t": 1795737897.85,
+    "state": "game",
+    "app": 584400,
+    "why": "enter",
+    "outcome": {
+     "skipped-reclaim": "292 MB of the client is already in zRAM"
+    }
+   },
+   {
+    "t": 1795737897.852,
+    "state": "game",
+    "app": 584400,
+    "why": "enter",
+    "outcome": {
+     "ms": 104
+    }
+   }
+  ],
+  "unsupported": []
+ },
+ "overlay_open_s": [
+  4.67,
+  4.03,
+  4.02
+ ],
+ "overlay_close_s": [
+  4.14,
+  4.07,
+  4.05
+ ],
+ "after_overlay": {
+  "label": "after overlay",
+  "t": 1795738018.2003891,
+  "mono": 31367.607973135,
+  "tck": 100,
+  "pss": 796,
+  "renderer": 327,
+  "swappss": 122,
+  "gpu": 839,
+  "avail": 2687,
+  "ticks": {
+   "7872": 4548,
+   "8031": 4521
+  },
+  "lite_ticks": 37
+ },
+ "back": {
+  "label": "library after quit",
+  "t": 1795738035.8088832,
+  "mono": 31385.216467243,
+  "tck": 100,
+  "pss": 739,
+  "renderer": 313,
+  "swappss": 180,
+  "gpu": 911,
+  "avail": 3160,
+  "ticks": {
+   "7872": 4776,
+   "8031": 4869
+  },
+  "lite_ticks": 38
+ }
+}

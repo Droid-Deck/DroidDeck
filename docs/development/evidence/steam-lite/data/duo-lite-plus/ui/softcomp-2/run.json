@@ -1,0 +1,7 @@
+{
+ "soft": "1",
+ "idle_cpu": 2.6,
+ "idle_pss": 936,
+ "idle_gpu": 26,
+ "idle_avail": 4124
+}
