@@ -303,6 +303,18 @@ int main(int argc, char **argv) {
         setup(1); fail_acquire_at = 2; acquire_answer = VK_TIMEOUT;
         assert(vkp_render(64, 64, NULL, 0) == -1 && g_dev_state == 1);
         assert(acquires == 2 && submits == 2 && markers == 1 && waits == 1); free(g_images);
+    } else if (!strcmp(name, "acquire-device-lost-unconfirmed")) {
+        setup(1);
+        fail_acquire_at = 2;
+        acquire_answer = VK_ERROR_DEVICE_LOST;
+        idle_answer = VK_ERROR_OUT_OF_HOST_MEMORY;
+        VkImage *retained = g_images;
+        assert(vkp_render(64, 64, NULL, 0) == -1);
+        assert(g_dev_state == -3 && vkp_completion_unknown() && !vkp_device_lost());
+        assert(idle_calls == 1 && lost_notifications == 0 && waits == 0);
+        assert(g_images == retained && g_nimg == 1 && g_swapchain && g_surface && destroys == 0);
+        assert_stopped();
+        free(g_images); /* test-owned fake resources only */
     } else if (!strcmp(name, "acquire-device-lost") || !strcmp(name, "present-device-lost")) {
         setup(1);
         if (!strcmp(name, "acquire-device-lost")) { fail_acquire_at = 2; acquire_answer = VK_ERROR_DEVICE_LOST; }
