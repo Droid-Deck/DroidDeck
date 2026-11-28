@@ -63,6 +63,33 @@ class BackQamInputTest {
         }
     }
 
+    @Test fun anAtOnceSingleTapActsOnReleaseAndADoubleTapStillFollows() {
+        val direct = BackQamInput(changes::add, taps::add, atOnce = { true })
+        fun press(action: Int) = direct.onKeyEvent(KeyEvent(action, KeyEvent.KEYCODE_BACK), true)
+        press(KeyEvent.ACTION_DOWN)
+        assertTrue(taps.isEmpty())
+        press(KeyEvent.ACTION_UP)
+        assertEquals(listOf(false), taps)
+        assertTrue(direct.awaitingTap)
+        advance(300)
+        press(KeyEvent.ACTION_DOWN)
+        advance(400)
+        assertTrue(direct.awaitingTap)
+        press(KeyEvent.ACTION_UP)
+        assertEquals(listOf(false, true), taps)
+        assertFalse(direct.awaitingTap)
+        assertTrue(changes.isEmpty())
+    }
+
+    @Test fun anAtOnceTapStopsAwaitingWhenTheWindowEnds() {
+        val direct = BackQamInput(changes::add, taps::add, atOnce = { true })
+        direct.onKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK), true)
+        direct.onKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK), true)
+        advance(500)
+        assertFalse(direct.awaitingTap)
+        assertEquals(listOf(false), taps)
+    }
+
     @Test fun aHoldStartsAt700msAndNeverProducesATap() {
         assertTrue(send(KeyEvent.ACTION_DOWN))
         advance(699)

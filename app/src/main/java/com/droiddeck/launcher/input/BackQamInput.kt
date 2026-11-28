@@ -6,18 +6,15 @@ import android.os.Looper
 
 class BackQamInput(private val setPressed: (Boolean) -> Unit, private val onTap: (Boolean) -> Unit,
     private val doubleTapMs: () -> Long = { 500 }, private val onCancel: () -> Unit = {},
-    private val holds: () -> Boolean = { true }) {
+    private val holds: () -> Boolean = { true }, atOnce: () -> Boolean = { false }) {
     private class Press(val hold: Runnable, var held: Boolean = false, var used: Boolean = false)
     private val handler = Handler(Looper.getMainLooper())
     private val presses = mutableMapOf<Int, Press>()
     private val cancelled = mutableSetOf<Int>()
-    private var tapPending = false
-    private val singleTap = Runnable { tapPending = false; onTap(false) }
+    private val taps = BackTaps(doubleTapMs, atOnce, onTap)
+    val awaitingTap: Boolean get() = taps.pending
 
-    private fun cancelTap() {
-        handler.removeCallbacks(singleTap)
-        tapPending = false
-    }
+    private fun cancelTap() = taps.cancel()
 
     fun onChordInput() {
         if (presses.isEmpty()) return
@@ -46,7 +43,7 @@ class BackQamInput(private val setPressed: (Boolean) -> Unit, private val onTap:
                 cancelled.remove(device)
                 if (!enabled || event.isCanceled) return false
                 if (device in presses) return true
-                handler.removeCallbacks(singleTap)
+                taps.hold()
                 val hold = Runnable {
                     val press = presses[device] ?: return@Runnable
                     if (!holds()) { press.used = true; cancelTap(); return@Runnable }
@@ -66,10 +63,8 @@ class BackQamInput(private val setPressed: (Boolean) -> Unit, private val onTap:
                 if (press != null) {
                     handler.removeCallbacks(press.hold)
                     if (press.held && presses.values.none { it.held }) setPressed(false)
-                    if (!press.used && !event.isCanceled) {
-                        if (tapPending) { cancelTap(); onTap(true) }
-                        else { tapPending = true; handler.postDelayed(singleTap, doubleTapMs()) }
-                    } else if (event.isCanceled) cancelTap()
+                    if (!press.used && !event.isCanceled) taps.tap()
+                    else if (event.isCanceled) cancelTap()
                 }
                 press != null || wasCancelled || enabled
             }

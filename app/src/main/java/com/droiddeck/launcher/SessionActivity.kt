@@ -450,13 +450,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         return true
     }
     private val uiHandler = Handler(Looper.getMainLooper())
-    private var pendingBackAction: Runnable? = null
+    private val backTapsAtOnce: Boolean get() = SessionState.mode != SessionService.MODE_STEAM || !backActionsInverted
+    private val backTaps = com.droiddeck.launcher.input.BackTaps(
+        windowMs = { backDoubleTapMs.toLong() },
+        atOnce = { backTapsAtOnce },
+        onTap = { performBackAction(double = it) },
+    )
     private val backQamInput = com.droiddeck.launcher.input.BackQamInput(
         setPressed = { padBridge?.setBackQamPressed(it) },
         onTap = { performBackAction(double = it) },
         doubleTapMs = { backDoubleTapMs.toLong() },
         onCancel = { padBridge?.cancelBackQam() },
         holds = { backHold },
+        atOnce = { backTapsAtOnce },
     )
     private val mouseBackInput = com.droiddeck.launcher.input.MouseBackInput(
         sendRight = { down -> heldButtons.set(32, PointerGestures.BTN_RIGHT, down) },
@@ -1127,11 +1133,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 when {
                     ::loading.isInitialized && loading.ended -> finish()
                     inputSettingsOpen -> inputSettingsOpen = false
-                    dockedTouchOnly -> routeBackAction()
+                    dockedTouchOnly || backTaps.pending -> backTaps.tap()
                     drawerOpen -> drawerOpen = false
                     achievementsOpen -> closeAchievements()
                     pcKeyboardOpen -> pcKeyboardOpen = false
-                    else -> routeBackAction()
+                    else -> backTaps.tap()
                 }
             }
         })
@@ -1422,6 +1428,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 LaunchedEffect(pcKeyboardOpen, drawerOpen, achievementsOpen) {
                     if (pcKeyboardOpen || drawerOpen || achievementsOpen) padMouse.reset()
                 }
+                val panelShown = panelOverGame
+                LaunchedEffect(panelShown) { boostGpuClock(panelShown && resumed) }
                 if (pcKeyboardOpen) com.droiddeck.launcher.ui.PcKeyboard(
                     sendKey = { code, down -> if (CompositorHost.isStarted) sendGuestKey(code, down, 32) },
                     onAndroidKeyboard = { pcKeyboardOpen = false; togglePrimaryKeyboard() },
@@ -2116,21 +2124,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         unfoldedPanel?.reload()
     }
 
-    private fun routeBackAction() {
-        pendingBackAction?.let { pending ->
-            uiHandler.removeCallbacks(pending)
-            pendingBackAction = null
-            performBackAction(double = true)
-            return
-        }
-        val pending = Runnable {
-            pendingBackAction = null
-            performBackAction(double = false)
-        }
-        pendingBackAction = pending
-        uiHandler.postDelayed(pending, backDoubleTapMs.toLong())
-    }
-
     private fun performBackAction(double: Boolean) {
         val isSteam = SessionState.mode == SessionService.MODE_STEAM
         val opensQam = isSteam && (double xor backActionsInverted)
@@ -2618,6 +2611,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun gpuClockHeld() = SessionPrefs.gpuClockPin(this) && !GpuClockPin.failed
+
+    private val panelOverGame: Boolean get() = ((drawerOpen && !drawerDocked) || achievementsOpen || gestureSettingsOpen || inputSettingsOpen) && !pipUi
+
+    private fun boostGpuClock(on: Boolean) {
+        if (!GpuClockPin.boost(on)) return
+        Thread { GpuClockPin.sync(applicationContext)?.let { Log.i(TAG, it) } }.start()
+    }
 
     private fun readPrefs() {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
@@ -3651,8 +3651,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                         !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen && !inputSettingsOpen,
                     steam = SessionState.mode == SessionService.MODE_STEAM,
                 ) { action ->
-                    pendingBackAction?.let(uiHandler::removeCallbacks)
-                    pendingBackAction = null
+                    backTaps.cancel()
                     if (!dockedMenuIdle) drawerControllerActive = true
                     Log.i(TAG, "physical shortcut ${action.name} device=${event.deviceId} key=${event.keyCode} scan=${event.scanCode}")
                     when (action) {
@@ -3684,13 +3683,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             }
         }
         if (mouseBackHandled) return true
-        val backToQam = !pipUi && !appTextFocus && !menuOwnsController && !pcKeyboardOpen && !achievementsOpen &&
+        val backToQam = !pipUi && !appTextFocus && (!menuOwnsController || backQamInput.awaitingTap) && !pcKeyboardOpen && !achievementsOpen &&
             !inputSettingsOpen && !gestureSettingsOpen &&
             SessionState.mode == SessionService.MODE_STEAM && SessionState.running && SessionState.firstFrameSeen &&
             !SessionState.suspended && padBridge?.canHoldQam() == true
         if (backQamInput.onKeyEvent(event, backToQam)) {
-            pendingBackAction?.let(uiHandler::removeCallbacks)
-            pendingBackAction = null
+            backTaps.cancel()
             return true
         }
         if (pipUi) return true
@@ -6127,8 +6125,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             drawerOpen = false
             pcKeyboardOpen = false
             achievementsOpen = false
-            pendingBackAction?.let(uiHandler::removeCallbacks)
-            pendingBackAction = null
+            backTaps.cancel()
             releaseDrawerDirection()
             onScreenControls?.releaseAll()
             bottomInputControls?.releaseAll()
@@ -6291,6 +6288,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
         resumed = true
+        boostGpuClock(panelOverGame)
         updateKeyboardRoute()
         retryFieldKeyboard(hasWindowFocus())
         updateDesktopKeyboardButton()
@@ -6374,6 +6372,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (::scrollTouch.isInitialized) scrollTouch.cancel()
         if (::padMouse.isInitialized) padMouse.reset()
         resumed = false
+        boostGpuClock(false)
         updateKeyboardRoute()
         updatePointerCapture()
         updatePadMotion()
@@ -7029,8 +7028,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (runtimeRemovalBlocked) { super.onDestroy(); return }
         watching = false
         releaseDrawerDirection()
-        pendingBackAction?.let(uiHandler::removeCallbacks)
-        pendingBackAction = null
+        backTaps.cancel()
         if (::pip.isInitialized) pip.destroyed()
         closeSecondScreen(reset = false)
         glassesScope.cancel()

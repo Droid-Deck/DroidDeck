@@ -18,9 +18,23 @@ object GpuClockPin {
     var failed = false
         private set
 
-    val supported: Boolean by lazy { File(KGSL_NODE).exists() }
+    var supported: Boolean = File(KGSL_NODE).exists()
+        internal set
+
+    internal var turbo: (Boolean) -> Unit = { WaylandCompositor.nativeSetGpuTurbo(it) }
 
     private var live = false
+
+    @Volatile
+    private var boosted = false
+
+    private fun wanted(context: Context) = boosted || SessionPrefs.gpuClockPin(context)
+
+    fun boost(on: Boolean): Boolean {
+        if (boosted == on) return false
+        boosted = on
+        return true
+    }
 
     @Synchronized
     fun start(context: Context): String {
@@ -30,11 +44,11 @@ object GpuClockPin {
 
     private fun hold(context: Context): String {
         failed = false
-        if (!SessionPrefs.gpuClockPin(context)) return "gpu clock: governed"
+        if (!wanted(context)) return "gpu clock: governed"
         if (!supported) return "gpu clock: no $KGSL_NODE, left governed"
         return try {
             File(context.filesDir, MARKER).createNewFile()
-            WaylandCompositor.nativeSetGpuTurbo(true)
+            turbo(true)
             pinned = true
             "gpu clock: held at its top"
         } catch (t: Throwable) {
@@ -48,13 +62,14 @@ object GpuClockPin {
     @Synchronized
     fun sync(context: Context): String? {
         if (!live) return null
-        if (!SessionPrefs.gpuClockPin(context) && pinned) clear(context)
+        if (!wanted(context) && pinned) clear(context)
         return hold(context)
     }
 
     @Synchronized
     fun stop(context: Context) {
         live = false
+        boosted = false
         if (pinned) clear(context)
     }
 
@@ -66,7 +81,7 @@ object GpuClockPin {
     private fun clear(context: Context) {
         if (supported) {
             try {
-                WaylandCompositor.nativeSetGpuTurbo(false)
+                turbo(false)
             } catch (t: Throwable) {
                 Log.w(TAG, "clear", t)
             }
