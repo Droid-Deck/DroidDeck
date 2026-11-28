@@ -163,6 +163,14 @@ typedef struct {
 #define droiddeck_log(...) ((void)0)
 #define LOGE(...) ((void)0)
 struct droiddeck_color { uint32_t identity; };
+enum vkp_image_source {
+    VKP_IMAGE_SOURCE_NONE = 0,
+    VKP_IMAGE_SOURCE_DMABUF,
+    VKP_IMAGE_SOURCE_AHB_WLEGL,
+    VKP_IMAGE_SOURCE_AHB_SOURCE,
+    VKP_IMAGE_SOURCE_AHB_TARGET,
+    VKP_IMAGE_SOURCE_SHM
+};
 typedef struct AHardwareBuffer AHardwareBuffer;
 '''
 
