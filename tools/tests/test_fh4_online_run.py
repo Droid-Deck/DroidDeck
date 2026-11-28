@@ -106,6 +106,18 @@ class TraceTest(unittest.TestCase):
 class DialogTest(unittest.TestCase):
     """The join-failure box is what says why, so it must be recognised."""
 
+    def test_a_star_card_panel_is_not_the_pause_list(self):
+        # This is the screen that was mistaken for a menu for two minutes: the
+        # press landed on a menu item, the panel stayed open, and no join was made.
+        star_card = ("HORIZON SUPERSTAR ES COMPLETE Complete all Star Card challenges "
+                     "to win: NEW GAMERTAG FLAIR Horizon Superstar NEW CAR Ford Capri FE "
+                     "SUPERSTAR STATUS NOT EARNED PR STUNT SUPERSTAR")
+        self.assertFalse(RUN["in_menu"](star_card))
+
+    def test_the_pause_list_is_recognised(self):
+        self.assertTrue(RUN["in_menu"](PAUSE_NOT_JOINED))
+        self.assertTrue(RUN["in_menu"](PAUSE_JOINED))
+
     def test_the_reported_complaint_is_recognised(self):
         self.assertTrue(RUN["join_dialog"](
             "UNABLE TO CONNECT TO THE LIVE CONFIGURATION SERVERS\nPRESS X FOR NETWORK DIAGNOSTICS"))

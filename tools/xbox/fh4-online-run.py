@@ -200,7 +200,12 @@ class Run:
             result = subprocess.run(
                 ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
                  "-File", wsl_to_windows(OCR_PS1), "-Path", staged],
-                capture_output=True, text=True, timeout=120)
+                capture_output=True, text=True, timeout=120,
+                # The screen text is not always ASCII: a trademark sign in the boot
+                # logos reached the decoder as 0x99 and raised, which ended a run
+                # that had otherwise worked. Undecodable bytes are not worth failing
+                # over in a report about what the screen says.
+                encoding="utf-8", errors="replace")
             text = result.stdout
             if "OCR_FAILED" not in text and "NO_OCR_ENGINE" not in text:
                 return text.upper()
@@ -317,12 +322,36 @@ def reach_pause(run):
 
 
 def start_join(run):
-    """Right, then A: the pause list opens on Horizon Life, so one right is the
-    connect item. A returns to the game and the join runs in the background."""
-    run.pad("right")
-    time.sleep(1.5)
-    run.pad("a")
-    run.say("pressed right and A")
+    """Pick CONNECT TO HORIZON LIFE, and check the title actually left the menu.
+
+    The pause list remembers its cursor between sessions, so a blind right press is
+    not always the connect item: if the cursor was already sitting on it, right
+    moves past it and A opens whatever is next -- in practice the Star Card panel,
+    which looks like a menu and leaves no trace of the join. One run spent two
+    minutes reading that panel, and the trace showed no Live calls at all, which is
+    what proves no attempt was made.
+
+    So the press is verified: the pause list has to disappear for the attempt to
+    count, and if it does not, the cursor is assumed to have started elsewhere and
+    the neighbouring options are tried. Only positions are tried, never a key that
+    would commit to something irreversible.
+    """
+    # "as found" first: the cursor may already be on the item from last time.
+    for step in ((), ("right",), ("left",), ("right", "right")):
+        for button in step:
+            run.pad(button)
+            time.sleep(1.2)
+        run.pad("a")
+        time.sleep(6)
+        text = run.ocr(run.shot("after-a"))
+        if not in_menu(text):
+            run.say("join started with %s" % (" then ".join(step + ("a",))))
+            return True
+        # Still in the menu: step back out so the next position starts from the list.
+        run.say("  %s did not start a join; backing out" % ("+".join(step) or "a"))
+        run.pad("b")
+        time.sleep(3)
+    return False
 
 
 def read_join_screen(run):
@@ -338,7 +367,12 @@ def read_join_screen(run):
     opened and read as well: they name the service that did not come up.
     """
     dialog = ""
-    for attempt in range(3):
+    # The box is not instant: the title tries to reach the service first, so give
+    # it up to about 45 seconds before concluding there was nothing to complain
+    # about. Reading too early reported "no join error" on an attempt that simply
+    # had not failed yet.
+    deadline = time.time() + run.args.dialog_timeout
+    while time.time() < deadline:
         time.sleep(5)
         path = run.shot("join")
         text = run.ocr(path)
@@ -346,10 +380,8 @@ def read_join_screen(run):
             dialog = text
             run.say("  join error on screen: %s" % first_line_containing(text, DIALOG_MARKS))
             break
-        if attempt == 2:
-            run.say("  no join error on screen")
-
     if not dialog:
+        run.say("  no join error after %ds" % run.args.dialog_timeout)
         return "", ""
 
     # The box's own diagnostics are worth more than the one-line complaint.
@@ -367,6 +399,16 @@ def read_join_screen(run):
     run.pad("b")
     time.sleep(2)
     return dialog, diag
+
+
+def in_menu(text):
+    """Whether the pause list is still on screen.
+
+    Whatever follows A is judged by this: if the list is gone the title went back
+    to the game, and if it is still there the press landed on a menu item instead
+    of the connect option.
+    """
+    return any(mark in text for mark in PAUSE)
 
 
 def first_line_containing(text, marks):
@@ -400,10 +442,15 @@ def read_outcome(run):
         path = run.shot("outcome")
         text = run.ocr(path)
         marks = [mark for mark in LIST_MARKS if mark in text]
-        run.say("  read %d: %s" % (attempt + 1, marks or "no menu"))
         if marks:
+            run.say("  read %d: %s" % (attempt + 1, marks))
             return classify(text), text, path
-        time.sleep(5)
+        # Not the pause list. A sub-panel (the Star Card screen, for instance) does
+        # not answer to start, so back out before trying again rather than pressing
+        # start into it repeatedly.
+        run.say("  read %d: no menu, backing out" % (attempt + 1))
+        run.pad("b")
+        time.sleep(2)
     return "unknown", "", None
 
 
@@ -640,6 +687,8 @@ def main(argv=None):
     parser.add_argument("--reach-timeout", type=int, default=300,
                         help="seconds to spend getting from the current screen to the pause list")
     parser.add_argument("--attempts", type=int, default=12, help="pause-list reads before giving up")
+    parser.add_argument("--dialog-timeout", type=int, default=45,
+                        help="seconds to wait for the join-failure box to appear")
     args = parser.parse_args(argv)
 
     if not CTL.exists():
@@ -663,7 +712,13 @@ def main(argv=None):
             run.say("the pause list never appeared")
             return 2
         before = trace_size(run)
-        start_join(run)
+        if not start_join(run):
+            run.say("no option in the pause list started a join")
+            outcome, text, _ = read_outcome(run)
+            trace_path = pull_trace(run)
+            trace_delta(run, trace_path, before)
+            report(run, outcome, text, trace_path)
+            return 2
         run.dialog, run.diag = read_join_screen(run)
         outcome, text, _ = read_outcome(run)
         trace_path = pull_trace(run)
