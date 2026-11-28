@@ -19,7 +19,7 @@ def strings(path):
 class PenLocalizationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.required = [key for key in strings(RES / "values/strings.xml") if key.startswith("mode_pen")]
+        cls.required = [key for key in strings(RES / "values/strings.xml") if key.startswith(("mode_pen", "session_pen_"))]
         language_source = (ROOT / "app/src/main/java/com/droiddeck/launcher/core/AppLanguage.kt").read_text(encoding="utf-8")
         tags = re.findall(r'"([a-zA-Z0-9-]+)"', re.search(r"val supported:.*?listOf\((.*?)\)", language_source, re.S).group(1))
         special = {"id": "in", "es-419": "b+es+419", "pt-BR": "pt"}

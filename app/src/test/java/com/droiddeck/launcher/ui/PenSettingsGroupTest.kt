@@ -34,31 +34,51 @@ class PenSettingsGroupTest {
         compose.onNodeWithTag("setting-touch").assertExists()
         compose.onNodeWithTag("setting-pen").assertDoesNotExist()
         compose.onNodeWithTag("setting-pen-button").assertDoesNotExist()
+        compose.onNodeWithTag("setting-pen-pressure").assertDoesNotExist()
     }
 
-    @Test fun theDrawerSavesPenPicks() {
+    @Test fun theDrawerShowsWhatAutoGivesAndSavesPenPicks() {
         val picks = mutableListOf<Pair<String, String>>()
+        val tablet = context.getString(R.string.session_pen_auto_tablet)
         compose.setContent {
             DroidDeckTheme {
-                SessionDrawer(true, SessionDrawerPage.CONTROLLER, false, {}, actions(SessionPrefs.Pen()) { k, v -> picks += k to v })
+                SessionDrawer(true, SessionDrawerPage.CONTROLLER, false, {}, actions(SessionPrefs.Pen(), tablet) { k, v -> picks += k to v })
             }
         }
+        compose.onNodeWithText(context.getString(R.string.drawer_touch_auto, tablet)).assertExists()
         compose.onNodeWithTag("setting-pen-button").performScrollTo().performClick()
-        compose.onNodeWithText(context.getString(R.string.gesture_middle_click)).performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.mode_pen_button_eraser)).performScrollTo().performClick()
+        compose.onNodeWithTag("setting-pen-pressure").performScrollTo().performClick()
+        compose.onNodeWithText(context.getString(R.string.mode_pen_pressure_firm)).performScrollTo().performClick()
         compose.onNodeWithTag("setting-pen").performScrollTo().performClick()
         compose.onNodeWithText(context.getString(R.string.mode_pen_touch)).performScrollTo().performClick()
         compose.runOnIdle {
-            assertEquals(listOf("penButton" to SessionPrefs.PEN_BUTTON_MIDDLE, "pen" to SessionPrefs.PEN_TOUCH), picks)
+            assertEquals(listOf("penButton" to SessionPrefs.PEN_BUTTON_ERASER, "penPressure" to SessionPrefs.PEN_PRESSURE_FIRM,
+                "pen" to SessionPrefs.PEN_TOUCH), picks)
         }
     }
 
-    @Test fun theSideButtonRowIsHiddenInTouchMode() {
-        val pen = mutableStateOf(SessionPrefs.Pen())
-        compose.setContent { DroidDeckTheme { Column { PenSettingsGroup(rememberMenuHost(), pen.value) { _, _ -> } } } }
-        compose.onNodeWithTag("setting-pen-button").assertExists()
+    @Test fun rowsThatCannotApplyAreHidden() {
+        val pen = mutableStateOf(SessionPrefs.Pen(button = SessionPrefs.PEN_BUTTON_ERASER))
+        val desktop = mutableStateOf(false)
+        val eraser = context.getString(R.string.mode_pen_button_eraser)
+        compose.setContent {
+            DroidDeckTheme { Column { PenSettingsGroup(rememberMenuHost(), pen.value, "Auto", desktop.value) { _, _ -> } } }
+        }
+        compose.onNodeWithTag("setting-pen-button").assertTextContains(context.getString(R.string.gesture_right_click))
+        compose.onNodeWithTag("setting-pen-pressure").assertDoesNotExist()
+        compose.runOnIdle { desktop.value = true }
+        compose.onNodeWithTag("setting-pen-button").assertTextContains(eraser)
+        compose.onNodeWithTag("setting-pen-pressure").assertExists()
+        compose.runOnIdle { pen.value = SessionPrefs.Pen(mode = SessionPrefs.PEN_MOUSE, button = SessionPrefs.PEN_BUTTON_ERASER) }
+        compose.onNodeWithTag("setting-pen-pressure").assertDoesNotExist()
+        compose.onNodeWithTag("setting-pen-button").performClick()
+        compose.onNodeWithText(context.getString(R.string.gesture_middle_click)).assertExists()
+        compose.onNodeWithText(eraser).assertDoesNotExist()
         compose.runOnIdle { pen.value = SessionPrefs.Pen(mode = SessionPrefs.PEN_TOUCH) }
         compose.onNodeWithTag("setting-pen").assertExists()
         compose.onNodeWithTag("setting-pen-button").assertDoesNotExist()
+        compose.onNodeWithTag("setting-pen-pressure").assertDoesNotExist()
     }
 
     @Test fun theControlsTabShowsThePenGroupAfterTheTouchRowsOnceAPenIsKnown() {
@@ -86,11 +106,11 @@ class PenSettingsGroupTest {
         compose.runOnIdle { assertEquals(listOf("penButton" to SessionPrefs.PEN_BUTTON_MIDDLE), picks) }
     }
 
-    private fun actions(pen: SessionPrefs.Pen?, onPen: (String, String) -> Unit = { _, _ -> }) =
+    private fun actions(pen: SessionPrefs.Pen?, penAuto: String = "", onPen: (String, String) -> Unit = { _, _ -> }) =
         DrawerActions(steam = false, desktop = true, isHomeApp = false, androidApps = emptyList(), hudOn = false,
             frameGen = FrameGen.Mode.OFF, lossless = Lossless.State.NONE, oscMode = "never",
             suspendPolicy = "auto", backActionsInverted = false,
-            touchMode = "auto", touchAuto = "touchpad", pen = pen, onPen = onPen, fexPreset = "default",
+            touchMode = "auto", touchAuto = "touchpad", pen = pen, penAuto = penAuto, onPen = onPen, fexPreset = "default",
             secondScreenMode = SecondScreenMode.NONE, secondScreenDisplays = emptyList(), selectedSecondScreenDisplay = 1,
             onHud = {}, onFrameGenPick = {}, onImportLossless = {}, onKeyboard = {}, onHardwareKeyboard = {},
             onSteamMenu = null, onQam = null, onOsc = {}, onSuspendPolicy = {}, onBackActionsInverted = {},

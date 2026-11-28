@@ -292,7 +292,13 @@
     <string name="mode_pen">Stift</string>
     <string name="mode_pen_mouse">Maus</string>
     <string name="mode_pen_touch">Touch</string>
+    <string name="mode_pen_note">Auto: Grafiktablett auf dem Desktop in Apps, die es unterstützen, sonst Maus.</string>
     <string name="mode_pen_button">Seitentaste</string>
+    <string name="mode_pen_button_eraser">Radierer, solange gedrückt</string>
+    <string name="mode_pen_pressure">Druck</string>
+    <string name="mode_pen_pressure_soft">Weich</string>
+    <string name="mode_pen_pressure_normal">Normal</string>
+    <string name="mode_pen_pressure_firm">Fest</string>
     <string name="mode_osc">Bildschirmsteuerung</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto zeigt die Steuerung an, wenn kein Controller verbunden ist.</string>
@@ -1688,6 +1694,8 @@
     <string name="session_title_game">Spiel</string>
     <string name="session_touch_auto_touchpad">Touchpad</string>
     <string name="session_touch_auto_direct">direkt</string>
+    <string name="session_pen_auto_tablet">Grafiktablett</string>
+    <string name="session_pen_auto_mouse">Maus</string>
     <string name="session_swap_failed">Austausch fehlgeschlagen: %1$s</string>
     <string name="session_profile_save_failed">Profil konnte nicht gespeichert werden: %1$s</string>
     <string name="session_desktop_paused">Der Desktop ist pausiert</string>

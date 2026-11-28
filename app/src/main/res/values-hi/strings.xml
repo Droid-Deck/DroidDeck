@@ -292,7 +292,13 @@
     <string name="mode_pen">पेन</string>
     <string name="mode_pen_mouse">माउस</string>
     <string name="mode_pen_touch">टच</string>
+    <string name="mode_pen_note">ऑटो: डेस्कटॉप पर जिन ऐप्स में सपोर्ट है उनमें टैबलेट, बाकी जगह माउस।</string>
     <string name="mode_pen_button">साइड बटन</string>
+    <string name="mode_pen_button_eraser">दबाए रखने पर इरेज़र</string>
+    <string name="mode_pen_pressure">दबाव</string>
+    <string name="mode_pen_pressure_soft">हल्का</string>
+    <string name="mode_pen_pressure_normal">सामान्य</string>
+    <string name="mode_pen_pressure_firm">सख़्त</string>
     <string name="mode_osc">ऑन-स्क्रीन कंट्रोल</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">कोई कंट्रोलर कनेक्ट न होने पर ऑटो कंट्रोल दिखाता है।</string>
@@ -1696,6 +1702,8 @@
     <string name="session_title_game">गेम</string>
     <string name="session_touch_auto_touchpad">टचपैड</string>
     <string name="session_touch_auto_direct">डायरेक्ट</string>
+    <string name="session_pen_auto_tablet">टैबलेट</string>
+    <string name="session_pen_auto_mouse">माउस</string>
     <string name="session_swap_failed">स्वैप विफल: %1$s</string>
     <string name="session_profile_save_failed">प्रोफ़ाइल सेव विफल: %1$s</string>
     <string name="session_desktop_paused">डेस्कटॉप रुका हुआ है</string>

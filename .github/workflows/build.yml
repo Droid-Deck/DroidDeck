@@ -972,7 +972,7 @@ jobs:
         run: test "$(git rev-parse 'HEAD^{tree}')" = "$XBOX_SOURCE_TREE"
       - name: Install Python test dependencies
         timeout-minutes: 7
-        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers spirv-tools
+        run: bash tools/ci/install-ubuntu-packages.sh python3-yaml gcc-aarch64-linux-gnu libc6-dev-arm64-cross qemu-user libvulkan-dev mesa-vulkan-drivers spirv-tools libwayland-dev pkgconf
       - name: Resolve the pinned Android NDK
         run: bash tools/ci/resolve-ndk.sh
 

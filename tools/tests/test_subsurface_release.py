@@ -98,7 +98,7 @@ class SubsurfaceReleaseTest(unittest.TestCase):
         commit = function_body(self.source, 'surface_commit')
         self.assertIn('pending_releases_apply(s);', commit)
         self.assertLess(commit.index('take_dmabuf(s, db, buffer);'), commit.index('pending_releases_apply(s);'))
-        self.assertLess(commit.index('buf_trace_attach(buffer);'), commit.index('if (s->role == ROLE_CURSOR)'))
+        self.assertLess(commit.index('buf_trace_attach(buffer);'), commit.index('if (s->role == ROLE_CURSOR'))
         self.assertIn('pending_releases_rehold(s);', function_body(self.source, 'subsurface_set_desync'))
 
 

@@ -292,7 +292,13 @@
     <string name="mode_pen">ปากกา</string>
     <string name="mode_pen_mouse">เมาส์</string>
     <string name="mode_pen_touch">การสัมผัส</string>
+    <string name="mode_pen_note">อัตโนมัติ: แท็บเล็ตในแอปที่รองรับบนเดสก์ท็อป เมาส์ในกรณีอื่น</string>
     <string name="mode_pen_button">ปุ่มด้านข้าง</string>
+    <string name="mode_pen_button_eraser">ยางลบขณะกดค้าง</string>
+    <string name="mode_pen_pressure">แรงกด</string>
+    <string name="mode_pen_pressure_soft">เบา</string>
+    <string name="mode_pen_pressure_normal">ปกติ</string>
+    <string name="mode_pen_pressure_firm">หนัก</string>
     <string name="mode_osc">ปุ่มควบคุมบนหน้าจอ</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">อัตโนมัติจะแสดงปุ่มควบคุมเมื่อไม่มีคอนโทรลเลอร์เชื่อมต่ออยู่</string>
@@ -1681,6 +1687,8 @@
     <string name="session_title_game">เกม</string>
     <string name="session_touch_auto_touchpad">ทัชแพด</string>
     <string name="session_touch_auto_direct">โดยตรง</string>
+    <string name="session_pen_auto_tablet">แท็บเล็ต</string>
+    <string name="session_pen_auto_mouse">เมาส์</string>
     <string name="session_swap_failed">สลับล้มเหลว: %1$s</string>
     <string name="session_profile_save_failed">บันทึกโปรไฟล์ล้มเหลว: %1$s</string>
     <string name="session_desktop_paused">เดสก์ท็อปหยุดชั่วคราว</string>

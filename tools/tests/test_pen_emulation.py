@@ -8,12 +8,18 @@ import unittest
 
 REPO = Path(__file__).resolve().parents[2]
 SOURCE = REPO / 'app/src/main/cpp/waylandcomp/src/compositor.c'
+EXTENSION = REPO / 'app/src/main/cpp/waylandcomp/src/droiddeck_ext.h'
 PEN_STREAM = REPO / 'app/src/main/java/com/droiddeck/launcher/input/PenStream.kt'
 
 
 def function(source, signature):
     start = source.index(signature)
     return source[start:source.index('\n}\n', start) + 3]
+
+
+def lines(source, first, last):
+    start = source.index(first)
+    return source[start:source.index('\n', source.index(last, start) + len(last) - 1) + 1]
 
 
 class PenEmulationTest(unittest.TestCase):
@@ -28,15 +34,22 @@ class PenEmulationTest(unittest.TestCase):
         folder = Path(cls.temp.name)
         start = source.index('struct input_msg {')
         (folder / 'input_msg.inc').write_text(source[start:source.index('\n', start) + 1])
-        start = source.index('#define PEN_IN ')
-        end = source.index('static struct pen_state g_pen;\n', start)
-        (folder / 'pen_state.inc').write_text(source[start:source.index('\n', end) + 1])
+        (folder / 'pen_state.inc').write_text(lines(source, '#define PEN_IN ', 'static atomic_int g_pen_caps;'))
+        extension = EXTENSION.read_text()
+        (folder / 'pen_api.inc').write_text(lines(extension, 'enum { DROIDDECK_PEN_CAP_PRESSURE', '    uint32_t time_ms;\n};'))
         (folder / 'pen.inc').write_text(''.join(function(source, signature) for signature in (
             'static int pointer_locked_for_cursor(void) {',
             'static void input_output_to_scene(double px, double py, double *x, double *y) {',
             'static int pen_buttons(int flags) {',
             'static void pen_release(int buttons) {',
+            'static void pen_end_route(void) {',
+            'static int pen_warp(void) {',
+            'static void pen_pointer(const struct input_msg *m) {',
+            'static void pen_tablet(const struct input_msg *m) {',
             'static void deliver_pen(const struct input_msg *m) {')))
+        (folder / 'touch.inc').write_text(lines(source, '#define for_each_touch_of(client, st)', '== (client))'))
+        start = source.index('static struct surface *pen_target_at(double x, double y) {')
+        (folder / 'query.inc').write_text(source[start:source.index('int droiddeck_cursor_input_pos(', start)])
         start = source.index('#define for_each_pointer_of(client, sp)')
         (folder / 'pointer.inc').write_text(
             function(source, 'static struct seat_pointer *pointer_for(struct wl_client *client) {')
@@ -61,7 +74,14 @@ class PenEmulationTest(unittest.TestCase):
     def test_flags_match_the_kotlin_pen_stream(self):
         native = dict(re.findall(r'^#define (PEN_[A-Z]+) \(1 << (\d+)\)$', SOURCE.read_text(), re.MULTILINE))
         kotlin = dict(re.findall(r'^\s*const val (PEN_[A-Z]+) = 1 shl (\d+)$', PEN_STREAM.read_text(), re.MULTILINE))
-        self.assertEqual({'PEN_IN', 'PEN_TIP', 'PEN_RIGHT', 'PEN_MIDDLE'}, set(native))
+        self.assertEqual({'PEN_IN', 'PEN_TIP', 'PEN_RIGHT', 'PEN_MIDDLE', 'PEN_ERASER', 'PEN_TABLET', 'PEN_TILT'},
+                         set(native))
+        self.assertEqual(native, kotlin)
+
+    def test_capabilities_match_the_kotlin_pen_stream(self):
+        native = dict(re.findall(r'DROIDDECK_PEN_CAP_([A-Z]+) = 1 << (\d+)', EXTENSION.read_text()))
+        kotlin = dict(re.findall(r'^\s*const val CAP_([A-Z]+) = 1 shl (\d+)$', PEN_STREAM.read_text(), re.MULTILINE))
+        self.assertEqual({'PRESSURE', 'TILT', 'DISTANCE'}, set(native))
         self.assertEqual(native, kotlin)
 
     def test_hover_moves_the_pointer_in_scene_coordinates(self):
@@ -96,6 +116,42 @@ class PenEmulationTest(unittest.TestCase):
 
     def test_a_window_closed_by_a_button_release_is_not_grabbed_again(self):
         self.check_case('gone', self.pointer_binary)
+
+    def test_route_and_target_stay_until_the_stroke_ends(self):
+        self.check_case('frozen', self.pointer_binary)
+
+    def test_without_a_tablet_client_the_tablet_wish_is_the_pointer(self):
+        self.check_case('notablet', self.pointer_binary)
+
+    def test_a_route_change_ends_the_old_route_first(self):
+        self.check_case('switch', self.pointer_binary)
+
+    def test_tablet_frames_carry_local_axes_and_the_delivery_time(self):
+        self.check_case('axes', self.pointer_binary)
+
+    def test_the_tablet_target_follows_the_pointer_order(self):
+        self.check_case('target', self.pointer_binary)
+
+    def test_a_stroke_whose_window_closed_sends_nothing_until_it_ends(self):
+        self.check_case('orphan', self.pointer_binary)
+
+    def test_the_query_says_whether_the_pen_focus_takes_a_tablet(self):
+        self.check_case('query', self.pointer_binary)
+
+    def test_gamescope_gets_the_pointer_even_with_a_tablet(self):
+        self.check_case('gamescope', self.pointer_binary)
+
+    def test_a_tool_switch_keeps_the_route_and_announces_the_new_tool(self):
+        self.check_case('tool', self.pointer_binary)
+
+    def test_the_pointer_moves_to_the_pen_as_it_comes_and_where_it_leaves(self):
+        self.check_case('warp', self.pointer_binary)
+
+    def test_a_pointer_lock_that_ends_while_the_pen_hovers_moves_the_pointer_to_it(self):
+        self.check_case('unlock', self.pointer_binary)
+
+    def test_a_pointer_lock_that_ends_during_a_press_moves_the_pointer_once_the_pen_hovered(self):
+        self.check_case('unlockpressed', self.pointer_binary)
 
 
 if __name__ == '__main__':

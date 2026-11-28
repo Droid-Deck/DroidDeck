@@ -292,7 +292,13 @@
     <string name="mode_pen">Kynä</string>
     <string name="mode_pen_mouse">Hiiri</string>
     <string name="mode_pen_touch">Kosketus</string>
+    <string name="mode_pen_note">Automaattinen: piirtopöytä Työpöydällä sitä tukevissa sovelluksissa, muualla hiiri.</string>
     <string name="mode_pen_button">Sivupainike</string>
+    <string name="mode_pen_button_eraser">Pyyhekumi painettuna</string>
+    <string name="mode_pen_pressure">Paine</string>
+    <string name="mode_pen_pressure_soft">Pehmeä</string>
+    <string name="mode_pen_pressure_normal">Normaali</string>
+    <string name="mode_pen_pressure_firm">Jäykkä</string>
     <string name="mode_osc">Näytön ohjaimet</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Automaattinen näyttää ohjaimet, kun yhtään ohjainta ei ole kytketty.</string>
@@ -1696,6 +1702,8 @@
     <string name="session_title_game">Peli</string>
     <string name="session_touch_auto_touchpad">kosketuslevy</string>
     <string name="session_touch_auto_direct">suora</string>
+    <string name="session_pen_auto_tablet">piirtopöytä</string>
+    <string name="session_pen_auto_mouse">hiiri</string>
     <string name="session_swap_failed">Vaihto epäonnistui: %1$s</string>
     <string name="session_profile_save_failed">Profiilin tallennus epäonnistui: %1$s</string>
     <string name="session_desktop_paused">Työpöytä on keskeytetty</string>

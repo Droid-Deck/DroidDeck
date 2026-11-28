@@ -292,7 +292,13 @@
     <string name="mode_pen">Penn</string>
     <string name="mode_pen_mouse">Mus</string>
     <string name="mode_pen_touch">Berøring</string>
+    <string name="mode_pen_note">Auto: tegnebrett på Skrivebord i apper som støtter det, ellers mus.</string>
     <string name="mode_pen_button">Sideknapp</string>
+    <string name="mode_pen_button_eraser">Viskelær mens knappen holdes</string>
+    <string name="mode_pen_pressure">Trykk</string>
+    <string name="mode_pen_pressure_soft">Mykt</string>
+    <string name="mode_pen_pressure_normal">Normalt</string>
+    <string name="mode_pen_pressure_firm">Fast</string>
     <string name="mode_osc">Skjermkontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Auto viser kontrollene når ingen kontroller er tilkoblet.</string>
@@ -1696,6 +1702,8 @@
     <string name="session_title_game">Spill</string>
     <string name="session_touch_auto_touchpad">styreflate</string>
     <string name="session_touch_auto_direct">direkte</string>
+    <string name="session_pen_auto_tablet">tegnebrett</string>
+    <string name="session_pen_auto_mouse">mus</string>
     <string name="session_swap_failed">Bytting mislyktes: %1$s</string>
     <string name="session_profile_save_failed">Lagring av profil mislyktes: %1$s</string>
     <string name="session_desktop_paused">Skrivebordet er pauset</string>

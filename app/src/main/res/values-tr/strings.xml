@@ -292,7 +292,13 @@
     <string name="mode_pen">Kalem</string>
     <string name="mode_pen_mouse">Fare</string>
     <string name="mode_pen_touch">Dokunma</string>
+    <string name="mode_pen_note">Otomatik: Masaüstünde destekleyen uygulamalarda tablet, diğer yerlerde fare.</string>
     <string name="mode_pen_button">Yan düğme</string>
+    <string name="mode_pen_button_eraser">Basılıyken silgi</string>
+    <string name="mode_pen_pressure">Basınç</string>
+    <string name="mode_pen_pressure_soft">Yumuşak</string>
+    <string name="mode_pen_pressure_normal">Normal</string>
+    <string name="mode_pen_pressure_firm">Sert</string>
     <string name="mode_osc">Ekran üstü kontroller</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Otomatik, kumanda bağlı değilken kontrolleri gösterir.</string>
@@ -1688,6 +1694,8 @@
     <string name="session_title_game">Oyun</string>
     <string name="session_touch_auto_touchpad">dokunmatik yüzey</string>
     <string name="session_touch_auto_direct">doğrudan</string>
+    <string name="session_pen_auto_tablet">tablet</string>
+    <string name="session_pen_auto_mouse">fare</string>
     <string name="session_swap_failed">Değiştirme başarısız oldu: %1$s</string>
     <string name="session_profile_save_failed">Profil kaydedilemedi: %1$s</string>
     <string name="session_desktop_paused">Masaüstü duraklatıldı</string>

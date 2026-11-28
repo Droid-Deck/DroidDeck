@@ -292,7 +292,13 @@
     <string name="mode_pen">Писалка</string>
     <string name="mode_pen_mouse">Мишка</string>
     <string name="mode_pen_touch">Докосване</string>
+    <string name="mode_pen_note">Автоматично: таблет на работния плот в приложенията, които го поддържат, мишка навсякъде другаде.</string>
     <string name="mode_pen_button">Страничен бутон</string>
+    <string name="mode_pen_button_eraser">Гума при задържане</string>
+    <string name="mode_pen_pressure">Натиск</string>
+    <string name="mode_pen_pressure_soft">Лек</string>
+    <string name="mode_pen_pressure_normal">Нормален</string>
+    <string name="mode_pen_pressure_firm">Силен</string>
     <string name="mode_osc">Екранни контроли</string>
     <string name="mode_osc_qam">Steam + QAM</string>
     <string name="mode_osc_note">Автоматично показва контролите, когато няма свързан контролер.</string>
@@ -1696,6 +1702,8 @@
     <string name="session_title_game">Игра</string>
     <string name="session_touch_auto_touchpad">тракпад</string>
     <string name="session_touch_auto_direct">директно</string>
+    <string name="session_pen_auto_tablet">таблет</string>
+    <string name="session_pen_auto_mouse">мишка</string>
     <string name="session_swap_failed">Размяната се провали: %1$s</string>
     <string name="session_profile_save_failed">Запазването на профила се провали: %1$s</string>
     <string name="session_desktop_paused">Работният плот е на пауза</string>
