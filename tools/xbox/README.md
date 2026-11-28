@@ -120,8 +120,16 @@ from the content service. The WU endpoint needs no Xbox credential but chains to
 Product Root CA 2018, which Android's CA bundle does not carry, so that one public root is
 pinned in `wu-root.pem` for these requests. Only `.eappx`/`.eappxbundle` files from a WU result
 are kept; the `.appx` framework packages and `.cab` metadata beside them are dropped. Licensing
-runs before the first byte and must return content keys. Free space is checked against the
-download plus two copies of the largest container, and each container is deleted once unpacked.
+runs before the first byte and must return content keys. Bundle members are read in place, and
+where the filesystem can punch holes the container blocks already decrypted are freed as the
+unpack runs, so an install needs about the size of the download free before it starts. After the
+download, the packages' blockmaps give an exact check before anything is unpacked: growth from
+inflation, two blocks per file and the data in flight; a failed check keeps the download. Storage
+that cannot punch holes needs the download plus the largest container and a tenth of it before the
+download, and the container plus its full unpacked size after it; a package that cannot be measured
+(a bundle with compressed members) counts its own size and a tenth. A container is renamed to
+`.unpacking` before its first block is freed, so an interrupted unpack downloads it again, and it is
+renamed back when the filesystem refuses the first punch. Each container is deleted once unpacked.
 The download has no control channel: cancelling kills it and the next attempt starts that
 container from zero.
 

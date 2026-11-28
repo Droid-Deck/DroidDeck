@@ -57,10 +57,15 @@ index 088a6d0..825c24e 100644
  pub mod social;
  pub mod game_activity;
 diff --git a/crates/xodus-cli/src/commands/extract_eappx.rs b/crates/xodus-cli/src/commands/extract_eappx.rs
-index 5ea43da..0bad98e 100644
+index 5ea43da..e236002 100644
 --- a/crates/xodus-cli/src/commands/extract_eappx.rs
 +++ b/crates/xodus-cli/src/commands/extract_eappx.rs
-@@ -51,6 +51,8 @@ pub struct Meter {
+@@ -1,3 +1,4 @@
++use std::os::unix::fs::FileExt;
+ use std::path::{Path, PathBuf};
+ use std::process::ExitCode;
+ 
+@@ -51,6 +52,8 @@ pub struct Meter {
      pub banked: std::sync::atomic::AtomicU64,
      /// Bytes the package being unpacked now will write in total.
      pub total: std::sync::atomic::AtomicU64,
@@ -69,7 +74,7 @@ index 5ea43da..0bad98e 100644
      turn: std::sync::Mutex<()>,
  }
  
-@@ -61,7 +63,14 @@ impl Meter {
+@@ -61,7 +64,14 @@ impl Meter {
          let _turn = self.turn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
          let banked = self.banked.load(Relaxed);
          let total = self.total.load(Relaxed);
@@ -85,7 +90,7 @@ index 5ea43da..0bad98e 100644
      }
  
      pub fn done(&self) -> u64 {
-@@ -79,6 +88,8 @@ impl Meter {
+@@ -79,6 +89,8 @@ impl Meter {
          self.banked.fetch_add(self.total.load(Relaxed), Relaxed);
          self.written.store(0, Relaxed);
          self.total.store(total, Relaxed);
@@ -94,40 +99,636 @@ index 5ea43da..0bad98e 100644
      }
  }
  
-@@ -260,6 +271,9 @@ fn derive(
+@@ -129,16 +141,30 @@ pub fn run_blocking(
+         }
+     }
+ 
+-    match derive(
+-        Path::new(&path),
+-        Path::new(&destination),
+-        &key_collection,
+-        0,
+-        meter,
+-        release,
+-    ) {
+-        Ok(()) => ExitCode::SUCCESS,
+-        Err(failure) => report_failure(&failure, ExitCode::FAILURE),
++    let origin = Path::new(&path);
++    let container = match std::fs::File::open(origin) {
++        Ok(file) => file,
++        Err(e) => return report_failure(&Failure::at("open", origin, &e.to_string()), ExitCode::FAILURE),
++    };
++    let len = match container.metadata() {
++        Ok(meta) => meta.len(),
++        Err(e) => return report_failure(&Failure::at("open", origin, &e.to_string()), ExitCode::FAILURE),
++    };
++    let release = release.then(|| Release::open(origin, &container));
++    let source = Source { file: &container, origin, name: origin.to_path_buf(), start: 0, len };
++    match derive(&source, Path::new(&destination), &key_collection, 0, meter, release.as_ref()) {
++        Ok(()) => {
++            if let Some(release) = &release {
++                release.finish();
++            }
++            ExitCode::SUCCESS
++        }
++        Err(failure) => {
++            if let Some(release) = &release {
++                release.abandon();
++            }
++            report_failure(&failure, ExitCode::FAILURE)
++        }
+     }
+ }
+ 
+@@ -197,17 +223,285 @@ fn is_eappx(path: &Path) -> bool {
+     matches!(&magic, b"EXPH" | b"EXSH" | b"EXBH")
+ }
+ 
++struct Source<'a> {
++    file: &'a std::fs::File,
++    origin: &'a Path,
++    name: PathBuf,
++    start: u64,
++    len: u64,
++}
++
++impl<'a> Source<'a> {
++    fn inner(&self, member: &Member) -> Option<Source<'a>> {
++        let info = &member.info;
++        if info.compression_type == 1 || info.offset_to_file.checked_add(info.uncompressed_length)? > self.len {
++            return None;
++        }
++        let start = self.start.checked_add(info.offset_to_file)?;
++        let mut magic = [0u8; 4];
++        self.file.read_exact_at(&mut magic, start).ok()?;
++        matches!(&magic, b"EXPH" | b"EXSH" | b"EXBH").then(|| Source {
++            file: self.file,
++            origin: self.origin,
++            name: PathBuf::from(member.name.replace('\\', "/")),
++            start,
++            len: info.uncompressed_length,
++        })
++    }
++}
++
++struct Window<'r> {
++    file: std::fs::File,
++    start: u64,
++    len: u64,
++    pos: u64,
++    release: Option<&'r Release>,
++    spend: Option<(u64, u64)>,
++}
++
++impl<'r> Window<'r> {
++    fn open(source: &Source, release: Option<&'r Release>) -> std::io::Result<Self> {
++        Ok(Self { file: source.file.try_clone()?, start: source.start, len: source.len, pos: 0, release, spend: None })
++    }
++
++    fn spend(&mut self, offset: u64, length: u64) {
++        let Some(release) = self.release else { return };
++        let from = self.start.saturating_add(offset);
++        let to = from.saturating_add(length).min(self.start.saturating_add(self.len));
++        self.spend = Some((release.align_up(from), to));
++    }
++
++    fn settle(&mut self) {
++        if let (Some(release), Some((from, to))) = (self.release, self.spend.take()) {
++            release.give_back(from, release.align_down(to));
++        }
++    }
++
++    fn advance(&mut self) {
++        let (Some(release), Some((from, to))) = (self.release, self.spend) else { return };
++        let reached = release.align_down(self.start.saturating_add(self.pos).min(to));
++        if reached >= from.saturating_add(SPEND_STEP) {
++            release.give_back(from, reached);
++            self.spend = Some((reached, to));
++        }
++    }
++}
++
++impl std::io::Read for Window<'_> {
++    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
++        let left = self.len.saturating_sub(self.pos);
++        let wanted = buf.len().min(usize::try_from(left).unwrap_or(usize::MAX));
++        if wanted == 0 {
++            return Ok(0);
++        }
++        let read = self.file.read_at(&mut buf[..wanted], self.start + self.pos)?;
++        self.pos += read as u64;
++        self.advance();
++        Ok(read)
++    }
++}
++
++impl std::io::Seek for Window<'_> {
++    fn seek(&mut self, to: std::io::SeekFrom) -> std::io::Result<u64> {
++        let next = match to {
++            std::io::SeekFrom::Start(offset) => Some(offset),
++            std::io::SeekFrom::End(delta) => self.len.checked_add_signed(delta),
++            std::io::SeekFrom::Current(delta) => self.pos.checked_add_signed(delta),
++        };
++        self.pos = next.ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "seek outside the package"))?;
++        Ok(self.pos)
++    }
++}
++
++const SPEND_STEP: u64 = 64 << 20;
++const SPENT_SUFFIX: &str = ".unpacking";
++
++#[derive(Clone, Copy, PartialEq, Eq)]
++enum Spent {
++    Intact,
++    Moved,
++    Punched,
++    Kept,
++    Spoiled,
++}
++
++struct Release {
++    origin: PathBuf,
++    spent: PathBuf,
++    file: Option<std::fs::File>,
++    block: u64,
++    state: std::sync::Mutex<Spent>,
++}
++
++impl Release {
++    fn open(origin: &Path, container: &std::fs::File) -> Self {
++        let mut spent = origin.as_os_str().to_owned();
++        spent.push(SPENT_SUFFIX);
++        let file = std::fs::OpenOptions::new().write(true).open(origin).ok();
++        let state = if file.is_some() { Spent::Intact } else { Spent::Kept };
++        Self {
++            origin: origin.to_path_buf(),
++            spent: PathBuf::from(spent),
++            file,
++            block: block_size(container),
++            state: std::sync::Mutex::new(state),
++        }
++    }
++
++    fn align_up(&self, at: u64) -> u64 {
++        at.div_ceil(self.block).saturating_mul(self.block)
++    }
++
++    fn align_down(&self, at: u64) -> u64 {
++        at - at % self.block
++    }
++
++    fn give_back(&self, from: u64, to: u64) {
++        if to <= from {
++            return;
++        }
++        let Some(file) = &self.file else { return };
++        let mut state = self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
++        if *state == Spent::Intact {
++            *state = if std::fs::rename(&self.origin, &self.spent).is_ok() { Spent::Moved } else { Spent::Kept };
++        }
++        if !matches!(*state, Spent::Moved | Spent::Punched) {
++            return;
++        }
++        let mode = rustix::fs::FallocateFlags::PUNCH_HOLE | rustix::fs::FallocateFlags::KEEP_SIZE;
++        *state = match (rustix::fs::fallocate(file, mode, from, to - from).is_ok(), *state) {
++            (true, _) => Spent::Punched,
++            (false, Spent::Moved) => self.restore(),
++            (false, _) => Spent::Spoiled,
++        };
++    }
++
++    fn restore(&self) -> Spent {
++        if std::fs::rename(&self.spent, &self.origin).is_ok() { Spent::Kept } else { Spent::Spoiled }
++    }
++
++    fn finish(&self) {
++        std::fs::remove_file(&self.origin).ok();
++        std::fs::remove_file(&self.spent).ok();
++    }
++
++    fn abandon(&self) {
++        let mut state = self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
++        if *state == Spent::Moved {
++            *state = self.restore();
++        }
++        if matches!(*state, Spent::Punched | Spent::Spoiled) {
++            std::fs::remove_file(&self.spent).ok();
++        }
++    }
++}
++
++fn block_size(file: &std::fs::File) -> u64 {
++    use std::os::unix::fs::MetadataExt;
++    file.metadata().map(|meta| meta.blksize()).ok().filter(|size| size.is_power_of_two()).unwrap_or(4096)
++}
++
++pub fn releases_space(dir: &Path) -> bool {
++    use std::io::Write;
++    let Ok(mut probe) = tempfile::tempfile_in(dir) else { return false };
++    if probe.write_all(&[1u8; 1 << 16]).and_then(|()| probe.sync_data()).is_err() {
++        return false;
++    }
++    let mode = rustix::fs::FallocateFlags::PUNCH_HOLE | rustix::fs::FallocateFlags::KEEP_SIZE;
++    rustix::fs::fallocate(&probe, mode, 0, 1 << 16).is_ok()
++}
++
++struct Layout {
++    bounds: Vec<u64>,
++    len: u64,
++}
++
++impl Layout {
++    fn of(eappx: &EAppxFile, len: u64) -> Self {
++        let header = &eappx.header;
++        let mut bounds: Vec<u64> = eappx
++            .footers
++            .iter()
++            .map(|footer| footer.offset_to_file)
++            .chain([header.footer_offset, header.signature_offset, header.code_integrity_offset])
++            .collect();
++        bounds.sort_unstable();
++        bounds.dedup();
++        Self { bounds, len }
++    }
++
++    fn stored(&self, info: &eappx::FileInfo) -> u64 {
++        let size = if info.compression_type == 1 { info.compressed_length } else { info.uncompressed_length };
++        let next = self
++            .bounds
++            .get(self.bounds.partition_point(|&bound| bound <= info.offset_to_file))
++            .copied()
++            .unwrap_or(self.len);
++        info.offset_to_file.saturating_add(size).min(next).min(self.len).saturating_sub(info.offset_to_file)
++    }
++}
++
++struct Member {
++    name: String,
++    info: eappx::FileInfo,
++}
++
++fn bundle_members<R: std::io::BufRead + std::io::Seek>(eappx: &EAppxFile, reader: &mut R) -> Result<Vec<Member>, String> {
++    let eappx::Manifest::BundleManifest(manifest) = eappx.read_manifest(reader).map_err(|e| e.to_string())? else {
++        return Err("the bundle carries no bundle manifest".into());
++    };
++    manifest
++        .packages
++        .package
++        .into_iter()
++        .enumerate()
++        .map(|(index, package)| {
++            let footer = eappx
++                .find_footer_for_file(index as u64)
++                .ok_or_else(|| format!("bundle file {} is not in the footers", package.filename))?;
++            if footer.offset_to_file != package.offset {
++                return Err(format!("bundle file {} disagrees with its footer about its offset", package.filename));
++            }
++            Ok(Member { name: package.filename, info: eappx::FileInfo::from(footer) })
++        })
++        .collect()
++}
++
++fn save(
++    eappx: &EAppxFile,
++    layout: &Layout,
++    stream: &mut std::io::BufReader<Window<'_>>,
++    info: eappx::FileInfo,
++    outdir: &Path,
++    name: &str,
++) -> Result<(), eappx::error::Error> {
++    stream.get_mut().spend(info.offset_to_file, layout.stored(&info));
++    let saved = eappx.save_file_to_fs(stream, info, outdir, name);
++    if saved.is_ok() {
++        stream.get_mut().settle();
++    } else {
++        stream.get_mut().spend = None;
++    }
++    saved
++}
++
++fn stem(name: &Path) -> Result<String, Failure> {
++    name.file_stem()
++        .map(|stem| stem.to_string_lossy().into_owned())
++        .ok_or_else(|| Failure::at("no-name", name, "package without a usable name"))
++}
++
+ fn derive(
+-    infile: &Path,
++    source: &Source,
+     outdir: &Path,
+     keys: &KeyCollection,
+     depth: usize,
+     meter: Option<&Meter>,
+-    release: bool,
++    release: Option<&Release>,
+ ) -> Result<(), Failure> {
+-    let file = std::fs::File::open(infile)
+-        .map_err(|e| Failure::at("open", infile, &e.to_string()))?;
+-    let mut reader = std::io::BufReader::new(file);
++    let infile = source.name.as_path();
++    let window = Window::open(source, release).map_err(|e| Failure::at("open", infile, &e.to_string()))?;
++    let mut reader = std::io::BufReader::new(window);
+ 
+     let mut eappx = EAppxFile::from_stream(&mut reader)
+         .map_err(|e| Failure::at("header", infile, &e.to_string()))?;
+@@ -236,8 +530,16 @@ fn derive(
+     std::fs::create_dir_all(outdir)
+         .map_err(|e| Failure::at("create-dir", outdir, &e.to_string()))?;
+ 
+-    unpack(infile, &eappx, &mut reader, outdir, meter, release)?;
+-    // The handle must close before a released container gives its space back.
++    eappx
++        .extract_footprint_files(&mut reader, outdir)
++        .map_err(|e| Failure::at("extract", infile, &e.to_string()))?;
++
++    let inner = if eappx.header.is_bundle() {
++        unbundle(source, &eappx, &mut reader, outdir, meter)?
++    } else {
++        unpack(source, &eappx, outdir, meter, release)?;
++        Vec::new()
++    };
+     drop(reader);
+ 
+     println!("Extracted {}", infile.file_name().unwrap_or_default().to_string_lossy());
+@@ -248,33 +550,189 @@ fn derive(
+         // The container being unpacked may itself sit in the destination, which is
+         // what `extract-eappx ./title.eappx .` asks for. Re-entering it would
+         // recurse into the same bytes and then delete the caller's file.
+-        .filter(|path| std::fs::canonicalize(path).ok() != std::fs::canonicalize(infile).ok())
++        .filter(|path| std::fs::canonicalize(path).ok() != std::fs::canonicalize(source.origin).ok())
+         .filter(|path| path.is_file() && is_eappx(path))
+         .collect();
+     nested.sort();
+ 
+-    if nested.is_empty() {
++    if inner.is_empty() && nested.is_empty() {
+         return Ok(());
+     }
+     if depth >= MAX_BUNDLE_DEPTH {
          return Err(Failure::at("nesting", infile, "bundle nesting exceeds the limit"));
      }
  
+-    for child in nested {
+-        let name = child
+-            .file_stem()
+-            .map(|name| name.to_string_lossy().into_owned())
+-            .ok_or_else(|| Failure::at("no-name", &child, "package without a usable name"))?;
+-        derive(&child, &outdir.join(&name), keys, depth + 1, meter, release)?;
++    let opened = nested
++        .into_iter()
++        .map(|path| {
++            let file = std::fs::File::open(&path).map_err(|e| Failure::at("open", &path, &e.to_string()))?;
++            let len = file.metadata().map_err(|e| Failure::at("open", &path, &e.to_string()))?.len();
++            Ok((path, file, len))
++        })
++        .collect::<Result<Vec<_>, Failure>>()?;
++    let children: Vec<Source> = opened
++        .iter()
++        .map(|(path, file, len)| Source { file, origin: source.origin, name: path.clone(), start: 0, len: *len })
++        .collect();
++
 +    if let Some(meter) = meter {
-+        meter.expect(nested.iter().map(|child| package_size(child)).sum());
++        meter.expect(inner.iter().map(package_size).sum::<u64>() + children.iter().map(package_size).sum::<u64>());
 +    }
-     for child in nested {
-         let name = child
-             .file_stem()
-@@ -275,6 +289,14 @@ fn derive(
++    for member in &inner {
++        derive(member, &outdir.join(stem(&member.name)?), keys, depth + 1, meter, release)?;
++    }
++    for child in &children {
++        derive(child, &outdir.join(stem(&child.name)?), keys, depth + 1, meter, None)?;
+         // The member's bytes are no longer needed once its contents are on disk.
+         // A bundle of a full title holds tens of gigabytes, and keeping every
+         // member beside the decrypted copy doubles what the install occupies.
+-        std::fs::remove_file(&child).ok();
++        std::fs::remove_file(&child.name).ok();
+     }
+ 
      Ok(())
  }
  
++fn unbundle<'a>(
++    source: &Source<'a>,
++    eappx: &EAppxFile,
++    reader: &mut std::io::BufReader<Window<'_>>,
++    outdir: &Path,
++    meter: Option<&Meter>,
++) -> Result<Vec<Source<'a>>, Failure> {
++    let infile = source.name.as_path();
++    let members = bundle_members(eappx, reader).map_err(|e| Failure::at("extract", infile, &e))?;
++    let shared: Vec<u64> = members.iter().map(|member| member.info.offset_to_file).collect();
++
++    let mut written = Vec::new();
++    for file in &eappx.blockmap.files {
++        let footer = eappx
++            .find_footer_for_file(file.id())
++            .ok_or_else(|| Failure::at("extract", infile, "the blockmap names a file the package does not hold"))?;
++        if shared.contains(&footer.offset_to_file) {
++            continue;
++        }
++        if footer.uncompressed_length != file.size {
++            return Err(Failure::at("extract", infile, "a package entry disagrees with its blockmap about its size"));
++        }
++        let mut info = eappx::FileInfo::from(footer);
++        info.filehash = file.filehash_bytes();
++        info.block_hashes = Some(file.block_hashes());
++        written.push((info, file.name.clone()));
++    }
++
++    let mut inner = Vec::new();
++    for member in members {
++        match source.inner(&member) {
++            Some(package) => inner.push(package),
++            None => written.push((member.info, member.name)),
++        }
++    }
++    inner.sort_by(|a, b| a.name.cmp(&b.name));
++
++    if let Some(meter) = meter {
++        meter.roll(written.iter().map(|(info, _)| info.uncompressed_length).sum());
++    }
++    let layout = Layout::of(eappx, source.len);
++    for (info, name) in written {
++        save(eappx, &layout, reader, info, outdir, &name).map_err(|e| Failure::at("extract", infile, &e.to_string()))?;
++    }
++    Ok(inner)
++}
++
 +/// What a package's blockmap says it will write, or nothing when its header is unreadable.
-+fn package_size(path: &Path) -> u64 {
-+    let Ok(file) = std::fs::File::open(path) else { return 0 };
-+    EAppxFile::from_stream(&mut std::io::BufReader::new(file))
++fn package_size(source: &Source) -> u64 {
++    let Ok(window) = Window::open(source, None) else { return 0 };
++    EAppxFile::from_stream(&mut std::io::BufReader::new(window))
 +        .map(|package| package.blockmap.files.iter().map(|entry| entry.size).sum())
 +        .unwrap_or(0)
++}
++
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub struct Footprint {
++    pub unpacked: u64,
++    pub growth: u64,
++    pub files: u64,
++    pub block: u64,
++}
++
++impl Footprint {
++    fn add(&mut self, other: Footprint) {
++        self.unpacked = self.unpacked.saturating_add(other.unpacked);
++        self.growth = self.growth.saturating_add(other.growth);
++        self.files = self.files.saturating_add(other.files);
++    }
++
++    pub fn extra(&self, releases: bool) -> u64 {
++        if !releases {
++            return self.unpacked;
++        }
++        self.growth
++            .saturating_add(self.files.saturating_mul(2).saturating_mul(self.block))
++            .saturating_add(in_flight())
++    }
++}
++
++pub fn in_flight() -> u64 {
++    (workers() as u64).saturating_mul(SPEND_STEP + READ_BUFFER as u64)
++}
++
++pub fn footprint(path: &Path) -> Option<Footprint> {
++    if !is_eappx(path) {
++        return None;
++    }
++    let file = std::fs::File::open(path).ok()?;
++    let len = file.metadata().ok()?.len();
++    let source = Source { file: &file, origin: path, name: path.to_path_buf(), start: 0, len };
++    let mut total = measure(&source, 0)?;
++    total.block = block_size(&file);
++    Some(total)
++}
++
++fn measure(source: &Source, depth: usize) -> Option<Footprint> {
++    let mut reader = std::io::BufReader::new(Window::open(source, None).ok()?);
++    let eappx = EAppxFile::from_stream(&mut reader).ok()?;
++    let layout = Layout::of(&eappx, source.len);
++    let header = &eappx.header;
++    let packaging = eappx
++        .find_footer_for_file(header.block_map_file_id)
++        .map_or(0, |footer| footer.uncompressed_length)
++        .saturating_add(u64::from(header.signature_uncompressed_length))
++        .saturating_add(u64::from(header.code_integrity_uncompressed_length));
++    let mut total = Footprint { unpacked: packaging, growth: packaging, files: 3, block: 0 };
++    let mut written = Vec::new();
++    if header.is_bundle() {
++        let members = bundle_members(&eappx, &mut reader).ok()?;
++        let shared: Vec<u64> = members.iter().map(|member| member.info.offset_to_file).collect();
++        for file in &eappx.blockmap.files {
++            let footer = eappx.find_footer_for_file(file.id())?;
++            if !shared.contains(&footer.offset_to_file) {
++                written.push(eappx::FileInfo::from(footer));
++            }
++        }
++        for member in members {
++            match source.inner(&member) {
++                Some(_) if depth >= MAX_BUNDLE_DEPTH => return None,
++                Some(package) => total.add(measure(&package, depth + 1)?),
++                None if member.info.compression_type == 1 => return None,
++                None => written.push(member.info),
++            }
++        }
++    } else {
++        for file in &eappx.blockmap.files {
++            written.push(eappx::FileInfo::from(eappx.find_footer_for_file(file.id())?));
++        }
++    }
++    for info in &written {
++        total.add(Footprint {
++            unpacked: info.uncompressed_length,
++            growth: info.uncompressed_length.saturating_sub(layout.stored(info)),
++            files: 1,
++            block: 0,
++        });
++    }
++    Some(total)
 +}
 +
  /// Bytes currently on disk under `dir`.
  ///
  /// A bundle member is written as one file, so a per-file counter says nothing
-@@ -414,3 +436,29 @@ fn unpack(
+@@ -319,48 +777,33 @@ fn workers() -> usize {
+ /// goes. The blockmap already totals every file's uncompressed length, so the
+ /// end point is known before the first byte is written.
+ fn unpack(
+-    infile: &Path,
++    source: &Source,
+     eappx: &EAppxFile,
+-    reader: &mut std::io::BufReader<std::fs::File>,
+     outdir: &Path,
+     meter: Option<&Meter>,
+-    release: bool,
++    release: Option<&Release>,
+ ) -> Result<(), Failure> {
++    let infile = source.name.as_path();
+     let total: u64 = eappx.blockmap.files.iter().map(|package| package.size).sum();
+     if let Some(meter) = meter {
+         meter.roll(total);
      }
-     Ok(())
- }
+ 
+-    eappx
+-        .extract_footprint_files(reader, outdir)
+-        .map_err(|e| Failure::at("extract", infile, &e.to_string()))?;
+-
+-    if eappx.header.is_bundle() {
+-        eappx
+-            .extract_blockmap_files(reader, outdir)
+-            .map_err(|e| Failure::at("extract", infile, &e.to_string()))?;
+-        eappx
+-            .extract_bundle_files(reader, outdir)
+-            .map_err(|e| Failure::at("extract", infile, &e.to_string()))?;
+-        if release {
+-            std::fs::remove_file(infile).ok();
+-        }
+-        return Ok(());
+-    }
+-
++    let layout = Layout::of(eappx, source.len);
+     let count = workers().min(eappx.blockmap.files.len().max(1));
+     let failure = std::sync::Mutex::new(None::<String>);
+     std::thread::scope(|scope| {
+         for shard in 0..count {
+             let failure = &failure;
++            let layout = &layout;
+             scope.spawn(move || {
+-                let Ok(handle) = std::fs::File::open(infile) else {
++                let Ok(window) = Window::open(source, release) else {
+                     if let Ok(mut slot) = failure.lock() {
+                         *slot = Some("a worker could not reopen the package".to_string());
+                     }
+                     return;
+                 };
+-                let mut stream = std::io::BufReader::with_capacity(READ_BUFFER, handle);
++                let mut stream = std::io::BufReader::with_capacity(READ_BUFFER, window);
+                 for (index, package) in eappx.blockmap.files.iter().enumerate() {
+                     if index % count != shard {
+                         continue;
+@@ -387,7 +830,7 @@ fn unpack(
+                         }
+                         return;
+                     }
+-                    if let Err(error) = eappx.save_file_to_fs(&mut stream, info, outdir, &package.name) {
++                    if let Err(error) = save(eappx, layout, &mut stream, info, outdir, &package.name) {
+                         if let Ok(mut slot) = failure.lock() {
+                             *slot = Some(error.to_string());
+                         }
+@@ -406,11 +849,190 @@ fn unpack(
+     if let Some(reason) = failure.into_inner().unwrap_or(None) {
+         return Err(Failure::at("extract", infile, &reason));
+     }
++    Ok(())
++}
 +
 +#[cfg(test)]
 +mod meter_tests {
 +    use super::Meter;
-+
+ 
+-    if release {
+-        // The files are on disk; the container is not read again unless the
+-        // install is retried from scratch.
+-        std::fs::remove_file(infile).ok();
 +    #[test]
 +    fn announced_packages_keep_the_total_from_growing() {
 +        let meter = Meter::default();
@@ -149,12 +750,172 @@ index 5ea43da..0bad98e 100644
 +        assert_eq!(meter.snapshot(), (10, 10));
 +    }
 +}
++
++#[cfg(test)]
++mod release_tests {
++    use super::{Footprint, Layout, Release, Source, Window, in_flight, releases_space};
++    use std::io::{Read, Seek, SeekFrom};
++    use std::path::{Path, PathBuf};
++
++    fn scratch(name: &str) -> PathBuf {
++        let path = std::env::temp_dir().join(format!("xodus-release-{name}-{}", std::process::id()));
++        let _ = std::fs::remove_dir_all(&path);
++        std::fs::create_dir_all(&path).unwrap();
++        path
++    }
++
++    fn pattern(len: usize) -> Vec<u8> {
++        (0..len).map(|index| (index % 251) as u8 + 1).collect()
++    }
++
++    fn info(offset: u64, uncompressed: u64, compressed: u64, compression: u16) -> eappx::FileInfo {
++        eappx::FileInfo {
++            key_id_index: 0,
++            compression_type: compression,
++            offset_to_file: offset,
++            uncompressed_length: uncompressed,
++            compressed_length: compressed,
++            filehash: None,
++            block_hashes: None,
++        }
++    }
++
++    #[test]
++    fn a_window_reads_only_the_package_it_covers() {
++        let root = scratch("window");
++        let path = root.join("bundle.eappxbundle");
++        let bytes = pattern(4096);
++        std::fs::write(&path, &bytes).unwrap();
++        let file = std::fs::File::open(&path).unwrap();
++        let source = Source { file: &file, origin: &path, name: PathBuf::from("member.eappx"), start: 100, len: 50 };
++        let mut window = Window::open(&source, None).unwrap();
++
++        let mut all = Vec::new();
++        window.read_to_end(&mut all).unwrap();
++        assert_eq!(all, bytes[100..150]);
++
++        assert_eq!(window.seek(SeekFrom::End(-10)).unwrap(), 40);
++        let mut tail = Vec::new();
++        window.read_to_end(&mut tail).unwrap();
++        assert_eq!(tail, bytes[140..150]);
++
++        window.seek(SeekFrom::Start(5)).unwrap();
++        let mut two = [0u8; 2];
++        window.read_exact(&mut two).unwrap();
++        assert_eq!(two, bytes[105..107]);
++        assert!(window.seek(SeekFrom::Current(-10)).is_err());
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn a_file_never_claims_bytes_past_the_next_entry() {
++        let layout = Layout { bounds: vec![0, 100, 300, 1000], len: 1200 };
++        assert_eq!(layout.stored(&info(100, 150, 0, 0)), 150);
++        assert_eq!(layout.stored(&info(100, 900, 0, 0)), 200);
++        assert_eq!(layout.stored(&info(100, 900, 120, 1)), 120);
++        assert_eq!(layout.stored(&info(1000, 900, 0, 0)), 200);
++    }
++
++    #[test]
++    fn released_bytes_stay_inside_the_written_file() {
++        let root = scratch("punch");
++        if !releases_space(&root) {
++            std::fs::remove_dir_all(&root).ok();
++            return;
++        }
++        let path = root.join("game.eappx");
++        std::fs::write(&path, pattern(1 << 20)).unwrap();
++        let file = std::fs::File::open(&path).unwrap();
++        let release = Release::open(&path, &file);
++        let block = release.block;
++        let source = Source { file: &file, origin: &path, name: path.clone(), start: 0, len: 1 << 20 };
++        let mut window = Window::open(&source, Some(&release)).unwrap();
++        window.spend(100, 3 * block);
++        window.seek(SeekFrom::Start(100)).unwrap();
++        let mut consumed = vec![0u8; usize::try_from(3 * block).unwrap()];
++        window.read_exact(&mut consumed).unwrap();
++        window.settle();
++
++        assert!(!path.exists(), "a container that lost bytes no longer looks like a finished download");
++        let spent = std::fs::read(&release.spent).unwrap();
++        let original = pattern(1 << 20);
++        let block = usize::try_from(block).unwrap();
++        assert_eq!(spent.len(), original.len());
++        assert_eq!(spent[..block], original[..block]);
++        assert!(spent[block..3 * block].iter().all(|&byte| byte == 0));
++        assert_eq!(spent[3 * block..], original[3 * block..]);
++
++        release.abandon();
++        assert!(!release.spent.exists());
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn a_failure_before_any_release_keeps_the_download() {
++        let root = scratch("kept");
++        let path = root.join("game.eappx");
++        std::fs::write(&path, pattern(1 << 16)).unwrap();
++        let file = std::fs::File::open(&path).unwrap();
++        let release = Release::open(&path, &file);
++        release.abandon();
++        assert_eq!(std::fs::read(&path).unwrap(), pattern(1 << 16));
++        release.finish();
++        assert!(!path.exists());
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn a_container_that_cannot_give_bytes_back_is_kept_for_a_retry() {
++        let root = scratch("unpunchable");
++        let path = root.join("game.eappx");
++        std::fs::write(&path, pattern(1 << 20)).unwrap();
++        let file = std::fs::File::open(&path).unwrap();
++        let mut release = Release::open(&path, &file);
++        release.file = Some(std::fs::File::open(&path).unwrap());
++        let block = release.block;
++        let source = Source { file: &file, origin: &path, name: path.clone(), start: 0, len: 1 << 20 };
++        let mut window = Window::open(&source, Some(&release)).unwrap();
++        window.spend(0, 3 * block);
++        let mut consumed = vec![0u8; usize::try_from(3 * block).unwrap()];
++        window.read_exact(&mut consumed).unwrap();
++        window.settle();
++
++        assert!(!release.spent.exists());
++        release.abandon();
++        assert_eq!(std::fs::read(&path).unwrap(), pattern(1 << 20));
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn reading_without_a_release_leaves_the_container_alone() {
++        let root = scratch("plain");
++        let path = root.join("game.eappx");
++        std::fs::write(&path, pattern(1 << 16)).unwrap();
++        let file = std::fs::File::open(&path).unwrap();
++        let source = Source { file: &file, origin: Path::new(&path), name: path.clone(), start: 0, len: 1 << 16 };
++        let mut window = Window::open(&source, None).unwrap();
++        window.spend(0, 1 << 16);
++        let mut all = Vec::new();
++        window.read_to_end(&mut all).unwrap();
++        window.settle();
++        assert_eq!(std::fs::read(&path).unwrap(), pattern(1 << 16));
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
++    fn the_extra_space_depends_on_whether_bytes_are_given_back() {
++        let footprint = Footprint { unpacked: 80_000_000_000, growth: 1_000, files: 10, block: 4096 };
++        assert_eq!(footprint.extra(false), 80_000_000_000);
++        assert_eq!(footprint.extra(true), 1_000 + 10 * 2 * 4096 + in_flight());
+     }
+-    Ok(())
+ }
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100755
-index 0000000..d43c5fc
+index 0000000..a98d0fd
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1527 @@
+@@ -0,0 +1,1603 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -213,6 +974,22 @@ index 0000000..d43c5fc
 +    let text = String::from_utf8_lossy(&output.stdout);
 +    let available = text.lines().nth(1)?.split_whitespace().nth(3)?;
 +    available.parse::<u64>().ok().map(|kib| kib.saturating_mul(1024))
++}
++
++struct Step {
++    container: u64,
++    during: u64,
++    after: u64,
++}
++
++fn space_to_unpack(steps: &[Step]) -> u64 {
++    let mut settled: i128 = 0;
++    let mut peak: i128 = 0;
++    for step in steps {
++        peak = peak.max(settled + i128::from(step.during));
++        settled += i128::from(step.after) - i128::from(step.container);
++    }
++    u64::try_from(peak).unwrap_or(u64::MAX)
 +}
 +
 +/// Reports why the install stopped without disclosing anything sensitive.
@@ -621,8 +1398,13 @@ index 0000000..d43c5fc
 +            return fail("staging-failed", "Could not clear an unfinished download from the staging folder");
 +        }
 +    }
++    let releases = crate::commands::extract_eappx::releases_space(&destination);
 +    if let Some(free) = free_bytes(&destination) {
-+        let needed = total.saturating_add(largest).saturating_add(largest / 10);
++        let needed = if releases {
++            total.saturating_add(crate::commands::extract_eappx::in_flight())
++        } else {
++            total.saturating_add(largest).saturating_add(largest / 10)
++        };
 +        if free.saturating_add(held) < needed {
 +            return fail(
 +                "insufficient-space",
@@ -691,6 +1473,30 @@ index 0000000..d43c5fc
 +        downloaded.push(target);
 +    }
 +
++    if let Some(free) = free_bytes(&destination) {
++        let steps: Vec<Step> = downloaded
++            .iter()
++            .map(|container| {
++                let size = std::fs::metadata(container).map_or(0, |meta| meta.len());
++                match crate::commands::extract_eappx::footprint(container) {
++                    Some(footprint) => Step { container: size, during: footprint.extra(releases), after: footprint.unpacked },
++                    None => Step { container: size, during: size.saturating_add(size / 10), after: size },
++                }
++            })
++            .collect();
++        let needed = space_to_unpack(&steps);
++        if free < needed {
++            return fail(
++                "insufficient-space",
++                &format!(
++                    "Unpacking needs about {} GB free, and {} GB is available; the download is kept for a retry",
++                    needed.div_ceil(1_000_000_000),
++                    free / 1_000_000_000
++                ),
++            );
++        }
++    }
++
 +    progress.phase("installing");
 +    let key_file_text = key_file.display().to_string();
 +    let meter = std::sync::Arc::new(crate::commands::extract_eappx::Meter::default());
@@ -715,7 +1521,7 @@ index 0000000..d43c5fc
 +                    Some(&meter),
 +                    // A full title is tens of gigabytes. Holding the container
 +                    // while its members are decrypted can fill the device.
-+                    true,
++                    releases,
 +                )
 +            }
 +        });
@@ -739,7 +1545,10 @@ index 0000000..d43c5fc
 +            progress.bytes(high, total);
 +        };
 +        if extracted != ExitCode::SUCCESS {
-+            return fail("extract-failed", "Could not unpack the package; retrying may require downloading the bundle again because containers are removed to save disk space");
++            if container.is_file() {
++                return fail("extract-failed", "Could not unpack the package; the download is kept for a retry");
++            }
++            return fail("extract-failed", "Could not unpack the package; resume to download it again");
 +        }
 +        // Drop each container as soon as it is unpacked: a full title is tens of
 +        // gigabytes, and holding the archive and its contents at once can fill
@@ -1355,6 +2164,34 @@ index 0000000..d43c5fc
 +        for name in ["game.msixvc", "game.appx", "game.zip", "eappx", "notes.txt"] {
 +            assert!(!is_legacy_name(name), "{name} should not be legacy");
 +        }
++    }
++
++    #[test]
++    fn a_container_unpacked_in_place_needs_only_its_growth() {
++        let size = 85_000_000_000;
++        let steps = [Step { container: size, during: 300_000_000, after: size }];
++        assert_eq!(space_to_unpack(&steps), 300_000_000);
++    }
++
++    #[test]
++    fn a_container_held_while_unpacking_needs_its_full_contents() {
++        let size = 85_000_000_000;
++        let steps = [Step { container: size, during: size, after: size }];
++        assert_eq!(space_to_unpack(&steps), size);
++    }
++
++    #[test]
++    fn later_containers_count_what_earlier_ones_left_behind() {
++        let steps = [
++            Step { container: 10, during: 12, after: 15 },
++            Step { container: 5, during: 9, after: 6 },
++        ];
++        assert_eq!(space_to_unpack(&steps), 14);
++        let shrinking = [
++            Step { container: 10, during: 12, after: 4 },
++            Step { container: 5, during: 9, after: 6 },
++        ];
++        assert_eq!(space_to_unpack(&shrinking), 12);
 +    }
 +
 +    #[test]
