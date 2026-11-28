@@ -111,45 +111,45 @@ static __thread pid_t t_ddh_only_thread;
 // gone without that is reused only when every record is in use. A child not in here (a raw clone(),
 // or none free) is any thread's.
 #define DDH_FORKS 1024
-static struct ddh_fork {
-    pid_t child;
-    pid_t thread;
-} g_ddh_forks[DDH_FORKS];
+// child << 32 | thread in one word, so that a record is only ever whole: written, replaced and
+// cleared by compare-and-swap, never field by field. 0: free.
+static uint64_t g_ddh_forks[DDH_FORKS];
+
+static uint64_t ddh_fork_record(pid_t child, pid_t thread) { return (uint64_t)(uint32_t)child << 32 | (uint32_t)thread; }
+static pid_t ddh_record_child(uint64_t r) { return (pid_t)(uint32_t)(r >> 32); }
 
 static struct ddh_entry *ddh_find(pid_t child);
 
 static void ddh_forked_by(pid_t child, pid_t thread) {
+    uint64_t mine = ddh_fork_record(child, thread);
+    // the pid's earlier record (a child reaped where the hook did not see it): replaced
     for (int i = 0; i < DDH_FORKS; i++) {
-        if (__atomic_load_n(&g_ddh_forks[i].child, __ATOMIC_ACQUIRE) == child) {
-            __atomic_store_n(&g_ddh_forks[i].thread, thread, __ATOMIC_RELEASE);
-            return;
+        uint64_t seen = __atomic_load_n(&g_ddh_forks[i], __ATOMIC_ACQUIRE);
+        while (seen && ddh_record_child(seen) == child) {
+            if (__atomic_compare_exchange_n(&g_ddh_forks[i], &seen, mine, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return;
         }
     }
-    // A record is taken by compare-and-swap of its child (another thread may be recording a fork of
-    // its own), then given the thread: until then it names no thread, which no __WNOTHREAD wait takes.
+    // a free record, or, with all in use, one whose child is gone and has no entry
     for (int pass = 0; pass < 2; pass++) {
         for (int i = 0; i < DDH_FORKS; i++) {
-            struct ddh_fork *f = &g_ddh_forks[i];
-            pid_t seen = __atomic_load_n(&f->child, __ATOMIC_ACQUIRE);
-            if (pass == 0 ? seen != 0 : seen <= 0) continue;
+            uint64_t seen = __atomic_load_n(&g_ddh_forks[i], __ATOMIC_ACQUIRE);
+            if (pass == 0 ? seen != 0 : seen == 0) continue;
             if (pass == 1) {
-                // all in use: one whose child is gone and has no entry
+                pid_t old = ddh_record_child(seen);
                 int saved = errno;
-                int stale = syscall(SYS_kill, seen, 0) != 0 && errno == ESRCH && !ddh_find(seen);
+                int stale = syscall(SYS_kill, old, 0) != 0 && errno == ESRCH && !ddh_find(old);
                 errno = saved;
                 if (!stale) continue;
             }
-            __atomic_store_n(&f->thread, 0, __ATOMIC_RELEASE);
-            if (!__atomic_compare_exchange_n(&f->child, &seen, child, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) continue;
-            __atomic_store_n(&f->thread, thread, __ATOMIC_RELEASE);
-            return;
+            if (__atomic_compare_exchange_n(&g_ddh_forks[i], &seen, mine, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) return;
         }
     }
 }
 
 static pid_t ddh_forking_thread(pid_t child) {
     for (int i = 0; i < DDH_FORKS; i++) {
-        if (__atomic_load_n(&g_ddh_forks[i].child, __ATOMIC_ACQUIRE) == child) return __atomic_load_n(&g_ddh_forks[i].thread, __ATOMIC_ACQUIRE);
+        uint64_t r = __atomic_load_n(&g_ddh_forks[i], __ATOMIC_ACQUIRE);
+        if (r && ddh_record_child(r) == child) return (pid_t)(uint32_t)r;
     }
     return 0;
 }
@@ -157,8 +157,10 @@ static pid_t ddh_forking_thread(pid_t child) {
 // The child's end has been taken: its record goes.
 static void ddh_forget(pid_t child) {
     for (int i = 0; child > 0 && i < DDH_FORKS; i++) {
-        pid_t seen = child;
-        __atomic_compare_exchange_n(&g_ddh_forks[i].child, &seen, 0, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+        uint64_t seen = __atomic_load_n(&g_ddh_forks[i], __ATOMIC_ACQUIRE);
+        while (seen && ddh_record_child(seen) == child) {
+            if (__atomic_compare_exchange_n(&g_ddh_forks[i], &seen, 0, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) break;
+        }
     }
 }
 
