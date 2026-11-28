@@ -80,6 +80,7 @@ git clone -q --depth 1 -b virglrenderer-1.3.0 https://gitlab.freedesktop.org/vir
 git -C virglrenderer apply "$REPO/tools/venus/virglrenderer-android.patch"
 git -C virglrenderer apply "$REPO/tools/venus/virglrenderer-destroy-unknown-pipeline.patch"
 git -C virglrenderer apply "$REPO/tools/venus/virglrenderer-destroy-mutex-after-objects.patch"
+git -C virglrenderer apply "$REPO/tools/venus/virglrenderer-log-refused-pipeline.patch"
 cat > compat/log/log.h <<'EOC'
 #pragma once
 #include <android/log.h>

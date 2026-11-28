@@ -199,6 +199,10 @@ App (Kotlin/C):
 - `vn_queue_submission_init_syncs` submits only the sync slots it filled.
 - Timeline semaphores free all `queue_count + 1` renderer syncs. Upstream freed one too few and leaked a vtest sync each.
 - `vn_queue_submit` runs under a per-queue `submit_mutex`. The async present thread raced the app's submits; see Status.
+- Pipelines are created synchronously under vtest, on the thread that created the device too.
+  - Upstream sends that thread's creates without waiting and assumes they succeed. A phone's Mali driver can refuse one, and the render server then has no object for the id.
+  - The next command that names it, such as `vkCmdBindPipeline`, is fatal to the whole context. A Mali-G52 MC2 lost Steam's web helper this way two seconds after Big Picture appeared.
+  - Waiting returns the driver's error to the application, and Venus frees the failed handles.
 - WSI's CPU readback buffer goes to Mali's hidden cached memory type; see Performance.
   - `vn_physical_device`: keeps the renderer's real memory flags, and picks the hidden type under vtest.
   - `vn_renderer_vtest.c`: flush and invalidate of incoherent memory are `DMA_BUF_IOCTL_SYNC` on the bo's dma-buf.
@@ -219,6 +223,8 @@ App (Kotlin/C):
 - Image and buffer queries report "importable dma-buf" as exportable too. gamescope keeps only exportable modifiers.
 - Exports of any memory type go through that allocator.
 - Logs what the driver reports, and failed allocations.
+
+`tools/venus/virglrenderer-log-refused-pipeline.patch`: when the driver refuses a graphics or compute pipeline, the render server logs the `VkResult` and the number of pipelines.
 
 `tools/gamescope/patches/0927-shm-buffers-upload-every-commit.patch`:
 - Xwayland has no glamor here, so it reuses about three wl_shm buffers with new pixels.
