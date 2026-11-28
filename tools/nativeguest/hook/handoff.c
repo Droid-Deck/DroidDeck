@@ -37,7 +37,7 @@ struct ddh_entry {
     int32_t app[2] __attribute__((aligned(8)));
     int64_t child_start;  // the forked child's start time: tells it from a later process given its pid
     int32_t guessed;      // the status is the timeout's guess: set only while the entry is held (TAKEN)
-    int32_t pad2;
+    int32_t thread;       // the parent's thread that forked the child (__WNOTHREAD), 0 when unknown
     // When its worker was first seen gone, with the child that was for: child << 32 | seconds. Set by
     // compare-and-swap only, so a waiter that looked before the slot changed hands cannot overwrite it.
     uint64_t gone;
@@ -104,7 +104,13 @@ static int g_ddh_preparing;
 // In a forked child: the thread making the table did not come along, so the child may make its own.
 static void ddh_forked(void) { __atomic_store_n(&g_ddh_preparing, 0, __ATOMIC_RELAXED); }
 
+// The thread about to fork, as its child inherits it: the entry the child claims names it.
+static __thread pid_t t_ddh_forker;
+// Set by waitid() with __WNOTHREAD: only children this thread forked are selected.
+static __thread pid_t t_ddh_only_thread;
+
 static void ddh_prepare(void) {
+    t_ddh_forker = (pid_t)syscall(SYS_gettid);
     if (__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || !getenv("DD_SPAWN")) return;
     if (__atomic_exchange_n(&g_ddh_preparing, 1, __ATOMIC_ACQ_REL)) return;
     if (g_ddh) {
@@ -857,7 +863,7 @@ static int ddh_waiter(pid_t pid) {
 static int ddh_pressure_keeps(const char *filename, char *const argv[]) {
     static const char *const kept[] = {"steam", "steam.sh", "steamwebhelper", "droiddeck-steam-x64", "reaper",
                                        "steam-launch-wrapper", "pw-audio-namespace", "gamescope", "gamescopereaper"};
-    for (int i = -1; i < 32 && (i < 0 || (argv && argv[i])); i++) {
+    for (int i = -1; i < 0 || (argv && argv[i]); i++) {
         const char *s = i < 0 ? filename : argv[i];
         if (!s) continue;
         if (strstr(s, "/Steam/") || strstr(s, "/.steam/")) return 1;
@@ -982,6 +988,7 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     e->status = DDH_NO_STATUS;
     __atomic_store_n((uint64_t *)e->app, 0, __ATOMIC_RELAXED);
     e->child_start = ddh_start_time(me);
+    e->thread = t_ddh_forker;
     char cwd[PATH_MAX];
     // The guest's name for it, else the kernel's (the worker's cd takes either). A directory with no
     // name (removed) cannot be sent: the exec stays here, in it.
@@ -1192,6 +1199,7 @@ static void ddh_untake(struct ddh_entry *e) { __atomic_store_n(&e->state, DDH_EX
 
 // Whether a wait for pid (-1: any child, 0: one in our group, -G: one in group G) takes e's child.
 static int ddh_selects(const struct ddh_entry *e, pid_t pid) {
+    if (t_ddh_only_thread && e->thread && e->thread != t_ddh_only_thread) return 0;
     if (pid > 0) return e->child == pid;
     if (pid == -1) return 1;
     return e->pad[1] == (pid == 0 ? getpgrp() : -pid);
@@ -1321,6 +1329,7 @@ static void ddh_release(struct ddh_entry *e, int *status) {
     e->pad[0] = 0;
     e->pad[1] = 0;
     e->guessed = 0;
+    e->thread = 0;
     __atomic_store_n(&e->gone, 0, __ATOMIC_RELAXED);
     __atomic_store_n((uint64_t *)e->app, 0, __ATOMIC_RELAXED);
     __atomic_store_n(&e->state, DDH_FREE, __ATOMIC_RELEASE);
@@ -1339,7 +1348,7 @@ static ddh_wait4_f ddh_real_wait4(void) {
 // The forked child of an entry whose program has exited: 1 once reaped (or already gone), 0 when it is
 // still exiting and WNOHANG was asked for, or the wait was interrupted.
 static int ddh_reap_shim(ddh_wait4_f real, pid_t child, int options) {
-    pid_t r = real(child, NULL, options & WNOHANG, NULL);
+    pid_t r = real(child, NULL, options & (WNOHANG | __WALL | __WNOTHREAD), NULL);
     return r == child || (r < 0 && errno == ECHILD);
 }
 
@@ -1347,13 +1356,13 @@ static int ddh_reap_shim(ddh_wait4_f real, pid_t child, int options) {
 // left for the next wait when keep), or 0 when none is ready. Every exited entry, not just the first:
 // one whose forked child is still exiting is skipped (the caller's real wait reaps that exit, or a
 // later pass does) and the next one may be ready.
-static pid_t ddh_reap_exited(ddh_wait4_f real, pid_t pid, int *status, int keep) {
+static pid_t ddh_reap_exited(ddh_wait4_f real, pid_t pid, int *status, int keep, int flags) {
     struct ddh_table *t = __atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE);
     for (int i = 0; t && i < DDH_SLOTS; i++) {
         struct ddh_entry *e = &t->e[i];
         if (__atomic_load_n(&e->state, __ATOMIC_ACQUIRE) != DDH_EXITED || !ddh_take_for(e, pid)) continue;
         pid_t child = e->child;
-        if (!e->reaped && !ddh_reap_shim(real, child, WNOHANG)) {
+        if (!e->reaped && !ddh_reap_shim(real, child, WNOHANG | flags)) {
             ddh_untake(e);
             continue;
         }
@@ -1424,7 +1433,7 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
             interrupted = ddh_nap() != 0;
             continue;
         }
-        pid_t done = pid <= 0 ? ddh_reap_exited(real, pid, status, 0) : 0;
+        pid_t done = pid <= 0 ? ddh_reap_exited(real, pid, status, 0, 0) : 0;
         if (done > 0) {
             if (ru) memset(ru, 0, sizeof(*ru));
             return done;
@@ -1454,12 +1463,21 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
     }
 }
 
-pid_t wait4(pid_t pid, int *status, int options, struct rusage *ru) { return ddh_wait(pid, status, options, ru); }
-pid_t waitpid(pid_t pid, int *status, int options) { return ddh_wait(pid, status, options, NULL); }
+static pid_t ddh_wait_as_thread(pid_t pid, int *status, int options, struct rusage *ru) {
+    t_ddh_only_thread = (options & __WNOTHREAD) ? (pid_t)syscall(SYS_gettid) : 0;
+    pid_t r = ddh_wait(pid, status, options, ru);
+    int saved = errno;
+    t_ddh_only_thread = 0;
+    errno = saved;
+    return r;
+}
+
+pid_t wait4(pid_t pid, int *status, int options, struct rusage *ru) { return ddh_wait_as_thread(pid, status, options, ru); }
+pid_t waitpid(pid_t pid, int *status, int options) { return ddh_wait_as_thread(pid, status, options, NULL); }
 pid_t wait(int *status) { return ddh_wait(-1, status, 0, NULL); }
 pid_t wait3(int *status, int options, struct rusage *ru) { return ddh_wait(-1, status, options, ru); }
 
-int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
+static int ddh_waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
     typedef int (*f_t)(idtype_t, id_t, siginfo_t *, int);
     static f_t real;
     if (!real) real = (f_t)dlsym(RTLD_NEXT, "waitid");
@@ -1491,7 +1509,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
     for (;;) {
         ddh_check_gone();
         int status = 0;
-        pid_t r = ddh_reap_exited(w4, which, &status, options & WNOWAIT);
+        pid_t r = ddh_reap_exited(w4, which, &status, options & WNOWAIT, carried);
         if (r > 0) {
             if (info) {
                 memset(info, 0, sizeof(*info));
@@ -1553,6 +1571,15 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
         }
         interrupted = ddh_nap() != 0;
     }
+}
+
+int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
+    t_ddh_only_thread = (options & __WNOTHREAD) ? (pid_t)syscall(SYS_gettid) : 0;
+    int r = ddh_waitid(idtype, id, info, options);
+    int saved = errno;
+    t_ddh_only_thread = 0;
+    errno = saved;
+    return r;
 }
 
 // Whether pgid is zygote's process group, which every process of the app is in until it starts a

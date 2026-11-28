@@ -42,6 +42,7 @@ PARENT = r"""
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <signal.h>
 #include <spawn.h>
 #include <stdio.h>
@@ -59,8 +60,55 @@ static void open_gate(int sig) {
   if (write(gate[1], "1", 1) != 1) _exit(125);
 }
 
+// nothread: a second thread forks the child; __WNOTHREAD waits see only their own thread's children
+static char *nothread_arg;
+static pthread_mutex_t nothread_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t nothread_cond = PTHREAD_COND_INITIALIZER;
+static int nothread_step;
+
+static void nothread_await(int step) {
+  pthread_mutex_lock(&nothread_lock);
+  while (nothread_step < step) pthread_cond_wait(&nothread_cond, &nothread_lock);
+  pthread_mutex_unlock(&nothread_lock);
+}
+
+static void nothread_go(int step) {
+  pthread_mutex_lock(&nothread_lock);
+  nothread_step = step;
+  pthread_cond_broadcast(&nothread_cond);
+  pthread_mutex_unlock(&nothread_lock);
+}
+
+static void *nothread_forker(void *unused) {
+  (void)unused;
+  pid_t pid = fork();
+  if (pid == 0) {
+    execl("/bin/target", "target", nothread_arg, (char *)NULL);
+    _exit(127);
+  }
+  usleep(1500000);  // the program has exited by now
+  nothread_go(1);
+  nothread_await(2);
+  int status = 0;
+  pid_t r = waitpid(pid, &status, __WNOTHREAD);
+  printf("own\t%d\n", r == pid);
+  if (WIFEXITED(status)) printf("exit\t%d\n", WEXITSTATUS(status));
+  return NULL;
+}
+
 int main(int argc, char **argv) {
   pid_t pid;
+  if (strcmp(argv[1], "nothread") == 0) {
+    nothread_arg = argv[2];
+    pthread_t forker;
+    pthread_create(&forker, NULL, nothread_forker, NULL);
+    nothread_await(1);
+    int status = 0;
+    printf("other\t%d\n", (int)waitpid(-1, &status, WNOHANG | __WNOTHREAD));
+    nothread_go(2);
+    pthread_join(forker, NULL);
+    return 0;
+  }
   // waitidpid: the child holds before its exec until the parent's wait has begun
   if (strcmp(argv[1], "waitidpid") == 0 && pipe(gate) != 0) return 1;
   if (strcmp(argv[1], "spawn") == 0) {
@@ -260,7 +308,7 @@ class NativeHookHandoffTest(unittest.TestCase):
         subprocess.run(["bash", str(HOOK_BUILD), str(cls.hook), cls.cc], check=True, capture_output=True)
         (tmp / "parent.c").write_text(PARENT)
         cls.parent = tmp / "parent"
-        subprocess.run([cls.cc, "-O1", "-o", str(cls.parent), str(tmp / "parent.c")], check=True)
+        subprocess.run([cls.cc, "-O1", "-pthread", "-o", str(cls.parent), str(tmp / "parent.c")], check=True)
         cls.root = tmp / "root"
         (cls.root / "bin").mkdir(parents=True)
         (tmp / "target.c").write_text(TARGET)
@@ -462,6 +510,19 @@ class NativeHookHandoffTest(unittest.TestCase):
         result, requests, out = self.run_parent("wait", "3", "/bin/steam", handoff="other", pressure=0, as_shell=True)
         self.assertEqual([], requests)
         self.assertEqual(self.child_status, result.get("exit"), out.stdout)
+
+    def test_near_the_limit_a_launch_naming_steam_in_any_argument_is_not(self):
+        # as "env ... /path/Steam/steamrtarm64/steam", with the path late among the arguments
+        result, requests, out = self.run_parent("wait", "/root/.local/share/Steam/steamrtarm64/steam", handoff="other",
+                                                pressure=0, as_shell=True)
+        self.assertEqual([], requests)
+
+    def test_a_wait_of_another_thread_with_wnothread_does_not_take_the_program(self):
+        result, requests, out = self.run_parent("nothread", "7")
+        self.assertEqual(1, len(requests), out.stderr)
+        self.assertEqual("-1", result.get("other"), out.stdout)
+        self.assertEqual("1", result.get("own"), out.stdout)
+        self.assertEqual("7", result.get("exit"), out.stdout)
 
     def test_waitid_for_a_pid_begun_before_its_claim_reports_the_program(self):
         result, requests, out = self.run_parent("waitidpid", "7")
