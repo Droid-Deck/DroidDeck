@@ -1312,11 +1312,13 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
         errno = ENOSYS;
         return -1;
     }
-    // An ordinary child asked for by pid: the real call, with all its options (stops, WNOWAIT).
+    // Exits only (and WNOHANG) go through ddh_wait whenever this process hands children off: a child
+    // may not have claimed its entry yet when the wait starts, and only ddh_wait takes its forked
+    // child's exit for the handoff it is. Stops, continues and WNOWAIT: the real call, all options.
     // As a waitpid() selector: a pid, -1 for any child, 0 for our group, -G for group G
     pid_t which = idtype == P_PID ? (pid_t)id : idtype == P_PGID ? (id == 0 ? 0 : -(pid_t)id) : -1;
-    if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || !(options & WEXITED) || (idtype != P_PID && idtype != P_ALL && idtype != P_PGID) ||
-        (idtype == P_PID ? !ddh_find(which) && !ddh_claiming(which) : !ddh_any_live(which)))
+    if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || !(options & WEXITED) || (options & ~(WEXITED | WNOHANG)) ||
+        (idtype != P_PID && idtype != P_ALL && idtype != P_PGID))
         return real(idtype, id, info, options);
     // Only exits are asked for here: answer through ddh_wait and describe the result as waitid does.
     int status = 0;
