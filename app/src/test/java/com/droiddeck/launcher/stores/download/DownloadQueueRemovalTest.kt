@@ -188,6 +188,34 @@ class DownloadQueueRemovalTest {
         assertFalse(folder.exists())
     }
 
+    @Test fun uninstallStopsARunningDownloadThenRemovesTheGame() {
+        val running = CountDownLatch(1)
+        val cancels = AtomicInteger()
+        val entry = DownloadEntry(Store.GOG, "uninstall-while-running", "Running")
+        DownloadQueue.enqueue(app, entry) {
+            object : DownloadQueue.DownloadJob {
+                override fun run(handle: DownloadQueue.JobHandle): String? {
+                    running.countDown()
+                    val until = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+                    while (!handle.isCancelled && System.nanoTime() < until) Thread.sleep(10)
+                    return null
+                }
+                override fun cancel(deleteFiles: Boolean) { cancels.incrementAndGet() }
+            }
+        }
+        assertTrue(running.await(5, TimeUnit.SECONDS))
+        val folder = File(app.filesDir, "uninstall-while-running").apply { mkdirs() }
+        File(folder, "game.bin").writeText("x")
+        val game = InstalledStoreGame(StoreGameSidecar(Store.GOG, "uninstall-while-running", "Running", exe = "game.bin"), folder)
+        assertEquals(entry.key, game.key)
+        val done = CountDownLatch(1)
+        StoresState.uninstall(app, game) { done.countDown() }
+        assertTrue(idleUntil { done.count == 0L })
+        assertEquals(1, cancels.get())
+        assertTrue(DownloadQueue.entry(entry.key)?.state.let { it == null || it == DownloadState.CANCELLED })
+        assertFalse(folder.exists())
+    }
+
     private fun blockDiscards(): CountDownLatch {
         val release = CountDownLatch(1)
         StoreInstalls.beforeDiscard = { release.await(5, TimeUnit.SECONDS) }

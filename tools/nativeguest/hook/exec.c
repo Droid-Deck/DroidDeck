@@ -1161,6 +1161,7 @@ int system(const char *command) {
 
     int status = -1;
     pid_t pid = start_shell(command, -1, -1, &old, &intr, &quit, 0);
+    if (pid < 0) status = 127 << 8;  // as glibc's system() when the shell could not be started
     if (pid > 0) {
         while (waitpid(pid, &status, 0) < 0) {
             if (errno != EINTR) {
@@ -1192,28 +1193,52 @@ static pthread_mutex_t g_popen_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static pid_t start_shell(const char *command, int child_fd, int target_fd, const sigset_t *mask,
                          const struct sigaction *intr, const struct sigaction *quit, int close_popen_streams) {
-    pid_t pid = fork();
-    if (pid != 0) return pid;
-    if (intr) sigaction(SIGINT, intr, NULL);
-    if (quit) sigaction(SIGQUIT, quit, NULL);
-    if (mask) sigprocmask(SIG_SETMASK, mask, NULL);
+    // Through posix_spawn(), as glibc does: its child only makes system calls. A forked child running
+    // the exec code here would take locks that another thread of a multithreaded caller may have held
+    // at fork(), and wait for them forever (Steam's popen()s did, and its main loop stalled).
+    posix_spawn_file_actions_t actions;
+    posix_spawnattr_t attr;
+    if (posix_spawn_file_actions_init(&actions) != 0) return -1;
+    if (posix_spawnattr_init(&attr) != 0) {
+        posix_spawn_file_actions_destroy(&actions);
+        return -1;
+    }
+    int err = 0;
     if (child_fd >= 0) {
-        if (child_fd == target_fd) {
-            fcntl(target_fd, F_SETFD, 0);
-        } else if (dup2(child_fd, target_fd) < 0) {
-            _exit(127);
-        }
+        // dup2 onto itself clears FD_CLOEXEC in the child (glibc 2.29 and later)
+        err = posix_spawn_file_actions_adddup2(&actions, child_fd, target_fd);
     }
     // POSIX: the streams of earlier popen() calls are not open in the new shell
-    if (close_popen_streams) {
-        for (struct ddnatv_popen *p = g_popen_streams; p; p = p->next) {
-            int fd = fileno(p->fp);
-            if (fd >= 0 && fd != target_fd) close(fd);
-        }
+    for (struct ddnatv_popen *p = g_popen_streams; !err && close_popen_streams && p; p = p->next) {
+        int fd = fileno(p->fp);
+        if (fd >= 0 && fd != target_fd) err = posix_spawn_file_actions_addclose(&actions, fd);
     }
+    short flags = 0;
+    if (!err && mask) {
+        posix_spawnattr_setsigmask(&attr, mask);
+        flags |= POSIX_SPAWN_SETSIGMASK;
+    }
+    // SIGINT and SIGQUIT as they were before system() ignored them: an exec keeps an ignored signal
+    // ignored and puts a handled one back to the default
+    sigset_t defaults;
+    sigemptyset(&defaults);
+    if (intr && intr->sa_handler != SIG_IGN) sigaddset(&defaults, SIGINT);
+    if (quit && quit->sa_handler != SIG_IGN) sigaddset(&defaults, SIGQUIT);
+    if (!err && (intr || quit)) {
+        posix_spawnattr_setsigdefault(&attr, &defaults);
+        flags |= POSIX_SPAWN_SETSIGDEF;
+    }
+    if (!err) err = posix_spawnattr_setflags(&attr, flags);
+    pid_t pid = -1;
     char *const argv[] = { (char *)"sh", (char *)"-c", (char *)command, NULL };
-    ddnatv_execve("/bin/sh", argv, environ, 0);
-    _exit(127);
+    if (!err) err = posix_spawn(&pid, "/bin/sh", &actions, &attr, argv, environ);
+    posix_spawn_file_actions_destroy(&actions);
+    posix_spawnattr_destroy(&attr);
+    if (err) {
+        errno = err;
+        return -1;
+    }
+    return pid;
 }
 
 FILE *popen(const char *command, const char *type) {

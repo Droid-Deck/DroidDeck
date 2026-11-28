@@ -96,8 +96,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onPlaced
 import com.droiddeck.launcher.core.PhantomProcessLimit
 
-
-internal val AttentionAmber = Color(0xFFFFB547)
+internal val AttentionAmber: Color @Composable get() = LocalPalette.current.warning
 
 @Composable
 internal fun BottomBar(
@@ -308,7 +307,7 @@ private fun RailItem(
         }
         if (badge) Box(
             modifier = Modifier.align(Alignment.TopEnd).padding(top = if (iconOnly) 7.dp else 8.dp, end = if (iconOnly) 9.dp else 18.dp)
-                .size(8.dp).clip(CircleShape).background(AttentionAmber),
+                .size(8.dp).clip(CircleShape).background(pal.warning),
         )
         if (count > 0) Text(
             if (count > 9) "9+" else count.toString(),

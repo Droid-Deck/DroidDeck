@@ -1,6 +1,8 @@
 package com.droiddeck.launcher.session
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -87,6 +89,20 @@ class SteamGameProcessTest {
         assertFalse(SteamGameProcess.running("351710", proc))
         process("301", "reaper", "SteamLaunch", "AppId=351710", "--", "proton", "waitforexitandrun", "game.exe")
         assertTrue(SteamGameProcess.running("351710", proc))
+    }
+
+    @Test fun aKnownGameProcessIsCheckedBeforeEveryOtherProcess() {
+        val proc = tmp.newFolder("proc")
+        fun process(pid: String, vararg args: String) = File(proc, pid).apply { mkdirs() }.resolve("cmdline").writeBytes(cmdline(*args))
+        process("100", "reaper", "SteamLaunch", "AppId=1")
+        process("200", "reaper", "SteamLaunch", "AppId=1")
+        assertEquals("200", SteamGameProcess.runningPid("1", "200", proc))
+        File(proc, "200/cmdline").writeBytes(cmdline("bash"))
+        assertEquals("100", SteamGameProcess.runningPid("1", "200", proc))
+        assertEquals("100", SteamGameProcess.runningPid("1", "999", proc))
+        File(proc, "100").deleteRecursively()
+        assertNull(SteamGameProcess.runningPid("1", "100", proc))
+        assertNull(SteamGameProcess.runningPid("2", null, proc))
     }
 
     @Test fun onlyTheRunningCurrentGameCountsAsAlreadyRunning() {

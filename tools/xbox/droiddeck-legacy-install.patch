@@ -912,10 +912,10 @@ index 5ea43da..e236002 100644
  }
 diff --git a/crates/xodus-cli/src/commands/legacy_install.rs b/crates/xodus-cli/src/commands/legacy_install.rs
 new file mode 100755
-index 0000000..143dafa
+index 0000000..a98d0fd
 --- /dev/null
 +++ b/crates/xodus-cli/src/commands/legacy_install.rs
-@@ -0,0 +1,1482 @@
+@@ -0,0 +1,1603 @@
 +//! Installs a legacy Store title: resolve, license, download, extract.
 +//!
 +//! `streaming` only understands MSIXVC, where the container *is* the game and
@@ -1622,15 +1622,24 @@ index 0000000..143dafa
 +    let Ok(text) = std::fs::read_to_string(manifest) else {
 +        return Vec::new();
 +    };
++    use quick_xml::events::Event;
++    let mut reader = quick_xml::Reader::from_str(&text);
 +    let mut names: Vec<String> = Vec::new();
-+    for chunk in text.split("<PackageDependency").skip(1) {
-+        let Some(tag) = chunk.split('>').next() else { continue };
-+        let Some(start) = tag.find("Name=\"") else { continue };
-+        let rest = &tag[start + "Name=\"".len()..];
-+        let Some(end) = rest.find('"') else { continue };
-+        let name = rest[..end].trim();
-+        if !name.is_empty() && !names.iter().any(|seen| seen == name) {
-+            names.push(name.to_string());
++    loop {
++        match reader.read_event() {
++            Ok(Event::Start(tag)) | Ok(Event::Empty(tag)) if tag.local_name().as_ref() == "PackageDependency" => {
++                for attribute in tag.attributes().flatten() {
++                    if attribute.key.local_name().as_ref() != "Name" { continue; }
++                    let Ok(name) = attribute.unescape_value() else { continue };
++                    let name = name.trim();
++                    if !name.is_empty() && !names.iter().any(|seen| seen == name) {
++                        names.push(name.to_string());
++                    }
++                }
++            }
++            Ok(Event::Eof) => break,
++            Ok(_) => {}
++            Err(_) => return Vec::new(),
 +        }
 +    }
 +    names
@@ -1803,8 +1812,8 @@ index 0000000..143dafa
 +        for folder in level {
 +            let manifest = folder.join(LEGACY_MANIFEST);
 +            if manifest.is_file() {
-+                let text = std::fs::read_to_string(&manifest).unwrap_or_default().to_ascii_lowercase();
-+                if text.contains("processorarchitecture=\"x64\"") {
++                let text = std::fs::read_to_string(&manifest).unwrap_or_default();
++                if identity_is_x64(&text) {
 +                    return Some(folder);
 +                }
 +            }
@@ -1818,6 +1827,24 @@ index 0000000..143dafa
 +        level = next;
 +    }
 +    None
++}
++
++/// Reads ProcessorArchitecture only from an Identity element, ignoring comments and text.
++fn identity_is_x64(text: &str) -> bool {
++    use quick_xml::events::Event;
++    let mut reader = quick_xml::Reader::from_str(text);
++    loop {
++        match reader.read_event() {
++            Ok(Event::Start(tag)) | Ok(Event::Empty(tag)) if tag.local_name().as_ref() == "Identity" => {
++                return tag.attributes().flatten().any(|attribute| {
++                    attribute.key.local_name().as_ref() == "ProcessorArchitecture"
++                        && attribute.unescape_value().is_ok_and(|value| value.eq_ignore_ascii_case("x64"))
++                });
++            }
++            Ok(Event::Eof) | Err(_) => return false,
++            Ok(_) => {}
++        }
++    }
 +}
 +
 +/// The Windows Update category of the framework's x64 package, or of whichever
@@ -1866,8 +1893,18 @@ index 0000000..143dafa
 +/// and records what it copied so a later attempt can take exactly that back.
 +fn copy_libraries(from: &Path, to: &Path) -> Result<(), String> {
 +    let mut copied: Vec<String> = Vec::new();
-+    copy_libraries_into(from, to, &mut copied)?;
-+    std::fs::write(from.join(COPIED), copied.join("\n")).map_err(|error| format!("framework copy list failed: {error}"))?;
++    if let Err(error) = copy_libraries_into(from, to, &mut copied) {
++        for name in &copied {
++            let _ = std::fs::remove_file(to.join(name));
++        }
++        return Err(error);
++    }
++    if let Err(error) = std::fs::write(from.join(COPIED), copied.join("\n")) {
++        for name in &copied {
++            let _ = std::fs::remove_file(to.join(name));
++        }
++        return Err(format!("framework copy list failed: {error}"));
++    }
 +    Ok(())
 +}
 +
@@ -1888,7 +1925,16 @@ index 0000000..143dafa
 +        if target.exists() {
 +            continue;
 +        }
-+        std::fs::copy(&path, &target).map_err(|error| format!("framework copy failed: {error}"))?;
++        let temporary = to.join(format!(".{}.copying-{}", file_name.to_string_lossy(), std::process::id()));
++        let _ = std::fs::remove_file(&temporary);
++        if let Err(error) = std::fs::copy(&path, &temporary) {
++            let _ = std::fs::remove_file(&temporary);
++            return Err(format!("framework copy failed: {error}"));
++        }
++        if let Err(error) = std::fs::rename(&temporary, &target) {
++            let _ = std::fs::remove_file(&temporary);
++            return Err(format!("framework publish failed: {error}"));
++        }
 +        copied.push(file_name.to_string_lossy().into_owned());
 +    }
 +    Ok(())
@@ -1928,10 +1974,19 @@ index 0000000..143dafa
 +        ));
 +    }
 +    let inner = candidates.remove(0);
-+    for entry in std::fs::read_dir(&inner)
++    let entries: Vec<_> = std::fs::read_dir(&inner)
 +        .map_err(|error| format!("Could not list the package folder: {error}"))?
 +        .filter_map(Result::ok)
-+    {
++        .collect();
++    if !updating {
++        for entry in &entries {
++            let name = entry.file_name();
++            if !is_package_metadata(&name) && destination.join(&name).exists() {
++                return Err(format!("Extraction would overwrite {}", destination.join(name).display()));
++            }
++        }
++    }
++    for entry in entries {
 +        let name = entry.file_name();
 +        let target = destination.join(&name);
 +        let metadata = is_package_metadata(&name);
@@ -1951,16 +2006,41 @@ index 0000000..143dafa
 +        if !existing.is_empty() && !updating && !metadata {
 +            return Err(format!("Extraction would overwrite {}", target.display()));
 +        }
-+        for old in existing {
-+            let replaced = if old.is_dir() {
-+                std::fs::remove_dir_all(&old)
-+            } else {
-+                std::fs::remove_file(&old)
-+            };
-+            replaced.map_err(|error| format!("Could not replace an installed file: {error}"))?;
++        let mut backups: Vec<(PathBuf, PathBuf)> = Vec::new();
++        for (index, old) in existing.iter().enumerate() {
++            let backup = destination.join(format!(".droiddeck-replace-backup-{}-{}", std::process::id(), index));
++            if let Err(error) = std::fs::rename(old, &backup) {
++                let mut restore_error = None;
++                for (original, saved) in backups.iter().rev() {
++                    if let Err(error) = std::fs::rename(saved, original) {
++                        restore_error = Some(error);
++                        break;
++                    }
++                }
++                if let Some(restore_error) = restore_error {
++                    return Err(format!("Could not preserve the installed entry ({error}); restoring a backup also failed ({restore_error})"));
++                }
++                return Err(format!("Could not preserve the installed entry: {error}"));
++            }
++            backups.push((old.clone(), backup));
 +        }
-+        std::fs::rename(entry.path(), &target)
-+            .map_err(|error| format!("Could not move an extracted file: {error}"))?;
++        if let Err(error) = std::fs::rename(entry.path(), &target) {
++            let mut restore_error = None;
++            for (original, saved) in backups.iter().rev() {
++                if let Err(error) = std::fs::rename(saved, original) {
++                    restore_error = Some(error);
++                    break;
++                }
++            }
++            if let Some(restore_error) = restore_error {
++                return Err(format!("Could not move extracted file ({error}); restoring a backup also failed ({restore_error})"));
++            }
++            return Err(format!("Could not move an extracted file: {error}"));
++        }
++        for (_, backup) in backups {
++            let removed = if backup.is_dir() { std::fs::remove_dir_all(&backup) } else { std::fs::remove_file(&backup) };
++            removed.map_err(|error| format!("Could not remove replaced backup: {error}"))?;
++        }
 +    }
 +    std::fs::remove_dir(&inner).map_err(|error| format!("Could not remove the package folder: {error}"))?;
 +    Ok(())
@@ -1974,7 +2054,9 @@ index 0000000..143dafa
 +    if applications.len() > 1 {
 +        let x64: Vec<PathBuf> = applications
 +            .iter()
-+            .filter(|folder| manifest_text(folder).contains("processorarchitecture=\"x64\""))
++            .filter(|folder| {
++                identity_is_x64(&manifest_text_original(folder))
++            })
 +            .cloned()
 +            .collect();
 +        if x64.len() == 1 {
@@ -1985,22 +2067,41 @@ index 0000000..143dafa
 +}
 +
 +fn manifest_text(folder: &Path) -> String {
++    manifest_text_original(folder).to_ascii_lowercase()
++}
++
++fn manifest_text_original(folder: &Path) -> String {
 +    [LEGACY_MANIFEST, MANIFEST]
 +        .iter()
 +        .filter_map(|name| std::fs::read_to_string(folder.join(name)).ok())
 +        .collect::<Vec<_>>()
-+        .join("
-+")
-+        .to_ascii_lowercase()
++        .join("\n")
 +}
 +
 +fn declares_application(folder: &Path) -> bool {
-+    let text = manifest_text(folder);
-+    opens_element(&text, "<application") || opens_element(&text, "<executable")
++    use quick_xml::events::Event;
++    for (name, expected) in [
++        (LEGACY_MANIFEST, "Application"),
++        (MANIFEST, "Application"),
++        ("MicrosoftGame.config", "Executable"),
++    ] {
++        let Ok(text) = std::fs::read_to_string(folder.join(name)) else { continue };
++        let mut reader = quick_xml::Reader::from_str(&text);
++        loop {
++            match reader.read_event() {
++                Ok(Event::Start(tag)) | Ok(Event::Empty(tag))
++                    if tag.local_name().as_ref() == expected => return true,
++                Ok(Event::Eof) | Err(_) => break,
++                Ok(_) => {}
++            }
++        }
++    }
++    false
 +}
 +
 +/// Whether [text] opens [tag] as its own element, so `<Application Id=` and an attribute on the next
-+/// line count and `<Applications>` does not.
++/// line count and `<Applications>` does not. Used by the focused parser test only.
++#[cfg(test)]
 +fn opens_element(text: &str, tag: &str) -> bool {
 +    text.match_indices(tag).any(|(at, _)| {
 +        text[at + tag.len()..].chars().next().is_some_and(|next| next.is_whitespace() || next == '>' || next == '/')
@@ -2278,6 +2379,23 @@ index 0000000..143dafa
 +    }
 +
 +    #[test]
++    fn x64_identity_ignores_architecture_text_in_comments_and_other_elements() {
++        assert!(!identity_is_x64(r#"<Package><!-- ProcessorArchitecture = "x64" --><Identity ProcessorArchitecture="x86"/></Package>"#));
++        assert!(!identity_is_x64(r#"<Package><Other ProcessorArchitecture="x64"/><Identity ProcessorArchitecture="x86"/></Package>"#));
++        assert!(identity_is_x64(r#"<Package><Identity ProcessorArchitecture = 'x64'/></Package>"#));
++    }
++
++    #[test]
++    fn application_scan_ignores_application_elements_inside_comments() {
++        let root = scratch("commented-app");
++        std::fs::write(root.join(LEGACY_MANIFEST), r#"<Package><!-- <Application Id="fake"/> --><Applications/></Package>"#).unwrap();
++        assert!(!declares_application(&root));
++        std::fs::write(root.join("MicrosoftGame.config"), r#"<Game><!-- <Executable Name="fake.exe"/> --></Game>"#).unwrap();
++        assert!(!declares_application(&root));
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    #[test]
 +    fn hoist_still_refuses_when_several_packages_declare_an_application() {
 +        let root = scratch("ambiguous-applications");
 +        for name in ["One", "Two"] {
@@ -2302,6 +2420,9 @@ index 0000000..143dafa
 +
 +        assert!(hoist(&root).unwrap_err().contains("would overwrite"));
 +        assert_eq!(std::fs::read(root.join("Game.exe")).unwrap(), b"other");
++        assert!(hoist(&root).unwrap_err().contains("would overwrite"));
++        assert_eq!(std::fs::read(root.join("Game.exe")).unwrap(), b"other");
++        assert!(!root.join(LEGACY_MANIFEST).exists(), "failed hoist must not partially publish the manifest");
 +        std::fs::remove_dir_all(&root).ok();
 +    }
 +

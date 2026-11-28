@@ -383,6 +383,7 @@
     <string name="mode_return_after_game">Return to DroidDeck after a game</string>
     <string name="mode_return_after_game_hint">When a game you started from DroidDeck or another launcher closes, Steam exits cleanly (cloud saves finish first) and you go back there. Off: stay in Steam.</string>
     <string name="mode_shader_precache">Shader pre-caching</string>
+    <string name="mode_valve_proton_on_demand">Valve Proton only when needed</string>
     <string name="mode_shader_precache_hint">Steam downloads shaders prebuilt for your games and processes them in the background, so games stutter less. Off saves data, storage and battery; games build shaders as they play instead. The same setting as Steam’s Downloads > Shader Pre-Caching. Applies next session.</string>
     <string name="mode_steam_repair">Repair Steam client</string>
     <string name="mode_steam_repair_hint">Downloads the Steam client again the next time Steam starts. Use it if Steam stays on its loading screen. Games, sign-in and settings are kept.</string>
@@ -965,7 +966,7 @@
     <string name="diagnostics_share_games">Games and compatibility</string>
     <string name="diagnostics_share_all">All bundles</string>
     <string name="setup_game_debug_logs">Game debug logs</string>
-    <string name="setup_game_debug_logs_hint">Include Proton, Wine and graphics diagnostics on the next game launch. Can reduce performance and use more storage.</string>
+    <string name="setup_game_debug_logs_hint">Include Proton, Wine and graphics diagnostics on the next game launch. Turns itself off when that session ends. Can reduce performance and use more storage.</string>
     <string name="setup_game_debug_logs_restart">Restart this session to save game debug logs</string>
     <string name="setup_logging_update_failed">Couldn\'t update logging. Check the switch and try again.</string>
     <string name="setup_agent_commands">Debugging tools</string>
@@ -1003,6 +1004,7 @@
     <string name="setup_reset_settings_session_running">Stop the session before resetting settings.</string>
     <string name="setup_reset_settings_partial">Settings were reset, but some parts could not be. The logs have the details.</string>
     <string name="setup_offline">Offline mode</string>
+    <string name="setup_offline_auto">Auto offline mode</string>
     <string name="setup_sign_in_first">Sign in to Steam first</string>
     <string name="setup_launcher">Launcher</string>
     <string name="setup_language">Language</string>
@@ -2026,6 +2028,7 @@
     <string name="theme_custom_signal">Highlights</string>
     <string name="theme_custom_good">Success</string>
     <string name="theme_custom_error">Error</string>
+    <string name="theme_custom_warning">Warning</string>
     <string name="pckb_key_esc">Esc</string>
     <string name="pckb_key_ins">Ins</string>
     <string name="pckb_key_del">Del</string>
@@ -2317,6 +2320,14 @@
     <string name="stats_hud_red_mark">The red mark is where the HUD shows the temperature in red.</string>
     <string name="stats_hud_whole_device">whole device</string>
     <string name="stats_hud_battery_temp">battery</string>
+    <string name="bottom_art_title">Game art</string>
+    <string name="bottom_art_playing">Playing</string>
+    <string name="bottom_idle_selected">Selected in Steam</string>
+    <string name="bottom_idle_recent">Last played</string>
+    <string name="bottom_idle_never">Not played yet</string>
+    <string name="bottom_idle_minutes">%1$d min played</string>
+    <string name="bottom_idle_hours">%1$d h played</string>
+    <string name="bottom_idle_details" translatable="false">%1$s · %2$s</string>
     <string name="bottom_telemetry_send_title">Send dashboard data</string>
     <string name="bottom_telemetry_send_auto">Automatic</string>
     <string name="bottom_telemetry_send_auto_hint">Turns it on for every game listed here, including games found later. Games you switch off stay off.</string>
@@ -2339,6 +2350,70 @@
     <string name="bottom_chat_mic_off">Mic off</string>
     <string name="bottom_chat_mic_unavailable">Mic is off for this game. To talk, turn on Microphone in DroidDeck\'s Steam settings (Audio) and start the game again.</string>
     <string name="bottom_chat_volume">Volume %1$d%%</string>
+    <string name="bottom_bar_hide">Hide bar</string>
+    <string name="bottom_bar_show">Show bar</string>
+    <string name="bottom_brightness">Bottom screen brightness</string>
+    <string name="bottom_screen_off">Turn off the bottom screen</string>
+    <string name="bottom_page_guides">Guides</string>
+    <string name="bottom_guides_no_game">Start a game to see its Steam guides here.</string>
+    <string name="bottom_guides_continue">Continue reading</string>
+    <string name="bottom_guides_empty">There are no Steam guides for this game yet.</string>
+    <string name="bottom_guides_failed">Could not load Steam guides. Check back once you are online.</string>
+    <string name="bottom_page_mirror">Mirror</string>
+    <string name="bottom_mirror_pick">Drag over the part of the game to show here, such as the minimap.</string>
+    <string name="bottom_mirror_save">Save region</string>
+    <string name="bottom_mirror_sharp">Sharp</string>
+    <string name="bottom_mirror_smooth">Smooth</string>
+    <string name="bottom_mirror_no_frame">The game picture cannot be copied right now.</string>
+    <string name="bottom_guides_wiki">Wiki &amp; fixes</string>
+    <string name="bottom_guides_maps">Maps</string>
+    <string name="bottom_guides_saved">Saved</string>
+    <string name="bottom_guides_tag_all">All</string>
+    <string name="bottom_guides_tag_walkthroughs">Walkthroughs</string>
+    <string name="bottom_guides_tag_secrets">Secrets</string>
+    <string name="bottom_guides_pinned">Map pinned to this game\'s maps.</string>
+    <string name="bottom_guides_pin_failed">That image could not be saved.</string>
+    <string name="bottom_guides_saved_note">Page saved for offline reading.</string>
+    <string name="bottom_guides_search">Search the web</string>
+    <string name="bottom_guides_markers">Markers: %1$d</string>
+    <string name="bottom_guides_find_maps">Find maps</string>
+    <string name="bottom_guides_saved_hint">Use Save in the reader to keep a page for offline reading.</string>
+    <string name="bottom_guides_pin">Pin as map</string>
+    <string name="bottom_guides_pin_hint">Long-press an image to pin it as a map.</string>
+    <string name="bottom_guides_marker_hint">Pinch to zoom. Long-press to add a marker, tap one to remove it.</string>
+    <string name="bottom_guides_link_wiki">Game wiki</string>
+    <string name="bottom_guides_link_pcgw">PCGamingWiki fixes</string>
+    <string name="bottom_guides_search_youtube">YouTube walkthroughs</string>
+    <string name="bottom_mirror_hide_off">Shown</string>
+    <string name="bottom_mirror_hide_black">Hidden</string>
+    <string name="bottom_mirror_hide_dim">Dimmed</string>
+    <string name="bottom_guides_protondb" translatable="false">ProtonDB</string>
+    <string name="bottom_guides_link_strategywiki" translatable="false">StrategyWiki</string>
+    <string name="bottom_guides_link_gamefaqs" translatable="false">GameFAQs</string>
+    <string name="bottom_guides_link_ign" translatable="false">IGN</string>
+    <string name="bottom_guides_link_hltb" translatable="false">HowLongToBeat</string>
+    <string name="bottom_guides_search_mapgenie" translatable="false">Map Genie</string>
+    <string name="bottom_guides_tier_platinum" translatable="false">Platinum</string>
+    <string name="bottom_guides_tier_gold" translatable="false">Gold</string>
+    <string name="bottom_guides_tier_silver" translatable="false">Silver</string>
+    <string name="bottom_guides_tier_bronze" translatable="false">Bronze</string>
+    <string name="bottom_guides_tier_borked" translatable="false">Borked</string>
+    <string name="bottom_guides_steam">Steam guides</string>
+    <string name="bottom_guides_category">Category</string>
+    <string name="bottom_guides_maps_empty">No pinned maps yet</string>
+    <string name="bottom_guides_map_name">Map %1$d</string>
+    <string name="bottom_guides_saved_empty">No saved pages yet</string>
+    <string name="bottom_mirror_options">Mirror options</string>
+    <string name="bottom_mirror_region">Region</string>
+    <string name="bottom_mirror_top">Top screen</string>
+    <string name="bottom_mirror_scaling">Scaling</string>
+    <string name="bottom_qam_title">Quick Access</string>
+    <string name="bottom_qam_layout">Layout: %1$s</string>
+    <string name="bottom_qam_layout_full">Full width</string>
+    <string name="bottom_qam_layout_left">Left</string>
+    <string name="bottom_qam_layout_center">Center</string>
+    <string name="bottom_qam_layout_right">Right</string>
+    <string name="bottom_qam_unavailable">Steam\'s Quick Access menu is not available yet.</string>
     <string name="bottom_page_telemetry">In-game stats</string>
     <string name="bottom_hud_group">Bottom screen HUD</string>
     <string name="bottom_strip_tabs">Strip on every tab</string>
@@ -4388,4 +4463,7 @@
     <string name="hud_only_during_game_hint">Hide the HUD when no game frames are detected.</string>
     <string name="onboarding_button_getting_ready">Getting ready · %1$d%%</string>
     <string name="onboarding_button_finish">Finish setup · %1$d%%</string>
+    <string name="steam_store_close_steam">Close Steam first</string>
+    <string name="steam_store_session_wait">Pause the Steam download first</string>
+    <string name="steam_store_linux_build">This game installs its Linux build. Install it from Steam.</string>
 </resources>

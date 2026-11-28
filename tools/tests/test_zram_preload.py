@@ -524,6 +524,18 @@ class ZramPreloadTest(unittest.TestCase):
         self.assertEqual([1], self.run_program(self.game)["handler"])
         self.assertEqual(2, len(list(self.dir.glob("ctl.ack.*"))))
 
+    def test_control_files_resolve_under_the_native_guest_root(self):
+        # The native userland hook maps guest paths in libc; the preload's raw calls need the root added.
+        lib = self.dir / "build" / "libddsession-guest.so"
+        if not lib.exists():
+            subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-Wall", "-pthread", "-DZR_CTL=\"/ctl\"",
+                            "-o", str(lib), *map(str, sorted(PRELOAD.glob("*.c"))), "-ldl"], check=True)
+        for root, handler in ((str(self.dir), 1), (str(self.dir) + "/", 1), ("", 0)):
+            environment = dict(os.environ, LD_PRELOAD=str(lib), DDNATV_ROOT=root)
+            result = subprocess.run([str(self.steam), str(self.ctl), "8", "0"], env=environment,
+                                    capture_output=True, text=True, check=True, timeout=120)
+            self.assertIn("handler %d" % handler, result.stdout.splitlines(), root)
+
     def test_nothing_is_installed_without_the_control_file(self):
         self.ctl.unlink()
         try:

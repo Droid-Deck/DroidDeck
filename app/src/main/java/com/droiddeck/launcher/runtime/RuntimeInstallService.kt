@@ -22,7 +22,7 @@ class RuntimeInstallService : Service() {
         if (intent?.action == ACTION_PACKAGE) return holdPackage(startId)
         val removal = intent?.action == ACTION_REMOVE
         val release = intent?.let(::releaseFrom)
-        startForeground(NOTIFICATION_ID, notification(getString(if (LinuxRuntimeInstaller.isMaintaining()) R.string.desktop_removing else if (removal) R.string.rtinst_removing else R.string.user_apps_starting), -1))
+        val foreground = enterForeground(notification(getString(if (LinuxRuntimeInstaller.isMaintaining()) R.string.desktop_removing else if (removal) R.string.rtinst_removing else R.string.user_apps_starting), -1))
         if (release == null && !removal) {
             stopSelf(startId)
             return START_NOT_STICKY
@@ -31,7 +31,7 @@ class RuntimeInstallService : Service() {
             val manager = getSystemService(NotificationManager::class.java)
             var shown = ""
             val progress = LinuxRuntimeInstaller.ProgressListener { stage, percent ->
-                if ("$stage:$percent" != shown) {
+                if (foreground && "$stage:$percent" != shown) {
                     shown = "$stage:$percent"
                     manager?.notify(NOTIFICATION_ID, notification(stage, percent))
                 }
@@ -46,7 +46,10 @@ class RuntimeInstallService : Service() {
     }
 
     private fun holdPackage(startId: Int): Int {
-        startForeground(NOTIFICATION_ID, notification(packageStage, packagePercent, packageTitle))
+        if (!enterForeground(notification(packageStage, packagePercent, packageTitle))) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         Thread({
             val manager = getSystemService(NotificationManager::class.java)
             var shown = ""
@@ -63,6 +66,15 @@ class RuntimeInstallService : Service() {
             stopSelf(startId)
         }, "package-install").start()
         return START_NOT_STICKY
+    }
+
+    /** Android 12+ refuses a foreground start while the app is in the background; the work then goes on without the notification. */
+    private fun enterForeground(notification: Notification): Boolean = try {
+        startForeground(NOTIFICATION_ID, notification)
+        true
+    } catch (e: IllegalStateException) {
+        android.util.Log.w("RuntimeInstallService", "running without a foreground service: $e")
+        false
     }
 
     private fun notification(stage: String, percent: Int, title: String? = null): Notification {

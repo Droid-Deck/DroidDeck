@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include <assert.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,6 +33,7 @@ struct surface {
     struct wl_listener dmabuf_destroy;
     int64_t next_release_ns;
     int releases_pending;
+    int release_pace_open;
     enum surface_role role;
     struct surface *parent;
     int sub_desync;
@@ -50,6 +52,9 @@ static struct dmabuf_buffer g_buf;
 
 static int64_t now_ns(void) { return g_now; }
 static void perf_note_release(int64_t since) { (void)since; }
+static int g_pace_logs;
+static void describe(const struct surface *s, char *out, size_t size) { (void)s; snprintf(out, size, "surface"); }
+static void droiddeck_log(const char *tag, const char *fmt, ...) { (void)tag; (void)fmt; g_pace_logs++; }
 static int buffer_release_blocked(struct wl_resource *b) { (void)b; return 0; }
 static int ahb_swapchain_defer_release(struct dmabuf_buffer *b, struct wl_resource *r, struct surface *s, int paced) {
     (void)b; (void)r; (void)s; (void)paced;
@@ -300,6 +305,72 @@ static void set_desync_frees_held_release(void) {
     check(&d, 0);
 }
 
+static void never_waits_toplevel(void) {
+    struct surface s;
+    enum { FRAMES = 40 };
+    struct wl_resource b[FRAMES];
+    surface_init(&s, ROLE_TOPLEVEL, NULL);
+    g_fps_limit = 60;
+    const int64_t interval = 1000000000LL / 60;
+    for (int i = 0; i < FRAMES; i++) {
+        buffer_init(&b[i]);
+        present(&b[i]);
+        commit(&s, &b[i]);
+        assert(s.releases_pending <= RELEASE_PACE_DEPTH);
+        assert(g_armed <= g_now + (RELEASE_PACE_DEPTH + 1) * interval);
+    }
+    int released = 0;
+    for (int i = 0; i < FRAMES; i++) released += b[i].releases;
+    assert(released == FRAMES - 1 - RELEASE_PACE_DEPTH);
+    assert(g_pace_logs == 1);
+    timer_fires(g_now + 1000000000LL);
+    for (int i = 0; i < FRAMES - 1; i++) check(&b[i], 1);
+    check(&b[FRAMES - 1], 0);
+}
+
+static void never_waits_sync_child(void) {
+    struct surface root, child;
+    enum { FRAMES = 40 };
+    struct wl_resource b[FRAMES];
+    surface_init(&root, ROLE_TOPLEVEL, NULL);
+    surface_init(&child, ROLE_SUBSURFACE, &root);
+    g_fps_limit = 60;
+    for (int i = 0; i < FRAMES; i++) {
+        buffer_init(&b[i]);
+        present(&b[i]);
+        commit(&child, &b[i]);
+        commit(&root, NULL);
+        assert(child.releases_pending <= RELEASE_PACE_DEPTH);
+    }
+    int released = 0;
+    for (int i = 0; i < FRAMES; i++) released += b[i].releases;
+    assert(released == FRAMES - 1 - RELEASE_PACE_DEPTH);
+    present(&b[0]);
+    check(&b[FRAMES - 1], 0);
+}
+
+static void deep_fixed_pool_stays_paced(void) {
+    struct surface s;
+    enum { POOL = RELEASE_PACE_DEPTH, FRAMES = 120 };
+    struct wl_resource b[POOL];
+    int used[POOL] = {0};
+    surface_init(&s, ROLE_TOPLEVEL, NULL);
+    g_fps_limit = 60;
+    const int64_t interval = 1000000000LL / 60;
+    for (int i = 0; i < POOL; i++) buffer_init(&b[i]);
+    const int64_t start = g_now;
+    for (int i = 0; i < FRAMES; i++) {
+        struct wl_resource *next = &b[i % POOL];
+        while (used[i % POOL] && next->releases < used[i % POOL]) timer_fires(g_armed);
+        present(next);
+        commit(&s, next);
+        used[i % POOL]++;
+        assert(s.releases_pending < POOL);
+    }
+    assert(g_pace_logs == 0);
+    assert(g_now - start >= (FRAMES - POOL) * interval - interval);
+}
+
 int main(int argc, char **argv) {
     assert(argc == 2);
     wl_list_init(&g_surfaces);
@@ -313,6 +384,9 @@ int main(int argc, char **argv) {
     else if (!strcmp(argv[1], "destroyed")) holder_destroyed();
     else if (!strcmp(argv[1], "nested")) desync_parent_holds_sync_grandchild();
     else if (!strcmp(argv[1], "set-desync")) set_desync_frees_held_release();
+    else if (!strcmp(argv[1], "never-waits")) never_waits_toplevel();
+    else if (!strcmp(argv[1], "never-waits-sync")) never_waits_sync_child();
+    else if (!strcmp(argv[1], "deep-pool")) deep_fixed_pool_stays_paced();
     else return 2;
     return 0;
 }

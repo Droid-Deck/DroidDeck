@@ -15,7 +15,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameMillis
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -99,7 +99,7 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
         var vx = speed * 0.8f
         var vy = -speed * 0.6f
         while (true) {
-            if (clock.page == Size.Zero) { withFrameMillis { }; continue }
+            if (clock.page == Size.Zero) { withFrameNanos { }; continue }
             val f = MarkFrame(clock.page, Offset.Zero)
             if (clock.at == Offset.Unspecified) clock.at = Offset(clock.page.width * 0.64f, clock.page.height * 0.42f)
             if (Motion.scale == 0f) {
@@ -108,8 +108,13 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
                 clock.wall = 0f
                 return@LaunchedEffect
             }
-            withFrameMillis { now ->
-                val dt = if (last < 0) 0f else min(50f, (now - last) / Motion.scale)
+            withFrameNanos { nanos ->
+                val scale = Motion.scale
+                if (scale == 0f) return@withFrameNanos
+                val settled = clock.intro >= END && clock.ball >= IMPACT + REVEAL_MS && !clock.poked
+                if (settled && last >= 0 && !IdleFrames.due(nanos)) return@withFrameNanos
+                val now = nanos / 1_000_000L
+                val dt = if (last < 0) 0f else min(50f, (now - last).toFloat()) / scale.coerceAtLeast(0.01f)
                 last = now
                 clock.intro += dt
                 clock.wall += dt
@@ -117,34 +122,41 @@ private fun rememberMarkClock(avoid: Rect?): MarkClock {
                 val before = clock.ball
                 clock.ball += dt
 
-                var x = clock.at.x + vx * dt / 1000f
-                var y = clock.at.y + vy * dt / 1000f
+                var x = clock.at.x
+                var y = clock.at.y
                 val hw = f.ball
                 val hh = f.ball
-                if (x - hw < 0f) { x = hw; vx = abs(vx) }
-                if (x + hw > clock.page.width) { x = clock.page.width - hw; vx = -abs(vx) }
-                if (y - hh < 0f) { y = hh; vy = abs(vy) }
-                if (y + hh > clock.page.height) { y = clock.page.height - hh; vy = -abs(vy) }
-                keepOff?.inflate(clearance)?.let { r ->
-                    val nearX = x.coerceIn(r.left, r.right)
-                    val nearY = y.coerceIn(r.top, r.bottom)
-                    val gapX = x - nearX
-                    val gapY = y - nearY
-                    val gap = hypot(gapX, gapY)
-                    if (gap in 0.0001f..f.ball) {
-                        val nx = gapX / gap
-                        val ny = gapY / gap
-                        x = nearX + nx * f.ball
-                        y = nearY + ny * f.ball
-                        val into = vx * nx + vy * ny
-                        if (into < 0f) { vx -= 2f * into * nx; vy -= 2f * into * ny }
-                    } else if (gap <= 0.0001f) {
-                        val outX = if (x < r.center.x) r.left - f.ball - x else r.right + f.ball - x
-                        val outY = if (y < r.center.y) r.top - f.ball - y else r.bottom + f.ball - y
-                        if (abs(outX) < abs(outY)) { x += outX; vx = if (outX < 0) -abs(vx) else abs(vx) }
-                        else { y += outY; vy = if (outY < 0) -abs(vy) else abs(vy) }
+                var left = dt
+                do {
+                    val step = min(50f, left)
+                    left -= step
+                    x += vx * step / 1000f
+                    y += vy * step / 1000f
+                    if (x - hw < 0f) { x = hw; vx = abs(vx) }
+                    if (x + hw > clock.page.width) { x = clock.page.width - hw; vx = -abs(vx) }
+                    if (y - hh < 0f) { y = hh; vy = abs(vy) }
+                    if (y + hh > clock.page.height) { y = clock.page.height - hh; vy = -abs(vy) }
+                    keepOff?.inflate(clearance)?.let { r ->
+                        val nearX = x.coerceIn(r.left, r.right)
+                        val nearY = y.coerceIn(r.top, r.bottom)
+                        val gapX = x - nearX
+                        val gapY = y - nearY
+                        val gap = hypot(gapX, gapY)
+                        if (gap in 0.0001f..f.ball) {
+                            val nx = gapX / gap
+                            val ny = gapY / gap
+                            x = nearX + nx * f.ball
+                            y = nearY + ny * f.ball
+                            val into = vx * nx + vy * ny
+                            if (into < 0f) { vx -= 2f * into * nx; vy -= 2f * into * ny }
+                        } else if (gap <= 0.0001f) {
+                            val outX = if (x < r.center.x) r.left - f.ball - x else r.right + f.ball - x
+                            val outY = if (y < r.center.y) r.top - f.ball - y else r.bottom + f.ball - y
+                            if (abs(outX) < abs(outY)) { x += outX; vx = if (outX < 0) -abs(vx) else abs(vx) }
+                            else { y += outY; vy = if (outY < 0) -abs(vy) else abs(vy) }
+                        }
                     }
-                }
+                } while (left > 0f)
                 clock.at = Offset(x, y)
 
                 if (before < IMPACT && clock.ball >= IMPACT) {

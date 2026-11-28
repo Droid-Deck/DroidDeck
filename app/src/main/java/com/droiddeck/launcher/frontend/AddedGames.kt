@@ -233,14 +233,14 @@ object AddedGames {
                 if (folder.name.lowercase() in steamInstalls || isSteamLibraryFolder(folder.name)) continue
                 if (folder.path in removed) continue
                 if (folder.name == "Games" && StoreInstallRoot.roots(context).any { it.absolutePath == folder.absolutePath }) continue
-                for (game in expand(folder, entries, reuse = true)) if (game.path !in removed) scanGame(context, game, out, reuse = true)
+                timed(folder) { for (game in expand(folder, entries, reuse = true)) if (game.path !in removed) scanGame(context, game, out, reuse = true) }
             }
         }
         for (entry in AddedExes.list(context)) {
             val folder = File(entry.folder)
             if (folder.path in removed || !folder.isDirectory) continue
             if (StoreGameSidecar.read(folder)?.isInstalled == false) continue
-            scanGame(context, folder, out, single = entry, reuse = true)
+            timed(folder) { scanGame(context, folder, out, single = entry, reuse = true) }
         }
         for (folder in libraryDepotInstalls(context)) if (folder.path !in removed) scanGame(context, folder, out, reuse = true)
         for (folder in StoreInstallRoot.gameFolders(context)) if (StoreInstallRoot.isFinished(folder)) scanGame(context, folder, out, reuse = true)
@@ -248,6 +248,15 @@ object AddedGames {
             if (game.folder.path !in removed) com.droiddeck.launcher.runtime.BattleNet.shortcut(context, game)?.let(out::add)
         }
         return out.distinctBy { it.folder.canonicalPath }
+    }
+
+    private const val SLOW_FOLDER_MS = 1_000L
+
+    private inline fun timed(folder: File, block: () -> Unit) {
+        val began = android.os.SystemClock.elapsedRealtime()
+        block()
+        val took = android.os.SystemClock.elapsedRealtime() - began
+        if (took >= SLOW_FOLDER_MS) Log.i(TAG, "games: scanning ${folder.path} took ${took}ms")
     }
 
     fun single(context: Context, folderPath: String, reuse: Boolean = false): Game? {
@@ -564,8 +573,10 @@ object AddedGames {
 
     class Listed(val appId: Long, val name: String, val launchOptions: String)
 
+    fun listingFile(context: Context): File = File(context.filesDir, "session/added-games.json")
+
     fun listed(context: Context): List<Listed>? = runCatching {
-        val file = File(context.filesDir, "session/added-games.json")
+        val file = listingFile(context)
         if (!file.isFile) return null
         val entries = org.json.JSONArray(file.readText())
         (0 until entries.length()).mapNotNull { i ->
@@ -575,7 +586,7 @@ object AddedGames {
 
     fun writeListing(context: Context, games: List<Game>,
         extra: List<JSONObject> = listOfNotNull(com.droiddeck.launcher.stores.epic.EpicClient.steamListing(context))): File {
-        val file = File(context.filesDir, "session/added-games.json").apply { parentFile?.mkdirs() }
+        val file = listingFile(context).apply { parentFile?.mkdirs() }
         val json = StringBuilder("[")
         games.forEachIndexed { i, g ->
             if (i > 0) json.append(',')
@@ -596,9 +607,23 @@ object AddedGames {
             if (games.isNotEmpty() || i > 0) json.append(',')
             json.append(entry.toString())
         }
-        file.writeText(json.append(']').toString())
+        val text = json.append(']').toString()
+        synchronized(listing) {
+            val partial = File(file.parentFile, file.name + ".part")
+            try {
+                partial.writeText(text)
+                java.nio.file.Files.move(partial.toPath(), file.toPath(),
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            } catch (e: java.io.IOException) {
+                Log.w(TAG, "games: listing not replaced: ${e.message}")
+                partial.delete()
+                if (!file.isFile) file.writeText(text)
+            }
+        }
         return file
     }
+
+    private val listing = Any()
 
     private fun artGuestPath(context: Context, file: File): String? {
         val files = context.filesDir.absolutePath

@@ -68,7 +68,8 @@ internal object SessionBottomTab {
     }
 }
 
-internal fun pageForGameStart(ids: List<String>): String? = GAME_PAGE.takeIf { it in ids }
+internal fun pageForGameStart(ids: List<String>, remembered: String? = null): String? =
+    remembered?.takeIf { it in ids } ?: GAME_PAGE.takeIf { it in ids }
 
 private const val DEFAULT_PAGE = "telemetry"
 private const val GAME_PAGE = "telemetry"
@@ -81,13 +82,14 @@ internal fun BottomDashboard(
     onPage: (String) -> Unit,
     bar: BottomBarModel? = null,
     gameStarts: Int = 0,
+    gamePage: () -> String? = { null },
     strip: (@Composable (String?) -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
-    var current by remember { mutableStateOf(pickBottomPage(remembered, pages.map { it.id })) }
+    var current by remember { mutableStateOf(gamePage()?.takeIf { id -> pages.any { it.id == id } } ?: pickBottomPage(remembered, pages.map { it.id })) }
     val startsWhenOpened = remember { gameStarts }
     LaunchedEffect(gameStarts) {
-        if (gameStarts != startsWhenOpened) pageForGameStart(pages.map { it.id })?.let { current = it }
+        if (gameStarts != startsWhenOpened) pageForGameStart(pages.map { it.id }, gamePage())?.let { current = it }
     }
     val page = pages.firstOrNull { it.id == current } ?: pages.firstOrNull()
     Column(Modifier.fillMaxSize().background(colors.background)) {

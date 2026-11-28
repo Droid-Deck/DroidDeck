@@ -115,7 +115,7 @@ def link_libraries():
         common = os.path.join(library, "steamapps", "common")
         link = os.path.join(HOME, label)
         if os.path.isdir(common):
-            if os.path.islink(link) and os.readlink(link) == common:
+            if os.path.islink(link) and os.readlink(link) == common and os.path.isdir(os.path.join(link, ".")):
                 continue
             if os.path.islink(link) or os.path.isfile(link):
                 os.unlink(link)

@@ -34,6 +34,7 @@ struct surface {
     struct dmabuf_buffer *dmabuf_buf;
     struct wl_listener dmabuf_destroy;
     int releases_pending;
+    int release_pace_open;
     int64_t next_release_ns;
 };
 /* PRODUCTION_STRUCTS */

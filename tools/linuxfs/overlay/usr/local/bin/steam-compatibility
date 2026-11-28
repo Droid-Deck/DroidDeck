@@ -26,6 +26,9 @@ SNIPER_APPID = "1628350"
 SLR4_APPID = "4183110"
 FEX_DEPENDENCIES = (FEX_APPID, SNIPER_APPID, SLR4_APPID)
 REQUIRED_TOOLS = (PROTON_ARM64_APPID,) + FEX_DEPENDENCIES
+# "0" = the app's "Valve Proton only when needed": Valve's ARM64 Proton is fetched only for a title or
+# default set to a tool built from it, or while no own Proton build is installed.
+VALVE_PROTON_ENV = "DD_VALVE_PROTON"
 # Linux builds that bundle an arm64 binary their launcher starts; Steamworks offers no arm64
 # launch-option architecture, so appinfo cannot say so (#1774).
 FEX_DEFAULT_APPS = frozenset({"4385780"})
@@ -76,6 +79,10 @@ dd_store_launch() {
   /usr/local/bin/droiddeck-store-launch "$@"
   rc=$?
   [ $rc -eq 10 ] && DD_STORE_EXIT=1
+  if [ $rc -eq 13 ]; then
+    DD_STORE_EXIT=1
+    DD_STORE_REPLACE="${STEAM_COMPAT_DATA_PATH%/}/droiddeck-ea-steam.bat"
+  fi
   [ $rc -eq 11 ] && exit 0
   [ $rc -eq 12 ] && exit 1
   return 0
@@ -84,6 +91,13 @@ dd_store_launch() {
 dd_run() {
   if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "${verb:-}"; then
     set -- /usr/local/bin/droiddeck-steamvr-game "$@"
+  fi
+  if [ -n "${DD_STORE_REPLACE:-}" ]; then
+    local arg replaced=()
+    for arg in "$@"; do
+      case ${arg,,} in steam2ea://*) replaced+=("$DD_STORE_REPLACE") ;; *) replaced+=("$arg") ;; esac
+    done
+    set -- "${replaced[@]}"
   fi
   if [ -n "${DD_STORE_EXIT:-}" ]; then
     trap : INT TERM HUP
@@ -224,6 +238,14 @@ dd_components() {
 
 DD_GAME_CPUS_SETUP = """
 dd_game_cpus() {
+  local live=/root/.config/droiddeck/game-cores cpus rest=
+  if [ -f "$live" ] && { IFS= read -r cpus && ! IFS= read -r rest; } <"$live" 2>/dev/null && [ -z "$rest" ] && [ "$(wc -c <"$live" 2>/dev/null)" = "$((${#cpus} + 1))" ]; then
+    [[ -z $cpus || $cpus =~ ^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$ ]] || cpus=${DD_GAME_CPUS:-}
+    if [ -z "$cpus" ] && [ -n "${DD_CLIENT_CPUS:-}" ]; then
+      cpus=$(nproc --all 2>/dev/null) && cpus=0-$((cpus - 1)) || cpus=
+    fi
+    if [ -n "$cpus" ]; then export DD_GAME_CPUS=$cpus; else unset DD_GAME_CPUS; fi
+  fi
   [ -n "${DD_GAME_CPUS:-}" ] || return 0
   command -v taskset >/dev/null 2>&1 || return 0
   DD_TASKSET="taskset -c $DD_GAME_CPUS"
@@ -1008,11 +1030,33 @@ def manifest_flags(tokens):
     return 0
 
 
-def tool_downloads(steam_root):
+def valve_proton_on_demand():
+    return os.environ.get(VALVE_PROTON_ENV) == "0"
+
+
+def uses_valve_proton(names):
+    return any(name == TOOL or VALVE_DEPOTS.get(name) == SOURCES[0] for name in names if name)
+
+
+def valve_proton_needed(steam_root, names=None):
+    if not valve_proton_on_demand():
+        return True
+    if not own_builds(tool_catalog(steam_root)):
+        return True
+    if names is None:
+        names = set((read_config_mapping(os.path.join(steam_root, "config", "config.vdf")) or {}).values())
+        names.add(read_json(state_path("state.json")).get("default"))
+    return uses_valve_proton(names)
+
+
+def tool_downloads(steam_root, valve_needed=None):
     wanted = []
     for app in REQUIRED_TOOLS:
         tokens = app_manifest(steam_root, app)
         if tokens is None:
+            if app == PROTON_ARM64_APPID and not (
+                    valve_proton_needed(steam_root) if valve_needed is None else valve_needed):
+                continue
             wanted.append((app, "install"))
         elif not manifest_flags(tokens) & FULLY_INSTALLED or manifest_flags(tokens) & UPDATE_REQUIRED:
             wanted.append((app, "update"))
@@ -1755,6 +1799,8 @@ def x64_repoint(steam_root, tool, live=False):
 
 def main():
     steam_root = sys.argv[1]
+    if "--valve-proton-needed" in sys.argv[2:]:
+        sys.exit(0 if valve_proton_needed(steam_root) else 1)
     if "--x64" in sys.argv[2:]:
         x64_repoint(steam_root, os.environ.get("DD_COMPAT_TOOL"), "--live" in sys.argv[2:])
         return
@@ -1773,6 +1819,7 @@ def main():
         build_tool(os.path.join(tools, name), depot, sources, name)
         print("steam-compatibility: registered %s (%s)" % (
             name, "depot %s present" % os.path.basename(depot) if depot else
+            "no ARM64 Proton depot yet; fetched when a title needs it" if valve_proton_on_demand() else
             "no ARM64 Proton depot yet; the session asks the client to fetch it"))
     build_fex_tool(os.path.join(tools, FEX_TOOL))
     print("steam-compatibility: registered %s" % FEX_TOOL)

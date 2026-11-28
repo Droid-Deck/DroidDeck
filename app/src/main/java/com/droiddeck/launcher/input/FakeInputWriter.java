@@ -149,6 +149,8 @@ public class FakeInputWriter {
 
     private static native void nativeStoreFence();
 
+    private static native void nativeWake(ByteBuffer ring, int offset);
+
     public static void storeFence() {
         nativeStoreFence();
     }
@@ -455,6 +457,7 @@ public class FakeInputWriter {
             writeSnapshotLocked(ring);
             nativeStoreFence();
             ring.putLong(RING_WRITE_SEQ_OFFSET, writeSeq);
+            nativeWake(ring, RING_WRITE_SEQ_OFFSET);
         }
         return true;
     }

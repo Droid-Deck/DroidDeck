@@ -93,6 +93,7 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe, const
     // are compared (this was 13 strncmp() calls for each of the 30 or so variables)
     int has_nt = 0;
     int has_binds = 0;
+    int has_binds_kernel = 0;
     int has_hostname = 0;
     int has_link_root = 0;
     int has_exec_loader = 0;
@@ -121,6 +122,7 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe, const
             if (strncmp(e, "DDNATV_ROOT=", 12) == 0) has_root = 1;
             else if (strncmp(e, "DDNATV_NT=", 10) == 0) has_nt = 1;
             else if (strncmp(e, "DDNATV_BINDS=", 13) == 0) has_binds = 1;
+            else if (strncmp(e, "DDNATV_BINDS_KERNEL=", 20) == 0) has_binds_kernel = 1;
             else if (strncmp(e, "DDNATV_PRELOAD=", 15) == 0) has_preload_list = 1;
             else if (strncmp(e, "DDNATV_HOSTNAME=", 16) == 0) has_hostname = 1;
             else if (strncmp(e, "DDNATV_LINK_ROOT=", 17) == 0) has_link_root = 1;
@@ -253,6 +255,15 @@ static char **prepare_ddnatv_env(char *const envp[], const char *real_exe, const
             memcpy(str, "DDNATV_BINDS=", 13);
             memcpy(str + 13, g_binds_raw, len + 1);
             new_env[dst++] = str;
+        }
+    }
+    if (!has_binds_kernel && g_binds_kernel) {
+        size_t kernel_len = strlen(g_binds_kernel);
+        char *kernel = malloc(20 + kernel_len + 1);
+        if (kernel) {
+            memcpy(kernel, "DDNATV_BINDS_KERNEL=", 20);
+            memcpy(kernel + 20, g_binds_kernel, kernel_len + 1);
+            new_env[dst++] = kernel;
         }
     }
     // This process looked for the ARM translator's files and found none: the programs it starts
