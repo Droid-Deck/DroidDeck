@@ -8,6 +8,23 @@ static inline int vkp_linear_dmabuf_through_buffer(int drm_modifiers, uint64_t m
     return !drm_modifiers && modifier == 0 && !blit_dst;
 }
 
+static inline int vkp_linear_dmabuf_mapped(int dmabuf_import, int blit_dst) {
+    return !dmabuf_import && !blit_dst;
+}
+
+static inline VkBufferMemoryBarrier vkp_linear_dmabuf_host_copy(VkBuffer buffer) {
+    return (VkBufferMemoryBarrier){
+        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = 0,
+        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .buffer = buffer,
+        .offset = 0,
+        .size = VK_WHOLE_SIZE,
+    };
+}
+
 static inline int vkp_linear_dmabuf_foreign_image(int dmabuf, int staged) {
     return dmabuf && !staged;
 }

@@ -29,10 +29,13 @@ def function(text, name):
 
 
 HARNESS = r'''
+#define _POSIX_C_SOURCE 200809L
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <sys/mman.h>
+#include <unistd.h>
 typedef int VkResult;
 typedef uintptr_t VkFence;
 #define VK_TRUE 1
@@ -69,7 +72,7 @@ static struct {
 typedef struct AHardwareBuffer AHardwareBuffer;
 static int released_buffers;
 static void AHardwareBuffer_release(AHardwareBuffer *b) { (void)b; ++released_buffers; }
-struct vkp_image { uintptr_t image, mem; void *map; AHardwareBuffer *android_buffer; uintptr_t linear_buf, linear_mem; int staged, in_general; };
+struct vkp_image { uintptr_t image, mem; void *map; AHardwareBuffer *android_buffer; uintptr_t linear_buf, linear_mem; int staged, in_general; const void *cpu_src; void *cpu_dst; size_t cpu_size, cpu_map_size; int cpu_fd; };
 static void blendp_forget_image(uintptr_t image) { (void)image; ++forgotten; }
 /* PRODUCTION_FUNCTIONS */
 static struct vkp_image *image(void) {

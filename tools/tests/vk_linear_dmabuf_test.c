@@ -56,6 +56,27 @@ static void check_path_choice(void) {
     assert(!vkp_linear_dmabuf_through_buffer(1, linear, 1));
 }
 
+static void check_mapped_choice(void) {
+    assert(vkp_linear_dmabuf_mapped(0, 0));
+    assert(!vkp_linear_dmabuf_mapped(1, 0));
+    assert(!vkp_linear_dmabuf_mapped(0, 1));
+    assert(!vkp_linear_dmabuf_mapped(1, 1));
+}
+
+static void check_host_copy(void) {
+    const VkBuffer buffer = (VkBuffer)(uintptr_t)0x1234;
+    const VkBufferMemoryBarrier b = vkp_linear_dmabuf_host_copy(buffer);
+    assert(b.sType == VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER);
+    assert(b.pNext == NULL);
+    assert(b.srcQueueFamilyIndex == VK_QUEUE_FAMILY_IGNORED);
+    assert(b.dstQueueFamilyIndex == VK_QUEUE_FAMILY_IGNORED);
+    assert(b.srcAccessMask == 0);
+    assert(b.dstAccessMask == VK_ACCESS_TRANSFER_READ_BIT);
+    assert(b.buffer == buffer);
+    assert(b.offset == 0);
+    assert(b.size == VK_WHOLE_SIZE);
+}
+
 static void check_foreign_image(void) {
     assert(vkp_linear_dmabuf_foreign_image(1, 0));
     assert(!vkp_linear_dmabuf_foreign_image(1, 1));
@@ -118,6 +139,8 @@ int main(void) {
     check_path_choice();
     check_padded_layer_targets();
     check_foreign_image();
+    check_mapped_choice();
+    check_host_copy();
     check_readback_order();
     check_ownership();
     return 0;
