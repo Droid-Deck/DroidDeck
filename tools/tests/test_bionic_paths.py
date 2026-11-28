@@ -178,10 +178,28 @@ class StorePaths(unittest.TestCase):
             os.environ.pop('DDNATV_ROOT', None)
             self.assertEqual('Z:\\home\\games\\b.reg', store.windows_path('/home/games/b.reg'))
 
+    def test_other_tools_name_rootfs_host_paths_by_their_guest_paths(self):
+        (self.tool / 'bionic/launch.sh').unlink()
+        with self.env():
+            self.assertEqual('Z:\\tmp\\droiddeck-ea-1\\probe.bat', store.windows_path(ANDROID + '/tmp/droiddeck-ea-1/probe.bat'))
+            self.assertEqual('Z:\\', store.windows_path(ANDROID))
+            self.assertEqual('Z:\\data\\user\\0\\com.droiddeck.launcher\\files\\linuxfs2\\a.reg',
+                             store.windows_path(ANDROID + '2/a.reg'))
+            self.assertEqual('Z:\\storage\\emulated\\0\\Games\\a.reg', store.windows_path('/storage/emulated/0/Games/a.reg'))
+        real = '/data/data/com.droiddeck.launcher/files/linuxfs'
+        with self.env(), patch.object(store.os.path, 'realpath', lambda path: real if path == ANDROID else path):
+            self.assertEqual('Z:\\tmp\\droiddeck-ea-2\\registry.reg', store.windows_path(real + '/tmp/droiddeck-ea-2/registry.reg'))
+        with patch.dict(os.environ, {'DD_STORE_PROTON': str(self.tool / 'proton')}):
+            os.environ.pop('DDNATV_ROOT', None)
+            self.assertEqual('Z:\\data\\user\\0\\com.droiddeck.launcher\\files\\linuxfs\\tmp\\c.reg',
+                             store.windows_path(ANDROID + '/tmp/c.reg'))
+
     def test_a_failing_tool_keeps_the_guest_path(self):
         (self.tool / 'proton').write_text('#!/bin/sh\nexit 1\n')
         with self.env():
             self.assertEqual('Z:\\home\\games\\c.reg', store.windows_path('/home/games/c.reg'))
+            self.assertEqual('Z:\\data\\user\\0\\com.droiddeck.launcher\\files\\linuxfs\\tmp\\c.reg',
+                             store.windows_path(ANDROID + '/tmp/c.reg'))
 
 
 if __name__ == '__main__':

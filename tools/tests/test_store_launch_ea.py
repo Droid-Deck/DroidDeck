@@ -3,6 +3,7 @@ import importlib.machinery
 import importlib.util
 import json
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -170,6 +171,53 @@ class EaHook(unittest.TestCase):
             whole = dict(partial, osInstallDate='20261108')
             (pfx / store.EA_HARDWARE).write_text(json.dumps(whole))
             self.assertEqual(store.ea_hardware(tmp, ''), (whole, 'cached'))
+
+    def native_session(self, tmp):
+        root = Path(tmp) / 'linuxfs'
+        (root / 'tmp').mkdir(parents=True)
+        compat = root / 'root/compat'
+        (compat / 'pfx').mkdir(parents=True)
+        (compat / 'pfx/system.reg').write_text('')
+        proton = Path(tmp) / 'proton'
+        proton.write_text('')
+        env = patch.dict('os.environ', {'DDNATV_ROOT': str(root), 'DD_STORE_PROTON': str(proton)})
+        return root, compat, str(proton), env, patch.object(tempfile, 'tempdir', str(root / 'tmp'))
+
+    def test_a_native_probe_names_its_files_by_their_guest_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, compat, proton, env, tmpdir = self.native_session(tmp)
+            seen = []
+
+            def run(command, **kwargs):
+                bat = command[-1]
+                seen.append(bat)
+                text = (root / bat[3:].replace('\\', '/')).read_text()
+                seen.extend(re.findall(r'"([A-Z]:[^"]*)"', text))
+                return subprocess.CompletedProcess(command, 0)
+
+            with env, tmpdir, patch.object(store.subprocess, 'run', run):
+                self.assertEqual('incomplete', store.ea_hardware(str(compat), proton)[1])
+            self.assertTrue(seen)
+            for path in seen:
+                self.assertTrue(path.startswith('Z:\\tmp\\droiddeck-ea-'), path)
+
+    def test_a_native_registry_import_names_its_file_by_its_guest_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, compat, proton, env, tmpdir = self.native_session(tmp)
+            sources = []
+
+            def run(command, **kwargs):
+                source = command[4]
+                sources.append(source)
+                self.assertTrue((root / source[3:].replace('\\', '/')).is_file(), source)
+                return subprocess.CompletedProcess(command, 0)
+
+            sidecar = {'id': 'OFB-EAST:1', 'title': 'Game', 'extra': {'contentIds': '1'}}
+            with env, tmpdir, patch.object(store.subprocess, 'run', run):
+                self.assertEqual('written', store.ea_registry(root / 'root/Games/Game', sidecar, str(compat), proton))
+            self.assertEqual(2, len(sources))
+            for source in sources:
+                self.assertTrue(source.startswith('Z:\\tmp\\droiddeck-ea-'), source)
 
     def touchup_setup(self, tmp):
         folder = Path(tmp) / 'game'
