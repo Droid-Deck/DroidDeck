@@ -237,12 +237,17 @@ internal fun SetupPanel(
                 onNext = { pick((tab + 1) % tabs.size) },
             ),
         ) {
-            PageHeader(stringResource(R.string.setup_title)) {
+            val sectionBar: @Composable (Modifier) -> Unit = { m ->
                 SettingsPillSearch(
-                    Modifier.weight(1f), searching, query, { query = it },
+                    m, searching, query, { query = it },
                     onOpen = { searching = true }, onClose = { searching = false; query = "" },
                 ) { SheetChips(tabs, tab, chipFocus, onPick = pick) }
             }
+            val portrait = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
+            if (portrait) {
+                PageHeader(stringResource(R.string.setup_title))
+                Row(Modifier.fillMaxWidth().padding(bottom = 10.dp)) { sectionBar(Modifier.weight(1f)) }
+            } else PageHeader(stringResource(R.string.setup_title)) { sectionBar(Modifier.weight(1f)) }
             val listing = searching && query.isNotBlank()
             val fixed = tab == CONTROLLER_TAB && !listing
             Column(modifier = Modifier.weight(1f).fillMaxWidth().then(if (fixed) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(bottom = if (fixed) 0.dp else 24.dp)) {
