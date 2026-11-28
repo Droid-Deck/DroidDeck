@@ -71,6 +71,8 @@ object CompositorHost {
         WaylandCompositor.nativeSetClockControl(java.io.File(context.filesDir, "${com.droiddeck.launcher.runtime.LinuxRuntime.DIR}/tmp/.dd-clock").path)
         ownVsyncThread = SessionPrefs.vsyncThread(context)
         WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
+        WaylandCompositor.nativeSetPresentCadence(SessionPrefs.presentCadence(context))
+        WaylandCompositor.nativeSetGameOnOtherDisplay(gameOnOtherDisplay)
         blackFrameInsertion = SessionPrefs.blackFrameInsertion(context)
         WaylandCompositor.nativeSetBlackFrameInsertion(blackFrameInsertion)
         pace(refreshHz, fpsLimit)
@@ -105,6 +107,19 @@ object CompositorHost {
     @Synchronized
     fun updatePacing(refreshHz: Float, fpsLimit: Int) {
         if (started) pace(refreshHz, fpsLimit)
+    }
+
+    fun setPresentCadence(on: Boolean) {
+        if (started) WaylandCompositor.nativeSetPresentCadence(on)
+    }
+
+    @Volatile
+    private var gameOnOtherDisplay = false
+
+    /** Pacing follows the phone screen's refreshes, so it waits while the game is drawn on any other display. */
+    fun setGameOnOtherDisplay(on: Boolean) {
+        gameOnOtherDisplay = on
+        if (started) WaylandCompositor.nativeSetGameOnOtherDisplay(on)
     }
 
     @Synchronized
@@ -162,6 +177,8 @@ object CompositorHost {
         if (surface != null && attached != null && attached !== surface) return
         attached = null
         pauseVsync()
+        gameOnOtherDisplay = false
+        WaylandCompositor.nativeSetGameOnOtherDisplay(false)
         WaylandCompositor.nativeSetSurface(null)
     }
 

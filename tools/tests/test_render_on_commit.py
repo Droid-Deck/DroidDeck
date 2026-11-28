@@ -64,6 +64,11 @@ static int vkp_cardboard_active(void) { return cardboard; }
 static int vkp_quest_layer_presentation(void) { return quest; }
 static int vkp_render_plain(int w, int h) { blacks++; return 0; }
 static void droiddeck_log(const char *tag, const char *fmt, ...) {}
+static atomic_int g_present_cadence = 1;
+static atomic_int g_game_on_other_display;
+static int g_cadence_running = -1, cadence_layer = -1;
+static const char *g_cadence_blocked;
+static void sc_layer_set_present_cadence(int on) { cadence_layer = on; }
 '''
 
 CHECKS = r'''
@@ -209,7 +214,7 @@ int main(void) {
             arrive(1 * ms);
             tick(t += refresh);
         }
-        assert(g_bfi_running == 1 && idles_added == idles_before);
+        assert(g_bfi_running == 1 && idles_added == idles_before && cadence_layer == 0);
         assert(renders - r0 == 5 && blacks - b0 == 5 && g_bfi_stats.lit == 5 && g_bfi_stats.dark == 5);
 
         /* a capture's picture hold presents only pictures and keeps BFI composing the scene */
@@ -280,7 +285,7 @@ class RenderOnCommitTest(unittest.TestCase):
         self.assertIn('g_rendered_tick_ns = g_tick_vsync_ns;', render)
         self.assertIn('g_tick_held = 0;', render)
         functions = ('scene_held_for_limit', 'commit_renders_on', 'tick_takes_scene', 'render_on_commit', 'schedule_render', 'scene_waits_for_game', 'on_commit_idle',
-                     'bfi_blocked', 'bfi_update', 'bfi_tick', 'on_vsync')
+                     'bfi_blocked', 'bfi_update', 'bfi_tick', 'cadence_blocked', 'cadence_update', 'on_vsync')
         harness = PREAMBLE + '\n'.join(extract_function(source, name) for name in functions) + CHECKS
         with tempfile.TemporaryDirectory(prefix='droiddeck-render-on-commit-') as folder:
             path = Path(folder)

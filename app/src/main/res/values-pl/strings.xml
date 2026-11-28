@@ -662,6 +662,8 @@
     <string name="drawer_page_display">Wyświetlacz</string>
     <string name="drawer_frame_limit">Limit klatek</string>
     <string name="drawer_frame_limit_note">Ogranicza tę grę. Wyświetlacz przełącza się na częstotliwość odświeżania podzielną przez limit, jeśli taka jest; inne limity mogą wyglądać nierówno. Gry Steam używają limitu klatek Steam w menu szybkiego dostępu.</string>
+    <string name="drawer_even_pacing">Równomierne tempo klatek</string>
+    <string name="drawer_even_pacing_note">Wyświetla ograniczoną grę w równym rytmie, gdy limit dzieli częstotliwość odświeżania, np. 30 lub 40 fps przy 120 Hz; przy innych limitach klatki nadal przeplatają dwie długości. Dodaje niewielkie opóźnienie. Wyłączone przy generowaniu klatek lub wstawianiu czarnych klatek.</string>
     <string name="drawer_bfi">Wstawianie czarnych klatek</string>
     <string name="drawer_bfi_note">Ostrzejszy ruch: po każdej klatce następuje czarne odświeżenie. Wymaga 100 Hz lub więcej; gra działa z połową częstotliwości odświeżania i jest ciemniejsza. Wyłączone przy generowaniu klatek.</string>
     <string name="drawer_page_effects">Efekty</string>

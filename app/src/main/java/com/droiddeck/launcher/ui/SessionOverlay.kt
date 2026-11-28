@@ -302,6 +302,9 @@ class DrawerActions(
     val hdr: Boolean = false,
     val hdrAvailable: Boolean = false,
     val onHdr: (Boolean) -> Unit = {},
+    val presentCadence: Boolean = false,
+    val presentCadenceAvailable: Boolean = false,
+    val onPresentCadence: (Boolean) -> Unit = {},
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
     val onHardwareKeyboard: () -> Unit,
@@ -700,6 +703,9 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         a.onQam?.invoke()
                                     }
                                 }
+                                if (a.presentCadenceAvailable) ToggleRow(host, "even-pacing", stringResource(R.string.drawer_even_pacing),
+                                    stringResource(R.string.drawer_even_pacing_note), a.presentCadence,
+                                    chipModifier = focus.track(page, "even-pacing"), onChange = a.onPresentCadence)
                             }
                             SettingsGroup(stringResource(R.string.setup_orientation)) {
                                 ChoiceRow(host, "orientation", stringResource(R.string.setup_session_orientation), null,

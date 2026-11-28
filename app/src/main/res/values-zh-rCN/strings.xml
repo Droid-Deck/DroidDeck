@@ -656,6 +656,8 @@
     <string name="drawer_page_display">显示</string>
     <string name="drawer_frame_limit">帧率限制</string>
     <string name="drawer_frame_limit_note">限制此游戏的帧率。如有能被上限整除的刷新率，显示屏会切换到该刷新率；其他上限可能导致画面不均匀。Steam 游戏请使用快捷访问菜单中的 Steam 帧率限制。</string>
+    <string name="drawer_even_pacing">均匀帧节奏</string>
+    <string name="drawer_even_pacing_note">当帧率限制能整除刷新率时（例如 120 Hz 下的 30 或 40 fps），以均匀的节奏显示受限的游戏；其他限制下，帧时长仍会在两种之间交替。会稍微增加延迟。开启帧生成或黑帧插入时不可用。</string>
     <string name="drawer_bfi">黑帧插入</string>
     <string name="drawer_bfi_note">动态更清晰：每帧之后插入一次黑色刷新。需要 100 Hz 或更高；游戏以一半刷新率运行，画面更暗。开启帧生成时不可用。</string>
     <string name="drawer_page_effects">画面效果</string>
