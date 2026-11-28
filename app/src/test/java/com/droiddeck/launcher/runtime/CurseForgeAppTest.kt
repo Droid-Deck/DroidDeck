@@ -163,8 +163,11 @@ class CurseForgeAppTest {
         assertFalse(text.contains("show()"))
         val probe = CurseForgeApp.expression("InstalledProjectsAppService", "installAddon", null)
         assertFalse(probe.contains("await s["))
-        val connect = CurseForgeApp.expression("CoreService", "connect", JSONArray(), "r => true")
-        assertTrue(connect.contains("(r => true)(await s[\\\"connect\\\"](...[]))"))
+        assertFalse(probe.contains("connect()"))
+        assertTrue(text.contains("await c.connect(); return { value: "))
+        val shutdown = CurseForgeApp.expression("CoreService", "shutdown", JSONArray(), "r => true", connect = false)
+        assertTrue(shutdown.contains("(r => true)(await s[\\\"shutdown\\\"](...[]))"))
+        assertFalse(shutdown.contains("connect()"))
     }
 
     @Test
@@ -315,14 +318,39 @@ class CurseForgeAppTest {
     }
 
     @Test
-    fun curseForgeConnectsOncePerLaunch() {
+    fun eachCallIsOneRoundTripWithoutASeparateConnect() {
+        val calls = mutableListOf<List<String>>()
+        val curse = fakeCurse(calls = calls)
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        CurseForgeApp.projects(context, url, "g")
+        CurseForgeApp.projects(context, url, "g")
+        CurseForgeApp.instance(context, url, "/root", "")
+        assertEquals(listOf("getProjects", "getProjects", "getGameInstances"), curse.methods)
+        assertEquals(3, calls.size)
+    }
+
+    @Test
+    fun anInstallAfterCurseForgesAddonBackendDroppedReconnectsAndSucceeds() {
         val curse = fakeCurse()
         val context = org.robolectric.RuntimeEnvironment.getApplication()
-        val launched = "ws://127.0.0.1:43118/${java.util.UUID.randomUUID()}"
-        CurseForgeApp.projects(context, launched, "g")
-        CurseForgeApp.projects(context, launched, "g")
-        CurseForgeApp.instance(context, launched, "/root", "")
-        assertEquals(1, curse.methods.count { it == "connect" })
+        assertNotNull(CurseForgeApp.install(context, url, "g", "1"))
+        curse.backendDown = true
+        assertNotNull(CurseForgeApp.install(context, url, "g", "2"))
+        assertFalse(curse.backendDown)
+        assertEquals(setOf("1", "2"), CurseForgeApp.projects(context, url, "g").map { it.id }.toSet())
+    }
+
+    @Test
+    fun shuttingDownADroppedAddonBackendDoesNotReconnectIt() {
+        val calls = java.util.Collections.synchronizedList(mutableListOf<List<String>>())
+        val curse = fakeCurse(calls = calls)
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val hold = launch()
+        assertEquals(CurseForgeApp.Start.READY, CurseForgeApp.start(context, app, hold).state)
+        curse.backendDown = true
+        CurseForgeApp.stop(context, app, url, hold)
+        assertEquals(1, calls.count { it.getOrNull(4)?.contains("shutdown") == true })
+        assertTrue(curse.backendDown)
     }
 
     @Test
@@ -339,6 +367,7 @@ class CurseForgeAppTest {
         @Volatile var unreachableAfterDelete = false
         @Volatile var unreachable = false
         @Volatile var known = true
+        @Volatile var backendDown = false
 
         fun add(id: String, folder: String, status: Int) = add(id, listOf(folder), status)
 
@@ -358,6 +387,11 @@ class CurseForgeAppTest {
                     true
                 }
                 "getProjects" -> JSONArray(projects.map { JSONObject(it.toString()) })
+                "installAddon" -> {
+                    val id = Regex("projectId\\\\\":(\\d+)").find(expression)?.groupValues?.get(1) ?: return false
+                    add(id, "Addon$id", 1)
+                    true
+                }
                 "updateMod" -> {
                     projects.forEach { it.put("status", 1) }
                     true
@@ -396,7 +430,12 @@ class CurseForgeAppTest {
                     onLine(JSONObject().put("ok", false).put("error", JSONObject().put("code", "DEVTOOLS_UNREACHABLE").put("message", "gone")).toString())
                     0
                 }
+                curse.backendDown && !argv[4].contains("await c.connect()") && argv[4].contains("await s[") -> {
+                    onLine(JSONObject().put("ok", false).put("error", JSONObject().put("message", "Error: Failed to get game instance by id: g")).toString())
+                    0
+                }
                 else -> {
+                    if (argv[4].contains("await c.connect()")) curse.backendDown = false
                     val value = JSONObject().put("value", curse.answer(argv[4]) ?: JSONObject.NULL)
                     onLine(JSONObject().put("ok", true).put("value", value.toString()).toString())
                     0
