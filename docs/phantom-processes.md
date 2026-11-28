@@ -239,6 +239,19 @@ vfork-safe (Python's subprocess execs under `vfork`). Details that mattered:
   renderers hand off fine.
 - One-shot programs cost a worker start (~100 ms) each, so the list names long-lived programs only
   (`xprop+-spy`: `name+prefix` matches only when an argument starts with prefix).
+- **Near the limit, a shell's children too.** Once 20 of the app's processes are counted (the hook
+  counts them in `/proc`: this uid's processes in an app process's cgroup other than that process),
+  a child of `bash`, `sh`, `dash`, `zsh`, `ksh`, `fish`, `make` or `xargs` is handed off even when
+  it is not listed. Those parents wait with `wait()`, which the hook answers; Qt's `QProcess` and
+  other parents that watch a child by pidfd or `/proc` would see the forked child end at once, so
+  their children stay. A job in the foreground of the terminal it reads (`TIOCGPGRP` on stdin) stays
+  too: a handed-off program has no controlling terminal, so `/dev/tty`, ^C and job control would
+  miss it. A job started with `&` reads `/dev/null` or runs in a background group. In the desktop
+  session (KDE Plasma, 17–19 counted at rest), a Konsole running 40 `sleep 600 &` jobs peaked at
+  61 counted and lost 27 processes to Android's limit (Konsole, D-Bus, the portal) before this, and
+  at 20 with no kills after. Still counted, and not handed off: a terminal's foreground jobs (a
+  `make -j` and its compilers), the D-Bus daemon's activation helpers (forks that never exec) and
+  the desktop's own programs started by KDE's launchers.
 
 Default list: the portals, at-spi, `python3`, PipeWire, WirePlumber, Decky's PluginLoader, the log's
 `gnudd`, `xprop -spy`, the web helper's renderers, `wine`, `wine-preloader`, `wineserver`.
@@ -425,9 +438,15 @@ the old behavior and the old requirement.
    - ~~`posix_spawn()` and daemons in workers~~ done;
    - `/proc/<pid>/stat` showing the virtual parent, so that Steam and its web helper can be handed
      off too;
-   - pre-started workers, so that a handoff costs no zygote fork (about 100 ms now);
-   - more games (Wine-heavy launchers, anti-cheat), the desktop mode and proot sessions (which keep
-     the old behavior);
+   - ~~pre-started workers, so that a handoff costs no zygote fork~~ done: two are kept bound;
+   - ~~more games and configurations~~ done on the Thor with the stock limit on, no kills in any:
+     Bully on GE-Proton, Proton Experimental ARM64 and DroidDeck-Proton 11 (11–14 counted), Bomb
+     Rush Cyberfunk (14), MGSV Ground Zeroes (13), Sekiro (13), zero-copy off (11), the x86-64
+     Steam client under FEX (14, against 55 without the handoff), the desktop at rest (17–20) and
+     with a terminal's 40 background jobs (20). PRoot sessions keep the old behavior and still need
+     the developer option: with the limit on, Android killed 30 of their processes and the session
+     failed;
+   - Wine-heavy launchers and anti-cheat;
    - a settings switch for `childProcessHandoff`.
 7. A (the isolated tier) only if B stops working on a future Android; it needs a file and socket
    broker and keeps the GPU outside.

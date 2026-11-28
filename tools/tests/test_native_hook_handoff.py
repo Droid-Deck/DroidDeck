@@ -1,4 +1,5 @@
 import errno
+import fcntl
 import json
 import os
 import shutil
@@ -7,6 +8,7 @@ import socket
 import struct
 import subprocess
 import tempfile
+import termios
 import threading
 import unittest
 from pathlib import Path
@@ -246,7 +248,7 @@ class NativeHookHandoffTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_parent(self, *argv, handoff="target", hook=True, reports=True):
+    def run_parent(self, *argv, handoff="target", hook=True, reports=True, pressure=None, as_shell=False, terminal=False):
         name = "dd-handoff-test-%d-%s-%s-%d" % (os.getpid(), self.id().rsplit(".", 1)[-1], handoff, hook)
         spawner = FakeSpawner(name, self.prefix or [], self.root, reports)
         spawner.start()
@@ -254,13 +256,33 @@ class NativeHookHandoffTest(unittest.TestCase):
         hook_env = {"DDNATV_ROOT": str(self.root), "DD_SPAWN": name, "DD_HANDOFF": handoff}
         if hook:
             hook_env["LD_PRELOAD"] = str(self.hook)
+        if pressure is not None:
+            hook_env["DD_HANDOFF_PRESSURE"] = str(pressure)
         env = {k: v for k, v in os.environ.items() if k not in hook_env}
-        if self.prefix:
-            cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
+        prefix, parent = list(self.prefix or []), str(self.parent)
+        if as_shell:
+            # the hook tells a shell's child by its parent's name (qemu-user takes the program's)
+            shell = Path(self.tmp.name) / ("shell-%s" % self.id().rsplit(".", 1)[-1]) / "bash"
+            shell.parent.mkdir(exist_ok=True)
+            shutil.copy(parent, shell)
+            parent = str(shell)
+        if prefix:
+            cmd = prefix + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
         else:
             cmd = []
             env.update(hook_env)
-        out = subprocess.run(cmd + [str(self.parent), *argv], env=env, capture_output=True, text=True, timeout=120)
+        stdin, ctty = None, None
+        if terminal:
+            # as a shell's foreground job: a terminal as stdin, controlling terminal of the parent's session
+            master, stdin = os.openpty()
+            self.addCleanup(os.close, master)
+            self.addCleanup(os.close, stdin)
+
+            def ctty():
+                os.setsid()
+                fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+        out = subprocess.run(cmd + [parent, *argv], env=env, stdin=stdin, preexec_fn=ctty, capture_output=True,
+                             text=True, timeout=120)
         result = dict(line.split("\t", 1) for line in out.stdout.splitlines() if "\t" in line)
         return result, spawner.requests, out
 
@@ -359,6 +381,27 @@ class NativeHookHandoffTest(unittest.TestCase):
         self.assertEqual(str(CLD_EXITED), result.get("code"), out.stdout)
         self.assertEqual(self.child_status, result.get("exit"), out.stdout)
         self.assertEqual("1", result.get("uid"), out.stdout)
+
+    def test_near_the_limit_a_shells_child_is_handed_off(self):
+        result, requests, out = self.run_parent("wait", "7", handoff="other", pressure=0, as_shell=True)
+        self.assertEqual(1, len(requests), out.stderr)
+        self.assertEqual(["target", "7"], requests[0]["argv"])
+        self.assertEqual("7", result.get("exit"), out.stdout)
+
+    def test_below_the_limit_a_shells_child_is_not(self):
+        result, requests, out = self.run_parent("wait", "3", handoff="other", pressure=1000, as_shell=True)
+        self.assertEqual([], requests)
+        self.assertEqual(self.child_status, result.get("exit"), out.stdout)
+
+    def test_near_the_limit_a_child_of_another_program_is_not(self):
+        result, requests, out = self.run_parent("wait", "3", handoff="other", pressure=0)
+        self.assertEqual([], requests)
+        self.assertEqual(self.child_status, result.get("exit"), out.stdout)
+
+    def test_near_the_limit_a_terminals_foreground_job_is_not(self):
+        result, requests, out = self.run_parent("wait", "3", handoff="other", pressure=0, as_shell=True, terminal=True)
+        self.assertEqual([], requests)
+        self.assertEqual(self.child_status, result.get("exit"), out.stdout)
 
     def test_a_program_not_listed_is_a_normal_child(self):
         result, requests, out = self.run_parent("wait", "3", handoff="other")

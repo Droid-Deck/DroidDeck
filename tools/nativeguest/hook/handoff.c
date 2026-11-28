@@ -9,8 +9,10 @@
 // status reaches the table from the program's hook, or for a signal from the app's report (see
 // ddh_check_gone()), and the parent gets SIGCHLD.
 //
-// Only programs named in DD_HANDOFF (basenames separated by ':', or "*") are handed off. The child's
+// Only programs named in DD_HANDOFF (basenames separated by ':', or "*") are handed off, and, once
+// the app is near Android's limit, a shell's children (ddh_pressed). The child's
 // side runs where vfork() children run too, so it allocates nothing and writes no globals.
+#include <sys/ioctl.h>
 
 #define DDH_SLOTS 1024
 #define DDH_FREE 0
@@ -756,15 +758,106 @@ static int ddh_program_listed(const char *list, const char *filename, char *cons
 
 // Whether a posix_spawn() of this program should be handed off: glibc's spawn child makes the exec
 // system call itself, past ddh_try(), so such a spawn is started with fork() and execve() instead.
-static int ddh_spawn_wanted(const char *path, char *const argv[], char *const envp[]) {
-    // the hook's exec ends these at once, its posix_spawn() runs them (exec.c): spawned as before
+// The hook's exec ends these at once and its posix_spawn() runs them (exec.c): never handed off.
+static int ddh_exec_stub(const char *path) {
     static const char *const exec_stubs[] = {"mandb", "mandb.real", "update-mime-database", "update-desktop-database",
                                              "install-info", "install-sgmlcatalog"};
     for (size_t i = 0; path && i < sizeof(exec_stubs) / sizeof(exec_stubs[0]); i++) {
-        if (strcmp(ddh_base(path), exec_stubs[i]) == 0) return 0;
+        if (strcmp(ddh_base(path), exec_stubs[i]) == 0) return 1;
     }
+    return 0;
+}
+
+// Android's limit is 32 counted processes for the whole app. Past this many, a shell's (or make's,
+// or xargs') child goes to a worker even when it is not listed: those wait for their children with
+// wait(), which the hook answers. Other parents may track a child by pidfd or /proc, which would see
+// the forked child exit at once.
+#define DDH_PRESSURE 20
+
+static int ddh_waiter(pid_t pid);
+static int ddh_counted(void);
+
+// DD_HANDOFF_PRESSURE sets another count (tests)
+static int ddh_pressure(char *const envp[]) {
+    const char *v = ddh_env(envp, "DD_HANDOFF_PRESSURE");
+    return v && *v ? atoi(v) : DDH_PRESSURE;
+}
+
+static int ddh_spawn_wanted(const char *path, char *const argv[], char *const envp[]) {
+    if (!path || ddh_exec_stub(path)) return 0;
     const char *list = ddh_env(envp, "DD_HANDOFF");
-    return path && ddh_env(envp, "DD_SPAWN") && list && ddh_program_listed(list, path, argv);
+    if (!ddh_env(envp, "DD_SPAWN") || !list) return 0;
+    // as ddh_pressed() would in the child (GNU make spawns its recipes' shells)
+    return ddh_program_listed(list, path, argv) || (ddh_waiter(getpid()) && ddh_counted() >= ddh_pressure(envp));
+}
+
+static long ddh_read_proc(const char *path, char *buf, size_t size) {
+    int fd = (int)syscall(SYS_openat, AT_FDCWD, path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return -1;
+    long n = syscall(SYS_read, fd, buf, size - 1);
+    syscall(SYS_close, fd);
+    if (n < 0) return -1;
+    buf[n] = 0;
+    return n;
+}
+
+// How many of the app's processes Android counts against its limit (PhantomProcessList): those in an
+// app process's cgroup, uid_U/pid_P, other than P. The guest sees only this uid's processes, which
+// are the ones it counts. Without a usable /proc, -1.
+static int ddh_counted(void) {
+    int dir = (int)syscall(SYS_openat, AT_FDCWD, "/proc", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (dir < 0) return -1;
+    int counted = 0;
+    char buf[4096];
+    for (;;) {
+        long n = syscall(SYS_getdents64, dir, buf, sizeof(buf));
+        if (n <= 0) break;
+        for (long off = 0; off < n;) {
+            struct ddh_dirent {
+                uint64_t ino;
+                int64_t off;
+                unsigned short reclen;
+                unsigned char type;
+                char name[];
+            } *d = (struct ddh_dirent *)(buf + off);
+            off += d->reclen;
+            if (d->name[0] < '1' || d->name[0] > '9') continue;
+            char path[48], cgroup[512];
+            snprintf(path, sizeof(path), "/proc/%s/cgroup", d->name);
+            if (ddh_read_proc(path, cgroup, sizeof(cgroup)) <= 0) continue;
+            const char *v2 = strstr(cgroup, "0::/uid_");
+            const char *app = v2 ? strstr(v2, "/pid_") : NULL;
+            if (!app) continue;
+            app += 5;
+            size_t len = strspn(app, "0123456789");
+            if (len > 0 && (len != strlen(d->name) || strncmp(app, d->name, len) != 0)) counted++;
+        }
+    }
+    syscall(SYS_close, dir);
+    return counted;
+}
+
+static int ddh_waiter(pid_t pid) {
+    char path[48], name[32];
+    snprintf(path, sizeof(path), "/proc/%d/comm", (int)pid);
+    if (ddh_read_proc(path, name, sizeof(name)) <= 0) return 0;
+    name[strcspn(name, "\n")] = 0;
+    static const char *const waiters[] = {"bash", "sh", "dash", "zsh", "ksh", "mksh", "fish", "make", "gmake", "xargs"};
+    for (size_t i = 0; i < sizeof(waiters) / sizeof(waiters[0]); i++) {
+        if (strcmp(name, waiters[i]) == 0) return 1;
+    }
+    return 0;
+}
+
+static int ddh_pressed(const char *filename, char *const envp[]) {
+    if (ddh_exec_stub(filename) || !ddh_waiter(getppid())) return 0;
+    // Not one that reads the terminal it is in the foreground of: a handed-off program has no
+    // controlling terminal (the worker's setsid()), so /dev/tty, ^C and job control would miss it.
+    // A job started with & reads /dev/null, or runs in a background group.
+    // (TIOCGPGRP answers only for the caller's controlling terminal)
+    pid_t fg = 0;
+    if (syscall(SYS_ioctl, 0, TIOCGPGRP, &fg) == 0 && fg == (pid_t)syscall(SYS_getpgid, 0)) return 0;
+    return ddh_counted() >= ddh_pressure(envp);
 }
 
 // In a forked child at execve(): hands the program to a worker and exits, or returns to exec it here.
@@ -818,7 +911,7 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     }
     // Whatever this exec becomes can still hand off its own exec (a wrapper, a script).
     syscall(SYS_fcntl, table_fd, F_SETFD, 0);
-    if (!ddh_program_listed(list, filename, argv)) {
+    if (!ddh_program_listed(list, filename, argv) && !ddh_pressed(filename, envp)) {
         ddh_debug(envp, "not listed:", filename);
         return;
     }
