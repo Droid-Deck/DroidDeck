@@ -3,6 +3,8 @@ import importlib.machinery
 import importlib.util
 import json
 from pathlib import Path
+import re
+import struct
 import subprocess
 import tempfile
 import unittest
@@ -13,6 +15,53 @@ loader = importlib.machinery.SourceFileLoader('droiddeck_store_launch_ea', str(B
 spec = importlib.util.spec_from_loader(loader.name, loader)
 store = importlib.util.module_from_spec(spec)
 loader.exec_module(store)
+
+
+def called_imports(exe):
+    wide = struct.unpack_from('<H', exe, 0x58)[0] == 0x20B
+    base = struct.unpack_from('<Q', exe, 0x58 + 24)[0] if wide else struct.unpack_from('<I', exe, 0x58 + 28)[0]
+    dirs = 0x58 + struct.unpack_from('<H', exe, 0x54)[0] - 128
+    raw = lambda rva: 0x200 + rva - 0x1000
+    ilt, _, _, dll, iat = struct.unpack_from('<IIIII', exe, raw(struct.unpack_from('<I', exe, dirs + 8)[0]))
+    thunk = 8 if wide else 4
+    slots = {}
+    for i in range(3):
+        hint = struct.unpack_from('<Q' if wide else '<I', exe, raw(iat) + thunk * i)[0]
+        if hint != struct.unpack_from('<Q' if wide else '<I', exe, raw(ilt) + thunk * i)[0]:
+            return None
+        slots[iat + thunk * i] = exe[raw(hint) + 2:].split(b'\0')[0]
+    code = exe[0x200:0x300]
+    called = []
+    for at in range(len(code) - 6):
+        if code[at:at + 2] == b'\xff\x15':
+            value = struct.unpack_from('<i' if wide else '<I', code, at + 2)[0]
+            called.append(slots.get(0x1000 + at + 6 + value if wide else value - base))
+    return exe[raw(dll):].split(b'\0')[0], called
+
+
+PROBE_NARROW = bytes.fromhex('1600000047656e756e74656c696e654961060a00000805000f23d882fffb8b27436f727465782d4135323000000000000000000000000000000000000000000000000000000000000000000000000000')
+PROBE_WIDE = bytearray(PROBE_NARROW)
+PROBE_WIDE[16 + 8:16 + 12] = bytes.fromhex('0f33d8be')
+
+
+def fake_probe(wide):
+    def run(argv, **kwargs):
+        bat = Path(argv[-1][2:].replace('\\', '/'))
+        for line in bat.read_text().splitlines():
+            found = re.search(r'"?([^"]*)"? > "([^"]*)"$', line)
+            if not found:
+                continue
+            source, out = found.group(1), Path(found.group(2)[2:].replace('\\', '/'))
+            if source.endswith('cpuid64.exe'):
+                if wide is not None:
+                    out.write_bytes(wide)
+            elif source.endswith('cpuid.exe'):
+                out.write_bytes(PROBE_NARROW)
+            elif source.startswith('vol'):
+                out.write_text(' Volume Serial Number is 1A2B-3C4D\r\n')
+            else:
+                out.write_text('Header\r\nvalue\r\n')
+    return run
 
 
 class EaHook(unittest.TestCase):
@@ -101,6 +150,112 @@ class EaHook(unittest.TestCase):
         self.assertEqual(struct.unpack_from('<H', exe, 0x58 + 68)[0], 3)
         self.assertIn(b'KERNEL32.dll', exe)
         self.assertEqual(len(exe), 0x400)
+        self.assertEqual(called_imports(exe), (b'KERNEL32.dll', [b'GetStdHandle', b'WriteFile', b'ExitProcess']))
+
+    def test_cpuid_probe_has_a_64_bit_form_that_writes_the_same_leaves(self):
+        exe = store.cpuid_exe(True)
+        self.assertEqual(exe[:2], b'MZ')
+        self.assertEqual(struct.unpack_from('<H', exe, 0x44)[0], 0x8664)
+        self.assertEqual(struct.unpack_from('<H', exe, 0x58)[0], 0x20B)
+        self.assertEqual(struct.unpack_from('<H', exe, 0x58 + 68)[0], 3)
+        self.assertEqual(len(exe), 0x400)
+        self.assertEqual(called_imports(exe), (b'KERNEL32.dll', [b'GetStdHandle', b'WriteFile', b'ExitProcess']))
+        code = exe[0x200:0x300]
+        self.assertEqual(code.count(b'\x0f\xa2'), len(store.CPUID_LEAVES))
+        loads = {}
+        for at in range(len(code) - 7):
+            if code[at:at + 3] in (b'\x48\x8d\x3d', b'\x48\x8d\x15', b'\x4c\x8d\x0d'):
+                loads[code[at:at + 3]] = at + 7 + struct.unpack_from('<i', code, at + 3)[0]
+        self.assertEqual(loads[b'\x48\x8d\x3d'], loads[b'\x48\x8d\x15'])
+        self.assertGreaterEqual(loads[b'\x4c\x8d\x0d'], loads[b'\x48\x8d\x15'] + 16 * len(store.CPUID_LEAVES))
+        self.assertLessEqual(loads[b'\x4c\x8d\x0d'] + 4, 0x200)
+        self.assertFalse(any(exe[0x200 + loads[b'\x48\x8d\x15']:0x200 + loads[b'\x4c\x8d\x0d'] + 4]))
+        self.assertEqual(store.cpuid_exe(False), store.cpuid_exe())
+
+    def test_each_game_is_sent_the_cpuid_of_its_own_bitness(self):
+        narrow = {'cpuVendor': 'GenuineIntel', 'cpuEax': '000A0661', 'cpuEdx': '278BFBFF', 'cpuEcx': '82d8230f', 'cpuBrand': 'Cortex-A520'}
+        probe = dict({key: 'x' for key in store.EA_PROBE_FIELDS}, **narrow)
+        values = dict(probe, cpu64=dict(narrow, cpuEcx='bed8330f'), runtime='stamp')
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            (folder / 'Game64.exe').write_bytes(store.cpuid_exe(True))
+            (folder / 'bin').mkdir()
+            (folder / 'bin/Game32.exe').write_bytes(store.cpuid_exe())
+            self.assertEqual(store.ea_game_hardware(values, folder, {'exe': 'game64.exe'}), dict(probe, cpuEcx='bed8330f'))
+            self.assertEqual(store.ea_game_hardware(values, folder, {'exe': 'bin/Game32.exe'}), probe)
+            self.assertEqual(store.ea_game_hardware(values, folder, {'exe': 'Missing.exe'}), probe)
+            self.assertEqual(store.ea_game_hardware(values, folder, {}), probe)
+            self.assertEqual(store.ea_game_hardware(probe, folder, {'exe': 'Game64.exe'}), probe)
+
+    def test_a_probe_from_another_proton_or_fex_build_is_taken_again(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton = Path(tmp) / 'tool/proton'
+            fex = proton.parent / 'files/lib/wine/aarch64-windows/libwow64fex.dll'
+            fex.parent.mkdir(parents=True)
+            proton.write_text('')
+            (proton.parent / 'version').write_text('1 experimental-11.0')
+            fex.write_bytes(b'fex 1')
+            runtime = store.runtime_stamp(str(proton))
+            self.assertTrue(runtime)
+            self.assertEqual(store.runtime_stamp(str(proton)), runtime)
+            self.assertEqual(store.runtime_stamp(''), '')
+            compat = Path(tmp) / 'compat'
+            (compat / 'pfx').mkdir(parents=True)
+            cached = dict({key: 'x' for key in store.EA_PROBE_FIELDS}, runtime=runtime)
+            (compat / 'pfx' / store.EA_HARDWARE).write_text(json.dumps(cached))
+            with patch.object(store.subprocess, 'run', side_effect=AssertionError('probed again')):
+                self.assertEqual(store.ea_hardware(str(compat), str(proton)), (cached, 'cached'))
+                self.assertEqual(store.ea_hardware(str(compat), ''), (cached, 'cached'))
+            fex.write_bytes(b'fex 2')
+            self.assertNotEqual(store.runtime_stamp(str(proton)), runtime)
+            with patch.object(store.subprocess, 'run', side_effect=OSError) as run:
+                self.assertEqual(store.ea_hardware(str(compat), str(proton)), (cached, 'failed'))
+            run.assert_called_once()
+            (proton.parent / 'version').write_text('2 experimental-11.0')
+            self.assertNotEqual(store.runtime_stamp(str(proton)), runtime)
+
+    def test_the_probe_records_both_bitnesses_and_the_runtime(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton = Path(tmp) / 'tool/proton'
+            proton.parent.mkdir()
+            proton.write_text('')
+            compat = Path(tmp) / 'compat'
+            (compat / 'pfx').mkdir(parents=True)
+            with patch.object(store.subprocess, 'run', side_effect=fake_probe(bytes(PROBE_WIDE))):
+                values, how = store.ea_hardware(str(compat), str(proton))
+            self.assertEqual(how, 'probed')
+            self.assertEqual(values['cpuEcx'], '82d8230f')
+            self.assertEqual(values['cpu64']['cpuEcx'], 'bed8330f')
+            self.assertEqual(values['volumeSerial'], '1a2b3c4d')
+            self.assertEqual(values['runtime'], store.runtime_stamp(str(proton)))
+            self.assertEqual(json.loads((compat / 'pfx' / store.EA_HARDWARE).read_text()), values)
+
+    def test_a_failed_64_bit_probe_keeps_the_old_cache_and_is_retried(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proton = Path(tmp) / 'tool/proton'
+            proton.parent.mkdir()
+            proton.write_text('')
+            compat = Path(tmp) / 'compat'
+            (compat / 'pfx').mkdir(parents=True)
+            cache = compat / 'pfx' / store.EA_HARDWARE
+            for wide in (None, PROBE_NARROW[:40]):
+                with patch.object(store.subprocess, 'run', side_effect=fake_probe(wide)):
+                    values, how = store.ea_hardware(str(compat), str(proton))
+                self.assertEqual(how, 'incomplete')
+                self.assertEqual(values['cpuEcx'], '82d8230f')
+                self.assertNotIn('cpu64', values)
+                self.assertNotIn('runtime', values)
+                self.assertFalse(cache.exists())
+            stale = dict({key: 'x' for key in store.EA_PROBE_FIELDS}, cpu64={'cpuEcx': 'bed8330f'}, runtime='old')
+            cache.write_text(json.dumps(stale))
+            with patch.object(store.subprocess, 'run', side_effect=fake_probe(None)):
+                self.assertEqual(store.ea_hardware(str(compat), str(proton)), (stale, 'incomplete'))
+            self.assertEqual(json.loads(cache.read_text()), stale)
+            with patch.object(store.subprocess, 'run', side_effect=fake_probe(bytes(PROBE_WIDE))):
+                values, how = store.ea_hardware(str(compat), str(proton))
+            self.assertEqual(how, 'probed')
+            self.assertEqual(values['cpu64']['cpuEcx'], 'bed8330f')
+            self.assertEqual(json.loads(cache.read_text()), values)
 
     def test_origin_stub_is_a_windowless_program_installed_once(self):
         import struct

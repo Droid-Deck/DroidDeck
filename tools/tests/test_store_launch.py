@@ -532,6 +532,32 @@ class SteamEa(unittest.TestCase):
                 self.assertEqual(0, store.main(['--exited', 'steam2ea://launchgame/1237970']))
             self.assertEqual([{'op': 'ea-exited', 'store': 'ea', 'id': 'Origin.OFR.50.0001452'}], asked)
 
+    def test_a_steam_copy_is_sent_the_cpuid_of_its_exes_bitness(self):
+        narrow = dict({key: 'x' for key in store.EA_PROBE_FIELDS}, cpuEcx='82d8230f')
+        values = dict(narrow, cpu64={'cpuEcx': 'bed8330f'}, runtime='stamp')
+        for image, expected in ((store.cpuid_exe(True), dict(narrow, cpuEcx='bed8330f')), (store.cpuid_exe(), narrow)):
+            with tempfile.TemporaryDirectory() as root:
+                folder, data = self.steam_copy(root)
+                (folder / 'Titanfall2.exe').write_bytes(image)
+                asked = []
+
+                def fake_ask(channel, request, timeout=5.0, claim=False):
+                    asked.append(request)
+                    return {'ok': True, 'id': 'Origin.OFR.50.0001452', 'env': {'EALsxPort': '3216'}}
+
+                env = {'STEAM_COMPAT_INSTALL_PATH': str(folder), 'STEAM_COMPAT_DATA_PATH': str(data),
+                       'DD_LAUNCH_DIR': str(Path(root) / 'session'), 'DD_STORE_PROTON': ''}
+                with patch.dict(os.environ, env), patch.object(store, 'ask', side_effect=fake_ask), \
+                        patch.object(store, 'create_prefix', return_value='present'), \
+                        patch.object(store, 'install_origin_stub', return_value='ready'), \
+                        patch.object(store, 'ea_hardware', return_value=(values, 'cached')), \
+                        patch.object(store, 'ea_registry', return_value='ready'), \
+                        patch.object(store, 'ea_touchup', return_value='none'):
+                    self.assertEqual(store.REPLACED, store.main(['steam2ea://launchgame/1237970']))
+                self.assertEqual('ea-prepare', asked[0]['op'])
+                self.assertEqual('Titanfall2.exe', asked[0]['steam']['exe'])
+                self.assertEqual(expected, asked[0]['hardware'])
+
     def test_the_manifests_launch_parameters_keep_their_quotes(self):
         with tempfile.TemporaryDirectory() as root:
             folder, data = self.steam_copy(root)
