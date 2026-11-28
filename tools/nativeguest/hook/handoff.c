@@ -12,6 +12,7 @@
 // Only programs named in DD_HANDOFF (basenames separated by ':', or "*") are handed off, and, once
 // the app is near Android's limit, a shell's children (ddh_pressed). The child's
 // side runs where vfork() children run too, so it allocates nothing and writes no globals.
+#include <poll.h>
 #include <sys/ioctl.h>
 
 #define DDH_SLOTS 1024
@@ -352,6 +353,8 @@ static struct ddh_table *g_ddh_report;
 static int g_ddh_report_slot = -1;
 static pid_t g_ddh_report_parent;
 static pid_t g_ddh_report_child;
+// The forked parent as a pidfd, opened at the start: readable once it has exited, reaped or not.
+static int g_ddh_parent_pidfd = -1;
 
 // The line of /proc/PID/cgroup that names the app's per-process cgroup ("...:/uid_U/pid_P").
 static int ddh_cgroup_line(pid_t pid, const char *want, char *out, size_t size) {
@@ -545,6 +548,17 @@ static void ddh_setup_report(void) {
     g_ddh_report_slot = slot;
     g_ddh_report_parent = parent;
     g_ddh_report_child = child;
+    // the parent itself, not a later process given its pid (one that started after its child)
+    int pidfd = (int)call_orig_syscall(__NR_pidfd_open, (unsigned long)parent, 0, 0, 0, 0, 0);
+    long started = ddh_start_time(parent), child_start = t->e[slot].child_start;
+    if (pidfd >= 0 && started >= 0 && child_start >= 0 && started > child_start) {
+        syscall(SYS_close, pidfd);
+        pidfd = -1;
+    }
+    if (pidfd >= 0) {
+        ddh_keep(pidfd);
+        g_ddh_parent_pidfd = pidfd;
+    }
     on_exit(ddh_report_exit, (void *)1);
     ddh_register_group();
 }
@@ -1311,8 +1325,9 @@ static void ddh_drop_stale(pid_t pid) {
 static void ddh_child_created(pid_t pid) {
     if (pid <= 0) return;
     ddh_drop_stale(pid);
-    // after the drop, whose release forgets the pid's old record
-    ddh_forked_by(pid, (pid_t)syscall(SYS_gettid));
+    // after the drop, whose release forgets the pid's old record; only where children can hand off,
+    // and their waits forget them again
+    if (__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE)) ddh_forked_by(pid, (pid_t)syscall(SYS_gettid));
 }
 
 // Takes e's exit for a wait for pid, checked again once taken: between finding e and taking it,
@@ -1724,6 +1739,14 @@ static pid_t ddh_logical_pgrp(void) { return ddh_logical_group(getpgrp()); }
 // later process given the pid, which started after that child. child_start -1: not checked.
 // 1 yes, 0 no, -1 when /proc could not be read for another reason (out of fds, say).
 static int ddh_parent_lives(pid_t parent, long child_start) {
+    if (parent == g_ddh_report_parent && g_ddh_parent_pidfd >= 0) {
+        // no new fd, and exited counts whether reaped or not
+        struct pollfd p = {g_ddh_parent_pidfd, POLLIN, 0};
+        int saved = errno;
+        long n = syscall(SYS_ppoll, &p, 1, &(struct timespec){0, 0}, NULL, 0);
+        errno = saved;
+        if (n >= 0) return !(p.revents & POLLIN);
+    }
     char path[48], stat[512];
     snprintf(path, sizeof(path), "/proc/%d/stat", (int)parent);
     int saved = errno;
