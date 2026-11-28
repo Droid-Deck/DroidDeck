@@ -77,7 +77,8 @@ class NativeHookPopenTest(unittest.TestCase):
 
     def run_program(self, mode):
         hook_env = {"DDNATV_ROOT": str(self.root), "LD_PRELOAD": str(self.hook)}
-        env = {k: v for k, v in os.environ.items() if k not in hook_env}
+        # Only what the program needs: other test modules in the same run change os.environ
+        env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin")}
         if self.prefix:
             cmd = list(self.prefix) + [arg for key, value in hook_env.items() for arg in ("-E", f"{key}={value}")]
         else:
