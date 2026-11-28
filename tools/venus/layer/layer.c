@@ -672,6 +672,7 @@ static VKAPI_ATTR void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocat
     }
     map_free(&dev->shader_modules);
     map_free(&dev->depth_states);
+    map_free(&dev->depth_pipelines);
     pthread_mutex_destroy(&dev->lock);
     free(dev);
 }
@@ -703,6 +704,8 @@ static const struct hook device_hooks[] = {
     HOOK_ALIAS(CmdSetDepthTestEnable, CmdSetDepthTestEnableEXT, GAP_DEPTH_OP),
     HOOK(CmdSetDepthCompareOp, GAP_DEPTH_OP),
     HOOK_ALIAS(CmdSetDepthCompareOp, CmdSetDepthCompareOpEXT, GAP_DEPTH_OP),
+    HOOK(CmdBindPipeline, GAP_DEPTH_OP),
+    HOOK(DestroyPipeline, GAP_DEPTH_OP),
     HOOK(CreateImage, GAP_BC),
     HOOK(DestroyImage, GAP_BC),
     HOOK(CreateImageView, GAP_BC),

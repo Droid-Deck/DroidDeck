@@ -36,6 +36,15 @@ enum gap {
     GAP_DEPTH_OP = 1u << 10,
 };
 
+/* What a graphics pipeline fixes of the depth test (pipeline.c), kept for every pipeline whose
+ * fragment shader state is known, its own or a library's. */
+enum static_depth {
+    STATIC_DEPTH_KNOWN = 1,
+    STATIC_DEPTH_TEST = 2,    /* depthTestEnable is static, */
+    STATIC_DEPTH_TEST_ON = 4, /* and on */
+    STATIC_DEPTH_OP = 8,      /* depthCompareOp is static */
+};
+
 #define GAPS_SHADER (GAP_CLIP_DISTANCE | GAP_CULL_DISTANCE)
 #define GAPS_PIPELINE (GAP_FILL_MODE | GAP_MULTI_VIEWPORT | GAPS_SHADER | GAP_DEPTH_CLIP | GAP_DUAL_SRC_BLEND)
 
@@ -144,7 +153,9 @@ struct instance {
     X(CmdBindVertexBuffers2) \
     X(CmdSetColorBlendEquationEXT) \
     X(CmdSetDepthTestEnable) \
-    X(CmdSetDepthCompareOp)
+    X(CmdSetDepthCompareOp) \
+    X(CmdBindPipeline) \
+    X(DestroyPipeline)
 
 struct staging_block;
 
@@ -170,6 +181,7 @@ struct device {
     struct staging_block *free_staging;
     struct handle_map templates;       /* VkDescriptorUpdateTemplate -> struct template_info (draw.c) */
     struct handle_map depth_states;    /* VkCommandBuffer -> packed depth test state (draw.c) */
+    struct handle_map depth_pipelines; /* VkPipeline -> what it fixes of the depth test, enum static_depth */
     /* nullDescriptor stand-ins (draw.c): 0 not made yet, 1 ready, -1 failed. */
     int null_ready;
     VkBuffer null_buffer;
@@ -236,6 +248,7 @@ VKAPI_ATTR void VKAPI_CALL CmdSetViewportWithCount(VkCommandBuffer cmd, uint32_t
 VKAPI_ATTR void VKAPI_CALL CmdSetScissorWithCount(VkCommandBuffer cmd, uint32_t count, const VkRect2D *scissors);
 VKAPI_ATTR void VKAPI_CALL CmdSetColorBlendEquationEXT(VkCommandBuffer cmd, uint32_t first, uint32_t count,
                                                        const VkColorBlendEquationEXT *equations);
+VKAPI_ATTR void VKAPI_CALL DestroyPipeline(VkDevice device, VkPipeline pipeline, const VkAllocationCallbacks *allocator);
 
 /* bc.c */
 VkFormat bc_substitute(VkFormat format);
@@ -320,5 +333,6 @@ VKAPI_ATTR void VKAPI_CALL CmdBindVertexBuffers2(VkCommandBuffer cmd, uint32_t f
 void null_resources_destroy(struct device *dev);
 VKAPI_ATTR void VKAPI_CALL CmdSetDepthTestEnable(VkCommandBuffer cmd, VkBool32 enable);
 VKAPI_ATTR void VKAPI_CALL CmdSetDepthCompareOp(VkCommandBuffer cmd, VkCompareOp op);
+VKAPI_ATTR void VKAPI_CALL CmdBindPipeline(VkCommandBuffer cmd, VkPipelineBindPoint point, VkPipeline pipeline);
 void depth_state_forget(struct device *dev, VkCommandBuffer cmd);
 #endif

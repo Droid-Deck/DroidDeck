@@ -23,6 +23,7 @@ static VkColorBlendEquationEXT driver_equations[4];
 static uint32_t driver_equation_count;
 static VkCompareOp driver_depth_op, driver_pipeline_depth_op;
 static VkBool32 driver_depth_test;
+static uint32_t driver_depth_op_calls, driver_pipeline_count;
 
 #define MAIN 1
 #define VOID 2
@@ -309,9 +310,14 @@ static VkResult VKAPI_CALL mock_create_graphics_pipelines(VkDevice device, VkPip
     capture_code(module->pCode, module->codeSize);
     if (infos[0].pDepthStencilState)
         driver_pipeline_depth_op = infos[0].pDepthStencilState->depthCompareOp;
-    pipelines[0] = (VkPipeline)0x2000;
+    pipelines[0] = (VkPipeline)(uintptr_t)(0x2000 + driver_pipeline_count++);
     return VK_SUCCESS;
 }
+
+static void VKAPI_CALL mock_destroy_pipeline(VkDevice device, VkPipeline pipeline,
+                                             const VkAllocationCallbacks *allocator) {}
+
+static void VKAPI_CALL mock_bind_pipeline(VkCommandBuffer cmd, VkPipelineBindPoint point, VkPipeline pipeline) {}
 
 static VkResult VKAPI_CALL mock_begin_command_buffer(VkCommandBuffer cmd, const VkCommandBufferBeginInfo *info)
 {
@@ -326,6 +332,7 @@ static void VKAPI_CALL mock_set_depth_test(VkCommandBuffer cmd, VkBool32 enable)
 static void VKAPI_CALL mock_set_depth_op(VkCommandBuffer cmd, VkCompareOp op)
 {
     driver_depth_op = op;
+    driver_depth_op_calls++;
 }
 
 static void VKAPI_CALL mock_set_blend_equation(VkCommandBuffer cmd, uint32_t first, uint32_t count,
@@ -364,6 +371,8 @@ static VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL mock_gdpa(VkDevice device, const
     MOCK("vkBeginCommandBuffer", mock_begin_command_buffer);
     MOCK("vkCmdSetDepthTestEnable", mock_set_depth_test);
     MOCK("vkCmdSetDepthCompareOp", mock_set_depth_op);
+    MOCK("vkCmdBindPipeline", mock_bind_pipeline);
+    MOCK("vkDestroyPipeline", mock_destroy_pipeline);
     return NULL;
 }
 
@@ -502,8 +511,9 @@ static void test_capable_device(void)
     destroy_device(device);
 }
 
-static void create_depth_pipeline(VkDevice device, const VkPipelineDepthStencilStateCreateInfo *depth,
-                                  const VkDynamicState *dynamic, uint32_t dynamic_count)
+static VkPipeline create_depth_pipeline(VkDevice device, const void *next,
+                                        const VkPipelineDepthStencilStateCreateInfo *depth,
+                                        const VkDynamicState *dynamic, uint32_t dynamic_count)
 {
     struct spirv plain;
     fragment_shader(&plain, 0x00010000, false);
@@ -515,14 +525,162 @@ static void create_depth_pipeline(VkDevice device, const VkPipelineDepthStencilS
                                                  VK_FALSE, VK_LOGIC_OP_COPY, 1, &plain_attachment, {0}};
     VkPipelineDynamicStateCreateInfo states = {VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, NULL, 0,
                                                dynamic_count, dynamic};
-    VkGraphicsPipelineCreateInfo info = {.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, .stageCount = 1,
-                                         .pStages = &stage, .pDepthStencilState = depth, .pColorBlendState = &blend,
-                                         .pDynamicState = dynamic_count ? &states : NULL};
+    VkGraphicsPipelineCreateInfo info = {.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, .pNext = next,
+                                         .stageCount = 1, .pStages = &stage, .pDepthStencilState = depth,
+                                         .pColorBlendState = &blend, .pDynamicState = dynamic_count ? &states : NULL};
     VkPipeline pipeline;
     driver_pipeline_depth_op = VK_COMPARE_OP_MAX_ENUM;
     PFN_vkCreateGraphicsPipelines create =
         (PFN_vkCreateGraphicsPipelines)layer_gdpa(device, "vkCreateGraphicsPipelines");
     assert(create(device, VK_NULL_HANDLE, 1, &info, NULL, &pipeline) == VK_SUCCESS);
+    return pipeline;
+}
+
+/* Pipelines that make only one of the two depth states dynamic, built directly or from libraries. */
+static void test_depth_static_pipeline_state(void)
+{
+    VkDevice device;
+    VkPhysicalDeviceFeatures enabled = {.dualSrcBlend = VK_TRUE};
+    assert(create_device((VkPhysicalDevice)&mock_lacking, NULL, &enabled, &device) == VK_SUCCESS);
+    struct device *dev = device_from_handle(device);
+    PFN_vkBeginCommandBuffer begin = (PFN_vkBeginCommandBuffer)layer_gdpa(device, "vkBeginCommandBuffer");
+    PFN_vkCmdBindPipeline bind = (PFN_vkCmdBindPipeline)layer_gdpa(device, "vkCmdBindPipeline");
+    PFN_vkDestroyPipeline destroy = (PFN_vkDestroyPipeline)layer_gdpa(device, "vkDestroyPipeline");
+    PFN_vkCmdSetDepthTestEnable set_test =
+        (PFN_vkCmdSetDepthTestEnable)layer_gdpa(device, "vkCmdSetDepthTestEnable");
+    PFN_vkCmdSetDepthCompareOp set_op = (PFN_vkCmdSetDepthCompareOp)layer_gdpa(device, "vkCmdSetDepthCompareOp");
+    assert((PFN_vkVoidFunction)bind != (PFN_vkVoidFunction)mock_bind_pipeline);
+    assert((PFN_vkVoidFunction)destroy != (PFN_vkVoidFunction)mock_destroy_pipeline);
+
+    const VkDynamicState test_only[] = {VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE};
+    const VkDynamicState op_only[] = {VK_DYNAMIC_STATE_DEPTH_COMPARE_OP};
+    const VkDynamicState both[] = {VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE, VK_DYNAMIC_STATE_DEPTH_COMPARE_OP};
+    VkPipelineDepthStencilStateCreateInfo depth = {.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+                                                   .depthCompareOp = VK_COMPARE_OP_LESS};
+    VkPipeline static_op = create_depth_pipeline(device, NULL, &depth, test_only, 1);
+    VkPipeline static_off = create_depth_pipeline(device, NULL, &depth, op_only, 1);
+    VkPipeline all_static_off = create_depth_pipeline(device, NULL, &depth, NULL, 0);
+    depth.depthTestEnable = VK_TRUE;
+    VkPipeline static_on = create_depth_pipeline(device, NULL, &depth, op_only, 1);
+    VkPipeline dynamic = create_depth_pipeline(device, NULL, &depth, both, 2);
+    VkPipeline no_depth = create_depth_pipeline(device, NULL, NULL, NULL, 0);
+
+    /* A linked pipeline takes the depth state of the library with the fragment shader state. */
+    VkGraphicsPipelineLibraryCreateInfoEXT vertex_subset = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT,
+                                                            NULL, VK_GRAPHICS_PIPELINE_LIBRARY_VERTEX_INPUT_INTERFACE_BIT_EXT};
+    VkGraphicsPipelineLibraryCreateInfoEXT fragment_subset = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT,
+                                                              NULL, VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT};
+    VkPipeline vertex_library = create_depth_pipeline(device, &vertex_subset, NULL, NULL, 0);
+    VkPipeline static_library = create_depth_pipeline(device, &fragment_subset, &depth, NULL, 0);
+    VkPipeline dynamic_library = create_depth_pipeline(device, &fragment_subset, &depth, both, 2);
+    VkPipeline libraries[] = {vertex_library, static_library};
+    VkPipelineLibraryCreateInfoKHR link = {VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR, NULL, 2, libraries};
+    VkPipeline linked_static = create_depth_pipeline(device, &link, NULL, NULL, 0);
+    libraries[1] = dynamic_library;
+    VkPipeline linked_dynamic = create_depth_pipeline(device, &link, NULL, NULL, 0);
+    link.libraryCount = 1;
+    VkPipeline linked_unknown = create_depth_pipeline(device, &link, NULL, NULL, 0);
+    assert(dev->depth_pipelines.count == 10);
+    assert(map_get(&dev->depth_pipelines, (uint64_t)(uintptr_t)linked_static) ==
+           map_get(&dev->depth_pipelines, (uint64_t)(uintptr_t)static_library));
+    assert(!map_get(&dev->depth_pipelines, (uint64_t)(uintptr_t)linked_unknown));
+
+    VkCommandBuffer cmd = (VkCommandBuffer)&mock_command_buffer;
+    VkCommandBufferBeginInfo begin_info = {.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    const VkPipelineBindPoint graphics = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
+    /* A pipeline with a static op is given no dynamic one, neither ALWAYS nor the application's op. */
+    assert(begin(cmd, &begin_info) == VK_SUCCESS);
+    set_op(cmd, VK_COMPARE_OP_GREATER);
+    bind(cmd, graphics, static_op);
+    driver_depth_op_calls = 0;
+    set_test(cmd, VK_FALSE);
+    set_test(cmd, VK_TRUE);
+    set_test(cmd, VK_FALSE);
+    assert(!driver_depth_test && driver_depth_op_calls == 0);
+    bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, (VkPipeline)(uintptr_t)0x9000);
+    set_test(cmd, VK_FALSE);
+    assert(driver_depth_op_calls == 0);
+    /* Back on a dynamic op the driver gets ALWAYS, since the test is still off. */
+    bind(cmd, graphics, dynamic);
+    assert(driver_depth_op_calls == 1 && driver_depth_op == VK_COMPARE_OP_ALWAYS);
+    set_op(cmd, VK_COMPARE_OP_LESS);
+    assert(driver_depth_op_calls == 2 && driver_depth_op == VK_COMPARE_OP_ALWAYS);
+    /* Both states dynamic, as Zink has them: binding adds nothing. */
+    bind(cmd, graphics, dynamic);
+    assert(driver_depth_op_calls == 2);
+
+    /* A static test enable counts: the test off and then a pipeline that has it on. */
+    assert(begin(cmd, &begin_info) == VK_SUCCESS);
+    bind(cmd, graphics, dynamic);
+    set_test(cmd, VK_FALSE);
+    bind(cmd, graphics, static_on);
+    set_op(cmd, VK_COMPARE_OP_LESS);
+    assert(driver_depth_op == VK_COMPARE_OP_LESS);
+    /* An op set while the test was off reaches the driver once a pipeline has it on, and the other way round. */
+    bind(cmd, graphics, dynamic);
+    set_test(cmd, VK_FALSE);
+    set_op(cmd, VK_COMPARE_OP_GREATER);
+    assert(driver_depth_op == VK_COMPARE_OP_ALWAYS);
+    bind(cmd, graphics, static_on);
+    assert(driver_depth_op == VK_COMPARE_OP_GREATER);
+    bind(cmd, graphics, static_off);
+    assert(driver_depth_op == VK_COMPARE_OP_ALWAYS);
+    set_op(cmd, VK_COMPARE_OP_LESS);
+    assert(driver_depth_op == VK_COMPARE_OP_ALWAYS);
+
+    /* After a pipeline that fixes both states with the test off: a linked pipeline that fixes them
+     * as well gets no op, nor does one whose depth state is unknown. One with both dynamic gets
+     * ALWAYS like any other. */
+    assert(begin(cmd, &begin_info) == VK_SUCCESS);
+    bind(cmd, graphics, dynamic);
+    set_test(cmd, VK_FALSE);
+    bind(cmd, graphics, all_static_off);
+    driver_depth_op_calls = 0;
+    bind(cmd, graphics, linked_static);
+    bind(cmd, graphics, all_static_off);
+    bind(cmd, graphics, linked_unknown);
+    assert(driver_depth_op_calls == 0);
+    bind(cmd, graphics, all_static_off);
+    bind(cmd, graphics, linked_dynamic);
+    assert(driver_depth_op_calls == 1 && driver_depth_op == VK_COMPARE_OP_ALWAYS);
+
+    /* A pipeline without depth-stencil state leaves the application's values alone: the op set
+     * before it reaches the driver again once a pipeline has the test on. */
+    assert(begin(cmd, &begin_info) == VK_SUCCESS);
+    bind(cmd, graphics, dynamic);
+    set_test(cmd, VK_TRUE);
+    set_op(cmd, VK_COMPARE_OP_LESS);
+    bind(cmd, graphics, no_depth);
+    bind(cmd, graphics, static_off);
+    assert(driver_depth_op == VK_COMPARE_OP_ALWAYS);
+    bind(cmd, graphics, static_on);
+    assert(driver_depth_op == VK_COMPARE_OP_LESS);
+    /* Nor does it fix the op: turning the test off while it is bound gives the driver ALWAYS. */
+    bind(cmd, graphics, no_depth);
+    set_test(cmd, VK_FALSE);
+    assert(driver_depth_op == VK_COMPARE_OP_ALWAYS);
+    /* So does a pipeline whose depth-stencil state is ignored, for example one without a depth
+     * attachment. The layer cannot tell, so the application's values stay under every pipeline. */
+    assert(begin(cmd, &begin_info) == VK_SUCCESS);
+    bind(cmd, graphics, dynamic);
+    set_test(cmd, VK_TRUE);
+    set_op(cmd, VK_COMPARE_OP_LESS);
+    bind(cmd, graphics, all_static_off);
+    driver_depth_op_calls = 0;
+    bind(cmd, graphics, static_on);
+    assert(driver_depth_op_calls == 1 && driver_depth_op == VK_COMPARE_OP_LESS);
+    bind(cmd, graphics, all_static_off);
+    bind(cmd, graphics, dynamic);
+    assert(driver_depth_op_calls == 2 && driver_depth_op == VK_COMPARE_OP_LESS);
+
+    VkPipeline pipelines[] = {static_op,       static_off,      all_static_off, static_on,
+                              dynamic,         no_depth,        vertex_library, static_library,
+                              dynamic_library, linked_static,   linked_dynamic, linked_unknown};
+    for (size_t i = 0; i < sizeof(pipelines) / sizeof(pipelines[0]); i++)
+        destroy(device, pipelines[i], NULL);
+    assert(dev->depth_pipelines.count == 0);
+    destroy_device(device);
 }
 
 static void test_depth_compare_op(void)
@@ -555,14 +713,14 @@ static void test_depth_compare_op(void)
 
     VkPipelineDepthStencilStateCreateInfo depth = {.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
                                                    .depthCompareOp = VK_COMPARE_OP_NEVER};
-    create_depth_pipeline(device, &depth, NULL, 0);
+    create_depth_pipeline(device, NULL, &depth, NULL, 0);
     assert(driver_pipeline_depth_op == VK_COMPARE_OP_ALWAYS && depth.depthCompareOp == VK_COMPARE_OP_NEVER);
     const VkDynamicState dynamic[] = {VK_DYNAMIC_STATE_DEPTH_COMPARE_OP};
-    create_depth_pipeline(device, &depth, dynamic, 1);
+    create_depth_pipeline(device, NULL, &depth, dynamic, 1);
     assert(driver_pipeline_depth_op == VK_COMPARE_OP_NEVER);
     depth.depthTestEnable = VK_TRUE;
     depth.depthCompareOp = VK_COMPARE_OP_LESS;
-    create_depth_pipeline(device, &depth, NULL, 0);
+    create_depth_pipeline(device, NULL, &depth, NULL, 0);
     assert(driver_pipeline_depth_op == VK_COMPARE_OP_LESS);
     destroy_device(device);
 }
@@ -590,6 +748,7 @@ int main(int argc, char **argv)
     test_lacking_device();
     test_capable_device();
     test_depth_compare_op();
+    test_depth_static_pipeline_state();
 
     ((PFN_vkDestroyInstance)layer_gipa(instance, "vkDestroyInstance"))(instance, NULL);
     free(driver_code);

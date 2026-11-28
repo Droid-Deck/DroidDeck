@@ -436,6 +436,78 @@ static void undo_rewrite(struct device *dev, struct pipeline_rewrite *rw)
     free(rw->attachments);
 }
 
+/* What a pipeline's own fragment shader state fixes of the depth test. Without depth-stencil
+ * state it fixes nothing, and binding it leaves the command buffer's state alone. */
+static uintptr_t static_depth_of(const VkGraphicsPipelineCreateInfo *info)
+{
+    uintptr_t fixed = STATIC_DEPTH_KNOWN;
+    if (!info->pDepthStencilState)
+        return fixed;
+    bool test_dynamic = false, op_dynamic = false;
+    for (uint32_t i = 0; info->pDynamicState && i < info->pDynamicState->dynamicStateCount; i++) {
+        VkDynamicState state = info->pDynamicState->pDynamicStates[i];
+        test_dynamic |= state == VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE;
+        op_dynamic |= state == VK_DYNAMIC_STATE_DEPTH_COMPARE_OP;
+    }
+    if (!test_dynamic) {
+        fixed |= STATIC_DEPTH_TEST | (info->pDepthStencilState->depthTestEnable ? STATIC_DEPTH_TEST_ON : 0);
+    }
+    if (!op_dynamic)
+        fixed |= STATIC_DEPTH_OP;
+    return fixed;
+}
+
+/*
+ * The depth test is fragment shader state. A pipeline that has it itself is read directly; one
+ * that links it from a library takes what was kept for that library. 0 when it is not known.
+ */
+static uintptr_t resolve_static_depth(struct device *dev, const VkGraphicsPipelineCreateInfo *info)
+{
+    const VkGraphicsPipelineLibraryCreateInfoEXT *subsets = NULL;
+    const VkPipelineLibraryCreateInfoKHR *libraries = NULL;
+    for (const VkBaseInStructure *s = info->pNext; s; s = s->pNext) {
+        if (s->sType == VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT)
+            subsets = (const VkGraphicsPipelineLibraryCreateInfoEXT *)s;
+        else if (s->sType == VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR)
+            libraries = (const VkPipelineLibraryCreateInfoKHR *)s;
+    }
+    uint32_t library_count = libraries ? libraries->libraryCount : 0;
+    /* Without the subset structure, a library or a linked pipeline has no state of its own and
+     * any other pipeline has all of it. */
+    bool own = subsets ? (subsets->flags & VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT) != 0
+                       : !(info->flags & VK_PIPELINE_CREATE_LIBRARY_BIT_KHR) && !library_count;
+    if (own)
+        return static_depth_of(info);
+    for (uint32_t i = 0; i < library_count; i++) {
+        uintptr_t fixed = (uintptr_t)map_get(&dev->depth_pipelines, HANDLE(libraries->pLibraries[i]));
+        if (fixed)
+            return fixed;
+    }
+    return 0;
+}
+
+static void remember_static_depth(struct device *dev, const VkGraphicsPipelineCreateInfo *info, VkPipeline pipeline)
+{
+    if (pipeline == VK_NULL_HANDLE)
+        return;
+    pthread_mutex_lock(&dev->lock);
+    uintptr_t fixed = resolve_static_depth(dev, info);
+    if (fixed)
+        map_put(&dev->depth_pipelines, HANDLE(pipeline), (void *)fixed);
+    else
+        map_remove(&dev->depth_pipelines, HANDLE(pipeline));
+    pthread_mutex_unlock(&dev->lock);
+}
+
+VKAPI_ATTR void VKAPI_CALL DestroyPipeline(VkDevice device, VkPipeline pipeline, const VkAllocationCallbacks *allocator)
+{
+    struct device *dev = device_from_handle(device);
+    pthread_mutex_lock(&dev->lock);
+    map_remove(&dev->depth_pipelines, HANDLE(pipeline));
+    pthread_mutex_unlock(&dev->lock);
+    dev->DestroyPipeline(device, pipeline, allocator);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(VkDevice device, VkPipelineCache cache, uint32_t count,
                                                        const VkGraphicsPipelineCreateInfo *infos,
                                                        const VkAllocationCallbacks *allocator, VkPipeline *pipelines)
@@ -455,8 +527,11 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateGraphicsPipelines(VkDevice device, VkPipeli
         rewrite_pipeline(dev, &copies[i], &rewrites[i]);
     }
     VkResult result = dev->CreateGraphicsPipelines(device, cache, count, copies, allocator, pipelines);
-    for (uint32_t i = 0; i < count; i++)
+    for (uint32_t i = 0; i < count; i++) {
         undo_rewrite(dev, &rewrites[i]);
+        if (dev->emulated & GAP_DEPTH_OP)
+            remember_static_depth(dev, &infos[i], pipelines[i]);
+    }
     free(rewrites);
     free(copies);
     return result;
