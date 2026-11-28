@@ -505,16 +505,16 @@ class NativeHookHandoffTest(unittest.TestCase):
     def test_a_handed_off_program_whose_forking_process_exited_unreaped_has_init_as_parent(self):
         forker = subprocess.Popen(["true"])
         self.addCleanup(forker.wait)
+        stat = Path("/proc/%d/stat" % forker.pid)
         pause = threading.Event()
         for _ in range(100):
-            pause.wait(0.05)
-            try:
-                with open("/proc/%d/stat" % forker.pid) as f:
-                    if f.read().rsplit(")", 1)[1].split()[0] == "Z":
-                        break
-            except OSError:
+            if stat.read_text().rsplit(")", 1)[1].split()[0] == "Z":
                 break
+            pause.wait(0.05)
+        # exited and not reaped (Popen reaps only in wait() or poll())
+        self.assertEqual("Z", stat.read_text().rsplit(")", 1)[1].split()[0])
         self.assertEqual("1", self.ppid_in_worker(forker.pid))
+        self.assertEqual("Z", stat.read_text().rsplit(")", 1)[1].split()[0])
 
     def test_any_other_program_has_its_real_parent(self):
         self.assertEqual(str(os.getpid()), self.ppid_in_worker(None))
