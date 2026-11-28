@@ -7,6 +7,15 @@ on:
       - 'tools/gamescope/build-in-arch.sh'
       - 'tools/gamescope/patches/**'
       - 'tools/gamescope/runtime-sonames.txt'
+      - 'tools/gamescope/tests/**'
+      - '.github/workflows/build-gamescope.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'tools/gamescope/build-in-arch.sh'
+      - 'tools/gamescope/patches/**'
+      - 'tools/gamescope/runtime-sonames.txt'
+      - 'tools/gamescope/tests/**'
       - '.github/workflows/build-gamescope.yml'
   workflow_dispatch:
     inputs:
@@ -16,11 +25,11 @@ on:
         default: ''
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ inputs.tag && format('gamescope-tag-{0}', inputs.tag) || format('gamescope-{0}-{1}', github.event_name, github.ref) }}
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   build:
