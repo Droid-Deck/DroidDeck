@@ -4116,4 +4116,5 @@
     <string name="steam_store_session_wait">先に Steam のダウンロードを一時停止してください</string>
     <string name="steam_store_linux_build">このゲームは Linux 版をインストールします。Steam からインストールしてください。</string>
     <string name="game_zoom_title">ゲームズーム</string>
+    <string name="game_zoom_hint">ゲームの拡大率を100%から300%の間で調整します</string>
 </resources>
