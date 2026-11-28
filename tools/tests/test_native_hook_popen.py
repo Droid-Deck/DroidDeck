@@ -1,5 +1,4 @@
 import os
-import shutil
 import subprocess
 import tempfile
 import unittest
@@ -67,17 +66,7 @@ class NativeHookPopenTest(unittest.TestCase):
         cls.root = tmp / "root"
         (cls.root / "bin").mkdir(parents=True)
         (tmp / "sh.c").write_text(SHELL)
-        # A dynamic shell, as the rootfs' dash is: the root gets the runner's loader and libc for it.
-        libs = Path("/usr/aarch64-linux-gnu/lib") if cls.prefix else Path("/lib/aarch64-linux-gnu")
-        loader = Path("/usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.1") if cls.prefix else Path("/lib/ld-linux-aarch64.so.1")
-        if not (libs / "libc.so.6").is_file() or not loader.is_file():
-            raise unittest.SkipTest("no aarch64 libc to put in the test root")
-        for d in ("lib", "lib/aarch64-linux-gnu", "usr/lib/aarch64-linux-gnu"):
-            (cls.root / d).mkdir(parents=True, exist_ok=True)
-        shutil.copy2(loader, cls.root / "lib/ld-linux-aarch64.so.1")
-        shutil.copy2(libs / "libc.so.6", cls.root / "lib/aarch64-linux-gnu/libc.so.6")
-        shutil.copy2(libs / "libc.so.6", cls.root / "usr/lib/aarch64-linux-gnu/libc.so.6")
-        subprocess.run([cls.cc, "-O1", "-o", str(cls.root / "bin/sh"), str(tmp / "sh.c")], check=True)
+        subprocess.run([cls.cc, "-static", "-O1", "-o", str(cls.root / "bin/sh"), str(tmp / "sh.c")], check=True)
         (tmp / "prog.c").write_text(PROGRAM)
         cls.program = tmp / "prog"
         subprocess.run([cls.cc, "-O1", "-o", str(cls.program), str(tmp / "prog.c")], check=True)
