@@ -992,6 +992,16 @@ static int ddh_selects(const struct ddh_entry *e, pid_t pid) {
     return e->pad[1] == (pid == 0 ? getpgrp() : -pid);
 }
 
+// Takes e's exit for a wait for pid, checked again once taken: between finding e and taking it,
+// another waiter may have released the slot and a later child of ours (or one of another group)
+// have exited in it.
+static int ddh_take_for(struct ddh_entry *e, pid_t pid) {
+    if (!ddh_take(e)) return 0;
+    if (e->parent == getpid() && ddh_selects(e, pid)) return 1;
+    ddh_untake(e);
+    return 0;
+}
+
 static int ddh_any_live(pid_t pid) {
     if (!g_ddh) return 0;
     pid_t me = getpid();
@@ -1112,7 +1122,7 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
         struct ddh_entry *e = pid > 0 ? ddh_find(pid) : NULL;
         if (pid > 0 && e) {
             if (!e->reaped && real(pid, NULL, WNOHANG, NULL) == pid) e->reaped = 1;
-            if (ddh_take(e)) {
+            if (ddh_take_for(e, pid)) {
                 // the forked child is between its last write and its exit: reap it first, or a later
                 // wait() would report its pid a second time (not blocking for WNOHANG: then later)
                 if (!e->reaped && !ddh_reap_shim(real, pid, options)) {
@@ -1132,7 +1142,7 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
             continue;
         }
         if (pid <= 0 && (e = ddh_exited(pid))) {
-            if (!ddh_take(e)) continue;  // another waiter has it
+            if (!ddh_take_for(e, pid)) continue;  // another waiter has it, or the slot went to another child
             pid_t child = e->child;
             if (!e->reaped && !ddh_reap_shim(real, child, options)) {
                 ddh_untake(e);

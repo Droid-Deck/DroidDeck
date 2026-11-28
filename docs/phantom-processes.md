@@ -454,9 +454,9 @@ adb shell device_config get_sync_disabled_for_tests
 
 Android 12 and some Android 13 builds have no `get_sync_disabled_for_tests`; there `adb shell
 device_config is_sync_disabled_for_tests` answers only true or false, so it cannot tell `persistent`
-from `until_reboot`. Note `none` when it says false. When it says true, sync was already off and
-stays off with `persistent`; if it was `until_reboot`, a reboot after the lab no longer turns it
-back on, so set `until_reboot` again yourself if you know that was the mode.
+from `until_reboot`. Note `none` when it says false. When it says true, sync is already off: skip
+the `set_sync_disabled_for_tests persistent` step below, which keeps whichever mode it was, and
+leave the mode alone when you restore the rest.
 
 ```
 tools/phantomlab/build.sh                          # build/phantomlab.apk, debug-signed

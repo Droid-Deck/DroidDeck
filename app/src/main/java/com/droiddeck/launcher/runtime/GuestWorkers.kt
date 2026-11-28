@@ -652,13 +652,15 @@ object GuestWorkers {
                     out.flush()
                     answered = true
                     client.soTimeout = ACK_TIMEOUT_MS
+                    // the whole line: a hook whose write stopped short treats it as failed and runs the program itself
                     val line = StringBuilder()
-                    while (true) {
+                    var ended = false
+                    while (!ended) {
                         val c = input.read()
-                        if (c < 0 || c == '\n'.code) break
-                        line.append(c.toChar())
+                        if (c < 0) break
+                        if (c == '\n'.code) ended = true else line.append(c.toChar())
                     }
-                    line.toString() == "go"
+                    ended && line.toString() == "go"
                 }.getOrDefault(false)
             }
             handedOver = true

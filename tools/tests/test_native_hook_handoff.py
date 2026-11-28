@@ -239,6 +239,7 @@ class NativeHookHandoffTest(unittest.TestCase):
     def test_a_posix_spawn_of_a_missing_program_fails_as_it_would(self):
         # posix_spawn() returns the exec's error, even with closefrom(3) among the file actions
         result, requests, out = self.run_parent("spawn", "6", "/bin/missing", handoff="missing")
+        self.assertEqual(0, out.returncode, out.stderr)
         self.assertEqual([], requests)
         self.assertEqual(str(errno.ENOENT), result.get("spawned"), out.stdout)
         self.assertNotIn("exit", result, out.stdout)
@@ -249,6 +250,10 @@ class NativeHookHandoffTest(unittest.TestCase):
         # as a separate process, gets 0 and an exit status of 127.
         result, requests, out = self.run_parent("spawn", "6", "/bin/missing", handoff="other")
         plain, _, plain_out = self.run_parent("spawn", "6", "/bin/missing", handoff="other", hook=False)
+        self.assertEqual(0, out.returncode, out.stderr)
+        self.assertEqual(0, plain_out.returncode, plain_out.stderr)
+        self.assertIn("spawned", result, out.stdout)
+        self.assertIn("spawned", plain, plain_out.stdout)
         self.assertEqual([], requests)
         self.assertEqual(plain.get("spawned"), result.get("spawned"), out.stdout + plain_out.stdout)
         self.assertEqual(plain.get("exit"), result.get("exit"), out.stdout + plain_out.stdout)

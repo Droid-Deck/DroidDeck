@@ -458,9 +458,16 @@ int close_range(unsigned int first, unsigned int last, int flags) {
     const int *kept = (flags & CLOSE_RANGE_CLOEXEC) ? g_cloexec_kept_fds : g_kept_fds;
     int kept_count = (flags & CLOSE_RANGE_CLOEXEC) ? g_cloexec_kept_count : g_kept_fd_count;
     if (kept_count == 0) return close_range_all(first, last, flags);
-    // The table is unshared once, even when every fd in the range is kept (no fd has the top number)
+    // The table is unshared once, even when every fd in the range is kept: the system call itself on
+    // the one number no fd has (close_range_all() would emulate a missing call by closing fds)
     if (flags & CLOSE_RANGE_UNSHARE) {
-        if (close_range_all(~0U, ~0U, CLOSE_RANGE_UNSHARE) != 0) return -1;
+        static long (*raw_syscall)(long, ...) = NULL;
+        if (!raw_syscall) raw_syscall = (long (*)(long, ...))dlsym(RTLD_NEXT, "syscall");
+        if (!raw_syscall) {
+            errno = ENOSYS;
+            return -1;
+        }
+        if (raw_syscall(__NR_close_range, ~0U, ~0U, CLOSE_RANGE_UNSHARE) != 0) return -1;
         flags &= ~CLOSE_RANGE_UNSHARE;
     }
     return for_each_range_without(first, last, kept, kept_count, close_range_part, &flags);
