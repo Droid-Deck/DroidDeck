@@ -75,3 +75,36 @@ private:
     std::mutex mutex_;
     std::string path_;
 };
+
+#define DROIDDECK_XR_LATCH_FILE "droiddeck-xr-latch"
+
+// The compositor's capture latches one head pose per frame here; the driver hands SteamVR exactly that pose,
+// so the frame drawn next and the pose the headset reprojects it with are the same sample.
+class XrLatchWriter {
+public:
+    ~XrLatchWriter() { if (mapping_) munmap(mapping_, sizeof(*mapping_)); }
+    void Write(const DroidDeckXrTracking &packet) {
+        if (!mapping_ && !Open()) return;
+        const uint32_t sequence = __atomic_load_n(&mapping_->seq, __ATOMIC_RELAXED) | 1u;
+        __atomic_store_n(&mapping_->seq, sequence, __ATOMIC_RELAXED);
+        __atomic_thread_fence(__ATOMIC_RELEASE);
+        DroidDeckXrTracking copy = packet; copy.seq = sequence;
+        std::memcpy(mapping_, &copy, sizeof(copy));
+        __atomic_store_n(&mapping_->seq, sequence + 1, __ATOMIC_RELEASE);
+    }
+private:
+    bool Open() {
+        if (attempted_) return false;
+        attempted_ = true;
+        int descriptor = open("/run/droiddeck/" DROIDDECK_XR_LATCH_FILE, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+        if (descriptor < 0) return false;
+        void *mapping = ftruncate(descriptor, sizeof(*mapping_)) == 0
+            ? mmap(nullptr, sizeof(*mapping_), PROT_READ | PROT_WRITE, MAP_SHARED, descriptor, 0) : MAP_FAILED;
+        close(descriptor);
+        if (mapping == MAP_FAILED) return false;
+        mapping_ = static_cast<DroidDeckXrTracking *>(mapping);
+        return true;
+    }
+    DroidDeckXrTracking *mapping_ = nullptr;
+    bool attempted_ = false;
+};

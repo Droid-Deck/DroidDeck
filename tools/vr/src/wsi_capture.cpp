@@ -137,6 +137,9 @@ struct Swapchain {
     std::array<CaptureSlot, 3> slots;
     uint64_t frame{};
     XrTrackingFile tracking;
+    XrLatchWriter latch;
+    DroidDeckXrTracking previous{};
+    bool latched{};
     XrFrameSender sender;
     XrGpuSender gpuSender;
     bool gpu{};
@@ -158,17 +161,47 @@ struct Swapchain {
             std::fprintf(stderr, "[droiddeck-vr-layer] WSI worker failed; restart SteamVR\n");
         }
     }
+    // The headset takes one frame per display refresh, so waiting for each acknowledgement before sending the
+    // next left SteamVR's frames missing that refresh: up to two frames travel at once, each slot freed by its ack.
+    static constexpr size_t kInFlight = 2;
+    std::vector<std::pair<uint64_t, CaptureSlot *>> inFlight;
+    int64_t oldestSent{};
+    bool CollectAcks(int timeout) {
+        if (!gpu || inFlight.empty()) return true;
+        bool ok = gpuSender.Acks(timeout, [this](uint64_t ack) {
+            auto it = std::find_if(inFlight.begin(), inFlight.end(), [ack](const auto &item) { return item.first == ack; });
+            if (it == inFlight.end()) return false;
+            { std::lock_guard<std::mutex> lock(sendMutex); it->second->busy = false; }
+            inFlight.erase(it);
+            oldestSent = XrTrackingFile::Now();
+            return true;
+        });
+        return ok && (inFlight.empty() || XrTrackingFile::Now() - oldestSent < 5000000000LL);
+    }
     void Loop() {
         for (;;) {
+            if (!CollectAcks(0)) {
+                std::lock_guard<std::mutex> lock(sendMutex);
+                std::fprintf(stderr, "[droiddeck-vr-layer] WSI headset stopped acknowledging frames; restart SteamVR\n");
+                failed = true; return;
+            }
             CaptureSlot *slot;
             {
                 std::unique_lock<std::mutex> lock(sendMutex);
-                sendReady.wait(lock, [this] {
-                    return stopping || std::any_of(slots.begin(), slots.end(), [](const auto &item) { return item.queued; });
-                });
+                auto ready = [this] {
+                    return stopping || (inFlight.size() < kInFlight
+                        && std::any_of(slots.begin(), slots.end(), [](const auto &item) { return item.queued; }));
+                };
+                if (inFlight.empty()) sendReady.wait(lock, ready);
+                else if (!ready()) {
+                    lock.unlock();
+                    CollectAcks(1);
+                    continue;
+                }
+                if (stopping) return;
                 slot = nullptr;
                 for (auto &item : slots) if (item.queued && (!slot || item.header.frame_id < slot->header.frame_id)) slot = &item;
-                if (!slot) return;
+                if (!slot) continue;
                 slot->queued = false;
             }
             auto &d = *device;
@@ -182,10 +215,16 @@ struct Swapchain {
             VkMappedMemoryRange range{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE}; range.memory = memory; range.size = VK_WHOLE_SIZE;
             if (result == VK_SUCCESS && !gpu) result = d.InvalidateMappedMemoryRanges(d.handle, 1, &range);
             int64_t invalidated = XrTrackingFile::Now();
+            bool posted = false;
             if (result == VK_SUCCESS && XrTrackingFile::Now() - header.captured_ns < 200000000LL) {
                 if (gpu) {
                     uint32_t flags = (format == VK_FORMAT_B8G8R8A8_UNORM || format == VK_FORMAT_B8G8R8A8_SRGB) ? XR_GPU_BGRA : 0;
-                    if (!gpuSender.Send(header, static_cast<uint32_t>(slot - slots.data()), flags)) result = VK_ERROR_DEVICE_LOST;
+                    if (!gpuSender.Post(header, static_cast<uint32_t>(slot - slots.data()), flags)) result = VK_ERROR_DEVICE_LOST;
+                    else {
+                        if (inFlight.empty()) oldestSent = XrTrackingFile::Now();
+                        inFlight.emplace_back(header.frame_id, slot);
+                        posted = true;
+                    }
                 } else sender.SendShared("/run/droiddeck/" DROIDDECK_XR_FRAME_SOCKET, header, sharedFd);
             }
             if (header.frame_id % 120 == 0) std::fprintf(stderr, "[droiddeck-vr-layer] WSI ms wait=%.2f invalidate=%.2f shared=%.2f\n",
@@ -195,7 +234,7 @@ struct Swapchain {
                 std::fprintf(stderr, "[droiddeck-vr-layer] WSI buffer quarantined: result=%d leaseLost=%d; restart SteamVR\n", result, sender.SharedLeaseLost());
                 failed = true; return;
             }
-            slot->busy = false;
+            if (!posted) slot->busy = false;
         }
     }
     bool Initialize(VkSwapchainKHR chain, VkQueue queue) {
@@ -236,8 +275,11 @@ struct Swapchain {
         return result;
     }
     bool Header(DroidDeckXrFrameHeader &header) {
-        DroidDeckXrTracking packet{};
-        if (!tracking.Read(&packet) || !XrTrackingFile::Fresh(packet)) return false;
+        DroidDeckXrTracking latest{};
+        if (!tracking.Read(&latest) || !XrTrackingFile::Fresh(latest)) return false;
+        DroidDeckXrTracking packet = latched && XrTrackingFile::Fresh(previous) ? previous : latest;
+        previous = latest; latched = true;
+        latch.Write(latest);
         header = {};
         header.magic = DROIDDECK_XR_FRAME_MAGIC; header.version = DROIDDECK_XR_FRAME_VERSION;
         header.width = extent.width; header.height = extent.height;
@@ -329,6 +371,9 @@ struct Swapchain {
         submit.pWaitDstStageMask = stages.data(); submit.commandBufferCount = 1; submit.pCommandBuffers = &command;
         submit.signalSemaphoreCount = 1; submit.pSignalSemaphores = &ready[index];
         if ((result = d.QueueSubmit(queue, 1, &submit, fence))) return Fail(result, slot);
+        // The headless swapchain hands the image back as soon as it is presented, and KGSL has no implicit
+        // sync, so the compositor drew its next frame into it while this copy still read it: blocky panels.
+        if ((result = d.WaitForFences(d.handle, 1, &fence, VK_TRUE, UINT64_MAX))) return Fail(result, slot);
         rgbaInitialized = true;
         { std::lock_guard<std::mutex> lock(sendMutex); slot.header = header; slot.queued = true; sendReady.notify_all(); }
         *completion = ready[index];

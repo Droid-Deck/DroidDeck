@@ -1383,6 +1383,86 @@ static VkResult VKAPI_CALL CreateImage(VkDevice d, const VkImageCreateInfo *ci, 
     return r;
 }
 
+/* vrcompositor renders both eyes through one shared texture and warps each into its half of the output in the
+ * same command buffer. On Turnip its barrier before the right eye's warp left the texture cache holding the
+ * left eye, so blocks of the left eye showed in the right one. A full barrier before each warp pass fixes it. */
+#define WARP_PASSES 32
+static VkRenderPass g_warp_passes[WARP_PASSES];
+static int g_warp_pass_count;
+static pthread_mutex_t g_warp_lock = PTHREAD_MUTEX_INITIALIZER;
+
+static int warp_wanted(void) {
+    static int wanted = -1;
+    if (wanted < 0) {
+        const char *mode = getenv("DROIDDECK_VR_PRESENT");
+        wanted = mode && !strcmp(mode, "questwsi") && !strcmp(program_invocation_short_name, "vrcompositor");
+    }
+    return wanted;
+}
+
+static void warp_note(VkRenderPass pass, uint32_t attachments, VkSampleCountFlagBits samples) {
+    if (attachments != 1 || samples != VK_SAMPLE_COUNT_1_BIT) return;
+    pthread_mutex_lock(&g_warp_lock);
+    if (g_warp_pass_count < WARP_PASSES) g_warp_passes[g_warp_pass_count++] = pass;
+    pthread_mutex_unlock(&g_warp_lock);
+}
+
+static int warp_pass(VkRenderPass pass) {
+    int found = 0;
+    pthread_mutex_lock(&g_warp_lock);
+    for (int i = 0; i < g_warp_pass_count && !found; i++) found = g_warp_passes[i] == pass;
+    pthread_mutex_unlock(&g_warp_lock);
+    return found;
+}
+
+static VkResult VKAPI_CALL CreateRenderPass(VkDevice d, const VkRenderPassCreateInfo *ci, const VkAllocationCallbacks *a, VkRenderPass *out) {
+    VkResult r = NEXT(d, CreateRenderPass)(d, ci, a, out);
+    if (r == VK_SUCCESS) warp_note(*out, ci->attachmentCount, ci->attachmentCount ? ci->pAttachments[0].samples : 0);
+    return r;
+}
+
+static VkResult VKAPI_CALL CreateRenderPass2(VkDevice d, const VkRenderPassCreateInfo2 *ci, const VkAllocationCallbacks *a, VkRenderPass *out) {
+    PFN_vkCreateRenderPass2 next = (PFN_vkCreateRenderPass2)dev_for(d)->gdpa(d, "vkCreateRenderPass2");
+    if (!next) next = (PFN_vkCreateRenderPass2)dev_for(d)->gdpa(d, "vkCreateRenderPass2KHR");
+    VkResult r = next(d, ci, a, out);
+    if (r == VK_SUCCESS) warp_note(*out, ci->attachmentCount, ci->attachmentCount ? ci->pAttachments[0].samples : 0);
+    return r;
+}
+
+static void warp_barrier(VkCommandBuffer cb, VkRenderPass pass) {
+    if (!warp_pass(pass)) return;
+    struct dev *d = dev_for(cb);
+    VkMemoryBarrier all = {VK_STRUCTURE_TYPE_MEMORY_BARRIER, NULL, VK_ACCESS_MEMORY_WRITE_BIT,
+                           VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT};
+    ((PFN_vkCmdPipelineBarrier)d->gdpa(d->handle, "vkCmdPipelineBarrier"))(cb, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 1, &all, 0, NULL, 0, NULL);
+}
+
+static void VKAPI_CALL CmdBeginRenderPass(VkCommandBuffer cb, const VkRenderPassBeginInfo *bi, VkSubpassContents contents) {
+    warp_barrier(cb, bi->renderPass);
+    struct dev *d = dev_for(cb);
+    ((PFN_vkCmdBeginRenderPass)d->gdpa(d->handle, "vkCmdBeginRenderPass"))(cb, bi, contents);
+}
+
+static void VKAPI_CALL CmdBeginRenderPass2(VkCommandBuffer cb, const VkRenderPassBeginInfo *bi, const VkSubpassBeginInfo *si) {
+    warp_barrier(cb, bi->renderPass);
+    struct dev *d = dev_for(cb);
+    PFN_vkCmdBeginRenderPass2 next = (PFN_vkCmdBeginRenderPass2)d->gdpa(d->handle, "vkCmdBeginRenderPass2");
+    if (!next) next = (PFN_vkCmdBeginRenderPass2)d->gdpa(d->handle, "vkCmdBeginRenderPass2KHR");
+    next(cb, bi, si);
+}
+
+static PFN_vkVoidFunction warp_hook(const char *name) {
+    if (!warp_wanted()) return NULL;
+    HOOK_AS("vkCreateRenderPass", CreateRenderPass)
+    HOOK_AS("vkCreateRenderPass2", CreateRenderPass2)
+    HOOK_AS("vkCreateRenderPass2KHR", CreateRenderPass2)
+    HOOK_AS("vkCmdBeginRenderPass", CmdBeginRenderPass)
+    HOOK_AS("vkCmdBeginRenderPass2", CmdBeginRenderPass2)
+    HOOK_AS("vkCmdBeginRenderPass2KHR", CmdBeginRenderPass2)
+    return NULL;
+}
+
 static PFN_vkVoidFunction semaphore_hook(const char *name) {
     HOOK_AS("vkCreateImage", CreateImage)
     HOOK_AS("vkCreateSemaphore", CreateSemaphore)
@@ -1461,7 +1541,8 @@ EXPORT VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL DroidDeckVr_GetDeviceProcAddr(Vk
         if (f) return f;
     }
     if (d) {
-        PFN_vkVoidFunction mine = semaphore_hook(name);
+        PFN_vkVoidFunction mine = warp_hook(name);
+        if (!mine) mine = semaphore_hook(name);
         if (mine && d->gdpa(device, name)) return mine;
     }
     return d ? d->gdpa(device, name) : NULL;

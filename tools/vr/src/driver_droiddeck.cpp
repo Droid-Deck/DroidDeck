@@ -1447,6 +1447,22 @@ public:
 
     DriverPose_t GetPose() override { return GetPose(nullptr); }
 
+    static DriverPose_t XrHeadPose(const DroidDeckXrTracking &xr, bool fresh) {
+        DriverPose_t p = {};
+        p.qWorldFromDriverRotation.w = 1;
+        p.qDriverFromHeadRotation.w = 1;
+        p.qRotation.w = 1;
+        p.deviceIsConnected = true;
+        p.poseIsValid = fresh && XrTrackingFile::Tracked(xr.head);
+        p.result = p.poseIsValid ? TrackingResult_Running_OK : TrackingResult_Running_OutOfRange;
+        if (p.poseIsValid) {
+            p.qRotation = {xr.head.orientation[3], xr.head.orientation[0], xr.head.orientation[1], xr.head.orientation[2]};
+            for (int axis = 0; axis < 3; axis++) p.vecPosition[axis] = xr.head.position[axis];
+            p.poseTimeOffset = XrTrackingFile::PoseTimeOffset(xr.predicted_ns, XrTrackingFile::Now());
+        }
+        return p;
+    }
+
     DriverPose_t GetPose(droiddeck_spatialpose *snapshot) {
         std::lock_guard<std::mutex> lock(spatialMutex_);
         DriverPose_t p = {};
@@ -1455,17 +1471,7 @@ public:
         p.qRotation.w = 1;
         DroidDeckXrTracking xr;
         bool freshXr = xr_.Read(&xr) && XrTrackingFile::Fresh(xr);
-        if (freshXr || xrMode_) {
-            p.deviceIsConnected = true;
-            p.poseIsValid = freshXr && XrTrackingFile::Tracked(xr.head);
-            p.result = p.poseIsValid ? TrackingResult_Running_OK : TrackingResult_Running_OutOfRange;
-            if (p.poseIsValid) {
-                p.qRotation = {xr.head.orientation[3], xr.head.orientation[0], xr.head.orientation[1], xr.head.orientation[2]};
-                for (int axis = 0; axis < 3; axis++) p.vecPosition[axis] = xr.head.position[axis];
-                p.poseTimeOffset = XrTrackingFile::PoseTimeOffset(xr.predicted_ns, XrTrackingFile::Now());
-            }
-            return p;
-        }
+        if (freshXr || xrMode_) return XrHeadPose(xr, freshXr);
         p.vecPosition[1] = 1.6;
         droiddeck_headpose hp;
         bool ok = pose_.Read(&hp);
@@ -1580,19 +1586,35 @@ private:
         droiddeck_joycon joyCons = {};
         bool haveJoyCons = false;
         auto lastSent = std::chrono::steady_clock::now();
+        uint32_t lastLatch = 0;
+        auto lastHands = lastSent - std::chrono::seconds(1);
         while (running_) {
             DroidDeckXrTracking xr;
             if (xrMode_) {
-                bool fresh = xr_.Read(&xr) && XrTrackingFile::Fresh(xr);
-                if (fresh) PublishChaperone(xr);
-                DriverPose_t head = GetPose();
-                VRServerDriverHost()->TrackedDevicePoseUpdated(id_, head, sizeof(head));
-                for (int hand = 0; hand < 2; hand++) if (CardboardController *pad = ActiveHand(hand)) {
-                    DroidDeckXrHand state = fresh ? xr.hands[hand] : DroidDeckXrHand{};
-                    pad->UpdateXr(state, fresh ? xr.predicted_ns : 0);
+                DroidDeckXrTracking latched;
+                const bool haveLatch = latch_.Read(&latched) && XrTrackingFile::Fresh(latched);
+                const auto now = std::chrono::steady_clock::now();
+                if (haveLatch) {
+                    if (latched.seq != lastLatch) {
+                        lastLatch = latched.seq;
+                        DriverPose_t head = XrHeadPose(latched, true);
+                        VRServerDriverHost()->TrackedDevicePoseUpdated(id_, head, sizeof(head));
+                    }
+                } else if (now - lastHands >= std::chrono::milliseconds(2)) {
+                    DriverPose_t head = GetPose();
+                    VRServerDriverHost()->TrackedDevicePoseUpdated(id_, head, sizeof(head));
                 }
-                VRDriverInput()->UpdateBooleanComponent(proximity_, fresh, 0);
-                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                if (now - lastHands >= std::chrono::milliseconds(2)) {
+                    lastHands = now;
+                    bool fresh = xr_.Read(&xr) && XrTrackingFile::Fresh(xr);
+                    if (fresh) PublishChaperone(xr);
+                    for (int hand = 0; hand < 2; hand++) if (CardboardController *pad = ActiveHand(hand)) {
+                        DroidDeckXrHand state = fresh ? xr.hands[hand] : DroidDeckXrHand{};
+                        pad->UpdateXr(state, fresh ? xr.predicted_ns : 0);
+                    }
+                    VRDriverInput()->UpdateBooleanComponent(proximity_, fresh, 0);
+                }
+                std::this_thread::sleep_for(std::chrono::microseconds(500));
                 continue;
             }
             droiddeck_headpose hp;
@@ -1770,6 +1792,7 @@ private:
     DriverPose_t lastSpatial_{};
     droiddeck_spatialpose lastSpatialSnapshot_{};
     XrTrackingFile xr_;
+    XrTrackingFile latch_{"/run/droiddeck/" DROIDDECK_XR_LATCH_FILE};
     XrChaperoneOrigin chaperone_;
     bool xrMode_ = false;
     PadRing pad_;
