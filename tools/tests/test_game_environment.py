@@ -1613,6 +1613,42 @@ class GameEnvironmentTest(unittest.TestCase):
                                      {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}),
                              ["proton", "run", command[2]])
 
+    def test_renamed_easy_anti_cheat_bootstrapper_starts_the_game_offline(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "Game/GameData"
+            (folder / "EasyAntiCheat").mkdir(parents=True)
+            (folder / "Binaries").mkdir()
+            game = folder / "Binaries/Game.exe"
+            game.write_bytes(b"MZ" + "EasyAntiCheat".encode("utf-16-le"))
+            (folder / "EasyAntiCheat/Settings.json").write_text('{ "executable" : "binaries\\\\game.exe" }')
+            on = {"DROIDDECK_ANTICHEAT_OFFLINE": "1"}
+            offline = MODULE["offline_without_anticheat"]
+            for mark in ("EasyAntiCheat\\EasyAntiCheat_x86.dll".encode("utf-16-le"),
+                         "Easy Anti-Cheat Bootstrapper (EOS)".encode("utf-16-le"), b"EasyAntiCheat_x64.dll"):
+                with self.subTest(mark=mark):
+                    launcher = folder / "rename.exe"
+                    launcher.write_bytes(b"MZ\0" + mark + b"\0")
+                    command = ["proton", "waitforexitandrun", str(launcher), "-arg"]
+                    self.assertEqual(offline(command, on), ["proton", "waitforexitandrun", str(game), "-arg"])
+                    self.assertEqual(offline(command, {"DROIDDECK_ANTICHEAT_OFFLINE": "0"}), command)
+                    self.assertEqual(offline(command, {}), command)
+                    self.assertEqual(offline(["proton", "run", str(launcher)], on), ["proton", "run", str(launcher)])
+            direct = ["proton", "waitforexitandrun", str(game)]
+            self.assertEqual(offline(direct, on), direct)
+            tool = folder / "Config.exe"
+            tool.write_bytes(b"MZ\0config tool\0")
+            self.assertEqual(offline(["proton", "waitforexitandrun", str(tool)], on),
+                             ["proton", "waitforexitandrun", str(tool)])
+            large = folder / "Large.exe"
+            with large.open("wb") as target:
+                target.write(b"MZ" + "Easy Anti-Cheat".encode("utf-16-le"))
+                target.truncate(MODULE["EAC_BOOTSTRAPPER_LIMIT"] + 1)
+            self.assertEqual(offline(["proton", "waitforexitandrun", str(large)], on),
+                             ["proton", "waitforexitandrun", str(large)])
+            (folder / "EasyAntiCheat/Settings.json").write_text('{ "executable" : "Binaries/Missing.exe" }')
+            command = ["proton", "waitforexitandrun", str(folder / "rename.exe")]
+            self.assertEqual(offline(command, on), command)
+
     def test_easy_anti_cheat_forwarding_through_entrypoint(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
