@@ -100,7 +100,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -649,20 +648,20 @@ internal fun Handle(height: Dp, above: Boolean = false) {
     val pal = LocalPalette.current
     val shape = if (above) RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp) else RoundedCornerShape(bottomStart = 12.dp, bottomEnd = 12.dp)
     val still = Motion.scale == 0f
-    val bob = androidx.compose.animation.core.rememberInfiniteTransition(label = "handle")
-    val lift by bob.animateFloat(
-        0f, 0f,
-        androidx.compose.animation.core.infiniteRepeatable(
+    val lift = remember { Animatable(0f) }
+    LaunchedEffect(still) {
+        lift.snapTo(0f)
+        if (!still) lift.animateTo(
+            0f,
             androidx.compose.animation.core.keyframes {
-                durationMillis = 2400
+                durationMillis = 620
                 0f at 0
                 1f at 180 using androidx.compose.animation.core.FastOutSlowInEasing
                 -0.25f at 420
                 0f at 620
             },
-        ),
-        label = "handleBob",
-    )
+        )
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier.height(height).clip(shape).background(colors.surface)
@@ -672,7 +671,7 @@ internal fun Handle(height: Dp, above: Boolean = false) {
         Text(stringResource(R.string.sheet_lip), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant, maxLines = 1)
         Icon(
             if (above) Icons.Filled.KeyboardArrowDown else Icons.Filled.KeyboardArrowUp, null, tint = colors.onSurfaceVariant,
-            modifier = Modifier.size(16.dp).graphicsLayer { translationY = if (still) 0f else (if (above) 3.dp else -3.dp).toPx() * lift },
+            modifier = Modifier.size(16.dp).graphicsLayer { translationY = if (still) 0f else (if (above) 3.dp else -3.dp).toPx() * lift.value },
         )
     }
 }
