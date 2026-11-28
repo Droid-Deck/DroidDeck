@@ -285,8 +285,6 @@ float evalPoly6(float pxl[6], int phase_int) {
 }
 
 float filterNormal(float p[6][6], int phase_x_int, int phase_y_int) {
-    phase_x_int = clamp(phase_x_int, 0, 63);
-    phase_y_int = clamp(phase_y_int, 0, 63);
     float h_acc = 0.0;
     for (int j = 0; j < 6; ++j) {
         float v_acc = 0.0;
