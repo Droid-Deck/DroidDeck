@@ -149,6 +149,14 @@ The SPIR-V version the driver gets:
   only taken out where the layer emulates them. `DROIDDECK_MALI_COMPAT=0` turns both off.
 - This is what Dawn ("Disable SPIR-V 1.4 on Android ARM"), ANGLE (`supportsSPIRV14`) and naga
   (`AVOID_SPIRV_COPY_LOGICAL`) do for a proprietary compiler they cannot trust.
+- Render node: Zink binds a GBM or DRI screen (KWin, Xwayland's glamor) to the Vulkan device
+  whose `VkPhysicalDeviceDrmPropertiesEXT` render node matches the screen's DRM fd. Venus over
+  vtest reports none, so KWin 6.8, which has no QPainter compositor, drew nothing on Desktop.
+  When the driver reports no render node, the layer reports the stand-in node's numbers
+  (`DD_DRM_STANDIN=/dev/mali0`, bound into the guest as `/dev/dri/renderD<minor>`). The
+  extension stays unlisted, and the layer is off in gamescope, so gamescope keeps its no-DRM path.
+  Venus gets the stand-in node only in Desktop sessions. Steam and program sessions keep running
+  without one, so their Xwayland, Zink and gamescope paths stay as they were.
 
 Files:
 - `layer.c`: loader plumbing, feature and limit reporting, device creation, the hook table.

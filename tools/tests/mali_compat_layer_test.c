@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/sysmacros.h>
 
 VKAPI_ATTR VkResult VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(VkNegotiateLayerInterface *interface);
 
@@ -240,6 +242,16 @@ static void VKAPI_CALL mock_properties(VkPhysicalDevice physical, VkPhysicalDevi
 static void VKAPI_CALL mock_properties2(VkPhysicalDevice physical, VkPhysicalDeviceProperties2 *properties)
 {
     mock_properties(physical, &properties->properties);
+    for (VkBaseOutStructure *s = properties->pNext; s; s = s->pNext) {
+        if (s->sType != VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT)
+            continue;
+        VkPhysicalDeviceDrmPropertiesEXT *drm = (VkPhysicalDeviceDrmPropertiesEXT *)s;
+        bool own = physical == (VkPhysicalDevice)&mock_capable;
+        drm->hasPrimary = drm->hasRender = own;
+        drm->primaryMajor = drm->renderMajor = own ? 226 : 0;
+        drm->primaryMinor = 0;
+        drm->renderMinor = own ? 128 : 0;
+    }
 }
 
 static void VKAPI_CALL mock_memory_properties(VkPhysicalDevice physical, VkPhysicalDeviceMemoryProperties *properties)
@@ -567,6 +579,46 @@ static void test_depth_compare_op(void)
     destroy_device(device);
 }
 
+static VkPhysicalDeviceDrmPropertiesEXT query_drm(VkPhysicalDevice physical)
+{
+    VkPhysicalDeviceDrmPropertiesEXT drm = {.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRM_PROPERTIES_EXT};
+    VkPhysicalDeviceProperties2 properties = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &drm, {0}};
+    ((PFN_vkGetPhysicalDeviceProperties2)layer_gipa((VkInstance)&mock_instance, "vkGetPhysicalDeviceProperties2"))(
+        physical, &properties);
+    return drm;
+}
+
+static void test_render_node(void)
+{
+    VkPhysicalDevice lacking = (VkPhysicalDevice)&mock_lacking, capable = (VkPhysicalDevice)&mock_capable;
+    struct stat node;
+    assert(stat("/dev/null", &node) == 0 && S_ISCHR(node.st_mode));
+
+    unsetenv("DD_DRM_STANDIN");
+    VkPhysicalDeviceDrmPropertiesEXT drm = query_drm(lacking);
+    assert(!drm.hasRender && !drm.renderMajor && !drm.renderMinor);
+
+    setenv("DD_DRM_STANDIN", "/dev/null", 1);
+    drm = query_drm(lacking);
+    assert(drm.hasRender && !drm.hasPrimary);
+    assert(drm.renderMajor == (int64_t)major(node.st_rdev) && drm.renderMinor == (int64_t)minor(node.st_rdev));
+
+    drm = query_drm(capable);
+    assert(drm.hasRender && drm.hasPrimary && drm.renderMajor == 226 && drm.renderMinor == 128);
+
+    VkPhysicalDeviceProperties2 plain = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, NULL, {0}};
+    ((PFN_vkGetPhysicalDeviceProperties2)layer_gipa((VkInstance)&mock_instance, "vkGetPhysicalDeviceProperties2"))(
+        lacking, &plain);
+
+    const char *not_devices[] = {"", "/", "/nonexistent/renderD128"};
+    for (size_t i = 0; i < sizeof(not_devices) / sizeof(not_devices[0]); i++) {
+        setenv("DD_DRM_STANDIN", not_devices[i], 1);
+        drm = query_drm(lacking);
+        assert(!drm.hasRender && !drm.renderMajor && !drm.renderMinor);
+    }
+    unsetenv("DD_DRM_STANDIN");
+}
+
 int main(int argc, char **argv)
 {
     test_spirv(argc > 1 ? argv[1] : NULL);
@@ -590,6 +642,7 @@ int main(int argc, char **argv)
     test_lacking_device();
     test_capable_device();
     test_depth_compare_op();
+    test_render_node();
 
     ((PFN_vkDestroyInstance)layer_gipa(instance, "vkDestroyInstance"))(instance, NULL);
     free(driver_code);

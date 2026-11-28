@@ -1068,8 +1068,8 @@ class SessionService : Service() {
                 Log.i(TAG, "steam: software web compositing for the open driver pair (GPU raster kept)")
             }
             guest.add("DD_OPEN_DRIVER=1")
-            LinuxRuntime.gpuStandIn(this)?.takeIf { it == LinuxRuntime.MALI_DEVICE }?.let { guest.add("DD_DRM_STANDIN=$it") }
         }
+        if (!bridge) LinuxRuntime.gpuStandIn(this)?.takeIf { it == LinuxRuntime.MALI_DEVICE }?.let { guest.add("DD_DRM_STANDIN=$it") }
         val tuOverride = tuDebugOverride()
         val tuDriver = sysmemDriver(linuxDriverId)
         if (!venus && com.droiddeck.launcher.core.DeviceSupport.adreno()) (tuOverride ?: "sysmem".takeIf { tuDriver || SessionPrefs.tuSysmem(this) })?.let { guest.add("TU_DEBUG=$it") }
