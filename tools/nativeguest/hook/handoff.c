@@ -107,34 +107,52 @@ static __thread pid_t t_ddh_only_thread;
 
 // Which of this process's threads forked which child, as the fork() and posix_spawn() wrappers saw
 // it, in this process's own memory: the child may exec wrappers before it claims an entry, and those
-// cannot carry it. A child not in here (a raw clone(), or one pushed out by many others) is any
-// thread's.
+// cannot carry it. A record stays until that child's end is taken (ddh_forget()); one for a child
+// gone without that is reused only when every record is in use. A child not in here (a raw clone(),
+// or none free) is any thread's.
 #define DDH_FORKS 1024
 static struct ddh_fork {
     pid_t child;
     pid_t thread;
 } g_ddh_forks[DDH_FORKS];
 
+static struct ddh_entry *ddh_find(pid_t child);
+
 static void ddh_forked_by(pid_t child, pid_t thread) {
-    struct ddh_fork *home = &g_ddh_forks[(unsigned)child % DDH_FORKS];
-    for (int i = 0; i < 8; i++) {
-        struct ddh_fork *f = &g_ddh_forks[((unsigned)child + i) % DDH_FORKS];
-        pid_t seen = __atomic_load_n(&f->child, __ATOMIC_ACQUIRE);
-        if (seen == child || (seen == 0 && __atomic_compare_exchange_n(&f->child, &seen, child, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))) {
-            __atomic_store_n(&f->thread, thread, __ATOMIC_RELEASE);
+    struct ddh_fork *free_one = NULL;
+    for (int i = 0; i < DDH_FORKS; i++) {
+        pid_t seen = __atomic_load_n(&g_ddh_forks[i].child, __ATOMIC_ACQUIRE);
+        if (seen == child) {
+            __atomic_store_n(&g_ddh_forks[i].thread, thread, __ATOMIC_RELEASE);
             return;
         }
+        if (seen == 0 && !free_one) free_one = &g_ddh_forks[i];
     }
-    __atomic_store_n(&home->child, child, __ATOMIC_RELEASE);
-    __atomic_store_n(&home->thread, thread, __ATOMIC_RELEASE);
+    for (int i = 0; !free_one && i < DDH_FORKS; i++) {
+        // all in use: one whose child is gone and has no entry
+        pid_t seen = __atomic_load_n(&g_ddh_forks[i].child, __ATOMIC_ACQUIRE);
+        int saved = errno;
+        if (seen > 0 && syscall(SYS_kill, seen, 0) != 0 && errno == ESRCH && !ddh_find(seen)) free_one = &g_ddh_forks[i];
+        errno = saved;
+    }
+    if (!free_one) return;
+    __atomic_store_n(&free_one->thread, thread, __ATOMIC_RELEASE);
+    __atomic_store_n(&free_one->child, child, __ATOMIC_RELEASE);
 }
 
 static pid_t ddh_forking_thread(pid_t child) {
-    for (int i = 0; i < 8; i++) {
-        struct ddh_fork *f = &g_ddh_forks[((unsigned)child + i) % DDH_FORKS];
-        if (__atomic_load_n(&f->child, __ATOMIC_ACQUIRE) == child) return __atomic_load_n(&f->thread, __ATOMIC_ACQUIRE);
+    for (int i = 0; i < DDH_FORKS; i++) {
+        if (__atomic_load_n(&g_ddh_forks[i].child, __ATOMIC_ACQUIRE) == child) return __atomic_load_n(&g_ddh_forks[i].thread, __ATOMIC_ACQUIRE);
     }
     return 0;
+}
+
+// The child's end has been taken: its record goes.
+static void ddh_forget(pid_t child) {
+    for (int i = 0; child > 0 && i < DDH_FORKS; i++) {
+        pid_t seen = child;
+        __atomic_compare_exchange_n(&g_ddh_forks[i].child, &seen, 0, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+    }
 }
 
 // In a forked child: the thread making the table did not come along, so the child may make its own;
@@ -1252,8 +1270,7 @@ static void ddh_release(struct ddh_entry *e, int *status);
 // marked it, and the new child may already have handed off a program of its own under the pid.
 // Without both start times (the new child already reaped too) nothing is dropped: an entry of the
 // new child's own must not be, and a stale one needs the pid space to wrap besides.
-static void ddh_child_created(pid_t pid) {
-    if (pid > 0) ddh_forked_by(pid, (pid_t)syscall(SYS_gettid));
+static void ddh_drop_stale(pid_t pid) {
     struct ddh_table *t = __atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE);
     if (!t || pid <= 0) return;
     pid_t me = getpid();
@@ -1267,6 +1284,13 @@ static void ddh_child_created(pid_t pid) {
         if (__atomic_compare_exchange_n(&e->state, &st, DDH_TAKEN, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))
             ddh_release(e, NULL);
     }
+}
+
+static void ddh_child_created(pid_t pid) {
+    if (pid <= 0) return;
+    ddh_drop_stale(pid);
+    // after the drop, whose release forgets the pid's old record
+    ddh_forked_by(pid, (pid_t)syscall(SYS_gettid));
 }
 
 // Takes e's exit for a wait for pid, checked again once taken: between finding e and taking it,
@@ -1361,6 +1385,7 @@ static int ddh_status(const struct ddh_entry *e) {
 
 static void ddh_release(struct ddh_entry *e, int *status) {
     if (status) *status = ddh_status(e);
+    ddh_forget(e->child);
     memset(e, 0, offsetof(struct ddh_entry, state));
     e->status = 0;
     e->reaped = 0;
@@ -1488,6 +1513,7 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
             }
             // A forked child that died while handing its program off (a signal): its entry is done.
             if (!h && (h = ddh_claiming(r))) ddh_release(h, NULL);
+            if (WIFEXITED(wstatus) || WIFSIGNALED(wstatus)) ddh_forget(r);
             if (status) *status = wstatus;
             return r;
         }
@@ -1604,6 +1630,7 @@ static int ddh_waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
             // A forked child that died while handing its program off (a signal): its entry is done.
             int died = got.si_code == CLD_EXITED || got.si_code == CLD_KILLED || got.si_code == CLD_DUMPED;
             if (died && !ddh_find(child) && (h = ddh_claiming(child))) ddh_release(h, NULL);
+            if (died) ddh_forget(child);
             if (info) *info = got;
             return 0;
         }
