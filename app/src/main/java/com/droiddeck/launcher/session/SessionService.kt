@@ -420,6 +420,7 @@ class SessionService : Service() {
         val gen = synchronized(SessionState.startLock) {
             synchronized(stopLock) {
                 SessionState.steamClientArch = null
+                SessionState.gameZoom = 1.0f
                 SessionState.running = true
                 ++sessionGen
             }
