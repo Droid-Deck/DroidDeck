@@ -6,11 +6,64 @@ import runpy
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 
 BIN = Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin"
 DEBUG = runpy.run_path(str(BIN / "droiddeck-game-debug"))
+
+
+class ProtonLogCapTest(unittest.TestCase):
+    def test_only_an_enabled_proton_log_is_watched(self):
+        self.assertEqual(DEBUG["proton_log_paths"]({"PROTON_LOG": "0", "SteamGameId": "1"}), [])
+        self.assertEqual(DEBUG["proton_log_paths"]({"SteamGameId": "1"}), [])
+        self.assertEqual(DEBUG["proton_log_paths"]({"PROTON_LOG": "1", "PROTON_LOG_DIR": "/logs", "SteamGameId": "584400"}),
+                         ["/logs/steam-584400.log", "/logs/steam-proton.log"])
+        self.assertEqual(DEBUG["proton_log_paths"]({"PROTON_LOG": "+seh", "HOME": "/root"}), ["/root/steam-proton.log"])
+
+    def test_the_watcher_outlives_nothing_but_the_launcher(self):
+        calls = []
+        DEBUG["cap_proton_log"]({"PROTON_LOG": "1", "PROTON_LOG_DIR": "/logs", "SteamGameId": "7"}, pid=42,
+                                popen=lambda argv, **kw: calls.append((argv, kw)))
+        argv, kw = calls[0]
+        self.assertEqual(argv[3:], ["42", str(DEBUG["PROTON_LOG_CAP"]), str(DEBUG["PROTON_LOG_CHECK_S"]),
+                                    "/logs/steam-7.log", "/logs/steam-proton.log"])
+        self.assertTrue(kw["start_new_session"])
+        self.assertIsNone(DEBUG["cap_proton_log"]({"PROTON_LOG": "0"}, popen=lambda *a, **k: self.fail("spawned")))
+
+    def test_a_flooding_log_is_cut_back_and_appends_continue_after_the_cut(self):
+        with tempfile.TemporaryDirectory() as folder:
+            log = Path(folder) / "steam-9.log"
+            launcher = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(3)"])
+            with open(log, "ab") as proton:
+                proton.write(b"Proton: header\n" + b"x" * 300_000)
+                proton.flush()
+                watcher = DEBUG["cap_proton_log"]({"PROTON_LOG": "1", "PROTON_LOG_DIR": folder, "SteamGameId": "9"},
+                                                  pid=launcher.pid, limit=1000, every=0.1)
+                deadline = time.monotonic() + 5
+                while log.stat().st_size > 1000 and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertEqual(log.stat().st_size, 1000)
+                proton.write(b"tail")
+                proton.flush()
+            self.assertTrue(log.read_bytes().startswith(b"Proton: header"))
+            self.assertTrue(log.read_bytes().endswith(b"tail"))
+            self.assertEqual(log.stat().st_size, 1004)
+            launcher.wait()
+            watcher.wait(timeout=5)
+
+    def test_symlinks_are_left_alone(self):
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "other"
+            target.write_bytes(b"y" * 5000)
+            (Path(folder) / "steam-3.log").symlink_to(target)
+            launcher = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(0.5)"])
+            watcher = DEBUG["cap_proton_log"]({"PROTON_LOG": "1", "PROTON_LOG_DIR": folder, "SteamGameId": "3"},
+                                              pid=launcher.pid, limit=10, every=0.1)
+            launcher.wait()
+            watcher.wait(timeout=5)
+            self.assertEqual(target.stat().st_size, 5000)
 
 
 class DesktopProgramDiagnosticsTest(unittest.TestCase):

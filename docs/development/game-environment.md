@@ -134,6 +134,11 @@ spaces, quotes, or shell characters stay literal. Existing arguments and
 settings on the next launch. It does not change Steam probes or native Linux
 programs, whose ordinary output remains in the session log.
 
+Proton's log is held to its first 64 MiB, whichever setting turned it on: a
+watcher checks `steam-<appid>.log` and `steam-proton.log` every second while the game runs and
+cuts them back, and later output continues after the cut. A game stuck in an exception loop
+otherwise writes gigabytes per run.
+
 After reproducing once, stop the session and use **Latest session logs > Share
 logs**. The archive includes the generated Wine/Proton and graphics logs. Debug
 logging can reduce performance and consume storage; disable it after collecting
