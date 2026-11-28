@@ -195,7 +195,6 @@ void vkp_framegen_device_ready(VkDevice dev, VkQueue queue, uint32_t qfam, int f
 }
 
 void vkp_framegen_device_lost(void) {
-    atomic_store(&g_armed, 0);
     atomic_store(&g_dev_lost, 1);
     atomic_store(&g_dev_ready, 0);
     fge_device_lost();
