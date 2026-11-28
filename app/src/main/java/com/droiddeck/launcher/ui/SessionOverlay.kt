@@ -375,8 +375,15 @@ class DrawerActions(
     val quickButtons: Map<com.droiddeck.launcher.input.InputCommand, Boolean> = emptyMap(),
     val onQuickButton: (com.droiddeck.launcher.input.InputCommand, Boolean) -> Unit = { _, _ -> },
     val onUnfoldedControls: (Boolean) -> Unit = {},
+    val unfoldedControlsPercent: Int = 0,
     val unfoldedControlsWithController: Boolean = false,
+    val unfoldedControlsSecondScreen: Boolean = false,
+    val unfoldedControlsPanel: SecondScreenMode = SecondScreenMode.CUSTOM_CONTROLS,
+    val unfoldedDeckAvailable: Boolean = false,
+    val onUnfoldedControlsPercent: (Int) -> Unit = {},
     val onUnfoldedControlsWithController: (Boolean) -> Unit = {},
+    val onUnfoldedControlsSecondScreen: (Boolean) -> Unit = {},
+    val onUnfoldedControlsPanel: (SecondScreenMode) -> Unit = {},
     val onShareLogs: () -> Unit,
     val onStop: () -> Unit,
     val onStopFrom: ((androidx.compose.ui.geometry.Rect?) -> Unit)? = null,
@@ -804,14 +811,21 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                 a.onEditSteamTouch?.let { edit ->
                                     ActionRow(stringResource(R.string.osc_steam_layout), stringResource(R.string.osc_steam_layout_hint), stringResource(R.string.ctrl_edit), edit)
                                 }
-                                if (a.steam && a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
+                                if (a.unfoldedControls != null) ToggleRow(host, "unfolded-controls", stringResource(R.string.unfolded_controls),
                                     stringResource(R.string.unfolded_controls_hint), a.unfoldedControls,
                                     chipModifier = focus.track(page, "unfolded-controls"), onChange = a.onUnfoldedControls)
-                                if (a.steam && a.unfoldedControls == true) ToggleRow(host, "unfolded-controls-with-controller",
-                                    stringResource(R.string.unfolded_controls_with_controller),
-                                    stringResource(R.string.unfolded_controls_with_controller_hint), a.unfoldedControlsWithController,
-                                    chipModifier = focus.track(page, "unfolded-controls-with-controller"),
-                                    onChange = a.onUnfoldedControlsWithController)
+                                if (a.unfoldedControls == true) {
+                                    UnfoldedControlsHeightRow(a.unfoldedControlsPercent,
+                                        focus.track(page, "unfolded-controls-height"), a.onUnfoldedControlsPercent)
+                                    UnfoldedControlsScreenRow(host, a.unfoldedControlsSecondScreen,
+                                        focus.track(page, "unfolded-controls-screen"), a.onUnfoldedControlsSecondScreen)
+                                    if (a.unfoldedControlsSecondScreen) {
+                                        UnfoldedControlsPanelRow(host, a.unfoldedControlsPanel,
+                                            a.unfoldedDeckAvailable, focus.track(page, "unfolded-controls-panel"), a.onUnfoldedControlsPanel)
+                                    }
+                                    UnfoldedControlsWithControllerRow(host, a.unfoldedControlsWithController,
+                                        focus.track(page, "unfolded-controls-with-controller"), a.onUnfoldedControlsWithController)
+                                }
                             }
                             SettingsGroup(stringResource(R.string.shortcuts_title)) {
                                 if (a.steam) ToggleRow(host, "back-hold", stringResource(R.string.back_hold),

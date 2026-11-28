@@ -341,3 +341,17 @@ internal fun deckPanelTabs(context: Context, selected: DeckPanel, onSelect: (Dec
 internal fun bottomScreenBarView(context: Context, model: () -> BottomBarModel): ComposeView = ComposeView(context).apply {
     setContent { DroidDeckTheme { BottomScreenBar(model()) } }
 }
+
+internal fun inlineDockActionsView(context: Context, onClose: () -> Unit, onMenu: () -> Unit): ComposeView =
+    ComposeView(context).apply {
+        setContent {
+            DroidDeckTheme {
+                Row(Modifier.blockTouches(), horizontalArrangement = Arrangement.spacedBy(BAR_GAP),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    BarButton(stringResource(R.string.common_close), Modifier.testTag("inline-dock-close"),
+                        vector = Icons.Outlined.Close, onClick = onClose)
+                    BarActions(onMenu, false, null, null)
+                }
+            }
+        }
+    }

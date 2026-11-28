@@ -15,17 +15,31 @@ object OnScreenLayout {
         layout?.overlay == true &&
             (controller == SessionPrefs.CONTROLLER_DECK || controller == SessionPrefs.CONTROLLER_STEAM)
 
-    data class Dock(val portrait: Boolean, val grips: Boolean, val left: InputControl = InputControl.LS, val right: InputControl = InputControl.RS) {
-        companion object {
-            fun deck(portrait: Boolean, gamepad: SavedInputLayout?): Dock {
-                fun side(right: Boolean) = gamepad?.elements?.firstOrNull {
-                    (it.kind == InputElementKind.STICK || it.kind == InputElementKind.TRACKPAD) && (it.x + it.width / 2f >= .5f) == right
-                }?.kind
-                val left = if (side(false) == InputElementKind.TRACKPAD) InputControl.LEFT_PAD else InputControl.LS
-                val right = if (side(true) == InputElementKind.STICK) InputControl.RS else InputControl.RIGHT_PAD
-                return Dock(portrait, true, left, right)
-            }
+    data class Dock(val portrait: Boolean, val grips: Boolean)
+
+    internal fun dockActionsPosition(elements: List<InputSurfaceElement>, width: Int, height: Int,
+        safe: Rect, actionsWidth: Int, actionsHeight: Int, gap: Int,
+    ): Pair<Int, Int> {
+        val minX = safe.left
+        val maxX = (width - safe.right - actionsWidth).coerceAtLeast(minX)
+        val minY = safe.top
+        val maxY = (height - safe.bottom - actionsHeight).coerceAtLeast(minY)
+        val centerX = ((width - actionsWidth) / 2).coerceIn(minX, maxX)
+        val shoulder = elements.firstOrNull { isGamepad(it) && it.control in setOf(InputControl.LB, InputControl.RB, InputControl.LT, InputControl.RT) }
+        val rowY = (shoulder?.let { ((it.y + it.height / 2f) * height).roundToInt() - actionsHeight / 2 }
+            ?: (minY + gap)).coerceIn(minY, maxY)
+        val occupied = elements.map {
+            Rect((it.x * width).roundToInt() - gap, (it.y * height).roundToInt() - gap,
+                ((it.x + it.width) * width).roundToInt() + gap, ((it.y + it.height) * height).roundToInt() + gap)
         }
+        val xs = (listOf(centerX, minX, maxX) + occupied.flatMap { listOf(it.left - actionsWidth, it.right) })
+            .filter { it in minX..maxX }.sortedBy { abs(it - centerX) }
+        val ys = (listOf(rowY, minY, maxY) + occupied.flatMap { listOf(it.top - actionsHeight, it.bottom) })
+            .filter { it in minY..maxY }.sortedBy { abs(it - rowY) }
+        for (y in ys) for (x in xs) {
+            if (occupied.none { it.intersects(x, y, x + actionsWidth, y + actionsHeight) }) return x to y
+        }
+        return centerX to minY
     }
 
     private const val TOLERANCE = .01f
@@ -43,7 +57,7 @@ object OnScreenLayout {
         val generator = LegacyGamepadLayout(context, width, height, safe, layout.scale)
         val (reference, matched) = reference(context, layout, width, height)
         if (buttonsOnly && dock == null) return generator.buttonsOnly(stored) + fit(stored.filter { it.alwaysShown }, reference.first, reference.second, width, height, safe)
-        if (dock?.portrait == true && !dock.grips && !matched && layout.aspect > 0f && layout.aspect < 1f && stored.any(::isGamepad))
+        if (dock != null && !dock.grips && !matched && layout.aspect > 0f && stored.any(::isGamepad))
             return scaleDocked(context, cluster(stored.filterNot { it.alwaysShown || isGamepad(it) && (it.id == KEYBOARD_ID || it.control in BAR) }, layout.aspect, width, height, safe), ControllerPrefs.read(context).size / 100f, width, height, safe)
         val generated = matched || PadKit.forOverlay(context, layout) != null && stored.any(::isGamepad) &&
             (dock != null || height > width && layout.aspect >= 1f || height <= width && layout.aspect > 0f && layout.aspect < 1f)
@@ -51,7 +65,7 @@ object OnScreenLayout {
         val others = fit(stored.filterNot { generated && isGamepad(it) || dock != null && it.alwaysShown }, reference.first, reference.second, width, height, safe)
         val regenerated = when {
             gamepad.isEmpty() -> emptyList()
-            dock != null -> generator.dock(gamepad, dock.portrait, dock.grips, dock.left, dock.right)
+            dock != null -> generator.dock(gamepad, dock.portrait, dock.grips)
             else -> generator.regenerate(gamepad)
         }
         val placed = regenerated + gamepad.filter { g -> dock == null && optional(g) && regenerated.none { it.id == g.id } }
@@ -95,7 +109,7 @@ object OnScreenLayout {
                 .coerceIn(leftBound, (rightBound - w).coerceAtLeast(leftBound))
             val y = (element.y + element.height / 2f - h / 2f)
                 .coerceIn(topBound, (bottomBound - h).coerceAtLeast(topBound))
-            element.copy(x = x, y = y, width = w, height = h)
+            element.copy(x = x, y = y, width = w, height = h, hideWhenIdle = element.hideWhenIdle && element.kind != InputElementKind.STICK)
         }.toMutableList()
         if (scale > 1f) {
             val gap = 4f / width
@@ -305,7 +319,7 @@ object OnScreenLayout {
                 val generator = LegacyGamepadLayout(display, w, h, scale = layout.scale)
                 val sizedGenerator = LegacyGamepadLayout(
                     display, w, h, scale = layout.scale,
-                    sizeOverride = ControllerPrefs.read(context).size
+                    sizeOverride = 100
                 )
                 if (matches(gamepad, generator.elements()) || matches(gamepad, generator.elements(previousStickGeometry = true)) ||
                     matches(gamepad, sizedGenerator.elements()) || matches(gamepad, sizedGenerator.elements(previousStickGeometry = true))) {

@@ -89,24 +89,37 @@ object SessionDisplay {
 
     const val UNFOLDED_MIN_DP = 600
 
-    fun unfoldedGameHeight(width: Int, height: Int, tabRow: Int = 0, aspect: Float = 0f): Int {
-        val row = tabRow.coerceAtLeast(0)
-        val cap = (height * UNFOLDED_MAX_GAME_SHARE).toInt()
-        if (aspect > 0f && aspect < 16f / 9f) return minOf((width / aspect).toInt(), cap - row).coerceAtLeast(0) and 1.inv()
-        return (minOf(width * 9 / 16, cap) - row).coerceAtLeast(0) and 1.inv()
+    val UNFOLDED_CONTROLS_SHARES = listOf(0, 25, 30, 35, 40, 45, 50, 55, 60)
+
+    fun unfoldedGameHeight(width: Int, height: Int, aspect: Float = 0f, controlsPercent: Int = 0): Int {
+        val gameHeight = if (controlsPercent in UNFOLDED_CONTROLS_SHARES && controlsPercent != 0)
+            height * (100 - controlsPercent) / 100
+        else {
+            val cap = (height * UNFOLDED_MAX_GAME_SHARE).toInt()
+            val fitted = if (aspect > 0f && aspect < 16f / 9f) (width / aspect).toInt() else width * 9 / 16
+            minOf(fitted, cap)
+        }
+        return gameHeight.coerceAtLeast(0) and 1.inv()
     }
+
+    fun unfoldedUsesSecondScreen(
+        preferSecondScreen: Boolean,
+        controllerConnected: Boolean,
+        keepWithController: Boolean = false,
+    ): Boolean = preferSecondScreen || (controllerConnected && !keepWithController)
+
+    fun controlsBelowSupported(mode: String): Boolean =
+        mode == SessionService.MODE_STEAM || mode == SessionService.MODE_RUN
 
     fun unfoldedControlsWanted(
         enabled: Boolean,
         foldable: Boolean,
-        controllerConnected: Boolean,
-        keepWithController: Boolean,
         gamepadAvailable: Boolean,
         pip: Boolean,
         width: Int,
         height: Int,
         smallestWidthDp: Int,
-    ): Boolean = enabled && (keepWithController || !controllerConnected) && gamepadAvailable &&
+    ): Boolean = enabled && gamepadAvailable &&
         !pip && width > 0 && height > 0 &&
         (height > width || (foldable && smallestWidthDp >= UNFOLDED_MIN_DP))
 

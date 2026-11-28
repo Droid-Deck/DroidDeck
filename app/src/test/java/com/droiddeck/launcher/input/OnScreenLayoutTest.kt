@@ -27,6 +27,18 @@ class OnScreenLayoutTest {
 
     private fun px(e: InputSurfaceElement, w: Int, h: Int) = floatArrayOf(e.x * w, e.y * h, e.width * w, e.height * h)
 
+    @Test fun dockActionsFitBetweenTheShoulderRowControls() {
+        val elements = listOf(
+            InputSurfaceElement(InputControl.LB, .18f, .10f, .10f, .10f),
+            InputSurfaceElement(InputControl.SELECT, .30f, .13f, .04f, .04f),
+            InputSurfaceElement(InputControl.START, .66f, .13f, .04f, .04f),
+        )
+        assertEquals(452 to 66, OnScreenLayout.dockActionsPosition(elements, 1000, 600, Rect(), 96, 48, 8))
+        val blocked = elements + InputSurfaceElement(InputControl.A, .43f, .08f, .14f, .15f)
+        val (x, y) = OnScreenLayout.dockActionsPosition(blocked, 1000, 600, Rect(), 96, 48, 8)
+        assertTrue(x + 96 <= 430 || x >= 570 || y + 48 <= 48 || y >= 138)
+    }
+
     private val shortcuts = setOf(InputControl.SELECT, InputControl.START, InputControl.GUIDE, InputControl.QAM)
 
     private fun assertOnlyShortcutPositionsChanged(before: List<InputSurfaceElement>, after: List<InputSurfaceElement>) {
@@ -452,9 +464,10 @@ class OnScreenLayoutTest {
         val landscape = OnScreenLayout.elements(context, edited, 2400, 1080, Rect())
         assertTrue(landscape.first { it.id == "legacy:a" }.x > .5f)
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
-        val deck = OnScreenLayout.elements(context, edited, w, 1100, Rect(), dock = OnScreenLayout.Dock.deck(true, null), trackpads = true)
-        assertTrue(deck.none { it.id == "legacy:rs" })
-        assertTrue(deck.any { it.kind == InputElementKind.TRACKPAD && it.x + it.width / 2f > .5f })
+        val deck = OnScreenLayout.elements(context, edited, w, 1100, Rect(), dock = OnScreenLayout.Dock(true, false), trackpads = true)
+        assertTrue(deck.at(InputControl.A).x < .2f)
+        assertTrue(deck.at(InputControl.LS).x > .5f)
+        assertFalse(deck.at(InputControl.RS).hideWhenIdle)
         SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
         val tiny = stock.copy(aspect = .45f, elements = stock.elements.map {
             when (it.id) {
@@ -481,8 +494,8 @@ class OnScreenLayoutTest {
         for (type in types) {
             SessionPrefs.setSteamController(context, type)
             val steam = type == SessionPrefs.CONTROLLER_DECK || type == SessionPrefs.CONTROLLER_STEAM
-            val deckDock = if (steam) OnScreenLayout.Dock.deck(true, null) else OnScreenLayout.Dock(true, false)
-            for ((h, dock) in listOf(1920 to null, 1300 to deckDock, 385 to deckDock)) {
+            val docked = OnScreenLayout.Dock(true, false)
+            for ((h, dock) in listOf(1920 to null, 1300 to docked, 385 to docked)) {
                 val placed = OnScreenLayout.elements(context, layout, w, h, Rect(), dock = dock,
                     rearButtons = true, trackpads = true)
                 assertInside(placed, w, h)
@@ -499,8 +512,7 @@ class OnScreenLayoutTest {
                     assertEquals(steam, placed.any { it.kind == InputElementKind.TRACKPAD })
                 } else {
                     assertFalse(placed.any { it.control == InputControl.GUIDE || it.control == InputControl.QAM })
-                    assertEquals(steam, placed.any { it.kind == InputElementKind.TRACKPAD })
-                    assertEquals(!steam, placed.any { it.control == InputControl.RS })
+                    assertTrue(placed.any { it.control == InputControl.RS })
                 }
             }
         }
@@ -600,31 +612,31 @@ class OnScreenLayoutTest {
             .map { l -> l.elements.map { it.copy(alwaysShown = false) } })
     }
 
-    @Test fun aDeckStripPutsTheDeckGamepadSurfacesInTheStickSlotsAndOtherPadsKeepSticks() {
-        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_NONE)
-        val stock = InputStockLayouts.layouts().first { it.id == DeckPanel.GAMEPAD.layout }
-        val deck = OnScreenLayout.Dock.deck(false, stock)
-        assertEquals(OnScreenLayout.Dock(false, true, InputControl.LS, InputControl.RIGHT_PAD), deck)
-        assertEquals(deck, OnScreenLayout.Dock.deck(false, null))
-        val (w, h) = 2208 to 800
-        val boxes = GamepadGeometry.layout(w.toFloat(), h.toFloat(), density, false)
-        val placed = OnScreenLayout.elements(context, gamepad(), w, h, Rect(), dock = deck)
-        val pad = placed.single { it.control == InputControl.RIGHT_PAD }
-        assertEquals(InputElementKind.TRACKPAD, pad.kind)
-        assertEquals(boxes.getValue(GamepadGeometry.Slot.RIGHT_MAIN).left, pad.x * w, 1f)
-        assertNull(placed.firstOrNull { it.control == InputControl.RS })
-        assertTrue(placed.any { it.control == InputControl.LS })
-        val plain = OnScreenLayout.elements(context, gamepad(), w, h, Rect(), dock = OnScreenLayout.Dock(false, false))
-        assertTrue(plain.any { it.control == InputControl.RS })
-        assertNull(plain.firstOrNull { it.kind == InputElementKind.TRACKPAD })
-        val swapped = stock.copy(elements = stock.elements.map {
-            when (it.control) {
-                InputControl.LS -> it.copy(control = InputControl.LEFT_PAD, id = "legacy:left-pad", kind = InputElementKind.TRACKPAD)
-                InputControl.RIGHT_PAD -> it.copy(control = InputControl.RS, id = "legacy:rs", kind = InputElementKind.STICK)
-                else -> it
-            }
+    @Test fun anEditedLandscapeGamepadKeepsItsPositionsBelowTheGame() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val stock = gamepad()
+        val edited = stock.copy(aspect = 2f, elements = stock.elements.map {
+            if (it.control == InputControl.A && it.id == "legacy:a") it.copy(x = .08f) else it
         })
-        assertEquals(OnScreenLayout.Dock(false, true, InputControl.LEFT_PAD, InputControl.RS), OnScreenLayout.Dock.deck(false, swapped))
+        val placed = OnScreenLayout.elements(context, edited, 2208, 720, Rect(), dock = OnScreenLayout.Dock(false, false))
+        assertTrue(placed.at(InputControl.A).x < .35f)
+        assertInside(placed, 2208, 720)
+    }
+
+    @Test fun theMainScreenGamepadKeepsBothSticksVisibleBelowTheGame() {
+        SessionPrefs.setSteamController(context, SessionPrefs.CONTROLLER_DECK)
+        val library = InputLibraries.read(context)
+        val stock = library.activeLayout(false, InputRole.PRIMARY)!!
+        assertTrue(DeckPanel.GAMEPAD.layout != stock.id)
+        for ((w, h) in listOf(2180 to 660, 1080 to 385)) {
+            val placed = OnScreenLayout.elements(context, stock, w, h, Rect(), dock = OnScreenLayout.Dock(true, false))
+            for (control in listOf(InputControl.LS, InputControl.RS)) {
+                val stick = placed.at(control)
+                assertEquals(InputElementKind.STICK, stick.kind)
+                assertFalse(stick.hideWhenIdle)
+            }
+            assertFalse(placed.any { it.kind == InputElementKind.TRACKPAD })
+        }
     }
 
     private fun deckGamepad(library: InputLibrary) = library.layouts.first { it.id == DeckPanel.GAMEPAD.layout }
@@ -643,7 +655,6 @@ class OnScreenLayoutTest {
         assertEquals(InputElementKind.TRACKPAD, elements.single { it.control == InputControl.LEFT_PAD }.kind)
         assertEquals(InputElementKind.STICK, elements.single { it.control == InputControl.RS }.kind)
         assertNull(elements.firstOrNull { it.control == InputControl.LS || it.control == InputControl.RIGHT_PAD })
-        assertEquals(OnScreenLayout.Dock(false, true, InputControl.LEFT_PAD, InputControl.RS), OnScreenLayout.Dock.deck(false, deckGamepad(upgraded)))
         assertEquals(upgraded, InputLibraries.read(context))
     }
 

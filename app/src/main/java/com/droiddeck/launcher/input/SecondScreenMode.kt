@@ -28,6 +28,12 @@ enum class SecondScreenMode(val id: String, @StringRes val label: Int, val bindi
     fun panel(context: Context): String? = if (this == DECK_CONTROLS) SessionPrefs.deckPanel(context).bindings else bindings
 
     companion object {
+        internal fun inlineControls(deckPad: Boolean): List<SecondScreenMode> =
+            listOf(CUSTOM_CONTROLS, KEYBOARD_TRACKPAD) + if (deckPad) listOf(DECK_CONTROLS) else emptyList()
+
+        internal fun inlineControls(id: String?, deckPad: Boolean = true): SecondScreenMode =
+            inlineControls(deckPad).firstOrNull { it.id == id } ?: CUSTOM_CONTROLS
+
         /** The mode the bottom screen opens in: the one picked last if it is still available, else the DroidDeck menu. */
         fun opening(remembered: String?, deckPad: Boolean, dashboard: Boolean = false, bottomDesktop: Boolean = false,
             steam: Boolean = false): SecondScreenMode =

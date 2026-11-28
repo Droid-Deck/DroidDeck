@@ -21,6 +21,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
+import com.droiddeck.launcher.input.SecondScreenMode
 import android.widget.EditText
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -2777,7 +2778,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 pipSupported = com.droiddeck.launcher.session.SessionPipController.supported(this),
                 pipAutoEnter = pipAutoEnter,
                 unfoldedControls = if (mode == SessionService.MODE_STEAM) unfoldedControls else null,
+                unfoldedControlsPercent = unfoldedControlsPercent,
                 unfoldedControlsWithController = unfoldedControlsWithController,
+                unfoldedControlsSecondScreen = unfoldedControlsSecondScreen,
+                unfoldedControlsPanel = unfoldedControlsPanel,
                 oscMode = if (mode == SessionService.MODE_STEAM) oscMode else null,
                 backHold = backHold,
                 backActionsInverted = backActionsInverted,
@@ -2843,10 +2847,22 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                     steamDownloadsInBackground = enabled
                 },
                 onPipAutoEnter = { on -> SessionPrefs.setPipAutoEnter(this, on); pipAutoEnter = on },
-                onUnfoldedControls = { on -> SessionPrefs.setUnfoldedControls(this, on); unfoldedControls = on },
-                onUnfoldedControlsWithController = { on ->
-                    SessionPrefs.setUnfoldedControlsWithController(this, on); unfoldedControlsWithController = on
+                onUnfoldedControlsPanel = { panel ->
+                    SessionPrefs.setUnfoldedControlsPanel(this, panel)
+                    unfoldedControlsPanel = panel
                 },
+                onUnfoldedControlsSecondScreen = { second ->
+                    SessionPrefs.setUnfoldedControlsSecondScreen(this, second)
+                    unfoldedControlsSecondScreen = second
+                },
+                onUnfoldedControlsPercent = { percent ->
+                    SessionPrefs.setUnfoldedControlsPercent(this, percent); unfoldedControlsPercent = percent
+                },
+                onUnfoldedControlsWithController = { on ->
+                    SessionPrefs.setUnfoldedControlsWithController(this, on)
+                    unfoldedControlsWithController = on
+                },
+                onUnfoldedControls = { on -> SessionPrefs.setUnfoldedControls(this, on); unfoldedControls = on },
                 onOsc = { o -> SessionPrefs.setOscMode(this, o); oscMode = o },
                 onInputSettings = { showPerformance = false; showComponents = false; showMapping = true },
                 onBackHold = { on -> SessionPrefs.setBackHold(this, on); backHold = on },
@@ -3150,7 +3166,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
 
     private var pipAutoEnter by mutableStateOf(false)
     private var unfoldedControls by mutableStateOf(false)
+    private var unfoldedControlsPercent by mutableIntStateOf(0)
     private var unfoldedControlsWithController by mutableStateOf(false)
+    private var unfoldedControlsSecondScreen by mutableStateOf(false)
+    private var unfoldedControlsPanel by mutableStateOf(SecondScreenMode.CUSTOM_CONTROLS)
     private var shaderPrecacheGeneration = 0
 
     private fun loadShaderPrecache(mode: String) {
@@ -3174,7 +3193,10 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private fun loadModeSettings(mode: String) {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
         unfoldedControls = SessionPrefs.unfoldedControls(this)
+        unfoldedControlsPercent = SessionPrefs.unfoldedControlsPercent(this)
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
+        unfoldedControlsSecondScreen = SessionPrefs.unfoldedControlsSecondScreen(this)
+        unfoldedControlsPanel = SessionPrefs.unfoldedControlsPanel(this)
         loadResolutions(mode)
         fexPreset = SessionPrefs.fexPreset(this)
         forceSsbs = SessionPrefs.forceSsbs(this)

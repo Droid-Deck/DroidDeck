@@ -3,6 +3,8 @@ package com.droiddeck.launcher.session
 import android.content.Context
 import com.droiddeck.launcher.core.AppUiPrefs
 import com.droiddeck.launcher.gpu.FrameGen
+import com.droiddeck.launcher.input.DeckPanel
+import com.droiddeck.launcher.input.SecondScreenMode
 import com.droiddeck.launcher.input.ControllerPrefs
 import com.droiddeck.launcher.input.InputAction
 import com.droiddeck.launcher.input.InputControl
@@ -37,7 +39,19 @@ class SettingsResetTest {
         SessionPrefs.setPenSetting(app, "pen", SessionPrefs.PEN_TOUCH)
         SessionPrefs.setPenSetting(app, "penButton", SessionPrefs.PEN_BUTTON_OFF)
         SessionPrefs.setPenSeen(app)
+        assertFalse(SessionPrefs.unfoldedControlsWithController(app))
         SessionPrefs.setUnfoldedControlsWithController(app, true)
+        assertTrue(SessionPrefs.unfoldedControlsWithController(app))
+        assertFalse(SessionPrefs.unfoldedControlsSecondScreen(app))
+        SessionPrefs.setUnfoldedControlsSecondScreen(app, true)
+        assertTrue(SessionPrefs.unfoldedControlsSecondScreen(app))
+        SessionPrefs.setUnfoldedControlsPanel(app, SecondScreenMode.KEYBOARD_TRACKPAD)
+        SessionPrefs.setUnfoldedDeckPanel(app, DeckPanel.RIGHT)
+        assertEquals(SecondScreenMode.KEYBOARD_TRACKPAD, SessionPrefs.unfoldedControlsPanel(app))
+        assertEquals(DeckPanel.RIGHT, SessionPrefs.unfoldedDeckPanel(app))
+        assertEquals(DeckPanel.BOTH, SessionPrefs.deckPanel(app))
+        SessionPrefs.setUnfoldedControlsPercent(app, 40)
+        assertEquals(40, SessionPrefs.unfoldedControlsPercent(app))
         SessionPrefs.setNoXalia(app, false)
         session.edit().putInt("fpsLimit.steam", 30).commit()
         SessionPrefs.setHdr(app, SessionService.MODE_DESKTOP, true)
@@ -63,7 +77,12 @@ class SettingsResetTest {
         assertEquals(500, SessionPrefs.backDoubleTapMs(app))
         assertEquals(SessionPrefs.Pen(), SessionPrefs.pen(app))
         assertTrue(SessionPrefs.penSeen(app))
+        assertFalse(session.contains("unfoldedControlsWithController"))
         assertFalse(SessionPrefs.unfoldedControlsWithController(app))
+        assertFalse(SessionPrefs.unfoldedControlsSecondScreen(app))
+        assertEquals(SecondScreenMode.CUSTOM_CONTROLS, SessionPrefs.unfoldedControlsPanel(app))
+        assertEquals(DeckPanel.BOTH, SessionPrefs.unfoldedDeckPanel(app))
+        assertEquals(0, SessionPrefs.unfoldedControlsPercent(app))
         assertTrue(SessionPrefs.noXalia(app))
         assertFalse(session.contains("fpsLimit.steam"))
         assertFalse(SessionPrefs.hdr(app, SessionService.MODE_DESKTOP))

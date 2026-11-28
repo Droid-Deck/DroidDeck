@@ -1,12 +1,16 @@
 package com.droiddeck.launcher.input
 
-class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole, val element: InputSurfaceElement) {
+class InputSurfaceSource(private val pad: PadBridge, private val role: InputRole, val element: InputSurfaceElement,
+    bindingProfile: InputProfile? = null,
+) {
     private val router = pad.inputRouter
-    private val route = router?.channel(role, element.control, element = element)
+    private val route = router?.channel(role, element.control,
+        fixedAction = bindingProfile?.elementAction(role, element.id, element.control), element = element)
     private val deck = DeckControls.source(role, routed = true)
     private val clickDeck = DeckControls.source(role, routed = true)
     private val clickOwner = Any()
-    private val clickRoute = if (element.hasClick) router?.channel(role, InputControl.A, element = element, elementClick = true) else null
+    private val clickRoute = if (element.hasClick) router?.channel(role, InputControl.A,
+        fixedAction = bindingProfile?.elementClickAction(role, element), element = element, elementClick = true) else null
     private val gestureWheel = if (element.mouseGestures) router?.channel(role, InputControl.RIGHT_PAD, fixedAction = InputAction.Scroll()) else null
     private val gestureRight = if (element.mouseGestures) router?.channel(role, InputControl.A, fixedAction = InputAction.MouseButton(273)) else null
     private val gestureMiddle = if (element.mouseGestures) router?.channel(role, InputControl.A, fixedAction = InputAction.MouseButton(274)) else null

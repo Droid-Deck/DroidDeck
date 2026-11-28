@@ -55,62 +55,58 @@ class SessionDisplayTest {
 
     @Test fun unfoldedControlsKeepTheGameSixteenByNineAcrossTheWidth() {
         assertEquals(606, SessionDisplay.unfoldedGameHeight(1080, 1920))
-        assertEquals(606, SessionDisplay.unfoldedGameHeight(1080, 1920, 0, 16f / 9f))
-        assertEquals(606, SessionDisplay.unfoldedGameHeight(1080, 1920, 0, 2.2f))
-        assertEquals(1080, SessionDisplay.unfoldedGameHeight(1440, 3039, 192, 4f / 3f))
-        assertEquals(1080, SessionDisplay.unfoldedGameHeight(1440, 3039, 0, 4f / 3f))
-        assertEquals(2430, SessionDisplay.unfoldedGameHeight(1440, 3039, 0, 0.5f))
+        assertEquals(606, SessionDisplay.unfoldedGameHeight(1080, 1920, aspect = 16f / 9f))
+        assertEquals(606, SessionDisplay.unfoldedGameHeight(1080, 1920, aspect = 2.2f))
+        assertEquals(1080, SessionDisplay.unfoldedGameHeight(1440, 3039, aspect = 4f / 3f))
+        assertEquals(2430, SessionDisplay.unfoldedGameHeight(1440, 3039, aspect = 0.5f))
         assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848))
         assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448))
         assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
     }
 
-    @Test fun aTabRowUnderTheBarComesOutOfTheGameNotTheControls() {
-        assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848, 0))
-        assertEquals(1240, SessionDisplay.unfoldedGameHeight(2448, 1848, 136))
-        assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848, -20))
-        assertEquals(0, SessionDisplay.unfoldedGameHeight(200, 100, 500))
+    @Test fun aManualSplitReservesTheRequestedShareOfTheWindowForControls() {
+        assertEquals(1176, SessionDisplay.unfoldedGameHeight(2180, 1960, controlsPercent = 40))
+        assertEquals(1152, SessionDisplay.unfoldedGameHeight(1080, 1920, controlsPercent = 40))
+        assertEquals(648, SessionDisplay.unfoldedGameHeight(1920, 1080, aspect = 4f / 3f, controlsPercent = 40))
+        assertEquals(606, SessionDisplay.unfoldedGameHeight(1080, 1920, controlsPercent = 0))
     }
 
-    private fun unfoldedWanted(
-        enabled: Boolean = true,
-        controller: Boolean = false,
-        keepWithController: Boolean = false,
-        foldable: Boolean = true,
-        steamDeckPad: Boolean = true,
-        pip: Boolean = false,
-        smallestWidthDp: Int = 700,
-    ) = SessionDisplay.unfoldedControlsWanted(enabled, foldable, controller, keepWithController, steamDeckPad, pip,
-        2448, 1848, smallestWidthDp)
-
-    @Test fun unfoldedControlsHideForAControllerUnlessKeptWithOne() {
-        assertTrue(unfoldedWanted())
-        assertFalse(unfoldedWanted(controller = true))
-        assertTrue(unfoldedWanted(controller = true, keepWithController = true))
-        assertTrue(unfoldedWanted(keepWithController = true))
+    @Test fun controllerHotplugSelectsSecondScreenWithoutReplacingTheSavedChoice() {
+        assertFalse(SessionDisplay.unfoldedUsesSecondScreen(preferSecondScreen = false, controllerConnected = false))
+        assertTrue(SessionDisplay.unfoldedUsesSecondScreen(preferSecondScreen = false, controllerConnected = true))
+        assertTrue(SessionDisplay.unfoldedUsesSecondScreen(preferSecondScreen = true, controllerConnected = false))
+        assertTrue(SessionDisplay.unfoldedUsesSecondScreen(preferSecondScreen = true, controllerConnected = true))
     }
 
-    @Test fun keepingUnfoldedControlsWithAControllerLeavesTheOtherConditions() {
-        assertFalse(unfoldedWanted(enabled = false, controller = true, keepWithController = true))
-        assertFalse(unfoldedWanted(foldable = false, keepWithController = true))
-        assertFalse(unfoldedWanted(steamDeckPad = false, keepWithController = true))
-        assertFalse(unfoldedWanted(pip = true, keepWithController = true))
-        assertFalse(unfoldedWanted(smallestWidthDp = 599, keepWithController = true))
-        assertFalse(SessionDisplay.unfoldedControlsWanted(true, true, true, true, true, false, 0, 1848, 700))
+    @Test fun keepingControlsWithAControllerPreservesEitherScreenChoice() {
+        for (preferSecondScreen in listOf(false, true)) {
+            for (controllerConnected in listOf(false, true)) {
+                assertEquals(preferSecondScreen, SessionDisplay.unfoldedUsesSecondScreen(
+                    preferSecondScreen, controllerConnected, keepWithController = true,
+                ))
+            }
+        }
     }
 
-    @Test fun portraitControlsWorkOnHandheldsAndPhonesWithoutAHinge() {
-        fun wanted(width: Int = 1080, height: Int = 1920, controller: Boolean = false,
-            keep: Boolean = false, pad: Boolean = true, pip: Boolean = false) =
-            SessionDisplay.unfoldedControlsWanted(true, false, controller, keep, pad, pip, width, height, 393)
+    @Test fun theDockSupportsSteamAndStandaloneGamesButNotDesktopSessions() {
+        assertTrue(SessionDisplay.controlsBelowSupported(SessionService.MODE_STEAM))
+        assertTrue(SessionDisplay.controlsBelowSupported(SessionService.MODE_RUN))
+        assertFalse(SessionDisplay.controlsBelowSupported(SessionService.MODE_DESKTOP))
+    }
+
+    @Test fun unfoldedControlsStillRequireAnEligibleWindow() {
+        fun wanted(enabled: Boolean = true, foldable: Boolean = true, pad: Boolean = true, pip: Boolean = false,
+            width: Int = 2448, height: Int = 1848, smallestWidthDp: Int = 700) =
+            SessionDisplay.unfoldedControlsWanted(enabled, foldable, pad, pip, width, height, smallestWidthDp)
         assertTrue(wanted())
-        assertFalse(wanted(width = 1920, height = 1080))
-        assertFalse(wanted(controller = true))
-        assertTrue(wanted(controller = true, keep = true))
+        assertTrue(wanted(foldable = false, width = 1080, height = 1920, smallestWidthDp = 393))
+        assertFalse(wanted(enabled = false))
+        assertFalse(wanted(foldable = false))
         assertFalse(wanted(pad = false))
         assertFalse(wanted(pip = true))
+        assertFalse(wanted(smallestWidthDp = 599))
+        assertFalse(wanted(width = 0))
     }
-
 
     @Test fun followScreenKeepsTheWindowShapeAndSkipsTinyWindows() {
         assertEquals(2520 to 1080, SessionDisplay.resolveChoice(1080 to 2520, SessionDisplay.FOLLOW_SCREEN))
