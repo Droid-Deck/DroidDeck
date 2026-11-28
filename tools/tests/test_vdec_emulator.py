@@ -39,8 +39,19 @@ struct create_dumb { uint32_t height, width, bpp, flags, handle, pitch; uint64_t
 struct prime_handle { uint32_t handle, flags; int32_t fd; };
 struct destroy_dumb { uint32_t handle; };
 struct drm_device { char **nodes; int available_nodes; };
+struct ion_alloc { uint64_t len; uint32_t heap_id_mask, flags, fd, unused; };
+struct ion_legacy_alloc { size_t len, align; uint32_t heap_id_mask, flags; int32_t handle; };
+struct ion_fd { int32_t handle, fd; };
+struct ion_handle { int32_t handle; };
+
+#define HEAP_DMA 0
+#define HEAP_ION 1
+#define HEAP_ION_LEGACY 2
+#define HEAP_NONE 3
+#define HEAP_PATH (HEAP_MODE == HEAP_DMA ? "/dev/dma_heap/system" : HEAP_MODE == HEAP_NONE ? "" : "/dev/ion")
 
 static int heap = -1;
+static int ion_handles[8];
 
 int open(const char *path, int flags, ...) {
     static int (*real)(const char *, int, ...);
@@ -49,8 +60,60 @@ int open(const char *path, int flags, ...) {
     int mode = va_arg(ap, int);
     va_end(ap);
     if (!real) real = dlsym(RTLD_NEXT, "open");
-    if (strcmp(path, "/dev/dma_heap/system") == 0) return heap = memfd_create("heap", 0);
+    if (strcmp(path, HEAP_PATH) == 0) return heap = memfd_create("heap", 0);
+    if (strcmp(path, "/dev/dma_heap/system") == 0 || strcmp(path, "/dev/ion") == 0) {
+        errno = ENOENT;
+        return -1;
+    }
     return real(path, flags, mode);
+}
+
+static int new_buffer(uint64_t len) {
+    int buf = memfd_create("dmabuf", MFD_CLOEXEC);
+    if (buf < 0 || ftruncate(buf, (off_t)len) != 0) return -1;
+    return buf;
+}
+
+static int heap_ioctl(unsigned long req, void *arg) {
+    if (HEAP_MODE == HEAP_DMA && req == _IOWR('H', 0, struct heap_alloc)) {
+        struct heap_alloc *a = arg;
+        int buf = new_buffer(a->len);
+        if (buf < 0) return -1;
+        a->fd = (uint32_t)buf;
+        return 0;
+    }
+    if (HEAP_MODE == HEAP_ION && req == _IOWR('I', 0, struct ion_alloc)) {
+        struct ion_alloc *a = arg;
+        int buf = a->heap_id_mask == 1u << 25 ? new_buffer(a->len) : (errno = ENODEV, -1);
+        if (buf < 0) return -1;
+        a->fd = (uint32_t)buf;
+        return 0;
+    }
+    if (HEAP_MODE == HEAP_ION_LEGACY && req == _IOWR('I', 0, struct ion_legacy_alloc)) {
+        struct ion_legacy_alloc *a = arg;
+        if (a->heap_id_mask != 1u << 25 || a->align != 4096) return errno = ENODEV, -1;
+        for (int i = 0; i < 8; i++) {
+            if (ion_handles[i] >= 0) continue;
+            if ((ion_handles[i] = new_buffer(a->len)) < 0) return -1;
+            a->handle = i + 1;
+            return 0;
+        }
+        return errno = ENOMEM, -1;
+    }
+    if (HEAP_MODE == HEAP_ION_LEGACY && req == _IOWR('I', 4, struct ion_fd)) {
+        struct ion_fd *s = arg;
+        if (s->handle < 1 || s->handle > 8 || ion_handles[s->handle - 1] < 0) return errno = EINVAL, -1;
+        s->fd = fcntl(ion_handles[s->handle - 1], F_DUPFD_CLOEXEC, 0);
+        return s->fd < 0 ? -1 : 0;
+    }
+    if (HEAP_MODE == HEAP_ION_LEGACY && req == _IOWR('I', 1, struct ion_handle)) {
+        struct ion_handle *h = arg;
+        if (h->handle < 1 || h->handle > 8 || ion_handles[h->handle - 1] < 0) return errno = EINVAL, -1;
+        close(ion_handles[h->handle - 1]);
+        ion_handles[h->handle - 1] = -1;
+        return 0;
+    }
+    return errno = ENOTTY, -1;
 }
 
 int ioctl(int fd, unsigned long req, ...) {
@@ -60,13 +123,7 @@ int ioctl(int fd, unsigned long req, ...) {
     void *arg = va_arg(ap, void *);
     va_end(ap);
     if (!real) real = dlsym(RTLD_NEXT, "ioctl");
-    if (fd == heap && req == _IOWR('H', 0, struct heap_alloc)) {
-        struct heap_alloc *a = arg;
-        int buf = memfd_create("dmabuf", 0);
-        if (ftruncate(buf, (off_t)a->len) != 0) return -1;
-        a->fd = (uint32_t)buf;
-        return 0;
-    }
+    if (fd >= 0 && fd == heap) return heap_ioctl(req, arg);
     if (req == _IOW('b', 0, uint64_t)) return 0;
     return real(fd, req, arg);
 }
@@ -79,6 +136,7 @@ static int call(unsigned long req, void *arg) {
 }
 
 int main(void) {
+    for (int i = 0; i < 8; i++) ion_handles[i] = -1;
     if (dd_vdec_open("/dev/video0", O_RDWR) != -2) return 2;
     void *drm = SDL_LoadObject("libdrm.so.2");
     if (!drm) return 3;
@@ -185,6 +243,7 @@ int main(void) {
     unsigned char *m = mmap(NULL, size, PROT_READ, MAP_SHARED, bh.fd, 0);
     printf("%ld %u %c%c\n", (long)db.timestamp.tv_usec, db.index, m[0], m[(size_t)4096 * 2304]);
     dd_vdec_closed(vfd);
+    for (int i = 0; i < 8; i++) if (ion_handles[i] >= 0) return 38;
     return 0;
 }
 '''
@@ -242,21 +301,27 @@ class FakeDecoder(threading.Thread):
                 conn.send(RESULT.pack(9, 0, 1))
 
 
+HEAP_DMA, HEAP_ION, HEAP_ION_LEGACY, HEAP_NONE = range(4)
+
+
 class VdecEmulatorTest(unittest.TestCase):
-    def test_remote_play_client_decodes_through_the_app_socket(self):
+    def run_client(self, tmp, heap):
+        driver = tmp / 'driver.c'
+        driver.write_text(DRIVER)
+        binary = tmp / 'streaming_client'
+        subprocess.run(['cc', '-O1', '-pthread', '-DDD_VDEC_ANY_ARCH', f'-DHEAP_MODE={heap}', '-o', str(binary),
+                        str(driver), str(VDEC), str(VENC), '-ldl'], check=True)
+        sock = tmp / 'venc.sock'
+        server = FakeDecoder(str(sock))
+        self.addCleanup(server.listener.close)
+        server.start()
+        done = subprocess.run([str(binary)], env=dict(os.environ, DD_VENC_SOCKET=str(sock)),
+                              capture_output=True, text=True, timeout=20)
+        return done, server
+
+    def assert_decodes(self, heap):
         with tempfile.TemporaryDirectory() as tmp:
-            tmp = Path(tmp)
-            driver = tmp / 'driver.c'
-            driver.write_text(DRIVER)
-            binary = tmp / 'streaming_client'
-            subprocess.run(['cc', '-O1', '-pthread', '-DDD_VDEC_ANY_ARCH', '-o', str(binary), str(driver), str(VDEC),
-                            str(VENC), '-ldl'], check=True)
-            sock = tmp / 'venc.sock'
-            server = FakeDecoder(str(sock))
-            self.addCleanup(server.listener.close)
-            server.start()
-            done = subprocess.run([str(binary)], env=dict(os.environ, DD_VENC_SOCKET=str(sock)),
-                                  capture_output=True, text=True, timeout=20)
+            done, server = self.run_client(Path(tmp), heap)
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
             self.assertEqual(done.stdout.split('\n')[:6],
                              ['1 0 bu 1', '2 1 cu 1', '3 2 du 1', '4 0 eu 1', '5 1 fu 1', '6 0 zu'])
@@ -264,6 +329,24 @@ class VdecEmulatorTest(unittest.TestCase):
                              [(1, 1280, 720, 4096, 2304), (1, 1280, 720, 4096, 2304)])
             self.assertEqual([p[:3] for p in server.packets],
                              [(1, 101, 0), (2, 102, 1), (3, 103, 2), (0, 104, 0), (1, 105, 1), (2, 50, 0)])
+            return done.stderr
+
+    def test_remote_play_client_decodes_through_the_app_socket(self):
+        self.assertNotIn('ION', self.assert_decodes(HEAP_DMA))
+
+    def test_kernels_without_dma_heaps_decode_into_ion_buffers(self):
+        self.assertIn('Remote Play buffers come from ION', self.assert_decodes(HEAP_ION))
+
+    def test_kernels_with_legacy_ion_share_and_free_each_buffer(self):
+        self.assertIn('Remote Play buffers come from legacy ION', self.assert_decodes(HEAP_ION_LEGACY))
+
+    def test_decoding_stays_off_without_any_buffer_heap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            done, server = self.run_client(Path(tmp), HEAP_NONE)
+            self.assertEqual(done.returncode, 3, done.stdout + done.stderr)
+            self.assertIn('no /dev/dma_heap/system (No such file or directory) or /dev/ion (No such file or directory), '
+                          'Remote Play decoding stays off', done.stderr)
+            self.assertEqual(server.configs, [])
 
     def test_other_programs_keep_the_real_libdrm(self):
         with tempfile.TemporaryDirectory() as tmp:

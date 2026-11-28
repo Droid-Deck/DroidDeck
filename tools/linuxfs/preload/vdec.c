@@ -40,6 +40,35 @@ struct vd_dma_heap_alloc {
 };
 #define VD_DMA_HEAP_IOCTL_ALLOC _IOWR('H', 0x0, struct vd_dma_heap_alloc)
 
+struct vd_ion_alloc {
+    uint64_t len;
+    uint32_t heap_id_mask;
+    uint32_t flags;
+    uint32_t fd;
+    uint32_t unused;
+};
+struct vd_ion_legacy_alloc {
+    size_t len;
+    size_t align;
+    uint32_t heap_id_mask;
+    uint32_t flags;
+    int32_t handle;
+};
+struct vd_ion_fd {
+    int32_t handle;
+    int32_t fd;
+};
+struct vd_ion_handle {
+    int32_t handle;
+};
+#define VD_ION_IOC_ALLOC _IOWR('I', 0, struct vd_ion_alloc)
+#define VD_ION_IOC_LEGACY_ALLOC _IOWR('I', 0, struct vd_ion_legacy_alloc)
+#define VD_ION_IOC_FREE _IOWR('I', 1, struct vd_ion_handle)
+#define VD_ION_IOC_SHARE _IOWR('I', 4, struct vd_ion_fd)
+#define VD_ION_SYSTEM_HEAP_MASK (1u << 25)
+
+enum { VD_HEAP_DMA, VD_HEAP_ION, VD_HEAP_ION_LEGACY };
+
 struct vd_dma_buf_sync {
     uint64_t flags;
 };
@@ -172,6 +201,7 @@ static int vd_open_count;
 static int vd_state;
 static int vd_ffmpeg;
 static int vd_heap = -1;
+static int vd_heap_kind;
 static int vd_dumb_fd[VDEC_DUMB];
 static char vd_drm_handle;
 
@@ -226,15 +256,54 @@ static int vd_have_ffmpeg(void) {
 
 __attribute__((visibility("hidden"))) int dd_venc_connect(void);
 
+static int vd_open_heap(void) {
+    vd_heap = open("/dev/dma_heap/system", O_RDONLY | O_CLOEXEC);
+    if (vd_heap >= 0) {
+        vd_heap_kind = VD_HEAP_DMA;
+        return 1;
+    }
+    int heap_errno = errno;
+    vd_heap = open("/dev/ion", O_RDONLY | O_CLOEXEC);
+    if (vd_heap < 0) {
+        int ion_errno = errno;
+        vd_log("no /dev/dma_heap/system (%s) or /dev/ion (%s), Remote Play decoding stays off", strerror(heap_errno),
+               strerror(ion_errno));
+        return 0;
+    }
+    struct vd_ion_handle probe = { 0 };
+    vd_heap_kind = ioctl(vd_heap, VD_ION_IOC_FREE, &probe) >= 0 || errno != ENOTTY ? VD_HEAP_ION_LEGACY : VD_HEAP_ION;
+    vd_log("no /dev/dma_heap/system (%s), Remote Play buffers come from %s", strerror(heap_errno),
+           vd_heap_kind == VD_HEAP_ION ? "ION" : "legacy ION");
+    return 1;
+}
+
+static int vd_heap_alloc(uint64_t size) {
+    if (vd_heap_kind == VD_HEAP_DMA) {
+        struct vd_dma_heap_alloc a = { .len = size, .fd_flags = O_RDWR | O_CLOEXEC };
+        return ioctl(vd_heap, VD_DMA_HEAP_IOCTL_ALLOC, &a) == 0 ? (int)a.fd : -1;
+    }
+    if (vd_heap_kind == VD_HEAP_ION) {
+        struct vd_ion_alloc a = { .len = size, .heap_id_mask = VD_ION_SYSTEM_HEAP_MASK };
+        return ioctl(vd_heap, VD_ION_IOC_ALLOC, &a) == 0 ? (int)a.fd : -1;
+    }
+    struct vd_ion_legacy_alloc a = { .len = (size_t)size, .align = 4096, .heap_id_mask = VD_ION_SYSTEM_HEAP_MASK };
+    if (ioctl(vd_heap, VD_ION_IOC_LEGACY_ALLOC, &a) != 0) return -1;
+    struct vd_ion_fd share = { .handle = a.handle, .fd = -1 };
+    int shared = ioctl(vd_heap, VD_ION_IOC_SHARE, &share) == 0;
+    int share_errno = errno;
+    struct vd_ion_handle handle = { .handle = a.handle };
+    ioctl(vd_heap, VD_ION_IOC_FREE, &handle);
+    errno = share_errno;
+    return shared ? share.fd : -1;
+}
+
 static int vd_enabled(void) {
     pthread_mutex_lock(&vd_lock);
     if (vd_state == 0) {
         const char *flag = getenv("DD_REMOTE_PLAY_DECODE"), *socket = getenv("DD_VENC_SOCKET");
         vd_state = -1;
         if (strcmp(program_invocation_short_name, "streaming_client") == 0 && (flag == NULL || strcmp(flag, "0") != 0)) {
-            vd_heap = open("/dev/dma_heap/system", O_RDONLY | O_CLOEXEC);
-            if (vd_heap < 0) vd_log("no /dev/dma_heap/system (%s), Remote Play decoding stays off", strerror(errno));
-            else if ((socket && *socket) || vd_have_ffmpeg()) vd_state = 1;
+            if (vd_open_heap() && ((socket && *socket) || vd_have_ffmpeg())) vd_state = 1;
             for (int i = 0; i < VDEC_DUMB; i++) vd_dumb_fd[i] = -1;
         }
     }
@@ -1033,14 +1102,15 @@ static int drm_ioctl(int fd, unsigned long request, void *arg) {
         uint64_t size = (pitch * c->height + 4095) & ~4095ull;
         int slot = -1;
         for (int i = 0; i < VDEC_DUMB && slot < 0; i++) if (vd_dumb_fd[i] < 0) slot = i;
-        struct vd_dma_heap_alloc a = { .len = size, .fd_flags = O_RDWR | O_CLOEXEC };
+        int buf = -1;
         if (slot < 0 || size == 0 || size > (512ull << 20)) {
             r = -ENOMEM;
-        } else if (ioctl(vd_heap, VD_DMA_HEAP_IOCTL_ALLOC, &a) != 0) {
+        } else if ((buf = vd_heap_alloc(size)) < 0) {
             r = -errno;
-            vd_log("dma-heap allocation of %llu bytes failed: %s", (unsigned long long)size, strerror(errno));
+            vd_log("%s allocation of %llu bytes failed: %s", vd_heap_kind == VD_HEAP_DMA ? "dma-heap" : "ION",
+                   (unsigned long long)size, strerror(errno));
         } else {
-            vd_dumb_fd[slot] = (int)a.fd;
+            vd_dumb_fd[slot] = buf;
             c->handle = (uint32_t)slot + 1;
             c->pitch = (uint32_t)pitch;
             c->size = size;
