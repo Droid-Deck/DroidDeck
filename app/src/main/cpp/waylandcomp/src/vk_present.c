@@ -1565,6 +1565,11 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
                                           uint32_t stride, uint32_t offset, int as_blit_dst) {
     if (modifier == MOD_INVALID || w <= 0 || h <= 0) return NULL;
     if (dev_init() != 0) return NULL;
+    if (!vkp_dmabuf_layout_describable(g_drm_modifiers, modifier)) {
+        LOGE("%s: the driver has no VK_EXT_image_drm_format_modifier to lay out the %s %dx%d dma-buf",
+             as_blit_dst ? "layer" : "dmabuf", vkp_modifier_name(modifier), w, h);
+        return NULL;
+    }
 
     const VkFormat format = drm_to_vk(drm_format);
     const int padded_target = as_blit_dst &&

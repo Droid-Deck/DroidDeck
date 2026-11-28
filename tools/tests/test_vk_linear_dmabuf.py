@@ -124,6 +124,14 @@ class VkLinearDmabufTest(unittest.TestCase):
         self.assertIn("!as_blit_dst", terms)
         self.assertIn("g_vk.GetPhysicalDeviceImageFormatProperties2", terms)
 
+    def test_undescribable_layout_is_refused_before_any_image_is_made(self):
+        body = function((SRC / "vk_present.c").read_text(), "vkp_image_import_dmabuf")
+        guard = body.index("if (!vkp_dmabuf_layout_describable(g_drm_modifiers, modifier))")
+        self.assertLess(body.index("dev_init()"), guard)
+        self.assertIn("return NULL;", body[guard:body.index("drm_to_vk(drm_format)")])
+        self.assertLess(guard, body.index("calloc(1, sizeof(*img))"))
+        self.assertLess(guard, body.index("VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT"))
+
     def test_staged_client_image_stays_layer_candidate(self):
         vk = (SRC / "vk_present.c").read_text()
         comp = (SRC / "compositor.c").read_text()

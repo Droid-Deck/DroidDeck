@@ -109,9 +109,11 @@ static struct droiddeck_native_handle handle = {.numFds = 1, .data = {3}};
 static AHardwareBuffer *buffer = (AHardwareBuffer *)&handle;
 static struct vkp_image image;
 static int allocations, imports_10_bit, imports_8_bit, accept_10_bit, accept_8_bit;
+static int qti_handle, refuse_compressed, compressed_imports;
+static uint64_t allocated_usage;
 
 static int AHardwareBuffer_allocate(const AHardwareBuffer_Desc *d, AHardwareBuffer **out) {
-    (void)d; allocations++; *out = buffer; return 0;
+    allocations++; allocated_usage = d->usage; *out = buffer; return 0;
 }
 static void AHardwareBuffer_describe(const AHardwareBuffer *b, AHardwareBuffer_Desc *d) {
     (void)b; d->stride = 1920; d->usage = 0;
@@ -119,14 +121,20 @@ static void AHardwareBuffer_describe(const AHardwareBuffer *b, AHardwareBuffer_D
 static void AHardwareBuffer_release(AHardwareBuffer *b) { (void)b; }
 static const void *native_handle(const AHardwareBuffer *b) { (void)b; return &handle; }
 static struct { const void *(*getNativeHandle)(const AHardwareBuffer *); } api = {native_handle};
-static int sniff_modifier(const struct droiddeck_native_handle *h, uint64_t *mod) { (void)h; (void)mod; return 0; }
+static int sniff_modifier(const struct droiddeck_native_handle *h, uint64_t *mod) {
+    (void)h;
+    if (!qti_handle) return 0;
+    *mod = (allocated_usage & SC_LAYER_AHB_USAGE_VENDOR_UBWC) ? MOD_QCOM_COMPRESSED : MOD_LINEAR;
+    return 1;
+}
 static int vkp_can_import_ahb(void) { return 0; }
 static struct vkp_image *vkp_image_import_ahb(AHardwareBuffer *b, char *info, size_t n) {
     (void)b; (void)info; (void)n; return NULL;
 }
 static struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm, uint64_t mod, int w, int h, uint32_t pitch,
                                                  uint32_t offset, int planes) {
-    (void)fd; (void)mod; (void)w; (void)h; (void)pitch; (void)offset; (void)planes;
+    (void)fd; (void)w; (void)h; (void)pitch; (void)offset; (void)planes;
+    if (mod != MOD_LINEAR) { compressed_imports++; return refuse_compressed ? NULL : &image; }
     if (drm == DRM_ABGR2101010) { imports_10_bit++; return accept_10_bit ? &image : NULL; }
     imports_8_bit++;
     return accept_8_bit ? &image : NULL;
@@ -187,6 +195,26 @@ int main(void) {
     assert(frame(&nothing_imports) == -1 && g_alloc_failed);
     assert(allocations == tried);
     assert(imports_10_bit == 1 && imports_8_bit == 1);
+
+    int fd;
+    struct layer ubwc_without_modifiers = {.name = "game", .pool_n = 3};
+    reset(0, 1);
+    qti_handle = 1; refuse_compressed = 1; compressed_imports = 0;
+    assert(take_free_slot(&ubwc_without_modifiers, 1558, 720, AHB_RGBA8, &fd) == 0);
+    assert(compressed_imports == 1 && imports_8_bit == 1);
+    assert(ubwc_without_modifiers.alloc_tier == TIER_PLAIN);
+    assert(ubwc_without_modifiers.pool_modifier == MOD_LINEAR);
+    assert(!(allocated_usage & SC_LAYER_AHB_USAGE_VENDOR_UBWC));
+    assert(take_free_slot(&ubwc_without_modifiers, 1558, 720, AHB_RGBA8, &fd) == 0);
+    assert(compressed_imports == 1 && imports_8_bit == 2);
+
+    struct layer ubwc_with_modifiers = {.name = "game", .pool_n = 3};
+    reset(0, 1);
+    refuse_compressed = 0; compressed_imports = 0;
+    assert(take_free_slot(&ubwc_with_modifiers, 1558, 720, AHB_RGBA8, &fd) == 0);
+    assert(compressed_imports == 1 && imports_8_bit == 0);
+    assert(ubwc_with_modifiers.alloc_tier == TIER_UBWC);
+    assert(ubwc_with_modifiers.pool_modifier == MOD_QCOM_COMPRESSED);
     return 0;
 }
 '''

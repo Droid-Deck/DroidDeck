@@ -8,6 +8,10 @@ static inline int vkp_linear_dmabuf_through_buffer(int drm_modifiers, uint64_t m
     return !drm_modifiers && modifier == 0 && !blit_dst;
 }
 
+static inline int vkp_dmabuf_layout_describable(int drm_modifiers, uint64_t modifier) {
+    return drm_modifiers || modifier == 0;
+}
+
 static inline int vkp_linear_dmabuf_foreign_image(int dmabuf, int staged) {
     return dmabuf && !staged;
 }
