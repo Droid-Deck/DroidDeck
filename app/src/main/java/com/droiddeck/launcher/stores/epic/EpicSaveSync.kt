@@ -28,6 +28,10 @@ object EpicSaveSync {
      *  native library (EpicNative does not load there). */
     internal var engine: (request: JSONObject) -> JSONObject? = { EpicNative.call("cloud.publish", it) }
 
+    /** The snapshot transport, replaceable for the same reason; separate from [engine] so a test
+     *  faking publishes does not accidentally fake mirror snapshots too. */
+    internal var snapshotEngine: (request: JSONObject) -> JSONObject? = { EpicNative.call("cloud.snapshot", it) }
+
     fun list(token: String, accountId: String, appName: String): List<CloudFile> {
         val answer = EpicNative.call("cloud.list", base(token, accountId, appName)) ?: throw IOException("Epic cloud is unavailable")
         if (answer.has("error")) throw IOException(answer.optString("error"))
@@ -44,11 +48,13 @@ object EpicSaveSync {
 
     /**
      * Asks the store engine to mirror the newest cloud manifest (and its files) into [cacheDir] and
-     * report it: `{mode, manifest, files:[{name, size, sha1}]}`. Throws when the engine is
-     * unavailable or the cloud request fails, keeping the engine's error text.
+     * report it: `{mode, manifest, files:[{name, size, sha1}]}`. A mirror refresh that failed
+     * midway answers `mirrorRefreshed: false` - the caller must not adopt or serve the mirror then.
+     * Throws when the engine is unavailable or the cloud request fails, keeping the engine's error
+     * text.
      */
     fun snapshot(token: String, accountId: String, appName: String, cacheDir: String): JSONObject {
-        val answer = EpicNative.call("cloud.snapshot", base(token, accountId, appName).put("cacheDir", cacheDir))
+        val answer = snapshotEngine(base(token, accountId, appName).put("cacheDir", cacheDir))
             ?: throw IOException("Epic cloud is unavailable")
         if (answer.has("error")) throw IOException(answer.optString("error"))
         return answer

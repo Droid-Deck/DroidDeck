@@ -805,7 +805,13 @@ fn store_chunk(dir: &Path, name: &str, data: &[u8]) -> Result<(), String> {
 
 /// Returns the decoded chunk, reusing `dir/<file name>` when its size matches the manifest's
 /// CDN size (an unknown size of 0 skips the check), downloading through `link` otherwise.
-fn load_chunk(dir: &Path, cloud_path: &str, info: &ChunkInfo, link: Option<&str>) -> Result<Vec<u8>, String> {
+fn load_chunk(
+    dir: &Path,
+    cloud_path: &str,
+    info: &ChunkInfo,
+    link: Option<&str>,
+    fetch: &dyn Fn(&str) -> Result<Vec<u8>, String>,
+) -> Result<Vec<u8>, String> {
     let name = chunk_file_name(cloud_path);
     let path = dir.join(name);
     let cached = fs::metadata(&path)
@@ -825,7 +831,7 @@ fn load_chunk(dir: &Path, cloud_path: &str, info: &ChunkInfo, link: Option<&str>
     let link = link
         .filter(|l| !l.is_empty())
         .ok_or_else(|| format!("the cloud listing has no download link for {cloud_path}"))?;
-    let raw = read(link)?;
+    let raw = fetch(link)?;
     let content = chunk::decode(&raw, info).map_err(|e| format!("cloud chunk {cloud_path}: {e}"))?;
     store_chunk(dir, name, &raw)?;
     Ok(content)
@@ -917,10 +923,22 @@ fn publish_files(cache: &Path, staging: &Path, files: &[AssembledFile]) -> Resul
 /// and joins the parts back into whole save files. Returns `"mode":"raw"` when the cloud
 /// keeps no manifest, i.e. only plain files.
 pub fn snapshot(access_token: &str, account_id: &str, app_name: &str, cache_dir: &str) -> Result<Value, String> {
+    let cloud = LiveCloud;
+    snapshot_with(&cloud, access_token, account_id, app_name, cache_dir)
+}
+
+/// [`snapshot`] over a [`Cloud`] surface, so tests can drive the whole rebuild in memory.
+fn snapshot_with(
+    cloud: &dyn Cloud,
+    access_token: &str,
+    account_id: &str,
+    app_name: &str,
+    cache_dir: &str,
+) -> Result<Value, String> {
     if cache_dir.is_empty() {
         return Err("Epic cloud snapshot needs a cache directory".into());
     }
-    let files = list(access_token, account_id, app_name)?;
+    let (files, _) = cloud.list(access_token, account_id, app_name)?;
     let names = files.iter().map(|f| net::str_of(f, "name"));
     let Some(manifest_name) = latest_manifest(names) else {
         return Ok(json!({
@@ -939,11 +957,12 @@ pub fn snapshot(access_token: &str, account_id: &str, app_name: &str, cache_dir:
         .get(manifest_name.as_str())
         .copied()
         .ok_or_else(|| format!("the cloud listing has no download link for {manifest_name}"))?;
-    let bytes = read(link)?;
+    let bytes = cloud.read(link)?;
     let m = manifest::parse(&bytes).map_err(|e| format!("save manifest {manifest_name} cannot be read: {e}"))?;
 
     let cache = Path::new(cache_dir);
     let chunk_dir = cache.join("chunks");
+    let fetch = |link: &str| cloud.read(link);
     let mut held: HashMap<Guid, Vec<u8>> = HashMap::with_capacity(m.chunks.len());
     let mut chunk_of = |part: &PartRef| -> Result<Vec<u8>, String> {
         if let Some(data) = held.get(&part.guid) {
@@ -953,7 +972,7 @@ pub fn snapshot(access_token: &str, account_id: &str, app_name: &str, cache_dir:
             .chunk(&part.guid)
             .ok_or_else(|| format!("save manifest references unknown chunk {}", manifest::guid_text(&part.guid)))?;
         let cloud_path = m.chunk_path(info);
-        let content = load_chunk(&chunk_dir, &cloud_path, info, links.get(cloud_path.as_str()).copied())?;
+        let content = load_chunk(&chunk_dir, &cloud_path, info, links.get(cloud_path.as_str()).copied(), &fetch)?;
         held.insert(part.guid, content.clone());
         Ok(content)
     };
@@ -963,15 +982,19 @@ pub fn snapshot(access_token: &str, account_id: &str, app_name: &str, cache_dir:
     // never edited in place: stage everything, then publish one atomic rename at a time, and make
     // the mirror exactly match the newest manifest by dropping entries it no longer lists.
     let staging = stage_files(cache, &assembled)?;
-    if let Err(e) = publish_files(cache, &staging, &assembled) {
-        let _ = fs::remove_dir_all(&staging);
-        return Err(e);
-    }
     let listed = assembled
         .iter()
         .map(|file| json!({ "name": file.name, "size": file.content.len(), "sha1": file.sha1 }))
         .collect::<Vec<_>>();
-    Ok(json!({ "mode": "manifest", "manifest": manifest_name, "files": listed }))
+    let mut answer = json!({ "mode": "manifest", "manifest": manifest_name, "files": listed });
+    // A refresh that failed midway may have renamed only some files into files/: answer with
+    // `mirrorRefreshed: false` instead of an error, so the caller wipes the mirror - its bytes no
+    // longer describe any manifest - instead of adopting or serving a mix.
+    if publish_files(cache, &staging, &assembled).is_err() {
+        let _ = fs::remove_dir_all(&staging);
+        answer["mirrorRefreshed"] = json!(false);
+    }
+    Ok(answer)
 }
 
 #[cfg(test)]
@@ -1193,6 +1216,32 @@ mod tests {
             .flatten()
             .all(|e| !e.file_name().to_string_lossy().starts_with("files.new-"));
         assert!(no_staging);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_snapshot_whose_mirror_refresh_fails_answers_mirrorrefreshed_false() {
+        // publish_files cannot even create files/ while a regular file sits in its place: the
+        // answer must still report the committed file set, carrying mirrorRefreshed:false so the
+        // caller wipes the half-refreshed mirror instead of adopting or serving a mix.
+        let root = std::env::temp_dir().join(format!("dd-snapshot-refresh-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("cache")).unwrap();
+        fs::create_dir_all(root.join("saves")).unwrap();
+        fs::write(root.join("cache/files"), "not a directory").unwrap();
+        fs::write(root.join("saves/a.txt"), "AAA").unwrap();
+        let cloud = cloud_with_manifest(&[("a.txt", "AAA")]);
+        let answer = snapshot_with(&cloud, "token", "acc", "App", &root.join("cache").to_string_lossy()).unwrap();
+        assert_eq!(answer["mode"], "manifest");
+        assert_eq!(answer["mirrorRefreshed"], false);
+        assert_eq!(answer["files"].as_array().unwrap().len(), 1, "the committed file set is still reported");
+        assert!(
+            fs::read_dir(root.join("cache"))
+                .unwrap()
+                .flatten()
+                .all(|e| !e.file_name().to_string_lossy().starts_with("files.new-")),
+            "no staging folder may survive"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 

@@ -79,6 +79,18 @@ class CloudPlanTest {
         assertTrue(CloudPlan.upSend(plan, force = true, repairRawGog = false, allLocal = listOf("s")).isEmpty())
     }
 
+    @Test fun anUnknownCloudStateCountsAsChangedSoBothSidesEditsConflict() {
+        // A publish whose mirror refresh failed could not record the cloud digest or time; the
+        // planner must assume the cloud moved rather than read the gap as "unchanged", so a
+        // both-sides edit becomes a conflict instead of a silent upload over newer cloud data.
+        val base = mapOf("s" to Entry("a", null, -1L))
+        val remote = mapOf("s" to Remote("c", 9000))
+        assertEquals(listOf("s"), CloudPlan.up(mapOf("s" to Local("b")), remote, base).conflicts)
+        assertTrue(CloudPlan.up(mapOf("s" to Local("b")), remote, base).transfer.isEmpty())
+        // The cloud moved while the phone did not: the download wins over the unknown baseline.
+        assertEquals(listOf("s"), CloudPlan.down(mapOf("s" to Local("a")), remote, base).transfer)
+    }
+
     @Test fun theBaselineSurvivesItsJson() {
         val b = mapOf("a/b.sav" to Entry("l", "c", 5), "x" to Entry("l2", null, -1))
         assertEquals(b, CloudPlan.fromJson(CloudPlan.toJson(b)))

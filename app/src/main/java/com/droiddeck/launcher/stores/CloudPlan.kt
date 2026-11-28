@@ -12,6 +12,10 @@ object CloudPlan {
 
     private fun cloudChanged(r: Remote, b: Entry?): Boolean {
         if (b == null) return true
+        // A baseline whose cloud side is unknown (a publish whose mirror refresh failed could not
+        // record a digest or a time) must not read as "the cloud is unchanged": assume it moved,
+        // so a both-sides edit becomes a conflict instead of a silent upload over newer cloud data.
+        if (b.cloudMd5 == null && b.cloudModified <= 0) return true
         if (r.md5 != null && b.cloudMd5 != null) return !r.md5.equals(b.cloudMd5, ignoreCase = true)
         return r.modified > 0 && b.cloudModified > 0 && kotlin.math.abs(r.modified - b.cloudModified) > 2000
     }

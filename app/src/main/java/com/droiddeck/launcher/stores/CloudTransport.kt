@@ -447,6 +447,13 @@ class EpicCloud(
         listCalls++
         try {
             val snapshot = com.droiddeck.launcher.stores.epic.EpicSaveSync.snapshot(token, accountId, appName, cacheDir.absolutePath)
+            // A refresh that failed midway may have renamed only some files into files/: the mirror
+            // no longer describes any manifest, so drop it with the marker and fail this sync -
+            // the next one re-snapshots. Never serve or adopt bytes no manifest describes.
+            if (!snapshot.optBoolean("mirrorRefreshed", true)) {
+                wipeMirror()
+                throw java.io.IOException("Epic cloud $appName: the mirror refresh failed midway")
+            }
             if (snapshot.optString("mode") == MODE_MANIFEST) return adopt(snapshot)
             // The cloud went back to plain files: drop the manifest marker too, or every later
             // EpicCloud would read the stale one and keep publishing onto it.
@@ -464,12 +471,26 @@ class EpicCloud(
         }
     }
 
+    /** Drops the whole manifest mirror: the reassembled files, the marker and anything this
+     *  process believed it had published. Called whenever the mirror cannot be trusted. */
+    private fun wipeMirror() {
+        manifestMode = false
+        lastPublished = null
+        runCatching { File(cacheDir, FILES_DIR).deleteRecursively() }
+        runCatching { File(cacheDir, MARKER).delete() }
+    }
+
     override fun get(file: CloudFile): Pair<ByteArray, Long> {
         if (!manifestMode) return com.droiddeck.launcher.stores.epic.EpicSaveSync.read(file)
         val cached = localSnapshot(file.name)?.takeIf { it.isFile } ?: run {
             // The mirror lost the file (cleared cache, newer manifest): re-mirror once, then give up.
             try {
-                adopt(com.droiddeck.launcher.stores.epic.EpicSaveSync.snapshot(token, accountId, appName, cacheDir.absolutePath))
+                val snapshot = com.droiddeck.launcher.stores.epic.EpicSaveSync.snapshot(token, accountId, appName, cacheDir.absolutePath)
+                if (!snapshot.optBoolean("mirrorRefreshed", true)) {
+                    wipeMirror()
+                    throw java.io.IOException("the mirror refresh failed midway")
+                }
+                adopt(snapshot)
             } catch (e: java.io.IOException) {
                 throw java.io.IOException("Epic cloud snapshot refresh failed for ${file.name}", e)
             }
@@ -497,13 +518,12 @@ class EpicCloud(
             token, accountId, appName, cacheDir.absolutePath, saveDir.absolutePath, overlay, base,
         )
         if (answer.optString("mode") != MODE_MANIFEST) throw java.io.IOException("Epic cloud $appName: publish did not return a manifest")
-        // A mirror refresh that failed leaves files/ describing the previous manifest: drop the
-        // marker (the next list() re-snapshots and rebuilds it) and report the committed files
+        // A mirror refresh that failed may have renamed only some of the new files in: the mirror
+        // no longer describes any manifest, so drop it entirely and report the committed files
         // from the answer itself, so the baseline never reads mirror bytes the manifest does
-        // not describe.
+        // not describe. The next list() re-snapshots and rebuilds it.
         if (!answer.optBoolean("mirrorRefreshed", true)) {
-            runCatching { File(cacheDir, MARKER).delete() }
-            manifestMode = false
+            wipeMirror()
             val listed = answer.optJSONArray("files") ?: org.json.JSONArray()
             val files = (0 until listed.length()).mapNotNull { listed.optJSONObject(it) }.mapNotNull { f ->
                 f.optString("name").takeIf { it.isNotEmpty() }?.let { CloudFile(it, -1L, null) }
@@ -545,9 +565,17 @@ class EpicCloud(
         File(cacheDir, MARKER).takeIf { it.isFile }?.let { org.json.JSONObject(it.readText()) }
     }.getOrNull()
 
-    /** The cached snapshot marker, but only when it belongs to this account: the mirror folder is
-     *  per game, and a marker left behind by another sign-in must never serve its saves. */
-    private fun usableMarker(): org.json.JSONObject? = marker()?.takeIf { it.optString("account") == accountId }
+    /** The cached snapshot marker, but only when it belongs to this account. The mirror folder is
+     *  per game and shared by every sign-in, so a marker left behind by another account means
+     *  files/ may even hold bytes that account's snapshot renamed in before failing: drop the
+     *  whole mirror with the marker and let the next snapshot rebuild it from this account's
+     *  cloud - never serve saves another sign-in wrote. */
+    private fun usableMarker(): org.json.JSONObject? {
+        val cached = marker() ?: return null
+        if (cached.optString("account") == accountId) return cached
+        wipeMirror()
+        return null
+    }
 
     private fun writeMarker(manifest: String, files: List<CloudFile>) {
         runCatching {

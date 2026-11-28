@@ -373,8 +373,8 @@ object StoresState {
         val app = context.applicationContext
         // init runs in the main and :xcloudnative processes; the per-game sync locks are
         // per-process, so both the recovery upload and the mirror prefetch would race on
-        // cacheDir/epic-saves across processes. Main process only.
-        val mainProcess = if (android.os.Build.VERSION.SDK_INT >= 28) android.app.Application.getProcessName() == app.packageName else true
+        // cacheDir/epic-saves across processes. Main process only, on every supported API level.
+        val mainProcess = if (android.os.Build.VERSION.SDK_INT >= 28) android.app.Application.getProcessName() == app.packageName else procCmdline() == app.packageName
         if (mainProcess) {
             Thread({
                 runCatching { CloudSaves.uploadAllDirty(app, "recovery") }
@@ -383,6 +383,13 @@ object StoresState {
             background("epic-cloud-prefetch") { CloudSaves.prefetchEpic(app) }
         }
     }
+
+    /** The process name on API levels below 28, where `Application.getProcessName()` does not
+     *  exist yet: `/proc/self/cmdline`, NUL-terminated. Empty when unreadable, which fails the
+     *  main-process check and keeps secondary processes out of the shared mirror. */
+    private fun procCmdline(): String = runCatching {
+        java.io.File("/proc/self/cmdline").readBytes().toString(Charsets.UTF_8).trimEnd('\u0000')
+    }.getOrDefault("")
 
     internal fun post(block: () -> Unit) = main.post(block)
 
