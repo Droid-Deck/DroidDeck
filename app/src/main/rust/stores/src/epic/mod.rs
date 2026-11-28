@@ -10,6 +10,7 @@ pub mod library;
 pub mod locale;
 pub mod manifest;
 pub mod net;
+pub mod saveformat;
 pub mod savesync;
 pub mod service;
 pub mod shop;

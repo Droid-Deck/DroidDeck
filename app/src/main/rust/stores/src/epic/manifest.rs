@@ -124,17 +124,18 @@ fn normalise_path(raw: &str) -> String {
     raw.replace('\\', "/")
 }
 
-struct Reader<'a> {
-    buf: &'a [u8],
-    pos: usize,
+/// Little-endian cursor over a manifest body; `saveformat` builds its strict reader on it.
+pub(super) struct Reader<'a> {
+    pub(super) buf: &'a [u8],
+    pub(super) pos: usize,
 }
 
 impl<'a> Reader<'a> {
-    fn new(buf: &'a [u8]) -> Self {
+    pub(super) fn new(buf: &'a [u8]) -> Self {
         Reader { buf, pos: 0 }
     }
 
-    fn take(&mut self, n: usize) -> Result<&'a [u8], String> {
+    pub(super) fn take(&mut self, n: usize) -> Result<&'a [u8], String> {
         let end = self.pos.checked_add(n).ok_or("length overflow")?;
         if end > self.buf.len() {
             return Err(format!("read past the end at {} (+{n})", self.pos));
@@ -144,41 +145,41 @@ impl<'a> Reader<'a> {
         Ok(out)
     }
 
-    fn u8(&mut self) -> Result<u8, String> {
+    pub(super) fn u8(&mut self) -> Result<u8, String> {
         Ok(self.take(1)?[0])
     }
 
-    fn u32(&mut self) -> Result<u32, String> {
+    pub(super) fn u32(&mut self) -> Result<u32, String> {
         let b = self.take(4)?;
         Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
     }
 
-    fn i32(&mut self) -> Result<i32, String> {
+    pub(super) fn i32(&mut self) -> Result<i32, String> {
         Ok(self.u32()? as i32)
     }
 
-    fn u64(&mut self) -> Result<u64, String> {
+    pub(super) fn u64(&mut self) -> Result<u64, String> {
         let b = self.take(8)?;
         let mut a = [0u8; 8];
         a.copy_from_slice(b);
         Ok(u64::from_le_bytes(a))
     }
 
-    fn i64(&mut self) -> Result<i64, String> {
+    pub(super) fn i64(&mut self) -> Result<i64, String> {
         Ok(self.u64()? as i64)
     }
 
-    fn guid(&mut self) -> Result<Guid, String> {
+    pub(super) fn guid(&mut self) -> Result<Guid, String> {
         Ok([self.u32()?, self.u32()?, self.u32()?, self.u32()?])
     }
 
-    fn sha1(&mut self) -> Result<Sha1, String> {
+    pub(super) fn sha1(&mut self) -> Result<Sha1, String> {
         let mut out = [0u8; 20];
         out.copy_from_slice(self.take(20)?);
         Ok(out)
     }
 
-    fn count(&mut self, min_item_bytes: usize) -> Result<usize, String> {
+    pub(super) fn count(&mut self, min_item_bytes: usize) -> Result<usize, String> {
         let n = self.i32()?;
         if n < 0 {
             return Err(format!("negative count {n}"));

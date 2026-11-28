@@ -345,6 +345,62 @@ GOG uploads stage their gzip body in the app's cache folder, which is created if
   savesync data storage with signed read and write links (`EpicCloud` → `EpicSaveSync` → the Rust
   `epic/savesync.rs`; the template's root token and `{EpicId}` / `{AppName}` are read by
   `EpicSaveTemplate`).
+- **Epic clouds come in two forms:** the engine's `cloud.list` answers with a `mode` field - "raw"
+  when the cloud keeps only plain save files, downloaded and uploaded one signed link at a time as
+  before, and "manifest" when EGL's chunked machinery is present: a `manifests/*.manifest` per
+  snapshot (the lexicographically newest name is the newest snapshot) plus its chunks under
+  `ChunksV2`..`ChunksV5` and `*.chunk`.
+- **The manifest form uploads by publishing:** `EpicCloud` still asks the engine to mirror the
+  newest manifest and its chunks into the app cache (`cacheDir/epic-saves/<id>/`, marker
+  `manifest.json`, reassembled files under `files/`) and the Rust side joins each file's parts in
+  manifest order, verifying the SHA-1 the manifest carries. Downloads read from that mirror and
+  keep working from it when the cloud is unreachable. An upload now publishes (`cloud.publish`):
+  the engine layers the changed saves on the mirrored base manifest - the name recorded in the
+  marker - and refuses to start unless the cloud's newest manifest is still that base one, so a
+  sync that raced another device answers `conflict` and lands `partial` with
+  `reason=changed-in-cloud`, the dirty mark staying for a retry. The merged file set is the old
+  manifest's files plus the uploads (publishing never deletes), read only from the save folder and
+  the mirror - a missing file aborts the publish before anything is written as an ordinary error,
+  so the dirty mark stays and the next sync, which refreshes the mirror first, can recover. Two
+  names that differ only in case while both spellings still exist locally are refused by the
+  engine (`collision: true`) and land `failed` with `reason=case-collision`, the dirty mark staying
+  and every trigger retrying until the save folder is unambiguous, like EA's guard; an old
+  spelling that is gone is just the game's rename landing, and publishes under the new name. Names
+  the file set cannot carry outright (unsafe or non-ASCII) are the engine's `permanent` refusals
+  and land as a final skip (`reason=upload-unsupported`, the engine's text in the detail),
+  clearing the dirty mark - downloads keep working. The files
+  pack into one stream before chunking, so a length change re-chunks everything behind it, and only
+  blocks whose SHA-1 the old manifest already has are reused. New chunks upload first and the new
+  manifest last, so a failed publish leaves the newest manifest - the cloud's logical state -
+  untouched; chunks written before the failure stay unreferenced. The new manifest's name is a
+  UTC timestamp (from the listing's
+  HTTP `Date` header, else the device clock) kept strictly newer than the current one, so EGL's
+  name-based ordering stays monotonic. A cloud answering with a manifest whose version is not 17
+  keeps the game download-only, and an upload attempt lands `upload-unsupported`; so does a newest
+  manifest that is not named by a UTC timestamp, since a publish under it could never become the
+  newest snapshot. The mirror refresh renames the bytes that were packed - never re-reads the save
+  files - and its failure is not an error: the answer's `mirrorRefreshed` flag says the mirror still
+  describes the previous manifest until the next snapshot rebuilds it. "Keep local" is
+  now that same forced upload: it publishes the phone's versions and clears the conflicts, and on a
+  failure the saved conflict state stays so the row can be retried.
+- **EGL's bookkeeping never syncs:** `EpicCloud.mechanical` refuses anything under `manifests/` or
+  `Chunks`/`ChunksV2..V5` (case-insensitively; the Rust side matches exact case) or ending in
+  `.chunk`, on the way up and the way down. The catalog's `CloudIncludeList` / `CloudExcludeList`
+  are cached (`cloud_include_<id>`, `cloud_exclude_<id>`) whenever the template is resolved with a
+  successful catalog lookup - and topped up on later syncs while the keys are missing, e.g. for
+  games older builds had cached with the template only - and applied by `EpicSaveRules` as
+  fnmatch globs, where `*` and `?` also match `/`.
+- **The old Epic layout migrates once:** builds before this downloaded manifest and chunk
+  bookkeeping into the save folder and baselined it; `migrateEpicManifest` (`cloud_epic_layout_<id>`)
+  backs those directories up, deletes them, drops their baseline entries and marks the migration
+  done only when every delete succeeded. A mechanical-looking directory the baseline never tracked
+  is treated as game-owned and left alone, as are all other game-owned files.
+- **Syncs on one game are serialized:** each `store:id` pair owns a `ReentrantLock`; a second sync
+  that cannot take it answers at once with `reason=busy` (which is not a final skip - see below),
+  and `prefetchEpic` takes the same lock, skipping when a sync holds it.
+- **The Epic snapshot warms before launch:** `prefetchEpic` mirrors the manifest of every installed
+  Epic game with cloud saves on, in the main process only, so the first launch does not wait for
+  the mirror.
 - **Which launches:** `droiddeck-store-launch` recognises a store game by the launcher .bat Steam runs
   or, for a game without one (most GOG games), by its exe - the folders above it are searched for
   the sidecar.
@@ -357,7 +413,9 @@ GOG uploads stage their gzip body in the app's cache folder, which is created if
   session's end (`trigger=session-end`, after teardown, reading the prefix directly) or the app's
   next start for a mark a killed app left (`trigger=recovery`, not while a session runs). The mark
   goes only after an upload that went through or a final skip (off, no cloud saves, no baseline,
-  not installed, nothing local).
+  not installed, nothing local, upload unsupported). `busy` is deliberately not a
+  final skip: the lock holder is a transient sync, so the mark stays for the next exit,
+  session-end or recovery upload to retry.
 - **Per game:** a GOG or Epic game's hero button reads "Cloud saves" and opens its saves view: the
   Cloud saves switch (on; the sidecar's `"cloud"`, read by both launch paths), the last sync,
   Upload / Download and the conflict actions, or "No cloud saves".

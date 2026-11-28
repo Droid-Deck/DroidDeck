@@ -1236,7 +1236,9 @@ private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
     var tick by remember(g.gameId) { mutableStateOf(0) }
     var refreshing by remember(g.gameId) { mutableStateOf(false) }
     val status by produceState<CloudSaves.Status?>(null, g.gameId, tick) {
-        value = withContext(Dispatchers.IO) { runCatching { CloudSaves.status(context, store, id) }.getOrNull() }
+        value = withContext(Dispatchers.IO) {
+            runCatching { CloudSaves.status(context, store, id) }.getOrNull()
+        }
         refreshing = false
     }
     val folder = g.gameFiles
@@ -1272,7 +1274,8 @@ private fun CloudRows(g: Library.SteamGame, onSynced: () -> Unit = {}) {
         st.lastSync > 0 -> stringResource(R.string.cloud_last_sync, android.text.format.DateUtils.getRelativeTimeSpanString(st.lastSync).toString())
         else -> stringResource(R.string.cloud_never)
     }
-    MenuItem(stringResource(if (conflict) R.string.cloud_keep_local else R.string.cloud_upload), checked = false, enabled = ready, detail = summary) { sync(up = true, force = conflict) }
+    MenuItem(stringResource(if (conflict) R.string.cloud_keep_local else R.string.cloud_upload), checked = false,
+        enabled = ready, detail = summary) { sync(up = true, force = conflict) }
     MenuItem(stringResource(if (conflict) R.string.cloud_keep_cloud else R.string.cloud_download), checked = false, enabled = ready, detail = if (st == null || busy != null) pending else null) { sync(up = false, force = conflict) }
 }
 

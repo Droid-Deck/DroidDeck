@@ -91,6 +91,8 @@ internal fun cloudMessage(context: android.content.Context, r: com.droiddeck.lau
     "skipped" -> context.getString(when (r.reason) {
         "not-signed-in" -> R.string.cloud_signed_out
         "no-cloud-saves" -> R.string.cloud_none
+        "upload-unsupported" -> R.string.cloud_upload_unsupported
+        "busy" -> R.string.cloud_busy
         else -> R.string.cloud_not_synced
     })
     else -> context.getString(R.string.cloud_not_synced)
