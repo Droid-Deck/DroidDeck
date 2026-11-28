@@ -2201,6 +2201,10 @@ static void device_lost(const char *where) {
     if (g_dev_state == -2) return;
     g_dev_state = -2;
     g_base_black = 0;
+    /* Notify modules before invalidating swapchain resources so they stop using
+     * device-owned objects and release any device-loss-specific bookkeeping. */
+    vkp_framegen_device_lost();
+    vkp_gpu_busy_device_lost();
     droiddeck_log("error", "GPU device lost (VK_ERROR_DEVICE_LOST in %s): the compositor will try one in-process recovery",
                where);
     set_fault("the display GPU was lost (VK_ERROR_DEVICE_LOST in %s); recovery pending", where);
