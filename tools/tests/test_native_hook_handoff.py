@@ -100,8 +100,31 @@ static void *nothread_forker(void *unused) {
   return NULL;
 }
 
+static void *gone_forker(void *unused) {
+  (void)unused;
+  pid_t pid = fork();
+  if (pid == 0) {
+    execl("/bin/target", "target", nothread_arg, (char *)NULL);
+    _exit(127);
+  }
+  nothread_child = pid;
+  return NULL;  // the thread ends: its child goes to the main thread
+}
+
 int main(int argc, char **argv) {
   pid_t pid;
+  if (strcmp(argv[1], "nothreadgone") == 0) {
+    nothread_arg = argv[2];
+    pthread_t forker;
+    pthread_create(&forker, NULL, gone_forker, NULL);
+    pthread_join(forker, NULL);
+    usleep(1500000);  // the program has exited by now
+    int status = 0;
+    pid_t r = waitpid(nothread_child, &status, __WNOTHREAD);
+    printf("own\t%d\n", r == nothread_child);
+    if (WIFEXITED(status)) printf("exit\t%d\n", WEXITSTATUS(status));
+    return 0;
+  }
   if (strcmp(argv[1], "nothread") == 0 || strcmp(argv[1], "nothreadwrap") == 0) {
     nothread_arg = argv[2];
     nothread_wrap = argv[1][8] != 0;
@@ -578,6 +601,12 @@ class NativeHookHandoffTest(unittest.TestCase):
         self.assertEqual(1, len(requests), out.stderr)
         self.assertEqual("-1", result.get("other"), out.stdout)
         self.assertEqual("-1", result.get("otherpid"), out.stdout)
+        self.assertEqual("1", result.get("own"), out.stdout)
+        self.assertEqual("7", result.get("exit"), out.stdout)
+
+    def test_wnothread_takes_a_child_whose_thread_ended(self):
+        result, requests, out = self.run_parent("nothreadgone", "7")
+        self.assertEqual(1, len(requests), out.stderr)
         self.assertEqual("1", result.get("own"), out.stdout)
         self.assertEqual("7", result.get("exit"), out.stdout)
 

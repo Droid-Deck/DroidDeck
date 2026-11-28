@@ -1257,8 +1257,16 @@ static void ddh_untake(struct ddh_entry *e) { __atomic_store_n(&e->state, DDH_EX
 // Whether a wait for pid (-1: any child, 0: one in our group, -G: one in group G) takes e's child.
 static int ddh_selects(const struct ddh_entry *e, pid_t pid) {
     if (t_ddh_only_thread) {
-        // not this thread's, or not known yet (the fork is still being recorded): not for this wait
-        if (ddh_forking_thread(e->child) != t_ddh_only_thread) return 0;
+        // Not this thread's, or not known yet (the fork is still being recorded): not for this wait.
+        // A child whose forking thread has exited went to another of the process's threads, which
+        // one the kernel does not say: any thread's wait may take it then.
+        pid_t thread = ddh_forking_thread(e->child);
+        if (thread != t_ddh_only_thread) {
+            int saved = errno;
+            int gone = thread > 0 && call_orig_syscall(SYS_tgkill, (unsigned long)getpid(), (unsigned long)thread, 0, 0, 0, 0) != 0 && errno == ESRCH;
+            errno = saved;
+            if (!gone) return 0;
+        }
     }
     if (pid > 0) return e->child == pid;
     if (pid == -1) return 1;
