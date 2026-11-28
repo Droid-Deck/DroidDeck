@@ -31,8 +31,10 @@ def function(text, name):
 HARNESS = r'''
 #include <assert.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <unistd.h>
 typedef int VkResult;
 typedef uintptr_t VkFence;
 #define VK_TRUE 1
@@ -69,12 +71,31 @@ static struct {
 typedef struct AHardwareBuffer AHardwareBuffer;
 static int released_buffers;
 static void AHardwareBuffer_release(AHardwareBuffer *b) { (void)b; ++released_buffers; }
-struct vkp_image { uintptr_t image, mem; void *map; AHardwareBuffer *android_buffer; uintptr_t linear_buf, linear_mem; int staged, in_general; };
+enum vkp_image_source {
+    VKP_IMAGE_SOURCE_NONE = 0,
+    VKP_IMAGE_SOURCE_DMABUF,
+    VKP_IMAGE_SOURCE_AHB_WLEGL,
+    VKP_IMAGE_SOURCE_AHB_SOURCE,
+    VKP_IMAGE_SOURCE_AHB_TARGET,
+    VKP_IMAGE_SOURCE_SHM
+};
+struct vkp_image {
+    uintptr_t image, mem;
+    void *map;
+    AHardwareBuffer *android_buffer;
+    uintptr_t linear_buf, linear_mem;
+    int staged, in_general;
+    enum vkp_image_source source_type;
+    int source_fd;
+    uint8_t *recovery_pixels;
+    struct vkp_image *next;
+};
+static void image_unregister(struct vkp_image *img) { (void)img; }
 static void blendp_forget_image(uintptr_t image) { (void)image; ++forgotten; }
 /* PRODUCTION_FUNCTIONS */
 static struct vkp_image *image(void) {
     struct vkp_image *p = calloc(1, sizeof(*p)); assert(p);
-    p->image=1; p->mem=2; p->map=p; return p;
+    p->image=1; p->mem=2; p->map=p; p->source_fd=-1; return p;
 }
 int main(void) {
     g_dev_state=1; answer=VK_SUCCESS;
