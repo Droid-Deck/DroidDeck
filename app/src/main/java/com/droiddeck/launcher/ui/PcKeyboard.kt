@@ -73,6 +73,7 @@ fun PcKeyboard(
     val pal = LocalPalette.current
     val colors = MaterialTheme.colorScheme
     val mods = remember { mutableStateMapOf<Int, Int>() }
+    val held = remember { mutableSetOf<Int>() }
     var capsOn by remember { mutableStateOf(false) }
     val firstKey = remember { FocusRequester() }
     val shifted = (mods[42] ?: MOD_OFF) != MOD_OFF || (mods[54] ?: MOD_OFF) != MOD_OFF
@@ -90,15 +91,21 @@ fun PcKeyboard(
             return
         }
         sendKey(key.code, true)
+        held.add(key.code)
     }
     fun release(key: PcKey) {
         if (key.code in PC_MODIFIERS) return
         sendKey(key.code, false)
+        held.remove(key.code)
         if (key.code == 58) capsOn = !capsOn
         releaseOnceModifiers()
     }
     androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose { for ((code, state) in mods.toMap()) if (state != MOD_OFF) sendKey(code, false) }
+        onDispose {
+            for (code in held.toSet()) sendKey(code, false)
+            for ((code, state) in mods.toMap()) if (state != MOD_OFF) sendKey(code, false)
+            held.clear()
+        }
     }
     LaunchedEffect(Unit) { runCatching { firstKey.requestFocus() } }
 

@@ -162,6 +162,7 @@ import com.droiddeck.launcher.gpu.ScreenEffectLooks
 import com.droiddeck.launcher.gpu.Cardboard
 import com.droiddeck.launcher.gpu.SteamVr
 import com.droiddeck.launcher.gpu.ScreenEffects
+import com.droiddeck.launcher.session.DesktopKeyboard
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.ComponentsManager
 import com.droiddeck.launcher.input.PC_KEY_GROUP_IDS
@@ -305,6 +306,7 @@ class DrawerActions(
     val onImportLossless: () -> Unit,
     val onKeyboard: () -> Unit,
     val onHardwareKeyboard: () -> Unit,
+    val onDesktopKeyboard: (String) -> Unit = {},
     val wowChatShown: Boolean = false,
     val wowChat: String? = null,
     val onWowChat: (String?) -> Unit = {},
@@ -842,6 +844,18 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     RelativeMouseRow(host, a, focus.track(page, "relative-mouse"))
                             }
                             SettingsGroup(stringResource(R.string.drawer_keyboard)) {
+                                val keyboardContext = LocalContext.current
+                                var desktopKeyboardDefault by remember { mutableStateOf(SessionPrefs.desktopKeyboard(keyboardContext)) }
+                                ChoiceRow(host, "desktop-keyboard", stringResource(R.string.drawer_desktop_keyboard), null,
+                                    listOf(
+                                        DesktopKeyboard.PC to stringResource(R.string.drawer_pc_keyboard),
+                                        DesktopKeyboard.ANDROID to stringResource(R.string.drawer_android_keyboard),
+                                        DesktopKeyboard.NONE to stringResource(R.string.drawer_desktop_keyboard_none),
+                                    ),
+                                    desktopKeyboardDefault, chipModifier = focus.track(page, "desktop-keyboard")) {
+                                    desktopKeyboardDefault = it
+                                    a.onDesktopKeyboard(it)
+                                }
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(8.dp)) {
                                     DrawerOutlineButton(stringResource(R.string.drawer_pc_keyboard), modifier = Modifier.weight(1f).height(48.dp).then(focus.track(page, "hardware"))) {
                                         host.open = null; a.onHardwareKeyboard()
@@ -859,7 +873,6 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                     ),
                                     a.wowChat, chipModifier = focus.track(page, "wow-chat"), onPick = a.onWowChat,
                                 )
-                                val keyboardContext = LocalContext.current
                                 remember { PcKeyboardPrefs.load(keyboardContext) }
                                 SliderRow(
                                     stringResource(R.string.pckb_size), stringResource(R.string.pckb_size_hint),

@@ -121,6 +121,7 @@ import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.GameProfileFollowState
 import com.droiddeck.launcher.session.GameProfileInventoryCache
 import com.droiddeck.launcher.session.GameProfileRefreshState
+import com.droiddeck.launcher.session.DesktopKeyboard
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionEvents
 import com.droiddeck.launcher.session.SessionArtifacts
@@ -608,6 +609,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private var lastMouseY = Float.NaN
     private var padType by mutableStateOf(SessionPrefs.CONTROLLER_DECK)
     private var pcKeyboardOpen by mutableStateOf(false)
+    private var pcKeyboardForField = false
     private var fieldKeyboardOnPrimary = false
     private var pendingFieldKeyboard = false
     private var fieldKeyboardImeShown = false
@@ -969,7 +971,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             host.onImeChanged = ::onPrimaryImeChanged
             root.addView(host)
         }
-        desktopKeyboardButton = com.droiddeck.launcher.input.DesktopKeyboardButton(this) { showPrimaryKeyboard() }
+        desktopKeyboardButton = com.droiddeck.launcher.input.DesktopKeyboardButton(this) { openDesktopKeyboardFromButton() }
             .also { root.addView(it) }
         touchpad = TouchpadGestures(PointerGestures.slop(this), pointerListener)
         directTouchHold = DirectTouchHold(PointerGestures.slop(this), pointerListener, directTouchSink)
@@ -1130,7 +1132,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                     dockedTouchOnly -> routeBackAction()
                     drawerOpen -> drawerOpen = false
                     achievementsOpen -> closeAchievements()
-                    pcKeyboardOpen -> pcKeyboardOpen = false
+                    pcKeyboardOpen -> { pcKeyboardForField = false; pcKeyboardOpen = false }
                     else -> routeBackAction()
                 }
             }
@@ -1424,8 +1426,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 }
                 if (pcKeyboardOpen) com.droiddeck.launcher.ui.PcKeyboard(
                     sendKey = { code, down -> if (CompositorHost.isStarted) sendGuestKey(code, down, 32) },
-                    onAndroidKeyboard = { pcKeyboardOpen = false; togglePrimaryKeyboard() },
-                    onClose = { pcKeyboardOpen = false },
+                    onAndroidKeyboard = { pcKeyboardForField = false; pcKeyboardOpen = false; togglePrimaryKeyboard() },
+                    onClose = { pcKeyboardForField = false; pcKeyboardOpen = false },
                 )
                 if (!drawerDocked) SessionMenu(
                     docked = false,
@@ -1764,8 +1766,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 pickLossless.launch(InAppFilePicker.buildIntent(
                     this@SessionActivity, listOf("dll"), getString(R.string.lsfg_pick_title)))
             },
-            onKeyboard = { drawerOpen = false; pcKeyboardOpen = false; togglePrimaryKeyboard() },
+            onKeyboard = { drawerOpen = false; pcKeyboardForField = false; pcKeyboardOpen = false; togglePrimaryKeyboard() },
             onHardwareKeyboard = ::togglePcKeyboard,
+            onDesktopKeyboard = { SessionPrefs.setDesktopKeyboard(this, it) },
             wowChatShown = com.droiddeck.launcher.ui.WowChat.isWow(AgentGuest.gameProgram),
             wowChat = wowChat.remembered,
             onWowChat = wowChat::choose,
@@ -2069,11 +2072,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun togglePcKeyboard() {
-        drawerOpen = false
-        hidePrimaryKeyboard()
-        onScreenControls?.releaseAll()
-        bottomInputControls?.releaseAll()
-        pcKeyboardOpen = !pcKeyboardOpen
+        pcKeyboardForField = false
+        setPcKeyboardVisible(!pcKeyboardOpen)
+    }
+
+    private fun setPcKeyboardVisible(open: Boolean) {
+        if (open == pcKeyboardOpen) return
+        if (open) {
+            drawerOpen = false
+            hidePrimaryKeyboard()
+            onScreenControls?.releaseAll()
+            bottomInputControls?.releaseAll()
+        }
+        pcKeyboardOpen = open
+    }
+
+    private fun openDesktopKeyboardFromButton() {
+        pcKeyboardForField = false
+        if (SessionPrefs.desktopKeyboard(this) == DesktopKeyboard.ANDROID) showPrimaryKeyboard()
+        else setPcKeyboardVisible(true)
     }
 
     private fun showPrimaryKeyboard() {
@@ -5914,10 +5931,22 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     private fun onDesktopTextField(focused: Boolean) {
         val host = keyboard
         if (host != null && desktopTextInput()) {
-            val tapped = android.os.SystemClock.uptimeMillis() - lastUserPressMs < TEXT_FIELD_TAP_MS
-            if (focused && tapped && resumed && !pcKeyboardOpen &&
-                resources.configuration.hardKeyboardHidden != android.content.res.Configuration.HARDKEYBOARDHIDDEN_NO) host.show()
-            else if (!focused && host.shown) host.hide()
+            if (!focused) {
+                if (pcKeyboardForField) { pcKeyboardForField = false; setPcKeyboardVisible(false) }
+                else if (host.shown) host.hide()
+            } else {
+                val tapped = android.os.SystemClock.uptimeMillis() - lastUserPressMs < TEXT_FIELD_TAP_MS && resumed
+                val hardwareKeyboard = resources.configuration.hardKeyboardHidden == android.content.res.Configuration.HARDKEYBOARDHIDDEN_NO
+                when (DesktopKeyboard.decide(SessionPrefs.desktopKeyboard(this), focused, tapped, hardwareKeyboard, pcKeyboardOpen)) {
+                    DesktopKeyboard.Action.OPEN_PC -> {
+                        if (host.shown) host.hide()
+                        pcKeyboardForField = true
+                        setPcKeyboardVisible(true)
+                    }
+                    DesktopKeyboard.Action.OPEN_ANDROID -> host.show()
+                    DesktopKeyboard.Action.NOTHING -> Unit
+                }
+            }
         }
         updateDesktopKeyboardButton()
     }
@@ -6125,6 +6154,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (show) {
             if (::hud.isInitialized) hud.setHidden(true)
             drawerOpen = false
+            pcKeyboardForField = false
             pcKeyboardOpen = false
             achievementsOpen = false
             pendingBackAction?.let(uiHandler::removeCallbacks)
@@ -6364,6 +6394,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
             val menuUp = menuShownOnBottom()
             drawerOpen = false
             if (menuUp) SessionState.bottomMenu = true
+            pcKeyboardForField = false
             pcKeyboardOpen = false
             achievementsOpen = false
         }

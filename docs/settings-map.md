@@ -84,6 +84,7 @@ Links of the form `droiddeck://settings/<section>` open a Settings section direc
 | On-screen controls | In-game menu › Controller | on-screen, controls, touch controls, buttons |
 | Steam touch layout | In-game menu › Controller | touch layout, edit layout, on-screen |
 | PC keyboard | In-game menu › Controller | keyboard, typing |
+| Desktop text fields | In-game menu › Controller | desktop, keyboard, pc, android, default, ime |
 | Report a problem | In-game menu › Session | logs, log, bug, crash, share, zip |
 | Background behavior | In-game menu › Session | sleep, background, native, resume |
 
