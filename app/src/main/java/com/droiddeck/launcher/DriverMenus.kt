@@ -430,21 +430,28 @@ internal class DriverMenus(private val activity: Activity, private val ui: Handl
      */
     private fun useMaliFallback(missing: String?): String {
         val oldVulkan = com.droiddeck.launcher.session.VenusComponent.hostVulkanTooOld(activity)
-        val venus = oldVulkan == null && com.droiddeck.launcher.session.VenusComponent.available(activity)
+        val venusByUser = venusExplicit()
+        val venus = MaliAutoRoute.venusStandsIn(
+            com.droiddeck.launcher.session.VenusComponent.available(activity), oldVulkan == null,
+            SessionPrefs.venus(activity), venusByUser, gpu.name,
+        )
         if (oldVulkan != null) Log.i(TAG, "auto: Mali driver reports Vulkan $oldVulkan; Venus needs 1.2, the bridge stands in")
         val ownership = MaliAutoRoute.fallbackOwnership(
             venus,
             SessionPrefs.vkBridge(activity), bridgeExplicit(),
-            SessionPrefs.venus(activity), venusExplicit(),
+            SessionPrefs.venus(activity), venusByUser,
         )
         if (venus && !SessionPrefs.venus(activity)) {
             SessionPrefs.setVenus(activity, true)
             if (SessionPrefs.vkBridge(activity) && !bridgeExplicit())
                 SessionPrefs.setVkBridge(activity, false)
             SessionPrefs.setMaliFallbackByAuto(activity, ownership)
-        } else if (!venus && !SessionPrefs.vkBridge(activity)) {
-            SessionPrefs.setVkBridge(activity, true)
-            SessionPrefs.setMaliFallbackByAuto(activity, ownership)
+        } else if (!venus) {
+            val venusOff = SessionPrefs.venus(activity) && !venusByUser
+            val bridgeOn = !SessionPrefs.vkBridge(activity)
+            if (venusOff) SessionPrefs.clearVenus(activity)
+            if (bridgeOn) SessionPrefs.setVkBridge(activity, true)
+            if (venusOff || bridgeOn || ownership != MaliAutoRoute.NONE) SessionPrefs.setMaliFallbackByAuto(activity, ownership)
         } else if (ownership != MaliAutoRoute.NONE) {
             SessionPrefs.setMaliFallbackByAuto(activity, ownership)
         }

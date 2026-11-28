@@ -1227,6 +1227,11 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("venus", on).apply()
     }
 
+    /** Venus off with no choice stored, so that Auto turning it off does not read as the user's own choice. */
+    fun clearVenus(context: Context) {
+        prefs(context).edit().remove("venus").apply()
+    }
+
     fun setVkBridge(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("vkBridge", on).putBoolean("bridgeFellBack", false).apply()
     }
