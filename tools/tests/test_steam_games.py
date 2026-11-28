@@ -327,7 +327,7 @@ class ImportsTest(unittest.TestCase):
         snapshot = imports.read_json(self.acct / 'config' / imports.STATE, {})
         self.assertTrue(snapshot['owned']['42'])
 
-    def run_watch(self, beats, routes=None, busy=False, answer=True, started=False):
+    def run_watch(self, beats, routes=None, busy=False, answer=True, started=False, running=False, times=None, results=None):
         listing = self.root / 'games.json'
         listing.write_text(json.dumps([self.game]))
         if routes is not None:
@@ -338,18 +338,36 @@ class ImportsTest(unittest.TestCase):
         idle = imports.downloads_idle
         result = Mock(returncode=0, stdout='DROIDDECK_OWNERSHIP=' + json.dumps(dict(account='123', owned={'42': True})))
         with patch.object(imports, 'identify', return_value=42), \
-             patch.object(imports, 'game_running', return_value=False), \
+             patch.object(imports, 'game_running', return_value=running), \
              patch.object(imports, 'request_restart') as restart, \
              patch.object(imports, 'ask_restart', return_value=answer) as asked, \
              patch.object(imports, 'downloads_idle', side_effect=lambda root: idle(root) and not (started and asked.called)), \
-             patch.object(imports, 'time', Mock(monotonic=Mock(side_effect=list(range(0, 30 * beats, 30))),
+             patch.object(imports, 'time', Mock(monotonic=Mock(side_effect=times or list(range(0, 30 * beats, 30))),
                                                sleep=Mock(side_effect=[None] * (beats - 1) + [RuntimeError('stop')]))), \
-             patch.object(imports.subprocess, 'run', return_value=result), \
+             patch.object(imports.subprocess, 'run', side_effect=results or [result] * beats) as probes, \
              patch('builtins.print'):
             with self.assertRaisesRegex(RuntimeError, 'stop'):
                 imports.watch(self.steam, listing)
         self.asked = asked
+        self.probes = probes
         return restart
+
+    def test_ownership_is_checked_while_a_game_runs_until_it_is_known(self):
+        unavailable = Mock(returncode=1, stderr='Steam pipe unavailable', stdout='')
+        owned = Mock(returncode=0, stdout='DROIDDECK_OWNERSHIP=' + json.dumps(dict(account='123', owned={'42': True})))
+        restart = self.run_watch(3, running=True, times=[0, 30, 90], results=[unavailable, owned])
+        self.assertEqual(2, self.probes.call_count)
+        self.assertTrue(imports.read_json(self.acct / 'config' / imports.STATE, {})['owned']['42'])
+        self.assertEqual(0, restart.call_count)
+        self.assertEqual(0, self.asked.call_count)
+
+    def test_known_ownership_is_not_checked_again_while_a_game_runs(self):
+        self.run_watch(3, running=True, times=[0, 301, 602])
+        self.assertEqual(1, self.probes.call_count)
+
+    def test_known_ownership_is_checked_again_when_no_game_runs(self):
+        self.run_watch(3, answer=False, times=[0, 301, 602])
+        self.assertEqual(3, self.probes.call_count)
 
     def test_newly_owned_game_restarts_the_client_once(self):
         self.assertEqual(1, self.run_watch(3).call_count)

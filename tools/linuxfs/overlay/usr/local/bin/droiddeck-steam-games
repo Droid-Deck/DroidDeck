@@ -240,7 +240,7 @@ def watch(steam_root, listing):
     candidates, sources = {}, {}
     next_lookup = 0
     last_status = None
-    probed, next_probe, failures = None, 0, 0
+    probed, next_probe, failures, confirmed = None, 0, 0, None
     pending, requested, account = [], [], None
     while True:
         now = time.monotonic()
@@ -258,7 +258,7 @@ def watch(steam_root, listing):
             next_lookup = now + 300
         status = "waiting for a matching Steam title"
         key = (dict(candidates), dict(sources))
-        if candidates and (key != probed or now >= next_probe) and game_running():
+        if candidates and (key != probed or now >= next_probe) and key == confirmed and game_running():
             status = last_status
         elif candidates and (key != probed or now >= next_probe):
             probed, next_probe = key, now + 300
@@ -282,6 +282,7 @@ def watch(steam_root, listing):
                     save_json(Path(steam_root) / "userdata" / snapshot["account"] / "config" / STATE, snapshot)
                     pending = unimported(steam_root, snapshot, candidates)
                     account = snapshot["account"]
+                    confirmed = key
                     status = "matched %d/%d games; %d owned" % (len(candidates), len(games), sum(snapshot["owned"].values()))
             except (OSError, ValueError, KeyError, StopIteration, subprocess.TimeoutExpired) as error:
                 status = "ownership check unavailable: " + str(error)
