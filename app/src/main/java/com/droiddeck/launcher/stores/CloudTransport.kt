@@ -424,11 +424,13 @@ class EpicCloud(
      *  them so an upload can update its baseline without re-listing the cloud. */
     @Volatile private var lastPublished: Map<String, CloudFile>? = null
 
-    /** True once a manifest snapshot has been mirrored into [cacheDir]; backed by cacheDir/manifest.json. */
+    /** True once a manifest snapshot has been mirrored into [cacheDir]; backed by cacheDir/manifest.json.
+     *  A marker written by another account never counts: the mirror folder is per game, and its
+     *  files must not be served for a different sign-in. */
     var manifestMode: Boolean
         get() {
             manifestModeCache?.let { return it }
-            val fromMarker = marker()?.optString("mode") == MODE_MANIFEST
+            val fromMarker = usableMarker()?.optString("mode") == MODE_MANIFEST
             manifestModeCache = fromMarker
             return fromMarker
         }
@@ -453,7 +455,7 @@ class EpicCloud(
             runCatching { File(cacheDir, MARKER).delete() }
             return com.droiddeck.launcher.stores.epic.EpicSaveSync.list(token, accountId, appName)
         } catch (e: java.io.IOException) {
-            marker()?.let { cached ->
+            usableMarker()?.let { cached ->
                 manifestMode = true
                 Log.w(tag, "Epic cloud $appName: snapshot failed, serving the cached manifest: ${e.message}")
                 return fromMarker(cached)
@@ -489,12 +491,26 @@ class EpicCloud(
      * cloud state untouched.
      */
     fun publish(saveDir: File, overlay: List<String>): List<CloudFile> {
-        val base = marker()?.optString("manifest").orEmpty()
+        val base = usableMarker()?.optString("manifest").orEmpty()
         if (base.isEmpty()) throw java.io.IOException("Epic cloud $appName: no manifest snapshot to publish from")
         val answer = com.droiddeck.launcher.stores.epic.EpicSaveSync.publish(
             token, accountId, appName, cacheDir.absolutePath, saveDir.absolutePath, overlay, base,
         )
         if (answer.optString("mode") != MODE_MANIFEST) throw java.io.IOException("Epic cloud $appName: publish did not return a manifest")
+        // A mirror refresh that failed leaves files/ describing the previous manifest: drop the
+        // marker (the next list() re-snapshots and rebuilds it) and report the committed files
+        // from the answer itself, so the baseline never reads mirror bytes the manifest does
+        // not describe.
+        if (!answer.optBoolean("mirrorRefreshed", true)) {
+            runCatching { File(cacheDir, MARKER).delete() }
+            manifestMode = false
+            val listed = answer.optJSONArray("files") ?: org.json.JSONArray()
+            val files = (0 until listed.length()).mapNotNull { listed.optJSONObject(it) }.mapNotNull { f ->
+                f.optString("name").takeIf { it.isNotEmpty() }?.let { CloudFile(it, -1L, null) }
+            }
+            lastPublished = files.associateBy { it.name }
+            return files
+        }
         val files = adopt(answer)
         lastPublished = files.associateBy { it.name }
         return files
@@ -529,6 +545,10 @@ class EpicCloud(
         File(cacheDir, MARKER).takeIf { it.isFile }?.let { org.json.JSONObject(it.readText()) }
     }.getOrNull()
 
+    /** The cached snapshot marker, but only when it belongs to this account: the mirror folder is
+     *  per game, and a marker left behind by another sign-in must never serve its saves. */
+    private fun usableMarker(): org.json.JSONObject? = marker()?.takeIf { it.optString("account") == accountId }
+
     private fun writeMarker(manifest: String, files: List<CloudFile>) {
         runCatching {
             cacheDir.mkdirs()
@@ -536,7 +556,7 @@ class EpicCloud(
             for (f in files) listed.put(org.json.JSONObject().put("name", f.name).put("md5", f.md5.orEmpty()).put("modified", f.modifiedMs))
             // Write a twin first and swap it in atomically: a concurrent reader must never see a half-written marker.
             val tmp = File(cacheDir, "$MARKER.tmp")
-            tmp.writeText(org.json.JSONObject().put("mode", MODE_MANIFEST).put("manifest", manifest).put("files", listed).toString())
+            tmp.writeText(org.json.JSONObject().put("mode", MODE_MANIFEST).put("account", accountId).put("manifest", manifest).put("files", listed).toString())
             java.nio.file.Files.move(
                 tmp.toPath(), File(cacheDir, MARKER).toPath(),
                 java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING

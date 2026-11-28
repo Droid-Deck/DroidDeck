@@ -616,9 +616,14 @@ fn read_custom(data: &[u8]) -> Result<CustomFields, String> {
     for _ in 0..count {
         keys.push(r.fstr()?);
     }
-    let mut values = Vec::new();
-    while r.pos < data.len() {
+    // The section declares one value per key; a different number would publish a manifest
+    // whose custom fields do not round-trip, so refuse instead of copying it forward.
+    let mut values = Vec::with_capacity(count);
+    for _ in 0..count {
         values.push(r.fstr()?);
+    }
+    if r.pos != data.len() {
+        return Err("custom fields section has unrecognised bytes".into());
     }
     Ok(CustomFields { version, keys, values })
 }
@@ -790,7 +795,7 @@ mod tests {
 
     /// A manifest body whose meta holds the four empty strings, no prereq ids and then
     /// `meta_tail`, over an empty chunk list, the given file list and an empty custom section.
-    fn body_with(meta_tail: &[u8], file_list: &[u8]) -> Vec<u8> {
+    fn body_with(meta_tail: &[u8], file_list: &[u8], custom: &[u8]) -> Vec<u8> {
         let mut meta = vec![0u8];
         meta.extend_from_slice(&0u32.to_le_bytes());
         meta.push(0u8);
@@ -805,7 +810,7 @@ mod tests {
         section(&mut body, &meta);
         section(&mut body, &empty);
         section(&mut body, file_list);
-        section(&mut body, &empty);
+        section(&mut body, custom);
         body
     }
 
@@ -840,7 +845,7 @@ mod tests {
         corrupt[last] ^= 0xFF;
         assert!(read(&corrupt).is_err());
         // A lone NUL as an "empty string" (length 1): UE writes 0 instead, and so do we.
-        assert!(read(&wrap_body(&body_with(&[1, 0, 0, 0, 0], &[]))).is_err());
+        assert!(read(&wrap_body(&body_with(&[1, 0, 0, 0, 0], &[], &[0, 0, 0, 0, 0]))).is_err());
         // Not a binary manifest at all.
         assert!(read(br#"{"FileManifestList": []}"#).is_err());
     }
@@ -880,7 +885,25 @@ mod tests {
         fml.push(0u8);
         fml.extend_from_slice(&0i32.to_le_bytes());
         fml.extend_from_slice(&0i32.to_le_bytes());
-        assert!(read(&wrap_body(&body_with(&[], &fml))).is_err());
+        assert!(read(&wrap_body(&body_with(&[], &fml, &[0, 0, 0, 0, 0]))).is_err());
+    }
+
+    #[test]
+    fn a_custom_section_with_missing_or_extra_values_is_refused() {
+        // One key declares one value. A section that skips the values would publish a
+        // manifest whose custom fields do not round-trip.
+        let mut key_without_value = vec![0u8];
+        key_without_value.extend_from_slice(&1i32.to_le_bytes());
+        fstr(&mut key_without_value, "CloudBackupFolder");
+        assert!(read(&wrap_body(&body_with(&[], &[], &key_without_value))).is_err());
+        // Extra bytes after the declared values do not survive either.
+        let mut key_with_value = key_without_value.clone();
+        fstr(&mut key_with_value, "3");
+        key_with_value.push(0xAB);
+        assert!(read(&wrap_body(&body_with(&[], &[], &key_with_value))).is_err());
+        // The honest shape still reads: one key, one value, nothing extra. The file list
+        // is the minimal legal one (feature level 0, no files).
+        assert!(read(&wrap_body(&body_with(&[], &[0, 0, 0, 0, 0], &key_with_value[..key_with_value.len() - 1]))).is_ok());
     }
 
     /// A fixed synthetic model whose every byte — down to the chunk's CDN size, which is

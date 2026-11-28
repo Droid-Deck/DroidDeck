@@ -39,6 +39,17 @@ class EpicSaveRulesTest {
         assertFalse(c.allows("slotA.sav"))
     }
 
+    @Test fun aCharacterClassMatchesFnmatchNotRegexSemantics() {
+        // fnmatch's negation is `[!...]`; a leading `^` is a class member, not a negation.
+        val caret = EpicSaveRules("slot[^a].sav", "")
+        assertTrue(caret.allows("slot^.sav"))
+        assertTrue(caret.allows("slota.sav"))
+        assertFalse(caret.allows("slotb.sav"))
+        val negate = EpicSaveRules("slot[!a].sav", "")
+        assertTrue(negate.allows("slotb.sav"))
+        assertFalse(negate.allows("slota.sav"))
+    }
+
     @Test fun everythingIsCaseInsensitive() {
         assertTrue(EpicSaveRules("*.JSON", "").allows("Dir/x.json"))
         assertTrue(EpicSaveRules("SAVES/", "").allows("saves/a.dat"))

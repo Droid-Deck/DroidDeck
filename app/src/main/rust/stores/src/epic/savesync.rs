@@ -263,11 +263,14 @@ impl From<&str> for PublishError {
 /// succeeds every failure is answered before the cloud's logical state changes — chunks
 /// already written stay behind as unreferenced orphans, and the manifest simply never
 /// appears. Once the PUT succeeds the publish is committed, and the only remaining step —
-/// rewriting the local mirror — is cache maintenance whose failure is logged but not
-/// returned as an error (the next cloud.snapshot rebuilds the mirror from the new
-/// manifest). EGL judges newness by manifest name (a UTC timestamp), so the new name is
-/// stamped from the listing's HTTP Date (device clock as fallback) and forced strictly
-/// after the newest existing one.
+/// rewriting the local mirror — is cache maintenance: the packed bytes were staged as they
+/// were read, so the refresh renames exactly what the manifest describes, and its failure
+/// is reported as `mirrorRefreshed: false` in the answer (the next cloud.snapshot rebuilds
+/// the mirror from the new manifest). EGL judges newness by manifest name (a UTC
+/// timestamp), so the new name is stamped from the listing's HTTP Date (device clock as
+/// fallback) and forced strictly after the newest existing one; a newest manifest that is
+/// not named by a timestamp is refused for good, since a publish under it could never
+/// become the newest snapshot.
 pub fn publish(
     cloud: &dyn Cloud,
     access_token: &str,
@@ -292,6 +295,17 @@ pub fn publish(
     };
     if latest != base_manifest {
         return Err(PublishError::Conflict { latest });
+    }
+    // EGL orders snapshots by manifest name, and the timestamp format makes name order
+    // equal time order — but digits sort before every letter, so a base whose newest name
+    // is not a timestamp would accept publishes that can never become the newest snapshot.
+    // Refuse for good instead, and keep the game download-only.
+    let latest_body = latest.strip_prefix("manifests/").unwrap_or(&latest);
+    let latest_body = latest_body.strip_suffix(".manifest").unwrap_or(latest_body);
+    if timefmt::stamp_seconds(latest_body).is_none() {
+        return Err(PublishError::permanent(format!(
+            "save manifest {latest} is not named by a UTC timestamp; publishing on top of it can never become the newest snapshot"
+        )));
     }
     let read_links: HashMap<&str, &str> = files
         .iter()
@@ -365,7 +379,7 @@ pub fn publish(
     for (name, _) in &set {
         saveformat::validate_save_name(name).map_err(PublishError::Permanent)?;
     }
-    let mut slots: Vec<(String, PathBuf)> = Vec::with_capacity(set.len());
+    let mut slots: Vec<(String, PathBuf, bool)> = Vec::with_capacity(set.len());
     for (name, from_overlay) in &set {
         // A missing file is transient (a save deleted mid-sync, an incomplete mirror the
         // next snapshot fills in), so it stays a plain retriable failure; only problems
@@ -383,85 +397,148 @@ pub fn publish(
                     })?,
             }
         };
-        slots.push((name.clone(), src));
+        slots.push((name.clone(), src, *from_overlay));
     }
     let cache = Path::new(cache_dir);
     // A cache dir that cannot take a single directory cannot take the mirror refresh
     // either: fail here, while the cloud is still untouched.
     probe_writable(cache)?;
 
-    // 4. Pack and upload in one streaming pass: files are read one at a time, every full
-    //    window is either reused from the previous manifest (by SHA-1) or encoded with a
-    //    fresh GUID and uploaded immediately, and its bytes are dropped right after.
-    let mut chunks: Vec<ChunkInfo> = Vec::new();
-    let mut uploaded: Vec<String> = Vec::new();
-    let mut reused: Vec<String> = Vec::new();
-    let mut on_block = |block: &[u8]| {
-        upload_block(
-            cloud,
-            access_token,
-            account_id,
-            app_name,
-            &previous,
-            &cloud_names,
-            block,
-            &mut chunks,
-            &mut uploaded,
-            &mut reused,
-        )
-    };
-    let mut packer = saveformat::BlockPacker::new();
-    let mut published: Vec<(String, u64, String)> = Vec::new(); // name, size, sha1 hex
-    for (name, src) in &slots {
-        let content = fs::read(src).map_err(|e| format!("save read {}: {e}", src.display()))?;
-        let sha = packer.push(name, &content, &mut |_, block| on_block(block))?;
-        published.push((name.clone(), content.len() as u64, manifest::sha1_hex(&sha)));
-    }
-    let files = packer.finish(&mut |_, block| on_block(block))?;
-
-    // 5. The stamp: strictly after the newest manifest.
-    let stamp = next_stamp(server_time, &latest);
-
-    // 6. The manifest: meta and custom fields carry over, only BuildVersion becomes the
-    //    new stamp; chunks follow the packed stream order; the body stays uncompressed.
-    let mut meta = previous.meta.clone();
-    meta.build_version = stamp.clone();
-    let file_count = files.len();
-    let manifest = saveformat::SaveManifest {
-        version: previous.version,
-        meta,
-        chunks,
-        files,
-        links: vec![String::new(); file_count],
-        file_flags: vec![0; file_count],
-        custom: previous.custom.clone(),
-    };
-    let manifest_name = saveformat::manifest_cloud_path(&stamp);
-    let write_map = cloud.write_links(access_token, account_id, app_name, &[manifest_name.clone()])?;
-    let write_link = net::str_of(&write_map, &manifest_name);
-    if write_link.is_empty() {
-        return Err(format!("the cloud listing has no write link for {manifest_name}").into());
-    }
-    // From here the publish is committed: the cloud's newest manifest is ours. Only the
-    // local mirror refresh remains, and it is cache maintenance — never reported as a
-    // publish error, since the next cloud.snapshot rebuilds it from the new manifest.
-    cloud.write(&write_link, saveformat::write(&manifest))?;
-
-    if let Err(e) = publish_mirror(cache, &slots, &dropped) {
-        eprintln!("cloud.publish: mirror update failed, the next snapshot will rebuild it: {e}");
-    }
-
-    Ok(json!({
-        "mode": "manifest",
-        "manifest": manifest_name,
-        "files": published
+    // 4. Pack, stage and upload in one streaming pass: files are read one at a time, every
+    //    full window is either reused from the previous manifest (by SHA-1, when its chunk
+    //    is still in the cloud) or encoded with a fresh GUID and uploaded immediately, and
+    //    its bytes are dropped right after. Each file's final bytes are staged as they are
+    //    packed, so the mirror refresh after the commit renames exactly the bytes this
+    //    manifest describes instead of re-reading files the game may have changed since.
+    let staging = cache.join(format!(
+        "files.new-{}-{}",
+        std::process::id(),
+        STAGING_SEQ.fetch_add(1, Ordering::Relaxed)
+    ));
+    let _ = fs::remove_dir_all(&staging);
+    let committed = (|| -> Result<Value, PublishError> {
+        let mut chunks: Vec<ChunkInfo> = Vec::new();
+        let mut uploaded: Vec<String> = Vec::new();
+        let mut reused: Vec<String> = Vec::new();
+        let mut on_block = |block: &[u8]| {
+            upload_block(
+                cloud,
+                access_token,
+                account_id,
+                app_name,
+                &previous,
+                &cloud_names,
+                block,
+                &mut chunks,
+                &mut uploaded,
+                &mut reused,
+            )
+        };
+        let mut packer = saveformat::BlockPacker::new();
+        let mut published: Vec<(String, u64, String)> = Vec::new(); // name, size, sha1 hex
+        let base_sha1: HashMap<&str, Sha1> = previous
+            .files
             .iter()
-            .map(|(name, size, sha1)| json!({ "name": name, "size": size, "sha1": sha1 }))
-            .collect::<Vec<_>>(),
-        "uploaded": uploaded,
-        "reused": reused,
-        "stamp": stamp,
-    }))
+            .filter_map(|f| f.sha1.map(|s| (f.path.as_str(), s)))
+            .collect();
+        for (name, src, from_overlay) in &slots {
+            let mut content = fs::read(src).map_err(|e| format!("save read {}: {e}", src.display()))?;
+            // A file the overlay did not change must still be the bytes the base manifest
+            // describes: the mirror was hash-verified when it was built, but a corrupted
+            // cache entry would otherwise be repacked into the cloud silently. A
+            // save-folder copy that still matches the manifest is used instead; if neither
+            // copy matches, the publish aborts retriable and the next snapshot rebuilds
+            // the mirror from the cloud.
+            if !*from_overlay {
+                if let Some(want) = base_sha1.get(name.as_str()) {
+                    let got: Sha1 = Sha1Hasher::digest(&content).into();
+                    if got != *want {
+                        match resolve_under(save_root, name)? {
+                            Some(alt) => {
+                                let alt_content = fs::read(&alt)
+                                    .map_err(|e| format!("save read {}: {e}", alt.display()))?;
+                                let alt_sha: Sha1 = Sha1Hasher::digest(&alt_content).into();
+                                if alt_sha == *want {
+                                    content = alt_content;
+                                } else {
+                                    return Err(format!(
+                                        "save file {name} does not match its checksum in the base manifest; the next snapshot rebuilds the mirror"
+                                    )
+                                    .into());
+                                }
+                            }
+                            None => {
+                                return Err(format!(
+                                    "save file {name} does not match its checksum in the base manifest and is missing from {save_dir}"
+                                )
+                                .into());
+                            }
+                        }
+                    }
+                }
+            }
+            write_staged(&staging, name, &content)?;
+            let sha = packer.push(name, &content, &mut |_, block| on_block(block))?;
+            published.push((name.clone(), content.len() as u64, manifest::sha1_hex(&sha)));
+        }
+        let files = packer.finish(&mut |_, block| on_block(block))?;
+
+        // 5. The stamp: strictly after the newest manifest.
+        let stamp = next_stamp(server_time, &latest);
+
+        // 6. The manifest: meta and custom fields carry over, only BuildVersion becomes the
+        //    new stamp; chunks follow the packed stream order; the body stays uncompressed.
+        let mut meta = previous.meta.clone();
+        meta.build_version = stamp.clone();
+        let file_count = files.len();
+        let manifest = saveformat::SaveManifest {
+            version: previous.version,
+            meta,
+            chunks,
+            files,
+            links: vec![String::new(); file_count],
+            file_flags: vec![0; file_count],
+            custom: previous.custom.clone(),
+        };
+        let manifest_name = saveformat::manifest_cloud_path(&stamp);
+        let write_map =
+            cloud.write_links(access_token, account_id, app_name, &[manifest_name.clone()])?;
+        let write_link = net::str_of(&write_map, &manifest_name);
+        if write_link.is_empty() {
+            return Err(format!("the cloud listing has no write link for {manifest_name}").into());
+        }
+        // From here the publish is committed: the cloud's newest manifest is ours. Only
+        // the local mirror refresh remains.
+        cloud.write(&write_link, saveformat::write(&manifest))?;
+        Ok(json!({
+            "mode": "manifest",
+            "manifest": manifest_name,
+            "files": published
+                .iter()
+                .map(|(name, size, sha1)| json!({ "name": name, "size": size, "sha1": sha1 }))
+                .collect::<Vec<_>>(),
+            "uploaded": uploaded,
+            "reused": reused,
+            "stamp": stamp,
+        }))
+    })();
+
+    let mut answer = match committed {
+        Ok(answer) => answer,
+        Err(e) => {
+            // Nothing was committed, so the staging folder must not survive either.
+            let _ = fs::remove_dir_all(&staging);
+            return Err(e);
+        }
+    };
+
+    // 7. The mirror refresh: prune what the new manifest no longer lists, then rename the
+    //    staged bytes in. Its failure is cache maintenance, never a publish error — the
+    //    answer says whether it landed, and the next cloud.snapshot rebuilds the mirror
+    //    from the new manifest either way.
+    let names: Vec<String> = slots.iter().map(|(name, _, _)| name.clone()).collect();
+    answer["mirrorRefreshed"] = json!(publish_mirror(cache, &staging, &names, &dropped));
+    Ok(answer)
 }
 
 /// Decides one packed block's fate and gets it to the cloud. A block already decided in
@@ -547,42 +624,41 @@ fn probe_writable(cache: &Path) -> Result<(), String> {
     result.map_err(|e| format!("cache dir is not writable: {e}"))
 }
 
-/// Publish-side mirror refresh that never holds more than one file in memory: each save
-/// is streamed from its source into a staging folder and renamed into the mirror, and
-/// anything the file set no longer lists is pruned — the same end state `stage_files` +
-/// `publish_files` give `snapshot`. `dropped` names old spellings retired by a case-only
-/// rename and are removed up front, before the new spelling lands (on a case-folding
-/// volume they are the same path). The staging folder is removed on any failure.
-fn publish_mirror(cache: &Path, files: &[(String, PathBuf)], dropped: &[String]) -> Result<(), String> {
-    let staging = cache.join(format!(
-        "files.new-{}-{}",
-        std::process::id(),
-        STAGING_SEQ.fetch_add(1, Ordering::Relaxed)
-    ));
-    let _ = fs::remove_dir_all(&staging);
-    for name in dropped {
-        let _ = fs::remove_file(cache.join("files").join(name));
-    }
+/// Writes one packed file's final bytes into the staging folder the mirror refresh
+/// renames into place, so the mirror never re-reads a save file the game may have
+/// changed since the pack.
+fn write_staged(staging: &Path, name: &str, content: &[u8]) -> Result<(), String> {
+    let tmp = staging.join(name);
+    let parent = tmp.parent().ok_or_else(|| format!("save path {name} has no parent"))?;
+    fs::create_dir_all(parent).map_err(|e| format!("save folder: {e}"))?;
+    fs::write(&tmp, content).map_err(|e| format!("save stage {name}: {e}"))
+}
+
+/// Publish-side mirror refresh: removes the old spellings a case-only rename retired,
+/// prunes everything the new manifest no longer lists, then renames the staged bytes —
+/// exactly what the manifest describes — into the mirror. Pruning runs before the
+/// renames because a name that changed between file and directory (in either direction)
+/// cannot be renamed into place while the old shape is still there. The staging folder
+/// never survives, success or failure. Reports whether the refresh landed; a failure
+/// leaves the previous mirror shape behind and the next snapshot rebuilds it.
+fn publish_mirror(cache: &Path, staging: &Path, names: &[String], dropped: &[String]) -> bool {
+    let files_dir = cache.join("files");
     let result = (|| -> Result<(), String> {
-        for (name, src) in files {
-            let tmp = staging.join(name);
-            let parent = tmp.parent().ok_or_else(|| format!("save path {name} has no parent"))?;
-            fs::create_dir_all(parent).map_err(|e| format!("save folder: {e}"))?;
-            fs::copy(src, &tmp).map_err(|e| format!("save copy {name}: {e}"))?;
-            let target = cache.join("files").join(name);
+        for name in dropped {
+            let _ = fs::remove_file(files_dir.join(name));
+        }
+        let keep: HashSet<String> = names.iter().cloned().collect();
+        prune_extras(&files_dir, &files_dir, &keep);
+        for name in names {
+            let target = files_dir.join(name);
             let parent = target.parent().ok_or_else(|| format!("save path {name} has no parent"))?;
             fs::create_dir_all(parent).map_err(|e| format!("save folder: {e}"))?;
-            fs::rename(&tmp, &target).map_err(|e| format!("save publish {name}: {e}"))?;
+            fs::rename(staging.join(name), &target).map_err(|e| format!("save publish {name}: {e}"))?;
         }
-        let keep: HashSet<String> = files.iter().map(|(name, _)| name.clone()).collect();
-        let files_dir = cache.join("files");
-        prune_extras(&files_dir, &files_dir, &keep);
         Ok(())
     })();
-    // Success or failure, every file has either been renamed away or never landed: the
-    // staging folder must never survive the refresh.
-    let _ = fs::remove_dir_all(&staging);
-    result
+    let _ = fs::remove_dir_all(staging);
+    result.is_ok()
 }
 
 /// The stamp for a new manifest: the server clock (device clock as fallback), forced
@@ -815,6 +891,11 @@ fn prune_extras(dir: &Path, root: &Path, keep: &HashSet<String>) {
 fn publish_files(cache: &Path, staging: &Path, files: &[AssembledFile]) -> Result<(), String> {
     let files_dir = cache.join("files");
     fs::create_dir_all(&files_dir).map_err(|e| format!("save folder: {e}"))?;
+    let keep: HashSet<String> = files.iter().map(|f| f.name.clone()).collect();
+    // Prune before the renames: a name that changed between file and directory (in either
+    // direction) cannot be renamed into place while the old shape is still there - `slot`
+    // the file blocks `slot/a.sav`, `slot/` the directory blocks `slot` the file.
+    prune_extras(&files_dir, &files_dir, &keep);
     for file in files {
         let target = files_dir.join(&file.name);
         if let Some(parent) = target.parent() {
@@ -828,8 +909,6 @@ fn publish_files(cache: &Path, staging: &Path, files: &[AssembledFile]) -> Resul
         fs::rename(&tmp, &target).map_err(|e| format!("save publish {}: {e}", file.name))?;
     }
     let _ = fs::remove_dir_all(staging);
-    let keep: HashSet<String> = files.iter().map(|f| f.name.clone()).collect();
-    prune_extras(&files_dir, &files_dir, &keep);
     Ok(())
 }
 
@@ -1411,7 +1490,8 @@ mod tests {
         assert_eq!(next_stamp(Some(BASE_STAMP_SECS), BASE_MANIFEST), "2026.01.01-00.00.01");
         // Ahead of the latest, the server clock wins as-is.
         assert_eq!(next_stamp(Some(SERVER_TIME), BASE_MANIFEST), "2026.01.01-00.05.00");
-        // A newest name that is no timestamp never holds the stamp back.
+        // A newest name that is no timestamp never holds the stamp back (publish refuses
+        // such bases before stamping).
         assert_eq!(next_stamp(Some(SERVER_TIME), "manifests/backup.manifest"), "2026.01.01-00.05.00");
     }
 
@@ -1564,13 +1644,15 @@ mod tests {
 
     #[test]
     fn a_file_missing_from_the_mirror_is_read_from_the_save_dir() {
+        // The mirror lost the file; the save folder still holds the bytes the manifest
+        // describes, so the publish packs those.
         let root = temp_root("fallback");
-        fs::write(root.join("saves/a.txt"), "ZZZ").unwrap();
+        fs::write(root.join("saves/a.txt"), "AAA").unwrap();
         let cloud = cloud_with_manifest(&[("a.txt", "AAA")]);
         let answer = publish_on(&cloud, &root, &[]).unwrap();
         let files = decoded(&cloud, answer["manifest"].as_str().unwrap());
-        assert_eq!(files[0].content, b"ZZZ", "the saveDir copy must be packed");
-        assert_eq!(fs::read(root.join("cache/files/a.txt")).unwrap(), b"ZZZ");
+        assert_eq!(files[0].content, b"AAA", "the saveDir copy must be packed");
+        assert_eq!(fs::read(root.join("cache/files/a.txt")).unwrap(), b"AAA");
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -1726,6 +1808,101 @@ mod tests {
         assert_eq!(files[0].content, b"NEW");
         assert_eq!(fs::read(root.join("cache/files/SAVE/x.sav")).unwrap(), b"NEW");
         assert!(!root.join("cache/files/Save/x.sav").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_newest_manifest_that_is_not_named_by_a_timestamp_is_refused() {
+        // Digits sort before letters, so a publish under a letter-named newest manifest
+        // could never become the newest snapshot: refused for good, nothing written.
+        let root = temp_root("stamp-name");
+        fs::write(root.join("cache/files/a.txt"), "AAA").unwrap();
+        let cloud = cloud_with_manifest(&[("a.txt", "AAA")]);
+        let bytes = cloud.objects.borrow_mut().remove(BASE_MANIFEST).unwrap();
+        cloud.objects.borrow_mut().insert("manifests/backup.manifest".to_string(), bytes);
+        let before = cloud.snapshot_keys();
+        let err = publish(
+            &cloud,
+            "token",
+            "acc",
+            "App",
+            &root.join("cache").to_string_lossy(),
+            &root.join("saves").to_string_lossy(),
+            &[],
+            "manifests/backup.manifest",
+        )
+        .unwrap_err();
+        assert!(matches!(err, PublishError::Permanent(ref e) if e.contains("timestamp")), "{err:?}");
+        assert_eq!(cloud.snapshot_keys(), before);
+        assert!(cloud.writes.borrow().is_empty());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_tampered_mirror_file_falls_back_to_the_save_folders_copy() {
+        // The mirror's copy of an unchanged save drifted from the manifest: the save
+        // folder's copy still matches, so the publish goes through on those bytes and the
+        // mirror is refreshed with them.
+        let root = temp_root("tampered");
+        fs::write(root.join("cache/files/a.txt"), "TAMPERED").unwrap();
+        fs::write(root.join("saves/a.txt"), "AAA").unwrap();
+        let cloud = cloud_with_manifest(&[("a.txt", "AAA")]);
+        let answer = publish_on(&cloud, &root, &[]).unwrap();
+        let files = decoded(&cloud, answer["manifest"].as_str().unwrap());
+        assert_eq!(files[0].content, b"AAA");
+        assert_eq!(fs::read(root.join("cache/files/a.txt")).unwrap(), b"AAA");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_mirror_file_that_matches_nothing_aborts_before_any_upload() {
+        // Neither copy matches the manifest: repacking unknown bytes would overwrite the
+        // cloud's copy silently, so the publish fails retriable with nothing uploaded.
+        let root = temp_root("mismatch");
+        fs::write(root.join("cache/files/a.txt"), "TAMPERED").unwrap();
+        let cloud = cloud_with_manifest(&[("a.txt", "AAA")]);
+        let before = cloud.snapshot_keys();
+        let err = publish_on(&cloud, &root, &[]).unwrap_err();
+        assert!(matches!(err, PublishError::Failed(ref e) if e.contains("checksum")), "{err:?}");
+        assert_eq!(cloud.snapshot_keys(), before);
+        assert!(cloud.writes.borrow().is_empty());
+        let no_staging = fs::read_dir(root.join("cache"))
+            .unwrap()
+            .flatten()
+            .all(|e| !e.file_name().to_string_lossy().starts_with("files.new-"));
+        assert!(no_staging, "the staging folder must be cleaned up");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_file_that_became_a_directory_publishes_into_the_mirror() {
+        // The old mirror holds `slot` as a file, the new manifest holds `slot/a.sav`:
+        // pruning the old shape away first is what lets the rename land.
+        let root = std::env::temp_dir().join(format!("dd-savesync-file2dir-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let cache = root.join("cache");
+        fs::create_dir_all(cache.join("files")).unwrap();
+        fs::write(cache.join("files/slot"), b"old").unwrap();
+        let files = vec![assembled("slot/a.sav", b"new")];
+        let staging = stage_files(&cache, &files).unwrap();
+        publish_files(&cache, &staging, &files).unwrap();
+        assert_eq!(mirrored(&cache), vec!["slot/a.sav"]);
+        assert_eq!(fs::read(cache.join("files/slot/a.sav")).unwrap(), b"new");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_directory_that_became_a_file_publishes_into_the_mirror() {
+        let root = std::env::temp_dir().join(format!("dd-savesync-dir2file-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let cache = root.join("cache");
+        fs::create_dir_all(cache.join("files/slot")).unwrap();
+        fs::write(cache.join("files/slot/a.sav"), b"old").unwrap();
+        let files = vec![assembled("slot", b"new")];
+        let staging = stage_files(&cache, &files).unwrap();
+        publish_files(&cache, &staging, &files).unwrap();
+        assert_eq!(mirrored(&cache), vec!["slot"]);
+        assert_eq!(fs::read(cache.join("files/slot")).unwrap(), b"new");
         let _ = fs::remove_dir_all(&root);
     }
 

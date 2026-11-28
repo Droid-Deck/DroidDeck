@@ -88,6 +88,11 @@ pub fn http_date_seconds(text: &str) -> Option<i64> {
         return None;
     }
     let (h, mi, se) = (digits(clock, 0, 2)?, digits(clock, 3, 2)?, digits(clock, 6, 2)?);
+    // IMF-fixdate ends in GMT; any other zone (or trailing junk) is not a clock we can trust.
+    let zone = parts.next()?;
+    if !zone.eq_ignore_ascii_case("GMT") || parts.next().is_some() {
+        return None;
+    }
     if h > 23 || mi > 59 || se > 60 || !(1..=31).contains(&day) || !(1..=12).contains(&month) {
         return None;
     }
@@ -130,7 +135,14 @@ pub fn stamp_seconds(text: &str) -> Option<i64> {
     }
     let (y, mo, d) = (digits(text, 0, 4)?, digits(text, 5, 2)?, digits(text, 8, 2)?);
     let (h, mi, se) = (digits(text, 11, 2)?, digits(text, 14, 2)?, digits(text, 17, 2)?);
-    if !(1..=12).contains(&mo) || !(1..=31).contains(&d) || h > 23 || mi > 59 || se > 60 {
+    if !(1..=12).contains(&mo) || h > 23 || mi > 59 || se > 60 {
+        return None;
+    }
+    // Real calendar dates only: an impossible day would fold into a later month and the
+    // stamp would no longer round-trip to the name it came from.
+    let leap = y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
+    let days_in_month = [31, if leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    if d < 1 || d > days_in_month[(mo - 1) as usize] {
         return None;
     }
     Some(days_from_civil(y, mo, d) * 86_400 + h * 3600 + mi * 60 + se)
@@ -165,6 +177,9 @@ mod tests {
         assert_eq!(http_date_seconds("Mon, 01 Jan 2024 10:00:00 GMT"), Some(1_704_103_200));
         assert_eq!(http_date_seconds("mon, 06 nov 1994 08:49:37 GMT"), Some(784_111_777));
         assert_eq!(http_date_seconds("Sun Nov 6 08:49:37 1994"), None);
+        // Only GMT is a zone we can take at face value, and nothing may trail it.
+        assert_eq!(http_date_seconds("Mon, 01 Jan 2024 10:00:00 PST"), None);
+        assert_eq!(http_date_seconds("Mon, 01 Jan 2024 10:00:00 GMT junk"), None);
         assert_eq!(http_date_seconds("garbage"), None);
         assert_eq!(http_date_seconds(""), None);
     }
@@ -188,6 +203,10 @@ mod tests {
         assert_eq!(by_name, names);
         assert_eq!(stamp_seconds(&save_stamp(1_700_000_000)), Some(1_700_000_000));
         assert_eq!(stamp_seconds("2026.13.01-00.00.00"), None);
+        // Impossible calendar dates fold into later months and break the round trip.
+        assert_eq!(stamp_seconds("2026.02.29-00.00.00"), None);
+        assert_eq!(stamp_seconds("2026.02.30-00.00.00"), None);
+        assert_eq!(save_stamp(stamp_seconds("2024.02.29-12.00.00").unwrap()), "2024.02.29-12.00.00");
         assert_eq!(stamp_seconds("2026-01-01T00:00:00"), None);
     }
 }

@@ -11,6 +11,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -383,13 +384,14 @@ class CloudSavesTest {
         assertEquals(listOf("Config.json"), cloud.puts)
     }
 
-    /** Seeds a manifest mirror: marker `manifest.json` plus the reassembled files under `files/`. */
-    private fun epicManifestCache(cache: File, manifest: String, files: Map<String, String>): File {
+    /** Seeds a manifest mirror: marker `manifest.json` (carrying [account], as the real marker
+     *  does) plus the reassembled files under `files/`. */
+    private fun epicManifestCache(cache: File, manifest: String, files: Map<String, String>, account: String = "acc"): File {
         cache.mkdirs()
         cache.listFiles()?.forEach { it.deleteRecursively() }
         File(cache, "manifest.json").writeText(
             JSONObject()
-                .put("mode", "manifest").put("manifest", manifest)
+                .put("mode", "manifest").put("account", account).put("manifest", manifest)
                 .put("files", JSONArray().apply {
                     for ((name, content) in files) {
                         put(JSONObject().put("name", name).put("md5", CloudSaves.md5(content.toByteArray())).put("modified", 1000L))
@@ -503,7 +505,7 @@ class CloudSavesTest {
         val game = id
         val saveDir = wiredEpicGame(game)
         File(saveDir, "slot0.sav").apply { parentFile!!.mkdirs() }.writeText("cloud")
-        val cache = epicManifestCache(File(app.cacheDir, "epic-saves/$game"), "m1", mapOf("slot0.sav" to "cloud"))
+        val cache = epicManifestCache(File(app.cacheDir, "epic-saves/$game"), "m1", mapOf("slot0.sav" to "cloud"), account = "acc-1")
         val cloud = EpicCloud("acc-1", game, "tok", cache, EpicSaveRules("", ""))
         assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, saveDir, cloud, force = true).result)
         File(saveDir, "slot0.sav").writeText("played")
@@ -605,7 +607,7 @@ class CloudSavesTest {
         val game = id
         val saveDir = wiredEpicGame(game)
         File(saveDir, "slot0.sav").apply { parentFile!!.mkdirs() }.writeText("cloud")
-        val cache = epicManifestCache(File(app.cacheDir, "epic-saves/$game"), "m1", mapOf("slot0.sav" to "cloud"))
+        val cache = epicManifestCache(File(app.cacheDir, "epic-saves/$game"), "m1", mapOf("slot0.sav" to "cloud"), account = "acc-1")
         val cloud = EpicCloud("acc-1", game, "tok", cache, EpicSaveRules("", ""))
         assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, saveDir, cloud, force = true).result)
         File(saveDir, "slot0.sav").writeText("played")
@@ -628,7 +630,7 @@ class CloudSavesTest {
         val game = id
         val saveDir = wiredEpicGame(game)
         File(saveDir, "slot0.sav").apply { parentFile!!.mkdirs() }.writeText("cloud")
-        val cache = epicManifestCache(File(app.cacheDir, "epic-saves/$game"), "m1", mapOf("slot0.sav" to "cloud"))
+        val cache = epicManifestCache(File(app.cacheDir, "epic-saves/$game"), "m1", mapOf("slot0.sav" to "cloud"), account = "acc-1")
         val cloud = EpicCloud("acc-1", game, "tok", cache, EpicSaveRules("", ""))
         assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, saveDir, cloud, force = true).result)
         File(saveDir, "slot0.sav").writeText("played")
@@ -665,7 +667,7 @@ class CloudSavesTest {
         File(cache, "files/Saves/slot0.sav").writeText("cloud save")
         File(cache, "manifest.json").writeText(
             JSONObject()
-                .put("mode", "manifest").put("manifest", "m1")
+                .put("mode", "manifest").put("account", "acc").put("manifest", "m1")
                 .put("files", JSONArray().put(JSONObject().put("name", "Saves/slot0.sav").put("md5", CloudSaves.md5("cloud save".toByteArray())).put("modified", 1000L)))
                 .toString()
         )
@@ -677,6 +679,44 @@ class CloudSavesTest {
         assertEquals(CloudSaves.md5(File(dir, "Saves/slot0.sav")), base.getValue("Saves/slot0.sav").localMd5)
         assertEquals(CloudSaves.md5("cloud save".toByteArray()), base.getValue("Saves/slot0.sav").cloudMd5)
         assertTrue(cloud.manifestMode)
+    }
+
+    @Test fun aMarkerFromAnotherAccountIsNeverServedAsThisAccountsMirror() {
+        // The mirror folder is per game; a marker left by another sign-in (here: any marker
+        // without this account's id) must not serve its saves when the cloud is unreachable.
+        val game = id
+        val cache = epicManifestCache(File(app.cacheDir, "epic-mirror-$game"), "m1", mapOf("slot0.sav" to "other"), account = "someone-else")
+        val cloud = EpicCloud("acc", game, "tok", cache, EpicSaveRules("", ""))
+        assertFalse(cloud.manifestMode)
+        assertTrue(runCatching { cloud.list() }.isFailure)
+    }
+
+    @Test fun aFailedMirrorRefreshKeepsTheBaselineOffTheStaleMirror() {
+        // The cloud committed the publish but the local mirror refresh failed: the engine
+        // answers mirrorRefreshed=false, the stale marker is dropped (the next sync
+        // re-snapshots) and the baseline takes the digests from the answer instead of the
+        // mirror on disk.
+        val game = id; val dir = dir()
+        val cache = epicManifestCache(File(app.cacheDir, "epic-manifest-$game"), "m1", mapOf("slot0.sav" to "cloud"))
+        val cloud = EpicCloud("acc", game, "tok", cache, EpicSaveRules("", ""))
+        assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, dir, cloud, force = true).result)
+        File(dir, "slot0.sav").writeText("played")
+        val engine = com.droiddeck.launcher.stores.epic.EpicSaveSync.engine
+        com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = { _ ->
+            JSONObject().put("mode", "manifest").put("manifest", "m2").put("mirrorRefreshed", false)
+                .put("files", JSONArray().put(JSONObject().put("name", "slot0.sav").put("size", 6).put("sha1", "abc")))
+        }
+        val r = try {
+            CloudSaves.upWith(app, Store.EPIC, game, dir, cloud, force = false)
+        } finally {
+            com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = engine
+        }
+        assertEquals("ok", r.result); assertEquals("uploaded", r.reason); assertEquals(1, r.files)
+        assertFalse(File(cache, "manifest.json").exists())
+        val entry = CloudSaves.baseline(app, Store.EPIC, game)!!.getValue("slot0.sav")
+        assertEquals(CloudSaves.md5(File(dir, "slot0.sav")), entry.localMd5)
+        assertNull(entry.cloudMd5)
+        assertTrue(CloudSaves.conflicts(app, Store.EPIC, game).isEmpty())
     }
 
     @Test fun aSyncWhileAnotherSyncHoldsThePerGameLockIsBusy() {

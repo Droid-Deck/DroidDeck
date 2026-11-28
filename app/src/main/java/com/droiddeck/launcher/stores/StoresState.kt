@@ -371,14 +371,17 @@ object StoresState {
         val overlay = java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context), "root/.local/share/droiddeck/epic-overlay")
         if (overlay.exists()) background("epic-overlay-cleanup") { overlay.deleteRecursively(); Log.i(TAG, "removed the old EOS overlay download") }
         val app = context.applicationContext
-        Thread({
-            runCatching { CloudSaves.uploadAllDirty(app, "recovery") }
-                .onFailure { Log.w(TAG, "cloud save recovery failed", it) }
-        }, "cloud-recovery").start()
-        // init runs in the main and :xcloudnative processes; the per-game sync locks are per-process,
-        // so prefetching the mirror from both would race on cacheDir/epic-saves. Main process only.
+        // init runs in the main and :xcloudnative processes; the per-game sync locks are
+        // per-process, so both the recovery upload and the mirror prefetch would race on
+        // cacheDir/epic-saves across processes. Main process only.
         val mainProcess = if (android.os.Build.VERSION.SDK_INT >= 28) android.app.Application.getProcessName() == app.packageName else true
-        if (mainProcess) background("epic-cloud-prefetch") { CloudSaves.prefetchEpic(app) }
+        if (mainProcess) {
+            Thread({
+                runCatching { CloudSaves.uploadAllDirty(app, "recovery") }
+                    .onFailure { Log.w(TAG, "cloud save recovery failed", it) }
+            }, "cloud-recovery").start()
+            background("epic-cloud-prefetch") { CloudSaves.prefetchEpic(app) }
+        }
     }
 
     internal fun post(block: () -> Unit) = main.post(block)

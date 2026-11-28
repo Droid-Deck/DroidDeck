@@ -53,7 +53,13 @@ class EpicSaveRules(include: List<String>, exclude: List<String>) {
                         if (j >= pattern.length) out.append(Regex.escape("["))
                         else {
                             val inner = pattern.substring(i, j)
-                            out.append('[').append(if (inner.startsWith("!")) "^${inner.substring(1)}" else inner).append(']')
+                            // fnmatch's negation is `[!...]`; a leading `^` is a class
+                            // member, not a negation, and stays one in the regex.
+                            val negated = inner.startsWith("!")
+                            val members = (if (negated) inner.substring(1) else inner)
+                                .replace("\\", "\\\\").replace("[", "\\[")
+                            val body = if (!negated && members.startsWith("^")) "\\^${members.substring(1)}" else members
+                            out.append('[').append(if (negated) "^" else "").append(body).append(']')
                             i = j + 1
                         }
                     }

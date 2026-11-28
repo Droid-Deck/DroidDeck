@@ -376,7 +376,11 @@ GOG uploads stage their gzip body in the app's cache folder, which is created if
   UTC timestamp (from the listing's
   HTTP `Date` header, else the device clock) kept strictly newer than the current one, so EGL's
   name-based ordering stays monotonic. A cloud answering with a manifest whose version is not 17
-  keeps the game download-only, and an upload attempt lands `upload-unsupported`. "Keep local" is
+  keeps the game download-only, and an upload attempt lands `upload-unsupported`; so does a newest
+  manifest that is not named by a UTC timestamp, since a publish under it could never become the
+  newest snapshot. The mirror refresh renames the bytes that were packed - never re-reads the save
+  files - and its failure is not an error: the answer's `mirrorRefreshed` flag says the mirror still
+  describes the previous manifest until the next snapshot rebuilds it. "Keep local" is
   now that same forced upload: it publishes the phone's versions and clears the conflicts, and on a
   failure the saved conflict state stays so the row can be retried.
 - **EGL's bookkeeping never syncs:** `EpicCloud.mechanical` refuses anything under `manifests/` or
