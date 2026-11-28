@@ -934,7 +934,7 @@ class DroidDeckHudView(context: Context) : View(context) {
         val rowPx = sp(11.5f); val unitPx = rowPx * 0.8f; val fpsPx = sp(15f)
         val padX = sp(10f); val groupGap = sp(13f)
         val h = sp(26f)
-        val w = ((parent as? View)?.width?.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels).toFloat()
+        val w = ((parent as? View)?.let { it.width - it.paddingLeft - it.paddingRight }?.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels).toFloat()
         val mid = h / 2f
         val baseline = mid + capHeight(fpsPx) / 2f
 

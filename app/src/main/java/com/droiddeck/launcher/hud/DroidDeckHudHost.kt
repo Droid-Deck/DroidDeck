@@ -316,11 +316,12 @@ class DroidDeckHudHost(context: Context) {
         val h = if (strip) maxOf(v.height.toFloat(), STRIP_PULL_OFF_DP * density) else v.height.toFloat()
         val x = v.x + dx
         val y = v.y + dy
+        val b = HudBounds.of(p, v.width.toFloat(), v.height.toFloat())
         return mapOf(
-            DroidDeckHudDock.LEFT to -x / w,
-            DroidDeckHudDock.RIGHT to (x + v.width - p.width) / w,
-            DroidDeckHudDock.TOP to -y / h,
-            DroidDeckHudDock.BOTTOM to (y + v.height - p.height) / h,
+            DroidDeckHudDock.LEFT to (b.left - x) / w,
+            DroidDeckHudDock.RIGHT to (x + v.width - b.right) / w,
+            DroidDeckHudDock.TOP to (b.top - y) / h,
+            DroidDeckHudDock.BOTTOM to (y + v.height - b.bottom) / h,
         ).maxByOrNull { it.value }
     }
 
@@ -328,19 +329,19 @@ class DroidDeckHudHost(context: Context) {
         val p = hud.parent as? View ?: return
         stopMotion(hud)
         snapping = false
-        hud.x = x.coerceIn(0f, (p.width - hud.width).toFloat().coerceAtLeast(0f))
-        hud.y = y.coerceIn(0f, (p.height - hud.height).toFloat().coerceAtLeast(0f))
+        val b = HudBounds.of(p, hud.width.toFloat(), hud.height.toFloat())
+        hud.x = x.coerceIn(b.left, b.maxX)
+        hud.y = y.coerceIn(b.top, b.maxY)
     }
 
     private fun dropTab(hud: DroidDeckHudView) {
         val p = hud.parent as? View ?: return
-        val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
-        val maxY = (p.height - hud.height).toFloat().coerceAtLeast(0f)
+        val b = HudBounds.of(p, hud.width.toFloat(), hud.height.toFloat())
         val pulled = when (hud.dock) {
-            DroidDeckHudDock.LEFT -> hud.x / hud.width
-            DroidDeckHudDock.RIGHT -> (maxX - hud.x) / hud.width
-            DroidDeckHudDock.TOP -> hud.y / hud.height
-            DroidDeckHudDock.BOTTOM -> (maxY - hud.y) / hud.height
+            DroidDeckHudDock.LEFT -> (hud.x - b.left) / hud.width
+            DroidDeckHudDock.RIGHT -> (b.maxX - hud.x) / hud.width
+            DroidDeckHudDock.TOP -> (hud.y - b.top) / hud.height
+            DroidDeckHudDock.BOTTOM -> (b.maxY - hud.y) / hud.height
             DroidDeckHudDock.NONE, DroidDeckHudDock.FLOAT -> 0f
         }
         if (pulled >= 1f) { setDock(hud, DroidDeckHudDock.NONE); return }
@@ -388,12 +389,11 @@ class DroidDeckHudHost(context: Context) {
     /** Sends the HUD to a side the way a chat head goes: by where the throw would carry it, springing on from its speed. */
     private fun snapToAnchor(hud: DroidDeckHudView, vx: Float, vy: Float) {
         val p = hud.parent as? View ?: return
-        val maxX = (p.width - hud.width).toFloat().coerceAtLeast(0f)
-        val maxY = (p.height - hud.height).toFloat().coerceAtLeast(0f)
-        val right = com.droiddeck.launcher.ui.EdgeFling.toRight(hud.x + hud.width / 2f, p.width.toFloat(), vx, context.resources.displayMetrics.density)
+        val b = HudBounds.of(p, hud.width.toFloat(), hud.height.toFloat())
+        val right = com.droiddeck.launcher.ui.EdgeFling.toRight(hud.x - b.left + hud.width / 2f, b.right - b.left, vx, context.resources.displayMetrics.density)
         anchorX = if (right) 1f else 0f
-        wantX = anchorX * maxX
-        wantY = com.droiddeck.launcher.ui.EdgeFling.restY(hud.y, vy, 0f, maxY)
+        wantX = b.anchoredX(anchorX)
+        wantY = com.droiddeck.launcher.ui.EdgeFling.restY(hud.y, vy, b.top, b.maxY)
         SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
         stopMotion(hud)
         hud.scaleX = 1f; hud.scaleY = 1f
@@ -436,7 +436,8 @@ class DroidDeckHudHost(context: Context) {
         val at = IntArray(2).also { p.getLocationOnScreen(it) }
         val x = rawX - at[0]
         val y = rawY - at[1]
-        val edge = if (snaps) nearestEdge(x, y, p.width.toFloat(), p.height.toFloat()) else DroidDeckHudDock.FLOAT
+        val b = HudBounds.of(p, 0f, 0f)
+        val edge = if (snaps) nearestEdge(x - b.left, y - b.top, b.right - b.left, b.bottom - b.top) else DroidDeckHudDock.FLOAT
         setDock(hud, edge, Pair(x, y))
     }
 
@@ -453,8 +454,9 @@ class DroidDeckHudHost(context: Context) {
         if (edge != DroidDeckHudDock.NONE) {
             val p = hud.parent as? View
             if (p != null) {
-                wantX = wantX.coerceIn(0f, p.width.toFloat())
-                wantY = wantY.coerceIn(0f, p.height.toFloat())
+                val b = HudBounds.of(p, 0f, 0f)
+                wantX = wantX.coerceIn(b.left, b.right)
+                wantY = wantY.coerceIn(b.top, b.bottom)
             }
             SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
         }
@@ -466,12 +468,11 @@ class DroidDeckHudHost(context: Context) {
     }
 
     private fun settleOutOfTab(hud: DroidDeckHudView, tabX: Float, tabY: Float) {
-        val p = hud.parent as? View
-        val maxX = if (p == null) Float.MAX_VALUE else (p.width - hud.contentWidth).coerceAtLeast(0f)
-        val maxY = if (p == null) Float.MAX_VALUE else (p.height - hud.contentHeight).coerceAtLeast(0f)
-        wantX = tabX.coerceIn(0f, maxX); wantY = tabY.coerceIn(0f, maxY)
-        anchorX = if (snaps && !hud.isStrip && p != null) (if (wantX < maxX / 2f) 0f else 1f) else Float.NaN
-        if (!anchorX.isNaN()) wantX = anchorX * maxX
+        val b = (hud.parent as? View)?.let { HudBounds.of(it, hud.contentWidth, hud.contentHeight) }
+        wantX = if (b == null) tabX.coerceAtLeast(0f) else tabX.coerceIn(b.left, b.maxX)
+        wantY = if (b == null) tabY.coerceAtLeast(0f) else tabY.coerceIn(b.top, b.maxY)
+        anchorX = if (snaps && !hud.isStrip && b != null) b.anchorFor(wantX) else Float.NaN
+        if (b != null && !anchorX.isNaN()) wantX = b.anchoredX(anchorX)
         SessionPrefs.setDroidDeckHudPosition(context, wantX, wantY)
     }
 
@@ -542,13 +543,13 @@ class DroidDeckHudHost(context: Context) {
         if (scale > 0.999f) from else (to - from * scale) / (1f - scale)
 
     private fun settled(p: View, dock: DroidDeckHudDock, w: Float, h: Float): Pair<Float, Float> {
-        val maxX = (p.width - w).coerceAtLeast(0f); val maxY = (p.height - h).coerceAtLeast(0f)
-        var x = wantX.coerceIn(0f, maxX); var y = wantY.coerceIn(0f, maxY)
+        val b = HudBounds.of(p, w, h)
+        var x = wantX.coerceIn(b.left, b.maxX); var y = wantY.coerceIn(b.top, b.maxY)
         when (dock) {
-            DroidDeckHudDock.LEFT -> x = 0f
-            DroidDeckHudDock.RIGHT -> x = maxX
-            DroidDeckHudDock.TOP -> y = 0f
-            DroidDeckHudDock.BOTTOM -> y = maxY
+            DroidDeckHudDock.LEFT -> x = b.left
+            DroidDeckHudDock.RIGHT -> x = b.maxX
+            DroidDeckHudDock.TOP -> y = b.top
+            DroidDeckHudDock.BOTTOM -> y = b.maxY
             DroidDeckHudDock.NONE, DroidDeckHudDock.FLOAT -> {}
         }
         return Pair(x, y)
@@ -559,21 +560,18 @@ class DroidDeckHudHost(context: Context) {
         val p = v.parent as? View ?: return
         if (p.width <= 0 || p.height <= 0 || v.width <= 0 || v.height <= 0) return
         if (wantX.isNaN()) { wantX = v.x; wantY = v.y }
-        val maxX = (p.width - v.width).toFloat().coerceAtLeast(0f)
-        val maxY = (p.height - v.height).toFloat().coerceAtLeast(0f)
+        val b = HudBounds.of(p, v.width.toFloat(), v.height.toFloat())
         val anchored = (v as? DroidDeckHudView)?.let { it.dock == DroidDeckHudDock.NONE && !it.isStrip } == true
-        if (snaps && anchored && anchorX.isNaN()) {
-            anchorX = if (wantX.coerceIn(0f, maxX) < maxX / 2f) 0f else 1f
-        }
-        if (snaps && anchored && !anchorX.isNaN()) wantX = anchorX * maxX
-        var x = wantX.coerceIn(0f, maxX)
-        var y = wantY.coerceIn(0f, maxY)
-        if ((v as? DroidDeckHudView)?.isStrip == true) y = if (y + v.height / 2f < p.height / 2f) 0f else maxY
+        if (snaps && anchored && anchorX.isNaN()) anchorX = b.anchorFor(wantX)
+        if (snaps && anchored && !anchorX.isNaN()) wantX = b.anchoredX(anchorX)
+        var x = wantX.coerceIn(b.left, b.maxX)
+        var y = wantY.coerceIn(b.top, b.maxY)
+        if ((v as? DroidDeckHudView)?.isStrip == true) y = if (y + v.height / 2f < (b.top + b.bottom) / 2f) b.top else b.maxY
         when (v.let { it as? DroidDeckHudView }?.dock) {
-            DroidDeckHudDock.LEFT -> x = 0f
-            DroidDeckHudDock.RIGHT -> x = maxX
-            DroidDeckHudDock.TOP -> y = 0f
-            DroidDeckHudDock.BOTTOM -> y = maxY
+            DroidDeckHudDock.LEFT -> x = b.left
+            DroidDeckHudDock.RIGHT -> x = b.maxX
+            DroidDeckHudDock.TOP -> y = b.top
+            DroidDeckHudDock.BOTTOM -> y = b.maxY
             else -> {}
         }
         if (v.x != x) v.x = x
@@ -599,5 +597,27 @@ class DroidDeckHudHost(context: Context) {
             val paths = environ.firstOrNull { it.startsWith("STEAM_COMPAT_TOOL_PATHS=") }?.substringAfter('=') ?: return null
             paths.split(':').firstOrNull { it.isNotBlank() }?.trimEnd('/')?.substringAfterLast('/')
         }.getOrNull()?.takeIf { it.isNotBlank() }
+    }
+}
+
+internal class HudBounds(val left: Float, val top: Float, val right: Float, val bottom: Float, w: Float, h: Float) {
+    val maxX = (right - w).coerceAtLeast(left)
+    val maxY = (bottom - h).coerceAtLeast(top)
+
+    fun anchorFor(x: Float): Float = if (x.coerceIn(left, maxX) - left < (maxX - left) / 2f) 0f else 1f
+
+    fun anchoredX(anchor: Float): Float = left + anchor * (maxX - left)
+
+    companion object {
+        fun of(p: View, w: Float, h: Float): HudBounds {
+            val left = p.paddingLeft.toFloat()
+            val top = p.paddingTop.toFloat()
+            return HudBounds(
+                left, top,
+                (p.width - p.paddingRight).toFloat().coerceAtLeast(left),
+                (p.height - p.paddingBottom).toFloat().coerceAtLeast(top),
+                w, h,
+            )
+        }
     }
 }
