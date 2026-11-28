@@ -665,6 +665,8 @@ pid_t fork(void) {
     if (pid == 0) {
         ddh_drop_worker_binder();
         ddh_forked();
+    } else if (pid > 0) {
+        ddh_child_created(pid);
     }
     // A child forked from a signal handler that interrupted a rehearsal is not rehearsing: its
     // execve() is a real one (only read in the usual case, so no page is copied for it)
@@ -1255,7 +1257,13 @@ int posix_spawn(pid_t *pid, const char *path,
         int ret = ddh_spawn_forked(pid, path, file_actions, attr, argv, envp ? envp : environ);
         if (ret != -1) return ret;
     }
-    return ddnatv_posix_spawn(pid, path, file_actions, attr, argv, envp, 0);
+    pid_t child = 0;
+    int ret = ddnatv_posix_spawn(&child, path, file_actions, attr, argv, envp, 0);
+    if (ret == 0) {
+        ddh_child_created(child);
+        if (pid) *pid = child;
+    }
+    return ret;
 }
 
 int posix_spawnp(pid_t *pid, const char *file,

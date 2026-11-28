@@ -53,15 +53,17 @@ open class GuestWorker : Service() {
                 // poll() with a timeout counts as network I/O to StrictMode on the main thread
                 android.os.StrictMode.setThreadPolicy(android.os.StrictMode.ThreadPolicy.LAX)
                 val committed = runCatching {
-                    fun byte(): Int {
+                    fun byte(timeout: Int): Int {
                         val poll = StructPollfd().apply { fd = go.fileDescriptor; events = OsConstants.POLLIN.toShort() }
-                        val ready = Os.poll(arrayOf(poll), GO_TIMEOUT_MS)
+                        val ready = Os.poll(arrayOf(poll), timeout)
                         return (if (ready > 0) Os.read(go.fileDescriptor, ByteArray(1), 0, 1) else -1)
                             .also { why = "poll $ready revents ${poll.revents} read $it" }
                     }
                     // The commit, an answer, and the app's word that it has the answer: the app may
                     // have stopped waiting for it (and started the program another way) meanwhile.
-                    byte() == 1 && Os.write(go.fileDescriptor, byteArrayOf(1), 0, 1) == 1 && byte() == 1
+                    // That last word comes, or the app closes its end (a byte or EOF): no timeout,
+                    // which could drop a launch the app has already reported as started.
+                    byte(GO_TIMEOUT_MS) == 1 && Os.write(go.fileDescriptor, byteArrayOf(1), 0, 1) == 1 && byte(-1) == 1
                 }.getOrElse { why = it.toString(); false }
                 go.close()
                 if (committed) exec(argv, env, fds, targets, fillBinderFd)
@@ -314,9 +316,11 @@ object GuestWorkers {
     /**
      * [guest]: one of the session's guest programs, which [guestPids] lists and [stopGuests] ends.
      * [commit] runs with the pid before the worker may run the program; false, and it does not.
+     * [confirmed] runs once the worker has taken it on, just before it is told to run it; false, and it does not.
      */
     private fun start(context: Context, argv: List<String>, env: List<String>, fds: List<ParcelFileDescriptor>, targets: IntArray,
-                      guest: Boolean, onExit: (Int) -> Unit, commit: (Int) -> Boolean = { true }): Int {
+                      guest: Boolean, onExit: (Int) -> Unit, commit: (Int) -> Boolean = { true },
+                      confirmed: () -> Boolean = { true }): Int {
         val app = context.applicationContext
         // The session asking: a cold bind can take long enough for it to stop and another to start
         val owner = session
@@ -351,6 +355,8 @@ object GuestWorkers {
             data.writeInt(if (guest) 0 else 1)
             data.writeFileDescriptor(go[0].fileDescriptor)
             slot.service!!.transact(GuestWorker.RUN, data, reply, 0)
+            // The worker has its own copy: with ours closed, a worker that gave up leaves no reader
+            go[0].close()
             val pid = reply.readInt()
             // Once a session's teardown has begun (stopGuests), none of its programs may start: it
             // would not find them.
@@ -371,9 +377,11 @@ object GuestWorkers {
             Os.write(go[1].fileDescriptor, byteArrayOf(1), 0, 1)
             val answer = StructPollfd().apply { fd = go[1].fileDescriptor; events = OsConstants.POLLIN.toShort() }
             // then the word to run it: given only here, once its answer is in, so that a worker whose
-            // answer came too late never runs a program this call reports as not started
+            // answer came too late never runs a program this call reports as not started. [confirmed]
+            // goes first: a caller that hears nothing runs the program itself, so it must have heard
+            // before the worker may run it (an app dying in between loses the program, not doubles it).
             val accepted = Os.poll(arrayOf(answer), ANSWER_TIMEOUT_MS) > 0 && Os.read(go[1].fileDescriptor, ByteArray(1), 0, 1) == 1 &&
-                Os.write(go[1].fileDescriptor, byteArrayOf(1), 0, 1) == 1
+                confirmed() && Os.write(go[1].fileDescriptor, byteArrayOf(1), 0, 1) == 1
             if (!accepted) {
                 Log.w(TAG, "worker ${slot.index} did not take ${argv.firstOrNull()} on")
                 slot.started = false
@@ -646,11 +654,19 @@ object GuestWorkers {
             // program itself) the worker must not run it too.
             val ack = request.optBoolean("ack", false)
             var answered = false
-            val pid = start(app, command, env.map { (k, v) -> "$k=$v" }, programFds, targets, true, { code ->
+            // the hook's last word, sent once the worker has taken the program on and before it runs it
+            var confirmedToHook = false
+            val pid = start(app, command, env.map { (k, v) -> "$k=$v" }, programFds, targets, true, onExit = { code ->
                 status = code
                 if (table != null && slot >= 0) reportExit(table, slot, code, parent, child, worker)
                 exited.countDown()
-            }) { started ->
+            }, confirmed = {
+                !ack || runCatching {
+                    out.write("ok\n".toByteArray())
+                    out.flush()
+                    confirmedToHook = true
+                }.isSuccess
+            }, commit = { started ->
                 worker = started
                 if (!ack) return@start true
                 runCatching {
@@ -668,16 +684,16 @@ object GuestWorkers {
                     }
                     ended && line.toString() == "go"
                 }.getOrDefault(false)
-            }
+            })
             handedOver = true
             programFds.filter { it !== table }.forEach { runCatching { it.close() } }
             if (pid <= 0) table?.let { runCatching { it.close() } }
             if (!answered) {
                 out.write(if (pid > 0) "pid $pid\n".toByteArray() else "error no worker\n".toByteArray())
                 out.flush()
-            } else {
-                // The hook's last word: the worker runs it, or nothing does and the hook runs it itself
-                runCatching { out.write(if (pid > 0) "ok\n".toByteArray() else "error not started\n".toByteArray()); out.flush() }
+            } else if (!confirmedToHook) {
+                // nothing runs it in a worker: the hook runs it itself
+                runCatching { out.write("error not started\n".toByteArray()); out.flush() }
             }
             if (pid > 0 && wait) {
                 exited.await()

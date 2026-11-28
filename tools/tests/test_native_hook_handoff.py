@@ -88,13 +88,14 @@ int main(int argc, char **argv) {
 class FakeSpawner(threading.Thread):
     """Stands in for the app's spawn socket: runs the program and reports its exit into the table."""
 
-    def __init__(self, name, prefix, root):
+    def __init__(self, name, prefix, root, reports=True):
         super().__init__(daemon=True)
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.sock.bind("\0" + name)
         self.sock.listen(4)
         self.prefix = prefix
         self.root = root
+        self.reports = reports  # False: as an app that died with its worker, no exit report
         self.requests = []
 
     def run(self):
@@ -140,16 +141,16 @@ class FakeSpawner(threading.Thread):
                 if fd != table:
                     os.close(fd)
             if went:
-                os.write(gate_w, b"1")
                 if request.get("ack"):
-                    conn.sendall(b"ok\n")  # the app's last word, once the worker runs it
+                    conn.sendall(b"ok\n")  # the app's last word, before the worker may run it
+                os.write(gate_w, b"1")
             conn.close()
             os.close(gate_w)
             if not went:
                 os.waitpid(pid, 0)
                 os.close(table)
                 continue
-            threading.Thread(target=self.report, args=(pid, table, request), daemon=True).start()
+            threading.Thread(target=self.report if self.reports else self.reap, args=(pid, table, request), daemon=True).start()
 
     @staticmethod
     def read(conn, size):
@@ -160,6 +161,11 @@ class FakeSpawner(threading.Thread):
                 return b""  # the client went away
             data += more
         return data
+
+    @staticmethod
+    def reap(pid, table, request):
+        os.waitpid(pid, 0)
+        os.close(table)
 
     @staticmethod
     def report(pid, table, request):
@@ -195,9 +201,9 @@ class NativeHookHandoffTest(unittest.TestCase):
     def tearDownClass(cls):
         cls.tmp.cleanup()
 
-    def run_parent(self, *argv, handoff="target", hook=True):
+    def run_parent(self, *argv, handoff="target", hook=True, reports=True):
         name = "dd-handoff-test-%d-%s-%s-%d" % (os.getpid(), self.id().rsplit(".", 1)[-1], handoff, hook)
-        spawner = FakeSpawner(name, self.prefix or [], self.root)
+        spawner = FakeSpawner(name, self.prefix or [], self.root, reports)
         spawner.start()
         self.addCleanup(spawner.sock.close)
         hook_env = {"DDNATV_ROOT": str(self.root), "DD_SPAWN": name, "DD_HANDOFF": handoff}
@@ -212,6 +218,14 @@ class NativeHookHandoffTest(unittest.TestCase):
         out = subprocess.run(cmd + [str(self.parent), *argv], env=env, capture_output=True, text=True, timeout=120)
         result = dict(line.split("\t", 1) for line in out.stdout.splitlines() if "\t" in line)
         return result, spawner.requests, out
+
+    def test_a_program_gone_without_any_report_is_reported_killed(self):
+        # its worker is gone and nobody reports how it ended (the app died with it): SIGKILL, after
+        # the grace the app's report would have had
+        result, requests, out = self.run_parent("wait", "7", reports=False)
+        self.assertEqual(1, len(requests), out.stderr)
+        self.assertEqual("1", result.get("same"), out.stdout)
+        self.assertEqual(str(int(signal.SIGKILL)), result.get("signal"), out.stdout)
 
     def test_the_parent_waits_for_the_handed_off_program(self):
         result, requests, out = self.run_parent("wait", "7")

@@ -747,8 +747,11 @@ static void ddh_debug(char *const envp[], const char *what, const char *filename
 static void ddh_try(const char *filename, char *const argv[], char *const envp[]) {
     struct ddh_table *table;
     int table_fd;
-    if (__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) && getpid() != g_ddh_owner) {
-        table = g_ddh;
+    // one look: the fields are read only once the table is seen published
+    struct ddh_table *own = __atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE);
+    pid_t own_owner = own ? g_ddh_owner : 0;
+    if (own && getpid() != own_owner) {
+        table = own;
         table_fd = g_ddh_fd;
     } else if (g_ddh_up && getppid() == g_ddh_up->pad[0]) {
         table = g_ddh_up;
@@ -757,7 +760,7 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
         if (ddh_env(envp, "DD_HANDOFF_DEBUG")) {
             char why[160];
             snprintf(why, sizeof(why), "not a child its parent can track (table %d owner %d up %d up-owner %d ppid %d):",
-                     g_ddh != NULL, (int)g_ddh_owner, g_ddh_up != NULL, g_ddh_up ? g_ddh_up->pad[0] : 0, (int)getppid());
+                     own != NULL, (int)own_owner, g_ddh_up != NULL, g_ddh_up ? g_ddh_up->pad[0] : 0, (int)getppid());
             ddh_debug(envp, why, filename);
         }
         return;
@@ -1020,6 +1023,25 @@ static int ddh_selects(const struct ddh_entry *e, pid_t pid) {
     return e->pad[1] == (pid == 0 ? getpgrp() : -pid);
 }
 
+static void ddh_release(struct ddh_entry *e, int *status);
+
+// A new child of ours got pid: an entry still naming it (its forked child reaped early, as the
+// wait above does, so the pid was free again) stands for a program the pid no longer reaches. The
+// real child owns the pid from now on: kill() and wait() go to it, and that program's exit is
+// dropped. Only after the pid space has wrapped around while that program runs.
+static void ddh_child_created(pid_t pid) {
+    struct ddh_table *t = __atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE);
+    if (!t || pid <= 0) return;
+    pid_t me = getpid();
+    for (int i = 0; i < DDH_SLOTS; i++) {
+        struct ddh_entry *e = &t->e[i];
+        int st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
+        if ((st != DDH_HANDED && st != DDH_EXITED) || e->parent != me || e->child != pid || !e->reaped) continue;
+        if (__atomic_compare_exchange_n(&e->state, &st, DDH_TAKEN, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))
+            ddh_release(e, NULL);
+    }
+}
+
 // Takes e's exit for a wait for pid, checked again once taken: between finding e and taking it,
 // another waiter may have released the slot and a later child of ours (or one of another group)
 // have exited in it.
@@ -1091,7 +1113,9 @@ static void ddh_check_gone(void) {
         }
         // Only this side moves HANDED to EXITED; a status the program wrote itself is kept.
         int32_t none = DDH_NO_STATUS;
-        __atomic_compare_exchange_n(&e->status, &none, status, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
+        if (__atomic_compare_exchange_n(&e->status, &none, status, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED) &&
+            report[1] != e->child)
+            e->pad[0] = -1;  // the timeout's guess: an app report that comes before the exit is taken wins (ddh_release)
         int expected = DDH_HANDED;
         __atomic_compare_exchange_n(&e->state, &expected, DDH_EXITED, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
     }
@@ -1099,6 +1123,13 @@ static void ddh_check_gone(void) {
 
 static void ddh_release(struct ddh_entry *e, int *status) {
     if (status) *status = e->status;
+    if (status && e->pad[0] == -1) {
+        // SIGKILL was the timeout's guess (no report then): the app's report, if it has come since
+        int32_t report[2];
+        uint64_t both = __atomic_load_n((uint64_t *)e->app, __ATOMIC_ACQUIRE);
+        memcpy(report, &both, sizeof(report));
+        if (report[1] != 0 && report[1] == e->child) *status = report[0];
+    }
     memset(e, 0, offsetof(struct ddh_entry, state));
     e->status = 0;
     e->reaped = 0;
