@@ -1460,6 +1460,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">%1$s hervatten</string>
     <string name="roms_text">Verschijnt in elke sessie als /root/ROMs. Interne opslag staat op /root/Storage.</string>
+    <string name="roms_text_unmounted">Verschijnt in elke sessie als /root/ROMs.</string>
     <string name="roms_none">Geen map gekozen</string>
     <string name="roms_applies">Geldt vanaf de volgende sessie. SD-kaarten werken ook.</string>
     <string name="roms_choose">Map kiezen</string>
@@ -3219,6 +3220,8 @@
     <string name="storage_default_group">Installatielocatie</string>
     <string name="storage_default_title">Standaardopslag</string>
     <string name="storage_default_hint">Nieuwe winkelinstallaties gaan naar de gekozen locatie. Bestaande games blijven waar ze zijn. Steam-bibliotheken houden hun eigen instelling.</string>
+    <string name="storage_shared_mount">Telefoonopslag in Linux</string>
+    <string name="storage_shared_mount_hint">Koppelt de interne opslag van je telefoon aan /root/Storage. Als dit uit staat, worden alleen gamemappen gekoppeld die je daaruit hebt toegevoegd. SD-kaarten veranderen niet. Geldt vanaf de volgende sessie.</string>
     <string name="storage_default_ask">Elke keer vragen</string>
     <string name="storage_default_ask_detail">Kies voor elke installatie een doel</string>
     <string name="storage_default_internal">Interne opslag</string>

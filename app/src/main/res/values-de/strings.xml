@@ -1452,6 +1452,7 @@
     <string name="rail_percent">%1$d %%</string>
     <string name="rail_resume_named">%1$s fortsetzen</string>
     <string name="roms_text">Erscheint in jeder Sitzung als /root/ROMs. Der interne Speicher liegt unter /root/Storage.</string>
+    <string name="roms_text_unmounted">Erscheint in jeder Sitzung als /root/ROMs.</string>
     <string name="roms_none">Kein Ordner ausgewählt</string>
     <string name="roms_applies">Gilt ab der nächsten Sitzung. SD-Karten funktionieren.</string>
     <string name="roms_choose">Ordner auswählen</string>
@@ -3219,6 +3220,8 @@
     <string name="storage_default_group">Installationsort</string>
     <string name="storage_default_title">Standardspeicher</string>
     <string name="storage_default_hint">Neue Store-Installationen landen am ausgewählten Ort. Vorhandene Spiele bleiben, wo sie sind. Steam-Bibliotheken behalten ihre eigene Einstellung.</string>
+    <string name="storage_shared_mount">Telefonspeicher in Linux</string>
+    <string name="storage_shared_mount_hint">Bindet den internen Speicher deines Telefons unter /root/Storage ein. Wenn aus, werden nur Spielordner eingebunden, die du daraus hinzugefügt hast. SD-Karten sind nicht betroffen. Gilt ab der nächsten Sitzung.</string>
     <string name="storage_default_ask">Jedes Mal fragen</string>
     <string name="storage_default_ask_detail">Für jede Installation ein Ziel wählen</string>
     <string name="storage_default_internal">Interner Speicher</string>

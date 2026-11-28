@@ -1460,6 +1460,7 @@
     <string name="rail_percent">%1$d %%</string>
     <string name="rail_resume_named">Jatka: %1$s</string>
     <string name="roms_text">Näkyy sessiossa polussa /root/ROMs. Sisäinen tallennustila on /root/Storage.</string>
+    <string name="roms_text_unmounted">Näkyy sessiossa polussa /root/ROMs.</string>
     <string name="roms_none">Kansiota ei valittu</string>
     <string name="roms_applies">Vaikuttaa seuraavaan istuntoon. SD-kortit toimivat.</string>
     <string name="roms_choose">Valitse kansio</string>
@@ -3219,6 +3220,8 @@
     <string name="storage_default_group">Asennussijainti</string>
     <string name="storage_default_title">Oletustallennustila</string>
     <string name="storage_default_hint">Uudet kauppa-asennukset menevät valittuun sijaintiin. Nykyiset pelit pysyvät paikoillaan. Steam-kirjastoilla on oma asetuksensa.</string>
+    <string name="storage_shared_mount">Puhelimen tallennustila Linuxissa</string>
+    <string name="storage_shared_mount_hint">Liittää puhelimen sisäisen tallennustilan polkuun /root/Storage. Kun pois päältä, liitetään vain sieltä lisäämäsi pelikansiot. SD-kortit eivät muutu. Tulee voimaan seuraavassa istunnossa.</string>
     <string name="storage_default_ask">Kysy aina</string>
     <string name="storage_default_ask_detail">Valitse kohde jokaiselle asennukselle</string>
     <string name="storage_default_internal">Sisäinen tallennustila</string>

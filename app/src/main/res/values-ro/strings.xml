@@ -1468,6 +1468,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Reluare %1$s</string>
     <string name="roms_text">Apare ca /root/ROMs în fiecare sesiune. Stocarea internă este la /root/Storage.</string>
+    <string name="roms_text_unmounted">Apare ca /root/ROMs în fiecare sesiune.</string>
     <string name="roms_none">Niciun folder ales</string>
     <string name="roms_applies">Se aplică la sesiunea următoare. Cardurile SD funcționează.</string>
     <string name="roms_choose">Alege folderul</string>
@@ -3249,6 +3250,8 @@
     <string name="storage_default_group">Locație de instalare</string>
     <string name="storage_default_title">Stocare implicită</string>
     <string name="storage_default_hint">Instalările noi din magazine merg în locația selectată. Jocurile existente rămân unde sunt. Bibliotecile Steam își păstrează propria setare.</string>
+    <string name="storage_shared_mount">Stocarea telefonului în Linux</string>
+    <string name="storage_shared_mount_hint">Montează stocarea internă a telefonului în /root/Storage. Când este dezactivat, se montează doar folderele de jocuri pe care le-ați adăugat de acolo. Cardurile SD nu sunt afectate. Se aplică din următoarea sesiune.</string>
     <string name="storage_default_ask">Întreabă de fiecare dată</string>
     <string name="storage_default_ask_detail">Alege o destinație pentru fiecare instalare</string>
     <string name="storage_default_internal">Stocare internă</string>

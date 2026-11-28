@@ -1492,6 +1492,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">استئناف %1$s</string>
     <string name="roms_text">يظهر باسم /root/ROMs في كل جلسة. مساحة التخزين الداخلية متاحة في /root/Storage.</string>
+    <string name="roms_text_unmounted">يظهر باسم /root/ROMs في كل جلسة.</string>
     <string name="roms_none">لم يتم اختيار مجلد</string>
     <string name="roms_applies">يُطبَّق في الجلسة التالية. بطاقات SD مدعومة.</string>
     <string name="roms_choose">اختيار مجلد</string>
@@ -3339,6 +3340,8 @@
     <string name="storage_default_group">موقع التثبيت</string>
     <string name="storage_default_title">التخزين الافتراضي</string>
     <string name="storage_default_hint">تُثبَّت ألعاب المتاجر الجديدة في الموقع المحدد. تبقى الألعاب الحالية في مكانها. تحتفظ مكتبات Steam بإعدادها الخاص.</string>
+    <string name="storage_shared_mount">مساحة تخزين الهاتف في Linux</string>
+    <string name="storage_shared_mount_hint">يربط مساحة التخزين الداخلية لهاتفك في /root/Storage. عند إيقافه، تُربط فقط مجلدات الألعاب التي أضفتها منها. لا تتأثر بطاقات SD. يُطبَّق في الجلسة التالية.</string>
     <string name="storage_default_ask">السؤال في كل مرة</string>
     <string name="storage_default_ask_detail">اختر وجهة لكل تثبيت</string>
     <string name="storage_default_internal">مساحة التخزين الداخلية</string>

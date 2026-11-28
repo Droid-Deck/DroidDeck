@@ -1536,6 +1536,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">恢复 %1$s</string>
     <string name="roms_text">在每个会话中显示为 /root/ROMs。内部存储位于 /root/Storage。</string>
+    <string name="roms_text_unmounted">在每个会话中显示为 /root/ROMs。</string>
     <string name="roms_none">未选择文件夹</string>
     <string name="roms_applies">将在下次会话生效。支持 SD 卡。</string>
     <string name="roms_choose">选择文件夹</string>
@@ -3190,6 +3191,8 @@
     <string name="storage_default_group">安装位置</string>
     <string name="storage_default_title">默认存储</string>
     <string name="storage_default_hint">新的商店安装将保存到所选位置。现有游戏保持原位。Steam 库使用各自的设置。</string>
+    <string name="storage_shared_mount">在 Linux 中使用手机存储</string>
+    <string name="storage_shared_mount_hint">将手机内部存储挂载到 /root/Storage。关闭后，只会挂载你从中添加的游戏文件夹。不影响 SD 卡。下次会话生效。</string>
     <string name="storage_default_ask">每次询问</string>
     <string name="storage_default_ask_detail">每次安装时选择目标位置</string>
     <string name="storage_default_internal">内部存储</string>

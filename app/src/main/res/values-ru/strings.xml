@@ -1476,6 +1476,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Продолжить %1$s</string>
     <string name="roms_text">Отображается как /root/ROMs в каждой сессии. Внутреннее хранилище находится в /root/Storage.</string>
+    <string name="roms_text_unmounted">Отображается как /root/ROMs в каждой сессии.</string>
     <string name="roms_none">Папка не выбрана</string>
     <string name="roms_applies">Вступит в силу в следующей сессии. Поддерживаются SD-карты.</string>
     <string name="roms_choose">Выбрать папку</string>
@@ -3280,6 +3281,8 @@
     <string name="storage_default_group">Место установки</string>
     <string name="storage_default_title">Хранилище по умолчанию</string>
     <string name="storage_default_hint">Новые установки из магазинов попадают в выбранное место. Установленные игры остаются на месте. У библиотек Steam своя настройка.</string>
+    <string name="storage_shared_mount">Память телефона в Linux</string>
+    <string name="storage_shared_mount_hint">Подключает внутреннюю память телефона в /root/Storage. Если выключено, подключаются только добавленные из неё папки с играми. На SD-карты не влияет. Применяется со следующего сеанса.</string>
     <string name="storage_default_ask">Спрашивать каждый раз</string>
     <string name="storage_default_ask_detail">Выбирать место для каждой установки</string>
     <string name="storage_default_internal">Внутреннее хранилище</string>

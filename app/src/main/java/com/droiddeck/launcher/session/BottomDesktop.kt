@@ -40,6 +40,7 @@ object BottomDesktop {
         val generation: Int,
         val installed: Boolean,
         val nativeUserland: Boolean,
+        val sharedStorage: File?,
     )
 
     @Volatile private var launch: Launch? = null
@@ -91,10 +92,11 @@ object BottomDesktop {
         sessionDir: File,
         generation: Int,
         nativeUserland: Boolean,
+        sharedStorage: File?,
         stillCurrent: () -> Boolean,
     ) {
         val prepared = Launch(ArrayList(guest), ArrayList(binds), sessionRoot, hostEnvironment.copyOf(), root, sessionDir, generation,
-            DesktopCatalog.desktopInstalled(root), nativeUserland)
+            DesktopCatalog.desktopInstalled(root), nativeUserland, sharedStorage)
         synchronized(launchLock) { if (stillCurrent()) launch = prepared }
     }
 
@@ -313,7 +315,7 @@ object BottomDesktop {
             val runtime = runtimeDir(context).apply { mkdirs() }
             val imeDir = File(current.sessionRoot, "bottom-desktop-ime")
             main.post { if (generation == guestGeneration) watchIme(imeDir) }
-            val binds = LinuxRuntime.binds(context, current.sessionRoot, runtime, Environment.getExternalStorageDirectory(), current.binds)
+            val binds = LinuxRuntime.binds(context, current.sessionRoot, runtime, current.sharedStorage, current.binds)
             val guest = ArrayList(current.guest).apply {
                 add("DD_WIDTH=$width")
                 add("DD_HEIGHT=$height")

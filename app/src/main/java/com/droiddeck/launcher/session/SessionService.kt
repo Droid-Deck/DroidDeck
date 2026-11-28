@@ -741,14 +741,15 @@ class SessionService : Service() {
 
         SessionEvents.step("shm-clear") { FileUtils.clear(File(LinuxRuntime.liveDir(this), "shm")) }
 
-        val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
+        val sharedStorage = LinuxRuntime.sharedStorage(this)
+        val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir, sharedStorage)
         val nativeUserland = com.droiddeck.launcher.runtime.NativeGuest.enabled(this)
         synchronized(stopLock) {
             if (gen == sessionGen && SessionState.running) com.droiddeck.launcher.runtime.NativeGuest.sessionMode = nativeUserland
         }
         val fastPathKey = if (ProotFastPath.enabled(this)) {
             val prootBinds = LinuxRuntime.binds(
-                this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds,
+                this, sessionRoot, runtimeDir, sharedStorage, binds,
             )
             val root = LinuxRuntime.rootDir(this)
             ProotFastPath.key(root, prootBinds)?.also { key ->
@@ -762,12 +763,12 @@ class SessionService : Service() {
             }
         } else null
 
-        val sessionBindSpecs = LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds)
+        val sessionBindSpecs = LinuxRuntime.binds(this, sessionRoot, runtimeDir, sharedStorage, binds)
         val command = if (nativeUserland) {
             LinuxRuntime.rememberSessionBinds(sessionBindSpecs)
             com.droiddeck.launcher.runtime.NativeGuest.command(root, guest.first(), guest.drop(1))
         } else {
-            LinuxRuntime.command(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, guest)
+            LinuxRuntime.command(this, sessionRoot, runtimeDir, sharedStorage, binds, guest)
         }
 
         val prootEnv = HostEnvironment()
@@ -796,7 +797,7 @@ class SessionService : Service() {
         val terminalCommand = if (nativeUserland) {
             com.droiddeck.launcher.runtime.NativeGuest.command(root, shellGuest.first(), shellGuest.drop(1))
         } else {
-            LinuxRuntime.command(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds, shellGuest)
+            LinuxRuntime.command(this, sessionRoot, runtimeDir, sharedStorage, binds, shellGuest)
         }
         val terminalHostEnvironment = LinkedHashMap(System.getenv())
         hostEnv.asArray().forEach { entry ->
@@ -807,7 +808,7 @@ class SessionService : Service() {
             SessionTerminal.prepare(terminalCommand, terminalHostEnvironment.map { (key, value) -> "$key=$value" }.toTypedArray(), root, gen)
             val (fastPathName, _) = ProotFastPath.hostEnv("")
             BottomDesktop.prepare(desktopGuest, binds, sessionRoot,
-                prootEnv.asArray().filterNot { it.startsWith("$fastPathName=") }.toTypedArray(), root, sessionDir, gen, nativeUserland,
+                prootEnv.asArray().filterNot { it.startsWith("$fastPathName=") }.toTypedArray(), root, sessionDir, gen, nativeUserland, sharedStorage,
             ) { gen == sessionGen && SessionState.running }
         }
 
@@ -1255,6 +1256,7 @@ class SessionService : Service() {
         guest: MutableList<String>,
         sessionRoot: File,
         runtimeDir: File,
+        sharedStorage: File?,
     ): ArrayList<String> {
         val binds = ArrayList<String>()
         if (controllersOn) binds.add(fakeInputDir.path + ":/dev/input")
@@ -1298,7 +1300,17 @@ class SessionService : Service() {
         if (controllersOn) components.add(RumbleComponent().also { it.attach(this) })
         val home = File(LinuxRuntime.rootDir(this), "root")
         File(home, "Storage").mkdirs()
-        binds.add(Environment.getExternalStorageDirectory().path + ":/root/Storage")
+        if (sharedStorage != null) {
+            binds.add(sharedStorage.path + ":/root/Storage")
+        } else {
+            for (folder in com.droiddeck.launcher.frontend.AddedExes.list(this).map { File(it.folder) }.distinctBy { it.path }) {
+                val guest = com.droiddeck.launcher.frontend.AddedGames.guestPath(this, folder) ?: continue
+                if (!guest.startsWith("/root/Storage/") || !folder.isDirectory) continue
+                File(LinuxRuntime.rootDir(this), guest.removePrefix("/")).mkdirs()
+                binds.add(folder.path + ":" + guest)
+                Log.i(TAG, "added game: $folder -> $guest (shared storage not mounted)")
+            }
+        }
         val library = GameStorage.effective(this)
         steamLibraryMounts = emptyMap()
         var storageDiagnosticLibrary: File? = null
@@ -1372,7 +1384,7 @@ class SessionService : Service() {
         val gamesLibraries = GameStorage.gamesFolderLibraries(this)
         if (gamesLibraries.isNotEmpty()) {
             var room = if (ProotFastPath.enabled(this)) {
-                ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+                ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, sharedStorage, binds).size
             } else Int.MAX_VALUE
             for (games in gamesLibraries) {
                 if (games.host.path + ":" + games.guest !in binds) continue
@@ -1414,7 +1426,7 @@ class SessionService : Service() {
             }
             try {
                 val room = if (ProotFastPath.enabled(this)) {
-                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, sharedStorage, binds).size
                 } else Int.MAX_VALUE
                 val content = SecondaryLibrary.contentPath(entry.host)
                 val extra = SecondaryLibrary.binds(filesDir, entry.host, listOf(entry.guest), content = content)
@@ -1443,7 +1455,7 @@ class SessionService : Service() {
                 Log.w(TAG, "x86-64 steam library: $problem")
             } else try {
                 val room = if (ProotFastPath.enabled(this)) {
-                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, sharedStorage, binds).size
                 } else Int.MAX_VALUE
                 val extra = SecondaryLibrary.binds(filesDir, x64, listOf(GameStorage.X64_CARD_GUEST)).drop(1)
                 if (extra.size > room) {
@@ -1465,7 +1477,7 @@ class SessionService : Service() {
             }
             try {
                 val room = if (ProotFastPath.enabled(this)) {
-                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, sharedStorage, binds).size
                 } else Int.MAX_VALUE
                 val extra = SecondaryLibrary.binds(filesDir, entry.x64Host, listOf(entry.x64Guest)).drop(1)
                 if (extra.size > room) {
@@ -1501,7 +1513,7 @@ class SessionService : Service() {
                 val listing = File(filesDir, "session/desktop-volumes.json").apply { parentFile?.mkdirs() }
                 val volumes = org.json.JSONArray()
                 var room = if (ProotFastPath.enabled(this)) {
-                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds).size
+                    ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, sharedStorage, binds).size
                 } else Int.MAX_VALUE
                 for (root in com.droiddeck.launcher.files.StorageRoots.list(this)) {
                     if (!root.removable || !root.readable) continue

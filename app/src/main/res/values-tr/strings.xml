@@ -1452,6 +1452,7 @@
     <string name="rail_percent">%%%1$d</string>
     <string name="rail_resume_named">Devam et: %1$s</string>
     <string name="roms_text">Her oturumda /root/ROMs olarak görünür. Dahili depolama /root/Storage konumundadır.</string>
+    <string name="roms_text_unmounted">Her oturumda /root/ROMs olarak görünür.</string>
     <string name="roms_none">Klasör seçilmedi</string>
     <string name="roms_applies">Sonraki oturumda uygulanır. SD kartlar da çalışır.</string>
     <string name="roms_choose">Klasör seç</string>
@@ -3219,6 +3220,8 @@
     <string name="storage_default_group">Yükleme konumu</string>
     <string name="storage_default_title">Varsayılan depolama</string>
     <string name="storage_default_hint">Yeni mağaza yüklemeleri seçilen konuma gider. Mevcut oyunlar yerinde kalır. Steam kütüphaneleri kendi ayarlarını korur.</string>
+    <string name="storage_shared_mount">Linux\'ta telefon depolaması</string>
+    <string name="storage_shared_mount_hint">Telefonunuzun dahili depolamasını /root/Storage konumuna bağlar. Kapalıyken yalnızca oradan eklediğiniz oyun klasörleri bağlanır. SD kartlar etkilenmez. Sonraki oturumda uygulanır.</string>
     <string name="storage_default_ask">Her seferinde sor</string>
     <string name="storage_default_ask_detail">Her yükleme için bir hedef seçin</string>
     <string name="storage_default_internal">Dahili depolama</string>

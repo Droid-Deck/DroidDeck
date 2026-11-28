@@ -1468,6 +1468,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">Reanudar %1$s</string>
     <string name="roms_text">Aparece como /root/ROMs en cada sesión. El almacenamiento interno está en /root/Storage.</string>
+    <string name="roms_text_unmounted">Aparece como /root/ROMs en cada sesión.</string>
     <string name="roms_none">Ninguna carpeta elegida</string>
     <string name="roms_applies">Se aplica en la próxima sesión. Las tarjetas SD funcionan.</string>
     <string name="roms_choose">Elegir carpeta</string>
@@ -3249,6 +3250,8 @@
     <string name="storage_default_group">Ubicación de instalación</string>
     <string name="storage_default_title">Almacenamiento predeterminado</string>
     <string name="storage_default_hint">Las nuevas instalaciones de las tiendas van a la ubicación seleccionada. Los juegos existentes se quedan donde están. Las bibliotecas de Steam conservan su propio ajuste.</string>
+    <string name="storage_shared_mount">Almacenamiento del teléfono en Linux</string>
+    <string name="storage_shared_mount_hint">Monta el almacenamiento interno del teléfono en /root/Storage. Si está desactivado, solo se montan las carpetas de juegos que has añadido desde ahí. No afecta a las tarjetas SD. Se aplica en la próxima sesión.</string>
     <string name="storage_default_ask">Preguntar siempre</string>
     <string name="storage_default_ask_detail">Elige un destino para cada instalación</string>
     <string name="storage_default_internal">Almacenamiento interno</string>

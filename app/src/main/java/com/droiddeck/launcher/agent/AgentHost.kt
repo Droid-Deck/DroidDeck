@@ -1,7 +1,6 @@
 package com.droiddeck.launcher.agent
 
 import android.content.Context
-import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -564,7 +563,7 @@ object AgentHost {
             (if (connectAdb) "adb start-server >/dev/null 2>&1; adb connect \"\$ADB_SERIAL\" >/dev/null 2>&1; " else "") +
                 "cd \"$1\" 2>/dev/null; shift; exec \"$@\"", "sh", workdir,
         )
-        val proot = LinuxRuntime.command(app, null, null, Environment.getExternalStorageDirectory(), null, env + shell + command, fakeRoot)
+        val proot = LinuxRuntime.command(app, null, null, LinuxRuntime.sharedStorage(app), null, env + shell + command, fakeRoot)
         return ProcessBuilder(proot).redirectErrorStream(true).apply {
             environment().apply {
                 remove("LD_PRELOAD"); remove("LD_AUDIT"); remove("LD_LIBRARY_PATH")

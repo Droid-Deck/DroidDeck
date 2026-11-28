@@ -1452,6 +1452,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">繼續 %1$s</string>
     <string name="roms_text">在每個會話中顯示為 /root/ROMs。內部儲存空間位於 /root/Storage。</string>
+    <string name="roms_text_unmounted">在每個會話中顯示為 /root/ROMs。</string>
     <string name="roms_none">未選擇資料夾</string>
     <string name="roms_applies">下次會話生效。支援 SD 卡。</string>
     <string name="roms_choose">選擇資料夾</string>
@@ -3187,6 +3188,8 @@
     <string name="storage_default_group">安裝位置</string>
     <string name="storage_default_title">預設儲存空間</string>
     <string name="storage_default_hint">從商店新安裝的遊戲會安裝到所選位置。現有遊戲維持原位。Steam 收藏庫保有自己的設定。</string>
+    <string name="storage_shared_mount">在 Linux 中使用手機儲存空間</string>
+    <string name="storage_shared_mount_hint">將手機內部儲存空間掛載到 /root/Storage。關閉後，只會掛載你從中加入的遊戲資料夾。不影響 SD 卡。下次工作階段生效。</string>
     <string name="storage_default_ask">每次都詢問</string>
     <string name="storage_default_ask_detail">每次安裝時選擇目標位置</string>
     <string name="storage_default_internal">內部儲存空間</string>

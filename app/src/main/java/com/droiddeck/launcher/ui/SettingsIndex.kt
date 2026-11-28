@@ -92,6 +92,7 @@ internal object SettingsIndex {
 
         s(SettingsSection.CONTROLLER, R.string.setup_tab_controller, "gamepad", "buttons", "mapping", "profile", "remap"),
         SettingsEntry(SettingsPlace.TAB, R.string.rail_storage, tab = "storage", words = listOf("sd card", "space", "uninstall", "disk")),
+        SettingsEntry(SettingsPlace.TAB, R.string.storage_shared_mount, tab = "storage", words = listOf("sdcard", "mount", "privacy", "files")),
         SettingsEntry(SettingsPlace.TAB, R.string.rail_sync, tab = "sync", words = listOf("syncthing", "saves")),
         SettingsEntry(SettingsPlace.TAB, R.string.rail_decky, tab = "decky", words = listOf("plugins", "plugin store", "homebrew", "loader")),
         SettingsEntry(SettingsPlace.TAB, R.string.rail_boot_movies, tab = "boot-movies", words = listOf("startup movie", "boot video", "animation", "steamdeckrepo")),

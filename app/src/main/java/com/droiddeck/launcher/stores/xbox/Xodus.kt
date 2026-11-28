@@ -1,7 +1,6 @@
 package com.droiddeck.launcher.stores.xbox
 
 import android.content.Context
-import android.os.Environment
 import com.droiddeck.launcher.core.AddonPack
 import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
@@ -82,7 +81,7 @@ internal object Xodus {
             networkLink.start()
             val runtime = (runtimeDirectory ?: File(app.filesDir, "xbox-runtime")).apply { mkdirs() }
             val root = LinuxRuntime.rootDir(app)
-            val external = Environment.getExternalStorageDirectory()
+            val external = LinuxRuntime.sharedStorage(app)
             val extraBinds = StoreInstallRoot.externalBindSpecsForXodus(app)
             val binds = LinuxRuntime.binds(app, null, null, external, extraBinds)
             val fastPathPreloaded = runCatching {

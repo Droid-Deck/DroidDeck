@@ -3,6 +3,8 @@ package com.droiddeck.launcher.ui
 import androidx.compose.foundation.shape.CircleShape
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
+import com.droiddeck.launcher.session.SessionPrefs
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Spacer
@@ -22,7 +24,7 @@ fun RomsDialog(path: String?, onChoose: () -> Unit, onClear: () -> Unit, onDismi
         text = {
             Column {
                 Text(
-                    stringResource(R.string.roms_text),
+                    stringResource(if (SessionPrefs.mountSharedStorage(LocalContext.current)) R.string.roms_text else R.string.roms_text_unmounted),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(10.dp))

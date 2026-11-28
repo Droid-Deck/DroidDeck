@@ -1453,6 +1453,7 @@
     <string name="rail_percent">%1$d%%</string>
     <string name="rail_resume_named">%1$s 재개</string>
     <string name="roms_text">각 세션에서 /root/ROMs로 표시됩니다. 내부 저장 공간은 /root/Storage에 있습니다.</string>
+    <string name="roms_text_unmounted">각 세션에서 /root/ROMs로 표시됩니다.</string>
     <string name="roms_none">선택된 폴더 없음</string>
     <string name="roms_applies">다음 세션에 적용됩니다. SD 카드를 지원합니다.</string>
     <string name="roms_choose">폴더 선택</string>
@@ -3190,6 +3191,8 @@
     <string name="storage_default_group">설치 위치</string>
     <string name="storage_default_title">기본 저장소</string>
     <string name="storage_default_hint">새 스토어 설치는 선택한 위치에 저장됩니다. 기존 게임은 그대로 유지됩니다. Steam 라이브러리는 자체 설정을 따릅니다.</string>
+    <string name="storage_shared_mount">Linux에서 휴대폰 저장소</string>
+    <string name="storage_shared_mount_hint">휴대폰 내부 저장소를 /root/Storage에 마운트합니다. 끄면 그곳에서 추가한 게임 폴더만 마운트됩니다. SD 카드에는 영향이 없습니다. 다음 세션부터 적용됩니다.</string>
     <string name="storage_default_ask">매번 묻기</string>
     <string name="storage_default_ask_detail">설치할 때마다 위치 선택</string>
     <string name="storage_default_internal">내부 저장소</string>
