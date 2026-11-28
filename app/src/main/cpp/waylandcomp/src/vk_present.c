@@ -25,6 +25,9 @@
 #include <stdarg.h>
 #include <android/log.h>
 #include <android/hardware_buffer.h>
+#include <linux/dma-buf.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
 
 #define TAG "DroidDeckWayland"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
@@ -47,10 +50,15 @@ struct vkp_image {
     VkBuffer linear_buf;
     VkDeviceMemory linear_mem;
     VkBufferImageCopy linear_copy;
+    const void *cpu_src;
+    void *cpu_dst;
+    size_t cpu_size, cpu_map_size;
+    int cpu_fd;
 };
 
 static ANativeWindow *g_window;
 static int g_ahb_import;
+static int g_dmabuf_import = 1;
 static int g_drm_modifiers;
 static char *g_driver_path, *g_library_name, *g_native_lib_dir;
 static int g_allow_driver_fallback;
@@ -635,6 +643,7 @@ static int dev_init(void) {
         else LOGE("present: driver MISSING %s (dmabuf import will fail)", import_exts[i]);
     }
     g_drm_modifiers = has_ext(exts, ne, "VK_EXT_image_drm_format_modifier");
+    g_dmabuf_import = has_ext(exts, ne, "VK_KHR_external_memory_fd") && has_ext(exts, ne, "VK_EXT_external_memory_dma_buf");
     int want_hdr_md = 0;
     if (droiddeck_color_requested()) {
         want_hdr_md = has_ext(exts, ne, VK_EXT_HDR_METADATA_EXTENSION_NAME);
@@ -1120,10 +1129,21 @@ static void release_external_client_draws(VkCommandBuffer cmd, const struct vkp_
     }
 }
 
+static void copy_mapped_dmabuf(const struct vkp_image *img) {
+    struct dma_buf_sync sync = {.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ};
+    ioctl(img->cpu_fd, DMA_BUF_IOCTL_SYNC, &sync);
+    memcpy(img->cpu_dst, img->cpu_src, img->cpu_size);
+    sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ;
+    ioctl(img->cpu_fd, DMA_BUF_IOCTL_SYNC, &sync);
+}
+
 static void stage_linear_dmabuf(VkCommandBuffer cmd, const struct vkp_image *img) {
     if (!img || !img->linear_buf) return;
+    const int mapped = img->cpu_src != NULL;
+    if (mapped) copy_mapped_dmabuf(img);
     const VkImageSubresourceRange range = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    VkBufferMemoryBarrier acquire = vkp_linear_dmabuf_ownership(img->linear_buf, g_qfam, VK_ACCESS_TRANSFER_READ_BIT, 1);
+    VkBufferMemoryBarrier acquire = mapped ? vkp_linear_dmabuf_host_copy(img->linear_buf)
+                                           : vkp_linear_dmabuf_ownership(img->linear_buf, g_qfam, VK_ACCESS_TRANSFER_READ_BIT, 1);
     VkImageMemoryBarrier write = {
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER, .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         .newLayout = VK_IMAGE_LAYOUT_GENERAL,
@@ -1140,7 +1160,7 @@ static void stage_linear_dmabuf(VkCommandBuffer cmd, const struct vkp_image *img
         .image = img->image, .subresourceRange = range, .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
         .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_SHADER_READ_BIT};
     g_vk.CmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
-                            0, NULL, 1, &release, 1, &read);
+                            0, NULL, mapped ? 0 : 1, &release, 1, &read);
 }
 
 static void stage_linear_dmabufs(VkCommandBuffer cmd, const struct vkp_draw *draws, int count) {
@@ -1237,9 +1257,81 @@ static void destroy_image_objects(struct vkp_image *img) {
     if (img->mem) g_vk.FreeMemory(g_dev, img->mem, NULL);
     if (img->linear_buf) g_vk.DestroyBuffer(g_dev, img->linear_buf, NULL);
     if (img->linear_mem) g_vk.FreeMemory(g_dev, img->linear_mem, NULL);
+    if (img->cpu_src) {
+        munmap((void *)img->cpu_src, img->cpu_map_size);
+        close(img->cpu_fd);
+    }
     img->image = VK_NULL_HANDLE; img->mem = VK_NULL_HANDLE;
     img->linear_buf = VK_NULL_HANDLE; img->linear_mem = VK_NULL_HANDLE;
+    img->cpu_src = NULL; img->cpu_dst = NULL;
     img->staged = 0; img->in_general = 0;
+}
+
+static VkResult bind_dmabuf_buffer(struct vkp_image *img, int *fd, VkDeviceSize size) {
+    VkExternalMemoryBufferCreateInfo ext = {
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT};
+    VkBufferCreateInfo bci = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .pNext = &ext, .size = size,
+                              .usage = img->blit_dst ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                              .sharingMode = VK_SHARING_MODE_EXCLUSIVE};
+    VkResult r = g_vk.CreateBuffer(g_dev, &bci, NULL, &img->linear_buf);
+    if (r != VK_SUCCESS) return r;
+    uint32_t allowed = 0xffffffff;
+    if (g_vk.GetMemoryFdPropertiesKHR) {
+        VkMemoryFdPropertiesKHR fp = {.sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR};
+        if (g_vk.GetMemoryFdPropertiesKHR(g_dev, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+                                          *fd, &fp) == VK_SUCCESS)
+            allowed = fp.memoryTypeBits;
+    }
+    VkMemoryRequirements breq;
+    g_vk.GetBufferMemoryRequirements(g_dev, img->linear_buf, &breq);
+    int bidx = memory_type(breq.memoryTypeBits & allowed, 0);
+    if (bidx < 0) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    VkImportMemoryFdInfoKHR imp = {.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
+                                   .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT, .fd = *fd};
+    VkMemoryDedicatedAllocateInfo ded = {.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+                                         .pNext = &imp, .buffer = img->linear_buf};
+    VkMemoryAllocateInfo mai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .pNext = &ded,
+                                .allocationSize = breq.size, .memoryTypeIndex = (uint32_t)bidx};
+    r = g_vk.AllocateMemory(g_dev, &mai, NULL, &img->linear_mem);
+    if (r != VK_SUCCESS) return r;
+    *fd = -1;
+    return g_vk.BindBufferMemory(g_dev, img->linear_buf, img->linear_mem, 0);
+}
+
+static VkResult map_dmabuf_buffer(struct vkp_image *img, int *fd, VkDeviceSize size, VkDeviceSize need) {
+    void *src = mmap(NULL, (size_t)size, PROT_READ, MAP_SHARED, *fd, 0);
+    if (src == MAP_FAILED) {
+        LOGE("dmabuf: mapping the linear %dx%d buffer failed (%s)", img->w, img->h, strerror(errno));
+        return VK_ERROR_MEMORY_MAP_FAILED;
+    }
+    img->cpu_src = src;
+    img->cpu_map_size = (size_t)size;
+    img->cpu_size = (size_t)need;
+    img->cpu_fd = *fd;
+    *fd = -1;
+    VkBufferCreateInfo bci = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .size = need,
+                              .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT, .sharingMode = VK_SHARING_MODE_EXCLUSIVE};
+    VkResult r = g_vk.CreateBuffer(g_dev, &bci, NULL, &img->linear_buf);
+    if (r != VK_SUCCESS) return r;
+    VkMemoryRequirements breq;
+    g_vk.GetBufferMemoryRequirements(g_dev, img->linear_buf, &breq);
+    int bidx = memory_type(breq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    if (bidx < 0) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    VkMemoryAllocateInfo mai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .allocationSize = breq.size,
+                                .memoryTypeIndex = (uint32_t)bidx};
+    r = g_vk.AllocateMemory(g_dev, &mai, NULL, &img->linear_mem);
+    if (r != VK_SUCCESS) return r;
+    r = g_vk.BindBufferMemory(g_dev, img->linear_buf, img->linear_mem, 0);
+    if (r != VK_SUCCESS) return r;
+    r = g_vk.MapMemory(g_dev, img->linear_mem, 0, VK_WHOLE_SIZE, 0, &img->cpu_dst);
+    if (r != VK_SUCCESS) return r;
+    static int told;
+    if (!told++)
+        droiddeck_log("gpu", "dmabuf: the driver imports no dma-bufs; linear %dx%d frames are copied from their "
+                             "mapping (%llu bytes a frame) and uploaded at their row pitch",
+                      img->w, img->h, (unsigned long long)need);
+    return VK_SUCCESS;
 }
 
 static int import_linear_dmabuf(struct vkp_image *img, int fd, const VkBufferImageCopy *copy, VkDeviceSize need) {
@@ -1255,36 +1347,8 @@ static int import_linear_dmabuf(struct vkp_image *img, int fd, const VkBufferIma
         close(dupfd);
         return -1;
     }
-    VkExternalMemoryBufferCreateInfo ext = {
-        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
-        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT};
-    VkBufferCreateInfo bci = {.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO, .pNext = &ext, .size = size,
-                              .usage = img->blit_dst ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                              .sharingMode = VK_SHARING_MODE_EXCLUSIVE};
-    VkResult r = g_vk.CreateBuffer(g_dev, &bci, NULL, &img->linear_buf);
-    if (r != VK_SUCCESS) goto fail;
-    uint32_t allowed = 0xffffffff;
-    if (g_vk.GetMemoryFdPropertiesKHR) {
-        VkMemoryFdPropertiesKHR fp = {.sType = VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR};
-        if (g_vk.GetMemoryFdPropertiesKHR(g_dev, VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
-                                          dupfd, &fp) == VK_SUCCESS)
-            allowed = fp.memoryTypeBits;
-    }
-    VkMemoryRequirements breq;
-    g_vk.GetBufferMemoryRequirements(g_dev, img->linear_buf, &breq);
-    int bidx = memory_type(breq.memoryTypeBits & allowed, 0);
-    r = VK_ERROR_FORMAT_NOT_SUPPORTED;
-    if (bidx < 0) goto fail;
-    VkImportMemoryFdInfoKHR imp = {.sType = VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR,
-                                   .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT, .fd = dupfd};
-    VkMemoryDedicatedAllocateInfo ded = {.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
-                                         .pNext = &imp, .buffer = img->linear_buf};
-    VkMemoryAllocateInfo mai = {.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, .pNext = &ded,
-                                .allocationSize = breq.size, .memoryTypeIndex = (uint32_t)bidx};
-    r = g_vk.AllocateMemory(g_dev, &mai, NULL, &img->linear_mem);
-    if (r != VK_SUCCESS) goto fail;
-    dupfd = -1;
-    r = g_vk.BindBufferMemory(g_dev, img->linear_buf, img->linear_mem, 0);
+    VkResult r = vkp_linear_dmabuf_mapped(g_dmabuf_import, img->blit_dst) ? map_dmabuf_buffer(img, &dupfd, size, need)
+                                                                          : bind_dmabuf_buffer(img, &dupfd, size);
     if (r != VK_SUCCESS) goto fail;
 
     VkImageCreateInfo ici = {
@@ -1334,7 +1398,8 @@ struct vkp_image *vkp_image_import_dmabuf(int fd, uint32_t drm_format, uint64_t 
     if (!img) return NULL;
     img->w = w; img->h = h; img->dmabuf = 1; img->blit_dst = as_blit_dst ? 1 : 0;
     img->fmt = format;
-    const int through_buffer = padded_target || vkp_linear_dmabuf_through_buffer(g_drm_modifiers, modifier, as_blit_dst);
+    const int through_buffer = padded_target ||
+                               vkp_linear_dmabuf_through_buffer(g_drm_modifiers && g_dmabuf_import, modifier, as_blit_dst);
     const VkImageUsageFlags sampled_usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     const int modifier_sampled = !as_blit_dst && g_drm_modifiers && g_vk.GetPhysicalDeviceImageFormatProperties2 &&
                                  modifier_importable(img->fmt, modifier, sampled_usage);

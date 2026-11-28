@@ -67,6 +67,165 @@ int main(void) {
 }
 '''
 
+MAPPED_HARNESS = r'''
+#define _GNU_SOURCE
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <linux/dma-buf.h>
+#include <vulkan/vulkan.h>
+#include "vk_linear_dmabuf.h"
+
+typedef struct AHardwareBuffer AHardwareBuffer;
+%(image)s
+
+static void droiddeck_log(const char *tag, const char *fmt, ...) { (void)tag; (void)fmt; }
+#define LOGE(...) droiddeck_log("error", __VA_ARGS__)
+
+static const VkDevice g_dev = (VkDevice)(uintptr_t)0x10;
+static const uint32_t g_qfam = 2;
+static VkPhysicalDeviceMemoryProperties g_memprops;
+static uint8_t staging[4096];
+static uint32_t allocated_type = 99;
+static int barriers, copies, freed_buffers, freed_memory;
+static VkBufferMemoryBarrier first_buffer_barrier;
+static uint32_t buffer_barrier_counts[4];
+
+static void stub_barrier(VkCommandBuffer cmd, VkPipelineStageFlags src, VkPipelineStageFlags dst, VkDependencyFlags dep,
+                         uint32_t nm, const VkMemoryBarrier *m, uint32_t nb, const VkBufferMemoryBarrier *b,
+                         uint32_t ni, const VkImageMemoryBarrier *i) {
+    (void)cmd; (void)src; (void)dst; (void)dep; (void)nm; (void)m; (void)ni; (void)i;
+    if (barriers == 0 && nb) first_buffer_barrier = b[0];
+    if (barriers < 4) buffer_barrier_counts[barriers] = nb;
+    barriers++;
+}
+static void stub_copy(VkCommandBuffer cmd, VkBuffer b, VkImage i, VkImageLayout l, uint32_t n, const VkBufferImageCopy *r) {
+    (void)cmd; (void)b; (void)i; (void)l; (void)n; (void)r;
+    copies++;
+}
+static VkResult stub_create_buffer(VkDevice d, const VkBufferCreateInfo *ci, const VkAllocationCallbacks *a, VkBuffer *out) {
+    (void)d; (void)a;
+    assert(ci->pNext == NULL);
+    assert(ci->usage == VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    *out = (VkBuffer)(uintptr_t)0x20;
+    return VK_SUCCESS;
+}
+static void stub_buffer_reqs(VkDevice d, VkBuffer b, VkMemoryRequirements *r) {
+    (void)d; (void)b;
+    r->size = sizeof(staging); r->alignment = 64; r->memoryTypeBits = 0x3;
+}
+static VkResult stub_allocate(VkDevice d, const VkMemoryAllocateInfo *info, const VkAllocationCallbacks *a, VkDeviceMemory *out) {
+    (void)d; (void)a;
+    assert(info->pNext == NULL);
+    allocated_type = info->memoryTypeIndex;
+    *out = (VkDeviceMemory)(uintptr_t)0x30;
+    return VK_SUCCESS;
+}
+static VkResult stub_bind(VkDevice d, VkBuffer b, VkDeviceMemory m, VkDeviceSize o) { (void)d; (void)b; (void)m; (void)o; return VK_SUCCESS; }
+static VkResult stub_map(VkDevice d, VkDeviceMemory m, VkDeviceSize o, VkDeviceSize s, VkMemoryMapFlags f, void **out) {
+    (void)d; (void)m; (void)o; (void)s; (void)f;
+    *out = staging;
+    return VK_SUCCESS;
+}
+static void stub_destroy_image(VkDevice d, VkImage i, const VkAllocationCallbacks *a) { (void)d; (void)i; (void)a; }
+static void stub_destroy_buffer(VkDevice d, VkBuffer b, const VkAllocationCallbacks *a) { (void)d; (void)b; (void)a; freed_buffers++; }
+static void stub_free(VkDevice d, VkDeviceMemory m, const VkAllocationCallbacks *a) { (void)d; (void)m; (void)a; freed_memory++; }
+
+static struct {
+    PFN_vkCmdPipelineBarrier CmdPipelineBarrier;
+    PFN_vkCmdCopyBufferToImage CmdCopyBufferToImage;
+    PFN_vkCreateBuffer CreateBuffer;
+    PFN_vkGetBufferMemoryRequirements GetBufferMemoryRequirements;
+    PFN_vkAllocateMemory AllocateMemory;
+    PFN_vkBindBufferMemory BindBufferMemory;
+    PFN_vkMapMemory MapMemory;
+    PFN_vkDestroyImage DestroyImage;
+    PFN_vkDestroyBuffer DestroyBuffer;
+    PFN_vkFreeMemory FreeMemory;
+} g_vk = {stub_barrier, stub_copy, stub_create_buffer, stub_buffer_reqs, stub_allocate, stub_bind, stub_map,
+          stub_destroy_image, stub_destroy_buffer, stub_free};
+
+%(memory_type)s
+%(copy)s
+%(stage)s
+%(destroy)s
+%(map)s
+
+static void fill(int fd, uint8_t seed, size_t n) {
+    uint8_t buf[4096];
+    for (size_t i = 0; i < n; i++) buf[i] = (uint8_t)(seed + i * 7);
+    assert(pwrite(fd, buf, n, 0) == (ssize_t)n);
+}
+
+int main(void) {
+    g_memprops.memoryTypeCount = 2;
+    g_memprops.memoryTypes[0].propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    g_memprops.memoryTypes[1].propertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+    VkBufferImageCopy copy;
+    const VkDeviceSize need = vkp_linear_dmabuf_copy(VK_FORMAT_B8G8R8A8_UNORM, 12, 8, 64, 0, &copy);
+    assert(need == 64 * 7 + 12 * 4);
+    const size_t size = 1024;
+    int fd = memfd_create("linear-frame", 0);
+    assert(fd >= 0);
+    assert(ftruncate(fd, (off_t)size) == 0);
+    fill(fd, 1, size);
+
+    struct vkp_image img = {.w = 12, .h = 8, .dmabuf = 1, .image = (VkImage)(uintptr_t)0x40};
+    int take = fd;
+    assert(map_dmabuf_buffer(&img, &take, size, need) == VK_SUCCESS);
+    assert(take == -1);
+    assert(img.cpu_fd == fd);
+    assert(img.cpu_size == need);
+    assert(img.cpu_dst == staging);
+    assert(allocated_type == 1);
+    img.linear_copy = copy;
+    img.staged = 1;
+
+    fill(fd, 9, size);
+    uint8_t want[4096];
+    assert(pread(fd, want, (size_t)need, 0) == (ssize_t)need);
+    stage_linear_dmabuf((VkCommandBuffer)(uintptr_t)0x50, &img);
+    assert(memcmp(staging, want, (size_t)need) == 0);
+    assert(copies == 1 && barriers == 2);
+    assert(first_buffer_barrier.srcQueueFamilyIndex == VK_QUEUE_FAMILY_IGNORED);
+    assert(first_buffer_barrier.dstQueueFamilyIndex == VK_QUEUE_FAMILY_IGNORED);
+    assert(buffer_barrier_counts[0] == 1 && buffer_barrier_counts[1] == 0);
+
+    destroy_image_objects(&img);
+    assert(img.cpu_src == NULL && img.cpu_dst == NULL);
+    assert(freed_buffers == 1 && freed_memory == 1);
+    assert(fcntl(fd, F_GETFD) == -1 && errno == EBADF);
+
+    struct vkp_image imported = {.w = 12, .h = 8, .dmabuf = 1, .staged = 1, .image = (VkImage)(uintptr_t)0x41,
+                                 .linear_buf = (VkBuffer)(uintptr_t)0x21, .linear_copy = copy};
+    barriers = copies = 0;
+    memset(staging, 0, sizeof(staging));
+    stage_linear_dmabuf((VkCommandBuffer)(uintptr_t)0x50, &imported);
+    assert(copies == 1 && barriers == 2);
+    assert(first_buffer_barrier.srcQueueFamilyIndex == VK_QUEUE_FAMILY_FOREIGN_EXT);
+    assert(first_buffer_barrier.dstQueueFamilyIndex == g_qfam);
+    assert(buffer_barrier_counts[0] == 1 && buffer_barrier_counts[1] == 1);
+    for (size_t i = 0; i < sizeof(staging); i++) assert(staging[i] == 0);
+
+    struct vkp_image unmappable = {.w = 12, .h = 8, .dmabuf = 1};
+    int bad = open("/dev/null", O_WRONLY);
+    assert(bad >= 0);
+    int keep = bad;
+    assert(map_dmabuf_buffer(&unmappable, &keep, size, need) == VK_ERROR_MEMORY_MAP_FAILED);
+    assert(keep == bad);
+    assert(unmappable.cpu_src == NULL && unmappable.linear_buf == VK_NULL_HANDLE);
+    close(bad);
+    return 0;
+}
+'''
+
 
 def compile_and_run(test, source, tmp, name):
     compiler = shutil.which(os.environ.get("CC", "cc"))
@@ -150,6 +309,38 @@ class VkLinearDmabufTest(unittest.TestCase):
         self.assertGreater(blit.index("VK_ACCESS_TRANSFER_WRITE_BIT, 0"), copy)
         for name in ("vkp_blit_image", "pass_finish"):
             self.assertIn("blit_to_layer(", function(source, name))
+
+    def test_driver_without_dmabuf_import_copies_from_the_mapping(self):
+        vk = (SRC / "vk_present.c").read_text()
+        image = re.search(r"^struct vkp_image \{.*?^\};", vk, re.M | re.S)
+        self.assertIsNotNone(image, "struct vkp_image not found in vk_present.c")
+        harness = MAPPED_HARNESS % {
+            "image": image.group(0),
+            "memory_type": function(vk, "memory_type"),
+            "copy": function(vk, "copy_mapped_dmabuf"),
+            "stage": function(vk, "stage_linear_dmabuf"),
+            "destroy": function(vk, "destroy_image_objects"),
+            "map": function(vk, "map_dmabuf_buffer"),
+        }
+        with tempfile.TemporaryDirectory(prefix="droiddeck-vk-linear-mapped-") as tmp:
+            source = Path(tmp) / "mapped_dmabuf_test.c"
+            source.write_text(harness)
+            compile_and_run(self, source, tmp, "vk-linear-mapped")
+
+    def test_mapping_only_where_the_driver_imports_no_dmabufs(self):
+        vk = (SRC / "vk_present.c").read_text()
+        init = re.search(r"^\s+g_dmabuf_import = (.*?);", vk, re.M)
+        self.assertIsNotNone(init, "g_dmabuf_import is never derived from the device extensions")
+        terms = [t.strip() for t in init.group(1).split("&&")]
+        self.assertEqual(terms, ['has_ext(exts, ne, "VK_KHR_external_memory_fd")',
+                                 'has_ext(exts, ne, "VK_EXT_external_memory_dma_buf")'])
+        self.assertIn("static int g_dmabuf_import = 1;", vk)
+        body = function(vk, "import_linear_dmabuf")
+        self.assertRegex(body, r"vkp_linear_dmabuf_mapped\(g_dmabuf_import, img->blit_dst\)\s*\?\s*map_dmabuf_buffer\(")
+        self.assertIn("bind_dmabuf_buffer(img, &dupfd, size)", body)
+        imp = function(vk, "vkp_image_import_dmabuf")
+        self.assertIn("vkp_linear_dmabuf_through_buffer(g_drm_modifiers && g_dmabuf_import, modifier, as_blit_dst)", imp)
+        self.assertIn("vkp_padded_linear_target_needs_layout(g_drm_modifiers, modifier, format, w, stride, offset)", imp)
 
 
 if __name__ == "__main__":
