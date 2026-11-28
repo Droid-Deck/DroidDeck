@@ -273,6 +273,8 @@ object GuestWorkers {
     @Volatile private var session = 0
     // The latest session whose teardown has begun
     @Volatile private var stopped = 0
+    // Held for a launch's last word and for marking a session stopped
+    private val authorizing = Any()
     private val warming = java.util.concurrent.atomic.AtomicBoolean(false)
     private const val WARM_WORKERS = 2
     private const val ACK_TIMEOUT_MS = 5000
@@ -393,10 +395,13 @@ object GuestWorkers {
             // answer came too late never runs a program this call reports as not started. [confirmed]
             // goes first: a caller that hears nothing runs the program itself, so it must have heard
             // before the worker may run it (an app dying in between loses the program, not doubles it).
-            // A teardown that began meanwhile has the pid already (guestPids lists a launching slot), so
-            // a launch that goes on from here is still stopped with the session.
-            val accepted = Os.poll(arrayOf(answer), ANSWER_TIMEOUT_MS) > 0 && Os.read(go[1].fileDescriptor, ByteArray(1), 0, 1) == 1 &&
+            // The word and a teardown's start exclude each other: a launch is authorized before stopGuests()
+            // marks the session stopped, and is then stopped with the pids it takes (guestPids lists a
+            // launching slot), or never.
+            val answered = Os.poll(arrayOf(answer), ANSWER_TIMEOUT_MS) > 0 && Os.read(go[1].fileDescriptor, ByteArray(1), 0, 1) == 1
+            val accepted = answered && synchronized(authorizing) {
                 !stopping() && confirmed() && Os.write(go[1].fileDescriptor, byteArrayOf(1), 0, 1) == 1
+            }
             val endedRunning = synchronized(slots) {
                 slot.launching = false
                 if (accepted && !slot.endedLaunching) slot.started = true
@@ -538,9 +543,11 @@ object GuestWorkers {
     /** Ends session [of]'s guest programs that are still running, and, for the latest session, the warm workers. */
     fun stopGuests(of: Int = session) {
         // the check and the reset together: a new session's serve() may be under way
-        val drained = synchronized(slots) {
-            stopped = maxOf(stopped, of)
-            if (of != session) emptyList() else { warmTarget = 0; warm.toList().also { warm.clear() } }
+        val drained = synchronized(authorizing) {
+            synchronized(slots) {
+                stopped = maxOf(stopped, of)
+                if (of != session) emptyList() else { warmTarget = 0; warm.toList().also { warm.clear() } }
+            }
         }
         context?.let { app -> drained.forEach { release(app, it) } }
         val pids = guestPids(of)
@@ -610,15 +617,30 @@ object GuestWorkers {
     private fun handleRequest(app: Context, client: LocalSocket, received: () -> Unit) {
         client.use {
             if (client.peerCredentials.uid != Process.myUid()) return
-            // Each read of the request and its fds within this (the wait for a program's exit is not)
-            client.soTimeout = RECEIVE_TIMEOUT_MS
+            // The whole request and its fds within this, however slowly they come (the wait for a
+            // program's exit is not): each read gets what is left of it
+            val deadline = android.os.SystemClock.elapsedRealtime() + RECEIVE_TIMEOUT_MS
+            fun left() {
+                val ms = deadline - android.os.SystemClock.elapsedRealtime()
+                if (ms <= 0) throw java.net.SocketTimeoutException("spawn request not received in time")
+                client.soTimeout = ms.toInt()
+            }
             val input = DataInputStream(client.inputStream)
-            val length = input.readInt()
+            fun fill(bytes: ByteArray) {
+                var got = 0
+                while (got < bytes.size) {
+                    left()
+                    val n = input.read(bytes, got, bytes.size - got)
+                    if (n < 0) throw java.io.EOFException("spawn request ended at $got of ${bytes.size} bytes")
+                    got += n
+                }
+            }
+            val length = ByteArray(4).also { fill(it) }.let { java.nio.ByteBuffer.wrap(it).int }
             if (length !in 1..MAX_REQUEST_BYTES) {
                 Log.w(TAG, "spawn request of $length bytes refused")
                 return
             }
-            val payload = ByteArray(length).also { input.readFully(it) }
+            val payload = ByteArray(length).also { fill(it) }
             val request = JSONObject(String(payload))
             val fds = ArrayList<ParcelFileDescriptor>()
             fun take() {
@@ -636,6 +658,7 @@ object GuestWorkers {
                 // The hook sends its fds after the request, a chunk with each byte (hook/handoff.c)
                 val total = (request.optJSONArray("fds")?.length() ?: 0) + (if (request.has("table")) 1 else 0)
                 while (fds.size < total) {
+                    left()
                     if (input.read() < 0) throw java.io.EOFException("fds ended at ${fds.size} of $total")
                     take()
                 }

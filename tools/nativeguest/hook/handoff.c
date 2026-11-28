@@ -34,7 +34,11 @@ struct ddh_entry {
     // the wait status and the child it is for, in one 8-byte write. Only this side changes state.
     int32_t app[2] __attribute__((aligned(8)));
     int64_t child_start;  // the forked child's start time: tells it from a later process given its pid
-    int32_t pad2[4];
+    int32_t guessed;      // the status is the timeout's guess: set only while the entry is held (TAKEN)
+    int32_t pad2;
+    // When its worker was first seen gone, with the child that was for: child << 32 | seconds. Set by
+    // compare-and-swap only, so a waiter that looked before the slot changed hands cannot overwrite it.
+    uint64_t gone;
 };
 
 struct ddh_table {
@@ -411,8 +415,18 @@ static void ddh_report_exit(int status, void *from_exit) {
     // From the state read (the forked child may still move it from CLAIMED to HANDED): a parent
     // that freed the entry meanwhile keeps it freed.
     int st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
-    while ((st == DDH_HANDED || st == DDH_CLAIMED) && e->parent == g_ddh_report_parent &&
-           (g_ddh_report_child <= 0 || e->child == g_ddh_report_child)) {
+    for (int waits = 0;;) {
+        // TAKEN for a moment: the parent's check of a gone worker holds the entry (ddh_check_gone()) and
+        // gives it back as it was when it is not the child it looked at. Wait that out, briefly.
+        if (st == DDH_TAKEN && waits++ < 200) {
+            struct timespec ts = {0, 1000 * 1000};
+            syscall(SYS_nanosleep, &ts, NULL);
+            st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
+            continue;
+        }
+        if ((st != DDH_HANDED && st != DDH_CLAIMED) || e->parent != g_ddh_report_parent ||
+            (g_ddh_report_child > 0 && e->child != g_ddh_report_child))
+            break;
         e->status = (status & 0xff) << 8;
         if (__atomic_compare_exchange_n(&e->state, &st, DDH_EXITED, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
             if (g_ddh_report_parent > 0) syscall(SYS_kill, g_ddh_report_parent, SIGCHLD);
@@ -1067,6 +1081,8 @@ static void ddh_release(struct ddh_entry *e, int *status);
 // exit is dropped. Only after the pid space has wrapped around while that program runs. Told apart by
 // start time, not by the reaped flag: another thread may have reaped that forked child and not yet
 // marked it, and the new child may already have handed off a program of its own under the pid.
+// Without both start times (the new child already reaped too) nothing is dropped: an entry of the
+// new child's own must not be, and a stale one needs the pid space to wrap besides.
 static void ddh_child_created(pid_t pid) {
     struct ddh_table *t = __atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE);
     if (!t || pid <= 0) return;
@@ -1077,8 +1093,7 @@ static void ddh_child_created(pid_t pid) {
         int st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
         if ((st != DDH_HANDED && st != DDH_EXITED) || e->parent != me || e->child != pid) continue;
         if (start == -2) start = ddh_start_time(pid);
-        int earlier = e->child_start >= 0 && start >= 0 ? e->child_start != start : e->reaped;
-        if (!earlier) continue;
+        if (e->child_start < 0 || start < 0 || e->child_start == start) continue;
         if (__atomic_compare_exchange_n(&e->state, &st, DDH_TAKEN, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))
             ddh_release(e, NULL);
     }
@@ -1103,16 +1118,6 @@ static int ddh_any_live(pid_t pid) {
         if ((st == DDH_HANDED || st == DDH_EXITED || st == DDH_TAKEN || st == DDH_CLAIMED) && e->parent == me && ddh_selects(e, pid)) return 1;
     }
     return 0;
-}
-
-static struct ddh_entry *ddh_exited(pid_t pid) {
-    if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE)) return NULL;
-    pid_t me = getpid();
-    for (int i = 0; i < DDH_SLOTS; i++) {
-        struct ddh_entry *e = &g_ddh->e[i];
-        if (__atomic_load_n(&e->state, __ATOMIC_ACQUIRE) == DDH_EXITED && e->parent == me && ddh_selects(e, pid)) return e;
-    }
-    return NULL;
 }
 
 // The entry of child while it is still handing its program off (its request is with the app).
@@ -1148,11 +1153,15 @@ static void ddh_check_gone(void) {
             // The app looks the status up for up to a second after the worker's death: wait longer.
             struct timespec now;
             clock_gettime(CLOCK_MONOTONIC, &now);
-            if (e->pad[0] == 0) {
-                e->pad[0] = (int32_t)now.tv_sec + 1;
+            // The time is kept with the child it is for: a slot taken over since by another child
+            // starts its own count.
+            uint64_t seen = __atomic_load_n(&e->gone, __ATOMIC_ACQUIRE);
+            if ((uint32_t)(seen >> 32) != (uint32_t)child) {
+                uint64_t mark = (uint64_t)(uint32_t)child << 32 | (uint32_t)(now.tv_sec + 1);
+                __atomic_compare_exchange_n(&e->gone, &seen, mark, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED);
                 continue;
             }
-            if (now.tv_sec + 1 - e->pad[0] < 3) continue;
+            if (now.tv_sec + 1 - (int64_t)(uint32_t)seen < 3) continue;
         }
         // Only this side moves HANDED to EXITED, the entry held meanwhile and still the child looked at:
         // a waiter may have finished with it and a new handoff taken the slot since the look above.
@@ -1166,25 +1175,29 @@ static void ddh_check_gone(void) {
         int32_t none = DDH_NO_STATUS;
         if (__atomic_compare_exchange_n(&e->status, &none, status, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED) &&
             report[1] != child)
-            e->pad[0] = -1;  // the timeout's guess: an app report that comes before the exit is taken wins (ddh_release)
+            e->guessed = 1;  // an app report that comes before the exit is taken wins (ddh_status)
         __atomic_store_n(&e->state, DDH_EXITED, __ATOMIC_RELEASE);
     }
 }
 
+static int ddh_status(const struct ddh_entry *e) {
+    if (!e->guessed) return e->status;
+    // SIGKILL was the timeout's guess (no report then): the app's report, if it has come since
+    int32_t report[2];
+    uint64_t both = __atomic_load_n((const uint64_t *)e->app, __ATOMIC_ACQUIRE);
+    memcpy(report, &both, sizeof(report));
+    return report[1] != 0 && report[1] == e->child ? report[0] : e->status;
+}
+
 static void ddh_release(struct ddh_entry *e, int *status) {
-    if (status) *status = e->status;
-    if (status && e->pad[0] == -1) {
-        // SIGKILL was the timeout's guess (no report then): the app's report, if it has come since
-        int32_t report[2];
-        uint64_t both = __atomic_load_n((uint64_t *)e->app, __ATOMIC_ACQUIRE);
-        memcpy(report, &both, sizeof(report));
-        if (report[1] != 0 && report[1] == e->child) *status = report[0];
-    }
+    if (status) *status = ddh_status(e);
     memset(e, 0, offsetof(struct ddh_entry, state));
     e->status = 0;
     e->reaped = 0;
     e->pad[0] = 0;
     e->pad[1] = 0;
+    e->guessed = 0;
+    __atomic_store_n(&e->gone, 0, __ATOMIC_RELAXED);
     __atomic_store_n((uint64_t *)e->app, 0, __ATOMIC_RELAXED);
     __atomic_store_n(&e->state, DDH_FREE, __ATOMIC_RELEASE);
 }
@@ -1204,6 +1217,32 @@ static ddh_wait4_f ddh_real_wait4(void) {
 static int ddh_reap_shim(ddh_wait4_f real, pid_t child, int options) {
     pid_t r = real(child, NULL, options & WNOHANG, NULL);
     return r == child || (r < 0 && errno == ECHILD);
+}
+
+// The program of an exited entry a wait for pid takes: its pid and status, the entry released (or
+// left for the next wait when keep), or 0 when none is ready. Every exited entry, not just the first:
+// one whose forked child is still exiting is skipped (the caller's real wait reaps that exit, or a
+// later pass does) and the next one may be ready.
+static pid_t ddh_reap_exited(ddh_wait4_f real, pid_t pid, int *status, int keep) {
+    struct ddh_table *t = __atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE);
+    for (int i = 0; t && i < DDH_SLOTS; i++) {
+        struct ddh_entry *e = &t->e[i];
+        if (__atomic_load_n(&e->state, __ATOMIC_ACQUIRE) != DDH_EXITED || !ddh_take_for(e, pid)) continue;
+        pid_t child = e->child;
+        if (!e->reaped && !ddh_reap_shim(real, child, WNOHANG)) {
+            ddh_untake(e);
+            continue;
+        }
+        e->reaped = 1;
+        if (keep) {
+            if (status) *status = ddh_status(e);
+            ddh_untake(e);
+        } else {
+            ddh_release(e, status);
+        }
+        return child;
+    }
+    return 0;
 }
 
 // 20 ms, or -1 (EINTR) when a signal's handler interrupted it. The read of a timerfd restarts, as a
@@ -1261,18 +1300,10 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
             interrupted = ddh_nap() != 0;
             continue;
         }
-        if (pid <= 0 && (e = ddh_exited(pid))) {
-            if (!ddh_take_for(e, pid)) continue;  // another waiter has it, or the slot went to another child
-            pid_t child = e->child;
-            if (!e->reaped && !ddh_reap_shim(real, child, options)) {
-                ddh_untake(e);
-                if (!(options & WNOHANG)) return -1;
-                // its forked child is still exiting: another child may be ready now (below)
-            } else {
-                if (ru) memset(ru, 0, sizeof(*ru));
-                ddh_release(e, status);
-                return child;
-            }
+        pid_t done = pid <= 0 ? ddh_reap_exited(real, pid, status, 0) : 0;
+        if (done > 0) {
+            if (ru) memset(ru, 0, sizeof(*ru));
+            return done;
         }
         int live = pid <= 0 && ddh_any_live(pid);
         int wstatus = 0;
@@ -1312,28 +1343,77 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
         errno = ENOSYS;
         return -1;
     }
-    // Exits only (and WNOHANG) go through ddh_wait whenever this process hands children off: a child
-    // may not have claimed its entry yet when the wait starts, and only ddh_wait takes its forked
-    // child's exit for the handoff it is. Stops, continues and WNOWAIT: the real call, all options.
-    // As a waitpid() selector: a pid, -1 for any child, 0 for our group, -G for group G
-    pid_t which = idtype == P_PID ? (pid_t)id : idtype == P_PGID ? (id == 0 ? 0 : -(pid_t)id) : -1;
-    if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || !(options & WEXITED) || (options & ~(WEXITED | WNOHANG)) ||
+    // A wait without exits never takes a forked child's exit for the program's.
+    if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || !(options & WEXITED) ||
         (idtype != P_PID && idtype != P_ALL && idtype != P_PGID))
         return real(idtype, id, info, options);
-    // Only exits are asked for here: answer through ddh_wait and describe the result as waitid does.
-    int status = 0;
-    pid_t r = ddh_wait(which, &status, options & WNOHANG, NULL);
-    if (r < 0) return -1;
-    if (info) {
-        memset(info, 0, sizeof(*info));
-        if (r > 0) {
-            info->si_signo = SIGCHLD;
-            info->si_pid = r;
-            info->si_code = WIFEXITED(status) ? CLD_EXITED : CLD_KILLED;
-            info->si_status = WIFEXITED(status) ? WEXITSTATUS(status) : WTERMSIG(status);
-        }
+    if ((idtype == P_PID && (pid_t)id <= 0) || (idtype == P_PGID && (pid_t)id < 0)) {
+        errno = EINVAL;
+        return -1;
     }
-    return 0;
+    // As a waitpid() selector: a pid, -1 for any child, 0 for our group, -G for group G
+    pid_t which = idtype == P_PID ? (pid_t)id : idtype == P_PGID ? (id == 0 ? 0 : -(pid_t)id) : -1;
+    ddh_wait4_f w4 = ddh_real_wait4();
+    // Each event is looked at (WNOWAIT) before it is taken: the forked child of a handed-off program
+    // exits once the program has started, and that exit is reaped here and never reported. Any other
+    // event is then taken from that child alone, so the caller gets the kernel's siginfo for it.
+    int interrupted = 0;
+    for (;;) {
+        ddh_check_gone();
+        int status = 0;
+        pid_t r = ddh_reap_exited(w4, which, &status, options & WNOWAIT);
+        if (r > 0) {
+            if (info) {
+                memset(info, 0, sizeof(*info));
+                info->si_signo = SIGCHLD;
+                info->si_pid = r;
+                info->si_uid = getuid();
+                if (WIFEXITED(status)) {
+                    info->si_code = CLD_EXITED;
+                    info->si_status = WEXITSTATUS(status);
+                } else {
+                    info->si_code = WCOREDUMP(status) ? CLD_DUMPED : CLD_KILLED;
+                    info->si_status = WTERMSIG(status);
+                }
+            }
+            return 0;
+        }
+        int live = ddh_any_live(which);
+        siginfo_t seen;
+        memset(&seen, 0, sizeof(seen));
+        if (real(idtype, id, &seen, options | WNOWAIT | (live ? WNOHANG : 0)) < 0) {
+            if (!live || errno != ECHILD) return -1;
+        } else if (seen.si_pid > 0) {
+            pid_t child = seen.si_pid;
+            int exited = seen.si_code == CLD_EXITED || seen.si_code == CLD_KILLED || seen.si_code == CLD_DUMPED;
+            struct ddh_entry *h = exited ? ddh_find(child) : NULL;
+            if (h && !h->reaped) {
+                if (w4 && w4(child, NULL, WNOHANG, NULL) == child) h->reaped = 1;  // the forked child that handed its program off
+                continue;
+            }
+            if (options & WNOWAIT) {
+                if (info) *info = seen;
+                return 0;
+            }
+            siginfo_t got;
+            memset(&got, 0, sizeof(got));
+            if (real(P_PID, (id_t)child, &got, options | WNOHANG) < 0 || got.si_pid != child) continue;  // another waiter took it
+            // A forked child that died while handing its program off (a signal): its entry is done.
+            int died = got.si_code == CLD_EXITED || got.si_code == CLD_KILLED || got.si_code == CLD_DUMPED;
+            if (died && !ddh_find(child) && (h = ddh_claiming(child))) ddh_release(h, NULL);
+            if (info) *info = got;
+            return 0;
+        }
+        if (!live || (options & WNOHANG)) {
+            if (info) memset(info, 0, sizeof(*info));
+            return 0;
+        }
+        if (interrupted) {
+            errno = EINTR;
+            return -1;
+        }
+        interrupted = ddh_nap() != 0;
+    }
 }
 
 // Whether pgid is zygote's process group, which every process of the app is in until it starts a

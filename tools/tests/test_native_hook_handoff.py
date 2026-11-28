@@ -13,6 +13,8 @@ from pathlib import Path
 
 from tools.tests.test_usr2_preload import runner
 
+CLD_EXITED = 1
+
 HOOK_BUILD = Path(__file__).resolve().parents[1] / "nativeguest/build.sh"
 
 # fork() and exec argv[1] with "3", without the hook: prints the exit status it got
@@ -36,6 +38,7 @@ int main(int argc, char **argv) {
 
 PARENT = r"""
 #define _GNU_SOURCE
+#include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <spawn.h>
@@ -71,6 +74,20 @@ int main(int argc, char **argv) {
     _exit(127);
   }
   int status = 0;
+  if (strcmp(argv[1], "waitid") == 0) {
+    // at once, before the child has claimed its handoff, and for stops too
+    siginfo_t si;
+    errno = 0;
+    printf("pid0\t%d\n", waitid(P_PID, 0, &si, WEXITED) < 0 && errno == EINVAL);
+    memset(&si, 0, sizeof(si));
+    int r = waitid(P_ALL, 0, &si, WEXITED | WSTOPPED);
+    printf("same\t%d\n", r == 0 && si.si_pid == pid);
+    printf("code\t%d\n", si.si_code);
+    printf("exit\t%d\n", si.si_status);
+    printf("uid\t%d\n", si.si_uid == getuid());
+    printf("again\t%d\n", (int)waitpid(-1, &status, WNOHANG));
+    return 0;
+  }
   int group = strcmp(argv[1], "group") == 0;
   if (group) {
     setpgid(pid, pid);
@@ -215,14 +232,15 @@ class NativeHookHandoffTest(unittest.TestCase):
         (cls.root / "bin").mkdir(parents=True)
         (tmp / "target.c").write_text(TARGET)
         subprocess.run([cls.cc, "-static", "-O1", "-o", str(cls.root / "bin/target"), str(tmp / "target.c")], check=True)
-        # Whether a child here can exec an aarch64 program at all: under qemu-user only where the
-        # kernel runs them (binfmt_misc), which a plain x86 runner does not. A handed-off program is
+        # What a child here gets from exec'ing an aarch64 program: 3 where the kernel runs them
+        # (binfmt_misc with qemu-user), 127 on a plain x86 runner, which does not. A handed-off program is
         # started by the fake spawner through the runner itself either way.
         (tmp / "execs.c").write_text(EXEC_PROBE)
         subprocess.run([cls.cc, "-static", "-O1", "-o", str(tmp / "execs"), str(tmp / "execs.c")], check=True)
         probe = subprocess.run(list(cls.prefix or []) + [str(tmp / "execs"), str(cls.root / "bin/target")],
                                capture_output=True, text=True, timeout=60)
-        cls.child_execs = probe.stdout.strip() == "3"
+        assert probe.returncode == 0 and probe.stdout.strip() in ("3", "127"), (probe.returncode, probe.stdout, probe.stderr)
+        cls.child_status = probe.stdout.strip()
 
     @classmethod
     def tearDownClass(cls):
@@ -324,12 +342,29 @@ class NativeHookHandoffTest(unittest.TestCase):
         self.assertEqual("0", result.get("kill"), out.stdout)
         self.assertEqual(str(int(signal.SIGTERM)), result.get("signal"), out.stdout)
 
+    def test_waitid_for_exits_and_stops_reports_the_program(self):
+        result, requests, out = self.run_parent("waitid", "7")
+        self.assertEqual(1, len(requests), out.stderr)
+        self.assertEqual("1", result.get("pid0"), out.stdout)
+        self.assertEqual("1", result.get("same"), out.stdout)
+        self.assertEqual(str(CLD_EXITED), result.get("code"), out.stdout)
+        self.assertEqual("7", result.get("exit"), out.stdout)
+        self.assertEqual("1", result.get("uid"), out.stdout)
+        self.assertEqual("-1", result.get("again"), out.stdout)
+
+    def test_waitid_for_a_child_not_listed_is_the_kernels(self):
+        result, requests, out = self.run_parent("waitid", "3", handoff="other")
+        self.assertEqual([], requests)
+        self.assertEqual("1", result.get("same"), out.stdout)
+        self.assertEqual(str(CLD_EXITED), result.get("code"), out.stdout)
+        self.assertEqual(self.child_status, result.get("exit"), out.stdout)
+        self.assertEqual("1", result.get("uid"), out.stdout)
+
     def test_a_program_not_listed_is_a_normal_child(self):
         result, requests, out = self.run_parent("wait", "3", handoff="other")
         self.assertEqual([], requests)
         self.assertEqual("1", result.get("same"), out.stdout)
-        if self.child_execs:
-            self.assertEqual("3", result.get("exit"), out.stdout)
+        self.assertEqual(self.child_status, result.get("exit"), out.stdout)
 
 
 if __name__ == "__main__":
