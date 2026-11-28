@@ -111,6 +111,21 @@ public:
             || !xr_gpu_receive(socket_, &ack, sizeof(ack)) || ack != header.frame_id) { Close(); return false; }
         return true;
     }
+    bool Post(const DroidDeckXrFrameHeader &header, uint32_t slot, uint32_t flags = 0) {
+        if (socket_ < 0 || slot >= XR_GPU_SLOTS || (flags & ~XR_GPU_BGRA) || !xr_frame_valid(header)) return false;
+        XrGpuFrame frame; frame.header = header; frame.slot = slot; frame.flags = flags;
+        if (!xr_gpu_send(socket_, &frame, sizeof(frame))) { Close(); return false; }
+        return true;
+    }
+    template <typename Visit> bool Acks(int timeout, Visit visit) {
+        if (socket_ < 0) return false;
+        while (xr_gpu_wait(socket_, timeout)) {
+            uint64_t ack{};
+            if (!xr_gpu_receive(socket_, &ack, sizeof(ack)) || !visit(ack)) { Close(); return false; }
+            timeout = 0;
+        }
+        return true;
+    }
     void Close() { if (socket_ >= 0) close(socket_); socket_ = -1; }
 private:
     int socket_ = -1;

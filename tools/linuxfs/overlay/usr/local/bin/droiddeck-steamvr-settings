@@ -4,7 +4,14 @@ import os
 from pathlib import Path
 import sys
 
-OVERRIDES = {'enableLinuxVulkanAsync': True, 'motionSmoothing': False}
+# SteamVR's arm64 build throttles the compositor to save power and skipped refreshes it had time for.
+OVERRIDES = {'enableLinuxVulkanAsync': True, 'motionSmoothing': False, 'framesToThrottle': 0, 'powersaveFramesToThrottle': 0}
+# Backups written before the throttle overrides existed do not record them.
+ADDED_LATER = {'framesToThrottle', 'powersaveFramesToThrottle'}
+
+
+def saved_entry(section, key):
+    return [key in section, section.get(key)]
 
 
 def read(path):
@@ -33,6 +40,8 @@ def saved_preferences(path):
         if not isinstance(backup.get('section'), bool) or not isinstance(backup.get('values'), dict):
             raise ValueError('invalid backup object')
         for key in OVERRIDES:
+            if key not in backup['values'] and key in ADDED_LATER:
+                continue
             entry = backup['values'].get(key)
             if not isinstance(entry, list) or len(entry) != 2 or not isinstance(entry[0], bool):
                 raise ValueError('invalid saved preference: ' + key)
@@ -45,12 +54,16 @@ def saved_preferences(path):
 def update(operation, settings_path, backup_path):
     settings = read(settings_path)
     if operation == 'apply':
+        section = settings.get('steamvr', {})
         if backup_path.exists():
-            saved_preferences(backup_path)
+            backup = saved_preferences(backup_path)
+            missing = [key for key in OVERRIDES if key not in backup['values']]
+            if missing:
+                backup['values'].update({key: saved_entry(section, key) for key in missing})
+                write(backup_path, backup)
         else:
-            section = settings.get('steamvr', {})
             write(backup_path, {'section': 'steamvr' in settings,
-                               'values': {key: [key in section, section.get(key)] for key in OVERRIDES}})
+                               'values': {key: saved_entry(section, key) for key in OVERRIDES}})
         settings.setdefault('steamvr', {}).update(OVERRIDES)
         write(settings_path, settings)
     elif operation == 'restore':
@@ -59,6 +72,8 @@ def update(operation, settings_path, backup_path):
         backup = saved_preferences(backup_path)
         section = settings.setdefault('steamvr', {})
         for key in OVERRIDES:
+            if key not in backup['values']:
+                continue
             present, value = backup['values'][key]
             if present:
                 section[key] = value

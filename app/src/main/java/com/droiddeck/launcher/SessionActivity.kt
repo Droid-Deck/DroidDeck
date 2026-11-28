@@ -2871,6 +2871,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         FileUtils.copyAsset(this, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
         com.droiddeck.launcher.input.VrControllers.publish(this)
+        com.droiddeck.launcher.session.QuestSteamVrLaunch.publish(this)
 
         val turnip = TurnipDriver(this)
         com.droiddeck.launcher.gpu.DriverSetupLog.write(this, "surface.driver-setup")
@@ -6273,6 +6274,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         }
         if (CompositorHost.isStarted) applyFrameGen(force = true)
         applyFollowOrientation(resources.configuration)
+        uiHandler.removeCallbacks(questSteamVrRequest)
+        if (com.droiddeck.launcher.session.QuestExperimental.isSupported()) uiHandler.post(questSteamVrRequest)
         if (runtimeRemovalBlocked) return
         if (!SessionState.suspended) pausedFrame = null
         com.droiddeck.launcher.ui.Motion.refresh(this)
@@ -6331,8 +6334,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     override fun onPause() {
+        uiHandler.removeCallbacks(questSteamVrRequest)
         departureCleanup()
         super.onPause()
+    }
+
+    private val questSteamVrRequest = object : Runnable {
+        override fun run() {
+            if (com.droiddeck.launcher.session.QuestSteamVrLaunch.takeRequest(this@SessionActivity) &&
+                SessionState.running && SessionState.mode == SessionService.MODE_STEAM) steamVrAction("start")
+            uiHandler.postDelayed(this, 1000)
+        }
     }
 
     private fun departureCleanup() {

@@ -2,6 +2,7 @@
 #include "xr_tracking.h"
 #include <cstring>
 #include <cmath>
+#include <dlfcn.h>
 #include <mutex>
 #include <string>
 #include <fcntl.h>
@@ -38,8 +39,16 @@ public:
         }
         return false;
     }
+    // Android stamps these packets with the real monotonic clock. The session's clockpause preload holds the
+    // guest's clock back by the time spent suspended, so read libc's clock directly.
     static int64_t Now() {
-        timespec now{}; clock_gettime(CLOCK_MONOTONIC, &now);
+        using ClockGettime = int (*)(clockid_t, timespec *);
+        static const ClockGettime real = [] {
+            void *libc = dlopen("libc.so.6", RTLD_LAZY | RTLD_NOLOAD);
+            void *symbol = libc ? dlsym(libc, "clock_gettime") : nullptr;
+            return symbol ? reinterpret_cast<ClockGettime>(symbol) : &clock_gettime;
+        }();
+        timespec now{}; real(CLOCK_MONOTONIC, &now);
         return (int64_t)now.tv_sec * 1000000000LL + now.tv_nsec;
     }
     static double PoseTimeOffset(int64_t predicted, int64_t now) {
@@ -65,4 +74,37 @@ private:
     DroidDeckXrTracking *mapping_ = nullptr;
     std::mutex mutex_;
     std::string path_;
+};
+
+#define DROIDDECK_XR_LATCH_FILE "droiddeck-xr-latch"
+
+// The compositor's capture latches one head pose per frame here; the driver hands SteamVR exactly that pose,
+// so the frame drawn next and the pose the headset reprojects it with are the same sample.
+class XrLatchWriter {
+public:
+    ~XrLatchWriter() { if (mapping_) munmap(mapping_, sizeof(*mapping_)); }
+    void Write(const DroidDeckXrTracking &packet) {
+        if (!mapping_ && !Open()) return;
+        const uint32_t sequence = __atomic_load_n(&mapping_->seq, __ATOMIC_RELAXED) | 1u;
+        __atomic_store_n(&mapping_->seq, sequence, __ATOMIC_RELAXED);
+        __atomic_thread_fence(__ATOMIC_RELEASE);
+        DroidDeckXrTracking copy = packet; copy.seq = sequence;
+        std::memcpy(mapping_, &copy, sizeof(copy));
+        __atomic_store_n(&mapping_->seq, sequence + 1, __ATOMIC_RELEASE);
+    }
+private:
+    bool Open() {
+        if (attempted_) return false;
+        attempted_ = true;
+        int descriptor = open("/run/droiddeck/" DROIDDECK_XR_LATCH_FILE, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+        if (descriptor < 0) return false;
+        void *mapping = ftruncate(descriptor, sizeof(*mapping_)) == 0
+            ? mmap(nullptr, sizeof(*mapping_), PROT_READ | PROT_WRITE, MAP_SHARED, descriptor, 0) : MAP_FAILED;
+        close(descriptor);
+        if (mapping == MAP_FAILED) return false;
+        mapping_ = static_cast<DroidDeckXrTracking *>(mapping);
+        return true;
+    }
+    DroidDeckXrTracking *mapping_ = nullptr;
+    bool attempted_ = false;
 };

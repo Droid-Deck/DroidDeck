@@ -614,10 +614,13 @@ private:
                     XrSessionBeginInfo begin{XR_TYPE_SESSION_BEGIN_INFO};
                     begin.primaryViewConfigurationType = XR_VIEW_CONFIGURATION_TYPE_PRIMARY_STEREO;
                     check(xrBeginSession(session_, &begin), "xrBeginSession"); running_ = true;
+                    // Meta's clock governor scales clocks by the DroidDeck process's overall load and cannot see
+                    // SteamVR missing refreshes inside the guest; holding the top level kept it at 72 Hz.
                     if (setPerformance_) {
                         for (auto domain : {XR_PERF_SETTINGS_DOMAIN_CPU_EXT, XR_PERF_SETTINGS_DOMAIN_GPU_EXT}) {
-                            XrResult request = setPerformance_(session_, domain, XR_PERF_SETTINGS_LEVEL_SUSTAINED_HIGH_EXT);
-                            __android_log_print(ANDROID_LOG_INFO, "DroidDeckXR", "sustained performance domain=%d result=%d", domain, request);
+                            XrResult request = setPerformance_(session_, domain, XR_PERF_SETTINGS_LEVEL_BOOST_EXT);
+                            if (XR_FAILED(request)) request = setPerformance_(session_, domain, XR_PERF_SETTINGS_LEVEL_SUSTAINED_HIGH_EXT);
+                            __android_log_print(ANDROID_LOG_INFO, "DroidDeckXR", "performance domain=%d result=%d", domain, request);
                         }
                     }
                 } else if (state_ == XR_SESSION_STATE_STOPPING) {

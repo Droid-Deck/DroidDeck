@@ -417,6 +417,7 @@ class SessionService : Service() {
             SessionPrefs.screenEffectsProfileId(SessionState.mode, resolvedGameId, SessionState.program),
         )
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.clearRequests(LinuxRuntime.sessionRoot(this))
+        QuestSteamVrLaunch.clearRequest(this)
         val gen = synchronized(SessionState.startLock) {
             synchronized(stopLock) {
                 SessionState.steamClientArch = null
