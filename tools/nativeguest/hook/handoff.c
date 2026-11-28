@@ -155,8 +155,15 @@ static void ddh_forget(pid_t child) {
 }
 
 // In a forked child: the thread making the table did not come along, so the child may make its own.
-// The parent's fork records came along too: a child of its own replaces the one at its pid.
-static void ddh_forked(void) { __atomic_store_n(&g_ddh_preparing, 0, __ATOMIC_RELAXED); }
+// The parent's fork records came along too, for pids that are not the child's children: it starts
+// with an empty table (none, if it cannot map one, and then hands nothing off).
+static void ddh_forked(void) {
+    __atomic_store_n(&g_ddh_preparing, 0, __ATOMIC_RELAXED);
+    uint64_t *old = __atomic_exchange_n(&g_ddh_forks, NULL, __ATOMIC_ACQ_REL);
+    if (!old) return;
+    munmap(old, (size_t)DDH_FORKS * sizeof(uint64_t));
+    ddh_forks(1);
+}
 
 static void ddh_prepare(void) {
     // the parent records which thread forks each child (ddh_forked_by()); a child refuses a handoff
@@ -1318,15 +1325,43 @@ static int ddh_thread_alive(pid_t thread) {
     return s && s[1] == ' ' && s[2] != 'Z' && s[2] != 'X';
 }
 
-// The thread a child's exit goes to now: the one that forked it while that lives. After it has
-// exited, the kernel hands its children to the first live thread of the group, the main one while it
-// lives; with that gone as well, which one is not known here, and any may take it (the asker). Only
-// an exit /proc confirms moves it: when /proc cannot say, the forking thread keeps it.
+// The first live thread of the group, in its thread list's order (which /proc/self/task lists),
+// as the kernel picks a new parent for an exited thread's children (find_alive_thread()); 0 when
+// /proc cannot say.
+static pid_t ddh_first_live_thread(void) {
+    int dir = (int)syscall(SYS_openat, AT_FDCWD, "/proc/self/task", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (dir < 0) return 0;
+    pid_t found = 0;
+    int unknown = 0;
+    char buf[2048];
+    for (long n; !found && !unknown && (n = syscall(SYS_getdents64, dir, buf, sizeof(buf))) > 0;) {
+        for (long off = 0; off < n && !found && !unknown;) {
+            struct ddh_task_dirent {
+                uint64_t ino;
+                int64_t off;
+                unsigned short reclen;
+                unsigned char type;
+                char name[];
+            } *d = (struct ddh_task_dirent *)(buf + off);
+            off += d->reclen;
+            pid_t tid = (pid_t)atoi(d->name);
+            int alive = tid > 0 ? ddh_thread_alive(tid) : 0;
+            if (alive < 0) unknown = 1;
+            else if (alive > 0) found = tid;
+        }
+    }
+    syscall(SYS_close, dir);
+    return unknown ? 0 : found;
+}
+
+// The thread a child's exit goes to now: the one that forked it while that lives, then the one the
+// kernel moved it to, the group's first live thread. Only an exit /proc confirms moves it: when /proc
+// cannot say, the forking thread keeps it.
 static pid_t ddh_child_owner(pid_t child) {
     pid_t thread = ddh_forking_thread(child);
     if (thread <= 0 || ddh_thread_alive(thread) != 0) return thread;
-    int main_thread = ddh_thread_alive(getpid());
-    return main_thread > 0 ? getpid() : main_thread == 0 ? t_ddh_only_thread : thread;
+    pid_t heir = ddh_first_live_thread();
+    return heir > 0 ? heir : thread;
 }
 
 // Whether a wait for pid (-1: any child, 0: one in our group, -G: one in group G) takes e's child.

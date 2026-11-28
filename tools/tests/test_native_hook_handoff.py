@@ -118,8 +118,40 @@ static void *bystander(void *unused) {
   return NULL;
 }
 
+// nothreadheir: the main thread and the forking one both end; the kernel gives the child to the
+// group's first live thread, the heir (created first), and not to the bystander
+static void *heir(void *unused) {
+  (void)unused;
+  nothread_await(2);
+  int status = 0;
+  pid_t r = waitpid(nothread_child, &status, __WNOTHREAD);
+  printf("own\t%d\n", r == nothread_child);
+  if (WIFEXITED(status)) printf("exit\t%d\n", WEXITSTATUS(status));
+  return NULL;
+}
+
+static void *late_bystander(void *unused) {
+  (void)unused;
+  nothread_await(1);
+  int status = 0;
+  printf("bystander\t%d\n", (int)waitpid(nothread_child, &status, WNOHANG | __WNOTHREAD));
+  nothread_go(2);
+  return NULL;
+}
+
 int main(int argc, char **argv) {
   pid_t pid;
+  if (strcmp(argv[1], "nothreadheir") == 0) {
+    nothread_arg = argv[2];
+    pthread_t first, forker, other;
+    pthread_create(&first, NULL, heir, NULL);
+    pthread_create(&forker, NULL, gone_forker, NULL);
+    pthread_join(forker, NULL);
+    pthread_create(&other, NULL, late_bystander, NULL);
+    usleep(1500000);  // the program has exited by now
+    nothread_go(1);
+    pthread_exit(NULL);  // the main thread ends too; the others finish the process
+  }
   if (strcmp(argv[1], "nothreadgone") == 0) {
     nothread_arg = argv[2];
     pthread_t forker;
@@ -615,6 +647,17 @@ class NativeHookHandoffTest(unittest.TestCase):
         self.assertEqual("-1", result.get("otherpid"), out.stdout)
         self.assertEqual("1", result.get("own"), out.stdout)
         self.assertEqual("7", result.get("exit"), out.stdout)
+
+    def test_wnothread_child_goes_to_the_first_live_thread(self):
+        # The forking thread and the main one both ended. Which thread the kernel gives the child to
+        # (qemu-user has a thread of its own first) is what the same program shows without the hook.
+        result, requests, out = self.run_parent("nothreadheir", "7")
+        plain, _, plain_out = self.run_parent("nothreadheir", "7", hook=False)
+        self.assertEqual(1, len(requests), out.stderr)
+        self.assertEqual(plain.get("bystander"), result.get("bystander"), (out.stdout, plain_out.stdout))
+        self.assertEqual(plain.get("own"), result.get("own"), (out.stdout, plain_out.stdout))
+        if result.get("own") == "1":
+            self.assertEqual("7", result.get("exit"), out.stdout)
 
     def test_wnothread_takes_a_child_whose_thread_ended(self):
         # the kernel gives it to the main thread: another thread's wait does not take it
