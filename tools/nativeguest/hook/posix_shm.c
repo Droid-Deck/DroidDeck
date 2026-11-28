@@ -35,9 +35,10 @@ struct posix_sem {
     ino_t ino;
     sem_t *addr;
     unsigned int refs;
-    struct posix_sem *next;
 };
-static struct posix_sem *g_posix_sems;
+// A child can open a semaphore while another thread held malloc's lock at fork; keep the registry in BSS.
+#define POSIX_SEM_SLOTS 1024
+static struct posix_sem g_posix_sems[POSIX_SEM_SLOTS];
 static pthread_mutex_t g_posix_sems_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static void posix_sems_unlock(void) { pthread_mutex_unlock(&g_posix_sems_lock); }
@@ -59,21 +60,25 @@ static sem_t *posix_sem_map(int fd) {
     if (fstat(fd, &st) < 0) return SEM_FAILED;
     sem_t *sem = SEM_FAILED;
     posix_sems_hold();
-    struct posix_sem *e = g_posix_sems;
-    while (e && (e->dev != st.st_dev || e->ino != st.st_ino)) e = e->next;
-    if (e) {
-        e->refs++;
-        sem = e->addr;
-    } else {
-        void *addr = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-        e = addr == MAP_FAILED ? NULL : malloc(sizeof(*e));
-        if (e) {
-            *e = (struct posix_sem){st.st_dev, st.st_ino, addr, 1, g_posix_sems};
-            g_posix_sems = e;
-            sem = addr;
-        } else if (addr != MAP_FAILED) {
-            munmap(addr, sizeof(sem_t));
+    struct posix_sem *free = NULL;
+    for (size_t i = 0; i < POSIX_SEM_SLOTS; i++) {
+        struct posix_sem *e = &g_posix_sems[i];
+        if (e->refs && e->dev == st.st_dev && e->ino == st.st_ino) {
+            e->refs++;
+            sem = e->addr;
+            break;
+        }
+        if (!e->refs) free = e;
+    }
+    if (sem == SEM_FAILED) {
+        if (!free) {
             errno = ENOMEM;
+        } else {
+            void *addr = mmap(NULL, sizeof(sem_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+            if (addr != MAP_FAILED) {
+                *free = (struct posix_sem){st.st_dev, st.st_ino, addr, 1};
+                sem = addr;
+            }
         }
     }
     posix_sems_unlock();
@@ -127,16 +132,17 @@ sem_t *sem_open(const char *name, int oflag, ...) {
 
 int sem_close(sem_t *sem) {
     posix_sems_hold();
-    struct posix_sem **link = &g_posix_sems;
-    while (*link && (*link)->addr != sem) link = &(*link)->next;
-    struct posix_sem *e = *link;
-    if (e && --e->refs == 0) {
-        *link = e->next;
-        munmap(e->addr, sizeof(sem_t));
-        free(e);
+    struct posix_sem *found = NULL;
+    for (size_t i = 0; i < POSIX_SEM_SLOTS; i++) {
+        struct posix_sem *e = &g_posix_sems[i];
+        if (e->refs && e->addr == sem) { found = e; break; }
+    }
+    if (found && --found->refs == 0) {
+        munmap(found->addr, sizeof(sem_t));
+        *found = (struct posix_sem){0};
     }
     posix_sems_unlock();
-    if (!e) { errno = EINVAL; return -1; }
+    if (!found) { errno = EINVAL; return -1; }
     return 0;
 }
 

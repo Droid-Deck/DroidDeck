@@ -3986,6 +3986,17 @@
     <string name="spatial_opencv_load_error">OpenCV could not load</string>
     <string name="setup_tab_sync">Syncthing</string>
     <string name="sync_group">Syncthing</string>
+    <string name="ludusavi_group">Ludusavi save backups</string>
+    <string name="ludusavi_hint">Backs up Steam and Proton saves by exact game title. Update the game list before first use.</string>
+    <string name="ludusavi_game">Game title</string>
+    <string name="ludusavi_preview">Preview</string>
+    <string name="ludusavi_backup">Back up</string>
+    <string name="ludusavi_restore">Restore</string>
+    <string name="ludusavi_manifest">Update game list</string>
+    <string name="ludusavi_missing">Ludusavi is not included in this build.</string>
+    <string name="ludusavi_needs_title">Enter the exact game title</string>
+    <string name="ludusavi_output">Result</string>
+    <string name="ludusavi_running">Running…</string>
     <string name="sync_enable">Sync with Syncthing</string>
     <string name="sync_enable_hint">Based on Syncthing-Fork, this is a Syncthing implementation that lets you sync files in DroidDeck\'s internal file system with other Syncthing instances. This is only for files you are storing within DroidDeck\'s internal file system.</string>
     <string name="sync_missing">This build doesn\'t include Syncthing.</string>

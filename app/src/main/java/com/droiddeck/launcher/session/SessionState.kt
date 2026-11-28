@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +43,8 @@ object SessionState {
 
     @Volatile
     var stopRequested = false
+
+    val teardownCount = AtomicInteger(0)
 
     val startLock = Any()
 

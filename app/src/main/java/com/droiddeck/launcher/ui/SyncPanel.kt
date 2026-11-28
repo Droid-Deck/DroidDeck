@@ -16,10 +16,13 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Sync
@@ -32,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,10 +53,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.session.Ludusavi
+import com.droiddeck.launcher.session.SessionPhase
+import com.droiddeck.launcher.session.SessionState
 import com.droiddeck.launcher.sync.SyncDevice
 import com.droiddeck.launcher.sync.SyncFolder
 import com.droiddeck.launcher.sync.SyncPendingFolder
@@ -72,6 +81,7 @@ internal fun SyncPanel(host: MenuHost, runtimeReady: Boolean, onAdvanced: () -> 
     if (confirmOff) TurnOffDialog(onDismiss = { confirmOff = false }) { forget ->
         Syncthing.setEnabled(ctx, false, forget)
     }
+    LudusaviSection()
     val phase = Syncthing.phase
     when {
         phase == Syncthing.Phase.FAILED -> SyncFailed(
@@ -80,6 +90,60 @@ internal fun SyncPanel(host: MenuHost, runtimeReady: Boolean, onAdvanced: () -> 
         !Syncthing.enabled -> SyncOff(host, runtimeReady) { Syncthing.setEnabled(ctx, true) }
         phase != Syncthing.Phase.RUNNING || snap == null -> SyncStarting()
         else -> SyncRunning(snap, onShowId = { showId = true }, onAdvanced = onAdvanced, onOff = { confirmOff = true })
+    }
+}
+
+@Composable
+private fun LudusaviSection() {
+    val ctx = LocalContext.current
+    val installed = Ludusavi.installed(ctx)
+    val status by Ludusavi.status.collectAsState()
+    var title by rememberSaveable { mutableStateOf("") }
+
+    fun start(needsTitle: Boolean = true, blockDuringSession: Boolean = false,
+              operation: (Context, (String) -> Unit) -> Int) {
+        if (!installed) {
+            Ludusavi.report(ctx.getString(R.string.ludusavi_missing))
+            return
+        }
+        if (needsTitle && title.isBlank()) {
+            Ludusavi.report(ctx.getString(R.string.ludusavi_needs_title))
+            return
+        }
+        Ludusavi.start(ctx, operation, blockDuringSession)
+    }
+
+    SettingsGroup(stringResource(R.string.ludusavi_group)) {
+        SettingsRow(stringResource(R.string.ludusavi_game), stringResource(R.string.ludusavi_hint), stacked = true) {
+            AdbTextField(title, { title = it }, stringResource(R.string.ludusavi_game), KeyboardType.Ascii, ImeAction.Done, compact = true)
+        }
+        SettingsRow(stringResource(R.string.ludusavi_output), null, stacked = true) {
+            Text(status.output, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.heightIn(max = 120.dp).verticalScroll(rememberScrollState()))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+            SecondaryButton(stringResource(R.string.ludusavi_preview), enabled = installed && title.isNotBlank() && !status.running, compact = true) {
+                val game = title
+                start { context, onLine -> Ludusavi.preview(context, game, onLine) }
+            }
+            SecondaryButton(stringResource(R.string.ludusavi_backup), enabled = installed && title.isNotBlank() && !status.running, compact = true) {
+                val game = title
+                start { context, onLine -> Ludusavi.backup(context, game, onLine) }
+            }
+            SecondaryButton(stringResource(R.string.ludusavi_restore), enabled = installed && title.isNotBlank() && !status.running, compact = true) {
+                if (SessionState.running || SessionState.teardownCount.get() > 0 ||
+                    SessionState.phase == SessionPhase.STOPPING) {
+                    Ludusavi.report(ctx.getString(R.string.main_saves_close_session))
+                    return@SecondaryButton
+                }
+                val game = title
+                start(blockDuringSession = true) { context, onLine -> Ludusavi.restore(context, game, onLine) }
+            }
+            SecondaryButton(stringResource(R.string.ludusavi_manifest), enabled = installed && !status.running, compact = true) {
+                start(needsTitle = false) { context, onLine -> Ludusavi.updateManifest(context, onLine) }
+            }
+        }
     }
 }
 
