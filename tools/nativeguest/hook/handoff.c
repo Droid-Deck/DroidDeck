@@ -33,7 +33,8 @@ struct ddh_entry {
     // The app's report of a program that died without exit() or _exit() (GuestWorkers.reportExit):
     // the wait status and the child it is for, in one 8-byte write. Only this side changes state.
     int32_t app[2] __attribute__((aligned(8)));
-    int32_t pad2[6];
+    int64_t child_start;  // the forked child's start time: tells it from a later process given its pid
+    int32_t pad2[4];
 };
 
 struct ddh_table {
@@ -813,6 +814,7 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     e->pad[1] = real_group;
     e->status = DDH_NO_STATUS;
     __atomic_store_n((uint64_t *)e->app, 0, __ATOMIC_RELAXED);
+    e->child_start = ddh_start_time(me);
     char cwd[PATH_MAX];
     // The guest's name for it, else the kernel's (the worker's cd takes either). A directory with no
     // name (removed) cannot be sent: the exec stays here, in it.
@@ -1025,18 +1027,24 @@ static int ddh_selects(const struct ddh_entry *e, pid_t pid) {
 
 static void ddh_release(struct ddh_entry *e, int *status);
 
-// A new child of ours got pid: an entry still naming it (its forked child reaped early, as the
-// wait above does, so the pid was free again) stands for a program the pid no longer reaches. The
-// real child owns the pid from now on: kill() and wait() go to it, and that program's exit is
-// dropped. Only after the pid space has wrapped around while that program runs.
+// A new child of ours got pid: an entry naming it for an earlier process (its forked child reaped
+// early, as the wait above does, so the pid was free again) stands for a program the pid no longer
+// reaches. The real child owns the pid from now on: kill() and wait() go to it, and that program's
+// exit is dropped. Only after the pid space has wrapped around while that program runs. Told apart by
+// start time, not by the reaped flag: another thread may have reaped that forked child and not yet
+// marked it, and the new child may already have handed off a program of its own under the pid.
 static void ddh_child_created(pid_t pid) {
     struct ddh_table *t = __atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE);
     if (!t || pid <= 0) return;
     pid_t me = getpid();
+    long start = -2;  // read once, when an entry names the pid
     for (int i = 0; i < DDH_SLOTS; i++) {
         struct ddh_entry *e = &t->e[i];
         int st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
-        if ((st != DDH_HANDED && st != DDH_EXITED) || e->parent != me || e->child != pid || !e->reaped) continue;
+        if ((st != DDH_HANDED && st != DDH_EXITED) || e->parent != me || e->child != pid) continue;
+        if (start == -2) start = ddh_start_time(pid);
+        int earlier = e->child_start >= 0 && start >= 0 ? e->child_start != start : e->reaped;
+        if (!earlier) continue;
         if (__atomic_compare_exchange_n(&e->state, &st, DDH_TAKEN, 0, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED))
             ddh_release(e, NULL);
     }
