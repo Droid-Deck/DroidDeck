@@ -1607,10 +1607,19 @@ pid_t getppid(void) {
     p = p ? strchr(p + 1, ':') : NULL;
     pid_t parent = p ? (pid_t)atoi(p + 1) : 0;
     if (parent <= 0) return real;
+    char path[48], stat[512];
+    snprintf(path, sizeof(path), "/proc/%d/stat", (int)parent);
     int saved = errno;
-    int gone = syscall(SYS_kill, parent, 0) != 0 && errno == ESRCH;
+    long n = ddh_read_proc(path, stat, sizeof(stat));
     errno = saved;
-    return gone ? 1 : parent;
+    // Gone, or exited and not reaped yet: the kernel reparents at the exit, not at the reaping.
+    char *s = n > 0 ? strrchr(stat, ')') : NULL;
+    if (!s || s[1] != ' ' || s[2] == 'Z' || s[2] == 'X') return 1;
+    // A later process given the pid started after the forked child it never had.
+    for (int field = 2; s && field < 22; field++) s = strchr(s + 1, ' ');
+    long start = s ? atol(s + 1) : -1;
+    long child = g_ddh_report && g_ddh_report_slot >= 0 ? (long)g_ddh_report->e[g_ddh_report_slot].child_start : -1;
+    return start >= 0 && child >= 0 && start > child ? 1 : parent;
 }
 
 static char g_ddh_group_entry[96];

@@ -493,6 +493,20 @@ class NativeHookHandoffTest(unittest.TestCase):
     def test_a_handed_off_program_whose_forking_process_is_gone_has_init_as_parent(self):
         self.assertEqual("1", self.ppid_in_worker(4194303))
 
+    def test_a_handed_off_program_whose_forking_process_exited_unreaped_has_init_as_parent(self):
+        forker = subprocess.Popen(["true"])
+        self.addCleanup(forker.wait)
+        pause = threading.Event()
+        for _ in range(100):
+            pause.wait(0.05)
+            try:
+                with open("/proc/%d/stat" % forker.pid) as f:
+                    if f.read().rsplit(")", 1)[1].split()[0] == "Z":
+                        break
+            except OSError:
+                break
+        self.assertEqual("1", self.ppid_in_worker(forker.pid))
+
     def test_any_other_program_has_its_real_parent(self):
         self.assertEqual(str(os.getpid()), self.ppid_in_worker(None))
 
