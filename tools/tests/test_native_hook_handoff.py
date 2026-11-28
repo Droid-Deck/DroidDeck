@@ -52,8 +52,17 @@ PARENT = r"""
 
 extern char **environ;
 
+static int gate[2] = {-1, -1};
+
+static void open_gate(int sig) {
+  (void)sig;
+  if (write(gate[1], "1", 1) != 1) _exit(125);
+}
+
 int main(int argc, char **argv) {
   pid_t pid;
+  // waitidpid: the child holds before its exec until the parent's wait has begun
+  if (strcmp(argv[1], "waitidpid") == 0 && pipe(gate) != 0) return 1;
   if (strcmp(argv[1], "spawn") == 0) {
     // as Python's subprocess does since 3.13, with its close_fds as a file action
     posix_spawn_file_actions_t actions;
@@ -72,10 +81,31 @@ int main(int argc, char **argv) {
       fflush(stdout);
     }
     if (strcmp(argv[1], "group") == 0) setpgid(0, 0);
-    execl("/bin/target", "target", argv[2], (char *)NULL);
+    if (gate[0] >= 0) {
+      char c;
+      close(gate[1]);
+      if (read(gate[0], &c, 1) != 1) _exit(126);
+    }
+    execl(argc > 3 ? argv[3] : "/bin/target", "target", argv[2], (char *)NULL);
     _exit(127);
   }
   int status = 0;
+  if (strcmp(argv[1], "waitidpid") == 0) {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = open_gate;
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGALRM, &sa, NULL);
+    alarm(1);
+    siginfo_t si;
+    memset(&si, 0, sizeof(si));
+    int r = waitid(P_PID, pid, &si, WEXITED);
+    printf("same\t%d\n", r == 0 && si.si_pid == pid);
+    printf("code\t%d\n", si.si_code);
+    printf("exit\t%d\n", si.si_status);
+    printf("again\t%d\n", (int)waitpid(-1, &status, WNOHANG));
+    return 0;
+  }
   if (strcmp(argv[1], "waitid") == 0) {
     // at once, before the child has claimed its handoff, and for stops too
     siginfo_t si;
@@ -86,7 +116,7 @@ int main(int argc, char **argv) {
     printf("same\t%d\n", r == 0 && si.si_pid == pid);
     printf("code\t%d\n", si.si_code);
     printf("exit\t%d\n", si.si_status);
-    printf("uid\t%d\n", si.si_uid == getuid());
+    printf("uid\t%d\n", (int)si.si_uid);
     printf("again\t%d\n", (int)waitpid(-1, &status, WNOHANG));
     return 0;
   }
@@ -271,18 +301,24 @@ class NativeHookHandoffTest(unittest.TestCase):
         else:
             cmd = []
             env.update(hook_env)
-        stdin, ctty = None, None
+        stdin, stderr, ctty = None, subprocess.PIPE, None
         if terminal:
-            # as a shell's foreground job: a terminal as stdin, controlling terminal of the parent's session
-            master, stdin = os.openpty()
+            # as a shell's foreground job: the controlling terminal of the parent's session as stdin
+            # (terminal=True), or as stderr with stdin a pipe or /dev/null (terminal="pipe", "null")
+            master, slave = os.openpty()
             self.addCleanup(os.close, master)
-            self.addCleanup(os.close, stdin)
+            self.addCleanup(os.close, slave)
+            if terminal is True:
+                stdin, fd = slave, 0
+            else:
+                stdin, stderr, fd = (subprocess.PIPE if terminal == "pipe" else subprocess.DEVNULL), slave, 2
 
             def ctty():
                 os.setsid()
-                fcntl.ioctl(0, termios.TIOCSCTTY, 0)
-        out = subprocess.run(cmd + [parent, *argv], env=env, stdin=stdin, preexec_fn=ctty, capture_output=True,
-                             text=True, timeout=120)
+                fcntl.ioctl(fd, termios.TIOCSCTTY, 0)
+        given = {"input": ""} if stdin == subprocess.PIPE else {"stdin": stdin}
+        out = subprocess.run(cmd + [parent, *argv], env=env, stdout=subprocess.PIPE, stderr=stderr, preexec_fn=ctty,
+                             text=True, timeout=120, **given)
         result = dict(line.split("\t", 1) for line in out.stdout.splitlines() if "\t" in line)
         return result, spawner.requests, out
 
@@ -371,7 +407,7 @@ class NativeHookHandoffTest(unittest.TestCase):
         self.assertEqual("1", result.get("same"), out.stdout)
         self.assertEqual(str(CLD_EXITED), result.get("code"), out.stdout)
         self.assertEqual("7", result.get("exit"), out.stdout)
-        self.assertEqual("1", result.get("uid"), out.stdout)
+        self.assertEqual(str(os.getuid()), result.get("uid"), out.stdout)
         self.assertEqual("-1", result.get("again"), out.stdout)
 
     def test_waitid_for_a_child_not_listed_is_the_kernels(self):
@@ -380,7 +416,7 @@ class NativeHookHandoffTest(unittest.TestCase):
         self.assertEqual("1", result.get("same"), out.stdout)
         self.assertEqual(str(CLD_EXITED), result.get("code"), out.stdout)
         self.assertEqual(self.child_status, result.get("exit"), out.stdout)
-        self.assertEqual("1", result.get("uid"), out.stdout)
+        self.assertEqual(str(os.getuid()), result.get("uid"), out.stdout)
 
     def test_near_the_limit_a_shells_child_is_handed_off(self):
         result, requests, out = self.run_parent("wait", "7", handoff="other", pressure=0, as_shell=True)
@@ -397,6 +433,34 @@ class NativeHookHandoffTest(unittest.TestCase):
         result, requests, out = self.run_parent("wait", "3", handoff="other", pressure=0)
         self.assertEqual([], requests)
         self.assertEqual(self.child_status, result.get("exit"), out.stdout)
+
+    def test_near_the_limit_a_foreground_pipe_reader_is_not(self):
+        # less in "cmd | less": stdin a pipe, the terminal on another fd
+        result, requests, out = self.run_parent("wait", "3", handoff="other", pressure=0, as_shell=True, terminal="pipe")
+        self.assertEqual([], requests)
+        self.assertEqual(self.child_status, result.get("exit"), out.stdout)
+
+    def test_near_the_limit_a_job_reading_dev_null_is_handed_off(self):
+        # "cmd &" from a shell without job control: the foreground group, stdin /dev/null
+        result, requests, out = self.run_parent("wait", "7", handoff="other", pressure=0, as_shell=True, terminal="null")
+        self.assertEqual(1, len(requests), out.stdout)
+        self.assertEqual("7", result.get("exit"), out.stdout)
+
+    def test_near_the_limit_the_steam_client_is_not(self):
+        steam = self.root / "bin/steam"
+        if not steam.exists():
+            shutil.copy(self.root / "bin/target", steam)
+        result, requests, out = self.run_parent("wait", "3", "/bin/steam", handoff="other", pressure=0, as_shell=True)
+        self.assertEqual([], requests)
+        self.assertEqual(self.child_status, result.get("exit"), out.stdout)
+
+    def test_waitid_for_a_pid_begun_before_its_claim_reports_the_program(self):
+        result, requests, out = self.run_parent("waitidpid", "7")
+        self.assertEqual(1, len(requests), out.stderr)
+        self.assertEqual("1", result.get("same"), out.stdout)
+        self.assertEqual(str(CLD_EXITED), result.get("code"), out.stdout)
+        self.assertEqual("7", result.get("exit"), out.stdout)
+        self.assertEqual("-1", result.get("again"), out.stdout)
 
     def test_near_the_limit_a_terminals_foreground_job_is_not(self):
         result, requests, out = self.run_parent("wait", "3", handoff="other", pressure=0, as_shell=True, terminal=True)

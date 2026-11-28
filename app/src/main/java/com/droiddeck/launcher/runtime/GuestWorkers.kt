@@ -626,22 +626,6 @@ object GuestWorkers {
                 client.soTimeout = ms.toInt()
             }
             val input = DataInputStream(client.inputStream)
-            fun fill(bytes: ByteArray) {
-                var got = 0
-                while (got < bytes.size) {
-                    left()
-                    val n = input.read(bytes, got, bytes.size - got)
-                    if (n < 0) throw java.io.EOFException("spawn request ended at $got of ${bytes.size} bytes")
-                    got += n
-                }
-            }
-            val length = ByteArray(4).also { fill(it) }.let { java.nio.ByteBuffer.wrap(it).int }
-            if (length !in 1..MAX_REQUEST_BYTES) {
-                Log.w(TAG, "spawn request of $length bytes refused")
-                return
-            }
-            val payload = ByteArray(length).also { fill(it) }
-            val request = JSONObject(String(payload))
             val fds = ArrayList<ParcelFileDescriptor>()
             fun take() {
                 val received = client.ancillaryFileDescriptors.orEmpty()
@@ -651,9 +635,27 @@ object GuestWorkers {
                     received.forEach { runCatching { Os.close(it) } }
                 }
             }
-            // Until start() has them: closed on every way out before that, from the first chunk on
+            // fds can come with any read, the request's own bytes too: each read's are taken at once
+            fun fill(bytes: ByteArray) {
+                var got = 0
+                while (got < bytes.size) {
+                    left()
+                    val n = input.read(bytes, got, bytes.size - got)
+                    take()
+                    if (n < 0) throw java.io.EOFException("spawn request ended at $got of ${bytes.size} bytes")
+                    got += n
+                }
+            }
+            // Until start() has them: closed on every way out before that, from the first byte on
             var handedOver = false
             try {
+            val length = ByteArray(4).also { fill(it) }.let { java.nio.ByteBuffer.wrap(it).int }
+            if (length !in 1..MAX_REQUEST_BYTES) {
+                Log.w(TAG, "spawn request of $length bytes refused")
+                return
+            }
+            val payload = ByteArray(length).also { fill(it) }
+            val request = JSONObject(String(payload))
             if (request.has("fdchunks")) {
                 // The hook sends its fds after the request, a chunk with each byte (hook/handoff.c)
                 val total = (request.optJSONArray("fds")?.length() ?: 0) + (if (request.has("table")) 1 else 0)
@@ -795,7 +797,9 @@ object GuestWorkers {
             Os.pread(table.fileDescriptor, head, entry)
             val real = head.getInt(4)
             val state = head.getInt(12)
-            if (head.getInt(0) != child || head.getInt(8) != parent || (real != 0 && real != worker) || (state != 1 && state != 3))
+            // Also while the hook holds the entry (TAKEN) or has already guessed its end (EXITED):
+            // the report is for this child only, and wins over the timeout's guess (ddh_status)
+            if (head.getInt(0) != child || head.getInt(8) != parent || (real != 0 && real != worker) || state !in 1..4)
                 return@runCatching
             // An exit Android has no record of is reported as a failure, not as a signal.
             val report = java.nio.ByteBuffer.allocate(8).order(java.nio.ByteOrder.nativeOrder())

@@ -417,10 +417,11 @@ static void ddh_report_exit(int status, void *from_exit) {
     // From the state read (the forked child may still move it from CLAIMED to HANDED): a parent
     // that freed the entry meanwhile keeps it freed.
     int st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
-    for (int waits = 0;;) {
-        // TAKEN for a moment: the parent's check of a gone worker holds the entry (ddh_check_gone()) and
-        // gives it back as it was when it is not the child it looked at. Wait that out, briefly.
-        if (st == DDH_TAKEN && waits++ < 200) {
+    for (;;) {
+        // TAKEN: the parent's check of a gone worker holds the entry (ddh_check_gone()) and gives it
+        // back as it was when it is not the child it looked at. Wait that out, however long the parent
+        // takes, while there is a parent to give it back.
+        if (st == DDH_TAKEN && (syscall(SYS_kill, e->parent, 0) == 0 || errno != ESRCH)) {
             struct timespec ts = {0, 1000 * 1000};
             syscall(SYS_nanosleep, &ts, NULL);
             st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
@@ -776,6 +777,7 @@ static int ddh_exec_stub(const char *path) {
 
 static int ddh_waiter(pid_t pid);
 static int ddh_counted(void);
+static int ddh_pressure_keeps(const char *filename, char *const argv[]);
 
 // DD_HANDOFF_PRESSURE sets another count (tests)
 static int ddh_pressure(char *const envp[]) {
@@ -788,7 +790,7 @@ static int ddh_spawn_wanted(const char *path, char *const argv[], char *const en
     const char *list = ddh_env(envp, "DD_HANDOFF");
     if (!ddh_env(envp, "DD_SPAWN") || !list) return 0;
     // as ddh_pressed() would in the child (GNU make spawns its recipes' shells)
-    return ddh_program_listed(list, path, argv) || (ddh_waiter(getpid()) && ddh_counted() >= ddh_pressure(envp));
+    return ddh_program_listed(list, path, argv) || (!ddh_pressure_keeps(path, argv) && ddh_waiter(getpid()) && ddh_counted() >= ddh_pressure(envp));
 }
 
 static long ddh_read_proc(const char *path, char *buf, size_t size) {
@@ -849,14 +851,43 @@ static int ddh_waiter(pid_t pid) {
     return 0;
 }
 
-static int ddh_pressed(const char *filename, char *const envp[]) {
-    if (ddh_exec_stub(filename) || !ddh_waiter((pid_t)syscall(SYS_getppid))) return 0;
-    // Not one that reads the terminal it is in the foreground of: a handed-off program has no
-    // controlling terminal (the worker's setsid()), so /dev/tty, ^C and job control would miss it.
-    // A job started with & reads /dev/null, or runs in a background group.
-    // (TIOCGPGRP answers only for the caller's controlling terminal)
-    pid_t fg = 0;
-    if (syscall(SYS_ioctl, 0, TIOCGPGRP, &fg) == 0 && fg == (pid_t)syscall(SYS_getpgid, 0)) return 0;
+// Never handed off for want of room: the Steam client and its launch chain, which the client tracks
+// as its own processes (see the docs' "Not handed off" and "Tried and dropped"), however started (the
+// arm64 client directly or through env, the x86-64 one through droiddeck-steam-x64).
+static int ddh_pressure_keeps(const char *filename, char *const argv[]) {
+    static const char *const kept[] = {"steam", "steam.sh", "steamwebhelper", "droiddeck-steam-x64", "reaper",
+                                       "steam-launch-wrapper", "pw-audio-namespace", "gamescope", "gamescopereaper"};
+    for (int i = -1; i < 32 && (i < 0 || (argv && argv[i])); i++) {
+        const char *s = i < 0 ? filename : argv[i];
+        if (!s) continue;
+        if (strstr(s, "/Steam/") || strstr(s, "/.steam/")) return 1;
+        for (size_t k = 0; k < sizeof(kept) / sizeof(kept[0]); k++) {
+            if (strcmp(ddh_base(s), kept[k]) == 0) return 1;
+        }
+    }
+    return 0;
+}
+
+static int ddh_pressed(const char *filename, char *const argv[], char *const envp[]) {
+    if (ddh_exec_stub(filename) || ddh_pressure_keeps(filename, argv) || !ddh_waiter((pid_t)syscall(SYS_getppid))) return 0;
+    // Not a job in the foreground of its terminal that reads it, or a pipe (less in "cmd | less"
+    // opens /dev/tty): a handed-off program has no controlling terminal (the worker's setsid()), so
+    // /dev/tty, ^C and job control would miss it. A job started with & runs in a background group,
+    // or, from a shell without job control, reads /dev/null. TIOCGPGRP answers only for the caller's
+    // controlling terminal, on whichever of its standard fds that is.
+    pid_t group = (pid_t)syscall(SYS_getpgid, 0);
+    int foreground = 0;
+    for (int fd = 0; fd <= 2 && !foreground; fd++) {
+        pid_t fg = 0;
+        foreground = syscall(SYS_ioctl, fd, TIOCGPGRP, &fg) == 0 && fg == group;
+    }
+    if (foreground) {
+        struct stat st;
+        unsigned char t[64];  // the kernel's struct termios, which TCGETS fills, is smaller
+        if (syscall(SYS_ioctl, 0, TCGETS, t) == 0 || call_orig_syscall(SYS_fstat, 0, (unsigned long)&st, 0, 0, 0, 0) != 0 ||
+            S_ISFIFO(st.st_mode) || S_ISSOCK(st.st_mode))
+            return 0;
+    }
     return ddh_counted() >= ddh_pressure(envp);
 }
 
@@ -911,7 +942,7 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     }
     // Whatever this exec becomes can still hand off its own exec (a wrapper, a script).
     syscall(SYS_fcntl, table_fd, F_SETFD, 0);
-    if (!ddh_program_listed(list, filename, argv) && !ddh_pressed(filename, envp)) {
+    if (!ddh_program_listed(list, filename, argv) && !ddh_pressed(filename, argv, envp)) {
         ddh_debug(envp, "not listed:", filename);
         return;
     }
@@ -1436,9 +1467,12 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
         errno = ENOSYS;
         return -1;
     }
-    // A wait without exits never takes a forked child's exit for the program's.
+    // A wait without exits never takes a forked child's exit for the program's. Other option bits
+    // (invalid ones too, which the kernel refuses) and group 1 (init's, which a waitpid() selector of
+    // -1 would take for any child): the real call.
     if (!__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || !(options & WEXITED) ||
-        (idtype != P_PID && idtype != P_ALL && idtype != P_PGID))
+        (options & ~(WEXITED | WSTOPPED | WCONTINUED | WNOHANG | WNOWAIT)) ||
+        (idtype != P_PID && idtype != P_ALL && idtype != P_PGID) || (idtype == P_PGID && id == 1))
         return real(idtype, id, info, options);
     if ((idtype == P_PID && (pid_t)id <= 0) || (idtype == P_PGID && (pid_t)id < 0)) {
         errno = EINVAL;
@@ -1460,7 +1494,7 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
                 memset(info, 0, sizeof(*info));
                 info->si_signo = SIGCHLD;
                 info->si_pid = r;
-                info->si_uid = getuid();
+                info->si_uid = (uid_t)call_orig_syscall(SYS_getuid, 0, 0, 0, 0, 0, 0);  // the real one, as the kernel reports, not the root the hook shows
                 if (WIFEXITED(status)) {
                     info->si_code = CLD_EXITED;
                     info->si_status = WEXITSTATUS(status);
@@ -1475,7 +1509,13 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
         siginfo_t seen;
         memset(&seen, 0, sizeof(seen));
         if (real(idtype, id, &seen, options | WNOWAIT | (live ? WNOHANG : 0)) < 0) {
-            if (!live || errno != ECHILD) return -1;
+            if (errno != ECHILD) return -1;
+            // a handoff may have claimed its entry since the look above, and another waiter reaped
+            // its forked child: the program still runs
+            if (!live && !(live = ddh_any_live(which))) {
+                errno = ECHILD;
+                return -1;
+            }
         } else if (seen.si_pid > 0) {
             pid_t child = seen.si_pid;
             int exited = seen.si_code == CLD_EXITED || seen.si_code == CLD_KILLED || seen.si_code == CLD_DUMPED;
@@ -1488,9 +1528,12 @@ int waitid(idtype_t idtype, id_t id, siginfo_t *info, int options) {
                 if (info) *info = seen;
                 return 0;
             }
+            // Only the kind of event looked at: a stop's child may have gone on since, handed its
+            // program off and exited, and that exit is the forked child's, not one to report.
+            int kind = exited ? WEXITED : seen.si_code == CLD_CONTINUED ? WCONTINUED : WSTOPPED;
             siginfo_t got;
             memset(&got, 0, sizeof(got));
-            if (real(P_PID, (id_t)child, &got, options | WNOHANG) < 0 || got.si_pid != child) continue;  // another waiter took it
+            if (real(P_PID, (id_t)child, &got, kind | WNOHANG) < 0 || got.si_pid != child) continue;  // another waiter took it
             // A forked child that died while handing its program off (a signal): its entry is done.
             int died = got.si_code == CLD_EXITED || got.si_code == CLD_KILLED || got.si_code == CLD_DUMPED;
             if (died && !ddh_find(child) && (h = ddh_claiming(child))) ddh_release(h, NULL);
