@@ -3547,7 +3547,7 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
         int pointer_moved = x != g_ptr_x || y != g_ptr_y;
         g_ptr_x = x; g_ptr_y = y;
         g_ptr_known = 1;
-        if (relative && pointer_moved) {
+        if (relative && !button && (dx != 0.0 || dy != 0.0)) {
             int ow, oh;
             double ox, oy;
             vkp_output_size(&ow, &oh);
