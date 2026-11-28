@@ -87,7 +87,8 @@ object Syncthing {
     fun storageRoots(context: Context): List<File> =
         listOf(context.dataDir) + context.getExternalFilesDirs(null).filterNotNull().mapNotNull { it.parentFile }
 
-    fun guard(context: Context) = SyncthingGuard(folderRoot(context), storageRoots(context), listOf(home(context)))
+    fun guard(context: Context, extraRoots: List<File> = emptyList()) =
+        SyncthingGuard(folderRoot(context), storageRoots(context) + extraRoots, listOf(home(context)))
 
     fun init(application: Application) {
         app = application.applicationContext
