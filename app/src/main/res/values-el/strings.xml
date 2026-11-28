@@ -4145,4 +4145,6 @@
     <string name="steam_store_close_steam">Κλείστε πρώτα το Steam</string>
     <string name="steam_store_session_wait">Θέστε πρώτα σε παύση τη λήψη του Steam</string>
     <string name="steam_store_linux_build">Αυτό το παιχνίδι εγκαθιστά την έκδοσή του για Linux. Εγκαταστήστε το από το Steam.</string>
+    <string name="game_zoom_title">Ζουμ παιχνιδιού</string>
+    <string name="game_zoom_hint">Ρυθμίστε τη μεγέθυνση του παιχνιδιού από 100% έως 300%</string>
 </resources>

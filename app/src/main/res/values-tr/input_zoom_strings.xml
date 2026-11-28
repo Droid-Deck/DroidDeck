@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="input_command_zoom_in">Oyun yakınlaştırmasını artır</string>
+    <string name="input_command_zoom_out">Oyun yakınlaştırmasını azalt</string>
+</resources>

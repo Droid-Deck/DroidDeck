@@ -4115,4 +4115,6 @@
     <string name="steam_store_close_steam">Hãy đóng Steam trước</string>
     <string name="steam_store_session_wait">Hãy tạm dừng tải xuống Steam trước</string>
     <string name="steam_store_linux_build">Trò chơi này cài bản dành cho Linux. Hãy cài từ Steam.</string>
+    <string name="game_zoom_title">Thu phóng trò chơi</string>
+    <string name="game_zoom_hint">Điều chỉnh độ phóng đại trò chơi từ 100% đến 300%</string>
 </resources>

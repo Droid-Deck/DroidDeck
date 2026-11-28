@@ -4145,4 +4145,6 @@
     <string name="steam_store_close_steam">पहले Steam बंद करें</string>
     <string name="steam_store_session_wait">पहले Steam डाउनलोड रोकें</string>
     <string name="steam_store_linux_build">यह गेम अपना Linux संस्करण इंस्टॉल करता है। इसे Steam से इंस्टॉल करें।</string>
+    <string name="game_zoom_title">गेम ज़ूम</string>
+    <string name="game_zoom_hint">गेम का ज़ूम 100% से 300% तक समायोजित करें</string>
 </resources>

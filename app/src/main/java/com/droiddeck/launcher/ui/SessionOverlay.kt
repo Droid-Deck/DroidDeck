@@ -258,6 +258,9 @@ class DrawerActions(
     val upscaleSharpness: Int = 75,
     val integerScaling: Boolean = false,
     val onIntegerScaling: (Boolean) -> Unit = {},
+    val gameZoomAvailable: Boolean = false,
+    val gameZoom: Float = 1.0f,
+    val onGameZoom: (Float) -> Unit = {},
     val effects: ScreenEffects = ScreenEffects.OFF,
     val screenEffectsTarget: String = "auto",
     val screenEffectsTargets: List<Pair<String, String>> = emptyList(),
@@ -665,6 +668,45 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SessionDrawerPage.HUD -> DroidDeckHudSettings(host, a) { key -> focus.track(page, key) }
                         SessionDrawerPage.DISPLAY -> {
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
+                                if (a.gameZoomAvailable) SettingsRow(
+                                    stringResource(R.string.game_zoom_title),
+                                    stringResource(R.string.game_zoom_hint),
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        val zoomOutEnabled = a.gameZoom > 1.0f
+                                        val zoomInEnabled = a.gameZoom < 3.0f
+                                        val zoomResetEnabled = a.gameZoom > 1.0f
+                                        val zoomOut = { a.onGameZoom((a.gameZoom - 0.25f).coerceAtLeast(1.0f)) }
+                                        val zoomIn = { a.onGameZoom((a.gameZoom + 0.25f).coerceAtMost(3.0f)) }
+                                        val zoomReset = { a.onGameZoom(1.0f) }
+
+                                        OutlinedButton(
+                                            onClick = zoomOut,
+                                            enabled = zoomOutEnabled,
+                                            modifier = focus.track(page, "game-zoom-out").width(42.dp)
+                                                .controllerConfirm(enabled = zoomOutEnabled, onClick = zoomOut),
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                        ) { Text("−") }
+                                        Text("${(a.gameZoom * 100.0f).toInt()}%", fontSize = 12.sp)
+                                        OutlinedButton(
+                                            onClick = zoomIn,
+                                            enabled = zoomInEnabled,
+                                            modifier = focus.track(page, "game-zoom-in").width(42.dp)
+                                                .controllerConfirm(enabled = zoomInEnabled, onClick = zoomIn),
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                        ) { Text("+") }
+                                        OutlinedButton(
+                                            onClick = zoomReset,
+                                            enabled = zoomResetEnabled,
+                                            modifier = focus.track(page, "game-zoom-reset").width(48.dp)
+                                                .controllerConfirm(enabled = zoomResetEnabled, onClick = zoomReset),
+                                            contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp),
+                                        ) { Text("1×") }
+                                    }
+                                }
                                 val fgOpen = host.open == "fg"
                                 val offLabel = stringResource(R.string.frame_gen_off)
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)

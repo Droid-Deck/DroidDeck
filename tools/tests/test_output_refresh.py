@@ -45,6 +45,8 @@ static int g_input_pipe[2] = {-1, -1};
 static atomic_int g_output_refresh_mhz = 60000;
 static atomic_int g_output_refresh_pending;
 static atomic_int g_panel_rates_pending;
+static atomic_int g_zoom_request_percent = 100;
+static atomic_int g_zoom_request_pending;
 static int g_output_announced_refresh_mhz = 60000;
 static int g_output_w = 1920, g_output_h = 1080;
 static int flushes, resizes, pointers, ticks;
@@ -77,6 +79,7 @@ static void on_vsync(int64_t ns) { assert(ns > 0); ticks++; }
 static void vk_present_set_scale_mode(int mode, int alignment) {
     scale_changes++; scale_mode = mode; scale_alignment = alignment;
 }
+static void vk_present_set_zoom(float zoom) { (void)zoom; }
 static void schedule_render(void) { renders++; }
 static void refresh_notify_rates(void) { rate_notifies++; }
 '''

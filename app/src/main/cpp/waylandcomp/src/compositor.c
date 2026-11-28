@@ -696,6 +696,8 @@ static struct surface *g_key_target;
 static struct surface *g_ime_click;
 static int g_input_pipe[2] = {-1, -1};
 struct input_msg { int type; int p1; int p2; int p3; int p4; };
+static atomic_int g_zoom_request_percent = 100;
+static atomic_int g_zoom_request_pending = 0;
 
 struct surface;
 static void constraints_surface_gone(struct surface *s);
@@ -3544,6 +3546,15 @@ static void pointer_input(double x, double y, int relative, uint32_t button, int
         if (k) confine_clamp(k, &x, &y);
         g_ptr_x = x; g_ptr_y = y;
         g_ptr_known = 1;
+        if (relative && !button && (dx != 0.0 || dy != 0.0)) {
+            int ow, oh;
+            double ox, oy;
+            vkp_output_size(&ow, &oh);
+            if (ow > 0 && oh > 0 &&
+                    vkp_scene_to_output(g_ptr_x, g_ptr_y, &ox, &oy) &&
+                    vkp_zoom_pan_cursor(ox, oy))
+                schedule_render();
+        }
         if (atomic_load(&g_cursor_composite)) schedule_render();
         if (k) {
             target = k->surface;
@@ -3612,15 +3623,38 @@ static void pointer_button(uint32_t button, int pressed) {
 }
 
 static void deliver_pointer(const struct input_msg *m) {
+    static int last_x, last_y, last_valid;
     int w, h, ow, oh;
     double x, y;
+    int moved = last_valid && (m->p2 != last_x || m->p3 != last_y);
+    last_x = m->p2;
+    last_y = m->p3;
+    last_valid = 1;
     scene_size(&w, &h);
     vkp_output_size(&ow, &oh);
-    if (ow <= 0 || oh <= 0 ||
-        !vkp_output_to_scene((double)m->p2 * ow / INPUT_SPACE_W, (double)m->p3 * oh / INPUT_SPACE_H, &x, &y)) {
+
+    if (ow <= 0 || oh <= 0) {
         x = (double)m->p2 * w / INPUT_SPACE_W;
         y = (double)m->p3 * h / INPUT_SPACE_H;
+    } else {
+        double ox = (double)m->p2 * ow / INPUT_SPACE_W;
+        double oy = (double)m->p3 * oh / INPUT_SPACE_H;
+        if (m->p1 == 1 && !pointer_locked_for_cursor() &&
+                (moved || ox <= 0.0 || oy <= 0.0 || ox >= ow || oy >= oh) &&
+                vkp_zoom_pan_cursor(ox, oy))
+            schedule_render();
+        if (!vkp_output_to_scene(ox, oy, &x, &y)) {
+            schedule_render();
+            if (g_ptr_known) {
+                x = g_ptr_x;
+                y = g_ptr_y;
+            } else {
+                x = (double)m->p2 * w / INPUT_SPACE_W;
+                y = (double)m->p3 * h / INPUT_SPACE_H;
+            }
+        }
     }
+
     if (x < 0) x = 0;
     if (y < 0) y = 0;
     if (x > w - 1) x = w - 1;
@@ -3632,6 +3666,7 @@ static void input_output_to_scene(double px, double py, double *x, double *y) {
     int w, h, ow, oh;
     scene_size(&w, &h);
     vkp_output_size(&ow, &oh);
+
     if (ow <= 0 || oh <= 0 ||
         !vkp_output_to_scene(px * ow / INPUT_SPACE_W, py * oh / INPUT_SPACE_H, x, y)) {
         *x = px * w / INPUT_SPACE_W;
@@ -3855,12 +3890,63 @@ static void touch_up(int id, double x, double y) {
 }
 
 static void deliver_touch(const struct input_msg *m) {
+    static int last_x[MAX_TOUCH_POINTS], last_y[MAX_TOUCH_POINTS];
+    static int pan_start_x[MAX_TOUCH_POINTS], pan_start_y[MAX_TOUCH_POINTS];
+    static unsigned char last_valid[MAX_TOUCH_POINTS];
+    static unsigned char pan_started[MAX_TOUCH_POINTS];
     double x, y;
+    int id = m->p2;
+    int valid_id = id >= 0 && id < MAX_TOUCH_POINTS;
+
+    if (valid_id && m->p1 == 0) {
+        pan_start_x[id] = m->p3;
+        pan_start_y[id] = m->p4;
+        pan_started[id] = 0;
+    }
+    if (valid_id && g_touch_points[id].surface &&
+            m->p1 == 1 && last_valid[id] && !pan_started[id]) {
+        int dx = m->p3 - pan_start_x[id];
+        int dy = m->p4 - pan_start_y[id];
+        if (dx * dx + dy * dy >= 400)
+            pan_started[id] = 1;
+    }
+    if (valid_id && g_touch_points[id].surface &&
+            m->p1 == 1 && pan_started[id] && last_valid[id] &&
+            (m->p3 != last_x[id] || m->p4 != last_y[id])) {
+        int ow, oh;
+        vkp_output_size(&ow, &oh);
+        if (ow > 0 && oh > 0 &&
+                vkp_zoom_pan_cursor((double)m->p3 * ow / INPUT_SPACE_W,
+                                    (double)m->p4 * oh / INPUT_SPACE_H))
+            schedule_render();
+    }
+
     input_output_to_scene(m->p3, m->p4, &x, &y);
-    if (m->p1 == 0) touch_down(m->p2, x, y);
-    else if (m->p1 == 1) touch_motion(m->p2, x, y);
-    else if (m->p1 == 2) touch_up(m->p2, x, y);
-    else if (m->p1 == 3) touch_cancel_all();
+    if (m->p1 == 0) {
+        if (valid_id) {
+            last_x[id] = m->p3;
+            last_y[id] = m->p4;
+            last_valid[id] = 1;
+        }
+        touch_down(id, x, y);
+    } else if (m->p1 == 1) {
+        if (valid_id) {
+            last_x[id] = m->p3;
+            last_y[id] = m->p4;
+            last_valid[id] = 1;
+        }
+        touch_motion(id, x, y);
+    } else if (m->p1 == 2) {
+        touch_up(id, x, y);
+        if (valid_id) {
+            last_valid[id] = 0;
+            pan_started[id] = 0;
+        }
+    } else if (m->p1 == 3) {
+        touch_cancel_all();
+        memset(last_valid, 0, sizeof(last_valid));
+        memset(pan_started, 0, sizeof(pan_started));
+    }
     publish_query_state();
 }
 
@@ -4067,11 +4153,19 @@ static int on_input_readable(int fd, uint32_t mask, void *data) {
         case 11: axis_event(m.p1, m.p2, 0); break;
         case 12: axis_event(m.p1, m.p2, 1); break;
         case 13: deliver_pen(&m); break;
+        case 14:
+            atomic_store(&g_zoom_request_pending, 1);
+            break;
         case 20: stream_take(); break;
         case 21: if (!m.p1) stream_forget_all(); schedule_render(); break;
         case 22: schedule_render(); break;
         default: deliver_pointer(&m); break;
         }
+    }
+    if (atomic_exchange(&g_zoom_request_pending, 0)) {
+        int zoom_percent = atomic_load(&g_zoom_request_percent);
+        vk_present_set_zoom((float)zoom_percent / 100.0f);
+        schedule_render();
     }
     if (atomic_exchange(&g_output_refresh_pending, 0) &&
             atomic_load(&g_output_refresh_mhz) != g_output_announced_refresh_mhz) {
@@ -4093,6 +4187,23 @@ void droiddeck_wayland_set_scale_mode(int mode, int alignment) {
     }
     struct input_msg m = { 9, mode, alignment, 0, 0 };
     ssize_t n = write(g_input_pipe[1], &m, sizeof(m));
+    (void)n;
+}
+
+void droiddeck_wayland_set_zoom(int zoom_percent) {
+    if (zoom_percent < 100) zoom_percent = 100;
+    if (zoom_percent > 300) zoom_percent = 300;
+    if (g_input_pipe[1] < 0) {
+        vk_present_set_zoom((float)zoom_percent / 100.0f);
+        return;
+    }
+    atomic_store(&g_zoom_request_percent, zoom_percent);
+    atomic_store(&g_zoom_request_pending, 1);
+    struct input_msg m = { 14, zoom_percent, 0, 0, 0 };
+    ssize_t n;
+    do {
+        n = write(g_input_pipe[1], &m, sizeof(m));
+    } while (n < 0 && errno == EINTR);
     (void)n;
 }
 

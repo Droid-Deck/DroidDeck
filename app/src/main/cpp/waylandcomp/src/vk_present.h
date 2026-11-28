@@ -20,6 +20,8 @@ enum vkp_align { VKP_ALIGN_CENTER = 0, VKP_ALIGN_TOP = 1, VKP_ALIGN_BOTTOM = 2,
                   VKP_ALIGN_PICTURE_TOP = 3, VKP_ALIGN_PICTURE_BOTTOM = 4,
                   VKP_ALIGN_PICTURE_LEFT = 5, VKP_ALIGN_PICTURE_RIGHT = 6 };
 void vk_present_set_scale_mode(int mode, int alignment);
+void vk_present_set_zoom(float zoom);
+int vkp_zoom_pan_cursor(double ox, double oy);
 int vkp_game_picture_rect(float rect[4]);
 int vkp_output_to_scene(double ox, double oy, double *sx, double *sy);
 int vkp_scene_to_output(double sx, double sy, double *ox, double *oy);
