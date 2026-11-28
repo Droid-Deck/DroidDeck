@@ -37,7 +37,7 @@ struct ddh_entry {
     int32_t app[2] __attribute__((aligned(8)));
     int64_t child_start;  // the forked child's start time: tells it from a later process given its pid
     int32_t guessed;      // the status is the timeout's guess: set only while the entry is held (TAKEN)
-    int32_t thread;       // the parent's thread that forked the child (__WNOTHREAD), 0 when unknown
+    int32_t pad2;
     // When its worker was first seen gone, with the child that was for: child << 32 | seconds. Set by
     // compare-and-swap only, so a waiter that looked before the slot changed hands cannot overwrite it.
     uint64_t gone;
@@ -101,16 +101,50 @@ static int ddh_is_binder(const char *target) {
 // One thread makes it; a fork() while another thread is making it goes without (its child runs here).
 static int g_ddh_preparing;
 
-// In a forked child: the thread making the table did not come along, so the child may make its own.
-static void ddh_forked(void) { __atomic_store_n(&g_ddh_preparing, 0, __ATOMIC_RELAXED); }
 
-// The thread about to fork, as its child inherits it: the entry the child claims names it.
-static __thread pid_t t_ddh_forker;
-// Set by waitid() with __WNOTHREAD: only children this thread forked are selected.
+// Set by the waits with __WNOTHREAD: only children this thread forked are selected.
 static __thread pid_t t_ddh_only_thread;
 
+// Which of this process's threads forked which child, as the fork() and posix_spawn() wrappers saw
+// it, in this process's own memory: the child may exec wrappers before it claims an entry, and those
+// cannot carry it. A child not in here (a raw clone(), or one pushed out by many others) is any
+// thread's.
+#define DDH_FORKS 1024
+static struct ddh_fork {
+    pid_t child;
+    pid_t thread;
+} g_ddh_forks[DDH_FORKS];
+
+static void ddh_forked_by(pid_t child, pid_t thread) {
+    struct ddh_fork *home = &g_ddh_forks[(unsigned)child % DDH_FORKS];
+    for (int i = 0; i < 8; i++) {
+        struct ddh_fork *f = &g_ddh_forks[((unsigned)child + i) % DDH_FORKS];
+        pid_t seen = __atomic_load_n(&f->child, __ATOMIC_ACQUIRE);
+        if (seen == child || (seen == 0 && __atomic_compare_exchange_n(&f->child, &seen, child, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE))) {
+            __atomic_store_n(&f->thread, thread, __ATOMIC_RELEASE);
+            return;
+        }
+    }
+    __atomic_store_n(&home->child, child, __ATOMIC_RELEASE);
+    __atomic_store_n(&home->thread, thread, __ATOMIC_RELEASE);
+}
+
+static pid_t ddh_forking_thread(pid_t child) {
+    for (int i = 0; i < 8; i++) {
+        struct ddh_fork *f = &g_ddh_forks[((unsigned)child + i) % DDH_FORKS];
+        if (__atomic_load_n(&f->child, __ATOMIC_ACQUIRE) == child) return __atomic_load_n(&f->thread, __ATOMIC_ACQUIRE);
+    }
+    return 0;
+}
+
+// In a forked child: the thread making the table did not come along, so the child may make its own;
+// the parent's children are not its own.
+static void ddh_forked(void) {
+    __atomic_store_n(&g_ddh_preparing, 0, __ATOMIC_RELAXED);
+    memset(g_ddh_forks, 0, sizeof(g_ddh_forks));
+}
+
 static void ddh_prepare(void) {
-    t_ddh_forker = (pid_t)syscall(SYS_gettid);
     if (__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || !getenv("DD_SPAWN")) return;
     if (__atomic_exchange_n(&g_ddh_preparing, 1, __ATOMIC_ACQ_REL)) return;
     if (g_ddh) {
@@ -989,7 +1023,6 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     e->status = DDH_NO_STATUS;
     __atomic_store_n((uint64_t *)e->app, 0, __ATOMIC_RELAXED);
     e->child_start = ddh_start_time(me);
-    e->thread = t_ddh_forker;
     char cwd[PATH_MAX];
     // The guest's name for it, else the kernel's (the worker's cd takes either). A directory with no
     // name (removed) cannot be sent: the exec stays here, in it.
@@ -1200,7 +1233,10 @@ static void ddh_untake(struct ddh_entry *e) { __atomic_store_n(&e->state, DDH_EX
 
 // Whether a wait for pid (-1: any child, 0: one in our group, -G: one in group G) takes e's child.
 static int ddh_selects(const struct ddh_entry *e, pid_t pid) {
-    if (t_ddh_only_thread && e->thread && e->thread != t_ddh_only_thread) return 0;
+    if (t_ddh_only_thread) {
+        pid_t thread = ddh_forking_thread(e->child);
+        if (thread && thread != t_ddh_only_thread) return 0;
+    }
     if (pid > 0) return e->child == pid;
     if (pid == -1) return 1;
     return e->pad[1] == (pid == 0 ? getpgrp() : -pid);
@@ -1217,6 +1253,7 @@ static void ddh_release(struct ddh_entry *e, int *status);
 // Without both start times (the new child already reaped too) nothing is dropped: an entry of the
 // new child's own must not be, and a stale one needs the pid space to wrap besides.
 static void ddh_child_created(pid_t pid) {
+    if (pid > 0) ddh_forked_by(pid, (pid_t)syscall(SYS_gettid));
     struct ddh_table *t = __atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE);
     if (!t || pid <= 0) return;
     pid_t me = getpid();
@@ -1330,7 +1367,6 @@ static void ddh_release(struct ddh_entry *e, int *status) {
     e->pad[0] = 0;
     e->pad[1] = 0;
     e->guessed = 0;
-    e->thread = 0;
     __atomic_store_n(&e->gone, 0, __ATOMIC_RELAXED);
     __atomic_store_n((uint64_t *)e->app, 0, __ATOMIC_RELAXED);
     __atomic_store_n(&e->state, DDH_FREE, __ATOMIC_RELEASE);

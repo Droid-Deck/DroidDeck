@@ -62,6 +62,7 @@ static void open_gate(int sig) {
 
 // nothread: a second thread forks the child; __WNOTHREAD waits see only their own thread's children
 static char *nothread_arg;
+static int nothread_wrap;
 static pthread_mutex_t nothread_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t nothread_cond = PTHREAD_COND_INITIALIZER;
 static int nothread_step;
@@ -84,6 +85,7 @@ static void *nothread_forker(void *unused) {
   (void)unused;
   pid_t pid = fork();
   if (pid == 0) {
+    if (nothread_wrap) execl("/bin/wrap", "wrap", "/bin/target", "target", nothread_arg, (char *)NULL);
     execl("/bin/target", "target", nothread_arg, (char *)NULL);
     _exit(127);
   }
@@ -100,8 +102,9 @@ static void *nothread_forker(void *unused) {
 
 int main(int argc, char **argv) {
   pid_t pid;
-  if (strcmp(argv[1], "nothread") == 0) {
+  if (strcmp(argv[1], "nothread") == 0 || strcmp(argv[1], "nothreadwrap") == 0) {
     nothread_arg = argv[2];
+    nothread_wrap = argv[1][8] != 0;
     pthread_t forker;
     pthread_create(&forker, NULL, nothread_forker, NULL);
     nothread_await(1);
@@ -210,6 +213,17 @@ TARGET = r"""
 int main(int argc, char **argv) {
   if (strcmp(argv[1], "sleep") == 0) for (;;) pause();
   return atoi(argv[1]);
+}
+"""
+
+# An unlisted program that execs the next one, as env and shell wrappers do
+WRAP = r"""
+#include <unistd.h>
+
+int main(int argc, char **argv) {
+  if (argc < 3) return 2;
+  execv(argv[1], argv + 2);  // wrap PATH ARGV0 ARGS...
+  return 127;
 }
 """
 
@@ -325,6 +339,8 @@ class NativeHookHandoffTest(unittest.TestCase):
         (cls.root / "bin").mkdir(parents=True)
         (tmp / "target.c").write_text(TARGET)
         subprocess.run([cls.cc, "-static", "-O1", "-o", str(cls.root / "bin/target"), str(tmp / "target.c")], check=True)
+        (tmp / "wrap.c").write_text(WRAP)
+        subprocess.run([cls.cc, "-O1", "-o", str(cls.root / "bin/wrap"), str(tmp / "wrap.c")], check=True)
         # What a child here gets from exec'ing an aarch64 program: 3 where the kernel runs them
         # (binfmt_misc with qemu-user), 127 on a plain x86 runner, which does not. A handed-off program is
         # started by the fake spawner through the runner itself either way.
@@ -349,6 +365,9 @@ class NativeHookHandoffTest(unittest.TestCase):
             hook_env["LD_PRELOAD"] = str(self.hook)
         if pressure is not None:
             hook_env["DD_HANDOFF_PRESSURE"] = str(pressure)
+        if "-L" in (self.prefix or []):
+            # a dynamic program a child execs runs through binfmt_misc, whose qemu-user takes its sysroot from here
+            hook_env["QEMU_LD_PREFIX"] = self.prefix[self.prefix.index("-L") + 1]
         env = {k: v for k, v in os.environ.items() if k not in hook_env}
         prefix, parent = list(self.prefix or []), str(self.parent)
         if as_shell:
@@ -533,6 +552,20 @@ class NativeHookHandoffTest(unittest.TestCase):
 
     def test_a_wait_of_another_thread_with_wnothread_does_not_take_the_program(self):
         result, requests, out = self.run_parent("nothread", "7")
+        self.assertEqual(1, len(requests), out.stderr)
+        self.assertEqual("-1", result.get("other"), out.stdout)
+        self.assertEqual("-1", result.get("otherpid"), out.stdout)
+        self.assertEqual("1", result.get("own"), out.stdout)
+        self.assertEqual("7", result.get("exit"), out.stdout)
+
+    def test_wnothread_takes_a_program_started_through_a_wrapper(self):
+        if self.child_status != "3":
+            self.skipTest("a child here cannot exec an aarch64 program (no binfmt_misc), so the wrapper cannot run")
+        # the hook names its own path inside the guest's root for the programs it execs
+        rooted = self.root / str(self.hook).lstrip("/")
+        rooted.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(self.hook, rooted)
+        result, requests, out = self.run_parent("nothreadwrap", "7")
         self.assertEqual(1, len(requests), out.stderr)
         self.assertEqual("-1", result.get("other"), out.stdout)
         self.assertEqual("-1", result.get("otherpid"), out.stdout)
