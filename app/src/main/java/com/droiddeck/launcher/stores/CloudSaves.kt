@@ -14,6 +14,9 @@ import com.droiddeck.launcher.stores.epic.EpicApiClient
 import com.droiddeck.launcher.stores.epic.EpicCredentialStore
 import com.droiddeck.launcher.stores.epic.EpicPrefs
 import com.droiddeck.launcher.stores.epic.EpicSaveRules
+import com.droiddeck.launcher.stores.epic.PublishCollision
+import com.droiddeck.launcher.stores.epic.PublishConflict
+import com.droiddeck.launcher.stores.epic.PublishPermanent
 import com.droiddeck.launcher.stores.gog.GogAuth
 import com.droiddeck.launcher.stores.gog.GogPrefs
 import com.droiddeck.launcher.stores.ubisoft.UbisoftAuth
@@ -470,7 +473,7 @@ object CloudSaves {
                         cloud == null -> Result("skipped", 0, 0, "not-signed-in")
                         cloud is EaCloud && cloud.localDir?.canonicalPath != dir.canonicalPath -> Result("skipped", 0, 0, "rules-changed")
                         cloud is EaCloud && caseCollision(localFiles(dir).keys, cloud::wants) -> Result("failed", 0, 0, "case-collision")
-                        else -> body(dir, cloud).also { if (it.result == "ok" && it.reason != "kept-local") markSynced(context, store, id) }
+                        else -> body(dir, cloud).also { if (it.result == "ok") markSynced(context, store, id) }
                     }
                 }
             }
@@ -583,8 +586,6 @@ object CloudSaves {
     }
 
     internal fun upWith(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport, force: Boolean): Result {
-        // Phase 1 stops pollution at the source: manifest-mode saves never upload anything.
-        if (cloud is EpicCloud && cloud.manifestMode) return Result("skipped", 0, 0, "upload-unavailable")
         val key = scope(store, id, dir)
         val base = baseline(context, store, key) ?: return Result("skipped", 0, 0, "no-baseline")
         val files = localFiles(dir).filterKeys(cloud::wants).let { all -> if (cloud is UbisoftCloudTransport) all.filterValues(::markUbisoftSave) else all }
@@ -611,7 +612,39 @@ object CloudSaves {
         if (send.isNotEmpty()) {
             val stamped = HashMap<String, Long>()
             val sentMd5 = HashMap<String, String>()
-            if (cloud is GogCloud) {
+            if (cloud is EpicCloud && cloud.manifestMode) {
+                // Manifest saves upload by publishing: the engine layers the changed saves onto the
+                // mirrored base manifest, reuses the chunks whose SHA-1 the old manifest already
+                // has and uploads the manifest last, so a failure leaves the newest manifest (the
+                // cloud's logical state) untouched; chunks written before the failure stay
+                // unreferenced. committed() then serves the published files, so the baseline needs
+                // no extra listing. The baseline takes the hash the plan verified, not a re-read:
+                // the engine reads the saves while publishing, and a write racing the publish
+                // would otherwise hash content the engine never saw (or fail after the cloud
+                // already moved). A name the answer omits means the engine published an incomplete
+                // set - report a failure instead of silently listing and baselining a gap.
+                try {
+                    val got = cloud.publish(dir, send).associateBy { it.name }
+                    for (name in send) {
+                        val r = got[name] ?: throw java.io.IOException("Epic publish did not report $name")
+                        sentMd5[name] = local.getValue(name).md5
+                        r.modifiedMs.takeIf { it > 0 }?.let { stamped[name] = it }
+                    }
+                } catch (e: PublishConflict) {
+                    raced = send // the manifest never uploaded, so nothing was sent
+                    send = emptyList() // and the bookkeeping below must not touch the baseline
+                } catch (e: PublishCollision) {
+                    // Two names differ only in case while both spellings exist: like EA's guard,
+                    // a failure whose reason makes every trigger retry until the folder is
+                    // unambiguous; a plain rename still publishes under the new name.
+                    return Result("failed", 0, 0, "case-collision")
+                } catch (e: PublishPermanent) {
+                    // The engine refused for a reason no retry can fix (a manifest it cannot
+                    // read, an unsafe or non-ASCII name): a final skip, with its text for the
+                    // row, and nothing was written to the cloud.
+                    return Result("skipped", 0, 0, "upload-unsupported", detail = e.message.orEmpty())
+                }
+            } else if (cloud is GogCloud) {
                 // Stream one save at a time: gzip needs a full-size buffer and uploads can be large.
                 val filesToSend = send.associateWith { files.getValue(it) }
                 val results = cloud.putFiles(filesToSend, send.associateWith { files.getValue(it).lastModified() })
@@ -657,47 +690,6 @@ object CloudSaves {
         return Result(if (raced.isEmpty()) "ok" else "partial", send.size, send.sumOf { files.getValue(it).length() }, reason, left.size,
             if (raced.isEmpty()) "" else raced.joinToString(prefix = "changed in the cloud: "))
     }
-
-    /** True when the Epic game's last cloud snapshot was a manifest mirror (phase 1: uploads off). */
-    fun epicManifestMode(context: Context, store: Store, id: String): Boolean {
-        if (store != Store.EPIC) return false
-        val marker = File(context.cacheDir, "epic-saves/$id/manifest.json")
-        if (!marker.isFile) return false
-        return runCatching { JSONObject(marker.readText()).optString("mode") == "manifest" }.getOrDefault(false)
-    }
-
-    /**
-     * Manifest-mode "keep local": re-baselines the wanted local files the phone actually changed
-     * without uploading, which clears conflicts in favor of the phone. For those entries
-     * cloudMd5/cloudModified come from the mirrored snapshot, so an unchanged cloud file still
-     * reads as "same" on the next sync. Files that only changed in the cloud keep their true
-     * baseline, so the next sync still downloads them instead of reading as already aligned.
-     */
-    internal fun keepLocal(context: Context, store: Store, id: String, dir: File, cloud: CloudTransport): Result {
-        val epic = cloud as? EpicCloud ?: return Result("skipped", 0, 0, "not-manifest")
-        if (!epic.manifestMode) return Result("skipped", 0, 0, "not-manifest")
-        val remote = epic.list().associateBy { it.name }
-        val files = localFiles(dir).filterKeys(epic::wants)
-        if (files.isEmpty()) return Result("skipped", 0, 0, "nothing-local")
-        val key = scope(store, id, dir)
-        val base = baseline(context, store, key).orEmpty()
-        val next = HashMap(base)
-        for ((name, f) in files) {
-            val local = md5(f)
-            val old = base[name]
-            if (old == null || !local.equals(old.localMd5, ignoreCase = true)) {
-                val r = remote[name]
-                next[name] = CloudPlan.Entry(local, r?.md5, r?.modifiedMs ?: -1L)
-            }
-        }
-        saveBaseline(context, store, key, next)
-        saveConflicts(context, store, key, emptyList())
-        return Result("ok", files.size, files.values.sumOf { it.length() }, "kept-local")
-    }
-
-    /** High-level manifest-mode keep-local for the detail page's conflict row. */
-    fun keepLocal(context: Context, store: Store, id: String): Result =
-        sync(context, store, id, "keep") { dir, cloud -> keepLocal(context, store, id, dir, cloud) }
 
     /**
      * Warms the Epic manifest snapshot for every installed Epic game with cloud saves on so the
@@ -750,7 +742,7 @@ object CloudSaves {
     /** Skips that mean the upload will never go through, so the dirty mark can go. "busy" is not
      * one: the lock holder is a transient sync (e.g. the launch download), so the mark stays for
      * the next exit / session-end / recovery upload. */
-    private val FINAL_SKIPS = setOf("off", "no-cloud-saves", "no-baseline", "not-installed", "nothing-local", "upload-unavailable")
+    private val FINAL_SKIPS = setOf("off", "no-cloud-saves", "no-baseline", "not-installed", "nothing-local", "upload-unsupported")
 
     fun uploadDirty(context: Context, store: Store, id: String, trigger: String): Result? = synchronized(markLock) {
         val key = "dirty:${store.id}:$id"

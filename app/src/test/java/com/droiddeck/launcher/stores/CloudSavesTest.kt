@@ -11,7 +11,6 @@ import org.json.JSONObject
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -384,22 +383,279 @@ class CloudSavesTest {
         assertEquals(listOf("Config.json"), cloud.puts)
     }
 
-    @Test fun anEpicManifestSnapshotBlocksUploadWithoutTouchingTheCloud() {
-        val game = id; val dir = dir()
-        File(dir, "slot0.sav").writeText("local")
-        val cache = File(app.cacheDir, "epic-manifest-$game").apply { mkdirs() }
+    /** Seeds a manifest mirror: marker `manifest.json` plus the reassembled files under `files/`. */
+    private fun epicManifestCache(cache: File, manifest: String, files: Map<String, String>): File {
+        cache.mkdirs()
+        cache.listFiles()?.forEach { it.deleteRecursively() }
         File(cache, "manifest.json").writeText(
             JSONObject()
-                .put("mode", "manifest").put("manifest", "m1")
-                .put("files", JSONArray().put(JSONObject().put("name", "slot0.sav").put("md5", CloudSaves.md5("cloud".toByteArray())).put("modified", 1000L)))
+                .put("mode", "manifest").put("manifest", manifest)
+                .put("files", JSONArray().apply {
+                    for ((name, content) in files) {
+                        put(JSONObject().put("name", name).put("md5", CloudSaves.md5(content.toByteArray())).put("modified", 1000L))
+                    }
+                })
                 .toString()
         )
+        for ((name, content) in files) File(cache, "files/$name").apply { parentFile!!.mkdirs() }.writeText(content)
+        return cache
+    }
+
+    @Test fun anEpicManifestUploadPublishesInsteadOfSendingLooseFiles() {
+        val game = id; val dir = dir()
+        val cache = epicManifestCache(File(app.cacheDir, "epic-manifest-$game"), "m1", mapOf("slot0.sav" to "cloud"))
         val cloud = EpicCloud("acc", game, "tok", cache, EpicSaveRules("", ""))
-        assertTrue(cloud.manifestMode)
-        val r = CloudSaves.upWith(app, Store.EPIC, game, dir, cloud, force = true)
-        assertEquals("skipped", r.result); assertEquals("upload-unavailable", r.reason)
-        assertEquals(0, cloud.listCalls)
-        assertNull(CloudSaves.baseline(app, Store.EPIC, game))
+        assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, dir, cloud, force = true).result)
+        File(dir, "slot0.sav").writeText("played")
+        var request: JSONObject? = null
+        val engine = com.droiddeck.launcher.stores.epic.EpicSaveSync.engine
+        com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = { req ->
+            request = req
+            // The engine writes the new file set into the mirror before answering.
+            File(req.optString("cacheDir"), "files/slot0.sav").writeText("played")
+            JSONObject().put("mode", "manifest").put("manifest", "m2")
+                .put("files", JSONArray().put(JSONObject().put("name", "slot0.sav").put("size", 6).put("sha1", "abc")))
+        }
+        val listsBefore = cloud.listCalls
+        val r = try {
+            CloudSaves.upWith(app, Store.EPIC, game, dir, cloud, force = false)
+        } finally {
+            com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = engine
+        }
+        assertEquals("ok", r.result); assertEquals("uploaded", r.reason); assertEquals(1, r.files)
+        // committed() covers every sent name, so nothing lists again after the publish.
+        assertEquals(listsBefore + 1, cloud.listCalls)
+        assertEquals("m1", request!!.optString("baseManifest"))
+        assertEquals(listOf("slot0.sav"), request!!.optJSONArray("overlay")!!.let { a -> (0 until a.length()).map { a.optString(it) } })
+        assertEquals("m2", JSONObject(File(cache, "manifest.json").readText()).optString("manifest"))
+        val entry = CloudSaves.baseline(app, Store.EPIC, game)!!.getValue("slot0.sav")
+        assertEquals(CloudSaves.md5(File(dir, "slot0.sav")), entry.localMd5)
+        assertEquals(CloudSaves.md5("played".toByteArray()), entry.cloudMd5)
+        assertTrue(CloudSaves.conflicts(app, Store.EPIC, game).isEmpty())
+    }
+
+    @Test fun aPublishRacingANewerCloudManifestUploadsNothingAndNamesTheConflict() {
+        val game = id; val dir = dir()
+        val cache = epicManifestCache(File(app.cacheDir, "epic-manifest-$game"), "m1", mapOf("slot0.sav" to "cloud"))
+        val cloud = EpicCloud("acc", game, "tok", cache, EpicSaveRules("", ""))
+        assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, dir, cloud, force = true).result)
+        File(dir, "slot0.sav").writeText("played")
+        val engine = com.droiddeck.launcher.stores.epic.EpicSaveSync.engine
+        com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = {
+            throw com.droiddeck.launcher.stores.epic.PublishConflict("m9", "the cloud now has a newer manifest")
+        }
+        val r = try {
+            CloudSaves.upWith(app, Store.EPIC, game, dir, cloud, force = false)
+        } finally {
+            com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = engine
+        }
+        assertEquals("partial", r.result); assertEquals("changed-in-cloud", r.reason); assertEquals(0, r.files)
+        assertEquals(listOf("slot0.sav"), CloudSaves.conflicts(app, Store.EPIC, game))
+        val entry = CloudSaves.baseline(app, Store.EPIC, game)!!.getValue("slot0.sav")
+        assertEquals(CloudSaves.md5("cloud".toByteArray()), entry.localMd5)
+        assertEquals("m1", JSONObject(File(cache, "manifest.json").readText()).optString("manifest"))
+    }
+
+    @Test fun aFailedPublishLeavesTheBaselineAndConflictsUntouched() {
+        val game = id; val dir = dir()
+        val cache = epicManifestCache(File(app.cacheDir, "epic-manifest-$game"), "m1", mapOf("slot0.sav" to "cloud"))
+        val cloud = EpicCloud("acc", game, "tok", cache, EpicSaveRules("", ""))
+        assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, dir, cloud, force = true).result)
+        File(dir, "slot0.sav").writeText("played")
+        com.droiddeck.launcher.stores.epic.EpicPrefs.get(app).edit().putString("cloud_conflicts_$game", "slot0.sav").apply()
+        val before = CloudSaves.baseline(app, Store.EPIC, game)
+        val engine = com.droiddeck.launcher.stores.epic.EpicSaveSync.engine
+        com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = { throw java.io.IOException("chunk upload failed") }
+        val failed = try {
+            runCatching { CloudSaves.upWith(app, Store.EPIC, game, dir, cloud, force = true) }.isFailure
+        } finally {
+            com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = engine
+        }
+        assertTrue(failed)
+        assertEquals(before, CloudSaves.baseline(app, Store.EPIC, game))
+        assertEquals(listOf("slot0.sav"), CloudSaves.conflicts(app, Store.EPIC, game))
+        assertEquals("m1", JSONObject(File(cache, "manifest.json").readText()).optString("manifest"))
+    }
+
+    /** Wires a real Epic game end to end (sidecar, prefix, credentials, template) so upload /
+     *  uploadDirty resolve it; returns its save folder. */
+    private fun wiredEpicGame(game: String): File {
+        val folder = File(StoreInstallRoot.storeDir(StoreInstallRoot.internalRoot(app), Store.EPIC), "ManifestGame-$game").apply { mkdirs() }
+        File(folder, "Game.exe").apply { writeText("MZ") }
+        StoreGameSidecar(Store.EPIC, game, "ManifestGame", "Game.exe").write(folder)
+        // CloudSaves.prefix resolves the game through AddedGames, whose guest view needs the folder bind.
+        com.droiddeck.launcher.session.SessionPrefs.setGameFolderBinds(
+            app, listOf(StoreInstallRoot.internalRoot(app).absolutePath to StoreInstallRoot.INTERNAL_GUEST)
+        )
+        val appId = com.droiddeck.launcher.frontend.AddedGames.scan(app).first { it.folder.absolutePath == folder.absolutePath }.appId and 0xFFFFFFFFL
+        val pfx = File(com.droiddeck.launcher.frontend.Library.steamLibraries(app).first().first, "steamapps/compatdata/$appId/pfx").apply { mkdirs() }
+        com.droiddeck.launcher.stores.epic.EpicCredentialStore.save(
+            app, com.droiddeck.launcher.stores.epic.EpicCredentialStore.TokenResult("tok", null, "acc-1", "Player", System.currentTimeMillis() + 3_600_000)
+        )
+        com.droiddeck.launcher.stores.epic.EpicPrefs.get(app).edit()
+            .putString("cloud_template_$game", "{usersavedgames}/ManifestGame/Saves")
+            .putString("cloud_include_$game", "").putString("cloud_exclude_$game", "")
+            .apply()
+        return com.droiddeck.launcher.stores.CloudSavePaths.epic("{usersavedgames}/ManifestGame/Saves", pfx, folder, "acc-1", game)!!
+    }
+
+    @Test fun aForcedUploadPublishesTheLocalVersionInManifestMode() {
+        val game = id
+        val saveDir = wiredEpicGame(game)
+        File(saveDir, "slot0.sav").apply { parentFile!!.mkdirs() }.writeText("cloud")
+        val cache = epicManifestCache(File(app.cacheDir, "epic-saves/$game"), "m1", mapOf("slot0.sav" to "cloud"))
+        val cloud = EpicCloud("acc-1", game, "tok", cache, EpicSaveRules("", ""))
+        assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, saveDir, cloud, force = true).result)
+        File(saveDir, "slot0.sav").writeText("played")
+        com.droiddeck.launcher.stores.epic.EpicPrefs.get(app).edit().putString("cloud_conflicts_$game", "slot0.sav").apply()
+        val previous = com.droiddeck.launcher.stores.epic.EpicSaveSync.engine
+        com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = { req ->
+            // The engine writes the new file set into the mirror before answering.
+            File(req.optString("cacheDir"), "files/slot0.sav").writeText("played")
+            JSONObject().put("mode", "manifest").put("manifest", "m2")
+                .put("files", JSONArray().put(JSONObject().put("name", "slot0.sav").put("size", 6).put("sha1", "abc")))
+        }
+        val r = try {
+            CloudSaves.upload(app, Store.EPIC, game, force = true)
+        } finally {
+            com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = previous
+        }
+        assertEquals("ok", r.result); assertEquals("uploaded", r.reason); assertEquals(1, r.files)
+        assertTrue(CloudSaves.conflicts(app, Store.EPIC, game).isEmpty())
+        assertEquals("m2", JSONObject(File(cache, "manifest.json").readText()).optString("manifest"))
+        assertEquals(CloudSaves.md5(File(saveDir, "slot0.sav")), CloudSaves.baseline(app, Store.EPIC, game)!!.getValue("slot0.sav").localMd5)
+    }
+
+    @Test fun anEngineCollisionRefusalIsTheCaseCollisionFailure() {
+        // Two names differing only in case while both spellings exist are refused by the engine
+        // (its collision answer), and every trigger retries until the folder is unambiguous -
+        // a failure to keep, not the permanent upload-unsupported skip.
+        val game = id; val dir = dir()
+        val cache = epicManifestCache(File(app.cacheDir, "epic-manifest-$game"), "m1", mapOf("slot0.sav" to "cloud"))
+        val cloud = EpicCloud("acc", game, "tok", cache, EpicSaveRules("", ""))
+        assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, dir, cloud, force = true).result)
+        File(dir, "slot0.sav").writeText("played")
+        val engine = com.droiddeck.launcher.stores.epic.EpicSaveSync.engine
+        com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = {
+            JSONObject().put("error", "overlay save file SAVE/x.sav differs only in case from the manifest's Save/x.sav: both spellings exist in the save folder")
+                .put("collision", true)
+        }
+        val r = try {
+            CloudSaves.upWith(app, Store.EPIC, game, dir, cloud, force = false)
+        } finally {
+            com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = engine
+        }
+        assertEquals("failed", r.result); assertEquals("case-collision", r.reason)
+        assertTrue(r.detail.isEmpty())
+        assertEquals("m1", JSONObject(File(cache, "manifest.json").readText()).optString("manifest"))
+    }
+
+    @Test fun aCaseRenameWithTheOldSpellingGoneStillPublishes() {
+        val game = id; val dir = dir()
+        val cache = epicManifestCache(File(app.cacheDir, "epic-manifest-$game"), "m1", mapOf("Config.json" to "cloud"))
+        val cloud = EpicCloud("acc", game, "tok", cache, EpicSaveRules("", ""))
+        assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, dir, cloud, force = true).result)
+        // The game renamed its save: only the new spelling remains, so the publish goes through
+        // even though the mirror still lists the old one.
+        File(dir, "Config.json").delete()
+        File(dir, "config.JSON").writeText("renamed")
+        val engine = com.droiddeck.launcher.stores.epic.EpicSaveSync.engine
+        com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = { req ->
+            // The engine's rename drops the old spelling from the mirror before adding the new one;
+            // delete-then-write keeps this fixture correct on a case-insensitive host FS too.
+            File(req.optString("cacheDir"), "files/Config.json").delete()
+            File(req.optString("cacheDir"), "files/config.JSON").writeText("renamed")
+            JSONObject().put("mode", "manifest").put("manifest", "m2")
+                .put("files", JSONArray().put(JSONObject().put("name", "config.JSON").put("size", 7).put("sha1", "abc")))
+        }
+        val r = try {
+            CloudSaves.upWith(app, Store.EPIC, game, dir, cloud, force = false)
+        } finally {
+            com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = engine
+        }
+        assertEquals("ok", r.result); assertEquals("uploaded", r.reason); assertEquals(1, r.files)
+        assertEquals("m2", JSONObject(File(cache, "manifest.json").readText()).optString("manifest"))
+        assertEquals(CloudSaves.md5(File(dir, "config.JSON")), CloudSaves.baseline(app, Store.EPIC, game)!!.getValue("config.JSON").localMd5)
+    }
+
+    @Test fun aPublishThatOmitsASentFileFailsInsteadOfBaseliningAGap() {
+        val game = id; val dir = dir()
+        val cache = epicManifestCache(File(app.cacheDir, "epic-manifest-$game"), "m1", mapOf("slot0.sav" to "cloud"))
+        val cloud = EpicCloud("acc", game, "tok", cache, EpicSaveRules("", ""))
+        assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, dir, cloud, force = true).result)
+        File(dir, "extra.sav").writeText("new")
+        val engine = com.droiddeck.launcher.stores.epic.EpicSaveSync.engine
+        com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = { req ->
+            // The engine's answer (and mirror) came back without extra.sav.
+            File(req.optString("cacheDir"), "files/slot0.sav").writeText("cloud")
+            JSONObject().put("mode", "manifest").put("manifest", "m2")
+                .put("files", JSONArray().put(JSONObject().put("name", "slot0.sav").put("size", 5).put("sha1", "abc")))
+        }
+        val before = CloudSaves.baseline(app, Store.EPIC, game)
+        val failed = try {
+            runCatching { CloudSaves.upWith(app, Store.EPIC, game, dir, cloud, force = false) }.isFailure
+        } finally {
+            com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = engine
+        }
+        assertTrue(failed)
+        assertEquals(before, CloudSaves.baseline(app, Store.EPIC, game))
+    }
+
+    @Test fun aPermanentPublishRejectionIsAFinalSkipThatClearsTheDirtyMark() {
+        val game = id
+        val saveDir = wiredEpicGame(game)
+        File(saveDir, "slot0.sav").apply { parentFile!!.mkdirs() }.writeText("cloud")
+        val cache = epicManifestCache(File(app.cacheDir, "epic-saves/$game"), "m1", mapOf("slot0.sav" to "cloud"))
+        val cloud = EpicCloud("acc-1", game, "tok", cache, EpicSaveRules("", ""))
+        assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, saveDir, cloud, force = true).result)
+        File(saveDir, "slot0.sav").writeText("played")
+        CloudSaves.markDirty(app, Store.EPIC, game)
+        val previous = com.droiddeck.launcher.stores.epic.EpicSaveSync.engine
+        com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = {
+            JSONObject().put("error", "unsupported save manifest version 13").put("permanent", true)
+        }
+        val r = try {
+            CloudSaves.uploadDirty(app, Store.EPIC, game, "exit")!!
+        } finally {
+            com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = previous
+        }
+        assertEquals("skipped", r.result); assertEquals("upload-unsupported", r.reason)
+        assertTrue(r.detail.contains("unsupported save manifest version"))
+        assertFalse(CloudSaves.dirty(app).contains(Store.EPIC to game))
+    }
+
+    @Test fun aPublishConflictKeepsTheDirtyMarkForRetry() {
+        val game = id
+        val saveDir = wiredEpicGame(game)
+        File(saveDir, "slot0.sav").apply { parentFile!!.mkdirs() }.writeText("cloud")
+        val cache = epicManifestCache(File(app.cacheDir, "epic-saves/$game"), "m1", mapOf("slot0.sav" to "cloud"))
+        val cloud = EpicCloud("acc-1", game, "tok", cache, EpicSaveRules("", ""))
+        assertEquals("ok", CloudSaves.downWith(app, Store.EPIC, game, saveDir, cloud, force = true).result)
+        File(saveDir, "slot0.sav").writeText("played")
+        CloudSaves.markDirty(app, Store.EPIC, game)
+        var request: JSONObject? = null
+        val previous = com.droiddeck.launcher.stores.epic.EpicSaveSync.engine
+        com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = { req ->
+            request = req
+            JSONObject().put("error", "the cloud now has a newer manifest").put("conflict", true).put("latest", "m9")
+        }
+        val r = try {
+            CloudSaves.uploadDirty(app, Store.EPIC, game, "exit")!!
+        } finally {
+            com.droiddeck.launcher.stores.epic.EpicSaveSync.engine = previous
+        }
+        assertEquals("partial", r.result); assertEquals("changed-in-cloud", r.reason); assertEquals(0, r.files)
+        assertTrue(CloudSaves.dirty(app).contains(Store.EPIC to game))
+        assertEquals(listOf("slot0.sav"), CloudSaves.conflicts(app, Store.EPIC, game))
+        // The request is the two-sided contract: every field must reach the engine as agreed.
+        val req = request!!
+        assertEquals("tok", req.optString("accessToken"))
+        assertEquals("acc-1", req.optString("accountId"))
+        assertEquals(game, req.optString("appName"))
+        assertEquals(File(app.cacheDir, "epic-saves/$game").absolutePath, req.optString("cacheDir"))
+        assertEquals(saveDir.absolutePath, req.optString("saveDir"))
+        assertEquals("m1", req.optString("baseManifest"))
+        assertEquals(listOf("slot0.sav"), req.optJSONArray("overlay")!!.let { a -> (0 until a.length()).map { a.optString(it) } })
     }
 
     @Test fun aCachedManifestMirrorServesDownloadsWhenTheCloudIsUnreachable() {

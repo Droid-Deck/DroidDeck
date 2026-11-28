@@ -396,10 +396,17 @@ class GogCloud(
 }
 
 /**
- * Epic cloud saves. Phase 1 asks the store engine to mirror the newest EGL cloud manifest into
- * [cacheDir] and serves downloads from that mirror; uploads stay disabled in this mode, so EGL's
- * mechanical bookkeeping (manifests/, ChunksV2..V5, *.chunk) is never written back to the cloud.
- * When the engine cannot reach the cloud but a mirror exists, downloads keep working from it.
+ * Epic cloud saves. The store engine mirrors the newest EGL cloud manifest into [cacheDir] and
+ * downloads serve from that mirror; when the engine cannot reach the cloud but a mirror exists,
+ * downloads keep working from it. Uploads publish a new manifest from the mirrored base one
+ * ([publish]): chunks whose SHA-1 the old manifest already has are reused, and the manifest is
+ * uploaded last, so a failed publish leaves the newest manifest - the cloud's logical state -
+ * untouched; chunks written before the failure stay unreferenced. All saves pack into one stream
+ * before chunking, so a length change re-chunks everything behind it and the re-upload usually
+ * reaches past the changed saves.
+ * [put] still refuses, because loose-file uploads would corrupt the manifest layout, and EGL's
+ * mechanical bookkeeping (manifests/, ChunksV2..V5, *.chunk) never enters the save-file layer
+ * ([wants]).
  */
 class EpicCloud(
     private val accountId: String,
@@ -413,6 +420,10 @@ class EpicCloud(
 
     @Volatile private var manifestModeCache: Boolean? = null
 
+    /** Files committed by the latest [publish] in this process, null before one: [committed] serves
+     *  them so an upload can update its baseline without re-listing the cloud. */
+    @Volatile private var lastPublished: Map<String, CloudFile>? = null
+
     /** True once a manifest snapshot has been mirrored into [cacheDir]; backed by cacheDir/manifest.json. */
     var manifestMode: Boolean
         get() {
@@ -423,7 +434,8 @@ class EpicCloud(
         }
         internal set(value) { manifestModeCache = value }
 
-    /** Cloud requests issued for listings; kept so tests can assert uploads stayed silent. */
+    /** Cloud requests issued for listings; kept so tests can assert a publish adds no listing
+     *  beyond the planning one. */
     internal var listCalls = 0
         private set
 
@@ -435,8 +447,9 @@ class EpicCloud(
             val snapshot = com.droiddeck.launcher.stores.epic.EpicSaveSync.snapshot(token, accountId, appName, cacheDir.absolutePath)
             if (snapshot.optString("mode") == MODE_MANIFEST) return adopt(snapshot)
             // The cloud went back to plain files: drop the manifest marker too, or every later
-            // EpicCloud would read the stale one and keep refusing uploads ("upload-unavailable").
+            // EpicCloud would read the stale one and keep publishing onto it.
             manifestMode = false
+            lastPublished = null
             runCatching { File(cacheDir, MARKER).delete() }
             return com.droiddeck.launcher.stores.epic.EpicSaveSync.list(token, accountId, appName)
         } catch (e: java.io.IOException) {
@@ -468,8 +481,31 @@ class EpicCloud(
         return com.droiddeck.launcher.stores.epic.EpicSaveSync.write(token, accountId, appName, files)
     }
 
+    /**
+     * Publishes a new manifest: [overlay] (save-relative names read from [saveDir]) is layered on
+     * the base manifest recorded in the marker, and the engine refreshes the mirror, so the marker
+     * is re-recorded here like [adopt]. Returns the committed files, which [committed] then serves.
+     * The engine refuses to publish when the cloud has moved past the base manifest, leaving the
+     * cloud state untouched.
+     */
+    fun publish(saveDir: File, overlay: List<String>): List<CloudFile> {
+        val base = marker()?.optString("manifest").orEmpty()
+        if (base.isEmpty()) throw java.io.IOException("Epic cloud $appName: no manifest snapshot to publish from")
+        val answer = com.droiddeck.launcher.stores.epic.EpicSaveSync.publish(
+            token, accountId, appName, cacheDir.absolutePath, saveDir.absolutePath, overlay, base,
+        )
+        if (answer.optString("mode") != MODE_MANIFEST) throw java.io.IOException("Epic cloud $appName: publish did not return a manifest")
+        val files = adopt(answer)
+        lastPublished = files.associateBy { it.name }
+        return files
+    }
+
+    override fun committed(name: String): CloudFile? = lastPublished?.get(name)
+
     /** Adopts a fresh snapshot: inventories the mirrored files and records them in the marker. */
     private fun adopt(snapshot: org.json.JSONObject): List<CloudFile> {
+        // A snapshot the cloud just served supersedes anything this process published earlier.
+        lastPublished = null
         val root = File(cacheDir, FILES_DIR)
         val files = ArrayList<CloudFile>()
         root.walkTopDown().filter { it.isFile }.forEach { f ->

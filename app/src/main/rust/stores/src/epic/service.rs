@@ -8,6 +8,23 @@ fn error(message: impl Into<String>) -> Value {
     json!({ "error": message.into() })
 }
 
+/// The shape of every failed `cloud.publish` answer, which the Kotlin side reads flag by
+/// flag: `conflict` (the cloud moved on, nothing uploaded), `collision` (two names differ
+/// only in case, nothing written) and `permanent` (no retry can fix it, nothing written —
+/// an upload-unsupported skip instead of a retry on every trigger). A missing save file is
+/// a plain retriable failure and stays a plain error.
+fn publish_error(error: savesync::PublishError) -> Value {
+    use savesync::PublishError;
+    match error {
+        PublishError::Conflict { latest } => {
+            json!({ "error": "the cloud now has a newer manifest", "conflict": true, "latest": latest })
+        }
+        PublishError::Collision(message) => json!({ "error": message, "collision": true }),
+        PublishError::Permanent(message) => json!({ "error": message, "permanent": true }),
+        PublishError::Failed(message) => json!({ "error": message }),
+    }
+}
+
 fn info_of(req: &Value) -> Option<BuildInfo> {
     req.get("info").and_then(BuildInfo::from_json)
 }
@@ -101,6 +118,27 @@ fn dispatch(op: &str, req: &Value) -> Value {
             match savesync::snapshot(token, str_of(req, "accountId"), str_of(req, "appName"), str_of(req, "cacheDir")) {
                 Ok(answer) => answer,
                 Err(e) => error(e),
+            }
+        }
+        "cloud.publish" => {
+            let overlay: Vec<String> = req
+                .get("overlay")
+                .and_then(|o| o.as_array())
+                .map(|a| a.iter().filter_map(|v| v.as_str()).map(str::to_string).collect())
+                .unwrap_or_default();
+            let cloud = savesync::LiveCloud;
+            match savesync::publish(
+                &cloud,
+                token,
+                str_of(req, "accountId"),
+                str_of(req, "appName"),
+                str_of(req, "cacheDir"),
+                str_of(req, "saveDir"),
+                &overlay,
+                str_of(req, "baseManifest"),
+            ) {
+                Ok(answer) => answer,
+                Err(e) => publish_error(e),
             }
         }
         "cloud.writeLinks" => {
@@ -208,6 +246,16 @@ mod tests {
         assert_eq!(v["args"][0], "-EpicPortal");
         let v: Value = serde_json::from_str(&call("launch.split", r#"{"command":"-PCStore=EGS \"-log=a b.txt\""}"#)).unwrap();
         assert_eq!(v["args"], json!(["-PCStore=EGS", "-log=a b.txt"]));
+    }
+
+    #[test]
+    fn publish_failures_carry_the_flags_the_kotlin_side_reads() {
+        use savesync::PublishError;
+        let v = publish_error(PublishError::Conflict { latest: "manifests/2026.01.02-00.00.00.manifest".into() });
+        assert_eq!(v, json!({"error": "the cloud now has a newer manifest", "conflict": true, "latest": "manifests/2026.01.02-00.00.00.manifest"}));
+        assert_eq!(publish_error(PublishError::Collision("both spellings".into())), json!({"error": "both spellings", "collision": true}));
+        assert_eq!(publish_error(PublishError::Permanent("unreadable".into())), json!({"error": "unreadable", "permanent": true}));
+        assert_eq!(publish_error(PublishError::Failed("timeout".into())), json!({"error": "timeout"}));
     }
 
     #[test]

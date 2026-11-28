@@ -78,7 +78,6 @@ internal fun UninstallEpicLauncher(s: FrontEndState, a: FrontEndActions) {
 
 internal fun cloudMessage(context: android.content.Context, r: com.droiddeck.launcher.stores.CloudSaves.Result): String = when (r.result) {
     "ok" -> when {
-        r.reason == "kept-local" -> context.getString(R.string.cloud_kept_local)
         r.conflicts > 0 -> context.getString(R.string.cloud_conflict_files, r.conflicts)
         r.files == 0 -> context.getString(R.string.cloud_up_to_date)
         else -> context.getString(R.string.cloud_done, r.files)
@@ -92,7 +91,7 @@ internal fun cloudMessage(context: android.content.Context, r: com.droiddeck.lau
     "skipped" -> context.getString(when (r.reason) {
         "not-signed-in" -> R.string.cloud_signed_out
         "no-cloud-saves" -> R.string.cloud_none
-        "upload-unavailable" -> R.string.cloud_upload_unavailable
+        "upload-unsupported" -> R.string.cloud_upload_unsupported
         "busy" -> R.string.cloud_busy
         else -> R.string.cloud_not_synced
     })

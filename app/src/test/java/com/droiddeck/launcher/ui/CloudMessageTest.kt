@@ -20,15 +20,18 @@ class CloudMessageTest {
     @Test fun aSkippedSyncNeverReadsAsZeroFilesDone() {
         assertEquals(ctx.getString(R.string.cloud_signed_out), msg("skipped", 0, 0, "not-signed-in"))
         assertEquals(ctx.getString(R.string.cloud_none), msg("skipped", 0, 0, "no-cloud-saves"))
-        for (reason in listOf("off", "no-baseline", "not-installed", "nothing-local", "store-unreachable", "unresolved", "not-manifest")) {
+        for (reason in listOf("off", "no-baseline", "not-installed", "nothing-local", "store-unreachable", "unresolved")) {
             assertEquals(reason, ctx.getString(R.string.cloud_not_synced), msg("skipped", 0, 0, reason))
         }
         assertEquals(ctx.getString(R.string.cloud_not_synced), msg("failed", 0, 0, "SocketTimeoutException"))
     }
 
-    @Test fun aManifestCloudExplainsUploadAndConcurrency() {
-        assertEquals(ctx.getString(R.string.cloud_upload_unavailable), msg("skipped", 0, 0, "upload-unavailable"))
+    @Test fun aBusySyncExplainsItself() {
         assertEquals(ctx.getString(R.string.cloud_busy), msg("skipped", 0, 0, "busy"))
+    }
+
+    @Test fun anUnuploadableManifestExplainsItself() {
+        assertEquals(ctx.getString(R.string.cloud_upload_unsupported), msg("skipped", 0, 0, "upload-unsupported"))
     }
 
     @Test fun aPartialSyncNamesTheSlotsItLeft() {
@@ -44,6 +47,5 @@ class CloudMessageTest {
         assertEquals(ctx.getString(R.string.cloud_up_to_date), msg("ok", 0, 0, "up-to-date"))
         assertEquals(ctx.getString(R.string.cloud_done, 3), msg("ok", 3, 0, "uploaded"))
         assertEquals(ctx.getString(R.string.cloud_conflict_files, 2), msg("ok", 1, 2, "conflict"))
-        assertEquals(ctx.getString(R.string.cloud_kept_local), msg("ok", 3, 0, "kept-local"))
     }
 }

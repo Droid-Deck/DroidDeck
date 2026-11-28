@@ -100,6 +100,10 @@ impl<'a> Request<'a> {
 pub struct Reply {
     pub status: u16,
     pub body: Vec<u8>,
+    /// Server time from the HTTP `Date` header, unix seconds; `None` when the header is
+    /// missing or unreadable. EGL names save manifests by timestamps, so cloud publishes
+    /// take the clock from here instead of the device.
+    pub date: Option<i64>,
 }
 
 impl Reply {
@@ -167,8 +171,14 @@ async fn send_async(request: Request<'_>) -> Result<Reply, String> {
     };
     let response = builder.send().await.map_err(describe)?;
     let status = response.status().as_u16();
+    // `bytes` consumes the response, so the Date header must be read first.
+    let date = response
+        .headers()
+        .get(reqwest::header::DATE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(super::timefmt::http_date_seconds);
     let body = response.bytes().await.map_err(describe)?.to_vec();
-    Ok(Reply { status, body })
+    Ok(Reply { status, body, date })
 }
 
 fn describe(err: reqwest::Error) -> String {

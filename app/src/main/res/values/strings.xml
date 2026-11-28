@@ -2986,8 +2986,7 @@
     <string name="cloud_not_synced">Saves were not synced</string>
     <string name="cloud_partial">Some saves were not synced · %1$s</string>
     <string name="cloud_conflict_files_detail">Cloud conflict · %1$d files · %2$s</string>
-    <string name="cloud_upload_unavailable">This game keeps its cloud saves in the store\'s manifest format; this version can only download them from the cloud</string>
-    <string name="cloud_kept_local">Kept the local saves; nothing was uploaded to the cloud</string>
+    <string name="cloud_upload_unsupported">This game\'s saves cannot be uploaded by this version; they can still be downloaded from the cloud</string>
     <string name="cloud_busy">The previous sync is still running; try again in a moment</string>
     <string name="stores_eyebrow_installed">installed</string>
     <string name="stores_eyebrow_library">in your library</string>
