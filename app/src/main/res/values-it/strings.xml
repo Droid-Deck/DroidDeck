@@ -2457,6 +2457,8 @@
     <string name="phantom_instructions_fix">%1$s Se non è possibile, collega questo dispositivo a un computer con ADB ed esegui il comando qui sotto. Poi torna qui e ricontrolla.</string>
     <string name="phantom_instructions_off">Le sessioni Steam possono avviarsi.</string>
     <string name="phantom_instructions_not_applicable">Questa versione di Android non usa questo limite.</string>
+    <string name="phantom_title_uncounted">Limite dei processi figli gestito da DroidDeck</string>
+    <string name="phantom_instructions_uncounted">DroidDeck esegue i programmi della sessione in processi che Android non conteggia, quindi le Opzioni sviluppatore possono restare disattivate.</string>
     <string name="phantom_fix_toggle">Attiva “Disattiva limitazioni per i processi secondari” in Opzioni sviluppatore e poi lascia attive le Opzioni sviluppatore.</string>
     <string name="phantom_fix_no_toggle">Questa versione di Android non ha un interruttore per farlo. Usa il debug wireless per cambiarlo da questo dispositivo.</string>
     <string name="upd_block_no_apk">Questa build non ha un download per questa copia di DroidDeck.</string>

@@ -129,6 +129,8 @@ object SessionFiles {
             "usr/local/bin/droiddeck-agent" to "usr/local/bin/droiddeck-agent",
             "usr/local/bin/steam-compatibility" to "usr/local/bin/steam-compatibility",
             "usr/local/bin/droiddeck-clipboard" to "usr/local/bin/droiddeck-clipboard",
+            "usr/local/bin/droiddeck-spawn" to "usr/local/bin/droiddeck-spawn",
+            "usr/local/bin/droiddeck-log-writer" to "usr/local/bin/droiddeck-log-writer",
             "usr/local/bin/droiddeck-desktop-clipboard" to "usr/local/bin/droiddeck-desktop-clipboard",
             "usr/local/bin/droiddeck-gpu-window" to "usr/local/bin/droiddeck-gpu-window",
             "usr/local/bin/droiddeck-steam-install" to "usr/local/bin/droiddeck-steam-install",

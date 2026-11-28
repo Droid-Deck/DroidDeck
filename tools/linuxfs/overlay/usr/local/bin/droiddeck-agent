@@ -282,8 +282,10 @@ def sandboxed_apps(proc=Path("/proc")):
 
 def window_steam_app(win, flatpaks, proc=Path("/proc")):
     match = STEAM_APP_CLASS.match(win.get("class") or "")
-    if match:
-        return match.group(1) if os.environ.get("DD_STEAM_CLIENT_ARCH") == "x86_64" else None
+    if match and os.environ.get("DD_STEAM_CLIENT_ARCH") == "x86_64":
+        return match.group(1)
+    # Gamescope finds the app of a window whose process runs under Steam's reaper. A game the
+    # session runs in a worker process (GuestWorkers) is not under it, whatever its class.
     pid = win.get("pid")
     if pid:
         if under_reaper(pid, proc):

@@ -703,6 +703,17 @@ class SessionService : Service() {
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("DD_LOSSLESS_OWNED=1")
         }
         guest.add("DD_LAUNCH_DIR=" + sessionRoot.path)
+        // this session's worker number: the shared field may be a newer session's by the time it is used
+        var ownWorkers = 0
+        if (com.droiddeck.launcher.runtime.GuestWorkers.enabled(this)) {
+            // Under the lock a stop takes its number with: a stop either comes first (and this session
+            // starts no workers) or owns them
+            ownWorkers = synchronized(stopLock) {
+                if (gen != sessionGen || !SessionState.running) 0
+                else com.droiddeck.launcher.runtime.GuestWorkers.serve(this).also { guestWorkerSession = it }
+            }
+            if (ownWorkers > 0) guest.add("DD_SPAWN=" + com.droiddeck.launcher.runtime.GuestWorkers.socketName(this))
+        }
         // Proton builds up to 11.12 report X11 text fields under this name.
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
         GameStorage.effective(this)?.let { guest.add("DD_LIBRARY_LABEL=" + it.label.replace('"', ' ')) }
@@ -860,10 +871,10 @@ class SessionService : Service() {
         watchLaunchRequests(sessionRoot)
         watchSyncWanted(root)
         EsyncPacks.fetchInBackground(this, root)
-        val pid = SessionEvents.step("guest-launch") { HostProcess.start(line, hostEnv.asArray(), root, { status ->
+        val pid = SessionEvents.step("guest-launch") { HostProcess.startUncounted(line, hostEnv.asArray(), root, { status ->
             if (gen != sessionGen) {
                 Log.i(TAG, "an earlier session's process ended ($status); the current one carries on")
-                return@start
+                return@startUncounted
             }
             val program = programStatus(sessionRoot)
             Log.i(TAG, "session ended: $status" + if (program != null) " (program $program)" else "")
@@ -879,10 +890,13 @@ class SessionService : Service() {
                 syncWatcher = null
             }
             abandonStart(gen, sessionDir, started)
-            if (pid > 1) Thread({ teardown(pid) }, "session-teardown").start()
+            val workers = ownWorkers
+            if (pid > 1) Thread({ teardown(pid, workerSession = workers) }, "session-teardown").start()
+            else com.droiddeck.launcher.runtime.GuestWorkers.stopGuests(workers)
             return
         }
         sessionPid = pid
+        com.droiddeck.launcher.runtime.GuestWorkers.sessionRootUncounted = com.droiddeck.launcher.runtime.GuestWorkers.runsInWorker(pid)
         if (pid > 1) {
             raiseTracer(pid, gen)
             SessionEvents.guestStarted(pid)
@@ -1521,10 +1535,15 @@ class SessionService : Service() {
         return binds
     }
 
-    private fun teardown(prootPid: Int, expectedStartTime: Long? = null) {
+    // The workers' session number of the session running now (GuestWorkers.serve)
+    @Volatile private var guestWorkerSession = 0
+
+    private fun teardown(prootPid: Int, expectedStartTime: Long? = null, workerSession: Int = guestWorkerSession) {
         fun stillSameProcess(): Boolean = expectedStartTime == null || readStat(prootPid)?.second == expectedStartTime
         if (!stillSameProcess()) return
-        val tree = descendants(prootPid)
+        // The session's programs that run in worker processes are not descendants of its root.
+        val workers = if (expectedStartTime == null) com.droiddeck.launcher.runtime.GuestWorkers.guestPids(workerSession) else emptyList()
+        val tree = descendants(prootPid) + workers.flatMap { pid -> listOfNotNull(readStat(pid)?.let { Pair(pid, it.second) }) + descendants(pid) }
         if (!stillSameProcess()) return
         saveWineRegistries(tree)
         android.os.Process.sendSignal(prootPid, 15)
@@ -1541,6 +1560,7 @@ class SessionService : Service() {
             killed++
         }
         if (killed > 0) Log.i(TAG, "swept $killed process(es) proot left behind")
+        if (expectedStartTime == null) com.droiddeck.launcher.runtime.GuestWorkers.stopGuests(workerSession)
     }
 
     private fun clearCachedApps() {
@@ -2321,12 +2341,16 @@ class SessionService : Service() {
             return
         }
         completeNativeSleep()
+        var workers = 0
         val (ended, endedArch) = synchronized(stopLock) {
             if (gen != null && gen != sessionGen) return
+            // as it is when running is cleared: startup registers its workers under this lock too
+            workers = guestWorkerSession
             cancelQueuedSteamGame()
             gameExitWatchToken++
             // also when startup stopped before the guest ran
             com.droiddeck.launcher.runtime.NativeGuest.sessionMode = null
+            com.droiddeck.launcher.runtime.GuestWorkers.sessionRootUncounted = null
             if (!SessionState.running) return
             if (relaunch) SessionState.confirmRelaunchStop()
             SessionEvents.record("guest.exited", mapOf("status" to status))
@@ -2387,7 +2411,8 @@ class SessionService : Service() {
                     if (prootPid > 1 && steamClientMayRun) askSteamToExit(prootPid)
                     com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
                     auxiliary.forEach { (pid, started) -> teardown(pid, started) }
-                    if (prootPid > 1) teardown(prootPid)
+                    if (prootPid > 1) teardown(prootPid, workerSession = workers)
+                    else com.droiddeck.launcher.runtime.GuestWorkers.stopGuests(workers)
                     killGuestLeftovers()
                     pruneSystemVulkanRuntime()
                     finishSessionStop(status, stoppedGen, collectEnded)
@@ -2396,6 +2421,7 @@ class SessionService : Service() {
             } else {
                 Thread({ pruneSystemVulkanRuntime() }, "system-vulkan-prune").start()
                 Thread({
+                    com.droiddeck.launcher.runtime.GuestWorkers.stopGuests(workers)
                     com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
                     finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()

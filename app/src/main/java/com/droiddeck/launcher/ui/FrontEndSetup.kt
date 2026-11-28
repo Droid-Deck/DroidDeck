@@ -393,7 +393,8 @@ internal fun SetupPanel(
                             listOfNotNull(
                                 gpu.displayName(ctx),
                                 s.installed?.let { stringResource(R.string.setup_ready_runtime, it) },
-                                stringResource(R.string.setup_ready_limit_off).takeIf { !limitBlocks },
+                                stringResource(R.string.setup_ready_limit_off)
+                                    .takeIf { !limitBlocks && s.phantomProcessStatus != PhantomProcessStatus.UNCOUNTED },
                                 s.offlineAccount?.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.setup_ready_signed_in, it) },
                             ).joinToString(" · "),
                             open = showChecks, onDetails = { showChecks = !showChecks },

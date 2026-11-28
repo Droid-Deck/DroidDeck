@@ -2440,6 +2440,8 @@
     <string name="phantom_instructions_fix">%1$s Als dat niet mogelijk is, sluit dit apparaat aan op een computer met ADB en voer de onderstaande opdracht uit. Kom hierna terug en controleer opnieuw.</string>
     <string name="phantom_instructions_off">Steam-sessies kunnen starten.</string>
     <string name="phantom_instructions_not_applicable">Deze Android-versie gebruikt deze limiet niet.</string>
+    <string name="phantom_title_uncounted">Limiet voor onderliggende processen geregeld door DroidDeck</string>
+    <string name="phantom_instructions_uncounted">DroidDeck voert de programma\'s van de sessie uit in processen die Android niet meetelt, dus Ontwikkelaarsopties kunnen uit blijven.</string>
     <string name="phantom_fix_toggle">Schakel “Beperkingen voor onderliggende processen uitzetten” in bij Ontwikkelaarsopties en laat Ontwikkelaarsopties daarna aan staan.</string>
     <string name="phantom_fix_no_toggle">Deze Android-versie heeft hier geen schakelaar voor. Gebruik draadloze foutopsporing om dit vanaf dit apparaat te wijzigen.</string>
     <string name="upd_block_no_apk">Deze build heeft geen download voor dit exemplaar van DroidDeck.</string>

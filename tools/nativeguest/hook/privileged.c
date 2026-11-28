@@ -10,9 +10,13 @@
 // closefrom(3)) made it abort later ("CHECK failed" in mmap_posix.cc). Its memory files open when
 // the hook starts survive close(), close_range() and closefrom(); phones that run ARM code
 // themselves have none.
-#define DDNATV_MAX_KEPT_FDS 4
+#define DDNATV_MAX_KEPT_FDS 12
 static int g_kept_fds[DDNATV_MAX_KEPT_FDS]; // ascending
 static int g_kept_fd_count = 0;
+// Of those, the ones also kept from close-on-exec: a worker process's binder fds (hook/handoff.c),
+// which must outlive the program's own execs.
+static int g_cloexec_kept_fds[8]; // ascending
+static int g_cloexec_kept_count = 0;
 
 static int is_kept_fd(int fd) {
     for (int i = 0; i < g_kept_fd_count; i++) {
@@ -438,6 +442,9 @@ int setns(int fd, int nstype) {
 #ifndef CLOSE_RANGE_CLOEXEC
 #define CLOSE_RANGE_CLOEXEC (1U << 2)
 #endif
+#ifndef CLOSE_RANGE_UNSHARE
+#define CLOSE_RANGE_UNSHARE (1U << 1)
+#endif
 
 static int close_range_all(unsigned int first, unsigned int last, int flags);
 
@@ -448,10 +455,22 @@ static int close_range_part(unsigned int first, unsigned int last, void *flags) 
 int close_range(unsigned int first, unsigned int last, int flags) {
     if (!(flags & CLOSE_RANGE_CLOEXEC)) forget_proc_root_range(first, last);
     // Close-on-exec only (CLOSE_RANGE_CLOEXEC) leaves the translator's files open
-    if (g_kept_fd_count > 0 && !(flags & CLOSE_RANGE_CLOEXEC)) {
-        return for_each_range_without(first, last, g_kept_fds, g_kept_fd_count, close_range_part, &flags);
+    const int *kept = (flags & CLOSE_RANGE_CLOEXEC) ? g_cloexec_kept_fds : g_kept_fds;
+    int kept_count = (flags & CLOSE_RANGE_CLOEXEC) ? g_cloexec_kept_count : g_kept_fd_count;
+    if (kept_count == 0) return close_range_all(first, last, flags);
+    // The table is unshared once, even when every fd in the range is kept: the system call itself on
+    // the one number no fd has (close_range_all() would emulate a missing call by closing fds)
+    if (flags & CLOSE_RANGE_UNSHARE) {
+        static long (*raw_syscall)(long, ...) = NULL;
+        if (!raw_syscall) raw_syscall = (long (*)(long, ...))dlsym(RTLD_NEXT, "syscall");
+        if (!raw_syscall) {
+            errno = ENOSYS;
+            return -1;
+        }
+        if (raw_syscall(__NR_close_range, ~0U, ~0U, CLOSE_RANGE_UNSHARE) != 0) return -1;
+        flags &= ~CLOSE_RANGE_UNSHARE;
     }
-    return close_range_all(first, last, flags);
+    return for_each_range_without(first, last, kept, kept_count, close_range_part, &flags);
 }
 
 // glibc's closefrom() makes the close_range system call itself, past the function above

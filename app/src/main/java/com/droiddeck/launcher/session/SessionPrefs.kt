@@ -1098,6 +1098,9 @@ object SessionPrefs {
 
     fun nativeUserland(context: Context): Boolean = prefs(context).getBoolean("nativeUserland", true)
 
+    /** The session's long-lived programs run in worker processes Android does not count (GuestWorkers). */
+    fun childProcessHandoff(context: Context): Boolean = prefs(context).getBoolean("childProcessHandoff", true)
+
     fun setNativeUserland(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("nativeUserland", on).apply()
     }

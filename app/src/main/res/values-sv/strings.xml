@@ -2440,6 +2440,8 @@
     <string name="phantom_instructions_fix">%1$s Om det inte är möjligt ansluter du den här enheten till en dator med ADB och kör kommandot nedan. Kom tillbaka hit och kontrollera igen.</string>
     <string name="phantom_instructions_off">Steam-sessioner kan starta.</string>
     <string name="phantom_instructions_not_applicable">Den här Android-versionen använder inte den här gränsen.</string>
+    <string name="phantom_title_uncounted">DroidDeck hanterar gränsen för underprocesser</string>
+    <string name="phantom_instructions_uncounted">DroidDeck kör sessionens program i processer som Android inte räknar, så Utvecklaralternativ kan vara avstängda.</string>
     <string name="phantom_fix_toggle">Slå på ”Inaktivera begränsningar på underordnade processer” i Utvecklaralternativ, och låt Utvecklaralternativ vara kvar på efteråt.</string>
     <string name="phantom_fix_no_toggle">Den här Android-versionen har ingen växel för det. Använd trådlös felsökning för att ändra det från den här enheten.</string>
     <string name="upd_block_no_apk">Den här versionen har ingen nedladdning för den här kopian av DroidDeck.</string>

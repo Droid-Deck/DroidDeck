@@ -2743,6 +2743,8 @@
     <string name="phantom_instructions_fix">%1$s If that is not possible, connect this device to a computer with ADB and run the command below. Return here and check again.</string>
     <string name="phantom_instructions_off">Steam sessions can start.</string>
     <string name="phantom_instructions_not_applicable">This Android version does not use this limit.</string>
+    <string name="phantom_title_uncounted">Child-process limit handled by DroidDeck</string>
+    <string name="phantom_instructions_uncounted">DroidDeck runs most of the session\'s programs in processes Android does not count, which keeps the session well under the limit, so Developer options can stay off. Steam and some of its helpers still count.</string>
     <string name="phantom_fix_toggle">Turn on “Disable child process restrictions” in Developer options, and keep Developer options on afterwards.</string>
     <string name="phantom_fix_no_toggle">This Android version has no switch for it. Use Wireless debugging to change it from this device.</string>
     <string name="upd_block_no_apk">This build has no download for this copy of DroidDeck.</string>

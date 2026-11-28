@@ -2492,6 +2492,8 @@
     <string name="phantom_instructions_fix">%1$s Pokud to není možné, připojte toto zařízení k počítači s ADB a spusťte příkaz níže. Vraťte se sem a zkontrolujte to znovu.</string>
     <string name="phantom_instructions_off">Relace Steamu se mohou spouštět.</string>
     <string name="phantom_instructions_not_applicable">Tato verze Androidu tento limit nepoužívá.</string>
+    <string name="phantom_title_uncounted">Limit podřízených procesů řeší DroidDeck</string>
+    <string name="phantom_instructions_uncounted">DroidDeck spouští programy relace v procesech, které Android nezapočítává, takže možnosti pro vývojáře mohou zůstat vypnuté.</string>
     <string name="phantom_fix_toggle">Zapněte „Deaktivace omezení podřízených procesů“ v Možnostech pro vývojáře a pak je nechte zapnuté.</string>
     <string name="phantom_fix_no_toggle">Tato verze Androidu pro to nemá přepínač. Použijte bezdrátové ladění a změňte to z tohoto zařízení.</string>
     <string name="upd_block_no_apk">Toto sestavení nemá stažení pro tuto kopii DroidDecku.</string>

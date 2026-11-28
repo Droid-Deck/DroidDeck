@@ -20,6 +20,10 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        if (android.os.Build.VERSION.SDK_INT >= 28 &&
+            com.droiddeck.launcher.runtime.GuestWorker.isWorkerProcess(this, Application.getProcessName())) return
+        if (android.os.Build.VERSION.SDK_INT >= 28 && Application.getProcessName() == packageName)
+            com.droiddeck.launcher.runtime.GuestWorkers.attach(this)
         com.droiddeck.launcher.runtime.NativeGuest.init(this)
         com.droiddeck.launcher.session.Onboarding.attach(this)
         Thread({ runCatching { EnhancedSessionLogShare.cleanupAbandonedStages(this) } }, "diagnostic-stage-cleanup").start()

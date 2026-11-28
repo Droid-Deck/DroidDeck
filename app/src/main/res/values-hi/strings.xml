@@ -2440,6 +2440,8 @@
     <string name="phantom_instructions_fix">%1$s अगर यह संभव नहीं है, तो इस डिवाइस को ADB वाले कंप्यूटर से कनेक्ट करें और नीचे दिया कमांड चलाएं। यहां वापस आएं और फिर से जांचें।</string>
     <string name="phantom_instructions_off">Steam सेशन शुरू हो सकते हैं।</string>
     <string name="phantom_instructions_not_applicable">यह Android वर्शन इस सीमा का उपयोग नहीं करता।</string>
+    <string name="phantom_title_uncounted">चाइल्ड-प्रोसेस सीमा DroidDeck संभालता है</string>
+    <string name="phantom_instructions_uncounted">DroidDeck सत्र के प्रोग्राम उन प्रोसेस में चलाता है जिन्हें Android नहीं गिनता, इसलिए डेवलपर विकल्प बंद रह सकते हैं।</string>
     <string name="phantom_fix_toggle">डेवलपर विकल्प में “चाइल्ड प्रोसेस से जुड़ी पाबंदियां हटाएं” चालू करें, और बाद में डेवलपर विकल्प चालू रहने दें।</string>
     <string name="phantom_fix_no_toggle">इस Android वर्शन में इसके लिए कोई स्विच नहीं है। इसे इस डिवाइस से बदलने के लिए वायरलेस डीबगिंग इस्तेमाल करें।</string>
     <string name="upd_block_no_apk">इस बिल्ड में DroidDeck की इस कॉपी के लिए कोई डाउनलोड नहीं है।</string>

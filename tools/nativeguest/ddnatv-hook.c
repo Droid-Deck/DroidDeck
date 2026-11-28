@@ -82,6 +82,7 @@
 #include "hook/exec_probe.c"
 #include "hook/static_programs.c"
 #include "hook/go_programs.c"
+#include "hook/handoff.c"
 #include "hook/exec.c"
 #include "hook/net.c"
 #include "hook/sockets.c"

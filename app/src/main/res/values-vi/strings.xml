@@ -2415,6 +2415,8 @@
     <string name="phantom_instructions_fix">%1$s Nếu không thể, hãy kết nối thiết bị này với một máy tính có ADB và chạy lệnh dưới đây. Quay lại đây và kiểm tra lại.</string>
     <string name="phantom_instructions_off">Phiên Steam có thể khởi động.</string>
     <string name="phantom_instructions_not_applicable">Phiên bản Android này không dùng giới hạn này.</string>
+    <string name="phantom_title_uncounted">DroidDeck xử lý giới hạn tiến trình con</string>
+    <string name="phantom_instructions_uncounted">DroidDeck chạy các chương trình của phiên trong những tiến trình mà Android không tính, nên có thể để tắt Tùy chọn cho nhà phát triển.</string>
     <string name="phantom_fix_toggle">Bật “Tắt các mục hạn chế đối với tiến trình con” trong Developer options, và giữ Developer options luôn mở sau đó.</string>
     <string name="phantom_fix_no_toggle">Phiên bản Android này không có công tắc cho việc đó. Dùng Gỡ lỗi qua mạng không dây để đổi nó từ thiết bị này.</string>
     <string name="upd_block_no_apk">Bản build này không có tệp tải cho bản DroidDeck này.</string>

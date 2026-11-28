@@ -2492,6 +2492,8 @@
     <string name="phantom_instructions_fix">%1$s Jeśli to niemożliwe, podłącz to urządzenie do komputera z ADB i uruchom poniższe polecenie. Wróć tutaj i sprawdź ponownie.</string>
     <string name="phantom_instructions_off">Sesje Steam mogą się uruchamiać.</string>
     <string name="phantom_instructions_not_applicable">Ta wersja systemu Android nie używa tego limitu.</string>
+    <string name="phantom_title_uncounted">Limitem procesów podrzędnych zajmuje się DroidDeck</string>
+    <string name="phantom_instructions_uncounted">DroidDeck uruchamia programy sesji w procesach, których Android nie liczy, więc Opcje programisty mogą pozostać wyłączone.</string>
     <string name="phantom_fix_toggle">Włącz „Wyłącz ograniczenia procesów podrzędnych aplikacji” w Opcjach programisty i nie wyłączaj potem Opcji programisty.</string>
     <string name="phantom_fix_no_toggle">Ta wersja systemu Android nie ma dla niego przełącznika. Użyj debugowania bezprzewodowego, aby zmienić go z tego urządzenia.</string>
     <string name="upd_block_no_apk">Ta wersja nie ma pliku do pobrania dla tej kopii DroidDeck.</string>

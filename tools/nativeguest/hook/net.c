@@ -251,11 +251,14 @@ int close(int fd) {
 int dup2(int oldfd, int newfd) {
     static int (*orig_dup2)(int, int) = NULL;
     if (!orig_dup2) orig_dup2 = (int (*)(int, int))dlsym(RTLD_NEXT, "dup2");
+    int pidfd_from = -1;
     if (oldfd != newfd) {
+        pidfd_from = ddh_parent_pidfd_moves(newfd);
         clear_dns_redirect(newfd);
         set_chosen_port_fd(newfd, is_chosen_port_fd(oldfd));
     }
     int ret = orig_dup2 ? orig_dup2(oldfd, newfd) : -1;
+    ddh_parent_pidfd_settle(pidfd_from, ret >= 0);
     if (ret >= 0) copy_proc_root_fd(oldfd, ret);
     return ret;
 }
@@ -263,11 +266,14 @@ int dup2(int oldfd, int newfd) {
 int dup3(int oldfd, int newfd, int flags) {
     static int (*orig_dup3)(int, int, int) = NULL;
     if (!orig_dup3) orig_dup3 = (int (*)(int, int, int))dlsym(RTLD_NEXT, "dup3");
+    int pidfd_from = -1;
     if (oldfd != newfd) {
+        pidfd_from = ddh_parent_pidfd_moves(newfd);
         clear_dns_redirect(newfd);
         set_chosen_port_fd(newfd, is_chosen_port_fd(oldfd));
     }
     int ret = orig_dup3 ? orig_dup3(oldfd, newfd, flags) : -1;
+    ddh_parent_pidfd_settle(pidfd_from, ret >= 0);
     if (ret >= 0) copy_proc_root_fd(oldfd, ret);
     return ret;
 }

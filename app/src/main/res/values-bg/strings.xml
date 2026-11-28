@@ -2440,6 +2440,8 @@
     <string name="phantom_instructions_fix">%1$s Ако това не е възможно, свържи устройството с компютър с ADB и изпълни командата отдолу. Върни се тук и провери отново.</string>
     <string name="phantom_instructions_off">Сесиите на Steam могат да стартират.</string>
     <string name="phantom_instructions_not_applicable">Тази версия на Android не използва това ограничение.</string>
+    <string name="phantom_title_uncounted">DroidDeck се справя с ограничението за дъщерни процеси</string>
+    <string name="phantom_instructions_uncounted">DroidDeck изпълнява програмите на сесията в процеси, които Android не отчита, така че опциите за програмисти могат да останат изключени.</string>
     <string name="phantom_fix_toggle">Включи „Деактивиране на ограниченията за дъщерните процеси“ в Опции за програмисти и остави Опции за програмисти включени след това.</string>
     <string name="phantom_fix_no_toggle">Тази версия на Android няма превключвател за това. Използвай безжично отстраняване на грешки, за да го промениш от това устройство.</string>
     <string name="upd_block_no_apk">Тази версия няма изтегляне за това копие на DroidDeck.</string>

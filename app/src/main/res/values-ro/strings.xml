@@ -2466,6 +2466,8 @@
     <string name="phantom_instructions_fix">%1$s Dacă nu este posibil, conectează acest dispozitiv la un computer cu ADB și rulează comanda de mai jos. Revino aici și verifică din nou.</string>
     <string name="phantom_instructions_off">Sesiunile Steam pot porni.</string>
     <string name="phantom_instructions_not_applicable">Această versiune de Android nu folosește această limită.</string>
+    <string name="phantom_title_uncounted">Limita proceselor copil este gestionată de DroidDeck</string>
+    <string name="phantom_instructions_uncounted">DroidDeck rulează programele sesiunii în procese pe care Android nu le numără, așa că Opțiunile pentru dezvoltatori pot rămâne dezactivate.</string>
     <string name="phantom_fix_toggle">Activează „Dezactivează restricțiile pentru procese secundare” în Opțiunile pentru dezvoltatori, și lasă Opțiunile pentru dezvoltatori activate după aceea.</string>
     <string name="phantom_fix_no_toggle">Această versiune de Android nu are un comutator pentru asta. Folosește Depanarea wireless pentru a o schimba de pe acest dispozitiv.</string>
     <string name="upd_block_no_apk">Această versiune nu are o descărcare pentru această copie de DroidDeck.</string>

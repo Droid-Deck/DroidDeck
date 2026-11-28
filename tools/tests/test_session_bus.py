@@ -34,7 +34,10 @@ class SessionBusTest(unittest.TestCase):
         match = re.search(r'^ *if \[ -z "\$\{DBUS_SESSION_BUS_ADDRESS:-\}" \]; then\n.*?^ *fi\n *fi\n',
                           SESSION.read_text(), re.M | re.S)
         self.assertIsNotNone(match)
-        script = "nap() { sleep \"$1\"; }\n" + match.group(0) + 'echo "ADDRESS=$DBUS_SESSION_BUS_ADDRESS"\nkill %1 2>/dev/null\n'
+        spawn = re.search(r'^dd_spawn\(\) \{\n.*?^\}\n', SESSION.read_text(), re.M | re.S)
+        self.assertIsNotNone(spawn)
+        script = ("nap() { sleep \"$1\"; }\n" + spawn.group(0) + match.group(0) +
+                  'echo "ADDRESS=$DBUS_SESSION_BUS_ADDRESS"\nkill $dd_spawned 2>/dev/null\n')
         env = {"PATH": "%s:/usr/bin:/bin" % self.bin, "XDG_RUNTIME_DIR": str(self.runtime)}
         if env_address:
             env["DBUS_SESSION_BUS_ADDRESS"] = env_address
