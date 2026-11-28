@@ -13,13 +13,105 @@
 #define DESCRIPTOR "user.wine.sd"
 #define STORE "/.droiddeck-descriptors"
 #define ENTRY_MAX (PATH_MAX * 2)
+#define MACHINE_ID "/etc/machine-id"
+#define SD_HEADER 22
+#define SID_SIZE 28
 
 int dd_is_wineserver(void) __attribute__((visibility("hidden")));
 
 static int store_seen;
+static unsigned int user_sub[3];
 
 static int kept(const char *name) {
   return name != NULL && strcmp(name, DESCRIPTOR) == 0 && dd_is_wineserver();
+}
+
+__attribute__((visibility("hidden")))
+void dd_descriptor_opened(const char *path) {
+  char id[17];
+  ssize_t got, n = 0;
+  unsigned long long value;
+  int saved = errno, fd;
+
+  if (path == NULL || strcmp(path, MACHINE_ID) != 0 || !dd_is_wineserver()) {
+    errno = saved;
+    return;
+  }
+  memset(user_sub, 0, sizeof(user_sub));
+  fd = open(path, O_RDONLY | O_CLOEXEC);
+  if (fd >= 0) {
+    while (n < 16 && (got = read(fd, id + n, (size_t)(16 - n))) > 0) n += got;
+    close(fd);
+  }
+  if (n == 16) {
+    id[16] = '\0';
+    value = strtoull(id, NULL, 16);
+    user_sub[0] = (unsigned int)(value >> 32);
+    user_sub[1] = (unsigned int)value;
+    user_sub[2] = (unsigned int)getuid();
+  }
+  errno = saved;
+}
+
+static unsigned int word_at(const unsigned char *p) {
+  unsigned int v;
+
+  memcpy(&v, p, sizeof(v));
+  return v;
+}
+
+static unsigned short half_at(const unsigned char *p) {
+  unsigned short v;
+
+  memcpy(&v, p, sizeof(v));
+  return v;
+}
+
+static void current_user(unsigned char *sid, size_t size) {
+  static const unsigned char local[8] = {1, 5, 0, 0, 0, 0, 0, 5};
+  unsigned int owner;
+
+  if (size < SID_SIZE || memcmp(sid, local, sizeof(local)) != 0) return;
+  if (word_at(sid + 8) != 21 || word_at(sid + 24) != 1000) return;
+  owner = word_at(sid + 20);
+  if (owner != 0 && owner != (unsigned int)getuid()) return;
+  memcpy(sid + 12, user_sub, sizeof(user_sub));
+}
+
+static int current_user_acl(unsigned char *acl, size_t size, int apply) {
+  size_t used = 8;
+  unsigned int count, i;
+
+  if (size == 0) return 1;
+  if (size < 8) return 0;
+  count = half_at(acl + 4);
+  for (i = 0; i < count && used + 8 <= size; i++) {
+    unsigned char *ace = acl + used;
+    size_t length = half_at(ace + 2);
+
+    if (length < 8 || length > size - used) return 0;
+    if (apply && ace[0] <= 3) current_user(ace + 8, length - 8);
+    used += length;
+  }
+  return i == count;
+}
+
+static void current_user_sd(unsigned char *value, size_t size) {
+  size_t part[4], at = SD_HEADER;
+  int i;
+
+  if (size < SD_HEADER || value[0] != 1 || value[1] != 0) return;
+  for (i = 0; i < 4; i++) {
+    part[i] = word_at(value + 6 + 4 * i);
+    if (part[i] > size - at) return;
+    at += part[i];
+  }
+  at = SD_HEADER + part[0] + part[1];
+  if (!current_user_acl(value + at, part[2], 0) || !current_user_acl(value + at + part[2], part[3], 0)) return;
+  current_user(value + SD_HEADER, part[0]);
+  current_user(value + SD_HEADER + part[0], part[1]);
+  current_user_acl(value + at, part[2], 1);
+  current_user_acl(value + at + part[2], part[3], 1);
 }
 
 static int store_root(char *out, size_t size) {
@@ -171,12 +263,14 @@ ssize_t fgetxattr(int fd, const char *name, void *value, size_t size) {
     return -1;
   }
   result = next(fd, name, value, size);
-  if (result >= 0 || errno != ENOTSUP || !kept(name)) return result;
-  result = stored_read(fd, value, size);
-  if (result == -2) {
-    errno = ENOTSUP;
-    return -1;
+  if (result < 0 && errno == ENOTSUP && kept(name)) {
+    result = stored_read(fd, value, size);
+    if (result == -2) {
+      errno = ENOTSUP;
+      return -1;
+    }
   }
+  if (result > 0 && size > 0 && kept(name)) current_user_sd(value, (size_t)result);
   return result;
 }
 

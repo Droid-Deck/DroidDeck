@@ -610,6 +610,8 @@ int dd_status_without_tracer(const char *path, int flags, const void *caller) __
 
 const char *dd_oom_adj_redirect(const char *path, int writing) __attribute__((visibility("hidden")));
 
+void dd_descriptor_opened(const char *path) __attribute__((visibility("hidden")));
+
 static FILE *open_stream(fopen_fn real, const char *path, const char *mode, const void *caller) {
     int status = mode && mode[0] == 'r' && !strchr(mode, '+')
             ? dd_status_without_tracer(path, O_RDONLY | O_CLOEXEC, caller) : -1;
@@ -623,6 +625,7 @@ static FILE *open_stream(fopen_fn real, const char *path, const char *mode, cons
     FILE *f;
     if (table >= 0 && denied_recently(table, path) && (f = synthesize(table)) != NULL) return f;
     f = real(path, mode);
+    if (f) dd_descriptor_opened(path);
     if (f || table < 0) return f;
     int saved = errno;
     if ((f = synthesize(table)) != NULL) {

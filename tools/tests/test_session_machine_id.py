@@ -16,6 +16,8 @@ class SessionMachineIdTest(unittest.TestCase):
         self.bin = self.root / "bin"
         self.bin.mkdir()
         self.file = self.root / "machine-id"
+        self.home = self.root / "home"
+        self.kept = self.home / ".local/share/droiddeck/machine-id"
 
     def generator(self, output, status=0):
         tool = self.bin / "dbus-uuidgen"
@@ -25,7 +27,7 @@ class SessionMachineIdTest(unittest.TestCase):
     def ensure(self):
         match = re.search(r"^ensure_machine_id\(\) \{\n.*?^\} 2>/dev/null\n", SESSION.read_text(), re.M | re.S)
         script = match.group(0).replace("/etc/machine-id", str(self.file)) + "ensure_machine_id\n"
-        subprocess.run(["bash", "-c", script], env={"PATH": "%s:/usr/bin:/bin" % self.bin}, timeout=30, check=True)
+        subprocess.run(["bash", "-c", script], env={"PATH": "%s:/usr/bin:/bin" % self.bin, "HOME": str(self.home)}, timeout=30, check=True)
         return self.file.read_text() if self.file.exists() else None
 
     def test_the_empty_id_shipped_in_the_runtime_gets_a_fresh_one(self):
@@ -55,6 +57,43 @@ class SessionMachineIdTest(unittest.TestCase):
         self.assertEqual("", self.ensure())
         self.generator("not-an-id")
         self.assertEqual("", self.ensure())
+
+    def test_the_id_is_kept_where_a_runtime_update_keeps_user_data(self):
+        self.file.write_text("fedcba9876543210fedcba9876543210\n")
+        self.generator(FRESH)
+        self.ensure()
+        self.assertEqual("fedcba9876543210fedcba9876543210\n", self.kept.read_text())
+        self.assertEqual([self.kept.name], [p.name for p in self.kept.parent.iterdir()])
+
+    def test_a_runtime_update_gets_the_kept_id_back_instead_of_a_fresh_one(self):
+        self.kept.parent.mkdir(parents=True)
+        self.kept.write_text("fedcba9876543210fedcba9876543210\n")
+        self.file.write_text("")
+        self.generator(FRESH)
+        self.assertEqual("fedcba9876543210fedcba9876543210\n", self.ensure())
+        self.assertEqual("fedcba9876543210fedcba9876543210\n", self.kept.read_text())
+
+    def test_a_malformed_kept_id_is_replaced_with_a_fresh_one(self):
+        self.kept.parent.mkdir(parents=True)
+        for bad in ("", "0" * 32 + "\n", "uninitialized\n"):
+            self.kept.write_text(bad)
+            self.file.write_text("")
+            self.generator(FRESH)
+            self.assertEqual(FRESH + "\n", self.ensure())
+            self.assertEqual(FRESH + "\n", self.kept.read_text())
+
+    def test_the_running_id_wins_over_a_different_kept_one(self):
+        self.kept.parent.mkdir(parents=True)
+        self.kept.write_text(FRESH + "\n")
+        self.file.write_text("fedcba9876543210fedcba9876543210\n")
+        self.assertEqual("fedcba9876543210fedcba9876543210\n", self.ensure())
+        self.assertEqual("fedcba9876543210fedcba9876543210\n", self.kept.read_text())
+
+    def test_without_a_usable_generator_nothing_is_kept(self):
+        self.file.write_text("")
+        self.generator(FRESH, status=1)
+        self.ensure()
+        self.assertFalse(self.kept.exists())
 
 
 if __name__ == "__main__":
