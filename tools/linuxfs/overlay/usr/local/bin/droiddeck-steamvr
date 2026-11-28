@@ -78,6 +78,9 @@ stop() {
         [ "$attempts" -lt 20 ] || { echo 'SteamVR did not stop; preferences remain backed up' >&2; return 1; }
         sleep 0.1
     done
+    # A SteamVR process killed while holding the IPC mutex in this file leaves it locked, and the next vrserver
+    # gives up on it ("failed to acquire SysMgrMutex"), so the headset shows an empty void.
+    alive 'vrserver|vrcompositor|vrstartup|vrdashboard|vrwebhelper' || rm -f /dev/shm/u*-ValveIPCSharedObj-SteamVR
     unregister
     quest_settings restore
 }
