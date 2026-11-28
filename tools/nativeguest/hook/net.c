@@ -252,6 +252,7 @@ int dup2(int oldfd, int newfd) {
     static int (*orig_dup2)(int, int) = NULL;
     if (!orig_dup2) orig_dup2 = (int (*)(int, int))dlsym(RTLD_NEXT, "dup2");
     if (oldfd != newfd) {
+        ddh_parent_pidfd_moves(newfd);
         clear_dns_redirect(newfd);
         set_chosen_port_fd(newfd, is_chosen_port_fd(oldfd));
     }
@@ -264,6 +265,7 @@ int dup3(int oldfd, int newfd, int flags) {
     static int (*orig_dup3)(int, int, int) = NULL;
     if (!orig_dup3) orig_dup3 = (int (*)(int, int, int))dlsym(RTLD_NEXT, "dup3");
     if (oldfd != newfd) {
+        ddh_parent_pidfd_moves(newfd);
         clear_dns_redirect(newfd);
         set_chosen_port_fd(newfd, is_chosen_port_fd(oldfd));
     }

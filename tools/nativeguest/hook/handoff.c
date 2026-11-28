@@ -297,6 +297,10 @@ static void ddh_keep(int fd) {
     g_kept_fd_count++;
 }
 
+// A dup2() or dup3() onto the parent's pidfd (ddh_parent_lives()): the pidfd moves to another number
+// first, so that the program gets the number it asked for and the check keeps its pidfd.
+static void ddh_parent_pidfd_moves(int target);
+
 static void ddh_drop_worker_binder(void) {
     if (g_ddh_nbinder == 0 || getpid() == g_ddh_worker) return;
     for (int i = 0; i < g_ddh_nbinder; i++) {
@@ -341,6 +345,15 @@ static pid_t g_ddh_report_parent;
 static pid_t g_ddh_report_child;
 // The forked parent as a pidfd, opened at the start: readable once it has exited, reaped or not.
 static int g_ddh_parent_pidfd = -1;
+
+static void ddh_parent_pidfd_moves(int target) {
+    int fd = __atomic_load_n(&g_ddh_parent_pidfd, __ATOMIC_ACQUIRE);
+    if (fd < 0 || target != fd) return;
+    int moved = (int)call_orig_syscall(SYS_fcntl, (unsigned long)fd, F_DUPFD_CLOEXEC, 900, 0, 0, 0);
+    ddh_unkeep(fd);
+    __atomic_store_n(&g_ddh_parent_pidfd, moved, __ATOMIC_RELEASE);
+    if (moved >= 0) ddh_keep(moved);
+}
 
 // The line of /proc/PID/cgroup that names the app's per-process cgroup ("...:/uid_U/pid_P").
 static int ddh_cgroup_line(pid_t pid, const char *want, char *out, size_t size) {
@@ -542,6 +555,12 @@ static void ddh_setup_report(void) {
         pidfd = -1;
     }
     if (pidfd >= 0) {
+        // out of the way of the numbers programs pick for themselves
+        int high = (int)call_orig_syscall(SYS_fcntl, (unsigned long)pidfd, F_DUPFD_CLOEXEC, 900, 0, 0, 0);
+        if (high >= 0) {
+            syscall(SYS_close, pidfd);
+            pidfd = high;
+        }
         ddh_keep(pidfd);
         g_ddh_parent_pidfd = pidfd;
     }
@@ -1737,12 +1756,18 @@ static pid_t ddh_logical_pgrp(void) { return ddh_logical_group(getpgrp()); }
 // 1 yes, 0 no, -1 when /proc could not be read for another reason (out of fds, say).
 static int ddh_parent_lives(pid_t parent, long child_start) {
     if (parent == g_ddh_report_parent && g_ddh_parent_pidfd >= 0) {
-        // no new fd, and exited counts whether reaped or not
-        struct pollfd p = {g_ddh_parent_pidfd, POLLIN, 0};
+        // No new fd, and exited counts whether reaped or not. Only while the number still is that
+        // pidfd (a raw close() can take it), and only a clear answer: anything else asks /proc.
+        char path[32], target[32];
+        snprintf(path, sizeof(path), "/proc/self/fd/%d", g_ddh_parent_pidfd);
         int saved = errno;
-        long n = syscall(SYS_ppoll, &p, 1, &(struct timespec){0, 0}, NULL, 0);
+        long len = syscall(SYS_readlinkat, AT_FDCWD, path, target, sizeof(target) - 1);
+        struct pollfd p = {g_ddh_parent_pidfd, POLLIN, 0};
+        long n = len > 0 ? syscall(SYS_ppoll, &p, 1, &(struct timespec){0, 0}, NULL, 0) : -1;
         errno = saved;
-        if (n >= 0) return !(p.revents & POLLIN);
+        if (len > 0) target[len] = 0;
+        if (n >= 0 && strcmp(target, "anon_inode:[pidfd]") == 0 && !(p.revents & (POLLNVAL | POLLERR)))
+            return !(p.revents & POLLIN);
     }
     char path[48], stat[512];
     snprintf(path, sizeof(path), "/proc/%d/stat", (int)parent);
