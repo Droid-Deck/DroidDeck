@@ -4146,4 +4146,5 @@
     <string name="steam_store_session_wait">Önce Steam indirmesini duraklatın</string>
     <string name="steam_store_linux_build">Bu oyun Linux sürümünü yükler. Steam\'den yükleyin.</string>
     <string name="game_zoom_title">Oyun yakınlaştırma</string>
+    <string name="game_zoom_hint">Oyun yakınlaştırmasını %100 ile %300 arasında ayarlayın</string>
 </resources>
