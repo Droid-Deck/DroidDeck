@@ -409,6 +409,7 @@ static void ddh_unregister_group(void);
 static pid_t ddh_logical_pgrp(void);
 static pid_t ddh_logical_group(pid_t real);
 static long ddh_start_time(pid_t pid);
+static int ddh_parent_lives(pid_t parent, long child_start);
 
 // From exit() (on_exit, arg 1) or _exit() (arg NULL) in a worker's own process.
 // Only a handed-off child lingers: the app waits for the death of the programs it starts itself
@@ -427,7 +428,7 @@ static void ddh_report_exit(int status, void *from_exit) {
         // TAKEN: the parent's check of a gone worker holds the entry (ddh_check_gone()) and gives it
         // back as it was when it is not the child it looked at. Wait that out, however long the parent
         // takes, while there is a parent to give it back.
-        if (st == DDH_TAKEN && (syscall(SYS_kill, e->parent, 0) == 0 || errno != ESRCH)) {
+        if (st == DDH_TAKEN && ddh_parent_lives(e->parent, (long)e->child_start)) {
             struct timespec ts = {0, 1000 * 1000};
             syscall(SYS_nanosleep, &ts, NULL);
             st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
@@ -1624,6 +1625,22 @@ static pid_t ddh_logical_group(pid_t real) {
 
 static pid_t ddh_logical_pgrp(void) { return ddh_logical_group(getpgrp()); }
 
+// Whether parent is still the process that forked the child started at child_start: not gone, not
+// exited and waiting to be reaped (the kernel reparents at the exit, not at the reaping), and not a
+// later process given the pid, which started after that child. child_start -1: not checked.
+static int ddh_parent_lives(pid_t parent, long child_start) {
+    char path[48], stat[512];
+    snprintf(path, sizeof(path), "/proc/%d/stat", (int)parent);
+    int saved = errno;
+    long n = ddh_read_proc(path, stat, sizeof(stat));
+    errno = saved;
+    char *s = n > 0 ? strrchr(stat, ')') : NULL;
+    if (!s || s[1] != ' ' || s[2] == 'Z' || s[2] == 'X') return 0;
+    for (int field = 2; s && field < 22; field++) s = strchr(s + 1, ' ');
+    long start = s ? atol(s + 1) : -1;
+    return !(start >= 0 && child_start >= 0 && start > child_start);
+}
+
 // A handed-off program's parent is zygote, which the guest cannot see: a launcher that watches its
 // parent through /proc/<ppid> took it for gone at once. getppid() answers with the process that
 // forked it (DDH_TABLE's parent) while that one lives, and init once it is gone, as after the
@@ -1637,19 +1654,8 @@ pid_t getppid(void) {
     p = p ? strchr(p + 1, ':') : NULL;
     pid_t parent = p ? (pid_t)atoi(p + 1) : 0;
     if (parent <= 0) return real;
-    char path[48], stat[512];
-    snprintf(path, sizeof(path), "/proc/%d/stat", (int)parent);
-    int saved = errno;
-    long n = ddh_read_proc(path, stat, sizeof(stat));
-    errno = saved;
-    // Gone, or exited and not reaped yet: the kernel reparents at the exit, not at the reaping.
-    char *s = n > 0 ? strrchr(stat, ')') : NULL;
-    if (!s || s[1] != ' ' || s[2] == 'Z' || s[2] == 'X') return 1;
-    // A later process given the pid started after the forked child it never had.
-    for (int field = 2; s && field < 22; field++) s = strchr(s + 1, ' ');
-    long start = s ? atol(s + 1) : -1;
     long child = g_ddh_report && g_ddh_report_slot >= 0 ? (long)g_ddh_report->e[g_ddh_report_slot].child_start : -1;
-    return start >= 0 && child >= 0 && start > child ? 1 : parent;
+    return ddh_parent_lives(parent, child) ? parent : 1;
 }
 
 static char g_ddh_group_entry[96];
