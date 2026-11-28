@@ -17,7 +17,7 @@ object OfflineMode {
     private val PERSONA = Regex(""""PersonaName"\s*"([^"]*)"""")
     private const val EVAL_TIMEOUT_MS = 10_000L
 
-    private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
+    private fun prefs(context: Context) = TolerantPrefs.session(context)
 
     private fun loginUsers(root: File) = File(root, "root/.local/share/Steam/config/loginusers.vdf")
 

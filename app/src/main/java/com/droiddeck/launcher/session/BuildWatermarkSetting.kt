@@ -24,7 +24,7 @@ internal object BuildWatermarkSetting {
             file(context).readFully().decodeToString() != "off"
         }
     } catch (_: java.io.IOException) {
-        context.getSharedPreferences("session", Context.MODE_PRIVATE).getBoolean("buildWatermark", true)
+        TolerantPrefs.session(context).getBoolean("buildWatermark", true)
     }
 
     fun setEnabled(context: Context, on: Boolean) {

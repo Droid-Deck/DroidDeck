@@ -333,6 +333,28 @@ class AgentSecurityTest {
         assertFalse(error.message!!.contains("synthetic-private-value"))
     }
 
+    @Test fun preferencesKeepTheTypeAStoredKeyHas() {
+        AgentAccess.setCommandsEnabled(context, true)
+        val session = context.getSharedPreferences("session", Context.MODE_PRIVATE)
+        session.edit().clear().putBoolean("gameDebugLogsEnabled", false).putString("testText", "first").commit()
+
+        val error = refused("INVALID_PREF") { AgentPrefs.set(context, "session", "gameDebugLogsEnabled", "string", "true") }
+        assertTrue(error.message!!.contains("bool"))
+        assertEquals(false, session.all["gameDebugLogsEnabled"])
+        refused("INVALID_PREF") { AgentPrefs.set(context, "session", "testText", "bool", "true") }
+        assertEquals("first", session.all["testText"])
+
+        assertEquals(true, AgentPrefs.set(context, "session", "gameDebugLogsEnabled", "bool", "true").get("value"))
+        assertEquals("second", AgentPrefs.set(context, "session", "testText", "string", "second").get("value"))
+        assertEquals("fresh", AgentPrefs.set(context, "session", "unsetKey", "string", "fresh").get("value"))
+
+        session.edit().putString("gameDebugLogsEnabled", "true").commit()
+        AgentPrefs.set(context, "session", "gameDebugLogsEnabled", "remove", null)
+        assertEquals(false, AgentPrefs.set(context, "session", "gameDebugLogsEnabled", "bool", "false").get("value"))
+        assertEquals(false, session.all["gameDebugLogsEnabled"])
+        session.edit().clear().commit()
+    }
+
     @Test fun overrideRefusesLinksAndTraversalNames() {
         AgentAccess.setCommandsEnabled(context, true)
         for (name in listOf(".", "..", "../gamescope")) refused("INVALID_NAME") { AgentEnv.override(context, name) }

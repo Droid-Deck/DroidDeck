@@ -43,9 +43,10 @@ Player controls and observations work over authorized ADB on any build: `state`,
 **Setup > Developer > Debugging tools** is off by default in every build, including debug builds.
 It enables `run`, `guest`, `cdp`, all `env` operations, `override`, `prefs`, and `glasses raw`. The
 toggle switches directly without a confirmation dialog. The bridge refuses to change it through `ui`
-or preference writes. The existing preference key, `setting-agent-commands` test tag, JSON command
-names, and `AGENT_COMMANDS_DISABLED` error code are unchanged. Refusals exit 7; `droiddeckctl access`
-reports whether commands are enabled.
+or preference writes. `prefs set` refuses to change the type a key is stored as; remove the key
+first. The existing preference key, `setting-agent-commands` test tag, JSON command names, and
+`AGENT_COMMANDS_DISABLED` error code are unchanged. Refusals exit 7; `droiddeckctl access` reports
+whether commands are enabled.
 
 Disabling the toggle clears queued and persistent agent environment settings and installed binary
 overrides. Disabled settings cannot apply at the next session start. Already running commands and
@@ -165,6 +166,7 @@ tools/droiddeckctl proot-profile disable
 tools/droiddeckctl proot-profile report ./session.log --sort wall
 tools/droiddeckctl prefs get session
 tools/droiddeckctl prefs set session some_key true --type bool
+tools/droiddeckctl prefs set session some_key --type remove
 
 tools/droiddeckctl logs latest ./session-artifacts
 tools/droiddeckctl screenshot ./screen.png --display 4

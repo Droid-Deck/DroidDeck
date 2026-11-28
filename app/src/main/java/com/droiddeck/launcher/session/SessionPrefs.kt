@@ -48,7 +48,7 @@ object SessionPrefs {
     fun backActionsOrder(inverted: Boolean): Int =
         if (inverted) BACK_QAM_THEN_MENU else BACK_MENU_THEN_QAM
 
-    private fun prefs(context: Context) = context.getSharedPreferences("session", Context.MODE_PRIVATE)
+    private fun prefs(context: Context) = TolerantPrefs.session(context)
 
     val orientationOptions = listOf(
         ActivityInfo.SCREEN_ORIENTATION_USER to R.string.setup_launcher_orientation_auto,
