@@ -323,8 +323,6 @@ int main(int argc, char **argv) {
         assert(!vkp_completion_unknown());
         assert(g_dev_state == -2 && lost_notifications == 1 && markers == 0 && waits == 0);
         assert(!g_images && !g_swapchain && !g_surface && destroys == 2);
-        /* Inject loader failure to verify the one permitted recovery attempt
-         * and its cleanup path without needing a real Vulkan driver. */
         assert(vkp_ready() == -1);
         assert(g_dev_state == -2 && g_recovery_attempted);
         assert_stopped();
