@@ -238,6 +238,9 @@ android {
             doFirst { jvmTemp.mkdirs() }
             def logTarget = providers.systemProperty('robolectric.logging').orNull
             if (logTarget != null) systemProperty 'robolectric.logging', logTarget
+            // Robolectric resolves Android SDK jars inside the test JVM independently of Gradle.
+            def robolectricMirror = providers.gradleProperty('robolectricMavenMirror').orNull
+            if (robolectricMirror) systemProperty 'robolectric.dependency.repo.url', robolectricMirror
         }
     }
 

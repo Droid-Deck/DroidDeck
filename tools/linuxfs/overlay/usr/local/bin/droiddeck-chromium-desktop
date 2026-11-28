@@ -1,0 +1,42 @@
+# LinuxRuntime binds the Mali character device at a renderD path. Chromium cannot query a DRM version there.
+dd_mali_render_standin() {
+  local dev=$1 mali node found=
+  [[ -c $dev/mali0 ]] || return 1
+  mali=$(stat -Lc '%t:%T' -- "$dev/mali0") || return 1
+  for node in "$dev"/dri/renderD*; do
+    [[ -c $node ]] || continue
+    [[ $(stat -Lc '%t:%T' -- "$node") == "$mali" ]] || return 1
+    found=1
+  done
+  [[ -n $found ]]
+}
+
+dd_mali_wayland_desktop() {
+  [[ ${DD_MALI_RENDER_STANDIN:-} == 1 && ${XDG_SESSION_TYPE:-} == wayland &&
+     -n ${WAYLAND_DISPLAY:-} && -z ${DD_INSIDE:-}${GAMESCOPE_WAYLAND_DISPLAY:-}${DD_DESKTOP_GPU_CHILD:-} ]]
+}
+
+dd_chromium_bundle() {
+  [[ -n $(find -H "$1" -maxdepth 4 \( -name chrome-sandbox -o -name chrome_100_percent.pak \
+      -o -name v8_context_snapshot.bin \) -print -quit 2>/dev/null) ]]
+}
+
+dd_chromium_wayland_flags() {
+  local arg platform= render_node=
+  dd_wayland_flags=()
+  [[ -z ${ELECTRON_RUN_AS_NODE:-} ]] || return 0
+  for arg in "$@"; do
+    case $arg in
+      --) break ;;
+      --type=*|--headless|--headless=*) return 0 ;;
+      --ozone-platform|--ozone-platform=*) platform=$arg ;;
+      --render-node-override|--render-node-override=*) render_node=$arg ;;
+    esac
+  done
+  case $platform in
+    '') dd_wayland_flags+=(--ozone-platform=wayland) ;;
+    --ozone-platform=wayland) ;;
+    *) return 0 ;;
+  esac
+  [[ -n $render_node ]] || dd_wayland_flags+=(--render-node-override=)
+}

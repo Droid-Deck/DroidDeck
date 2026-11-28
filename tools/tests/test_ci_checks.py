@@ -46,6 +46,37 @@ class CiChecksTest(unittest.TestCase):
         self.assertIn("outputs.doNotCacheIf('CI executes the test suite on every run') { true }", gradle)
         self.assertIn('outputs.upToDateWhen { false }', gradle)
 
+    def test_unit_tests_retry_only_robolectric_maven_rate_limits(self):
+        jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
+        script = next(step['run'] for step in jobs['build']['steps'] if step.get('id') == 'unit-tests')
+        central = 'https://repo.maven.apache.org/maven2/'
+        sdk = 'https://repo1.maven.org/maven2/org/robolectric/android-all-instrumented/sdk.jar'
+        mirror = '-ProbolectricMavenMirror=https://maven-central.storage-download.googleapis.com/maven2'
+        # These two resolvers report the status and URL in opposite orders.
+        cases = [
+            ('ok', 0, 0, 0, 1),
+            (f'Could not GET {central}org/robolectric/nativeruntime-dist-compat/lib.jar. Received status code 429', 1, 0, 0, 2),
+            (f'Server returned HTTP response code: 429 for URL: {sdk}', 1, 9, 9, 2),
+            ('AssertionError: expected 429', 7, 0, 7, 1),
+            (f'Could not GET {central}other/group/lib.jar. Received status code 429', 8, 0, 8, 1),
+        ]
+        for message, first, retry, expected, attempts in cases:
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                gradle = root / 'gradlew'
+                gradle.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> calls\n'
+                                  'case "$*" in *-ProbolectricMavenMirror=*) exit "$RETRY";; esac\n'
+                                  'echo "$MESSAGE"\nexit "$FIRST"\n')
+                gradle.chmod(0o755)
+                env = dict(os.environ, NDK_VERSION='test', MESSAGE=message, FIRST=str(first), RETRY=str(retry))
+                result = subprocess.run(['bash', '-e', '-c', script], cwd=root, env=env, capture_output=True)
+                self.assertEqual(result.returncode, expected, result.stdout)
+                calls = (root / 'calls').read_text().splitlines()
+                self.assertEqual(len(calls), attempts)
+                self.assertNotIn(mirror, calls[0])
+                if attempts == 2:
+                    self.assertEqual(calls[1].split(), [*calls[0].split(), mirror])
+
     def test_independent_jobs_wait_only_for_the_pinned_source(self):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
         for name in ('xbox', 'python-tests', 'components-runner'):

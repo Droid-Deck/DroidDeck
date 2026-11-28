@@ -32,12 +32,45 @@ class AppImageRunTest(unittest.TestCase):
             lib.parent.mkdir(parents=True, exist_ok=True)
             lib.write_bytes(b"")
 
-    def launch(self, session):
+    def launch(self, session, *args):
         env = {k: v for k, v in os.environ.items() if k not in KEYS + ("GAMESCOPE_WAYLAND_DISPLAY", "DISPLAY")}
         env.update(session, HOME=str(self.tmp / "home"), DBUS_SESSION_BUS_ADDRESS="unix:path=/dev/null")
-        result = subprocess.run(["bash", str(RUN), str(self.dir)], env=env, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(["bash", str(RUN), str(self.dir), *args], env=env, capture_output=True, text=True, timeout=30)
         self.assertEqual(0, result.returncode, result.stderr)
         return dict(line.split("=", 1) for line in self.out.read_text().splitlines()), result.stdout
+
+    def test_only_the_mali_character_device_masquerading_as_a_render_node_matches(self):
+        dev = self.tmp / "dev"
+        (dev / "dri").mkdir(parents=True)
+        mali, node = dev / "mali0", dev / "dri/renderD292"
+        cmd = ["bash", "-c", 'source "$1"; dd_mali_render_standin "$2"', "test",
+               str(RUN.with_name("droiddeck-chromium-desktop")), str(dev)]
+        mali.symlink_to("/dev/null")
+        node.symlink_to("/dev/zero")
+        self.assertEqual(1, subprocess.run(cmd).returncode)
+        node.unlink()
+        node.symlink_to("/dev/null")
+        self.assertEqual(0, subprocess.run(cmd).returncode)
+        (dev / "dri/renderD128").symlink_to("/dev/zero")
+        self.assertEqual(1, subprocess.run(cmd).returncode)
+        mali.unlink()
+        mali.touch()
+        self.assertEqual(1, subprocess.run(cmd).returncode)
+
+    def test_mali_chromium_appimage_preserves_the_wayland_socket_and_caller_arguments(self):
+        self.bundle("chrome_100_percent.pak")
+        args_file = self.tmp / "args"
+        with (self.dir / "app/AppRun").open("a") as f:
+            f.write('printf "%s\\n" "$@" > "%s"\n' % ("%s", args_file))
+        defaults = ["--ozone-platform=wayland", "--render-node-override="]
+        for args, added in [([], defaults), ([defaults[0]], defaults[1:]), (["--ozone-platform=x11"], []),
+                            (["--render-node-override=/dev/custom"], defaults[:1])]:
+            with self.subTest(args=args):
+                env, _ = self.launch(dict(DESKTOP, DD_MALI_RENDER_STANDIN="1"), *args, "file with spaces")
+                self.assertEqual("wayland-1", env["WAYLAND_DISPLAY"])
+                self.assertEqual(["--no-sandbox", *added, *args, "file with spaces"], args_file.read_text().splitlines())
+        self.launch(dict(RUN_MODE, DD_MALI_RENDER_STANDIN="1"))
+        self.assertEqual(["--no-sandbox", "--ozone-platform=x11"], args_file.read_text().splitlines())
 
     def test_a_vulkan_qt_quick_app_draws_on_gamescope_wayland(self):
         self.bundle(*QUICK)
@@ -159,6 +192,7 @@ class AppImageRunTest(unittest.TestCase):
 
     def test_other_architectures_keep_their_gl_libraries(self):
         (self.dir / "arch").write_text("x86_64")
+        (self.dir / "fex").write_text("off")
         self.bundle("usr/lib/libGLESv2.so.2")
         self.launch(RUN_MODE)
         self.assertTrue((self.dir / "app/usr/lib/libGLESv2.so.2").exists())
