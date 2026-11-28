@@ -14,9 +14,10 @@ object FrameGen {
     private const val DDFG_PERF_PRESET = 2
     private const val DDFG_MODEL = 4
     private const val FLOW_SCALE_DDFG = 0.60f
-    private const val FLOW_SCALE_LSFG = 0.80f
+    private const val DEFAULT_LSFG_FLOW_PERCENT = 80
 
     val ADAPTIVE_TARGETS = listOf(120, 90, 60)
+    val LSFG_FLOW_PERCENTS = listOf(100, 80, 60)
 
     private const val PREFS = "frame_gen"
 
@@ -74,6 +75,14 @@ object FrameGen {
             .remove("engine").remove("multiplier").remove("target").apply()
     }
 
+    fun lsfgFlowPercent(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("lsfg_flow", DEFAULT_LSFG_FLOW_PERCENT)
+            .takeIf { it in LSFG_FLOW_PERCENTS } ?: DEFAULT_LSFG_FLOW_PERCENT
+
+    fun setLsfgFlowPercent(context: Context, percent: Int) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt("lsfg_flow", percent).apply()
+    }
+
     fun label(context: Context): String = label(context, mode(context))
 
     fun label(context: Context, mode: Mode): String = when {
@@ -118,7 +127,7 @@ object FrameGen {
                 }
                 WaylandCompositor.nativeSetFrameGenEngine(WaylandCompositor.FG_ENGINE_LSFG)
                 WaylandCompositor.nativeSetLsfgCachePath(cachePath)
-                WaylandCompositor.nativeSetFrameGenTuning(FLOW_SCALE_LSFG, refreshHz)
+                WaylandCompositor.nativeSetFrameGenTuning(lsfgFlowPercent(context) / 100f, refreshHz)
                 WaylandCompositor.nativeSetFrameGenArmed(true, mode.multiplier, mode.target)
             }
             ENGINE_DDFG -> {

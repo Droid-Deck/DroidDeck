@@ -292,6 +292,7 @@ class DrawerActions(
     val onHudExport: () -> Unit = {},
     val onFrameGenPick: (FrameGen.Mode) -> Unit,
     val onFrameGenReset: () -> Unit = {},
+    val onLsfgFlowScale: () -> Unit = {},
     val fpsLimit: Int = 0,
     val onFpsLimit: (Int) -> Unit = {},
     val cornerTap: Boolean = false,
@@ -682,6 +683,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                             gameProfileId = a.frameGenTargetGameId,
                                             hasGameOverride = a.hasGameOverride,
                                             onResetGame = a.onFrameGenReset,
+                                            onLsfgFlowScale = a.onLsfgFlowScale,
                                         )
                                     }
                                 }

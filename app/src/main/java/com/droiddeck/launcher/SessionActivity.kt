@@ -1760,6 +1760,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 readPrefs()
                 applyFrameGen(force = true)
             },
+            onLsfgFlowScale = { applyFrameGen(force = true) },
             onImportLossless = {
                 pickLossless.launch(InAppFilePicker.buildIntent(
                     this@SessionActivity, listOf("dll"), getString(R.string.lsfg_pick_title)))
