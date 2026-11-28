@@ -483,11 +483,18 @@ static void ddh_report_exit(int status, void *from_exit) {
     // From the state read (the forked child may still move it from CLAIMED to HANDED): a parent
     // that freed the entry meanwhile keeps it freed.
     int st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
-    for (;;) {
+    for (int unknown = 0;;) {
         // TAKEN: the parent's check of a gone worker holds the entry (ddh_check_gone()) and gives it
         // back as it was when it is not the child it looked at. Wait that out, however long the parent
-        // takes, while there is a parent to give it back.
-        if (st == DDH_TAKEN && ddh_parent_lives(e->parent, (long)e->child_start)) {
+        // takes, while there is a parent to give it back. When /proc cannot say (out of fds), kill()
+        // can, without a new fd, except for a parent that has exited and is not reaped: 5 s then.
+        int lives = st == DDH_TAKEN ? ddh_parent_lives(e->parent, (long)e->child_start) : 0;
+        if (lives < 0) {
+            int saved = errno;
+            lives = (syscall(SYS_kill, e->parent, 0) == 0 || errno != ESRCH) && unknown++ < 5000;
+            errno = saved;
+        }
+        if (lives) {
             struct timespec ts = {0, 1000 * 1000};
             syscall(SYS_nanosleep, &ts, NULL);
             st = __atomic_load_n(&e->state, __ATOMIC_ACQUIRE);
@@ -1713,6 +1720,7 @@ static pid_t ddh_logical_pgrp(void) { return ddh_logical_group(getpgrp()); }
 // Whether parent is still the process that forked the child started at child_start: not gone, not
 // exited and waiting to be reaped (the kernel reparents at the exit, not at the reaping), and not a
 // later process given the pid, which started after that child. child_start -1: not checked.
+// 1 yes, 0 no, -1 when /proc could not be read for another reason (out of fds, say).
 static int ddh_parent_lives(pid_t parent, long child_start) {
     char path[48], stat[512];
     snprintf(path, sizeof(path), "/proc/%d/stat", (int)parent);
@@ -1720,8 +1728,8 @@ static int ddh_parent_lives(pid_t parent, long child_start) {
     long n = ddh_read_proc(path, stat, sizeof(stat));
     int failed = errno;
     errno = saved;
-    // only a parent known gone: a lookup that failed otherwise (out of fds, say) proves nothing
-    if (n <= 0) return !(failed == ENOENT || failed == ESRCH);
+    // only a parent known gone: a lookup that failed otherwise (out of fds, say) proves nothing (-1)
+    if (n <= 0) return failed == ENOENT || failed == ESRCH ? 0 : -1;
     char *s = strrchr(stat, ')');
     if (!s || s[1] != ' ' || s[2] == 'Z' || s[2] == 'X') return 0;
     for (int field = 2; s && field < 22; field++) s = strchr(s + 1, ' ');
@@ -1743,7 +1751,7 @@ pid_t getppid(void) {
     pid_t parent = p ? (pid_t)atoi(p + 1) : 0;
     if (parent <= 0) return real;
     long child = g_ddh_report && g_ddh_report_slot >= 0 ? (long)g_ddh_report->e[g_ddh_report_slot].child_start : -1;
-    return ddh_parent_lives(parent, child) ? parent : 1;
+    return ddh_parent_lives(parent, child) != 0 ? parent : 1;
 }
 
 static char g_ddh_group_entry[96];

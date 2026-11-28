@@ -563,7 +563,8 @@ class NativeHookHandoffTest(unittest.TestCase):
         self.assertEqual(self.child_status, result.get("exit"), out.stdout)
 
     def test_near_the_limit_a_foreground_job_reading_a_file_is_not(self):
-        # "less < file"
+        # "less < file". Also "cmd < file &" from a shell without job control, which looks the same
+        # (the foreground group, a file on stdin): kept too, as a foreground reader must be.
         result, requests, out = self.run_parent("wait", "3", handoff="other", pressure=0, as_shell=True, terminal="file")
         self.assertEqual([], requests)
         self.assertEqual(self.child_status, result.get("exit"), out.stdout)
