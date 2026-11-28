@@ -701,8 +701,17 @@ fn create_symlink(root: &Path, path: &Path, target: &str) -> Result<(), String> 
 #[cfg(unix)]
 fn set_file_mode(file: &File, path: &Path, mode: u32) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
-    file.set_permissions(fs::Permissions::from_mode(mode))
-        .map_err(|err| format!("chmod '{}': {err}", path.display()))
+    mode_result(file.set_permissions(fs::Permissions::from_mode(mode)), path)
+}
+
+#[cfg(unix)]
+fn mode_result(result: std::io::Result<()>, path: &Path) -> Result<(), String> {
+    match result {
+        Err(err) if !matches!(err.raw_os_error(), Some(libc::EPERM | libc::EOPNOTSUPP)) => {
+            Err(format!("chmod '{}': {err}", path.display()))
+        }
+        _ => Ok(()),
+    }
 }
 
 #[cfg(not(unix))]
@@ -996,6 +1005,23 @@ mod tests {
             }]
         );
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_card_that_refuses_file_modes_does_not_fail_the_write() {
+        let path = Path::new("/mnt/media_rw/card/game/boot/idmaplist.idm");
+        for errno in [libc::EPERM, libc::EOPNOTSUPP] {
+            assert_eq!(
+                mode_result(Err(std::io::Error::from_raw_os_error(errno)), path),
+                Ok(())
+            );
+        }
+        assert_eq!(mode_result(Ok(()), path), Ok(()));
+        for errno in [libc::EIO, libc::EROFS, libc::ENOSPC, libc::EACCES] {
+            let err = mode_result(Err(std::io::Error::from_raw_os_error(errno)), path).unwrap_err();
+            assert!(err.starts_with("chmod '/mnt/media_rw/card/game/boot/idmaplist.idm': "));
+        }
     }
 
     #[cfg(unix)]
