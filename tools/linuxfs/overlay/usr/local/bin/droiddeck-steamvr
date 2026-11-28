@@ -52,9 +52,14 @@ configure_graphics() {
 # On the guest's three cores Steam's web helpers took CPU time from vrcompositor's frames, so while the Quest view
 # shows SteamVR they run at a lower priority.
 steam_ui_priority() {
+    status=0
     for p in $(pgrep -x steamwebhelper); do
-        for t in /proc/"$p"/task/*; do renice -n "$1" -p "${t##*/}" >/dev/null 2>&1; done
+        for t in /proc/"$p"/task/*; do
+            renice -n "$1" -p "${t##*/}" >/dev/null 2>&1 || [ ! -e "$t" ] || status=1
+        done
     done
+    [ "$status" = 0 ] || echo "could not set every Steam web helper thread to priority $1" >&2
+    return "$status"
 }
 
 unregister() {
@@ -91,7 +96,7 @@ stop() {
     alive 'vrserver|vrcompositor|vrstartup|vrdashboard|vrwebhelper' || rm -f /dev/shm/u*-ValveIPCSharedObj-SteamVR
     unregister
     quest_settings restore
-    steam_ui_priority 0
+    steam_ui_priority 0 || :
 }
 
 case "${1:-status}" in
@@ -241,9 +246,9 @@ JSON
     export LD_PRELOAD="$layer/libdroiddeck_vr_scheduling.so${LD_PRELOAD:+:$LD_PRELOAD}"
     if [ "${DROIDDECK_VR_PRESENT:-}" = questwsi ]; then
         quest_settings apply || exit 1
-        steam_ui_priority 10
+        steam_ui_priority 10 || :
         startup_handed_off=0
-        trap '[ "$startup_handed_off" = 1 ] || quest_settings restore' EXIT
+        trap '[ "$startup_handed_off" = 1 ] || { quest_settings restore; steam_ui_priority 0 || :; }' EXIT
         cvp=$steamvr/drivers/cv/bin/linuxarm64/libArcturusPerception.so
         if [ -f "$cvp" ]; then
             disabled=$cvp.droiddeck-disabled

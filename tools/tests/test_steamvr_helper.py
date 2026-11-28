@@ -173,17 +173,30 @@ class SteamVrHelperTest(unittest.TestCase):
         self.assertEqual(json.loads(settings.read_text()), original)
         self.assertFalse(backup.exists())
 
-    def test_backup_saved_before_new_overrides_still_restores(self):
+    def test_backup_saved_before_new_overrides_keeps_their_current_values(self):
         settings = self.root / 'steamvr.vrsettings'
         backup = self.root / 'quest-backup.json'
         helper = SOURCE.with_name('droiddeck-steamvr-settings')
-        settings.write_text(json.dumps({'steamvr': {'enableLinuxVulkanAsync': True, 'motionSmoothing': False,
-                                                    'framesToThrottle': 0}}))
+        settings.write_text(json.dumps({'steamvr': {'motionSmoothing': True, 'framesToThrottle': 2}}))
         backup.write_text(json.dumps({'section': True, 'values': {'enableLinuxVulkanAsync': [False, None],
                                                                   'motionSmoothing': [True, True]}}))
+        subprocess.run([sys.executable, str(helper), 'apply', str(settings), str(backup)], check=True)
+        self.assertEqual(json.loads(settings.read_text())['steamvr']['framesToThrottle'], 0)
         subprocess.run([sys.executable, str(helper), 'restore', str(settings), str(backup)], check=True)
-        self.assertEqual(json.loads(settings.read_text()), {'steamvr': {'motionSmoothing': True}})
+        self.assertEqual(json.loads(settings.read_text()), {'steamvr': {'motionSmoothing': True, 'framesToThrottle': 2}})
         self.assertFalse(backup.exists())
+
+    def test_backup_missing_an_original_override_is_rejected(self):
+        settings = self.root / 'steamvr.vrsettings'
+        backup = self.root / 'quest-backup.json'
+        helper = SOURCE.with_name('droiddeck-steamvr-settings')
+        settings.write_text(json.dumps({'steamvr': {'motionSmoothing': False}}))
+        content = json.dumps({'section': True, 'values': {'motionSmoothing': [True, True]}})
+        backup.write_text(content)
+        result = subprocess.run([sys.executable, str(helper), 'restore', str(settings), str(backup)],
+                                capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(backup.read_text(), content)
 
     def test_quest_update_preserves_previous_cvp_backup(self):
         self.environment['DROIDDECK_VR_PRESENT'] = 'questwsi'

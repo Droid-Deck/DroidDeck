@@ -294,9 +294,12 @@ static void forget_device_semaphores(VkDevice dev);
 static void track_forget_device(VkDevice dev);
 static void producer_destroy_device(struct dev *device, const VkAllocationCallbacks *allocator);
 
+static void warp_forget(VkDevice device, VkRenderPass pass);
+
 static void VKAPI_CALL DestroyDevice(VkDevice device, const VkAllocationCallbacks *alloc) {
     struct dev *d = dev_for(device);
     if (!d) return;
+    warp_forget(device, VK_NULL_HANDLE);
 #ifdef DROIDDECK_WSI_CAPTURE
     droiddeck_wsi_destroy(device);
 #endif
@@ -1406,8 +1409,7 @@ static VkResult VKAPI_CALL CreateImage(VkDevice d, const VkImageCreateInfo *ci, 
  * same command buffer. On Turnip its barrier before the right eye's warp left the texture cache holding the
  * left eye, so blocks of the left eye showed in the right one. A full barrier before each warp pass fixes it. */
 #define WARP_PASSES 32
-static VkRenderPass g_warp_passes[WARP_PASSES];
-static int g_warp_pass_count;
+static struct { VkDevice device; VkRenderPass pass; } g_warp_passes[WARP_PASSES];
 static pthread_mutex_t g_warp_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static int warp_wanted(void) {
@@ -1419,32 +1421,46 @@ static int warp_wanted(void) {
     return wanted;
 }
 
-static void warp_note(VkRenderPass pass, uint32_t attachments, VkSampleCountFlagBits samples) {
+static void warp_note(VkDevice device, VkRenderPass pass, uint32_t attachments, VkSampleCountFlagBits samples) {
     if (attachments != 1 || samples != VK_SAMPLE_COUNT_1_BIT) return;
     pthread_mutex_lock(&g_warp_lock);
-    if (g_warp_pass_count < WARP_PASSES) g_warp_passes[g_warp_pass_count++] = pass;
+    for (int i = 0; i < WARP_PASSES; i++)
+        if (!g_warp_passes[i].pass) { g_warp_passes[i].device = device; g_warp_passes[i].pass = pass; break; }
+    pthread_mutex_unlock(&g_warp_lock);
+}
+
+static void warp_forget(VkDevice device, VkRenderPass pass) {
+    pthread_mutex_lock(&g_warp_lock);
+    for (int i = 0; i < WARP_PASSES; i++)
+        if (g_warp_passes[i].device == device && (!pass || g_warp_passes[i].pass == pass))
+            g_warp_passes[i].device = VK_NULL_HANDLE, g_warp_passes[i].pass = VK_NULL_HANDLE;
     pthread_mutex_unlock(&g_warp_lock);
 }
 
 static int warp_pass(VkRenderPass pass) {
     int found = 0;
     pthread_mutex_lock(&g_warp_lock);
-    for (int i = 0; i < g_warp_pass_count && !found; i++) found = g_warp_passes[i] == pass;
+    for (int i = 0; i < WARP_PASSES && !found; i++) found = pass && g_warp_passes[i].pass == pass;
     pthread_mutex_unlock(&g_warp_lock);
     return found;
 }
 
 static VkResult VKAPI_CALL CreateRenderPass(VkDevice d, const VkRenderPassCreateInfo *ci, const VkAllocationCallbacks *a, VkRenderPass *out) {
     VkResult r = NEXT(d, CreateRenderPass)(d, ci, a, out);
-    if (r == VK_SUCCESS) warp_note(*out, ci->attachmentCount, ci->attachmentCount ? ci->pAttachments[0].samples : 0);
+    if (r == VK_SUCCESS) warp_note(d, *out, ci->attachmentCount, ci->attachmentCount ? ci->pAttachments[0].samples : 0);
     return r;
+}
+
+static void VKAPI_CALL DestroyRenderPass(VkDevice d, VkRenderPass pass, const VkAllocationCallbacks *a) {
+    if (pass) warp_forget(d, pass);
+    NEXT(d, DestroyRenderPass)(d, pass, a);
 }
 
 static VkResult VKAPI_CALL CreateRenderPass2(VkDevice d, const VkRenderPassCreateInfo2 *ci, const VkAllocationCallbacks *a, VkRenderPass *out) {
     PFN_vkCreateRenderPass2 next = (PFN_vkCreateRenderPass2)dev_for(d)->gdpa(d, "vkCreateRenderPass2");
     if (!next) next = (PFN_vkCreateRenderPass2)dev_for(d)->gdpa(d, "vkCreateRenderPass2KHR");
     VkResult r = next(d, ci, a, out);
-    if (r == VK_SUCCESS) warp_note(*out, ci->attachmentCount, ci->attachmentCount ? ci->pAttachments[0].samples : 0);
+    if (r == VK_SUCCESS) warp_note(d, *out, ci->attachmentCount, ci->attachmentCount ? ci->pAttachments[0].samples : 0);
     return r;
 }
 
@@ -1476,6 +1492,7 @@ static PFN_vkVoidFunction warp_hook(const char *name) {
     HOOK_AS("vkCreateRenderPass", CreateRenderPass)
     HOOK_AS("vkCreateRenderPass2", CreateRenderPass2)
     HOOK_AS("vkCreateRenderPass2KHR", CreateRenderPass2)
+    HOOK_AS("vkDestroyRenderPass", DestroyRenderPass)
     HOOK_AS("vkCmdBeginRenderPass", CmdBeginRenderPass)
     HOOK_AS("vkCmdBeginRenderPass2", CmdBeginRenderPass2)
     HOOK_AS("vkCmdBeginRenderPass2KHR", CmdBeginRenderPass2)

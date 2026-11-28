@@ -519,6 +519,7 @@ class SessionService : Service() {
         val root = LinuxRuntime.rootDir(this)
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
+        QuestSteamVrLaunch.clearRequest(this)
         killStragglers()
         val stillStarting = { gen == sessionGen && SessionState.running }
         val prootPack = LinuxRuntime.patchedProot(this) || AddonPack.PROOT.await(this, stillStarting)

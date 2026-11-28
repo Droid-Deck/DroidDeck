@@ -21,9 +21,13 @@ object QuestSteamVrLaunch {
         }
         runCatching {
             dir.mkdirs()
-            File(dir, REQUEST).delete()
             marker.writeText("")
         }
+    }
+
+    /** A request left by an earlier session must not open the immersive view in this one. */
+    fun clearRequest(context: Context) {
+        File(context.filesDir, "$DIR/$REQUEST").delete()
     }
 
     fun takeRequest(context: Context): Boolean =
