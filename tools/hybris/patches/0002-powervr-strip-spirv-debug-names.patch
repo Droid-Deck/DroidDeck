@@ -1,0 +1,294 @@
+diff --git a/hybris/vulkan/Makefile.am b/hybris/vulkan/Makefile.am
+index e033f7b..2ed05a5 100644
+--- a/hybris/vulkan/Makefile.am
++++ b/hybris/vulkan/Makefile.am
+@@ -19,6 +19,7 @@ libVkLayer_hybris_compat_la_SOURCES = layer/entry.c layer/device.c layer/physica
+     compat/point_size.c compat/point_size.h \
+     compat/spirv_inout.c compat/spirv_inout.h \
+     compat/spirv_image_bounds.c compat/spirv_image_bounds.h \
++    compat/spirv_debug_names.c compat/spirv_debug_names.h \
+     compat/clip_distance.c compat/clip_distance.h compat/spirv_clip.c \
+     compat/shader_policy.c compat/shader_policy.h \
+     compat/shader_cleanup.c compat/shader_cleanup.h compat/spirv_builtins.c compat/spirv_builtins.h \
+diff --git a/hybris/vulkan/compat/shader_dispatch.c b/hybris/vulkan/compat/shader_dispatch.c
+index 1610c18..43da446 100644
+--- a/hybris/vulkan/compat/shader_dispatch.c
++++ b/hybris/vulkan/compat/shader_dispatch.c
+@@ -10,6 +10,7 @@
+ #include "point_size.h"
+ #include "spirv_inout.h"
+ #include "spirv_image_bounds.h"
++#include "spirv_debug_names.h"
+ #include "clip_distance.h"
+ #include "spirv_builtins.h"
+ #include "shader_policy.h"
+@@ -40,6 +41,7 @@ struct shader_device {
+     int image_bounds;
+     int clip;
+     int vertex_stores;
++    int debug_names;
+     VkAllocationCallbacks allocator;
+     int custom;
+     struct shader *shaders;
+@@ -88,6 +90,7 @@ VkResult hybris_shader_device_create(VkDevice handle, VkPhysicalDevice physical,
+     device->image_bounds = hybris_image_bounds_enabled();
+     device->clip = hybris_clip_active(physical);
+     device->vertex_stores = hybris_vertex_stores_active(physical);
++    device->debug_names = hybris_debug_names_active(physical);
+     pthread_mutex_lock(&guard);
+     device->next = devices;
+     devices = device;
+@@ -116,6 +119,94 @@ void hybris_shader_device_destroy(VkDevice handle)
+     }
+     hybris_scaled_free(device->custom ? &device->allocator : NULL, device);
+ }
++/* Every module and pipeline this layer hands to the driver passes through
++ * these two calls, after any other conversion. */
++static VkResult driver_shader(struct shader_device *device, const VkShaderModuleCreateInfo *info,
++    const VkAllocationCallbacks *allocator, VkShaderModule *module)
++{
++    uint32_t *code = NULL;
++    size_t size = 0;
++    unsigned removed = 0;
++    VkShaderModuleCreateInfo unnamed = *info;
++    if (device->debug_names) {
++        VkResult result = hybris_spirv_debug_names(info->pCode, info->codeSize, allocator, &code, &size, &removed);
++        if (result != VK_SUCCESS) return result;
++        if (code) {
++            unnamed.pCode = code; unnamed.codeSize = size;
++            hybris_debug_names_report(removed, info->codeSize, size);
++        }
++    }
++    VkResult result = device->create_shader(device->handle, &unnamed, allocator, module);
++    hybris_scaled_free(allocator, code);
++    return result;
++}
++struct unnamed_stages {
++    VkPipelineShaderStageCreateInfo *stages;
++    VkShaderModuleCreateInfo *modules;
++    uint32_t **codes;
++    uint32_t count;
++};
++/* SPIR-V supplied directly in a stage's pNext (VK_KHR_maintenance5, how DXVK
++ * passes it) never reaches vkCreateShaderModule. Only a create info that leads
++ * the chain is replaced; the caller's structures are left untouched. */
++static VkResult driver_pipelines(struct shader_device *device, VkPipelineCache cache, uint32_t count,
++    const VkGraphicsPipelineCreateInfo *infos, const VkAllocationCallbacks *allocator, VkPipeline *pipelines)
++{
++    int direct = 0;
++    if (device->debug_names) for (uint32_t i = 0; i < count && !direct; ++i)
++        for (uint32_t j = 0; j < infos[i].stageCount && !direct; ++j) {
++            const VkBaseInStructure *first = infos[i].pStages[j].pNext;
++            direct = !infos[i].pStages[j].module && first && first->sType == VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
++        }
++    if (!direct) return device->create_pipelines(device->handle, cache, count, infos, allocator, pipelines);
++    VkGraphicsPipelineCreateInfo *changed = hybris_scaled_alloc(allocator, count * sizeof(*changed), VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++    struct unnamed_stages *copies = hybris_scaled_alloc(allocator, count * sizeof(*copies), VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++    VkResult result = VK_ERROR_OUT_OF_HOST_MEMORY;
++    if (copies) memset(copies, 0, count * sizeof(*copies));
++    if (!changed || !copies) goto done;
++    memcpy(changed, infos, count * sizeof(*changed));
++    for (uint32_t i = 0; i < count; ++i) {
++        struct unnamed_stages *copy = &copies[i];
++        uint32_t stages = infos[i].stageCount;
++        if (!stages) continue;
++        copy->stages = hybris_scaled_alloc(allocator, stages * sizeof(*copy->stages), VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++        copy->modules = hybris_scaled_alloc(allocator, stages * sizeof(*copy->modules), VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++        copy->codes = hybris_scaled_alloc(allocator, stages * sizeof(*copy->codes), VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++        if (copy->codes) { memset(copy->codes, 0, stages * sizeof(*copy->codes)); copy->count = stages; }
++        result = VK_ERROR_OUT_OF_HOST_MEMORY;
++        if (!copy->stages || !copy->modules || !copy->codes) goto done;
++        memcpy(copy->stages, infos[i].pStages, stages * sizeof(*copy->stages));
++        for (uint32_t j = 0; j < stages; ++j) {
++            const VkShaderModuleCreateInfo *module = copy->stages[j].pNext;
++            size_t size = 0;
++            unsigned removed = 0;
++            if (copy->stages[j].module || !module || module->sType != VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO) continue;
++            result = hybris_spirv_debug_names(module->pCode, module->codeSize, allocator, &copy->codes[j], &size, &removed);
++            if (result != VK_SUCCESS) goto done;
++            if (!copy->codes[j]) continue;
++            copy->modules[j] = *module;
++            copy->modules[j].pCode = copy->codes[j];
++            copy->modules[j].codeSize = size;
++            copy->stages[j].pNext = &copy->modules[j];
++            hybris_debug_names_report(removed, module->codeSize, size);
++        }
++        changed[i].pStages = copy->stages;
++    }
++    result = device->create_pipelines(device->handle, cache, count, changed, allocator, pipelines);
++    goto release;
++done:
++    for (uint32_t i = 0; i < count; ++i) pipelines[i] = VK_NULL_HANDLE;
++release:
++    if (copies) for (uint32_t i = 0; i < count; ++i) {
++        if (copies[i].codes) for (uint32_t j = 0; j < copies[i].count; ++j) hybris_scaled_free(allocator, copies[i].codes[j]);
++        hybris_scaled_free(allocator, copies[i].codes);
++        hybris_scaled_free(allocator, copies[i].modules);
++        hybris_scaled_free(allocator, copies[i].stages);
++    }
++    hybris_scaled_free(allocator, copies);
++    hybris_scaled_free(allocator, changed);
++    return result;
++}
+ static VkResult VKAPI_CALL create_shader(VkDevice handle, const VkShaderModuleCreateInfo *info,
+     const VkAllocationCallbacks *allocator, VkShaderModule *module)
+ {
+@@ -123,7 +214,7 @@ static VkResult VKAPI_CALL create_shader(VkDevice handle, const VkShaderModuleCr
+     if (!device) return VK_ERROR_INITIALIZATION_FAILED;
+     if (!device->mask && !device->point_size && !device->inout && !device->image_bounds &&
+         !device->clip && !device->vertex_stores)
+-        return device->create_shader(handle, info, allocator, module);
++        return driver_shader(device, info, allocator, module);
+     struct shader *shader = hybris_scaled_alloc(allocator, sizeof(*shader), VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+     if (!shader) return VK_ERROR_OUT_OF_HOST_MEMORY;
+     memset(shader, 0, sizeof(*shader));
+@@ -161,7 +252,7 @@ static VkResult VKAPI_CALL create_shader(VkDevice handle, const VkShaderModuleCr
+         created.pCode = cleaned;
+         created.codeSize = cleaned_size;
+     }
+-    result = device->create_shader(handle, &created, allocator, module);
++    result = driver_shader(device, &created, allocator, module);
+     hybris_scaled_free(allocator, bounded);
+     hybris_scaled_free(allocator, cleaned);
+     if (result != VK_SUCCESS) { free_shader(shader); return result; }
+@@ -492,7 +583,7 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+         if (!code) continue;
+         hybris_scaled_dump(shader->code, shader->size, code, size, vertex ? attrs : NULL, vertex ? count : 0, stage->pSpecializationInfo);
+         VkShaderModuleCreateInfo module = { .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, .codeSize = size, .pCode = code };
+-        result = device->create_shader(device->handle, &module, allocator, &copy->temporary[j]);
++        result = driver_shader(device, &module, allocator, &copy->temporary[j]);
+         hybris_scaled_free(allocator, code);
+         if (result != VK_SUCCESS) {
+             /* A failed creation does not return an owned shader handle. */
+@@ -524,7 +615,7 @@ static VkResult convert_pipeline(struct shader_device *device, VkGraphicsPipelin
+         copy->temporary[slot] = VK_NULL_HANDLE;
+         VkShaderModuleCreateInfo module = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+             .codeSize = sizeof(kill_fragment), .pCode = kill_fragment};
+-        result = device->create_shader(device->handle, &module, allocator, &copy->temporary[slot]);
++        result = driver_shader(device, &module, allocator, &copy->temporary[slot]);
+         if (result != VK_SUCCESS) { copy->temporary[slot] = VK_NULL_HANDLE; goto done; }
+         copy->stages[slot] = (VkPipelineShaderStageCreateInfo){
+             .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+@@ -544,7 +635,7 @@ static VkResult VKAPI_CALL create_pipelines(VkDevice handle, VkPipelineCache cac
+     struct shader_device *device = find_device(handle);
+     if (!device) return VK_ERROR_INITIALIZATION_FAILED;
+     if (!device->mask && !device->point_size && !device->inout && !device->clip && !device->vertex_stores)
+-        return device->create_pipelines(handle, cache, count, infos, allocator, pipelines);
++        return driver_pipelines(device, cache, count, infos, allocator, pipelines);
+     VkGraphicsPipelineCreateInfo *changed = hybris_scaled_alloc(allocator, count * sizeof(*changed), VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
+     struct pipeline_copy *copies = hybris_scaled_alloc(allocator, count * sizeof(*copies), VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
+     VkResult result = VK_ERROR_OUT_OF_HOST_MEMORY;
+@@ -560,7 +651,7 @@ static VkResult VKAPI_CALL create_pipelines(VkDevice handle, VkPipelineCache cac
+             goto done;
+         }
+     }
+-    result = device->create_pipelines(handle, cache, count, changed, allocator, pipelines);
++    result = driver_pipelines(device, cache, count, changed, allocator, pipelines);
+ done:
+     if (copies) for (uint32_t i = 0; i < count; ++i) {
+         if (copies[i].temporary) for (uint32_t j = 0; j < copies[i].stage_count; ++j)
+diff --git a/hybris/vulkan/compat/spirv_debug_names.c b/hybris/vulkan/compat/spirv_debug_names.c
+new file mode 100644
+index 0000000..2c776e5
+--- /dev/null
++++ b/hybris/vulkan/compat/spirv_debug_names.c
+@@ -0,0 +1,76 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#define _GNU_SOURCE
++#define VK_NO_PROTOTYPES
++#include "spirv_debug_names.h"
++#include "../layer/layer.h"
++#include <pthread.h>
++#include <stdatomic.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/auxv.h>
++
++static pthread_once_t once = PTHREAD_ONCE_INIT;
++static int enabled = 1;
++static _Atomic unsigned reports;
++static void configure(void)
++{
++    const char *control = getauxval(AT_SECURE) ? NULL : getenv("HYBRIS_VULKAN_COMPAT_DEBUG_NAMES");
++    enabled = !control || strcmp(control, "0");
++}
++int hybris_debug_names_enabled(void) { pthread_once(&once, configure); return enabled; }
++
++int hybris_debug_names_active(VkPhysicalDevice physical)
++{
++    struct hybris_layer_physical context;
++    if (!hybris_debug_names_enabled() || !hybris_layer_lookup_physical(physical, &context)) return 0;
++    PFN_vkGetPhysicalDeviceProperties properties = (PFN_vkGetPhysicalDeviceProperties)
++        context.resolver(context.instance, "vkGetPhysicalDeviceProperties");
++    if (!properties) return 0;
++    VkPhysicalDeviceProperties p;
++    properties(physical, &p);
++    /* Observed on PowerVR D-Series DXT-48-1536, driver 25.3@6908880 (Tensor G5).
++     * Names carry no meaning, so every Imagination driver gets the same input. */
++    return p.vendorID == 0x1010;
++}
++
++VkResult hybris_spirv_debug_names(const uint32_t *code, size_t size,
++    const VkAllocationCallbacks *allocator, uint32_t **output, size_t *output_size,
++    unsigned *removed)
++{
++    *output = NULL; *output_size = 0; *removed = 0;
++    if (!code || size < 20 || size % 4 || code[0] != 0x07230203) return VK_SUCCESS;
++    size_t words = size / 4;
++    unsigned names = 0;
++    for (size_t at = 5; at < words;) {
++        uint32_t count = code[at] >> 16, op = code[at] & 65535;
++        if (!count || count > words - at) return VK_SUCCESS;
++        names += op == 5 || op == 6;
++        at += count;
++    }
++    if (!names) return VK_SUCCESS;
++    uint32_t *result = hybris_scaled_alloc(allocator, size, VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
++    if (!result) return VK_ERROR_OUT_OF_HOST_MEMORY;
++    memcpy(result, code, 5 * sizeof(*code));
++    size_t out = 5;
++    for (size_t at = 5; at < words;) {
++        uint32_t count = code[at] >> 16, op = code[at] & 65535;
++        if (op != 5 && op != 6) {
++            memcpy(result + out, code + at, count * sizeof(*code));
++            out += count;
++        }
++        at += count;
++    }
++    *output = result;
++    *output_size = out * sizeof(*code);
++    *removed = names;
++    return VK_SUCCESS;
++}
++
++void hybris_debug_names_report(unsigned removed, size_t original, size_t converted)
++{
++    unsigned slot = atomic_load(&reports);
++    while (slot < 33 && !atomic_compare_exchange_weak(&reports, &slot, slot + 1)) {}
++    if (slot < 32) fprintf(stderr, "HYBRIS_DEBUG_NAMES removed=%u original=%zu converted=%zu\n", removed, original, converted);
++    else if (slot == 32) fprintf(stderr, "HYBRIS_DEBUG_NAMES truncated\n");
++}
+diff --git a/hybris/vulkan/compat/spirv_debug_names.h b/hybris/vulkan/compat/spirv_debug_names.h
+new file mode 100644
+index 0000000..e06e0bc
+--- /dev/null
++++ b/hybris/vulkan/compat/spirv_debug_names.h
+@@ -0,0 +1,17 @@
++/* SPDX-License-Identifier: Apache-2.0 */
++#ifndef HYBRIS_SPIRV_DEBUG_NAMES_H
++#define HYBRIS_SPIRV_DEBUG_NAMES_H
++#include "scaled_vertex.h"
++int hybris_debug_names_enabled(void);
++/* Imagination's proprietary driver resolves shader interface variables by
++ * their OpName. A vertex input and an output with the same debug name (DXVK's
++ * D3D11 compiler names both after the HLSL semantic) then read each other's
++ * storage: the input arrives as undefined per-tile data. */
++int hybris_debug_names_active(VkPhysicalDevice physical);
++/* Remove OpName and OpMemberName. They have no semantics, so the module is
++ * otherwise unchanged. Null output means no change. */
++VkResult hybris_spirv_debug_names(const uint32_t *code, size_t size,
++    const VkAllocationCallbacks *allocator, uint32_t **output, size_t *output_size,
++    unsigned *removed);
++void hybris_debug_names_report(unsigned removed, size_t original, size_t converted);
++#endif
