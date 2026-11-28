@@ -1833,7 +1833,6 @@
     <string name="game_sync_err_steam_library">Biblioteca Steam nu este disponibilă</string>
     <string name="game_sync_err_previous_sd">Biblioteca SD anterioară nu este disponibilă</string>
     <string name="game_sync_err_game_storage">Stocarea jocurilor nu este disponibilă</string>
-    <string name="game_sync_err_added_games">Folderul de jocuri adăugate nu este disponibil</string>
     <string name="game_sync_err_manifests">Manifestele Steam nu sunt disponibile</string>
     <string name="content_system_many">Multe sisteme</string>
     <string name="fm_drive_internal">Internă</string>

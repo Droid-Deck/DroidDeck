@@ -1814,7 +1814,6 @@
     <string name="game_sync_err_steam_library">Библиотеката на Steam не е достъпна</string>
     <string name="game_sync_err_previous_sd">Предишната SD библиотека не е достъпна</string>
     <string name="game_sync_err_game_storage">Хранилището за игри не е достъпно</string>
-    <string name="game_sync_err_added_games">Папката с добавени игри не е достъпна</string>
     <string name="game_sync_err_manifests">Манифестите на Steam не са достъпни</string>
     <string name="content_system_many">Много системи</string>
     <string name="fm_drive_internal">Вътрешна</string>

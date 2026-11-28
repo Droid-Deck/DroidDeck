@@ -142,6 +142,35 @@ class GameFilesTest {
         assertEquals("user edit", modified.readText())
     }
 
+    @Test fun syncKeepsOnlyVanishedGamesItIsAskedToKeep() {
+        val folder = tmp.newFolder()
+        val steam = game()
+        val second = game("620", "Portal 2")
+        val shortcut = game(java.lang.Long.toUnsignedString((0xC0FFEE01L shl 32) or 0x02000000L), "Card Game")
+        val dropped = game(java.lang.Long.toUnsignedString((0xC0FFEE03L shl 32) or 0x02000000L), "Card Removed")
+        val moved = game(java.lang.Long.toUnsignedString((0xC0FFEE02L shl 32) or 0x02000000L), "Card Tool")
+        GameFiles.sync(app, folder, listOf(steam, second, shortcut, dropped, moved))
+        val renamed = game("620", "Portal 2 Remastered")
+        val third = game("1", "New install")
+        val movedRenamed = game(moved.gameIdString, "Card Tool Deluxe")
+        val keep = setOf(steam.gameIdString, shortcut.gameIdString, moved.gameIdString)
+        GameFiles.sync(app, folder, listOf(renamed, third, movedRenamed), keep = keep)
+        assertEquals("8400", File(folder, GameFiles.filename(steam)).readText())
+        assertEquals(shortcut.gameIdString, File(folder, GameFiles.filename(shortcut)).readText())
+        assertFalse(File(folder, GameFiles.filename(dropped)).exists())
+        assertFalse(File(folder, GameFiles.filename(second)).exists())
+        assertFalse(File(folder, GameFiles.filename(moved)).exists())
+        assertEquals("620", File(folder, GameFiles.filename(renamed)).readText())
+        assertEquals("1", File(folder, GameFiles.filename(third)).readText())
+        assertEquals(moved.gameIdString, File(folder, GameFiles.filename(movedRenamed)).readText())
+        GameFiles.sync(app, folder, listOf(renamed, third, movedRenamed))
+        assertFalse(File(folder, GameFiles.filename(steam)).exists())
+        assertFalse(File(folder, GameFiles.filename(shortcut)).exists())
+        assertTrue(File(folder, GameFiles.filename(renamed)).isFile)
+        assertTrue(File(folder, GameFiles.filename(third)).isFile)
+        assertTrue(File(folder, GameFiles.filename(movedRenamed)).isFile)
+    }
+
     @Test fun failedExportDoesNotPruneOldInventoryAndNeverOverwritesCollisions() {
         val folder = tmp.newFolder()
         val first = game()

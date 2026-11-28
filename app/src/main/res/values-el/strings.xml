@@ -1814,7 +1814,6 @@
     <string name="game_sync_err_steam_library">Η βιβλιοθήκη Steam δεν είναι διαθέσιμη</string>
     <string name="game_sync_err_previous_sd">Η προηγούμενη βιβλιοθήκη SD δεν είναι διαθέσιμη</string>
     <string name="game_sync_err_game_storage">Ο χώρος αποθήκευσης παιχνιδιών δεν είναι διαθέσιμος</string>
-    <string name="game_sync_err_added_games">Ο φάκελος προστιθέμενων παιχνιδιών δεν είναι διαθέσιμος</string>
     <string name="game_sync_err_manifests">Τα manifest του Steam δεν είναι διαθέσιμα</string>
     <string name="content_system_many">Πολλά συστήματα</string>
     <string name="fm_drive_internal">Εσωτερική</string>

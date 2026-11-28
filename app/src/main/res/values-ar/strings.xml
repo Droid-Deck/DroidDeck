@@ -1890,7 +1890,6 @@
     <string name="game_sync_err_steam_library">مكتبة Steam غير متاحة</string>
     <string name="game_sync_err_previous_sd">مكتبة SD السابقة غير متاحة</string>
     <string name="game_sync_err_game_storage">مساحة تخزين الألعاب غير متاحة</string>
-    <string name="game_sync_err_added_games">مجلد الألعاب المضافة غير متاح</string>
     <string name="game_sync_err_manifests">ملفات البيان في Steam غير متاحة</string>
     <string name="content_system_many">أنظمة متعددة</string>
     <string name="fm_drive_internal">التخزين الداخلي</string>

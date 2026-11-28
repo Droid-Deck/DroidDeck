@@ -1852,7 +1852,6 @@
     <string name="game_sync_err_steam_library">Biblioteka Steam jest niedostępna</string>
     <string name="game_sync_err_previous_sd">Poprzednia biblioteka na karcie SD jest niedostępna</string>
     <string name="game_sync_err_game_storage">Miejsce na gry jest niedostępne</string>
-    <string name="game_sync_err_added_games">Folder dodanych gier jest niedostępny</string>
     <string name="game_sync_err_manifests">Manifesty Steam są niedostępne</string>
     <string name="content_system_many">Wiele systemów</string>
     <string name="fm_drive_internal">Wewnętrzna</string>

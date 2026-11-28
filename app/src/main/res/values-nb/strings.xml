@@ -1814,7 +1814,6 @@
     <string name="game_sync_err_steam_library">Steam-biblioteket er ikke tilgjengelig</string>
     <string name="game_sync_err_previous_sd">Det forrige SD-biblioteket er ikke tilgjengelig</string>
     <string name="game_sync_err_game_storage">Spillagringen er ikke tilgjengelig</string>
-    <string name="game_sync_err_added_games">Mappen for tillagte spill er ikke tilgjengelig</string>
     <string name="game_sync_err_manifests">Steam-manifestene er ikke tilgjengelige</string>
     <string name="content_system_many">Mange systemer</string>
     <string name="fm_drive_internal">Intern</string>

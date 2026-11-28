@@ -1873,7 +1873,6 @@
     <string name="game_sync_err_steam_library">Steam 库不可用</string>
     <string name="game_sync_err_previous_sd">之前的 SD 卡库不可用</string>
     <string name="game_sync_err_game_storage">游戏存储不可用</string>
-    <string name="game_sync_err_added_games">已添加游戏的文件夹不可用</string>
     <string name="game_sync_err_manifests">Steam 清单文件不可用</string>
     <string name="content_system_many">多种平台</string>
     <string name="fm_drive_internal">内部存储</string>

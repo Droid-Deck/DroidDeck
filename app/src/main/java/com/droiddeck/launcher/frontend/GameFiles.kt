@@ -144,7 +144,7 @@ object GameFiles {
         if (!target.exists()) AtomicFile(target).writeBytes(art.readBytes())
     }
 
-    @Synchronized fun sync(context: Context, folder: File, games: List<Library.SteamGame>) {
+    @Synchronized fun sync(context: Context, folder: File, games: List<Library.SteamGame>, keep: Set<String> = emptySet()) {
         require(folder.isDirectory) { context.getString(R.string.gfiles_folder_unavailable) }
         val inventory = child(context, folder, INVENTORY)
         val previous = if (inventory.exists()) {
@@ -168,13 +168,15 @@ object GameFiles {
             if (!existed || owned) next.put(file.name, game.gameIdString)
             file
         }
+        val kept = keep - unique.map { it.gameIdString }.toSet()
         for (name in previous.keys()) {
             val id = previous.getString(name)
             if (!next.has(name) && ours(name) && GameLaunchLink.validId(id)) {
                 val file = child(context, folder, name)
                 if (matches(file, contents(id))) {
                     val retained = exports.any { java.nio.file.Files.isSameFile(it.toPath(), file.toPath()) }
-                    if (!retained) check(file.delete()) { context.getString(R.string.gfiles_remove_failed, name) }
+                    if (!retained && id in kept) next.put(name, id)
+                    else if (!retained) check(file.delete()) { context.getString(R.string.gfiles_remove_failed, name) }
                 }
             }
         }

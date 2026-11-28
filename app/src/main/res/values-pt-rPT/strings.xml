@@ -1839,7 +1839,6 @@
     <string name="game_sync_err_steam_library">A biblioteca do Steam não está disponível</string>
     <string name="game_sync_err_previous_sd">A biblioteca anterior do cartão SD não está disponível</string>
     <string name="game_sync_err_game_storage">O armazenamento de jogos não está disponível</string>
-    <string name="game_sync_err_added_games">A pasta de jogos adicionados não está disponível</string>
     <string name="game_sync_err_manifests">Os manifestos do Steam não estão disponíveis</string>
     <string name="content_system_many">Vários sistemas</string>
     <string name="fm_drive_internal">Interno</string>

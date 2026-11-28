@@ -2055,7 +2055,6 @@
     <string name="game_sync_err_steam_library">Steam library is unavailable</string>
     <string name="game_sync_err_previous_sd">Previous SD library is unavailable</string>
     <string name="game_sync_err_game_storage">Game storage is unavailable</string>
-    <string name="game_sync_err_added_games">Added games folder is unavailable</string>
     <string name="game_sync_err_manifests">Steam manifests are unavailable</string>
     <string name="content_system_many">Many systems</string>
     <string name="fm_drive_internal">Internal</string>

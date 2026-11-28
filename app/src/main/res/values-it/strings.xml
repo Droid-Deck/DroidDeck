@@ -1824,7 +1824,6 @@
     <string name="game_sync_err_steam_library">La libreria di Steam non è disponibile</string>
     <string name="game_sync_err_previous_sd">La libreria SD precedente non è disponibile</string>
     <string name="game_sync_err_game_storage">L\'archivio dei giochi non è disponibile</string>
-    <string name="game_sync_err_added_games">La cartella dei giochi aggiunti non è disponibile</string>
     <string name="game_sync_err_manifests">I manifest di Steam non sono disponibili</string>
     <string name="content_system_many">Molti sistemi</string>
     <string name="fm_drive_internal">Interna</string>

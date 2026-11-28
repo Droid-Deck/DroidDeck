@@ -1796,7 +1796,6 @@
     <string name="game_sync_err_steam_library">Steam 라이브러리를 사용할 수 없습니다</string>
     <string name="game_sync_err_previous_sd">이전 SD 라이브러리를 사용할 수 없습니다</string>
     <string name="game_sync_err_game_storage">게임 저장 공간을 사용할 수 없습니다</string>
-    <string name="game_sync_err_added_games">추가된 게임 폴더를 사용할 수 없습니다</string>
     <string name="game_sync_err_manifests">Steam 매니페스트를 사용할 수 없습니다</string>
     <string name="content_system_many">다양한 기종</string>
     <string name="fm_drive_internal">내부</string>

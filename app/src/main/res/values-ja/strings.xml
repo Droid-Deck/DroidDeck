@@ -1796,7 +1796,6 @@
     <string name="game_sync_err_steam_library">Steamライブラリを利用できません</string>
     <string name="game_sync_err_previous_sd">以前のSDライブラリを利用できません</string>
     <string name="game_sync_err_game_storage">ゲームストレージを利用できません</string>
-    <string name="game_sync_err_added_games">追加したゲームのフォルダを利用できません</string>
     <string name="game_sync_err_manifests">Steamのマニフェストを利用できません</string>
     <string name="content_system_many">多数のシステム</string>
     <string name="fm_drive_internal">内部</string>

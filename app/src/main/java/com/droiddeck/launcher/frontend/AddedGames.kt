@@ -412,6 +412,18 @@ object AddedGames {
         Log.i(TAG, "games: bound $dir at $guest")
     }
 
+    fun unmountedShortcuts(context: Context, listed: List<Library.SteamGame>): Set<String> {
+        val gone = roots(context).filter { it.host.listFiles() == null }.map { it.host.path }
+        if (gone.isEmpty()) return emptySet()
+        val removed = SessionPrefs.removedAddedGames(context).toSet()
+        val present = listed.filter { it.library == Library.ADDED }.mapNotNull { it.gameFiles?.name?.lowercase() }.toSet()
+        return AddedExes.list(context).map { File(it.folder) }
+            .filter { f -> f.path !in removed && gone.any { f.path == it || inside(f.path, it) } && !f.isDirectory && f.name.lowercase() !in present }
+            .mapNotNull { SessionPrefs.addedGameStoredAppId(context, it.path) }
+            .map(com.droiddeck.launcher.stores.epic.EpicClient::gameId)
+            .toSet()
+    }
+
     private fun listedFolders(context: Context, removed: Set<String>): List<String> {
         val out = ArrayList<String>()
         val entries = entryFolders(context)

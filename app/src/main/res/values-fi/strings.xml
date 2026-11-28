@@ -1814,7 +1814,6 @@
     <string name="game_sync_err_steam_library">Steam-kirjasto ei ole käytettävissä</string>
     <string name="game_sync_err_previous_sd">Aiempi SD-kirjasto ei ole käytettävissä</string>
     <string name="game_sync_err_game_storage">Pelien tallennustila ei ole käytettävissä</string>
-    <string name="game_sync_err_added_games">Lisättyjen pelien kansio ei ole käytettävissä</string>
     <string name="game_sync_err_manifests">Steam-manifestit eivät ole käytettävissä</string>
     <string name="content_system_many">Useita järjestelmiä</string>
     <string name="fm_drive_internal">Sisäinen</string>

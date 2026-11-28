@@ -1852,7 +1852,6 @@
     <string name="game_sync_err_steam_library">Knihovna Steamu není dostupná</string>
     <string name="game_sync_err_previous_sd">Předchozí knihovna na SD kartě není dostupná</string>
     <string name="game_sync_err_game_storage">Úložiště her není dostupné</string>
-    <string name="game_sync_err_added_games">Složka přidaných her není dostupná</string>
     <string name="game_sync_err_manifests">Manifesty Steamu nejsou dostupné</string>
     <string name="content_system_many">Mnoho systémů</string>
     <string name="fm_drive_internal">Interní</string>

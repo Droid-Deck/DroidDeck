@@ -1814,7 +1814,6 @@
     <string name="game_sync_err_steam_library">Steam लाइब्रेरी उपलब्ध नहीं है</string>
     <string name="game_sync_err_previous_sd">पिछली SD लाइब्रेरी उपलब्ध नहीं है</string>
     <string name="game_sync_err_game_storage">गेम स्टोरेज उपलब्ध नहीं है</string>
-    <string name="game_sync_err_added_games">जोड़े गए गेम का फ़ोल्डर उपलब्ध नहीं है</string>
     <string name="game_sync_err_manifests">Steam मेनिफ़ेस्ट उपलब्ध नहीं हैं</string>
     <string name="content_system_many">कई सिस्टम</string>
     <string name="fm_drive_internal">इंटरनल</string>
