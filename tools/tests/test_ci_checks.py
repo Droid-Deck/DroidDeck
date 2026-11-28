@@ -60,7 +60,7 @@ class CiChecksTest(unittest.TestCase):
             sudo = root / 'sudo'
             sudo.write_text('#!/bin/bash\nprintf "%s\\n" "$*" >> "$APT_LOG"\n'
                             'for arg; do case "$arg" in Dir::Etc::sourcelist=*) '
-                            'grep -h "^URIs:" "${arg#*=}" >> "$APT_LOG.mirrors";; esac; done\n'
+                            'grep -hE "^(URIs|Suites):" "${arg#*=}" >> "$APT_LOG.mirrors";; esac; done\n'
                             'exit "${APT_RESULT:-0}"\n')
             sudo.chmod(0o755)
             query = root / 'dpkg-query'
@@ -105,11 +105,34 @@ class CiChecksTest(unittest.TestCase):
             self.assertIn('install -y -q --no-install-recommends qemu-user', install)
 
             log.unlink()
-            absent = dict(env, UBUNTU_SOURCES_FILE=str(root / 'missing.sources'), APT_RESULT='17')
+            mirrors.unlink()
+            release = root / 'os-release'
+            release.write_text('ID=ubuntu\n')
+            absent = dict(env, UBUNTU_SOURCES_FILE=str(root / 'missing.sources'), APT_RESULT='17',
+                          OS_RELEASE_FILE=str(release))
             result = subprocess.run(['bash', str(installer), 'qemu-user'], env=absent)
             self.assertEqual(result.returncode, 1)
             self.assertEqual(len(log.read_text().splitlines()), 1)
             self.assertNotIn('Dir::Etc::sourceparts', log.read_text())
+
+            log.unlink()
+            release.write_text('ID=ubuntu\nVERSION_CODENAME=noble\nUBUNTU_CODENAME=noble\n')
+            result = subprocess.run(['bash', str(installer), 'qemu-user'], env=absent)
+            self.assertEqual(result.returncode, 17)
+            first, *fallbacks = log.read_text().splitlines()
+            self.assertNotIn('Dir::Etc::sourcelist', first)
+            self.assertEqual(len(fallbacks), 2)
+            for command in (first, *fallbacks):
+                self.assertIn('Acquire::Retries=1', command)
+                self.assertIn('Acquire::https::Timeout=15', command)
+            for command in fallbacks:
+                self.assertIn('Dir::Etc::sourceparts=-', command)
+            self.assertEqual(mirrors.read_text().splitlines(), [
+                'URIs: https://archive.ubuntu.com/ubuntu',
+                'Suites: noble noble-updates noble-security',
+                'URIs: https://mirrors.edge.kernel.org/ubuntu',
+                'Suites: noble noble-updates noble-security',
+            ])
 
     def test_required_status_rejects_failed_cancelled_or_skipped_test_jobs(self):
         jobs = yaml.safe_load((ROOT / '.github/workflows/build.yml').read_text())['jobs']
