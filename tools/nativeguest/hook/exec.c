@@ -1383,8 +1383,8 @@ static pthread_mutex_t g_popen_lock = PTHREAD_MUTEX_INITIALIZER;
 static pid_t start_shell(const char *command, int child_fd, int target_fd, const sigset_t *mask,
                          const struct sigaction *intr, const struct sigaction *quit, int close_popen_streams) {
     // Through posix_spawn(), as glibc does: its child only makes system calls. A forked child running
-    // the exec code here would take locks (the program's own malloc's among them) that another thread
-    // of a multithreaded caller may have held at fork(), and wait for them forever (Steam's popen()s).
+    // the exec code here would take locks that another thread of a multithreaded caller may have held
+    // at fork(), and wait for them forever (Steam's popen()s did, and its main loop stalled).
     posix_spawn_file_actions_t actions;
     posix_spawnattr_t attr;
     if (posix_spawn_file_actions_init(&actions) != 0) return -1;
