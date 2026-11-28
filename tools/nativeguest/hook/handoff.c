@@ -159,6 +159,9 @@ static void ddh_forget(pid_t child) {
 static void ddh_forked(void) { __atomic_store_n(&g_ddh_preparing, 0, __ATOMIC_RELAXED); }
 
 static void ddh_prepare(void) {
+    // the parent records which thread forks each child (ddh_forked_by()); a child refuses a handoff
+    // when it cannot (ddh_try())
+    if (getenv("DD_SPAWN")) ddh_forks(1);
     if (__atomic_load_n(&g_ddh, __ATOMIC_ACQUIRE) || !getenv("DD_SPAWN")) return;
     if (__atomic_exchange_n(&g_ddh_preparing, 1, __ATOMIC_ACQ_REL)) return;
     if (g_ddh) {
@@ -1024,6 +1027,10 @@ static void ddh_try(const char *filename, char *const argv[], char *const envp[]
     const char *sock = ddh_env(envp, "DD_SPAWN");
     const char *list = ddh_env(envp, "DD_HANDOFF");
     if (!sock || !list) return;
+    if (!ddh_forks(0)) {
+        ddh_debug(envp, "no fork records:", filename);
+        return;
+    }
     if (access(filename, X_OK) != 0) {
         ddh_debug(envp, "not executable here:", filename);
         return;
@@ -1282,23 +1289,28 @@ static int ddh_take(struct ddh_entry *e) {
 // Gives a taken exit back, for a later wait (its forked child is not reaped yet).
 static void ddh_untake(struct ddh_entry *e) { __atomic_store_n(&e->state, DDH_EXITED, __ATOMIC_RELEASE); }
 
+// 1 alive, 0 exited, -1 not known (/proc could not be read, out of fds say)
 static int ddh_thread_alive(pid_t thread) {
     char path[64], stat[256];
     snprintf(path, sizeof(path), "/proc/self/task/%d/stat", (int)thread);
     int saved = errno;
     long n = ddh_read_proc(path, stat, sizeof(stat));
+    int failed = errno;
     errno = saved;
-    char *s = n > 0 ? strrchr(stat, ')') : NULL;
+    if (n <= 0) return failed == ENOENT || failed == ESRCH ? 0 : -1;
+    char *s = strrchr(stat, ')');
     return s && s[1] == ' ' && s[2] != 'Z' && s[2] != 'X';
 }
 
 // The thread a child's exit goes to now: the one that forked it while that lives. After it has
 // exited, the kernel hands its children to the first live thread of the group, the main one while it
-// lives; with that gone as well, which one is not known here, and any may take it (the asker).
+// lives; with that gone as well, which one is not known here, and any may take it (the asker). Only
+// an exit /proc confirms moves it: when /proc cannot say, the forking thread keeps it.
 static pid_t ddh_child_owner(pid_t child) {
     pid_t thread = ddh_forking_thread(child);
-    if (thread <= 0 || ddh_thread_alive(thread)) return thread;
-    return ddh_thread_alive(getpid()) ? getpid() : t_ddh_only_thread;
+    if (thread <= 0 || ddh_thread_alive(thread) != 0) return thread;
+    int main_thread = ddh_thread_alive(getpid());
+    return main_thread > 0 ? getpid() : main_thread == 0 ? t_ddh_only_thread : thread;
 }
 
 // Whether a wait for pid (-1: any child, 0: one in our group, -G: one in group G) takes e's child.
