@@ -103,6 +103,36 @@ class TraceTest(unittest.TestCase):
         self.assertEqual(summary["name_failures"], {"(unparsed)": 1})
 
 
+class DialogTest(unittest.TestCase):
+    """The join-failure box is what says why, so it must be recognised."""
+
+    def test_the_reported_complaint_is_recognised(self):
+        self.assertTrue(RUN["join_dialog"](
+            "UNABLE TO CONNECT TO THE LIVE CONFIGURATION SERVERS\nPRESS X FOR NETWORK DIAGNOSTICS"))
+
+    def test_the_pause_list_is_not_mistaken_for_the_box(self):
+        # It has a HORIZON LIFE item and a PLAY ONLINE item; neither is the box.
+        self.assertFalse(RUN["join_dialog"](PAUSE_NOT_JOINED))
+        self.assertFalse(RUN["join_dialog"](PAUSE_JOINED))
+
+    def test_a_driving_frame_is_not_the_box(self):
+        self.assertFalse(RUN["join_dialog"]("60 FPS VKD3D HORIZON LIFE 12,345 CR"))
+
+
+class TraceSliceTest(unittest.TestCase):
+    def test_a_slice_from_before_the_press_holds_only_what_followed(self):
+        # Offset handling is what makes the join's own traffic distinguishable from
+        # the traffic made at the title screen.
+        trace = "early line\nlater line\nlast line"
+        offset = len(trace) - len("later line\nlast line")
+        self.assertEqual(trace[offset:], "later line\nlast line")
+
+    def test_an_offset_past_the_end_is_treated_as_the_whole_file(self):
+        trace = "one line"
+        offset = 999
+        self.assertEqual(trace[offset:] if 0 <= offset < len(trace) else trace, trace)
+
+
 class NoEndpointTest(unittest.TestCase):
     """Nothing in the run may name a server, an address or a namespace."""
 

@@ -15,7 +15,13 @@ The sequence, which is the only one that has worked:
     4. back out of the garage (B twice) and let the world load
     5. start until the pause list is on screen
     6. right, then A: that is CONNECT TO HORIZON LIFE, and it drops back into the game
-    7. wait, then start again, and read what PLAYER LIST says
+    7. read the screen before touching anything: a failed join raises a box saying
+       why, and its own network diagnostics are opened on X
+    8. start again, and read what PLAYER LIST says
+
+Step 7 matters as much as the join itself. Opening the pause list straight after
+step 6 hides the error box, which is how earlier runs reported a bare "not joined"
+with no reason attached -- the one thing that would say what to fix.
 
 Step 6 is the part that was missing for so long. The pause list opens on the
 Horizon Life tab, so one right press lands on CONNECT TO HORIZON LIFE and A starts
@@ -74,6 +80,8 @@ PAUSE = ("HORIZON LIFE", "WORLD MAP", "PLAY ONLINE", "CONNECT TO HORIZON LIFE")
 # is deliberately not among them: once the room is up that item is gone.
 LIST_MARKS = ("HORIZON LIFE", "WORLD MAP", "PLAY ONLINE", "PLAYER LIST")
 NOT_IN_SESSION = ("NOT AVAILABLE", "CONNECT TO HORIZON LIFE")
+# Wording of the join-failure box. Only the complaint contains these.
+DIALOG_MARKS = ("UNABLE TO CONNECT", "LIVE CONFIGURATION", "NETWORK DIAGNOSTICS")
 
 # Trace markers written by the shim and the compatible sockets layer.
 TRACE_IPV4 = re.compile(r"xbl_devaddr sda ipv4=(\d+\.\d+\.\d+\.\d+)")
@@ -101,6 +109,10 @@ class Run:
         self.out.mkdir(parents=True, exist_ok=True)
         self.step = 0
         self._win_temp = None
+        # Filled in by the join step, reported afterwards.
+        self.dialog = ""
+        self.diag = ""
+        self.delta = None
 
     # ---- plumbing -------------------------------------------------------
 
@@ -260,31 +272,47 @@ def ensure_session(run):
 
 
 def reach_pause(run):
-    """Walk whatever screen is up until the pause list is showing."""
-    for step in range(run.args.attempts):
+    """Walk whatever screen is up until the pause list is showing.
+
+    Bounded by time, not by a count of reads. A cold boot spends most of a minute
+    getting from "Getting the desktop ready" through the logos to the title, and a
+    count of reads then expires just as the welcome panel appears -- which is
+    exactly how a run that had reached the game reported "the pause list never
+    appeared" two presses short of it.
+    """
+    deadline = time.time() + run.args.reach_timeout
+    step = 0
+    while time.time() < deadline:
         path = run.shot("reach")
         text = run.ocr(path)
         if any(mark in text for mark in PAUSE):
-            run.say("pause list up (step %d)" % step)
+            run.say("pause list up after %ds" % step)
             return True
         if any(mark in text for mark in TITLE):
+            # The splash carries the accessibility notice, so this is not always
+            # the real title screen; pressing A early is harmless, waiting is not.
             run.say("title screen; pressing A")
             run.pad("a")
             time.sleep(9)
-            continue
-        if "CONTINUE" in text:
+        elif "CONTINUE" in text:
             run.say("welcome panel; pressing A")
             run.pad("a")
             time.sleep(10)
-            continue
-        if step == 0:
+        elif "GETTING THE DESKTOP READY" in text or "STARTING FORZA" in text:
+            # Nothing here accepts a pad press; pressing only wastes the wait.
+            time.sleep(8)
+        elif step == 0:
             # Fresh from the garage: back out to the world before pausing.
             run.pad("b")
             time.sleep(4)
             run.pad("b")
             time.sleep(4)
-        run.pad("start")
-        time.sleep(3)
+            run.pad("start")
+            time.sleep(3)
+        else:
+            run.pad("start")
+            time.sleep(4)
+        step += 1
     return False
 
 
@@ -295,7 +323,67 @@ def start_join(run):
     time.sleep(1.5)
     run.pad("a")
     run.say("pressed right and A")
-    time.sleep(8)
+
+
+def read_join_screen(run):
+    """Read the screen straight after the join, before anything dismisses it.
+
+    A failed join raises an error box -- "Unable to connect to the Live
+    configuration servers" -- and that box, not the pause list afterwards, is the
+    only place the title says what went wrong. Opening the pause list first hides
+    it, which is what an earlier version of this script did and why several runs
+    reported a bare "not joined" with no reason attached.
+
+    The box also offers the title's own network diagnostics on X, so those are
+    opened and read as well: they name the service that did not come up.
+    """
+    dialog = ""
+    for attempt in range(3):
+        time.sleep(5)
+        path = run.shot("join")
+        text = run.ocr(path)
+        if join_dialog(text):
+            dialog = text
+            run.say("  join error on screen: %s" % first_line_containing(text, DIALOG_MARKS))
+            break
+        if attempt == 2:
+            run.say("  no join error on screen")
+
+    if not dialog:
+        return "", ""
+
+    # The box's own diagnostics are worth more than the one-line complaint.
+    run.pad("x")
+    time.sleep(5)
+    path = run.shot("diagnostics")
+    diag = run.ocr(path)
+    if diag.strip():
+        run.say("  diagnostics read (%d lines)" % len(diag.splitlines()))
+    else:
+        run.say("  diagnostics did not read")
+    # Back out to the game; the box and the diagnostics both answer to B.
+    run.pad("b")
+    time.sleep(2)
+    run.pad("b")
+    time.sleep(2)
+    return dialog, diag
+
+
+def first_line_containing(text, marks):
+    for line in text.splitlines():
+        if any(mark in line for mark in marks):
+            return line.strip()
+    return ""
+
+
+def join_dialog(text):
+    """Whether the screen is the join-failure box rather than the game.
+
+    Matched on the box's own wording. A bare "LIVE" is not enough: the pause list
+    has a HORIZON LIFE item and the HUD can show event names, so the check needs a
+    word that only the complaint contains.
+    """
+    return any(mark in text for mark in DIALOG_MARKS)
 
 
 def read_outcome(run):
@@ -373,6 +461,33 @@ def failures_by_host(trace_text):
     return counts
 
 
+def trace_size(run):
+    """How much of the guest trace has been written so far.
+
+    Taking the length before the join and again after it is what ties network
+    activity to the press: the trace has no timestamps, so without this the calls
+    that answer the join are indistinguishable from the ones made at the title
+    screen.
+    """
+    result = run.adb("exec-out", "run-as", LAUNCHER, "wc", "-c", TRACE_IN_GUEST)
+    match = re.search(r"(\d+)", result.stdout)
+    return int(match.group(1)) if match else 0
+
+
+def trace_delta(run, trace_path, offset):
+    """The part of the trace written since the join started."""
+    if trace_path is None:
+        return None
+    text = trace_path.read_text(encoding="utf-8", errors="replace")
+    # A rotated or truncated trace leaves an offset past the end; the whole file is
+    # then the honest answer rather than an empty slice.
+    delta = text[offset:] if 0 <= offset < len(text) else text
+    path = run.out / "uwp-host-join.log"
+    path.write_text(delta, encoding="utf-8", errors="replace")
+    run.delta = delta
+    return path
+
+
 def pull_trace(run):
     """Copy the shim trace out of the guest, if it is readable.
 
@@ -397,6 +512,32 @@ def report(run, outcome, text, trace_path):
     words = [w.strip() for w in text.splitlines() if w.strip()]
     run.say("  " + (" | ".join(words)[:600] if words else "(nothing read)"))
     run.say("  outcome: %s" % outcome)
+
+    run.say("")
+    run.say("--- join attempt ---")
+    if run.dialog:
+        for line in run.dialog.splitlines():
+            if line.strip():
+                run.say("  said: %s" % line.strip()[:110])
+    else:
+        run.say("  no error box: the title did not complain about the join")
+    if run.diag:
+        run.say("  its own diagnostics:")
+        for line in run.diag.splitlines()[:14]:
+            if line.strip():
+                run.say("    %s" % line.strip()[:110])
+    if run.delta is not None:
+        lines = [l for l in run.delta.splitlines() if l.strip()]
+        run.say("  trace written during the attempt: %d lines" % len(lines))
+        hosts = {}
+        for line in lines:
+            host = TRACE_HOST.search(line)
+            if host:
+                hosts[host.group(1)] = hosts.get(host.group(1), 0) + 1
+        for host, count in sorted(hosts.items(), key=lambda item: -item[1])[:6]:
+            run.say("    %4dx %s" % (count, host))
+        if not lines:
+            run.say("    (nothing at all: the press may not have reached the title)")
 
     run.say("")
     run.say("--- what the shim published ---")
@@ -496,7 +637,9 @@ def main(argv=None):
     parser.add_argument("--expect-dll", help="verify the device's uwp-host.dll is this build")
     parser.add_argument("--launch-timeout", type=int, default=420,
                         help="seconds to wait for the title's window")
-    parser.add_argument("--attempts", type=int, default=12, help="screen reads before giving up")
+    parser.add_argument("--reach-timeout", type=int, default=300,
+                        help="seconds to spend getting from the current screen to the pause list")
+    parser.add_argument("--attempts", type=int, default=12, help="pause-list reads before giving up")
     args = parser.parse_args(argv)
 
     if not CTL.exists():
@@ -519,9 +662,12 @@ def main(argv=None):
         if not reach_pause(run):
             run.say("the pause list never appeared")
             return 2
+        before = trace_size(run)
         start_join(run)
+        run.dialog, run.diag = read_join_screen(run)
         outcome, text, _ = read_outcome(run)
         trace_path = pull_trace(run)
+        trace_delta(run, trace_path, before)
         ok = report(run, outcome, text, trace_path)
         return 0 if ok else 1
     finally:
