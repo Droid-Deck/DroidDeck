@@ -1491,6 +1491,13 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
             if (status) *status = wstatus;
             return r;
         }
+        // No child left: a handoff may have claimed its entry since the look above, and another
+        // waiter reaped its forked child. The program still runs, so this wait goes on.
+        if (!live && r < 0 && errno == ECHILD) {
+            struct ddh_entry *c = pid > 0 ? ddh_find(pid) : NULL;
+            live = pid > 0 ? (c && ddh_selects(c, pid)) || ddh_claiming(pid) : ddh_any_live(pid);
+            errno = ECHILD;
+        }
         if (!live) return r;
         if (r < 0 && errno != ECHILD) return r;
         if (options & WNOHANG) return 0;
