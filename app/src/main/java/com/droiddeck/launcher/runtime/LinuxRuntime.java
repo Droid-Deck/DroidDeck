@@ -243,7 +243,7 @@ public final class LinuxRuntime {
         // A kernel that refuses to list /sys/class/thermal (Pixel 10, Android 17) made mangoapp abort
         // at start ("filesystem_error ... Permission denied: '/sys/class/thermal/'") until its
         // wrapper gave up: it lists the directory for CPU temperatures. Empty there instead.
-        if (new File("/sys/class/thermal").list() == null) bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/class/thermal");
+        if (new File("/sys/class/thermal").list() == null) bindStandIn(cmd, root, "/sys/class/thermal");
         bind(cmd, context.getFilesDir().getPath());
         bind(cmd, context.getCacheDir().getPath());
         bind(cmd, liveDir(context).getPath());
@@ -303,7 +303,7 @@ public final class LinuxRuntime {
             }
         }
         if (unreadablePciDevice()) {
-            bind(cmd, new File(root, "etc/droiddeck/empty").getPath() + ":/sys/bus/pci/devices");
+            bindStandIn(cmd, root, "/sys/bus/pci/devices");
         }
         if (com.droiddeck.launcher.gpu.SystemVulkanDriver.isPowerVr()) {
             bindPowerVrGpuNode(context, cmd);
@@ -336,6 +336,16 @@ public final class LinuxRuntime {
         bind(cmd, dri.getPath() + ":/dev/dri");
         bind(cmd, node + ":" + node);
         android.util.Log.i("LinuxRuntime", "PowerVR: exposing real " + name + " through a listable directory");
+    }
+
+    static File standIn(File root, String guestPath) {
+        File dir = new File(root, "etc/droiddeck/stand-in" + guestPath);
+        dir.mkdirs();
+        return dir;
+    }
+
+    private static void bindStandIn(List<String> cmd, File root, String guestPath) {
+        bind(cmd, standIn(root, guestPath).getPath() + ":" + guestPath);
     }
 
     private static boolean unreadablePciDevice() {
