@@ -75,7 +75,17 @@ class SessionDisplayTest {
         }
         assertEquals(450, SessionDisplay.unfoldedGameHeight(1000, 600, controlsPercent = 25,
             minControlsHeight = header + input))
-        assertEquals(0, SessionDisplay.unfoldedGameHeight(1000, 200, minControlsHeight = header + input))
+    }
+
+    @Test fun autoHeightCapsTheControlsReservationBeforeItConsumesTheGameSurface() {
+        val reservation = 244
+        for (height in listOf(2, 200, 244, 245, 246)) {
+            assertEquals(2, SessionDisplay.unfoldedGameHeight(1000, height, minControlsHeight = reservation))
+        }
+        assertEquals(4, SessionDisplay.unfoldedGameHeight(1000, 248, minControlsHeight = reservation))
+        assertEquals(0, SessionDisplay.unfoldedGameHeight(1000, 1, minControlsHeight = reservation))
+        assertEquals(150, SessionDisplay.unfoldedGameHeight(1000, 200, controlsPercent = 25,
+            minControlsHeight = reservation))
     }
 
     @Test fun aManualSplitReservesTheRequestedShareOfTheWindowForControls() {

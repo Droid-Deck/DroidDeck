@@ -99,7 +99,10 @@ object SessionDisplay {
         else {
             val cap = (height * UNFOLDED_MAX_GAME_SHARE).toInt()
             val fitted = if (aspect > 0f && aspect < 16f / 9f) (width / aspect).toInt() else width * 9 / 16
-            minOf(fitted, cap, height - minControlsHeight)
+            // The game surface needs at least two pixels because its height is rounded down to an even number.
+            val minGameHeight = if (width > 0 && height >= 2) 2 else 0
+            val reservation = minControlsHeight.coerceIn(0, (height - minGameHeight).coerceAtLeast(0))
+            minOf(fitted, cap, height - reservation).coerceAtLeast(minGameHeight)
         }
         return gameHeight.coerceAtLeast(0) and 1.inv()
     }
