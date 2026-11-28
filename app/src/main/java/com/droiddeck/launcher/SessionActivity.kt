@@ -1428,6 +1428,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
                 LaunchedEffect(pcKeyboardOpen, drawerOpen, achievementsOpen) {
                     if (pcKeyboardOpen || drawerOpen || achievementsOpen) padMouse.reset()
                 }
+                val panelShown = panelOverGame
+                LaunchedEffect(panelShown) { boostGpuClock(panelShown && resumed) }
                 if (pcKeyboardOpen) com.droiddeck.launcher.ui.PcKeyboard(
                     sendKey = { code, down -> if (CompositorHost.isStarted) sendGuestKey(code, down, 32) },
                     onAndroidKeyboard = { pcKeyboardOpen = false; togglePrimaryKeyboard() },
@@ -2609,6 +2611,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
     }
 
     private fun gpuClockHeld() = SessionPrefs.gpuClockPin(this) && !GpuClockPin.failed
+
+    private val panelOverGame: Boolean get() = ((drawerOpen && !drawerDocked) || achievementsOpen || gestureSettingsOpen || inputSettingsOpen) && !pipUi
+
+    private fun boostGpuClock(on: Boolean) {
+        if (!GpuClockPin.boost(on)) return
+        Thread { GpuClockPin.sync(applicationContext)?.let { Log.i(TAG, it) } }.start()
+    }
 
     private fun readPrefs() {
         pipAutoEnter = SessionPrefs.pipAutoEnter(this)
@@ -6279,6 +6288,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         onScreenControls?.reload()
         controllerSettings = ControllerPrefs.read(this)
         resumed = true
+        boostGpuClock(panelOverGame)
         updateKeyboardRoute()
         retryFieldKeyboard(hasWindowFocus())
         updateDesktopKeyboardButton()
@@ -6362,6 +6372,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback, com.droidde
         if (::scrollTouch.isInitialized) scrollTouch.cancel()
         if (::padMouse.isInitialized) padMouse.reset()
         resumed = false
+        boostGpuClock(false)
         updateKeyboardRoute()
         updatePointerCapture()
         updatePadMotion()
