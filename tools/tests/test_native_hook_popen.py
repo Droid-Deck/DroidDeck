@@ -25,6 +25,24 @@ int main(int argc, char **argv) {
 }
 """
 
+# posix_spawn() of argv[1] -c "exit 3", without the hook: prints the exit status it got
+SPAWN_PROBE = r"""
+#include <spawn.h>
+#include <stdio.h>
+#include <sys/wait.h>
+
+extern char **environ;
+
+int main(int argc, char **argv) {
+  pid_t pid;
+  char *args[] = {"sh", "-c", "exit 3", NULL};
+  int status = 0;
+  if (posix_spawn(&pid, argv[1], NULL, NULL, args, environ) != 0 || waitpid(pid, &status, 0) != pid) return 1;
+  printf("%d\n", WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+  return 0;
+}
+"""
+
 # popen() and system() through the hook (which starts the shell with posix_spawn())
 PROGRAM = r"""
 #include <stdio.h>
@@ -67,6 +85,15 @@ class NativeHookPopenTest(unittest.TestCase):
         (cls.root / "bin").mkdir(parents=True)
         (tmp / "sh.c").write_text(SHELL)
         subprocess.run([cls.cc, "-static", "-O1", "-o", str(cls.root / "bin/sh"), str(tmp / "sh.c")], check=True)
+        # posix_spawn()'s child execs the shell itself. Under qemu-user that exec works only where the
+        # kernel runs aarch64 programs (binfmt_misc), which a plain x86 runner does not.
+        (tmp / "spawn.c").write_text(SPAWN_PROBE)
+        subprocess.run([cls.cc, "-static", "-O1", "-o", str(tmp / "spawn"), str(tmp / "spawn.c")], check=True)
+        probe = subprocess.run(list(cls.prefix or []) + [str(tmp / "spawn"), str(cls.root / "bin/sh")],
+                               capture_output=True, text=True, timeout=60)
+        if probe.stdout.strip() != "3":
+            cls.tmp.cleanup()
+            raise unittest.SkipTest("this runner cannot exec an aarch64 program from a posix_spawn() child")
         (tmp / "prog.c").write_text(PROGRAM)
         cls.program = tmp / "prog"
         subprocess.run([cls.cc, "-O1", "-o", str(cls.program), str(tmp / "prog.c")], check=True)
