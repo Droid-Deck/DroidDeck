@@ -65,6 +65,7 @@ static char *nothread_arg;
 static pthread_mutex_t nothread_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t nothread_cond = PTHREAD_COND_INITIALIZER;
 static int nothread_step;
+static pid_t nothread_child;
 
 static void nothread_await(int step) {
   pthread_mutex_lock(&nothread_lock);
@@ -86,6 +87,7 @@ static void *nothread_forker(void *unused) {
     execl("/bin/target", "target", nothread_arg, (char *)NULL);
     _exit(127);
   }
+  nothread_child = pid;
   usleep(1500000);  // the program has exited by now
   nothread_go(1);
   nothread_await(2);
@@ -105,6 +107,7 @@ int main(int argc, char **argv) {
     nothread_await(1);
     int status = 0;
     printf("other\t%d\n", (int)waitpid(-1, &status, WNOHANG | __WNOTHREAD));
+    printf("otherpid\t%d\n", (int)waitpid(nothread_child, &status, WNOHANG | __WNOTHREAD));
     nothread_go(2);
     pthread_join(forker, NULL);
     return 0;
@@ -133,6 +136,15 @@ int main(int argc, char **argv) {
       char c;
       close(gate[1]);
       if (read(gate[0], &c, 1) != 1) _exit(126);
+    }
+    if (strcmp(argv[1], "manyargs") == 0) {
+      // argv[3] after 32 others, as a long env-wrapped launch has it
+      char *args[37] = {"target", argv[2]};
+      for (int i = 2; i < 34; i++) args[i] = "x";
+      args[34] = argv[3];
+      args[35] = NULL;
+      execv("/bin/target", args);
+      _exit(127);
     }
     execl(argc > 3 ? argv[3] : "/bin/target", "target", argv[2], (char *)NULL);
     _exit(127);
@@ -512,15 +524,18 @@ class NativeHookHandoffTest(unittest.TestCase):
         self.assertEqual(self.child_status, result.get("exit"), out.stdout)
 
     def test_near_the_limit_a_launch_naming_steam_in_any_argument_is_not(self):
-        # as "env ... /path/Steam/steamrtarm64/steam", with the path late among the arguments
-        result, requests, out = self.run_parent("wait", "/root/.local/share/Steam/steamrtarm64/steam", handoff="other",
-                                                pressure=0, as_shell=True)
+        # as "env ... /path/Steam/steamrtarm64/steam", with the path after 32 other arguments
+        result, requests, out = self.run_parent("manyargs", "3", "/root/.local/share/Steam/steamrtarm64/steam",
+                                                handoff="other", pressure=0, as_shell=True)
         self.assertEqual([], requests)
+        self.assertEqual("1", result.get("same"), out.stdout)
+        self.assertEqual(self.child_status, result.get("exit"), out.stdout)
 
     def test_a_wait_of_another_thread_with_wnothread_does_not_take_the_program(self):
         result, requests, out = self.run_parent("nothread", "7")
         self.assertEqual(1, len(requests), out.stderr)
         self.assertEqual("-1", result.get("other"), out.stdout)
+        self.assertEqual("-1", result.get("otherpid"), out.stdout)
         self.assertEqual("1", result.get("own"), out.stdout)
         self.assertEqual("7", result.get("exit"), out.stdout)
 

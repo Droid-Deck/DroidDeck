@@ -1412,9 +1412,11 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
     int interrupted = 0;
     for (;;) {
         ddh_check_gone();
+        // with __WNOTHREAD, another thread's child is not one this wait may take (ddh_selects())
         struct ddh_entry *e = pid > 0 ? ddh_find(pid) : NULL;
+        if (e && !ddh_selects(e, pid)) e = NULL;
         if (pid > 0 && e) {
-            if (!e->reaped && real(pid, NULL, WNOHANG, NULL) == pid) e->reaped = 1;
+            if (!e->reaped && real(pid, NULL, WNOHANG | (options & (__WALL | __WNOTHREAD)), NULL) == pid) e->reaped = 1;
             if (ddh_take_for(e, pid)) {
                 // the forked child is between its last write and its exit: reap it first, or a later
                 // wait() would report its pid a second time (not blocking for WNOHANG: then later)
@@ -1434,7 +1436,7 @@ static pid_t ddh_wait(pid_t pid, int *status, int options, struct rusage *ru) {
             interrupted = ddh_nap() != 0;
             continue;
         }
-        pid_t done = pid <= 0 ? ddh_reap_exited(real, pid, status, 0, 0) : 0;
+        pid_t done = pid <= 0 ? ddh_reap_exited(real, pid, status, 0, options & (__WALL | __WNOTHREAD)) : 0;
         if (done > 0) {
             if (ru) memset(ru, 0, sizeof(*ru));
             return done;
