@@ -72,6 +72,9 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -103,11 +106,22 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.PointerEventPass
 import com.droiddeck.launcher.HomeApp
 import com.droiddeck.launcher.HomeFolders
 import com.droiddeck.launcher.HomeHidden
@@ -149,6 +163,17 @@ private sealed interface AppEntry : AppEntryKey {
         override val updatedAt get() = 0L
     }
 }
+
+/** Rearranging the grid: the entry being moved, and what tiles call to start a move or to drop it on their spot. */
+private class AppMove(
+    /** Move mode is on: tiles can be dragged, and choosing one picks it up or puts it down. */
+    val arranging: Boolean,
+    val moving: String?, val allowed: Boolean, val start: (String) -> Unit, val tap: (String) -> Unit,
+    /** A tile says a finger came down on it, so that a drag from there carries it. */
+    val arm: (String) -> Unit,
+)
+
+private val LocalAppMove = staticCompositionLocalOf<AppMove?> { null }
 
 /** The focus id of the tile an entry is shown as. */
 private fun tileId(entry: AppEntry): String = "tile:" + if (entry is AppEntry.App) entry.app.key else entry.key
@@ -194,10 +219,13 @@ internal object AppsView {
     const val NAME_DESC = "nameDesc"
     const val INSTALLED = "installed"
     const val UPDATED = "updated"
-    val SORTS = listOf(NAME_ASC, NAME_DESC, INSTALLED, UPDATED)
+    const val CUSTOM = "custom"
+    val SORTS = listOf(NAME_ASC, NAME_DESC, INSTALLED, UPDATED, CUSTOM)
 
     var filter by mutableStateOf(ALL)
     var sort by mutableStateOf(NAME_ASC)
+    /** Entry keys in the order the user arranged them; kept while another sort is in use. */
+    var order by mutableStateOf<List<String>>(emptyList())
     private var loaded = false
 
     private fun prefs(context: Context) = context.getSharedPreferences("home_launcher", Context.MODE_PRIVATE)
@@ -208,6 +236,14 @@ internal object AppsView {
         val p = prefs(context)
         filter = p.getString("filter", ALL)?.takeIf { it in FILTERS } ?: ALL
         sort = p.getString("sort", NAME_ASC)?.takeIf { it in SORTS } ?: NAME_ASC
+        order = p.getString("customOrder", null)?.split('\n')?.filter { it.isNotEmpty() } ?: emptyList()
+    }
+
+    /** Stores [shown] as the arranged order; arranged entries that are not on screen now keep their place after it. */
+    fun setOrder(context: Context, shown: List<String>) {
+        val seen = shown.toSet()
+        order = shown + order.filter { it !in seen }
+        prefs(context).edit().putString("customOrder", order.joinToString("\n")).apply()
     }
 
     fun setFilter(context: Context, value: String) {
@@ -287,7 +323,7 @@ internal interface AppEntryKey {
     val updatedAt: Long
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Modifier, onLaunch: (HomeApp.LaunchableApp) -> Unit) {
     val ctx = LocalContext.current
@@ -313,7 +349,12 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
     val q = query.trim()
     val filter = AppsView.filter
     val sort = AppsView.sort
-    val entries: List<AppEntry> = remember(s.androidApps, folders, q, filter, sort, pins, hidden) {
+    val order = AppsView.order
+    val entries: List<AppEntry> = remember(s.androidApps, folders, q, filter, sort, pins, hidden, order) {
+        val place = if (sort == AppsView.CUSTOM) order.withIndex().associate { it.value to it.index } else emptyMap()
+        // Arranged entries first in their order; anything not arranged yet follows by name.
+        val arranged = compareBy<AppEntry> { place[it.key] ?: Int.MAX_VALUE }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.label }
+        val by: Comparator<AppEntry> = if (sort == AppsView.CUSTOM) arranged else Comparator { a, b -> AppsView.comparator().compare(a, b) }
         val kept = s.androidApps.filter { AppsView.keeps(it) }
         val shortcuts = if (filter == AppsView.ALL) pins.map { AppEntry.Shortcut(it) } else emptyList()
         if (q.isNotEmpty()) {
@@ -321,20 +362,147 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                 .sortedWith(compareBy<Pair<Int, AppEntry>> { it.first }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.second.label })
                 .map { it.second }
         } else if (filter != AppsView.ALL) {
-            kept.map { AppEntry.App(it) }.sortedWith(AppsView.comparator())
+            kept.map<HomeApp.LaunchableApp, AppEntry> { AppEntry.App(it) }.sortedWith(by)
         } else {
             val folderEntries = folders.mapNotNull { f ->
                 val apps = f.apps.mapNotNull(member).filter { it.key !in hidden }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.label })
                 if (apps.isEmpty()) null else AppEntry.Folder(f, apps)
             }
             val grouped = folderEntries.flatMap { f -> f.apps.map { it.key } }.toSet()
-            (folderEntries + kept.filter { it.key !in grouped }.map { AppEntry.App(it) } + shortcuts).sortedWith(AppsView.comparator())
+            (folderEntries + kept.filter { it.key !in grouped }.map { AppEntry.App(it) } + shortcuts).sortedWith(by)
         }
     }
     val grid = rememberLazyGridState()
-    LaunchedEffect(q, filter, sort) { grid.scrollToItem(0) }
+    // The column count the grid was last measured with; the visible tiles undercount it when only a short last row is on screen.
+    val gridColumns = remember { intArrayOf(1) }
     val widgetsShown = q.isEmpty() && filter == AppsView.ALL && HomeWidgets.widgets.isNotEmpty()
     val leadItems = if (widgetsShown) 1 else 0
+    var arranging by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(q, filter, sort) { if (!arranging) grid.scrollToItem(0) }
+    val entriesNow = androidx.compose.runtime.rememberUpdatedState(entries)
+    val scope = rememberCoroutineScope()
+    val moveTo: (String?, Int) -> Unit = moveTo@{ key, to ->
+        val keys = entriesNow.value.map { it.key }
+        val from = keys.indexOf(key)
+        val at = to.coerceIn(0, keys.lastIndex)
+        if (from < 0 || at == from) return@moveTo
+        // The grid follows its first visible item by key; when the move changes which item that is, hold the scroll where it was.
+        val first = grid.firstVisibleItemIndex - leadItems
+        val firstOffset = grid.firstVisibleItemScrollOffset
+        AppsView.setOrder(ctx, keys.toMutableList().apply { add(at, removeAt(from)) })
+        if (first in minOf(from, at)..maxOf(from, at)) scope.launch { grid.scrollToItem(first + leadItems, firstOffset) }
+    }
+    // Dragging by touch: the tile the finger came down on, how far the finger has gone, and where the tile sat when it was picked up.
+    val armed = remember { arrayOfNulls<String>(1) }
+    var dragKey by remember { mutableStateOf<String?>(null) }
+    var dragBy by remember { mutableStateOf(Offset.Zero) }
+    var dragFrom by remember { mutableStateOf(IntOffset.Zero) }
+    val dragCenter: () -> Offset? = {
+        grid.layoutInfo.visibleItemsInfo.firstOrNull { it.key == dragKey }?.let { Offset(dragFrom.x + dragBy.x + it.size.width / 2f, dragFrom.y + dragBy.y + it.size.height / 2f) }
+    }
+    val dragOver = {
+        val c = dragCenter()
+        // The tile nearest the held one's center takes it, so its slot stays under the finger even between columns.
+        val over = if (c == null) null else grid.layoutInfo.visibleItemsInfo.filter { it.index >= leadItems }.minByOrNull {
+            val dx = it.offset.x + it.size.width / 2f - c.x
+            val dy = it.offset.y + it.size.height / 2f - c.y
+            dx * dx + dy * dy
+        }
+        val to = if (over == null || over.key == dragKey) -1 else entriesNow.value.indexOfFirst { it.key == over.key }
+        if (to >= 0) moveTo(dragKey, to)
+    }
+    val appMove = AppMove(
+        arranging, moving, allowed = q.isEmpty() && filter == AppsView.ALL,
+        start = { key ->
+            // Arranging starts from the order on screen, whatever sort made it.
+            if (AppsView.sort != AppsView.CUSTOM) {
+                AppsView.setOrder(ctx, entriesNow.value.map { it.key })
+                AppsView.setSort(ctx, AppsView.CUSTOM)
+            }
+            arranging = true
+            moving = key
+        },
+        tap = { key ->
+            if (moving == null) moving = key
+            else {
+                if (key != moving) moveTo(moving, entriesNow.value.indexOfFirst { it.key == key })
+                moving = null
+            }
+        },
+        arm = { armed[0] = it },
+    )
+    // Moving only makes sense in the full Custom list: a search, a filter or another sort ends it.
+    if (arranging && (!appMove.allowed || sort != AppsView.CUSTOM)) { arranging = false; moving = null }
+    if (moving != null && entries.none { it.key == moving }) { moving = null; dragKey = null }
+    if (!arranging && dragKey != null) dragKey = null
+    // B or Back first puts down a tile being carried, so another can be picked; with none carried it ends arranging.
+    // A tile held by a finger is let go as well, so the drag cannot keep moving it after it was put down.
+    val stepBack = { if (moving != null) { moving = null; dragKey = null } else arranging = false }
+    BackHandler(arranging) { stepBack() }
+    // Putting a tile down or leaving arranging rebuilds the tiles, which drops focus: give it back to the tile that had it.
+    val tileFocus = LocalFrontFocus.current
+    val carried = remember { booleanArrayOf(false, false) }
+    // A tile picked up by touch or from its menu does not take focus, so the D-pad started from wherever focus was and never
+    // reached the move. Hand focus to the carried tile, for long enough to outlast the closing menu. In touch mode focus cannot
+    // move until the first D-pad press, which gives it to the side rail; carrying a tile has no use for the rail, so it goes on
+    // to the tile.
+    LaunchedEffect(moving) {
+        val key = moving ?: return@LaunchedEffect
+        val f = tileFocus ?: return@LaunchedEffect
+        val id = entriesNow.value.firstOrNull { it.key == key }?.let(::tileId) ?: return@LaunchedEffect
+        // Focus that wakes up from touch goes back to the remembered tile, which a touch pick-up never set.
+        f.last = id
+        repeat(20) {
+            androidx.compose.runtime.withFrameNanos { }
+            runCatching { f.items[id]?.requestFocus() }
+        }
+        androidx.compose.runtime.snapshotFlow { f.focusedRail }.collect { rail ->
+            if (rail == null) return@collect
+            // A tile scrolled out of the grid has no place to take focus: bring it back first.
+            if ((f.attached[id] ?: 0) == 0) {
+                val at = entriesNow.value.indexOfFirst { it.key == key }
+                if (at >= 0) grid.scrollToItem(at + leadItems)
+            }
+            focusSoon { f.items.getValue(id) }
+        }
+    }
+    LaunchedEffect(arranging, moving) {
+        val was = carried[0] || carried[1]
+        carried[0] = moving != null
+        carried[1] = arranging
+        val id = tileFocus?.last?.takeIf { it.startsWith("tile:") } ?: return@LaunchedEffect
+        if (was && (moving == null || !arranging)) focusSoon { tileFocus.items.getValue(id) }
+    }
+    // A quick sideways drag that does not pick up a tile must not turn the page while arranging.
+    if (arranging) SwipeLock()
+    LaunchedEffect(dragKey) {
+        if (dragKey == null) return@LaunchedEffect
+        // Near the top or bottom edge the list scrolls under the held tile.
+        val step = 9 * ctx.resources.displayMetrics.density
+        while (true) {
+            androidx.compose.runtime.withFrameNanos { }
+            val c = dragCenter() ?: continue
+            val info = grid.layoutInfo
+            val h = (info.viewportEndOffset - info.afterContentPadding).toFloat()
+            val moved = if (c.y < h * 0.12f) grid.scrollBy(-step) else if (c.y > h * 0.88f) grid.scrollBy(step) else 0f
+            if (moved != 0f) dragOver()
+        }
+    }
+    LaunchedEffect(moving, order) {
+        if (dragKey != null) return@LaunchedEffect
+        val at = entries.indexOfFirst { it.key == (moving ?: return@LaunchedEffect) }
+        if (at < 0) return@LaunchedEffect
+        androidx.compose.runtime.withFrameNanos { }
+        val info = grid.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.index == at + leadItems }
+        if (item == null) grid.scrollToItem(at + leadItems)
+        else {
+            val top = item.offset.y - info.viewportStartOffset
+            val over = item.offset.y + item.size.height - (info.viewportEndOffset - info.afterContentPadding)
+            if (top < 0) grid.animateScrollBy(top.toFloat() - 24f) else if (over > 0) grid.animateScrollBy(over.toFloat() + 24f)
+        }
+    }
     val byName = sort == AppsView.NAME_ASC || sort == AppsView.NAME_DESC
     val newFolder: (HomeApp.LaunchableApp) -> Unit = { app ->
         val f = HomeFolders.create(ctx, ctx.getString(R.string.apps_folder_default), app.key)
@@ -400,7 +568,8 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
             Box(Modifier.weight(1f).fillMaxWidth().onPreviewKeyEvent { event ->
                 val k = event.nativeKeyEvent
                 val down = k.keyCode == KeyEvent.KEYCODE_DPAD_DOWN
-                if ((!down && k.keyCode != KeyEvent.KEYCODE_DPAD_UP) || front == null) return@onPreviewKeyEvent false
+                // A tile being carried takes Up and Down itself, in the grid below.
+                if ((!down && k.keyCode != KeyEvent.KEYCODE_DPAD_UP) || front == null || moving != null) return@onPreviewKeyEvent false
                 val aimed = aim[0]?.let { id -> entries.indexOfFirst { tileId(it) == id } } ?: -1
                 if (aim[0] != null && aimed < 0) {
                     // The tile a move was heading to has left the list: that move is dropped and the press aims from the focus.
@@ -408,7 +577,7 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                     aim[0] = null
                 }
                 val from = aimed.takeIf { it >= 0 } ?: entries.indexOfFirst { tileId(it) == front.last }
-                val columns = (grid.layoutInfo.visibleItemsInfo.maxOfOrNull { it.column } ?: 0) + 1
+                val columns = gridColumns[0]
                 if (from < 0) return@onPreviewKeyEvent false
                 // At the first or last row the press leaves the grid, unless a move has not landed yet: then it waits for it.
                 val edge = if (down) from / columns == entries.lastIndex / columns else from < columns
@@ -438,12 +607,73 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
             }) {
                 val scroller = q.isEmpty() && byName && entries.size > 16
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive((if (narrow) 84 else 96).dp + AppsGrid.spacing.dp),
+                    columns = remember(narrow, AppsGrid.spacing) {
+                        CountedCells(GridCells.Adaptive((if (narrow) 84 else 96).dp + AppsGrid.spacing.dp)) { gridColumns[0] = it }
+                    },
                     state = grid,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(start = padH, end = if (scroller) padH + 22.dp else padH, top = 12.dp, bottom = 16.dp),
-                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = padH, end = if (scroller) padH + 22.dp else padH, top = 12.dp, bottom = if (arranging) 72.dp else 16.dp),
+                    modifier = Modifier.fillMaxSize().then(if (!arranging) Modifier else Modifier.onPreviewKeyEvent { event ->
+                        val k = event.nativeKeyEvent
+                        if (k.keyCode == KeyEvent.KEYCODE_BUTTON_B) {
+                            if (k.action == KeyEvent.ACTION_DOWN && k.repeatCount == 0) stepBack()
+                            return@onPreviewKeyEvent true
+                        }
+                        // With a tile picked up the D-pad carries it; otherwise it moves the cursor as usual.
+                        val from = entriesNow.value.indexOfFirst { it.key == moving }
+                        if (from < 0) return@onPreviewKeyEvent false
+                        val columns = gridColumns[0]
+                        val to = when (k.keyCode) {
+                            KeyEvent.KEYCODE_DPAD_LEFT -> from - 1
+                            KeyEvent.KEYCODE_DPAD_RIGHT -> from + 1
+                            KeyEvent.KEYCODE_DPAD_UP -> if (from - columns >= 0) from - columns else from
+                            KeyEvent.KEYCODE_DPAD_DOWN -> if (from + columns <= entriesNow.value.lastIndex) from + columns else from
+                            else -> return@onPreviewKeyEvent false
+                        }
+                        if (k.action == KeyEvent.ACTION_DOWN) {
+                            val id = tileId(entriesNow.value[from])
+                            moveTo(moving, to)
+                            // A tile picked up by touch never took focus, so the highlight stayed where it was: it goes with the tile.
+                            if (front != null && front.last != id) steer.launch { focusSoon { front.items.getValue(id) } }
+                        }
+                        true
+                    }.pointerInput(leadItems) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                            armed[0] = null
+                            var total = Offset.Zero
+                            var origin = Offset.Zero
+                            var decided = false
+                            while (true) {
+                                val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break
+                                total += change.positionChange()
+                                if (!decided && total.getDistance() > viewConfiguration.touchSlop) {
+                                    decided = true
+                                    // A finger that rests on a tile before moving carries it; a quick swipe scrolls the list.
+                                    val key = armed[0]
+                                    val item = grid.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key }
+                                    if (key != null && item != null && change.uptimeMillis - down.uptimeMillis >= 120) {
+                                        origin = total
+                                        dragFrom = item.offset
+                                        dragBy = Offset.Zero
+                                        moving = key
+                                        dragKey = key
+                                    }
+                                }
+                                if (dragKey != null) {
+                                    change.consume()
+                                    dragBy = total - origin
+                                    dragOver()
+                                }
+                            }
+                            if (dragKey != null) {
+                                dragKey = null
+                                moving = null
+                            }
+                        }
+                    }),
                 ) {
                     if (widgetsShown) item(key = "widgets", span = { GridItemSpan(maxLineSpan) }) {
                         BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -467,6 +697,14 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                         )
                     }
                     items(entries, key = { it.key }) { entry ->
+                        CompositionLocalProvider(LocalAppMove provides appMove) { Box(
+                            if (entry.key == dragKey) Modifier.zIndex(1f).graphicsLayer {
+                                val at = grid.layoutInfo.visibleItemsInfo.firstOrNull { it.key == entry.key }?.offset ?: return@graphicsLayer
+                                translationX = dragFrom.x + dragBy.x - at.x
+                                translationY = dragFrom.y + dragBy.y - at.y
+                            // Only while rearranging: the D-pad lays out tiles past the edge to find the next one, and those would glide in from the wrong place.
+                            } else if (arranging) Modifier.animateItemPlacement() else Modifier,
+                        ) {
                         when (entry) {
                             is AppEntry.App -> AppTile(
                                 entry.app, folderId = null, onLaunch = onLaunch, onNewFolder = newFolder, onChangeIcon = { iconFor = it },
@@ -478,7 +716,22 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
                                 openFolder = entry.folder.id
                             }
                         }
+                        } }
                     }
+                }
+                if (arranging) Row(
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 14.dp).clip(Shape12).background(colors.surfaceVariant).padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+                ) {
+                    // Weighted so Done keeps its width on a narrow pane or with large text, and the hint wraps instead.
+                    Text(
+                        stringResource(R.string.apps_move_hint), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = colors.onBackground,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Text(
+                        stringResource(R.string.apps_move_done), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = LocalPalette.current.signal,
+                        modifier = Modifier.clip(Shape12).clickable(role = Role.Button) { arranging = false; moving = null }.padding(horizontal = 12.dp, vertical = 8.dp),
+                    )
                 }
                 if (scroller) AlphabetScroller(entries, grid, leadItems, Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(end = 4.dp, top = 8.dp, bottom = 8.dp))
             }
@@ -514,6 +767,12 @@ internal fun AndroidAppsPage(s: FrontEndState, a: FrontEndActions, modifier: Mod
     }
 }
 
+/** [cells] as given, also reporting how many columns each measure lays out. */
+private class CountedCells(private val cells: GridCells, private val onCount: (Int) -> Unit) : GridCells {
+    override fun Density.calculateCrossAxisCellSizes(availableSize: Int, spacing: Int): List<Int> =
+        with(cells) { calculateCrossAxisCellSizes(availableSize, spacing) }.also { onCount(it.size) }
+}
+
 @Composable
 internal fun SwipeLock() {
     DisposableEffect(Unit) {
@@ -539,6 +798,7 @@ private fun appsSortLabel(sort: String): String = stringResource(
         AppsView.NAME_DESC -> R.string.apps_sort_name_desc
         AppsView.INSTALLED -> R.string.apps_sort_installed
         AppsView.UPDATED -> R.string.apps_sort_updated
+        AppsView.CUSTOM -> R.string.apps_sort_custom
         else -> R.string.apps_sort_name_asc
     },
 )
@@ -587,9 +847,12 @@ private fun HeaderChoiceButton(
     }
 }
 
-/** Scrolls the least that shows item [index] whole inside the padding, a row at a time while it is still outside the laid out items. */
+/**
+ * Scrolls the least that shows item [index] whole inside the padding, a row at a time while it is still outside the laid out items.
+ * It keeps going however many rows a burst of presses moved the target, and stops once the grid cannot scroll any further.
+ */
 private suspend fun LazyGridState.reveal(index: Int) {
-    repeat(4) {
+    while (true) {
         val info = layoutInfo
         val shown = info.visibleItemsInfo
         val item = shown.firstOrNull { it.index == index }
@@ -603,7 +866,7 @@ private suspend fun LazyGridState.reveal(index: Int) {
             else -> return
         }
         if (by == 0) return
-        scrollBy(by.toFloat())
+        if (scrollBy(by.toFloat()) == 0f) return
     }
 }
 
@@ -680,19 +943,32 @@ private fun AlphabetScroller(entries: List<AppEntry>, grid: LazyGridState, leadI
 @Composable
 private fun TileFrame(
     id: String, first: Boolean, onClick: () -> Unit, onMenu: () -> Unit,
+    moveKey: String? = null,
     content: @Composable (hot: Boolean) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val pal = LocalPalette.current
     val src = remember { MutableInteractionSource() }
-    val hot = rememberHot(src)
+    val move = LocalAppMove.current?.takeIf { moveKey != null && it.arranging }
+    val lifted = move != null && move.moving == moveKey
+    val hot = rememberHot(src) || lifted
     val pressed by src.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.95f else if (hot) 1.04f else 1f, Motion.sp(0.55f, Spring.StiffnessMedium), label = "appScale")
+    // In move mode, choosing a tile picks it up or puts the held one down there.
+    val onClick = if (move != null) ({ move.tap(moveKey!!) }) else onClick
+    val onMenu = if (move != null) ({}) else onMenu
+    val wiggle = if (move != null && !lifted) {
+        val turn by rememberInfiniteTransition(label = "appWiggle").animateFloat(
+            -1.2f, 1.2f, infiniteRepeatable(tween(140 + (id.hashCode() and 31), easing = LinearEasing), RepeatMode.Reverse), label = "appWiggle",
+        )
+        turn
+    } else 0f
+    val scale by animateFloatAsState(if (pressed) 0.95f else if (lifted) 1.1f else if (hot) 1.04f else 1f, Motion.sp(0.55f, Spring.StiffnessMedium), label = "appScale")
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
             .paneItem("tile:$id").then(if (first) Modifier.firstTile().paneEntry() else Modifier)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .then(if (move != null) Modifier.pointerInput(moveKey) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false); move.arm(moveKey!!) } } else Modifier)
+            .graphicsLayer { scaleX = scale; scaleY = scale; rotationZ = wiggle }
             .clip(Shape12)
             .background(if (hot) colors.surface else colors.surface.copy(alpha = 0.55f))
             .glideBorder(hot, Shape12, pal.signal, hotWidth = 2.5.dp)
@@ -725,8 +1001,9 @@ private fun AppTile(
     onChangeIcon: (HomeApp.LaunchableApp) -> Unit, modifier: Modifier = Modifier,
 ) {
     var menu by remember { mutableStateOf(false) }
+    if (menu && LocalAppMove.current?.arranging == true) menu = false
     Box(modifier) {
-        TileFrame(app.key, first, onClick = { onLaunch(app) }, onMenu = { menu = true }) {
+        TileFrame(app.key, first, onClick = { onLaunch(app) }, onMenu = { menu = true }, moveKey = if (folderId == null) "app:" + app.key else null) {
             AppIcon(app, AppsGrid.iconDp.dp)
             if (AppsGrid.labels) TileLabel(app.label)
         }
@@ -752,6 +1029,7 @@ private fun AppMenu(
         }
     }
     val isHidden = app.key in HomeHidden.keys
+    val move = LocalAppMove.current
     AnchoredMenu(open, onDismiss = onDismiss, title = app.label, compact = true, minWidth = 200.dp) { first ->
         if (choosing) {
             val others = HomeFolders.folders.filter { it.id != folderId }
@@ -781,6 +1059,10 @@ private fun AppMenu(
             }
             if (shortcuts.isNotEmpty()) Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(1.dp).background(LocalPalette.current.line))
             if (!isHidden) MenuItem(stringResource(R.string.apps_add_to_folder), checked = false, focusRequester = if (shortcuts.isEmpty()) first else null) { choosing = true }
+            if (folderId == null && move?.allowed == true) MenuItem(stringResource(R.string.apps_move), checked = false) {
+                onDismiss()
+                move.start("app:" + app.key)
+            }
             if (folderId != null) MenuItem(stringResource(R.string.apps_remove_from_folder), checked = false) {
                 HomeFolders.remove(ctx, app.key)
                 onDismiss()
@@ -821,7 +1103,9 @@ private fun PinnedTile(pinned: HomePins.Pinned, first: Boolean) {
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     Box {
-        TileFrame(pinned.key, first, onClick = { runCatching { HomeApp.startShortcut(ctx, pinned.info) } }, onMenu = { menu = true }) {
+        val move = LocalAppMove.current
+        if (menu && move?.arranging == true) menu = false
+        TileFrame(pinned.key, first, onClick = { runCatching { HomeApp.startShortcut(ctx, pinned.info) } }, onMenu = { menu = true }, moveKey = pinned.key) {
             Box {
                 val icon = pinned.icon
                 if (icon != null) Image(icon.asImageBitmap(), null, contentScale = ContentScale.Fit, modifier = Modifier.size(AppsGrid.iconDp.dp))
@@ -833,6 +1117,10 @@ private fun PinnedTile(pinned: HomePins.Pinned, first: Boolean) {
             MenuItem(stringResource(R.string.apps_shortcut_remove), checked = false, detail = pinned.appLabel, focusRequester = firstItem) {
                 menu = false
                 HomePins.unpin(ctx, pinned)
+            }
+            if (move?.allowed == true) MenuItem(stringResource(R.string.apps_move), checked = false) {
+                menu = false
+                move.start(pinned.key)
             }
         }
     }
@@ -861,7 +1149,9 @@ private fun FolderTile(entry: AppEntry.Folder, first: Boolean, onOpen: () -> Uni
     val ctx = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     Box {
-        TileFrame(entry.key, first, onClick = onOpen, onMenu = { menu = true }) {
+        val move = LocalAppMove.current
+        if (menu && move?.arranging == true) menu = false
+        TileFrame(entry.key, first, onClick = onOpen, onMenu = { menu = true }, moveKey = entry.key) {
             FolderIcon(entry.apps, AppsGrid.iconDp.dp)
             if (AppsGrid.labels) TileLabel(entry.folder.name)
         }
@@ -869,6 +1159,10 @@ private fun FolderTile(entry: AppEntry.Folder, first: Boolean, onOpen: () -> Uni
             MenuItem(stringResource(R.string.apps_folder_rename), checked = false, focusRequester = firstItem) {
                 menu = false
                 onRename()
+            }
+            if (move?.allowed == true) MenuItem(stringResource(R.string.apps_move), checked = false) {
+                menu = false
+                move.start(entry.key)
             }
             MenuItem(stringResource(R.string.apps_folder_ungroup), checked = false) {
                 menu = false
