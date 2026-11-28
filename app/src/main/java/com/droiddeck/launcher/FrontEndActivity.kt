@@ -2115,6 +2115,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         if (hasFocus) {
             com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
             applyLauncherFullscreen()
+            com.droiddeck.launcher.stores.epic.EpicCodeLogin.resumed(this)
         }
     }
 

@@ -1634,6 +1634,8 @@
     <string name="upd_stage_downloading">Downloaden</string>
     <string name="upd_stage_installing">Installeren</string>
     <string name="upd_stage_confirm">Wachten op je bevestiging</string>
+    <string name="epic_copy_code">Houd de letters en cijfers na authorizationCode ingedrukt, kopieer ze en kom dan hier terug</string>
+    <string name="stores_login_in_browser">Browser</string>
     <string name="upd_failed">De update is mislukt</string>
     <string name="upd_not_offered">Android heeft niet aangeboden om de update te installeren</string>
     <string name="decky_install_failed">Installatie van Decky mislukt: %1$s</string>

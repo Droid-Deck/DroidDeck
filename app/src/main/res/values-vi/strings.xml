@@ -1622,6 +1622,8 @@
     <string name="upd_stage_downloading">Đang tải</string>
     <string name="upd_stage_installing">Đang cài</string>
     <string name="upd_stage_confirm">Đang chờ bạn xác nhận</string>
+    <string name="epic_copy_code">Nhấn giữ các chữ và số sau authorizationCode, sao chép rồi quay lại đây</string>
+    <string name="stores_login_in_browser">Trình duyệt</string>
     <string name="upd_failed">Cập nhật thất bại</string>
     <string name="upd_not_offered">Android không đề nghị cài bản cập nhật</string>
     <string name="decky_install_failed">Cài Decky thất bại: %1$s</string>

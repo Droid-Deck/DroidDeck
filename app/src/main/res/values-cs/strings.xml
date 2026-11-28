@@ -1660,6 +1660,8 @@
     <string name="upd_stage_downloading">Stahování</string>
     <string name="upd_stage_installing">Instalování</string>
     <string name="upd_stage_confirm">Čeká na vaše potvrzení</string>
+    <string name="epic_copy_code">Podržte písmena a čísla za authorizationCode, zkopírujte je a vraťte se sem</string>
+    <string name="stores_login_in_browser">Prohlížeč</string>
     <string name="upd_failed">Aktualizace se nezdařila</string>
     <string name="upd_not_offered">Android nenabídl instalaci aktualizace</string>
     <string name="decky_install_failed">Instalace Decky se nezdařila: %1$s</string>

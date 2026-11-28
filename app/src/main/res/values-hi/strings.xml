@@ -1634,6 +1634,8 @@
     <string name="upd_stage_downloading">डाउनलोड हो रहा है</string>
     <string name="upd_stage_installing">इंस्टॉल हो रहा है</string>
     <string name="upd_stage_confirm">आपकी पुष्टि का इंतज़ार हो रहा है</string>
+    <string name="epic_copy_code">authorizationCode के बाद के अक्षरों और अंकों को देर तक दबाएँ, कॉपी करें, फिर यहाँ लौटें</string>
+    <string name="stores_login_in_browser">ब्राउज़र</string>
     <string name="upd_failed">अपडेट विफल रहा</string>
     <string name="upd_not_offered">Android ने अपडेट इंस्टॉल करने का विकल्प नहीं दिया</string>
     <string name="decky_install_failed">Decky इंस्टॉल विफल रहा: %1$s</string>

@@ -1686,6 +1686,8 @@
     <string name="upd_stage_downloading">جارٍ التنزيل</string>
     <string name="upd_stage_installing">جارٍ التثبيت</string>
     <string name="upd_stage_confirm">في انتظار تأكيدك</string>
+    <string name="epic_copy_code">اضغط مطولًا على الحروف والأرقام بعد authorizationCode وانسخها، ثم عد إلى هنا</string>
+    <string name="stores_login_in_browser">المتصفح</string>
     <string name="upd_failed">فشل التحديث</string>
     <string name="upd_not_offered">لم يعرض Android تثبيت التحديث</string>
     <string name="decky_install_failed">فشل تثبيت Decky: %1$s</string>

@@ -1621,6 +1621,8 @@
     <string name="upd_stage_downloading">正在下載</string>
     <string name="upd_stage_installing">正在安裝</string>
     <string name="upd_stage_confirm">等待你確認</string>
+    <string name="epic_copy_code">長按 authorizationCode 後面的字母和數字並複製，然後返回這裡</string>
+    <string name="stores_login_in_browser">瀏覽器</string>
     <string name="upd_failed">更新失敗</string>
     <string name="upd_not_offered">Android 未提供安裝此更新的選項</string>
     <string name="decky_install_failed">Decky 安裝失敗：%1$s</string>

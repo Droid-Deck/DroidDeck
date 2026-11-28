@@ -1660,6 +1660,8 @@
     <string name="upd_stage_downloading">Завантаження</string>
     <string name="upd_stage_installing">Встановлення</string>
     <string name="upd_stage_confirm">Очікування вашого підтвердження</string>
+    <string name="epic_copy_code">Утримуйте літери й цифри після authorizationCode, скопіюйте їх і поверніться сюди</string>
+    <string name="stores_login_in_browser">Браузер</string>
     <string name="upd_failed">Не вдалося оновити</string>
     <string name="upd_not_offered">Android не запропонував встановити оновлення</string>
     <string name="decky_install_failed">Не вдалося встановити Decky: %1$s</string>
