@@ -778,8 +778,6 @@ static int dev_init_once(void) {
 
 static void suspend_client_images(void) {
     for (struct vkp_image *img = g_client_images; img; img = img->next) {
-        /* Recovery pixels must come from the CPU copy maintained by uploads.
-         * Mapped Vulkan memory is not reliable after VK_ERROR_DEVICE_LOST. */
         if (img->source_type == VKP_IMAGE_SOURCE_SHM && !img->recovery_pixels)
             img->source_type = VKP_IMAGE_SOURCE_NONE;
         if (img->map && g_vk.UnmapMemory && g_dev) g_vk.UnmapMemory(g_dev, img->mem);
@@ -1912,8 +1910,6 @@ void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride) {
                    (const uint8_t *)data + (size_t)y * stride, rowbytes);
     }
 
-    /* A lost device can leave the mapping accessible but its contents undefined.
-     * Still keep the new SHM pixels on the CPU, but never write through that map. */
     if (g_dev_state != 1 || !img->map) return;
     for (int y = 0; y < img->h; y++)
         memcpy((uint8_t *)img->map + img->offset + (size_t)y * img->row_pitch,
@@ -2200,10 +2196,6 @@ static int compose_hdr(VkCommandBuffer cmd, const struct vkp_draw *draws, int n,
 static void device_lost(const char *where) {
     if (g_dev_state == -2 || g_dev_state == -3) return;
 
-    /* Presentation can report device loss while earlier queue submissions are
-     * still in flight. Do not destroy module or swapchain resources until the
-     * device confirms completion. VK_ERROR_DEVICE_LOST is also a terminal
-     * completion outcome; other errors leave ownership uncertain. */
     if (g_dev_state == 1) {
         VkResult idle = g_vk.DeviceWaitIdle ? g_vk.DeviceWaitIdle(g_dev) : VK_ERROR_UNKNOWN;
         if (idle != VK_SUCCESS && idle != VK_ERROR_DEVICE_LOST) {
@@ -2214,8 +2206,6 @@ static void device_lost(const char *where) {
 
     g_dev_state = -2;
     g_base_black = 0;
-    /* Notify modules before invalidating swapchain resources so they stop using
-     * device-owned objects and release any device-loss-specific bookkeeping. */
     vkp_framegen_device_lost();
     vkp_gpu_busy_device_lost();
     droiddeck_log("error", "GPU device lost (VK_ERROR_DEVICE_LOST in %s): the compositor will try one in-process recovery",
